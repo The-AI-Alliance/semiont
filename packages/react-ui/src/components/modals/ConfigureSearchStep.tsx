@@ -8,6 +8,7 @@ export interface SearchConfig {
 }
 
 export interface ConfigureSearchStepProps {
+  isSearching?: boolean;
   onBack: () => void;
   onCancel: () => void;
   onSearch: (config: SearchConfig) => void;
@@ -17,11 +18,13 @@ export interface ConfigureSearchStepProps {
     semanticScoringHelp: string;
     cancel: string;
     back: string;
-    find: string;
+    search: string;
+    searching: string;
   };
 }
 
 export function ConfigureSearchStep({
+  isSearching = false,
   onBack,
   onCancel,
   onSearch,
@@ -76,6 +79,7 @@ export function ConfigureSearchStep({
           type="button"
           onClick={onCancel}
           className="semiont-button--secondary semiont-button--flex"
+          disabled={isSearching}
         >
           ✕ {t.cancel}
         </button>
@@ -83,14 +87,17 @@ export function ConfigureSearchStep({
           type="button"
           onClick={onBack}
           className="semiont-button--secondary semiont-button--flex"
+          disabled={isSearching}
         >
           ◀ {t.back}
         </button>
         <button
           type="submit"
           className="semiont-button--primary semiont-button--flex"
+          disabled={isSearching}
+          data-generating={isSearching ? 'true' : 'false'}
         >
-          🔍 {t.find}
+          {isSearching ? `✨ ${t.searching}` : `🔍 ${t.search}`}
         </button>
       </div>
     </form>

@@ -9,7 +9,7 @@
  * - Content Store (SHA-256 addressed, deduplicated) — via RepresentationStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
  *
- * The Gatherer and Binder are the only actors that read from these stores directly.
+ * The Gatherer and Matcher are the only actors that read from these stores directly.
  */
 
 import type { EventStore } from '@semiont/event-sourcing';

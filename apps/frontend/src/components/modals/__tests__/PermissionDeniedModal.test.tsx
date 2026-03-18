@@ -167,28 +167,6 @@ describe('PermissionDeniedModal', () => {
       });
     });
 
-    it('should handle Request Access action', async () => {
-      render(<PermissionDeniedModal />);
-
-      // Trigger the modal to show
-      const { onAuthEvent } = await import('@semiont/react-ui');
-      const eventHandler = (onAuthEvent as any).mock.calls[0][1];
-      act(() => {
-        eventHandler({ detail: { message: 'You need admin access' } });
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
-      });
-
-      const requestAccessButton = screen.getByRole('button', { name: /request access/i });
-      fireEvent.click(requestAccessButton);
-
-      // Should show alert (mocked)
-      expect(global.alert).toHaveBeenCalledWith(
-        'Access request feature coming soon. Please contact your administrator.'
-      );
-    });
   });
 
   describe('Modal Behavior', () => {

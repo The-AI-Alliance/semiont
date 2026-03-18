@@ -30,7 +30,7 @@ import { createArgParser, generateHelp } from './io/arg-parser.js';
 import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from './config-loader.js';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
-import { printError } from './io/cli-logger.js';
+import { printError, printInfo } from './io/cli-logger.js';
 import { getPreamble, getPreambleSeparator } from './io/cli-colors.js';
 import { extractCLIBehaviors, CLIBehaviors } from './service-cli-behaviors.js';
 import { ServiceFactory } from '../services/service-factory.js';
@@ -57,13 +57,24 @@ function printPreamble(options: any): void {
   if (options.quiet === true) {
     return;
   }
-  
+
   // Get version (embedded at build time)
   const version = getVersion();
-  
+
   // Print the preamble with colors
   console.log(getPreamble(version));
   console.log(getPreambleSeparator());
+}
+
+function printVerboseEnv(options: any): void {
+  if (!options.verbose) return;
+  const vars = ['SEMIONT_ROOT', 'SEMIONT_ENV', 'SEMIONT_REPO'] as const;
+  for (const v of vars) {
+    const val = process.env[v];
+    if (val !== undefined) {
+      printInfo(`${v}=${val}`);
+    }
+  }
 }
 
 /**
@@ -143,7 +154,8 @@ export async function executeCommand(
     
     // Print preamble for summary output (before any command output)
     printPreamble(options);
-    
+    printVerboseEnv(options);
+
     // Validate environment if required
     if (command.requiresEnvironment) {
       // Check for environment from --environment flag or SEMIONT_ENV variable

@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "جمع‌آوری زمینه",
+    "gatherTitle": "زمینه جمع‌آوری‌شده",
     "configureGenerationTitle": "پیکربندی تولید",
     "configureSearchTitle": "پیکربندی جستجو",
     "searchResultsTitle": "نتایج جستجو",
+    "annotationLabel": "حاشیه",
+    "sourceResourceLabel": "منبع مبدأ",
+    "motivationLabel": "انگیزه",
     "sourceContextLabel": "زمینه منبع",
     "entityTypesLabel": "انواع موجودیت",
     "graphContextLabel": "زمینه نمودار",
     "connectionsLabel": "اتصالات",
     "citedByLabel": "ارجاع شده توسط",
     "siblingTypesLabel": "انواع هم‌سطح",
+    "userHintLabel": "راهنمایی",
+    "userHintPlaceholder": "توضیح دهید این حاشیه به چه چیزی اشاره دارد...",
     "loadingContext": "در حال جمع‌آوری زمینه...",
     "failedContext": "جمع‌آوری زمینه ناموفق بود",
     "cancel": "انصراف",
@@ -363,6 +368,7 @@
     "maxResults": "حداکثر نتایج",
     "semanticScoring": "امتیازدهی معنایی",
     "semanticScoringHelp": "استفاده از هوش مصنوعی برای امتیازدهی نتایج بر اساس ارتباط معنایی",
-    "find": "یافتن"
+    "searching": "در حال جستجو...",
+    "search": "جستجو"
   }
 }

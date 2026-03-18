@@ -1,12 +1,12 @@
 /**
- * Binder Actor
+ * Matcher Actor
  *
  * Bridge between the event bus and the knowledge base for entity resolution.
  * Subscribes to bind search events and referenced-by queries, queries KB stores
  * (graph, views), and emits results back to the bus.
  *
  * From ARCHITECTURE.md:
- * "When an Analyst or Linker Agent emits a bind event, the Binder receives it
+ * "When an Analyst or Linker Agent emits a bind event, the Matcher receives it
  * from the bus, searches the KB stores for matching resources, and resolves
  * references — linking a mention to its referent."
  *
@@ -14,7 +14,7 @@
  * - bind:search-requested — search for binding candidates
  * - bind:referenced-by-requested — find annotations that reference a resource
  *
- * The Binder handles only the read side (searching for candidates).
+ * The Matcher handles only the read side (searching for candidates).
  * The write side (annotation.body.updated) stays in the route where
  * userId is available from auth context. That domain event still flows
  * through the bus via EventStore auto-publish.
@@ -30,7 +30,7 @@ import type { KnowledgeBase } from './knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-export class Binder {
+export class Matcher {
   private subscriptions: Subscription[] = [];
   private readonly logger: Logger;
 
@@ -44,9 +44,9 @@ export class Binder {
   }
 
   async initialize(): Promise<void> {
-    this.logger.info('Binder actor initialized');
+    this.logger.info('Matcher actor initialized');
 
-    const errorHandler = (err: unknown) => this.logger.error('Binder pipeline error', { error: err });
+    const errorHandler = (err: unknown) => this.logger.error('Matcher pipeline error', { error: err });
 
     const search$ = this.eventBus.get('bind:search-requested').pipe(
       concatMap((event) => from(this.handleSearch(event))),
@@ -439,6 +439,6 @@ No explanations.`;
       sub.unsubscribe();
     }
     this.subscriptions = [];
-    this.logger.info('Binder actor stopped');
+    this.logger.info('Matcher actor stopped');
   }
 }

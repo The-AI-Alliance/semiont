@@ -295,7 +295,7 @@ The helper:
 | `GET /resources/:resourceId/annotations/:annotationId` | `browse:annotation-requested` | Gatherer |
 | `GET /resources/:id/events` | `browse:events-requested` | Gatherer |
 | `GET /resources/:resourceId/annotations/:annotationId/history` | `browse:annotation-history-requested` | Gatherer |
-| `GET /resources/:id/referenced-by` | `bind:referenced-by-requested` | Binder |
+| `GET /resources/:id/referenced-by` | `bind:referenced-by-requested` | Matcher |
 | `GET /api/entity-types` | `mark:entity-types-requested` | Gatherer |
 | `GET /api/jobs/:id` | `job:status-requested` | Job subscription |
 | `GET /resources/:id/llm-context` | `gather:resource-requested` | Gatherer |

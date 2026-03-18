@@ -29,6 +29,7 @@ const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   skipDependencies: z.boolean().default(false),
   destroy: z.boolean().default(false),
   semiontRepo: z.string().optional(),
+  rotateSecret: z.boolean().default(false),
 });
 
 export type ProvisionOptions = z.output<typeof ProvisionOptionsSchema>;
@@ -104,6 +105,9 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
     }
     if (options.stack && options.all) {
       throw new Error('Cannot specify both --stack and --all');
+    }
+    if (options.rotateSecret && options.service && !['frontend', 'backend'].includes(options.service)) {
+      throw new Error('--rotate-secret only applies to frontend and backend services');
     }
   },
   
@@ -183,6 +187,11 @@ export const provisionCommand = new CommandBuilder()
       '--semiont-repo': {
         type: 'string',
         description: 'Path to semiont repository (for local development)',
+      },
+      '--rotate-secret': {
+        type: 'boolean',
+        description: 'Force generation of a new shared secret for frontend/backend (JWT_SECRET / NEXTAUTH_SECRET). Has no effect on other services. Warns if the peer service will be left out of sync.',
+        default: false,
       },
     },
     aliases: {

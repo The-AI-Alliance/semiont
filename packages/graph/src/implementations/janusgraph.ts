@@ -1,7 +1,6 @@
 // JanusGraph implementation with real Gremlin connection
 // This replaces the mock in-memory implementation
 
-import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
 import type { components, Logger } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
@@ -28,13 +27,10 @@ import { v4 as uuidv4 } from 'uuid';
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
-const traversal = gremlin.process.AnonymousTraversalSource.traversal;
-const DriverRemoteConnection = gremlin.driver.DriverRemoteConnection;
-
 export class JanusGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
-  private connection: gremlin.driver.DriverRemoteConnection | null = null;
-  private g: gremlin.process.GraphTraversalSource | null = null;
+  private connection: any | null = null;
+  private g: any | null = null;
   private logger?: Logger;
 
   // Tag Collections - cached in memory for performance
@@ -66,6 +62,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     this.logger?.info('Connecting to JanusGraph', { host, port });
+
+    const gremlin = await import('gremlin');
+    const DriverRemoteConnection = gremlin.driver.DriverRemoteConnection;
+    const traversal = gremlin.process.AnonymousTraversalSource.traversal;
 
     this.connection = new DriverRemoteConnection(
       `ws://${host}:${port}/gremlin`,
@@ -328,7 +328,8 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (filter.search) {
       // Note: This is a simple text search. In production, you'd use
       // JanusGraph's full-text search capabilities with Elasticsearch
-      traversalQuery = traversalQuery.has('name', gremlin.process.TextP.containing(filter.search));
+      const { process: gremlinProcess } = await import('gremlin');
+      traversalQuery = traversalQuery.has('name', gremlinProcess.TextP.containing(filter.search));
     }
 
     const docs = await traversalQuery.toList();
@@ -336,7 +337,7 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     // Apply entity type filtering after retrieval since JanusGraph stores as JSON
     if (filter.entityTypes && filter.entityTypes.length > 0) {
-      resources = resources.filter(doc =>
+      resources = resources.filter((doc: ResourceDescriptor) =>
         filter.entityTypes!.some((type: string) => doc.entityTypes?.includes(type))
       );
     }

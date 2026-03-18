@@ -14,7 +14,7 @@ graph TB
 
     BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>mark:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
     BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER["Gatherer"]
-    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| BINDER["Binder"]
+    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER["Matcher"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
@@ -36,15 +36,15 @@ graph TB
     GATHERER -->|read| CONTENT
     GATHERER -->|traverse| GRAPH
 
-    BINDER -->|query| VIEWS
-    BINDER -->|traverse| GRAPH
+    MATCHER -->|query| VIEWS
+    MATCHER -->|traverse| GRAPH
 
     CTM -->|query| VIEWS
     CTM -->|read| CONTENT
 
     STOWER -->|"yield:created,<br/>mark:created, ..."| BUS
     GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
-    BINDER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
+    MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -54,7 +54,7 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
-    class STOWER,GATHERER,BINDER,CTM worker
+    class STOWER,GATHERER,MATCHER,CTM worker
     class Routes,Workers,EBC caller
 ```
 
@@ -103,11 +103,11 @@ The read actor for the Knowledge Base. Handles all browse reads, context assembl
 | `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + optional inference summary | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
 
-### Binder (Search/Link Actor)
+### Matcher (Search/Link Actor)
 
-**Implementation**: [src/binder.ts](../src/binder.ts)
+**Implementation**: [src/matcher.ts](../src/matcher.ts)
 
-Searches KB stores to resolve entity references and discover relationships. When `bind:search-requested` includes a `context` field (a `GatheredContext`), the Binder runs context-driven search with multi-source candidate retrieval, composite structural scoring, and optional LLM-based semantic scoring.
+Searches KB stores to resolve entity references and discover relationships. When `bind:search-requested` includes a `context` field (a `GatheredContext`), the Matcher runs context-driven search with multi-source candidate retrieval, composite structural scoring, and optional LLM-based semantic scoring.
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
@@ -189,10 +189,10 @@ EventBus (callback, fire-and-forget)
 4. GraphDatabase
 5. **KnowledgeBase** (groups stores)
 6. GraphDBConsumer
-7. **Stower** (must start before Gatherer/Binder — it handles writes they depend on)
+7. **Stower** (must start before Gatherer/Matcher — it handles writes they depend on)
 8. Entity type bootstrap (emits via EventBus, Stower persists)
 9. **Gatherer** (browse reads, context assembly, entity type listing)
-10. **Binder** (search, referenced-by)
+10. **Matcher** (search, referenced-by)
 11. **CloneTokenManager** (clone token lifecycle)
 12. Job status subscription (inline `job:status-requested` handler)
 13. Workers (6 annotation/generation workers)

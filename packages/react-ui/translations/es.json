@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Recopilar Contexto",
+    "gatherTitle": "Contexto Recopilado",
     "configureGenerationTitle": "Configurar Generación",
-    "configureSearchTitle": "Configurar Búsqueda",
-    "searchResultsTitle": "Resultados de Búsqueda",
+    "configureSearchTitle": "Configurar búsqueda",
+    "searchResultsTitle": "Resultados de búsqueda",
+    "annotationLabel": "Anotación",
+    "sourceResourceLabel": "Recurso fuente",
+    "motivationLabel": "Motivación",
     "sourceContextLabel": "Contexto de Origen",
     "entityTypesLabel": "Tipos de Entidad",
     "graphContextLabel": "Contexto del Grafo",
     "connectionsLabel": "Conexiones",
     "citedByLabel": "Citado por",
     "siblingTypesLabel": "Tipos Hermanos",
+    "userHintLabel": "Pista",
+    "userHintPlaceholder": "Describa a qué se refiere esta anotación...",
     "loadingContext": "Recopilando contexto...",
     "failedContext": "Error al recopilar contexto",
     "cancel": "Cancelar",
@@ -363,6 +368,7 @@
     "maxResults": "Resultados Máximos",
     "semanticScoring": "Puntuación Semántica",
     "semanticScoringHelp": "Usar IA para puntuar resultados por relevancia semántica",
-    "find": "Buscar"
+    "searching": "Buscando...",
+    "search": "Buscar"
   }
 }

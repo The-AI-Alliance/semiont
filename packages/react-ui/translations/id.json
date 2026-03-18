@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Kumpulkan Konteks",
+    "gatherTitle": "Konteks Terkumpul",
     "configureGenerationTitle": "Konfigurasi Generasi",
-    "configureSearchTitle": "Konfigurasi Pencarian",
-    "searchResultsTitle": "Hasil Pencarian",
+    "configureSearchTitle": "Konfigurasi pencarian",
+    "searchResultsTitle": "Hasil pencarian",
+    "annotationLabel": "Anotasi",
+    "sourceResourceLabel": "Sumber daya asal",
+    "motivationLabel": "Motivasi",
     "sourceContextLabel": "Konteks Sumber",
     "entityTypesLabel": "Tipe Entitas",
     "graphContextLabel": "Konteks Grafik",
     "connectionsLabel": "Koneksi",
     "citedByLabel": "Dikutip Oleh",
     "siblingTypesLabel": "Tipe Saudara",
+    "userHintLabel": "Petunjuk",
+    "userHintPlaceholder": "Jelaskan apa yang dirujuk anotasi ini...",
     "loadingContext": "Mengumpulkan konteks...",
     "failedContext": "Gagal mengumpulkan konteks",
     "cancel": "Batal",
@@ -363,6 +368,7 @@
     "maxResults": "Hasil Maksimum",
     "semanticScoring": "Penilaian Semantik",
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil berdasarkan relevansi semantik",
-    "find": "Temukan"
+    "searching": "Mencari...",
+    "search": "Cari"
   }
 }

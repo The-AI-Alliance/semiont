@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "コンテキストの収集",
+    "gatherTitle": "収集済みコンテキスト",
     "configureGenerationTitle": "生成の設定",
     "configureSearchTitle": "検索の設定",
     "searchResultsTitle": "検索結果",
+    "annotationLabel": "アノテーション",
+    "sourceResourceLabel": "ソースリソース",
+    "motivationLabel": "動機",
     "sourceContextLabel": "ソースコンテキスト",
     "entityTypesLabel": "エンティティタイプ",
     "graphContextLabel": "グラフコンテキスト",
     "connectionsLabel": "接続",
     "citedByLabel": "引用元",
     "siblingTypesLabel": "兄弟タイプ",
+    "userHintLabel": "ヒント",
+    "userHintPlaceholder": "このアノテーションが何を指すか説明してください...",
     "loadingContext": "コンテキストを収集中...",
     "failedContext": "コンテキストの収集に失敗しました",
     "cancel": "キャンセル",
@@ -363,6 +368,7 @@
     "maxResults": "最大結果数",
     "semanticScoring": "意味的スコアリング",
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
-    "find": "検索"
+    "searching": "検索中...",
+    "search": "検索"
   }
 }

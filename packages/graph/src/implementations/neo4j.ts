@@ -1,7 +1,7 @@
 // Neo4j implementation of GraphDatabase interface
 // Uses Cypher query language
 
-import neo4j, { Driver, Session } from 'neo4j-driver';
+import type { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
 import type { components, Logger } from '@semiont/core';
 import type {
@@ -49,6 +49,7 @@ function motivationToLabel(motivation: string): string {
 
 export class Neo4jGraphDatabase implements GraphDatabase {
   private driver: Driver | null = null;
+  private neo4j!: typeof import('neo4j-driver');
   private connected: boolean = false;
   private logger?: Logger;
   private config: {
@@ -94,9 +95,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       this.logger?.info('Connecting to Neo4j', { uri });
 
-      this.driver = neo4j.driver(
+      this.neo4j = await import('neo4j-driver');
+      this.driver = this.neo4j.driver(
         uri,
-        neo4j.auth.basic(username, password),
+        this.neo4j.auth.basic(username, password),
         {
           maxConnectionPoolSize: 50,
           connectionAcquisitionTimeout: 60000,
@@ -319,8 +321,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const total = countResult.records[0]!.get('total').toNumber();
 
       // Get paginated results - ensure integers for Neo4j
-      params.skip = neo4j.int(filter.offset || 0);
-      params.limit = neo4j.int(filter.limit || 20);
+      params.skip = this.neo4j.int(filter.offset || 0);
+      params.limit = this.neo4j.int(filter.limit || 20);
 
       const result = await session.run(
         `MATCH (d:Resource) ${whereClause}
@@ -347,7 +349,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
          RETURN d
          ORDER BY d.updatedAt DESC
          LIMIT $limit`,
-        { query, limit: neo4j.int(limit) }
+        { query, limit: this.neo4j.int(limit) }
       );
 
       return result.records.map(record => this.parseResourceNode(record.get('d')));

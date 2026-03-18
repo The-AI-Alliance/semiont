@@ -52,11 +52,11 @@ export class ContainerPlatform extends Platform {
    */
   private detectContainerRuntime(): 'docker' | 'podman' {
     try {
-      execFileSync('docker', ['version'], { stdio: 'ignore' });
+      execFileSync('docker', ['--version'], { stdio: 'ignore' });
       return 'docker';
     } catch {
       try {
-        execFileSync('podman', ['version'], { stdio: 'ignore' });
+        execFileSync('podman', ['--version'], { stdio: 'ignore' });
         return 'podman';
       } catch {
         throw new Error('No container runtime (Docker or Podman) found');

@@ -1,7 +1,7 @@
 /**
- * Binder Actor Tests
+ * Matcher Actor Tests
  *
- * Tests the Binder's RxJS pipeline:
+ * Tests the Matcher's RxJS pipeline:
  * - Search request handling (bind:search-requested → bind:search-results/bind:search-failed)
  * - Referenced-by handling (bind:referenced-by-requested → bind:referenced-by-result/bind:referenced-by-failed)
  * - Error handling
@@ -13,7 +13,7 @@ import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
 import type { InferenceClient } from '@semiont/inference';
-import { Binder } from '../binder';
+import { Matcher } from '../matcher';
 
 const testAnnotation: GatheredContext['annotation'] = {
   id: 'test-ann',
@@ -84,9 +84,9 @@ function makeAnnotation(id: string, targetSource: string, bodySource: string, ex
   };
 }
 
-describe('Binder', () => {
+describe('Matcher', () => {
   let eventBus: EventBus;
-  let binder: Binder;
+  let matcher: Matcher;
   let mockSearchFn: ReturnType<typeof vi.fn>;
   let kb: KnowledgeBase;
 
@@ -95,12 +95,12 @@ describe('Binder', () => {
     eventBus = new EventBus();
     mockSearchFn = vi.fn();
     kb = createMockKb({ searchResources: mockSearchFn });
-    binder = new Binder(kb, eventBus, mockLogger);
-    await binder.initialize();
+    matcher = new Matcher(kb, eventBus, mockLogger);
+    await matcher.initialize();
   });
 
   afterEach(async () => {
-    await binder.stop();
+    await matcher.stop();
     eventBus.destroy();
   });
 
@@ -175,8 +175,8 @@ describe('Binder', () => {
     let mockGetResource: ReturnType<typeof vi.fn>;
 
     beforeEach(async () => {
-      // Stop the binder created in outer beforeEach (uses search-only KB)
-      await binder.stop();
+      // Stop the matcher created in outer beforeEach (uses search-only KB)
+      await matcher.stop();
       eventBus.destroy();
 
       vi.clearAllMocks();
@@ -187,8 +187,8 @@ describe('Binder', () => {
         getResourceReferencedBy: mockReferencedBy,
         getResource: mockGetResource,
       });
-      binder = new Binder(kb, eventBus, mockLogger);
-      await binder.initialize();
+      matcher = new Matcher(kb, eventBus, mockLogger);
+      await matcher.initialize();
     });
 
     it('should emit referenced-by-result with resource names and selectors', async () => {
@@ -366,7 +366,7 @@ describe('Binder', () => {
     const RES_C = { '@id': 'res-c', name: 'Gamma', dateCreated: '2026-02-01T00:00:00Z' };
 
     beforeEach(async () => {
-      await binder.stop();
+      await matcher.stop();
       eventBus.destroy();
 
       vi.clearAllMocks();
@@ -379,8 +379,8 @@ describe('Binder', () => {
         listResources: mockListResources,
         getResource: mockGetResource,
       });
-      binder = new Binder(kb, eventBus, mockLogger);
-      await binder.initialize();
+      matcher = new Matcher(kb, eventBus, mockLogger);
+      await matcher.initialize();
     });
 
     function makeContext(overrides: Partial<GatheredContext> = {}): GatheredContext {
@@ -563,8 +563,8 @@ describe('Binder', () => {
     });
 
     it('should blend inference semantic scores when inferenceClient provided', async () => {
-      // Stop binder without inference, create one with it
-      await binder.stop();
+      // Stop matcher without inference, create one with it
+      await matcher.stop();
       eventBus.destroy();
 
       vi.clearAllMocks();
@@ -582,8 +582,8 @@ describe('Binder', () => {
         generateText: vi.fn().mockResolvedValue('1. 0.9\n2. 0.2'),
         generateTextWithMetadata: vi.fn(),
       };
-      binder = new Binder(kb, eventBus, mockLogger, mockInference);
-      await binder.initialize();
+      matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
+      await matcher.initialize();
 
       const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
 
@@ -606,7 +606,7 @@ describe('Binder', () => {
     });
 
     it('should gracefully degrade when inference fails', async () => {
-      await binder.stop();
+      await matcher.stop();
       eventBus.destroy();
 
       vi.clearAllMocks();
@@ -624,8 +624,8 @@ describe('Binder', () => {
         generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
         generateTextWithMetadata: vi.fn(),
       };
-      binder = new Binder(kb, eventBus, mockLogger, mockInference);
-      await binder.initialize();
+      matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
+      await matcher.initialize();
 
       const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
 
@@ -644,7 +644,7 @@ describe('Binder', () => {
     });
 
     it('should not call inference when no inferenceClient provided', async () => {
-      // Use the default binder (no inference client)
+      // Use the default matcher (no inference client)
       mockSearchFn2.mockResolvedValue([RES_A]);
 
       const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
@@ -680,7 +680,7 @@ describe('Binder', () => {
       let mockInference: { generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn> };
 
       beforeEach(async () => {
-        await binder.stop();
+        await matcher.stop();
         eventBus.destroy();
 
         vi.clearAllMocks();
@@ -698,8 +698,8 @@ describe('Binder', () => {
           generateText: vi.fn(),
           generateTextWithMetadata: vi.fn(),
         };
-        binder = new Binder(kb, eventBus, mockLogger, mockInference as InferenceClient);
-        await binder.initialize();
+        matcher = new Matcher(kb, eventBus, mockLogger, mockInference as InferenceClient);
+        await matcher.initialize();
       });
 
       it('should drop scores outside 0-1 range', async () => {
@@ -856,12 +856,12 @@ describe('Binder', () => {
 
   describe('lifecycle', () => {
     it('should stop cleanly', async () => {
-      await binder.stop();
-      expect(mockLogger.info).toHaveBeenCalledWith('Binder actor stopped');
+      await matcher.stop();
+      expect(mockLogger.info).toHaveBeenCalledWith('Matcher actor stopped');
     });
 
     it('should not process events after stop', async () => {
-      await binder.stop();
+      await matcher.stop();
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-4',

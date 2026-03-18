@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Indsaml kontekst",
+    "gatherTitle": "Indsamlet kontekst",
     "configureGenerationTitle": "Konfigurer generering",
     "configureSearchTitle": "Konfigurer søgning",
     "searchResultsTitle": "Søgeresultater",
+    "annotationLabel": "Annotation",
+    "sourceResourceLabel": "Kilderessource",
+    "motivationLabel": "Motivation",
     "sourceContextLabel": "Kildekontekst",
     "entityTypesLabel": "Enhedstyper",
     "graphContextLabel": "Grafkontekst",
     "connectionsLabel": "Forbindelser",
     "citedByLabel": "Citeret af",
     "siblingTypesLabel": "Søskendetyper",
+    "userHintLabel": "Hint",
+    "userHintPlaceholder": "Beskriv hvad denne annotation refererer til...",
     "loadingContext": "Indsamler kontekst...",
     "failedContext": "Kunne ikke indsamle kontekst",
     "cancel": "Annuller",
@@ -363,6 +368,7 @@
     "maxResults": "Maks. resultater",
     "semanticScoring": "Semantisk scoring",
     "semanticScoringHelp": "Brug AI til at score resultater efter semantisk relevans",
-    "find": "Find"
+    "searching": "Søger...",
+    "search": "Søg"
   }
 }
