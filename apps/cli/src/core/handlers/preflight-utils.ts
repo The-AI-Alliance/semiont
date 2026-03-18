@@ -12,12 +12,35 @@ export function checkContainerRuntime(runtime: string): PreflightCheck {
   }
 }
 
+/**
+ * Try to find the PID(s) holding a port using lsof (macOS/Linux) or fuser (Linux).
+ * Returns a human-readable string like "PID 1234" or null if unable to determine.
+ */
+function findPortOwner(port: number): string | null {
+  const { execFileSync } = require('child_process');
+  try {
+    if (process.platform === 'darwin' || process.platform === 'linux') {
+      const out = execFileSync('lsof', ['-ti', `:${port}`], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }) as string;
+      const pids = out.trim().split('\n').filter(Boolean);
+      if (pids.length > 0) return `PID ${pids.join(', ')}`;
+    }
+  } catch { /* lsof not available or no match */ }
+  try {
+    const out = execFileSync('fuser', [`${port}/tcp`], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }) as string;
+    const pids = out.trim().split(/\s+/).filter(Boolean);
+    if (pids.length > 0) return `PID ${pids.join(', ')}`;
+  } catch { /* fuser not available or no match */ }
+  return null;
+}
+
 export async function checkPortFree(port: number): Promise<PreflightCheck> {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        resolve({ name: `port-${port}`, pass: false, message: `Port ${port} is in use` });
+        const owner = findPortOwner(port);
+        const hint = owner ? ` (${owner})` : '';
+        resolve({ name: `port-${port}`, pass: false, message: `Port ${port} is in use${hint}` });
       } else {
         resolve({ name: `port-${port}`, pass: false, message: `Cannot check port ${port}: ${err.message}` });
       }
