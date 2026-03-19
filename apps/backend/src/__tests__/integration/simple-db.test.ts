@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 import { execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,8 +25,7 @@ describe('Simple Database Integration Test', () => {
     connectionString = container.getConnectionUri();
     console.log(`📡 Container started: ${connectionString}`);
     
-    const pool = new Pool({ connectionString });
-    const adapter = new PrismaPg(pool);
+    const adapter = new PrismaPg({ connectionString });
     prisma = new PrismaClient({
       adapter,
       log: ['error'],

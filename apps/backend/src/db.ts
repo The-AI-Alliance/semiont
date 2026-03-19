@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 import type { Logger } from '@semiont/core';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient | undefined };
@@ -44,8 +43,7 @@ export class DatabaseConnection {
       // Use 'emit' type to trigger $on() handlers without stdout logging
       const logConfig = logLevels.map(level => ({ emit: 'event' as const, level }));
 
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-      const adapter = new PrismaPg(pool);
+      const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 
       this.instance = new PrismaClient({
         adapter,

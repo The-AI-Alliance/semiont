@@ -32,7 +32,6 @@
     "@hono/swagger-ui": "^0.6.1",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
-    "pg": "^8.16.3",
     "@semiont/core": "^0.3.4",
     "@semiont/event-sourcing": "^0.3.4",
     "@semiont/jobs": "^0.3.4",
