@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { FrontendServiceConfig } from '@semiont/core';
+import { getNodeEnvForEnvironment } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
@@ -22,7 +23,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, envLocalFile: envFile, pidFile, logsDir } = paths;
+  const { sourceDir: frontendSourceDir, runtimeDir, pidFile, logsDir } = paths;
 
   if (service.verbose) {
     printInfo(`Source: ${frontendSourceDir}`);
@@ -37,8 +38,8 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     };
   }
   
-  // Check if frontend is provisioned (by checking for .env.local)
-  if (!fs.existsSync(envFile)) {
+  // Check if frontend is provisioned (runtimeDir created by provision)
+  if (!fs.existsSync(runtimeDir)) {
     return {
       success: false,
       error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment}`,
@@ -73,26 +74,28 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     };
   }
 
-  const envContent = fs.readFileSync(envFile, 'utf-8');
-  const envVars: Record<string, string> = {};
-  envContent.split('\n').forEach(line => {
-    if (!line.startsWith('#') && line.includes('=')) {
-      const [key, ...valueParts] = line.split('=');
-      envVars[key.trim()] = valueParts.join('=').trim();
-    }
-  });
-
-  if (!envVars.NODE_ENV) {
-    throw new Error('NODE_ENV not found in .env.local');
-  }
-
   const jwtSecret = readSecret('JWT_SECRET');
   if (!jwtSecret) throw new Error(`JWT_SECRET not found in ${getSecretsFilePath()} — run: semiont provision`);
 
-  const env = {
-    ...process.env,
-    ...envVars,
+  const envConfig = service.environmentConfig;
+  const backendService = envConfig.services['backend']!;
+  const backendUrl = `http://127.0.0.1:${backendService.port!}`;
+  const frontendService = envConfig.services['frontend']!;
+  const frontendUrl = frontendService.publicURL!;
+  const oauthAllowedDomains = envConfig.site?.oauthAllowedDomains || [];
+  const allowedOrigins: string[] = [...(frontendService.allowedOrigins || [])];
+  allowedOrigins.push(new URL(frontendUrl).host);
+
+  const env: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) as Record<string, string>,
+    NODE_ENV: getNodeEnvForEnvironment(envConfig),
     PORT: port.toString(),
+    NEXTAUTH_URL: frontendUrl,
+    SERVER_API_URL: backendUrl,
+    NEXT_PUBLIC_SITE_NAME: config.siteName,
+    NEXT_PUBLIC_BASE_URL: frontendUrl,
+    NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: oauthAllowedDomains.join(','),
+    NEXT_PUBLIC_ALLOWED_ORIGINS: allowedOrigins.join(','),
     LOG_DIR: logsDir,
     NEXTAUTH_SECRET: jwtSecret
   };

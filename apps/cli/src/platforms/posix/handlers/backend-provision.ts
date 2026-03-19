@@ -6,7 +6,6 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
-import { getNodeEnvForEnvironment } from '@semiont/core';
 import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
@@ -18,9 +17,6 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  */
 const provisionBackendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
-
-  // Type narrowing for backend service config
-  const config = service.config as BackendServiceConfig;
 
   const projectRoot = service.projectRoot;
 
@@ -48,7 +44,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   // Get backend paths (throws if source cannot be found)
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, runtimeDir, envFile, logsDir } = paths;
+  const { sourceDir: backendSourceDir, runtimeDir, logsDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
@@ -88,32 +84,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo(`  User: ${dbUser}`);
   }
   
-  // Check if .env already exists and backup if it does
-  if (fs.existsSync(envFile)) {
-    const backupPath = `${envFile}.backup.${Date.now()}`;
-    fs.copyFileSync(envFile, backupPath);
-    if (!service.quiet) {
-      printWarning(`.env already exists, backing up to: ${path.basename(backupPath)}`);
-      printInfo('Creating new .env with updated configuration...');
-    }
-  }
-  
-  // Get URLs from environment config
-  // All fields validated by preflight — safe to use ! assertions
-  const frontendUrl = service.environmentConfig.services!.frontend!.publicURL!;
-  const backendUrl = config.publicURL!;
-  const port = config.port!;
-  const siteDomain = service.environmentConfig.site!.domain!;
-  const oauthAllowedDomains = service.environmentConfig.site!.oauthAllowedDomains!;
-  const allowedDomains = oauthAllowedDomains.join(',');
-
-  // Get NODE_ENV from environment config
-  const nodeEnv = getNodeEnvForEnvironment(service.environmentConfig);
-
-  // Get enableLocalAuth from app config, default to true for development
-  const enableLocalAuth = service.environmentConfig.app?.security?.enableLocalAuth ??
-    (nodeEnv === 'development');
-
   let jwtSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
   if (!jwtSecret) {
     jwtSecret = service.environmentConfig.app?.security?.jwtSecret ?? crypto.randomBytes(32).toString('base64');
@@ -123,47 +93,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo('Using existing JWT_SECRET from secrets file');
   }
 
-  const envUpdates: Record<string, string> = {
-    'NODE_ENV': nodeEnv,
-    'PORT': port.toString(),
-    'HOST': '0.0.0.0',  // Bind to all interfaces for Codespaces compatibility
-    'DATABASE_URL': databaseUrl,
-    'LOG_DIR': logsDir,
-    'FRONTEND_URL': frontendUrl,
-    'BACKEND_URL': backendUrl,
-    'ENABLE_LOCAL_AUTH': enableLocalAuth.toString(),
-    'SITE_DOMAIN': siteDomain,
-    'OAUTH_ALLOWED_DOMAINS': allowedDomains
-  };
-  
-  // Create .env from the single source of truth
-  let envContent = '# Backend Environment Configuration\n';
-  for (const [key, value] of Object.entries(envUpdates)) {
-    envContent += `${key}=${value}\n`;
-  }
-  
-  fs.writeFileSync(envFile, envContent);
-  
-  if (!service.quiet) {
-    printSuccess('Created .env with configuration from environment file');
-  }
-  
   const prismaSchemaPath = path.join(backendSourceDir, 'prisma', 'schema.prisma');
-
-  // Clean up stale .env in sourceDir (SEMIONT_REPO mode only).
-  // The backend start handler passes env vars via spawn's env parameter,
-  // but dotenv or --env-file could pick up a leftover .env in sourceDir.
-  if (!paths.fromNpmPackage) {
-    const staleEnv = path.join(backendSourceDir, '.env');
-    if (fs.existsSync(staleEnv)) {
-      const backupPath = `${staleEnv}.backup.${Date.now()}`;
-      fs.renameSync(staleEnv, backupPath);
-      if (!service.quiet) {
-        printWarning(`Moved stale ${staleEnv} to ${path.basename(backupPath)}`);
-        printInfo(`Runtime .env is now at: ${envFile}`);
-      }
-    }
-  }
 
   if (paths.fromNpmPackage) {
     // npm package: pre-built, skip install/build but still generate Prisma client
@@ -325,21 +255,9 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
     
     try {
-      // Load env vars for migration
-      const envVars: Record<string, string> = {};
-      if (fs.existsSync(envFile)) {
-        const envContent = fs.readFileSync(envFile, 'utf-8');
-        envContent.split('\n').forEach(line => {
-          if (!line.startsWith('#') && line.includes('=')) {
-            const [key, ...valueParts] = line.split('=');
-            envVars[key.trim()] = valueParts.join('=').trim();
-          }
-        });
-      }
-      
       execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
         cwd: backendSourceDir,
-        env: { ...process.env, ...envVars },
+        env: { ...process.env, DATABASE_URL: databaseUrl },
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
       
@@ -361,7 +279,6 @@ This directory contains runtime files for the backend service.
 
 ## Structure
 
-- \`.env\` - Environment configuration
 - \`logs/\` - Application logs
 - \`backend.pid\` - Process ID when running
 
@@ -383,7 +300,6 @@ ${paths.fromNpmPackage ? `Installed npm package: ${backendSourceDir}` : `Semiont
     serviceType: 'backend',
     backendSourceDir,
     runtimeDir,
-    envFile,
     logsDir,
     configured: true
   };
@@ -394,12 +310,10 @@ ${paths.fromNpmPackage ? `Installed npm package: ${backendSourceDir}` : `Semiont
     printInfo('Backend details:');
     printInfo(`  Source directory: ${backendSourceDir}`);
     printInfo(`  Runtime directory: ${runtimeDir}`);
-    printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
     printInfo('Next steps:');
-    printInfo(`  1. Review and update ${envFile}`);
-    printInfo(`  2. Ensure database is running`);
+    printInfo(`  1. Ensure database is running`);
     printInfo(`  3. Start backend: semiont start --service backend --environment ${service.environment}`);
   }
 

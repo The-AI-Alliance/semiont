@@ -14,7 +14,6 @@ export interface BackendPaths {
   sourceDir: string;      // Base directory for backend source (read-only)
   runtimeDir: string;     // Base directory for runtime state (read-write)
   pidFile: string;        // Process ID file (in runtimeDir)
-  envFile: string;        // Environment configuration file (in runtimeDir)
   logsDir: string;        // Directory for log files (in runtimeDir)
   appLogFile: string;     // Application log file (in runtimeDir)
   errorLogFile: string;   // Error log file (in runtimeDir)
@@ -78,7 +77,6 @@ function buildPaths(sourceDir: string, runtimeDir: string, projectName: string, 
     sourceDir,
     runtimeDir,
     pidFile: path.join(getRuntimeDir(projectName), 'backend.pid'),
-    envFile: path.join(runtimeDir, '.env'),
     logsDir,
     appLogFile: path.join(logsDir, 'app.log'),
     errorLogFile: path.join(logsDir, 'error.log'),

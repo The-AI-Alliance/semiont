@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
+import { getNodeEnvForEnvironment } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
@@ -22,7 +23,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
   // Get backend paths
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, envFile, pidFile, logsDir } = paths;
+  const { sourceDir: backendSourceDir, runtimeDir, pidFile, logsDir } = paths;
 
   if (service.verbose) {
     printInfo(`Source: ${backendSourceDir}`);
@@ -37,8 +38,8 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     };
   }
   
-  // Check if backend is provisioned (by checking for .env)
-  if (!fs.existsSync(envFile)) {
+  // Check if backend is provisioned (runtimeDir created by provision)
+  if (!fs.existsSync(runtimeDir)) {
     return {
       success: false,
       error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment}`,
@@ -73,19 +74,6 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     };
   }
 
-  const envContent = fs.readFileSync(envFile, 'utf-8');
-  const envVars: Record<string, string> = {};
-  envContent.split('\n').forEach(line => {
-    if (!line.startsWith('#') && line.includes('=')) {
-      const [key, ...valueParts] = line.split('=');
-      envVars[key.trim()] = valueParts.join('=').trim();
-    }
-  });
-
-  if (!envVars.NODE_ENV) {
-    throw new Error('NODE_ENV not found in .env');
-  }
-
   const processEnvStrings: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined) {
@@ -96,11 +84,33 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const jwtSecret = readSecret('JWT_SECRET');
   if (!jwtSecret) throw new Error(`JWT_SECRET not found in ${getSecretsFilePath()} — run: semiont provision`);
 
+  const envConfig = service.environmentConfig;
+  const dbConfig = envConfig.services!.database!;
+  const dbUser = dbConfig.environment!.POSTGRES_USER!;
+  const dbPassword = dbConfig.environment!.POSTGRES_PASSWORD!;
+  const dbName = dbConfig.environment!.POSTGRES_DB!;
+  const dbPort = dbConfig.port!;
+  const dbHost = dbConfig.host || 'localhost';
+  const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
+  const nodeEnv = getNodeEnvForEnvironment(envConfig);
+  const enableLocalAuth = envConfig.app?.security?.enableLocalAuth ?? (nodeEnv === 'development');
+  const frontendUrl = envConfig.services!.frontend!.publicURL!;
+  const backendUrl = config.publicURL!;
+  const siteDomain = envConfig.site!.domain!;
+  const allowedDomains = envConfig.site!.oauthAllowedDomains!.join(',');
+
   const env: Record<string, string> = {
     ...processEnvStrings,
-    ...envVars,
+    NODE_ENV: nodeEnv,
     PORT: port.toString(),
+    HOST: '0.0.0.0',
+    DATABASE_URL: databaseUrl,
     LOG_DIR: logsDir,
+    FRONTEND_URL: frontendUrl,
+    BACKEND_URL: backendUrl,
+    ENABLE_LOCAL_AUTH: enableLocalAuth.toString(),
+    SITE_DOMAIN: siteDomain,
+    OAUTH_ALLOWED_DOMAINS: allowedDomains,
     JWT_SECRET: jwtSecret
   };
   
