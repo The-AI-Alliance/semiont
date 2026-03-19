@@ -18,10 +18,10 @@ export async function readEntityTypesProjection(config: MakeMeaningConfig): Prom
   if (!projectRoot) {
     throw new Error('config._metadata.projectRoot is required for entity types reader');
   }
-  const projectionsPath = getStateDir(readProjectName(projectRoot));
+  const stateDir = getStateDir(readProjectName(projectRoot));
 
   const entityTypesPath = path.join(
-    projectionsPath,
+    stateDir,
     '__system__',
     'entitytypes.json'
   );

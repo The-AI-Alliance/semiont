@@ -111,8 +111,8 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
 
   // Bootstrap EventBus + Stower for restore
   const eventBus = new EventBus();
-  const projectionsPath = getStateDir(readProjectName(projectRoot));
-  const eventStore = createEventStore(basePath, projectionsPath, undefined, eventBus, logger);
+  const stateDir = getStateDir(readProjectName(projectRoot));
+  const eventStore = createEventStore(basePath, stateDir, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, basePath, projectRoot, createNoopGraphDatabase(), logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
