@@ -13,13 +13,15 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
-    "@semiont/api-client": "*"
+    "@semiont/api-client": "*",
+    "@vitest/ui": "4.0.18",
+    "prisma": "6.19.2"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.0.18"
   }
 }

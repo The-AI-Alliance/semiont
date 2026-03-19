@@ -70,12 +70,14 @@
     "@semiont/event-sourcing": "^0.3.5",
     "@semiont/graph": "^0.3.5",
     "@semiont/make-meaning": "^0.3.5",
+    "@vitest/ui": "4.0.18",
     "arg": "^5.0.2",
     "argon2": "^0.43.0",
     "express": "^5.2.1",
     "ink": "^6.8.0",
     "js-yaml": "^4.1.0",
     "neo4j-driver": "^6.0.1",
+    "prisma": "6.19.2",
     "react": "^19.2.4",
     "socket.io": "^4.5.4",
     "zod": "^3.23.8"
@@ -85,10 +87,10 @@
     "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/react": "^19.2.14",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "chalk": "^5.3.0",
     "typescript": "^5.9.2",
-    "vitest": "^4.1.0"
+    "vitest": "^4.0.18"
   },
   "overrides": {
     "esbuild": "0.27.2"

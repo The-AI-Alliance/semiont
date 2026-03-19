@@ -49,15 +49,17 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/uuid": "^10.0.0",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsup": "^8.5.1",
     "typescript": "^5.6.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@semiont/api-client": "*",
     "@semiont/core": "*",
+    "@vitest/ui": "4.0.18",
     "nanoid": "^5.1.7",
+    "prisma": "6.19.2",
     "uuid": "^10.0.0"
   }
 }
