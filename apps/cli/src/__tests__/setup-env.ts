@@ -13,13 +13,16 @@ export const testRootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), 'semiont-cli-test-')
 );
 
-// Set environment for tests
-process.env.SEMIONT_ROOT = testRootDir;
+// Create .semiont/ anchor so findProjectRoot() can discover it via upward walk
+fs.mkdirSync(path.join(testRootDir, '.semiont'), { recursive: true });
+
 process.env.SEMIONT_ENV = 'test';
+process.chdir(testRootDir);
 
 // Clean up after all tests
 if (typeof afterAll !== 'undefined') {
   afterAll(() => {
+    process.chdir(path.join(testRootDir, '..'));
     if (testRootDir && testRootDir.startsWith(os.tmpdir())) {
       fs.rmSync(testRootDir, { recursive: true, force: true });
     }

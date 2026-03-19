@@ -5,7 +5,7 @@
  * instead of hardcoded validation, ensuring users can create custom environments.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -14,31 +14,25 @@ import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } f
 describe('Dynamic Environment Validation', () => {
   let testDir: string;
   let configDir: string;
-  
+  let originalCwd: string;
+
   beforeEach(() => {
+    originalCwd = process.cwd();
     // Create a temporary directory for test config files
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-test-'));
     // Use the correct path structure (environments/ not config/environments/)
     configDir = path.join(testDir, 'environments');
     fs.mkdirSync(configDir, { recursive: true });
-    
-    // Create a semiont.json file so findProjectRoot can find it
-    fs.writeFileSync(
-      path.join(testDir, 'semiont.json'),
-      JSON.stringify({ version: '1.0.0', project: 'test' }, null, 2)
-    );
-    
-    // Set process.cwd to our test directory so findProjectRoot works
-    vi.spyOn(process, 'cwd').mockReturnValue(testDir);
-    // Also set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
-    process.env.SEMIONT_ROOT = testDir;
+
+    // Create .semiont/ anchor so findProjectRoot() discovers it via upward walk
+    fs.mkdirSync(path.join(testDir, '.semiont'), { recursive: true });
+
+    process.chdir(testDir);
   });
-  
+
   afterEach(() => {
-    // Clean up test directory
+    process.chdir(originalCwd);
     fs.rmSync(testDir, { recursive: true, force: true });
-    delete process.env.SEMIONT_ROOT;
-    vi.restoreAllMocks();
   });
   
   describe('getAvailableEnvironments()', () => {
@@ -198,28 +192,23 @@ describe('Dynamic Environment Validation', () => {
 describe('Environment Discovery Integration', () => {
   let testDir: string;
   let configDir: string;
-  
+  let originalCwd: string;
+
   beforeEach(() => {
+    originalCwd = process.cwd();
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-test-'));
-    // Use the correct path structure (environments/ not config/environments/)
     configDir = path.join(testDir, 'environments');
     fs.mkdirSync(configDir, { recursive: true });
-    
-    // Create a semiont.json file so findProjectRoot can find it
-    fs.writeFileSync(
-      path.join(testDir, 'semiont.json'),
-      JSON.stringify({ version: '1.0.0', project: 'test' }, null, 2)
-    );
-    
-    vi.spyOn(process, 'cwd').mockReturnValue(testDir);
-    // Set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
-    process.env.SEMIONT_ROOT = testDir;
+
+    // Create .semiont/ anchor so findProjectRoot() discovers it via upward walk
+    fs.mkdirSync(path.join(testDir, '.semiont'), { recursive: true });
+
+    process.chdir(testDir);
   });
-  
+
   afterEach(() => {
+    process.chdir(originalCwd);
     fs.rmSync(testDir, { recursive: true, force: true });
-    delete process.env.SEMIONT_ROOT;
-    vi.restoreAllMocks();
   });
   
   it('should demonstrate filesystem authority over hardcoded lists', () => {

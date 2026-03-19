@@ -23,10 +23,11 @@ export class CLITestEnvironment {
    * Setup environment variables
    */
   static setupEnvironment(testDir?: string) {
-    if (testDir) {
-      process.env.SEMIONT_ROOT = testDir;
-    }
     process.env.SEMIONT_ENV = 'test';
+    if (testDir) {
+      fs.mkdirSync(path.join(testDir, '.semiont'), { recursive: true });
+      process.chdir(testDir);
+    }
   }
 
   /**
@@ -79,8 +80,9 @@ export class CLITestEnvironment {
   ): Promise<T> {
     const dir = this.createTestDir();
     const originalCwd = process.cwd();
-    
+
     try {
+      fs.mkdirSync(path.join(dir, '.semiont'), { recursive: true });
       process.chdir(dir);
       return await fn(dir);
     } finally {

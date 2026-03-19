@@ -109,7 +109,7 @@ export async function executeCommand(
       if (options.environment || process.env.SEMIONT_ENV) {
         try {
           const env = options.environment || process.env.SEMIONT_ENV;
-          const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+          const projectRoot = findProjectRoot();
           const envConfig = loadEnvironmentConfig(projectRoot, env);
           const availableEnvironments = getAvailableEnvironments();
 
@@ -190,7 +190,7 @@ export async function executeCommand(
         : 'all';
       // At this point, environment is guaranteed to be defined if requiresEnvironment is true
       const environment = options.environment!;
-      const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+      const projectRoot = findProjectRoot();
       const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
       await validateServiceSelector(service, commandName, envConfig);
@@ -203,7 +203,7 @@ export async function executeCommand(
     if (command.requiresServices) {
       // Service command - pass services, options, and config (config includes projectRoot in _metadata)
       const environment = options.environment!;
-      const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+      const projectRoot = findProjectRoot();
       const envConfig = loadEnvironmentConfig(projectRoot, environment);
       results = await command.handler(services, options, envConfig);
     } else {

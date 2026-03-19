@@ -136,15 +136,17 @@ async function init(
   };
   
   try {
-    // Check if semiont.json already exists
-    const configPath = path.join(projectDir, 'semiont.json');
-    if (fs.existsSync(configPath) && !options.force) {
-      throw new Error('semiont.json already exists. Use --force to overwrite.');
+    // Check if already initialized
+    const dotSemiontDir = path.join(projectDir, '.semiont');
+    if (fs.existsSync(dotSemiontDir) && !options.force) {
+      throw new Error('.semiont/ already exists. Use --force to overwrite.');
     }
     
     if (options.dryRun) {
       if (!options.quiet) {
         console.log(`${colors.cyan}[DRY RUN] Would create:${colors.reset}`);
+        console.log(`  - .semiont/`);
+        console.log(`  - .semiont/config`);
         console.log(`  - semiont.json`);
         console.log(`  - environments/`);
         environments.forEach(env => {
@@ -163,11 +165,22 @@ async function init(
         dryRun: true,
       };
     } else {
+      // Create .semiont/ anchor directory with minimal config
+      fs.mkdirSync(dotSemiontDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dotSemiontDir, 'config'),
+        `[project]\nname = "${projectName}"\n`
+      );
+
+      if (!options.quiet) {
+        console.log(`${colors.green}✅ Created .semiont/${colors.reset}`);
+      }
+
       // Copy semiont.json template
       copyTemplate('semiont.json', path.join(projectDir, 'semiont.json'), {
         'my-semiont-project': projectName
       });
-      
+
       if (!options.quiet) {
         console.log(`${colors.green}✅ Created semiont.json${colors.reset}`);
       }

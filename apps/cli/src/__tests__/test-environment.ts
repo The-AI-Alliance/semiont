@@ -156,9 +156,6 @@ export class CLITestEnvironment {
       // Mark as initialized
       project.initialized = true;
 
-      // Set SEMIONT_ROOT for deployment resolver
-      process.env.SEMIONT_ROOT = project.directory;
-
     } catch (error) {
       console.warn('Failed to initialize test project:', error);
     } finally {

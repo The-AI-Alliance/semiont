@@ -22,20 +22,14 @@ describe('Filesystem Authority for Environment Validation', () => {
     configDir = path.join(testDir, 'environments');
     fs.mkdirSync(configDir, { recursive: true });
     
-    // Create a semiont.json file so findProjectRoot can find it
-    fs.writeFileSync(
-      path.join(testDir, 'semiont.json'),
-      JSON.stringify({ version: '1.0.0', project: 'test' }, null, 2)
-    );
-    
+    // Create .semiont/ anchor so findProjectRoot() discovers it via upward walk
+    fs.mkdirSync(path.join(testDir, '.semiont'), { recursive: true });
+
     process.chdir(testDir);
-    // Set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
-    process.env.SEMIONT_ROOT = testDir;
   });
-  
+
   afterEach(() => {
     process.chdir(originalCwd);
-    delete process.env.SEMIONT_ROOT;
     fs.rmSync(testDir, { recursive: true, force: true });
   });
   
