@@ -1,5 +1,7 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { getRuntimeDir, getStateDir } from '../../../core/handlers/preflight-utils.js';
+import { readProjectName } from '../../../core/config-loader.js';
 
 /**
  * Proxy service paths on POSIX platform
@@ -18,14 +20,16 @@ export interface ProxyPaths {
  */
 export function getProxyPaths<T>(context: BaseHandlerContext<T>): ProxyPaths {
   const projectRoot = context.service.projectRoot;
+  const projectName = readProjectName(projectRoot);
   const runtimeDir = path.join(projectRoot, 'proxy');
+  const logsDir = path.join(getStateDir(projectName), 'proxy');
 
   return {
     runtimeDir,
-    pidFile: path.join(runtimeDir, 'proxy.pid'),
+    pidFile: path.join(getRuntimeDir(projectName), 'proxy.pid'),
     configFile: path.join(runtimeDir, 'envoy.yaml'),
-    logsDir: path.join(runtimeDir, 'logs'),
-    appLogFile: path.join(runtimeDir, 'logs', 'proxy.log'),
-    accessLogFile: path.join(runtimeDir, 'logs', 'access.log'),
+    logsDir,
+    appLogFile: path.join(logsDir, 'proxy.log'),
+    accessLogFile: path.join(logsDir, 'access.log'),
   };
 }

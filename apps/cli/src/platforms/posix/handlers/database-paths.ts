@@ -1,5 +1,7 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { getRuntimeDir, getStateDir } from '../../../core/handlers/preflight-utils.js';
+import { readProjectName } from '../../../core/config-loader.js';
 
 /**
  * Database service paths on POSIX platform
@@ -20,15 +22,17 @@ export interface DatabasePaths {
  */
 export function getDatabasePaths<T>(context: BaseHandlerContext<T>): DatabasePaths {
   const projectRoot = context.service.projectRoot;
+  const projectName = readProjectName(projectRoot);
   const runtimeDir = path.join(projectRoot, 'database');
   const dataDir = path.join(runtimeDir, 'data', context.service.name);
+  const logsDir = path.join(getStateDir(projectName), 'database');
 
   return {
     runtimeDir,
-    pidFile: path.join(runtimeDir, 'database.pid'),
-    logsDir: path.join(runtimeDir, 'logs'),
-    appLogFile: path.join(runtimeDir, 'logs', 'app.log'),
-    errorLogFile: path.join(runtimeDir, 'logs', 'error.log'),
+    pidFile: path.join(getRuntimeDir(projectName), 'database.pid'),
+    logsDir,
+    appLogFile: path.join(logsDir, 'app.log'),
+    errorLogFile: path.join(logsDir, 'error.log'),
     dataDir,
   };
 }

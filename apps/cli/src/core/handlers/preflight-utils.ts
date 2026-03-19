@@ -174,6 +174,20 @@ export function checkConfigNonEmptyArray(arr: unknown, fieldPath: string): Prefl
   return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} has ${arr.length} entries` };
 }
 
+export function getRuntimeDir(projectName: string): string {
+  const xdgRuntime = process.env.XDG_RUNTIME_DIR;
+  if (xdgRuntime) {
+    return path.join(xdgRuntime, 'semiont', projectName);
+  }
+  const tmpDir = process.env.TMPDIR || '/tmp';
+  return path.join(tmpDir, 'semiont', projectName);
+}
+
+export function getStateDir(projectName: string): string {
+  const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+  return path.join(xdgState, 'semiont', projectName);
+}
+
 export function getSecretsFilePath(): string {
   const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   return path.join(xdgConfig, 'semiont', 'secrets');

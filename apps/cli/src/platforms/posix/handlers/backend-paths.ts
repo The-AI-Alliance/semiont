@@ -1,6 +1,8 @@
 import * as path from 'path';
 import { createRequire } from 'module';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { getRuntimeDir, getStateDir } from '../../../core/handlers/preflight-utils.js';
+import { readProjectName } from '../../../core/config-loader.js';
 
 /**
  * Backend service paths on POSIX platform
@@ -47,19 +49,20 @@ export function resolveBackendNpmPackage(projectRoot: string): string | null {
  */
 export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths {
   const projectRoot = context.service.projectRoot;
+  const projectName = readProjectName(projectRoot);
   const runtimeDir = path.join(projectRoot, 'backend');
   const semiontRepo = context.options?.semiontRepo;
 
   // 1. Explicit repo path (developer mode)
   if (semiontRepo) {
     const sourceDir = path.join(semiontRepo, 'apps', 'backend');
-    return buildPaths(sourceDir, runtimeDir, false);
+    return buildPaths(sourceDir, runtimeDir, projectName, false);
   }
 
   // 2. Installed npm package
   const npmDir = resolveBackendNpmPackage(projectRoot);
   if (npmDir) {
-    return buildPaths(npmDir, runtimeDir, true);
+    return buildPaths(npmDir, runtimeDir, projectName, true);
   }
 
   // 3. Fail loudly
@@ -70,15 +73,16 @@ export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths
   );
 }
 
-function buildPaths(sourceDir: string, runtimeDir: string, fromNpmPackage: boolean): BackendPaths {
+function buildPaths(sourceDir: string, runtimeDir: string, projectName: string, fromNpmPackage: boolean): BackendPaths {
+  const logsDir = path.join(getStateDir(projectName), 'backend');
   return {
     sourceDir,
     runtimeDir,
-    pidFile: path.join(runtimeDir, 'backend.pid'),
+    pidFile: path.join(getRuntimeDir(projectName), 'backend.pid'),
     envFile: path.join(runtimeDir, '.env'),
-    logsDir: path.join(runtimeDir, 'logs'),
-    appLogFile: path.join(runtimeDir, 'logs', 'app.log'),
-    errorLogFile: path.join(runtimeDir, 'logs', 'error.log'),
+    logsDir,
+    appLogFile: path.join(logsDir, 'app.log'),
+    errorLogFile: path.join(logsDir, 'error.log'),
     tmpDir: path.join(runtimeDir, 'tmp'),
     distDir: path.join(sourceDir, 'dist'),
     fromNpmPackage,

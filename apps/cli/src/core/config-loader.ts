@@ -107,3 +107,22 @@ export function getAvailableEnvironments(): string[] {
 export function isValidEnvironment(environment: string): boolean {
   return getAvailableEnvironments().includes(environment);
 }
+
+/**
+ * Read the project name from .semiont/config ([project] name = "...").
+ * Falls back to the basename of projectRoot if the file is absent or has no name key.
+ */
+export function readProjectName(projectRoot: string): string {
+  const configPath = path.join(projectRoot, '.semiont', 'config');
+  if (fs.existsSync(configPath)) {
+    const content = fs.readFileSync(configPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('name') && trimmed.includes('=')) {
+        const [, ...rest] = trimmed.split('=');
+        return rest.join('=').trim().replace(/^"(.*)"$/, '$1');
+      }
+    }
+  }
+  return path.basename(projectRoot);
+}
