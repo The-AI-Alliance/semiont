@@ -35,9 +35,11 @@ describe('Simple Database Integration Test', () => {
     console.log('🔧 Applying schema...');
     process.env.DATABASE_URL = connectionString;
     
-    const schemaPath = path.resolve(__dirname, '../../../prisma/schema.prisma');
+    const backendRoot = path.resolve(__dirname, '../../..');
+    const schemaPath = path.join(backendRoot, 'prisma/schema.prisma');
     execSync(`npx prisma db push --schema="${schemaPath}" --accept-data-loss`, {
       stdio: 'pipe',
+      cwd: backendRoot,
       env: { ...process.env, DATABASE_URL: connectionString }
     });
     

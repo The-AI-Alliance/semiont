@@ -49,15 +49,11 @@ export class DatabaseTestSetup {
     try {
       
       // Run Prisma db push to create tables
-      const schemaPath = path.resolve(__dirname, '../../../prisma/schema.prisma');
+      const backendRoot = path.resolve(__dirname, '../../..');
+      const schemaPath = path.join(backendRoot, 'prisma/schema.prisma');
       execSync(`npx prisma db push --schema="${schemaPath}" --accept-data-loss`, {
         stdio: 'pipe', // Suppress output unless there's an error
-        env: { ...process.env, DATABASE_URL: this.connectionString }
-      });
-      
-      // Generate Prisma client for test database
-      execSync(`npx prisma generate --schema="${schemaPath}"`, {
-        stdio: 'pipe',
+        cwd: backendRoot,
         env: { ...process.env, DATABASE_URL: this.connectionString }
       });
       
