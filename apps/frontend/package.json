@@ -92,7 +92,7 @@
     "tailwindcss": "^4.2.1",
     "typescript": "^5",
     "vitest": "^4.1.0",
-    "webpack-bundle-analyzer": "^4.9.0"
+    "webpack-bundle-analyzer": "^5.2.0"
   },
   "msw": {
     "workerDirectory": [
