@@ -22,7 +22,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
   // Get backend paths
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, envFile, pidFile, logsDir, tmpDir } = paths;
+  const { sourceDir: backendSourceDir, envFile, pidFile, logsDir } = paths;
 
   if (service.verbose) {
     printInfo(`Source: ${backendSourceDir}`);
@@ -101,7 +101,6 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     ...envVars,
     PORT: port.toString(),
     LOG_DIR: logsDir,
-    TMP_DIR: tmpDir,
     JWT_SECRET: jwtSecret
   };
   

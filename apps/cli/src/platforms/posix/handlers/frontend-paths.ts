@@ -18,7 +18,6 @@ export interface FrontendPaths {
   logsDir: string;        // Directory for log files (in runtimeDir)
   appLogFile: string;     // Application log file (in runtimeDir)
   errorLogFile: string;   // Error log file (in runtimeDir)
-  tmpDir: string;         // Temporary files directory (in runtimeDir)
   nextDir: string;        // Next.js build directory (in sourceDir)
   fromNpmPackage: boolean; // Whether source is an installed npm package
 }
@@ -83,7 +82,6 @@ function buildPaths(sourceDir: string, runtimeDir: string, projectName: string, 
     logsDir,
     appLogFile: path.join(logsDir, 'app.log'),
     errorLogFile: path.join(logsDir, 'error.log'),
-    tmpDir: path.join(runtimeDir, 'tmp'),
     nextDir: path.join(sourceDir, '.next'),
     fromNpmPackage,
   };

@@ -22,7 +22,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, envLocalFile: envFile, pidFile, logsDir, tmpDir } = paths;
+  const { sourceDir: frontendSourceDir, envLocalFile: envFile, pidFile, logsDir } = paths;
 
   if (service.verbose) {
     printInfo(`Source: ${frontendSourceDir}`);
@@ -94,7 +94,6 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     ...envVars,
     PORT: port.toString(),
     LOG_DIR: logsDir,
-    TMP_DIR: tmpDir,
     NEXTAUTH_SECRET: jwtSecret
   };
 

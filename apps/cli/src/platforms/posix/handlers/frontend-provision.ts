@@ -44,7 +44,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, runtimeDir, logsDir, tmpDir, envLocalFile: envFile } = paths;
+  const { sourceDir: frontendSourceDir, runtimeDir, logsDir, envLocalFile: envFile } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
@@ -59,7 +59,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Create runtime directories under project root
   fs.mkdirSync(runtimeDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
-  fs.mkdirSync(tmpDir, { recursive: true });
 
   if (!service.quiet) {
     printInfo(`Created runtime directories in: ${runtimeDir}`);
@@ -327,7 +326,6 @@ This directory contains runtime files for the frontend service.
 
 - \`.env.local\` - Environment configuration
 - \`logs/\` - Application logs
-- \`tmp/\` - Temporary files
 - \`frontend.pid\` - Process ID when running
 
 ## Source Code
@@ -350,7 +348,6 @@ ${paths.fromNpmPackage ? `Installed npm package: ${frontendSourceDir}` : `Semion
     runtimeDir,
     envFile,
     logsDir,
-    tmpDir,
     configured: true
   };
 

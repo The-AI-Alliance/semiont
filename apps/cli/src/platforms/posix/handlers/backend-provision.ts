@@ -48,7 +48,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   // Get backend paths (throws if source cannot be found)
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, runtimeDir, envFile, logsDir, tmpDir } = paths;
+  const { sourceDir: backendSourceDir, runtimeDir, envFile, logsDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
@@ -63,7 +63,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   // Create runtime directories under project root
   fs.mkdirSync(runtimeDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
-  fs.mkdirSync(tmpDir, { recursive: true });
 
   if (!service.quiet) {
     printInfo(`Created runtime directories in: ${runtimeDir}`);
@@ -130,7 +129,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     'HOST': '0.0.0.0',  // Bind to all interfaces for Codespaces compatibility
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
-    'TMP_DIR': tmpDir,
     'FRONTEND_URL': frontendUrl,
     'BACKEND_URL': backendUrl,
     'ENABLE_LOCAL_AUTH': enableLocalAuth.toString(),
@@ -365,7 +363,6 @@ This directory contains runtime files for the backend service.
 
 - \`.env\` - Environment configuration
 - \`logs/\` - Application logs
-- \`tmp/\` - Temporary files
 - \`backend.pid\` - Process ID when running
 
 ## Source Code
@@ -388,7 +385,6 @@ ${paths.fromNpmPackage ? `Installed npm package: ${backendSourceDir}` : `Semiont
     runtimeDir,
     envFile,
     logsDir,
-    tmpDir,
     configured: true
   };
 
