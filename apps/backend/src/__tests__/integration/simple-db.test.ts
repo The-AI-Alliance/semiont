@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
-import { execSync } from 'child_process';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { execFileSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -24,23 +25,20 @@ describe('Simple Database Integration Test', () => {
     connectionString = container.getConnectionUri();
     console.log(`📡 Container started: ${connectionString}`);
     
+    const adapter = new PrismaPg({ connectionString });
     prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: connectionString,
-        },
-      },
+      adapter,
       log: ['error'],
     });
 
     // Apply schema
     console.log('🔧 Applying schema...');
-    process.env.DATABASE_URL = connectionString;
-    
-    const schemaPath = path.resolve(__dirname, '../../../prisma/schema.prisma');
-    execSync(`npx prisma db push --schema="${schemaPath}" --accept-data-loss`, {
+    const backendRoot = path.resolve(__dirname, '../../..');
+    const schemaPath = path.join(backendRoot, 'prisma/schema.prisma');
+    const prismaBin = path.join(backendRoot, 'node_modules/.bin/prisma');
+    execFileSync(prismaBin, ['db', 'push', `--schema=${schemaPath}`, `--url=${connectionString}`, '--accept-data-loss'], {
       stdio: 'pipe',
-      env: { ...process.env, DATABASE_URL: connectionString }
+      cwd: backendRoot,
     });
     
     await prisma.$connect();
