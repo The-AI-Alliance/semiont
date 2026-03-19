@@ -29,6 +29,10 @@ vi.mock('@prisma/client', () => ({
   PrismaClient: mockPrismaConstructor,
 }));
 
+vi.mock('@prisma/adapter-pg', () => ({
+  PrismaPg: vi.fn(function(config: unknown) { return { __mock: true, config }; }),
+}));
+
 // Unmock the db module that's being mocked in setup.ts
 vi.unmock('../db');
 
@@ -67,9 +71,9 @@ describe('Database Connection', () => {
     const { DatabaseConnection } = await import('../db');
     DatabaseConnection.getClient();
     
-    expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: [{ emit: 'event', level: 'error' }],
-    });
+    expect(mockPrismaConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ log: [{ emit: 'event', level: 'error' }] })
+    );
   });
 
   it('should use development logging in development mode', async () => {
@@ -81,14 +85,16 @@ describe('Database Connection', () => {
     await DatabaseConnection.reset(); // Reset any existing instance
     DatabaseConnection.getClient();
 
-    expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: [
-        { emit: 'event', level: 'query' },
-        { emit: 'event', level: 'error' },
-        { emit: 'event', level: 'warn' },
-        { emit: 'event', level: 'info' },
-      ],
-    });
+    expect(mockPrismaConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        log: [
+          { emit: 'event', level: 'query' },
+          { emit: 'event', level: 'error' },
+          { emit: 'event', level: 'warn' },
+          { emit: 'event', level: 'info' },
+        ],
+      })
+    );
   });
 
   it('should use error-only logging in production mode', async () => {
@@ -98,9 +104,9 @@ describe('Database Connection', () => {
     const { DatabaseConnection } = await import('../db');
     DatabaseConnection.getClient();
 
-    expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: [{ emit: 'event', level: 'error' }],
-    });
+    expect(mockPrismaConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ log: [{ emit: 'event', level: 'error' }] })
+    );
   });
 
   it('should use error-only logging in test mode', async () => {
@@ -110,9 +116,9 @@ describe('Database Connection', () => {
     const { DatabaseConnection } = await import('../db');
     DatabaseConnection.getClient();
 
-    expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: [{ emit: 'event', level: 'error' }],
-    });
+    expect(mockPrismaConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ log: [{ emit: 'event', level: 'error' }] })
+    );
   });
 
   it('should reuse existing global prisma instance', async () => {
@@ -169,9 +175,9 @@ describe('Database Connection', () => {
     const { DatabaseConnection } = await import('../db');
     DatabaseConnection.getClient();
     
-    expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: [{ emit: 'event', level: 'error' }], // Default to error-only when NODE_ENV undefined
-    });
+    expect(mockPrismaConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ log: [{ emit: 'event', level: 'error' }] }) // Default to error-only when NODE_ENV undefined
+    );
     expect(global.prisma).toBe(mockPrismaClient); // Should set global since not production
   });
 
@@ -200,9 +206,9 @@ describe('Database Connection', () => {
         const { DatabaseConnection } = await import('../db');
         DatabaseConnection.getClient();
 
-        expect(mockPrismaConstructor).toHaveBeenCalledWith({
-          log: expectedLogs,
-        });
+        expect(mockPrismaConstructor).toHaveBeenCalledWith(
+          expect.objectContaining({ log: expectedLogs })
+        );
       }
     });
   });
