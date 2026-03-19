@@ -283,8 +283,8 @@ export class SemiontApiClient {
     if (data.file instanceof File) {
       formData.append('file', data.file);
     } else if (Buffer.isBuffer(data.file)) {
-      // Node.js environment: convert Buffer to Blob
-      const blob = new Blob([data.file], { type: data.format });
+      // Node.js environment: convert Buffer to Blob via Uint8Array to satisfy BlobPart's ArrayBuffer constraint
+      const blob = new Blob([new Uint8Array(data.file)], { type: data.format });
       formData.append('file', blob, data.name);
     } else {
       throw new Error('file must be a File or Buffer');
