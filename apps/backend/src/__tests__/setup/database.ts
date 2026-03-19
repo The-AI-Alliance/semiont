@@ -1,5 +1,7 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import { execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,12 +39,10 @@ export class DatabaseTestSetup {
     process.env.DATABASE_URL = this.connectionString;
     
     // Create Prisma client with test database
+    const pool = new Pool({ connectionString: this.connectionString });
+    const adapter = new PrismaPg(pool);
     this.prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: this.connectionString,
-        },
-      },
+      adapter,
       log: ['error', 'warn'], // Reduce log noise in tests
     });
 
