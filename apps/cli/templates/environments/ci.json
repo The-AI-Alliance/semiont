@@ -2,7 +2,10 @@
   "name": "ci",
   "site": {
     "domain": "localhost",
-    "oauthAllowedDomains": ["example.com", "test.example.com"]
+    "oauthAllowedDomains": [
+      "example.com",
+      "test.example.com"
+    ]
   },
   "platform": {
     "default": "posix"
@@ -31,9 +34,7 @@
     "filesystem": {
       "platform": {
         "type": "posix"
-      },
-      "path": "data",
-      "description": "CI filesystem storage"
+      }
     },
     "database": {
       "platform": {
@@ -53,7 +54,9 @@
       "platform": {
         "type": "posix"
       },
-      "dependsOn": ["backend"]
+      "dependsOn": [
+        "backend"
+      ]
     },
     "inference": {
       "platform": {

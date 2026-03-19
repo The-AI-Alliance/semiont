@@ -66,26 +66,15 @@ export interface MakeMeaningService {
 
 export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
   // 1. Validate configuration
-  const filesystemConfig = config.services?.filesystem;
-  if (!filesystemConfig?.path) {
-    throw new Error('services.filesystem.path is required for make-meaning service');
-  }
   const graphConfig = config.services?.graph;
   if (!graphConfig) {
     throw new Error('services.graph is required for make-meaning service');
   }
-  const configuredPath = filesystemConfig.path;
-
-  // Resolve basePath to absolute path
   const projectRoot = config._metadata?.projectRoot;
-  let basePath: string;
-  if (path.isAbsolute(configuredPath)) {
-    basePath = configuredPath;
-  } else if (projectRoot) {
-    basePath = path.resolve(projectRoot, configuredPath);
-  } else {
-    basePath = path.resolve(configuredPath);
+  if (!projectRoot) {
+    throw new Error('config._metadata.projectRoot is required for make-meaning service');
   }
+  const basePath = path.join(projectRoot, '.semiont', 'data');
 
   // 2. Initialize job queue
   const jobQueueLogger = logger.child({ component: 'job-queue' });

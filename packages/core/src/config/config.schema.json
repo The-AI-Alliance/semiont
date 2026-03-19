@@ -906,9 +906,6 @@
         "platform": {
           "$ref": "#/definitions/ServicePlatformConfig"
         },
-        "path": {
-          "type": "string"
-        },
         "description": {
           "type": "string"
         },

@@ -27,20 +27,11 @@ export async function bootstrapEntityTypes(eventBus: EventBus, config: MakeMeani
     return;
   }
 
-  // Resolve basePath against project root if relative
-  const configuredPath = config.services.filesystem?.path;
-  if (!configuredPath) {
-    throw new Error('services.filesystem.path is required for entity types bootstrap');
-  }
   const projectRoot = config._metadata?.projectRoot;
-  let basePath: string;
-  if (path.isAbsolute(configuredPath)) {
-    basePath = configuredPath;
-  } else if (projectRoot) {
-    basePath = path.resolve(projectRoot, configuredPath);
-  } else {
-    basePath = path.resolve(configuredPath);
+  if (!projectRoot) {
+    throw new Error('config._metadata.projectRoot is required for entity types bootstrap');
   }
+  const basePath = path.join(projectRoot, '.semiont', 'data');
 
   const projectionPath = path.join(
     basePath,

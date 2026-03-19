@@ -182,7 +182,7 @@ exchangeRouter.post('/api/moderate/exchange/export', async (c) => {
   const includeArchived = c.req.query('includeArchived') === 'true';
 
   const entityTypes = await readEntityTypesProjection({
-    services: { filesystem: config.services?.filesystem },
+    services: {},
     _metadata: config._metadata,
   });
 

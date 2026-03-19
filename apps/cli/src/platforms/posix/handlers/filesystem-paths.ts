@@ -1,10 +1,9 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import type { FilesystemServiceConfig } from '@semiont/core';
 
 /**
- * Filesystem service paths on POSIX platform
- * Paths are configurable via service config
+ * Filesystem service paths on POSIX platform.
+ * Base directory is always <projectRoot>/.semiont/data
  */
 export interface FilesystemPaths {
   baseDir: string;        // Main filesystem storage directory
@@ -15,21 +14,11 @@ export interface FilesystemPaths {
 }
 
 /**
- * Get all filesystem paths for POSIX platform
+ * Get all filesystem paths for POSIX platform.
+ * The base directory is fixed at <projectRoot>/.semiont/data.
  */
 export function getFilesystemPaths<T>(context: BaseHandlerContext<T>): FilesystemPaths {
-  const service = context.service;
-
-  // Type narrowing for filesystem service config
-  const config = service.config as FilesystemServiceConfig;
-  const basePath = config.path;
-  if (!basePath) {
-    throw new Error('Filesystem path not configured');
-  }
-
-  const baseDir = path.isAbsolute(basePath) ?
-    basePath :
-    path.join(service.projectRoot, basePath);
+  const baseDir = path.join(context.service.projectRoot, '.semiont', 'data');
 
   return {
     baseDir,

@@ -8,7 +8,10 @@
   },
   "site": {
     "domain": "localhost:8080",
-    "oauthAllowedDomains": ["example.com", "localhost:8080"]
+    "oauthAllowedDomains": [
+      "example.com",
+      "localhost:8080"
+    ]
   },
   "env": {
     "NODE_ENV": "development"
@@ -62,9 +65,7 @@
     "filesystem": {
       "platform": {
         "type": "posix"
-      },
-      "path": "./data/uploads",
-      "description": "Local filesystem storage for uploads and assets"
+      }
     },
     "inference": {
       "platform": {
