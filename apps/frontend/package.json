@@ -86,7 +86,7 @@
     "cross-env": "^10.1.0",
     "fast-check": "^4.3.0",
     "jest-axe": "^10.0.0",
-    "jsdom": "^28.1.0",
+    "jsdom": "^29.0.0",
     "msw": "^2.10.4",
     "postcss": "^8",
     "tailwindcss": "^4.2.1",
