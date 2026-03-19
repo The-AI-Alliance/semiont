@@ -19,7 +19,6 @@ import type {
   FrontendServiceConfig,
   DatabaseServiceConfig,
   GraphServiceConfig,
-  FilesystemServiceConfig,
   InferenceServiceConfig,
   ServicePlatformConfig
 } from './config.types';
@@ -39,7 +38,6 @@ export type {
   FrontendServiceConfig,
   DatabaseServiceConfig,
   GraphServiceConfig,
-  FilesystemServiceConfig,
   InferenceServiceConfig,
   ServicePlatformConfig
 };

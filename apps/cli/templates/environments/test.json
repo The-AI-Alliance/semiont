@@ -33,11 +33,6 @@
       "publicURL": "http://localhost:3000",
       "siteName": "Test Site"
     },
-    "filesystem": {
-      "platform": {
-        "type": "posix"
-      }
-    },
     "database": {
       "platform": {
         "type": "container"

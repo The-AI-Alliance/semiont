@@ -34,12 +34,6 @@
       },
       "comment": "Provisioned via CDK data stack (RDS PostgreSQL)"
     },
-    "filesystem": {
-      "platform": {
-        "type": "aws"
-      },
-      "comment": "Provisioned via CDK data stack (EFS)"
-    },
     "graph": {
       "platform": {
         "type": "aws"

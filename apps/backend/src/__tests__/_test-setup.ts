@@ -17,6 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface TestEnvironmentConfig {
   config: EnvironmentConfig;
+  dataPath: string;
   cleanup: () => Promise<void>;
 }
 
@@ -70,14 +71,7 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   envConfig.services.backend.platform.type = 'posix';
   envConfig.services.frontend.platform.type = 'posix';
 
-  // 3. Set filesystem path to test directory
-  envConfig.services.filesystem = {
-    platform: { type: 'posix' },
-    path: join(testDir, 'data'),
-    description: 'Test filesystem storage'
-  };
-
-  // 4. Add inference config for tests (mocked, but config must exist)
+  // 3. Add inference config for tests (mocked, but config must exist)
   envConfig.services.inference = {
     platform: { type: 'external' },
     type: 'anthropic',
@@ -98,8 +92,9 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
     JSON.stringify(envConfig, null, 2)
   );
 
-  // Create data directory for filesystem service
-  await fs.mkdir(join(testDir, 'data'), { recursive: true });
+  // Create data directory for event store
+  const dataPath = join(testDir, 'data');
+  await fs.mkdir(dataPath, { recursive: true });
 
   // Set environment variables
   process.env.SEMIONT_ROOT = testDir;
@@ -132,6 +127,7 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
 
   return {
     config,
+    dataPath,
     cleanup: async () => {
       delete process.env.SEMIONT_ROOT;
       delete process.env.SEMIONT_ENV;

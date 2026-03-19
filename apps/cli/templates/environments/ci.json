@@ -31,11 +31,6 @@
       "publicURL": "http://localhost:3000",
       "siteName": "CI Test Site"
     },
-    "filesystem": {
-      "platform": {
-        "type": "posix"
-      }
-    },
     "database": {
       "platform": {
         "type": "external"

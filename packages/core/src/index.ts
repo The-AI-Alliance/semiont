@@ -215,7 +215,6 @@ export type {
   FrontendServiceConfig,
   DatabaseServiceConfig,
   GraphServiceConfig,
-  FilesystemServiceConfig,
   InferenceServiceConfig,
   McpServiceConfig,
   ServicesConfig,

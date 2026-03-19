@@ -95,14 +95,6 @@ describe('Make-Meaning Service', () => {
   });
 
   describe('initialization', () => {
-    it('should validate required configuration', async () => {
-      const invalidConfig = { ...config, services: { ...config.services, filesystem: undefined! } };
-
-      await expect(
-        startMakeMeaning(invalidConfig as MakeMeaningConfig, eventBus, mockLogger)
-      ).rejects.toThrow('services.filesystem.path is required');
-    });
-
     it('should initialize job queue', async () => {
       service = await startMakeMeaning(config, eventBus, mockLogger);
 

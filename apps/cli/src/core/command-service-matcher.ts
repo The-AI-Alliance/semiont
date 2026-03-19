@@ -12,7 +12,7 @@
  * 
  * Business Rules (should eventually move to service definitions):
  * - Only frontend/backend services can be "published" (containerized services)
- * - Only database/filesystem services can be "backed up" or "restored"
+ * - Only database services can be "backed up" or "restored"
  * - Most other commands work with all services
  * 
  * This module bridges command-discovery and service-discovery,

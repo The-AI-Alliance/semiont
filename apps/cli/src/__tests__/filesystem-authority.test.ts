@@ -95,11 +95,6 @@ describe('Filesystem Authority for Environment Validation', () => {
           "type": "postgresql",
           "name": "semiont_foo",
           "user": "postgres"
-        },
-        "filesystem": {
-          "platform": {
-            "type": "container"
-          }
         }
       }
     };
@@ -131,7 +126,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(loadedConfig.services?.database?.name).toBe('semiont_foo');
     // Test 4: All services should be properly configured
     expect(Object.keys(loadedConfig.services || {})).toEqual(
-      expect.arrayContaining(['backend', 'frontend', 'database', 'filesystem'])
+      expect.arrayContaining(['backend', 'frontend', 'database'])
     );
     
     // Test 5: Deployment types should be read correctly

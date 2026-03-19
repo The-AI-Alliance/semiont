@@ -76,7 +76,7 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
 
   // Read entity types from the entity-types projection
   const entityTypes = await readEntityTypesProjection({
-    services: { filesystem: envConfig.services!.filesystem! },
+    services: {},
     _metadata: { projectRoot },
   });
 

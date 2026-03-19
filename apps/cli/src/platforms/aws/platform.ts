@@ -232,13 +232,6 @@ export class AWSPlatform extends Platform {
         }
       }
       
-      // Get EFS FileSystem - match filesystem service
-      if (service.name === 'filesystem' || this.determineServiceType(service) === 'efs') {
-        const filesystems = await this.getStackResources(dataStack, region, 'AWS::EFS::FileSystem');
-        if (filesystems[0]) {
-          resources[service.name] = { fileSystemId: filesystems[0].PhysicalResourceId };
-        }
-      }
     }
     
     // Get resources for this specific service
@@ -345,8 +338,6 @@ export class AWSPlatform extends Platform {
         return 'ecs-fargate';
       case 'database':
         return 'rds';
-      case 'filesystem':
-        return 'efs';
       case 'graph':
         // Graph databases on AWS use Neptune
         return 'neptune';
@@ -359,7 +350,7 @@ export class AWSPlatform extends Platform {
       default:
         throw new Error(
           `Unsupported service type for AWS platform: '${declaredType}'. ` +
-          `Supported types: frontend, backend, database, filesystem, graph, worker, inference, stack`
+          `Supported types: frontend, backend, database, graph, worker, inference, stack`
         );
     }
   }

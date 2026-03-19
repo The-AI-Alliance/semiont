@@ -16,7 +16,6 @@ export const SERVICE_TYPES = {
   
   // Data layer
   DATABASE: 'database',      // Persistent data storage (SQL, NoSQL)
-  FILESYSTEM: 'filesystem',  // File/object storage, shared volumes
   GRAPH: 'graph',           // Graph databases, knowledge graphs
   
   // Compute layer

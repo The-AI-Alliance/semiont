@@ -11,7 +11,6 @@ import type {
   FrontendServiceConfig,
   DatabaseServiceConfig,
   GraphServiceConfig,
-  FilesystemServiceConfig,
   InferenceServiceConfig,
   McpServiceConfig
 } from '@semiont/core';
@@ -36,6 +35,5 @@ export type ServiceConfig =
   | FrontendServiceConfig
   | DatabaseServiceConfig
   | GraphServiceConfig
-  | FilesystemServiceConfig
   | InferenceServiceConfig
   | McpServiceConfig;

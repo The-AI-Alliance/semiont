@@ -62,11 +62,6 @@
       "password": "${NEO4J_PASSWORD}",
       "database": "${NEO4J_DATABASE}"
     },
-    "filesystem": {
-      "platform": {
-        "type": "posix"
-      }
-    },
     "inference": {
       "platform": {
         "type": "external"

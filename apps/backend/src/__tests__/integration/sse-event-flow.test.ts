@@ -7,7 +7,6 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { resourceId, userId, type Logger } from '@semiont/core';
-import { loadEnvironmentConfig } from '../../utils/config';
 import { jobId } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
@@ -32,20 +31,14 @@ describe('SSE Event Flow - End-to-End', () => {
     await fsPromises.mkdir(testDir, { recursive: true });
 
     // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
-    // Load config to pass to createEventStore
-    const projectRoot = process.env.SEMIONT_ROOT;
-    if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
-    const environment = process.env.SEMIONT_ENV || 'test';
-
-    const config = loadEnvironmentConfig(projectRoot, environment);
-
     const { createEventStore } = await import('@semiont/event-sourcing');
     eventStore = createEventStore(
-      config.services.filesystem!.path,
+      testDir,
+      testDir,
       {
-      enableSharding: false,
-      maxEventsPerFile: 100,
-    },
+        enableSharding: false,
+        maxEventsPerFile: 100,
+      },
       undefined,
       mockLogger
     );

@@ -110,7 +110,7 @@ function runSemiontSafe(args: string[], env: NodeJS.ProcessEnv): { success: bool
 // SERVICE READINESS
 // =====================================================================
 
-const REQUIRED_SERVICES = ['database', 'filesystem', 'backend', 'frontend', 'proxy'];
+const REQUIRED_SERVICES = ['database', 'backend', 'frontend', 'proxy'];
 const EXTERNAL_SERVICES = ['graph', 'inference'];
 const ALL_SERVICES = [...REQUIRED_SERVICES, ...EXTERNAL_SERVICES];
 
@@ -157,8 +157,6 @@ function isProvisioned(serviceName: string, semiotRoot: string): boolean {
       return fs.existsSync(path.join(semiotRoot, 'backend', '.env'));
     case 'frontend':
       return fs.existsSync(path.join(semiotRoot, 'frontend', '.env'));
-    case 'filesystem':
-      return fs.existsSync(path.join(semiotRoot, '.semiont', 'data'));
     case 'database':
     case 'proxy':
     // For these, rely on check result only — we don't have a simple local sentinel
