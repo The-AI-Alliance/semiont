@@ -1,7 +1,7 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -51,10 +51,10 @@ export class DatabaseTestSetup {
       // Run Prisma db push to create tables
       const backendRoot = path.resolve(__dirname, '../../..');
       const schemaPath = path.join(backendRoot, 'prisma/schema.prisma');
-      execSync(`npx prisma db push --schema="${schemaPath}" --accept-data-loss`, {
-        stdio: 'pipe', // Suppress output unless there's an error
+      const prismaBin = path.join(backendRoot, 'node_modules/.bin/prisma');
+      execFileSync(prismaBin, ['db', 'push', `--schema=${schemaPath}`, `--url=${this.connectionString}`, '--accept-data-loss'], {
+        stdio: 'pipe',
         cwd: backendRoot,
-        env: { ...process.env, DATABASE_URL: this.connectionString }
       });
       
       console.log('✅ Database schema applied successfully');
