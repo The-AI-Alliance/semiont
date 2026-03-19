@@ -95,18 +95,11 @@ export type ImportOptions = z.output<typeof ImportOptionsSchema>;
 export async function runImport(options: ImportOptions): Promise<CommandResults> {
   const startTime = Date.now();
 
-  const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+  const projectRoot = findProjectRoot();
   const environment = options.environment!;
   const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
-  const configuredPath = envConfig.services?.filesystem?.path;
-  if (!configuredPath) {
-    throw new Error('services.filesystem.path is required in environment config');
-  }
-
-  const basePath = path.isAbsolute(configuredPath)
-    ? configuredPath
-    : path.resolve(projectRoot, configuredPath);
+  const basePath = path.join(projectRoot, '.semiont', 'data');
 
   const logger = createCliLogger(options.verbose ?? false);
 

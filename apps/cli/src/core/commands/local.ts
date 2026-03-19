@@ -158,7 +158,7 @@ function isProvisioned(serviceName: string, semiotRoot: string): boolean {
     case 'frontend':
       return fs.existsSync(path.join(semiotRoot, 'frontend', '.env'));
     case 'filesystem':
-      return fs.existsSync(path.join(semiotRoot, 'data'));
+      return fs.existsSync(path.join(semiotRoot, '.semiont', 'data'));
     case 'database':
     case 'proxy':
     // For these, rely on check result only — we don't have a simple local sentinel

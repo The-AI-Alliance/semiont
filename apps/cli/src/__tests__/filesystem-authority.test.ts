@@ -99,8 +99,7 @@ describe('Filesystem Authority for Environment Validation', () => {
         "filesystem": {
           "platform": {
             "type": "container"
-          },
-          "path": "/data/foo"
+          }
         }
       }
     };
@@ -130,8 +129,6 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(loadedConfig.services?.backend?.port).toBe(8080);
     expect(loadedConfig.services?.frontend?.port).toBe(3000);
     expect(loadedConfig.services?.database?.name).toBe('semiont_foo');
-    expect(loadedConfig.services?.filesystem?.path).toBe('/data/foo');
-    
     // Test 4: All services should be properly configured
     expect(Object.keys(loadedConfig.services || {})).toEqual(
       expect.arrayContaining(['backend', 'frontend', 'database', 'filesystem'])
