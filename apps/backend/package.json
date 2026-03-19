@@ -36,7 +36,7 @@
     "@semiont/jobs": "^0.3.4",
     "@semiont/make-meaning": "^0.3.4",
     "ajv": "^8.17.1",
-    "ajv-formats": "^2.1.1",
+    "ajv-formats": "^3.0.1",
     "argon2": "^0.44.0",
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",
