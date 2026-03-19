@@ -7,6 +7,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { getStateDir, readProjectName } from '@semiont/core';
 import type { MakeMeaningConfig } from '../config';
 
 /**
@@ -17,11 +18,10 @@ export async function readEntityTypesProjection(config: MakeMeaningConfig): Prom
   if (!projectRoot) {
     throw new Error('config._metadata.projectRoot is required for entity types reader');
   }
-  const basePath = path.join(projectRoot, '.semiont', 'data');
+  const projectionsPath = getStateDir(readProjectName(projectRoot));
 
   const entityTypesPath = path.join(
-    basePath,
-    'projections',
+    projectionsPath,
     '__system__',
     'entitytypes.json'
   );

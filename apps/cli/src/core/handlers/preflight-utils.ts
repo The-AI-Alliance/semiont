@@ -3,7 +3,10 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
+import { getStateDir } from '@semiont/core';
 import type { PreflightCheck, PreflightResult } from './types.js';
+
+export { getStateDir };
 
 export function checkContainerRuntime(runtime: string): PreflightCheck {
   try {
@@ -181,11 +184,6 @@ export function getRuntimeDir(projectName: string): string {
   }
   const tmpDir = process.env.TMPDIR || '/tmp';
   return path.join(tmpDir, 'semiont', projectName);
-}
-
-export function getStateDir(projectName: string): string {
-  const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
-  return path.join(xdgState, 'semiont', projectName);
 }
 
 export function getSecretsFilePath(): string {

@@ -15,7 +15,7 @@ import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { getPrimaryRepresentation } from '@semiont/api-client';
 import type { Logger, ResourceId } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, getStateDir, readProjectName } from '@semiont/core';
 import type { MakeMeaningConfig } from './config';
 
 export type { MakeMeaningConfig } from './config';
@@ -75,6 +75,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
     throw new Error('config._metadata.projectRoot is required for make-meaning service');
   }
   const basePath = path.join(projectRoot, '.semiont', 'data');
+  const projectionsPath = getStateDir(readProjectName(projectRoot));
 
   // 2. Initialize job queue
   const jobQueueLogger = logger.child({ component: 'job-queue' });
@@ -121,7 +122,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
 
   // 3. Create shared event store with EventBus integration
   const eventStoreLogger = logger.child({ component: 'event-store' });
-  const eventStore = createEventStoreCore(basePath, undefined, eventBus, eventStoreLogger);
+  const eventStore = createEventStoreCore(basePath, projectionsPath, undefined, eventBus, eventStoreLogger);
 
   // 4. Create inference client (shared across all workers)
   const inferenceLogger = logger.child({ component: 'inference-client' });

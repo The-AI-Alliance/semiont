@@ -52,7 +52,7 @@ export class FilesystemViewStorage implements ViewStorage {
   private getProjectionPath(resourceId: ResourceId): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(resourceId);
-    return path.join(this.basePath, 'projections', 'resources', ab, cd, `${resourceId}.json`);
+    return path.join(this.basePath, 'resources', ab, cd, `${resourceId}.json`);
   }
 
   async save(resourceId: ResourceId, projection: ResourceView): Promise<void> {
@@ -118,7 +118,7 @@ export class FilesystemViewStorage implements ViewStorage {
 
   async getAll(): Promise<ResourceView[]> {
     const views: ResourceView[] = [];
-    const annotationsPath = path.join(this.basePath, 'projections', 'resources');
+    const annotationsPath = path.join(this.basePath, 'resources');
 
     try {
       // Recursively walk through all shard directories

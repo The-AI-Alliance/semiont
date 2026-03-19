@@ -66,7 +66,7 @@ describe('Entity Types Bootstrap', () => {
 
     // Initialize EventBus, event store, and Stower
     eventBus = new EventBus();
-    eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
+    eventStore = createEventStore(testDir, testDir, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
     stower = new Stower(kb, eventBus, mockLogger);
@@ -239,7 +239,7 @@ describe('Entity Types Bootstrap', () => {
 
       // Create new EventBus, event store, and Stower for alternate directory
       const altEventBus = new EventBus();
-      const alternateEventStore = createEventStore(alternateDir, undefined, altEventBus, mockLogger);
+      const alternateEventStore = createEventStore(alternateDir, alternateDir, undefined, altEventBus, mockLogger);
       const altGraphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
       const altKb = createKnowledgeBase(alternateEventStore, alternateDir, alternateDir, altGraphDb, mockLogger);
       const altStower = new Stower(altKb, altEventBus, mockLogger);

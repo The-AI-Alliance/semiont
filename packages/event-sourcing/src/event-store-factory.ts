@@ -34,6 +34,7 @@ import type { EventStorageConfig } from './storage/event-storage';
  */
 export function createEventStore(
   basePath: string,
+  projectionsPath: string,
   config?: Partial<EventStorageConfig>,
   eventBus?: CoreEventBus,
   logger?: Logger
@@ -44,10 +45,16 @@ export function createEventStore(
   if (!path.isAbsolute(basePath)) {
     throw new Error('basePath must be an absolute path (use path.resolve() to convert relative paths)');
   }
+  if (!projectionsPath) {
+    throw new Error('projectionsPath is required to create EventStore');
+  }
+  if (!path.isAbsolute(projectionsPath)) {
+    throw new Error('projectionsPath must be an absolute path (use path.resolve() to convert relative paths)');
+  }
 
   // Create ViewStorage for materialized views
-  // Structure: <basePath>/projections/resources/...
-  const viewStorage = new FilesystemViewStorage(basePath, undefined, logger?.child({ component: 'view-storage' }));
+  // Structure: <projectionsPath>/resources/...
+  const viewStorage = new FilesystemViewStorage(projectionsPath, undefined, logger?.child({ component: 'view-storage' }));
 
   // Determine data directory for events
   // Structure: <basePath>/events/...
@@ -61,6 +68,7 @@ export function createEventStore(
       enableSharding: true,
       numShards: 65536, // 4 hex digits (0000-ffff)
     },
+    projectionsPath,
     viewStorage,
     eventBus,
     logger

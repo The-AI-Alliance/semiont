@@ -39,7 +39,7 @@ describe('ResourceOperations', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     eventBus = new EventBus();
-    testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(testDir, testDir, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     const kb = createKnowledgeBase(testEventStore, testDir, testDir, graphDb, mockLogger);
 

@@ -70,7 +70,7 @@ describe('AnnotationOperations', () => {
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(testDir, testDir, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     // Share the event store's view storage with the KB to avoid two separate FilesystemViewStorage instances
     const { FilesystemRepresentationStore } = await import('@semiont/content');

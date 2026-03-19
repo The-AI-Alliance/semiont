@@ -32,6 +32,7 @@ describe('Event Store', () => {
         enableSharding: false, // Faster without sharding
         maxEventsPerFile: 100,
       },
+      testDir,
       viewStorage,
     );
 

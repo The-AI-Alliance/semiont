@@ -20,8 +20,8 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import { jumpConsistentHash, sha256 } from './shard-utils';
 
 export interface EventStorageConfig {
-  basePath: string;              // Base path (e.g., /data/uploads)
-  dataDir: string;               // Events directory (e.g., /data/uploads/events)
+  basePath: string;              // Base path for events (e.g., <projectRoot>/.semiont/data)
+  dataDir: string;               // Events directory (e.g., <basePath>/events)
   maxEventsPerFile?: number;     // File rotation threshold (default: 10000)
   enableSharding?: boolean;      // Enable 4-hex sharding (default: true)
   numShards?: number;            // Number of shards (default: 65536)

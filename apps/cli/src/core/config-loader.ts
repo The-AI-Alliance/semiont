@@ -7,7 +7,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createConfigLoader, listEnvironmentNames, ConfigurationError, type ConfigFileReader } from '@semiont/core';
+import { createConfigLoader, listEnvironmentNames, ConfigurationError, readProjectName, type ConfigFileReader } from '@semiont/core';
+
+export { readProjectName };
 
 /**
  * Find project root by walking up from cwd looking for .semiont/.
@@ -112,17 +114,3 @@ export function isValidEnvironment(environment: string): boolean {
  * Read the project name from .semiont/config ([project] name = "...").
  * Falls back to the basename of projectRoot if the file is absent or has no name key.
  */
-export function readProjectName(projectRoot: string): string {
-  const configPath = path.join(projectRoot, '.semiont', 'config');
-  if (fs.existsSync(configPath)) {
-    const content = fs.readFileSync(configPath, 'utf-8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('name') && trimmed.includes('=')) {
-        const [, ...rest] = trimmed.split('=');
-        return rest.join('=').trim().replace(/^"(.*)"$/, '$1');
-      }
-    }
-  }
-  return path.basename(projectRoot);
-}

@@ -224,6 +224,9 @@ export type {
   ServicePlatformConfig
 } from './config/config.types';
 
+// XDG base directory helpers
+export { getStateDir, readProjectName } from './xdg-paths';
+
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
 export const SDK_VERSION = '0.1.0';

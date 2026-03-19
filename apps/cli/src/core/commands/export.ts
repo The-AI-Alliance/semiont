@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import type { Logger } from '@semiont/core';
+import { getStateDir } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { exportLinkedData } from '@semiont/make-meaning';
@@ -21,7 +22,7 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
-import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
+import { loadEnvironmentConfig, findProjectRoot, readProjectName } from '../config-loader.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -61,11 +62,12 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
   }
 
   const basePath = path.join(projectRoot, '.semiont', 'data');
+  const projectionsPath = getStateDir(readProjectName(projectRoot));
 
   const logger = createCliLogger(options.verbose ?? false);
 
   // Bootstrap read-only stores
-  const eventStore = createEventStore(basePath, undefined, undefined, logger);
+  const eventStore = createEventStore(basePath, projectionsPath, undefined, undefined, logger);
   const contentStore = new FilesystemRepresentationStore(
     { basePath },
     projectRoot,

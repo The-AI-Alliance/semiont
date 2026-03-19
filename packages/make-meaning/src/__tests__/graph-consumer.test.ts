@@ -87,6 +87,7 @@ describe('GraphDBConsumer', () => {
 
     eventStore = new EventStore(
       { basePath: testDir, dataDir: testDir, enableSharding: false, maxEventsPerFile: 100 },
+      testDir,
       viewStorage,
     );
   });

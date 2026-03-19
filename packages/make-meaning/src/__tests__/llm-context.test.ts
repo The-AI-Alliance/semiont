@@ -74,7 +74,7 @@ describe('LLM Context', () => {
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
+    eventStore = createEventStore(testDir, testDir, undefined, eventBus, mockLogger);
     repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     // Create KnowledgeBase - share event store's view storage to avoid separate instances

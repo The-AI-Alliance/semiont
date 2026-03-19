@@ -8,7 +8,7 @@ import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getBackendPaths } from './backend-paths.js';
-import { checkPortFree, checkCommandAvailable, checkConfigPort, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, checkConfigField, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -111,7 +111,9 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     ENABLE_LOCAL_AUTH: enableLocalAuth.toString(),
     SITE_DOMAIN: siteDomain,
     OAUTH_ALLOWED_DOMAINS: allowedDomains,
-    JWT_SECRET: jwtSecret
+    JWT_SECRET: jwtSecret,
+    SEMIONT_ROOT: service.projectRoot,
+    SEMIONT_ENV: service.environment,
   };
   
   // Ensure logs directory exists
@@ -279,7 +281,10 @@ const preflightBackendStart = async (context: PosixStartHandlerContext): Promise
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
-  checks.push(checkJwtSecretExists());
+  checks.push(
+    checkJwtSecretExists(),
+    checkConfigField(context.service.projectRoot, 'projectRoot'),
+  );
   return preflightFromChecks(checks);
 };
 

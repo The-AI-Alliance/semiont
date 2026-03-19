@@ -73,7 +73,7 @@ describe('AnnotationContext', () => {
 
     const viewStorage = new FilesystemViewStorage(testDir, testDir);
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
     mockGraphDb = createMockGraphDb();
 
     kb = {
@@ -93,7 +93,7 @@ describe('AnnotationContext', () => {
     const testContent = Buffer.from(content, 'utf-8');
     const { checksum } = await kb.content.store(testContent, { mediaType: 'text/plain' });
 
-    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'resource.created',
@@ -130,7 +130,7 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'annotation.added',
@@ -311,7 +311,7 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
@@ -474,7 +474,7 @@ describe('AnnotationContext', () => {
       await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
 
       // Add a sibling annotation with entity types
-      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: resourceId(testResourceId),

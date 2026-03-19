@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import type { Logger } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, getStateDir } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { importBackup, Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
@@ -21,7 +21,7 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
-import { findProjectRoot } from '../config-loader.js';
+import { findProjectRoot, readProjectName } from '../config-loader.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -111,7 +111,8 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
 
   // Bootstrap EventBus + Stower for restore
   const eventBus = new EventBus();
-  const eventStore = createEventStore(basePath, undefined, eventBus, logger);
+  const projectionsPath = getStateDir(readProjectName(projectRoot));
+  const eventStore = createEventStore(basePath, projectionsPath, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, basePath, projectRoot, createNoopGraphDatabase(), logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
