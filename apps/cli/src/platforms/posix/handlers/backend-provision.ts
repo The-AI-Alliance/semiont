@@ -7,7 +7,7 @@ import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
 import { getNodeEnvForEnvironment } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, resolveSharedSecret } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -115,17 +115,13 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const enableLocalAuth = service.environmentConfig.app?.security?.enableLocalAuth ??
     (nodeEnv === 'development');
 
-  // Resolve JWT secret in sync with frontend's NEXTAUTH_SECRET
-  const { secret: jwtSecret, message: jwtSecretMessage, peerWillBeOutOfSync: jwtPeerOutOfSync } = resolveSharedSecret(
-    projectRoot,
-    'backend/.env',       'JWT_SECRET',
-    'frontend/.env.local', 'NEXTAUTH_SECRET',
-    () => service.environmentConfig.app?.security?.jwtSecret ?? crypto.randomBytes(32).toString('base64'),
-    options.rotateSecret === true
-  );
-  printInfo(jwtSecretMessage);
-  if (jwtPeerOutOfSync) {
-    printWarning('frontend NEXTAUTH_SECRET is now out of sync — re-provision frontend to restore authentication');
+  let jwtSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
+  if (!jwtSecret) {
+    jwtSecret = service.environmentConfig.app?.security?.jwtSecret ?? crypto.randomBytes(32).toString('base64');
+    writeSecret('JWT_SECRET', jwtSecret);
+    printInfo(options.rotateSecret ? 'Generated new JWT_SECRET (--rotate-secret)' : 'Generated new JWT_SECRET');
+  } else {
+    printInfo('Using existing JWT_SECRET from secrets file');
   }
 
   const envUpdates: Record<string, string> = {
@@ -135,7 +131,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     'DATABASE_URL': databaseUrl,
     'LOG_DIR': logsDir,
     'TMP_DIR': tmpDir,
-    'JWT_SECRET': jwtSecret,
     'FRONTEND_URL': frontendUrl,
     'BACKEND_URL': backendUrl,
     'ENABLE_LOCAL_AUTH': enableLocalAuth.toString(),

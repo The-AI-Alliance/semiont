@@ -7,7 +7,7 @@ import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths } from './frontend-paths.js';
-import { checkPortFree, checkCommandAvailable, checkConfigPort, checkSecretsInSync, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -86,12 +86,16 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     throw new Error('NODE_ENV not found in .env.local');
   }
 
+  const jwtSecret = readSecret('JWT_SECRET');
+  if (!jwtSecret) throw new Error(`JWT_SECRET not found in ${getSecretsFilePath()} — run: semiont provision`);
+
   const env = {
     ...process.env,
     ...envVars,
     PORT: port.toString(),
     LOG_DIR: logsDir,
-    TMP_DIR: tmpDir
+    TMP_DIR: tmpDir,
+    NEXTAUTH_SECRET: jwtSecret
   };
 
   // Debug: log NEXT_PUBLIC_* env vars
@@ -266,7 +270,7 @@ const preflightFrontendStart = async (context: PosixStartHandlerContext): Promis
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
-  checks.push(checkSecretsInSync(context.service.projectRoot));
+  checks.push(checkJwtSecretExists());
   return preflightFromChecks(checks);
 };
 

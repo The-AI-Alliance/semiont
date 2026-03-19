@@ -21,7 +21,7 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
-import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
+import { findProjectRoot } from '../config-loader.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -95,7 +95,6 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
 
   const projectRoot = findProjectRoot();
   const environment = options.environment!;
-  const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
   const basePath = path.join(projectRoot, '.semiont', 'data');
 

@@ -6,7 +6,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, resolveSharedSecret } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -78,17 +78,13 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     }
   }
   
-  // Resolve NEXTAUTH_SECRET in sync with backend's JWT_SECRET
-  const { secret: nextAuthSecret, message: nextAuthSecretMessage, peerWillBeOutOfSync: nextAuthPeerOutOfSync } = resolveSharedSecret(
-    projectRoot,
-    'frontend/.env.local', 'NEXTAUTH_SECRET',
-    'backend/.env',        'JWT_SECRET',
-    () => crypto.randomBytes(32).toString('base64'),
-    options.rotateSecret === true
-  );
-  printInfo(nextAuthSecretMessage);
-  if (nextAuthPeerOutOfSync) {
-    printWarning('backend JWT_SECRET is now out of sync — re-provision backend to restore authentication');
+  let nextAuthSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
+  if (!nextAuthSecret) {
+    nextAuthSecret = crypto.randomBytes(32).toString('base64');
+    writeSecret('JWT_SECRET', nextAuthSecret);
+    printInfo(options.rotateSecret ? 'Generated new JWT_SECRET (--rotate-secret)' : 'Generated new JWT_SECRET');
+  } else {
+    printInfo('Using existing JWT_SECRET from secrets file');
   }
 
   // Get values from service config (already validated by schema)
@@ -128,7 +124,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'NODE_ENV': 'development',
     'PORT': port.toString(),
     'NEXTAUTH_URL': frontendUrl,
-    'NEXTAUTH_SECRET': nextAuthSecret,
     'SERVER_API_URL': backendUrl,
     'NEXT_PUBLIC_SITE_NAME': siteName,
     'NEXT_PUBLIC_BASE_URL': frontendUrl,
@@ -164,7 +159,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     
     if (!service.quiet) {
       printSuccess('Created .env.local with updated configuration');
-      printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
     }
   } else {
     // Create .env.local from scratch
@@ -172,7 +166,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 NODE_ENV=development
 PORT=${port}
 NEXTAUTH_URL=${frontendUrl}
-NEXTAUTH_SECRET=${nextAuthSecret}
 
 # Backend API URL for server-side calls (uses localhost for POSIX platform)
 SERVER_API_URL=${backendUrl}
@@ -190,10 +183,9 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
 
     if (!service.quiet) {
       printSuccess('Created .env.local with updated configuration');
-      printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
     }
   }
-  
+
   // Clean up stale .env.local in sourceDir (SEMIONT_REPO mode only).
   // Next.js dev server auto-loads .env.local from cwd, so a leftover file
   // in sourceDir would shadow the env vars the CLI passes via spawn.
