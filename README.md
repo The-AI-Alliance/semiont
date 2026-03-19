@@ -44,19 +44,13 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 - **[Browse](docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
 - **[Beckon](docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
-## 🧪 Demos & Examples
+## 🧪 Try Semiont
 
-**Semiont Workflows Demo** - Interactive examples showing Semiont SDK usage:
+**[semiont-workflows](https://github.com/The-AI-Alliance/semiont-workflows)** is a peer repository with a complete working Semiont environment: real datasets (Supreme Court opinions, scientific papers, case law), a four-phase processing pipeline (download → load → annotate → validate), and an interactive terminal UI. It is the fastest way to see Semiont running on realistic data.
 
-[![Open Semiont Workflows Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-workflows)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-workflows)
 
-The [Semiont Workflows Demo](https://github.com/The-AI-Alliance/semiont-workflows) repository provides ready-to-run examples including:
-- Document processing workflows (chunking, table of contents)
-- Annotation detection (legal citations, highlights, tags)
-- Interactive terminal UI for running demos
-- Various datasets (Supreme Court cases, research papers, genealogical records)
-
-[→ Visit Semiont Workflows Demo Repository](https://github.com/The-AI-Alliance/semiont-workflows)
+[→ Visit semiont-workflows](https://github.com/The-AI-Alliance/semiont-workflows)
 
 ## 📦 Published Artifacts
 

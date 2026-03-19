@@ -48,9 +48,9 @@ Humans and AI agents work as peers through six composable workflows:
 
 ## Get Started Today
 
-The [Semiont Workflows Demo](https://github.com/The-AI-Alliance/semiont-workflows) provides ready-to-run examples including document processing workflows, annotation detection, and interactive demos across various datasets.
+**[semiont-workflows](https://github.com/The-AI-Alliance/semiont-workflows)** is a complete working Semiont environment with real datasets, a four-phase processing pipeline, and an interactive terminal UI — the fastest way to see Semiont running on realistic data.
 
-[![Open Semiont Workflows Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-workflows)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-workflows)
 
 ## Open Source & Community
 
