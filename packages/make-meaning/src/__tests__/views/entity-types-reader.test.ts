@@ -44,15 +44,7 @@ describe('Entity Types Projection Reader', () => {
 
     // Create test configuration
     config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        graph: {
-          type: 'memory'
-        }
-      },
+      services: {},
       _metadata: {
         projectRoot: testDir
       },
