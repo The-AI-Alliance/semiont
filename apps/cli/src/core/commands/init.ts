@@ -32,6 +32,7 @@
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SemiontProject } from '@semiont/core';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -159,12 +160,14 @@ async function init(
         dryRun: true,
       };
     } else {
+      // If --force, remove existing config so SemiontProject will write the new name
+      const configPath = path.join(dotSemiontDir, 'config');
+      if (options.force && fs.existsSync(configPath)) {
+        fs.unlinkSync(configPath);
+      }
+
       // Create .semiont/ anchor directory with minimal config
-      fs.mkdirSync(dotSemiontDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(dotSemiontDir, 'config'),
-        `[project]\nname = "${projectName}"\n`
-      );
+      new SemiontProject(projectDir, projectName);
 
       if (!options.quiet) {
         console.log(`${colors.green}✅ Created .semiont/${colors.reset}`);
