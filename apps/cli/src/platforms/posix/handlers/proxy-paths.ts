@@ -1,7 +1,6 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import { getRuntimeDir, getStateDir } from '../../../core/handlers/preflight-utils.js';
-import { readProjectName } from '../../../core/config-loader.js';
+import { SemiontProject } from '@semiont/core';
 
 /**
  * Proxy service paths on POSIX platform
@@ -20,13 +19,13 @@ export interface ProxyPaths {
  */
 export function getProxyPaths<T>(context: BaseHandlerContext<T>): ProxyPaths {
   const projectRoot = context.service.projectRoot;
-  const projectName = readProjectName(projectRoot);
+  const project = new SemiontProject(projectRoot);
   const runtimeDir = path.join(projectRoot, 'proxy');
-  const logsDir = path.join(getStateDir(projectName), 'proxy');
+  const logsDir = path.join(project.stateDir, 'proxy');
 
   return {
     runtimeDir,
-    pidFile: path.join(getRuntimeDir(projectName), 'proxy.pid'),
+    pidFile: path.join(project.runtimeDir, 'proxy.pid'),
     configFile: path.join(runtimeDir, 'envoy.yaml'),
     logsDir,
     appLogFile: path.join(logsDir, 'proxy.log'),

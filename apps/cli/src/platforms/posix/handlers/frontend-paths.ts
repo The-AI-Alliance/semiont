@@ -1,8 +1,7 @@
 import * as path from 'path';
 import { createRequire } from 'module';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import { getRuntimeDir, getStateDir } from '../../../core/handlers/preflight-utils.js';
-import { readProjectName } from '../../../core/config-loader.js';
+import { SemiontProject } from '@semiont/core';
 
 /**
  * Frontend service paths on POSIX platform
@@ -47,20 +46,20 @@ export function resolveFrontendNpmPackage(projectRoot: string): string | null {
  */
 export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPaths {
   const projectRoot = context.service.projectRoot;
-  const projectName = readProjectName(projectRoot);
+  const project = new SemiontProject(projectRoot);
   const runtimeDir = path.join(projectRoot, 'frontend');
   const semiontRepo = context.options?.semiontRepo;
 
   // 1. Explicit repo path (developer mode)
   if (semiontRepo) {
     const sourceDir = path.join(semiontRepo, 'apps', 'frontend');
-    return buildPaths(sourceDir, runtimeDir, projectName, false);
+    return buildPaths(sourceDir, runtimeDir, project, false);
   }
 
   // 2. Installed npm package
   const npmDir = resolveFrontendNpmPackage(projectRoot);
   if (npmDir) {
-    return buildPaths(npmDir, runtimeDir, projectName, true);
+    return buildPaths(npmDir, runtimeDir, project, true);
   }
 
   // 3. Fail loudly
@@ -71,12 +70,12 @@ export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPat
   );
 }
 
-function buildPaths(sourceDir: string, runtimeDir: string, projectName: string, fromNpmPackage: boolean): FrontendPaths {
-  const logsDir = path.join(getStateDir(projectName), 'frontend');
+function buildPaths(sourceDir: string, runtimeDir: string, project: SemiontProject, fromNpmPackage: boolean): FrontendPaths {
+  const logsDir = path.join(project.stateDir, 'frontend');
   return {
     sourceDir,
     runtimeDir,
-    pidFile: path.join(getRuntimeDir(projectName), 'frontend.pid'),
+    pidFile: path.join(project.runtimeDir, 'frontend.pid'),
     logsDir,
     appLogFile: path.join(logsDir, 'app.log'),
     errorLogFile: path.join(logsDir, 'error.log'),

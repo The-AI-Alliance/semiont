@@ -10,12 +10,11 @@
  *   const makeMeaning = await startMakeMeaning(config);
  */
 
-import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { getPrimaryRepresentation } from '@semiont/api-client';
 import type { Logger, ResourceId } from '@semiont/core';
-import { EventBus, getStateDir, readProjectName } from '@semiont/core';
+import { EventBus, SemiontProject } from '@semiont/core';
 import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
 
 export type { MakeMeaningConfig } from './config';
@@ -75,8 +74,9 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
   if (!projectRoot) {
     throw new Error('config._metadata.projectRoot is required for make-meaning service');
   }
-  const basePath = path.join(projectRoot, '.semiont', 'data');
-  const stateDir = getStateDir(readProjectName(projectRoot));
+  const project = new SemiontProject(projectRoot);
+  const basePath = project.dataDir;
+  const stateDir = project.stateDir;
 
   // 2. Initialize job queue
   const jobQueueLogger = logger.child({ component: 'job-queue' });

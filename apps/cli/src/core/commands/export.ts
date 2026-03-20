@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import type { Logger } from '@semiont/core';
-import { getStateDir } from '@semiont/core';
+import { SemiontProject } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { exportLinkedData } from '@semiont/make-meaning';
@@ -22,7 +22,7 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
-import { loadEnvironmentConfig, findProjectRoot, readProjectName } from '../config-loader.js';
+import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -61,8 +61,9 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
     throw new Error('services.backend.publicURL is required in environment config');
   }
 
-  const basePath = path.join(projectRoot, '.semiont', 'data');
-  const stateDir = getStateDir(readProjectName(projectRoot));
+  const project = new SemiontProject(projectRoot);
+  const basePath = project.dataDir;
+  const stateDir = project.stateDir;
 
   const logger = createCliLogger(options.verbose ?? false);
 

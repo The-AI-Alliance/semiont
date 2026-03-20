@@ -1,8 +1,7 @@
 import * as path from 'path';
 import { createRequire } from 'module';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import { getRuntimeDir, getStateDir } from '../../../core/handlers/preflight-utils.js';
-import { readProjectName } from '../../../core/config-loader.js';
+import { SemiontProject } from '@semiont/core';
 
 /**
  * Backend service paths on POSIX platform
@@ -47,20 +46,20 @@ export function resolveBackendNpmPackage(projectRoot: string): string | null {
  */
 export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths {
   const projectRoot = context.service.projectRoot;
-  const projectName = readProjectName(projectRoot);
+  const project = new SemiontProject(projectRoot);
   const runtimeDir = path.join(projectRoot, 'backend');
   const semiontRepo = context.options?.semiontRepo;
 
   // 1. Explicit repo path (developer mode)
   if (semiontRepo) {
     const sourceDir = path.join(semiontRepo, 'apps', 'backend');
-    return buildPaths(sourceDir, runtimeDir, projectName, false);
+    return buildPaths(sourceDir, runtimeDir, project, false);
   }
 
   // 2. Installed npm package
   const npmDir = resolveBackendNpmPackage(projectRoot);
   if (npmDir) {
-    return buildPaths(npmDir, runtimeDir, projectName, true);
+    return buildPaths(npmDir, runtimeDir, project, true);
   }
 
   // 3. Fail loudly
@@ -71,12 +70,12 @@ export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths
   );
 }
 
-function buildPaths(sourceDir: string, runtimeDir: string, projectName: string, fromNpmPackage: boolean): BackendPaths {
-  const logsDir = path.join(getStateDir(projectName), 'backend');
+function buildPaths(sourceDir: string, runtimeDir: string, project: SemiontProject, fromNpmPackage: boolean): BackendPaths {
+  const logsDir = path.join(project.stateDir, 'backend');
   return {
     sourceDir,
     runtimeDir,
-    pidFile: path.join(getRuntimeDir(projectName), 'backend.pid'),
+    pidFile: path.join(project.runtimeDir, 'backend.pid'),
     logsDir,
     appLogFile: path.join(logsDir, 'app.log'),
     errorLogFile: path.join(logsDir, 'error.log'),

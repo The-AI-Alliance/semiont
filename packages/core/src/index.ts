@@ -232,8 +232,8 @@ export type {
   ServicePlatformConfig
 } from './config/config.types';
 
-// XDG base directory helpers
-export { getStateDir, readProjectName } from './xdg-paths';
+// Project paths (durable + ephemeral, XDG-resolved once at construction)
+export { SemiontProject } from './project';
 
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';

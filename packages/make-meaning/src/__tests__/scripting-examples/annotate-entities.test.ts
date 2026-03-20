@@ -19,9 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
 import { userId, entityType } from '@semiont/core';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createTestProject, type TestProject } from '../helpers/test-project';
 
 // Mock @semiont/inference for predictable testing
 const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
@@ -46,7 +44,7 @@ const mockLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
-  error: vi.fn(),
+  error: vi.fn((msg, ctx) => console.error('[mockLogger.error]', msg, JSON.stringify(ctx))),
   child: vi.fn(() => mockLogger)
 };
 

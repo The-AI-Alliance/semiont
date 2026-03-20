@@ -7,9 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createConfigLoader, listEnvironmentNames, ConfigurationError, readProjectName, type ConfigFileReader } from '@semiont/core';
-
-export { readProjectName };
+import { createConfigLoader, listEnvironmentNames, ConfigurationError, type ConfigFileReader } from '@semiont/core';
 
 /**
  * Find project root by walking up from cwd looking for .semiont/.

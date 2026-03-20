@@ -3,10 +3,7 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
-import { getStateDir } from '@semiont/core';
 import type { PreflightCheck, PreflightResult } from './types.js';
-
-export { getStateDir };
 
 export function checkContainerRuntime(runtime: string): PreflightCheck {
   try {
@@ -175,15 +172,6 @@ export function checkConfigNonEmptyArray(arr: unknown, fieldPath: string): Prefl
     return { name: `config-${fieldPath}`, pass: false, message: `${fieldPath} must be a non-empty array` };
   }
   return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} has ${arr.length} entries` };
-}
-
-export function getRuntimeDir(projectName: string): string {
-  const xdgRuntime = process.env.XDG_RUNTIME_DIR;
-  if (xdgRuntime) {
-    return path.join(xdgRuntime, 'semiont', projectName);
-  }
-  const tmpDir = process.env.TMPDIR || '/tmp';
-  return path.join(tmpDir, 'semiont', projectName);
 }
 
 export function getSecretsFilePath(): string {

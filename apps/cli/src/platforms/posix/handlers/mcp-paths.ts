@@ -1,8 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import { getRuntimeDir } from '../../../core/handlers/preflight-utils.js';
-import { readProjectName } from '../../../core/config-loader.js';
+import { SemiontProject } from '@semiont/core';
 
 /**
  * MCP service paths on POSIX platform
@@ -19,7 +18,7 @@ export interface MCPPaths {
  */
 export function getMCPPaths<T>(context: BaseHandlerContext<T>): MCPPaths {
   const service = context.service;
-  const projectName = readProjectName(service.projectRoot);
+  const project = new SemiontProject(service.projectRoot);
 
   const configDir = path.join(
     process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'),
@@ -33,7 +32,7 @@ export function getMCPPaths<T>(context: BaseHandlerContext<T>): MCPPaths {
 
   return {
     configDir,
-    pidFile: path.join(getRuntimeDir(projectName), 'mcp.pid'),
+    pidFile: path.join(project.runtimeDir, 'mcp.pid'),
     authFile
   };
 }
