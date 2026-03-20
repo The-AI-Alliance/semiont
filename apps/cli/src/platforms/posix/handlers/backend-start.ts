@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
-import { getNodeEnvForEnvironment } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
@@ -92,7 +91,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const dbPort = dbConfig.port!;
   const dbHost = dbConfig.host || 'localhost';
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
-  const nodeEnv = getNodeEnvForEnvironment(envConfig);
+  const nodeEnv = envConfig.env?.NODE_ENV ?? 'development';
   const enableLocalAuth = envConfig.app?.security?.enableLocalAuth ?? (nodeEnv === 'development');
   const frontendUrl = envConfig.services!.frontend!.publicURL!;
   const backendUrl = config.publicURL!;

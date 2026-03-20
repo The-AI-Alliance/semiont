@@ -15,8 +15,24 @@
  */
 
 import { parse as parseToml } from 'smol-toml';
-import { resolveEnvVars } from './environment-loader';
 import type { EnvironmentConfig } from './config.types';
+
+function resolveEnvVars(obj: unknown, env: Record<string, string | undefined>): unknown {
+  if (typeof obj === 'string') {
+    return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => env[varName] ?? match);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => resolveEnvVars(item, env));
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const resolved: Record<string, unknown> = {};
+    for (const key in obj as Record<string, unknown>) {
+      resolved[key] = resolveEnvVars((obj as Record<string, unknown>)[key], env);
+    }
+    return resolved;
+  }
+  return obj;
+}
 
 // ── Inference config types (mirrored from packages/make-meaning/src/config.ts) ─
 // Kept here to avoid a circular dependency: core cannot import make-meaning.

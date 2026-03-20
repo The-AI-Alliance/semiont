@@ -1,13 +1,15 @@
 /**
  * Configuration Loader for CLI
  *
- * Filesystem wrapper around @semiont/core's pure config functions.
+ * Filesystem wrapper around @semiont/core's TOML config functions.
  * This keeps fs operations out of the core package.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createConfigLoader, listEnvironmentNames, ConfigurationError, type ConfigFileReader } from '@semiont/core';
+import * as os from 'os';
+import { parse as parseToml } from 'smol-toml';
+import { createTomlConfigLoader, ConfigurationError, type TomlFileReader } from '@semiont/core';
 
 /**
  * Find project root by walking up from cwd looking for .semiont/.
@@ -53,50 +55,38 @@ export function findProjectRoot(): string {
 }
 
 /**
- * Node.js file reader implementation for CLI config loading
+ * Node.js file reader for TOML config loading
  */
-const nodeFileReader: ConfigFileReader = {
+const nodeTomlFileReader: TomlFileReader = {
   readIfExists: (filePath: string) => {
     const absolutePath = path.resolve(filePath);
     return fs.existsSync(absolutePath)
       ? fs.readFileSync(absolutePath, 'utf-8')
       : null;
   },
-
-  readRequired: (filePath: string) => {
-    const absolutePath = path.resolve(filePath);
-    if (!fs.existsSync(absolutePath)) {
-      throw new ConfigurationError(
-        `Configuration file not found: ${absolutePath}`,
-        undefined,
-        `Create the configuration file or use: semiont init`
-      );
-    }
-    return fs.readFileSync(absolutePath, 'utf-8');
-  },
 };
 
 /**
- * Load environment configuration from filesystem
- * Uses createConfigLoader from @semiont/core with Node.js file reader
+ * Load environment configuration from ~/.semiontconfig (TOML)
  */
-export const loadEnvironmentConfig = createConfigLoader(nodeFileReader);
+export function loadEnvironmentConfig(projectRoot: string, environment: string) {
+  const configPath = path.join(os.homedir(), '.semiontconfig');
+  return createTomlConfigLoader(nodeTomlFileReader, configPath, process.env)(projectRoot, environment);
+}
 
 /**
- * Get available environments by scanning environments directory
+ * Get available environments from ~/.semiontconfig [environments.*] keys
  */
 export function getAvailableEnvironments(): string[] {
+  const configPath = path.join(os.homedir(), '.semiontconfig');
   try {
-    const projectRoot = findProjectRoot();
-    const configDir = path.join(projectRoot, 'environments');
-
-    if (!fs.existsSync(configDir)) {
-      return [];
-    }
-
-    const files = fs.readdirSync(configDir);
-    return listEnvironmentNames(files);
-  } catch (error) {
+    const content = fs.existsSync(configPath)
+      ? fs.readFileSync(configPath, 'utf-8')
+      : null;
+    if (!content) return [];
+    const parsed = parseToml(content) as { environments?: Record<string, unknown> };
+    return Object.keys(parsed.environments ?? {}).sort();
+  } catch {
     return [];
   }
 }

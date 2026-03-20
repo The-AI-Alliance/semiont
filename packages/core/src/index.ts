@@ -168,26 +168,12 @@ export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
 
-// Configuration - Pure functions only (no filesystem dependencies)
-// Callers should read config files themselves and pass contents to parseAndMergeConfigs
-// Or use createConfigLoader with a platform-specific file reader
-export {
-  deepMerge,
-  resolveEnvVars,
-  parseAndMergeConfigs,
-  createConfigLoader,
-  listEnvironmentNames,
-  getNodeEnvForEnvironment,
-  hasAWSConfig,
-  displayConfiguration,
-  // Types
-  type EnvironmentConfig,
-  type ServiceConfig,
-  type AWSConfig,
-  type SiteConfig,
-  type AppConfig,
-  type ConfigFileReader,
-} from './config/environment-loader';
+// Configuration types
+export type {
+  EnvironmentConfig,
+  SiteConfig,
+  AppConfig,
+} from './config/config.types';
 
 export {
   loadTomlConfig,
@@ -203,13 +189,6 @@ export {
   validateEnvironment,
   type Environment,
 } from './config/environment-validator';
-export {
-  formatErrors,
-  validateSemiontConfig,
-  validateEnvironmentConfig,
-  validateSiteConfig,
-  type ValidationResult,
-} from './config/config-validator';
 export { ConfigurationError } from './config/configuration-error';
 export type { ProxyServiceConfig } from './config/config.types';
 export {

@@ -72,10 +72,7 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
   );
 
   // Read entity types from the entity-types projection
-  const entityTypes = await readEntityTypesProjection({
-    services: {},
-    _metadata: { projectRoot },
-  });
+  const entityTypes = await readEntityTypesProjection(project);
 
   const outPath = path.resolve(options.out);
 

@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { getNodeEnvForEnvironment } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
@@ -88,7 +87,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) as Record<string, string>,
-    NODE_ENV: getNodeEnvForEnvironment(envConfig),
+    NODE_ENV: envConfig.env?.NODE_ENV ?? 'development',
     PORT: port.toString(),
     NEXTAUTH_URL: frontendUrl,
     SERVER_API_URL: backendUrl,
