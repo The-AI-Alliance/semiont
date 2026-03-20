@@ -16,7 +16,7 @@ import type { EventStore } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import type { Logger } from '@semiont/core';
+import type { Logger, SemiontProject } from '@semiont/core';
 
 export interface KnowledgeBase {
   eventStore: EventStore;
@@ -27,16 +27,14 @@ export interface KnowledgeBase {
 
 export function createKnowledgeBase(
   eventStore: EventStore,
-  stateDir: string,
-  dataDir: string,
-  projectRoot: string | undefined,
+  project: SemiontProject,
   graphDb: GraphDatabase,
   logger: Logger,
 ): KnowledgeBase {
-  const views = new FilesystemViewStorage(stateDir, projectRoot);
+  const views = new FilesystemViewStorage(project.stateDir, project.root);
   const content = new FilesystemRepresentationStore(
-    { basePath: dataDir },
-    projectRoot,
+    { basePath: project.dataDir },
+    project.root,
     logger.child({ component: 'representation-store' }),
   );
   return { eventStore, views, content, graph: graphDb };

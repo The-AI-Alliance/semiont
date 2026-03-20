@@ -16,10 +16,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus, type Logger } from '@semiont/core';
+import { EventBus, type Logger, type SemiontProject } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
 import { userId, entityType } from '@semiont/core';
-import { createTestProject, type TestProject } from '../helpers/test-project';
+import { createTestProject } from '../helpers/test-project';
 
 // Mock @semiont/inference for predictable testing
 const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
@@ -49,13 +49,14 @@ const mockLogger: Logger = {
 };
 
 describe('Scripting Example: Batch Entity Detection', () => {
-  let project: TestProject;
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    project = await createTestProject('batch');
+    ({ project, teardown } = await createTestProject('batch'));
 
     config = {
       services: { graph: { platform: { type: 'posix' }, type: 'memory' } },
@@ -76,7 +77,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
   afterEach(async () => {
     if (makeMeaning) await makeMeaning.stop();
     if (eventBus) eventBus.destroy();
-    await project.teardown();
+    await teardown();
   });
 
   it('processes multiple resources in parallel with completion tracking', async () => {

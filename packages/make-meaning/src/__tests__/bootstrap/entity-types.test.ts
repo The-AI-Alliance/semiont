@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { userId, EventBus, type Logger } from '@semiont/core';
+import { userId, EventBus, type Logger, type SemiontProject } from '@semiont/core';
 import { createKnowledgeBase, type KnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
 import { getGraphDatabase } from '@semiont/graph';
@@ -22,7 +22,7 @@ import type { GraphServiceConfig } from '@semiont/core';
 import type { MakeMeaningConfig } from '../../config';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { createTestProject, type TestProject } from '../helpers/test-project';
+import { createTestProject } from '../helpers/test-project';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -33,7 +33,8 @@ const mockLogger: Logger = {
 };
 
 describe('Entity Types Bootstrap', () => {
-  let project: TestProject;
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
   let eventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
@@ -44,7 +45,7 @@ describe('Entity Types Bootstrap', () => {
     // Reset bootstrap flag before each test
     resetBootstrap();
 
-    project = await createTestProject('bootstrap');
+    ({ project, teardown } = await createTestProject('bootstrap'));
 
     config = {
       services: {},
@@ -54,7 +55,7 @@ describe('Entity Types Bootstrap', () => {
     eventBus = new EventBus();
     eventStore = createEventStore(project.dataDir, project.stateDir, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    kb = createKnowledgeBase(eventStore, project.stateDir, project.dataDir, project.root, graphDb, mockLogger);
+    kb = createKnowledgeBase(eventStore, project, graphDb, mockLogger);
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
   });
@@ -62,7 +63,7 @@ describe('Entity Types Bootstrap', () => {
   afterEach(async () => {
     await stower.stop();
     eventBus.destroy();
-    await project.teardown();
+    await teardown();
   });
 
   describe('initial bootstrap', () => {
@@ -196,7 +197,7 @@ describe('Entity Types Bootstrap', () => {
     it('should handle different filesystem path configurations', async () => {
       resetBootstrap();
 
-      const altProject = await createTestProject('bootstrap-alt');
+      const { project: altProject, teardown: altTeardown } = await createTestProject('bootstrap-alt');
       const altConfig = {
         ...config,
         _metadata: { projectRoot: altProject.root }
@@ -205,7 +206,7 @@ describe('Entity Types Bootstrap', () => {
       const altEventBus = new EventBus();
       const altEventStore = createEventStore(altProject.dataDir, altProject.stateDir, undefined, altEventBus, mockLogger);
       const altGraphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const altKb = createKnowledgeBase(altEventStore, altProject.stateDir, altProject.dataDir, altProject.root, altGraphDb, mockLogger);
+      const altKb = createKnowledgeBase(altEventStore, altProject, altGraphDb, mockLogger);
       const altStower = new Stower(altKb, altEventBus, mockLogger);
       await altStower.initialize();
 
@@ -216,7 +217,7 @@ describe('Entity Types Bootstrap', () => {
 
       await altStower.stop();
       altEventBus.destroy();
-      await altProject.teardown();
+      await altTeardown();
 
       expect(exists).toBe(true);
     });

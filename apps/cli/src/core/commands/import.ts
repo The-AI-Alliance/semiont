@@ -99,7 +99,6 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
   const environment = options.environment!;
 
   const project = new SemiontProject(projectRoot);
-  const basePath = project.dataDir;
 
   const logger = createCliLogger(options.verbose ?? false);
 
@@ -117,9 +116,8 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
 
   // Bootstrap EventBus + Stower for import
   const eventBus = new EventBus();
-  const stateDir = project.stateDir;
-  const eventStore = createEventStore(basePath, stateDir, undefined, eventBus, logger);
-  const kb = createKnowledgeBase(eventStore, stateDir, basePath, projectRoot, createNoopGraphDatabase(), logger);
+  const eventStore = createEventStore(project.dataDir, project.stateDir, undefined, eventBus, logger);
+  const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 

@@ -4,12 +4,12 @@
  * Creates a fully isolated temporary Semiont project for each test:
  *   - Unique temp directory with .semiont/config (project name)
  *   - XDG_STATE_HOME pointed inside the temp dir so stateDir is local
- *   - project.destroy() in afterEach cleans up everything
+ *   - teardown() restores XDG_STATE_HOME and removes the temp dir
  *
  * Usage:
- *   const project = await createTestProject();
+ *   const { project, teardown } = await createTestProject('my-test');
  *   // project.root, project.stateDir, project.dataDir, etc.
- *   await project.destroy();  // in afterEach
+ *   await teardown();  // in afterEach
  */
 
 import { promises as fs } from 'fs';
@@ -17,17 +17,11 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { SemiontProject } from '@semiont/core';
 
-export interface TestProject extends SemiontProject {
-  /** Restore XDG_STATE_HOME to its original value */
-  teardown(): Promise<void>;
+export interface TestProject {
+  project: SemiontProject;
+  teardown: () => Promise<void>;
 }
 
-/**
- * Create a temporary isolated Semiont project for testing.
- *
- * Sets XDG_STATE_HOME to inside the temp dir so the stateDir
- * (projections, job queue) is fully contained and cleaned up with destroy().
- */
 export async function createTestProject(nameHint: string = 'test'): Promise<TestProject> {
   const root = join(tmpdir(), `semiont-${nameHint}-${Date.now()}`);
   await fs.mkdir(join(root, '.semiont'), { recursive: true });
@@ -36,14 +30,12 @@ export async function createTestProject(nameHint: string = 'test'): Promise<Test
     `[project]\nname = "${nameHint}"\n`
   );
 
-  // Redirect XDG_STATE_HOME into the temp dir so stateDir is local
   const originalXdgState = process.env.XDG_STATE_HOME;
   process.env.XDG_STATE_HOME = join(root, 'state');
 
-  const project = new SemiontProject(root) as TestProject;
+  const project = new SemiontProject(root);
 
-  project.teardown = async () => {
-    // Restore env var before rm so any parallel tests aren't affected
+  const teardown = async () => {
     if (originalXdgState === undefined) {
       delete process.env.XDG_STATE_HOME;
     } else {
@@ -52,5 +44,5 @@ export async function createTestProject(nameHint: string = 'test'): Promise<Test
     await fs.rm(root, { recursive: true, force: true });
   };
 
-  return project;
+  return { project, teardown };
 }

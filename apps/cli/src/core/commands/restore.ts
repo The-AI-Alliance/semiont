@@ -97,8 +97,6 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
   const environment = options.environment!;
 
   const project = new SemiontProject(projectRoot);
-  const basePath = project.dataDir;
-
   const logger = createCliLogger(options.verbose ?? false);
 
   const filePath = path.resolve(options.file);
@@ -112,9 +110,8 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
 
   // Bootstrap EventBus + Stower for restore
   const eventBus = new EventBus();
-  const stateDir = project.stateDir;
-  const eventStore = createEventStore(basePath, stateDir, undefined, eventBus, logger);
-  const kb = createKnowledgeBase(eventStore, stateDir, basePath, projectRoot, createNoopGraphDatabase(), logger);
+  const eventStore = createEventStore(project.dataDir, project.stateDir, undefined, eventBus, logger);
+  const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
