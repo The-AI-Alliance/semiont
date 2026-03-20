@@ -10,7 +10,6 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { EventBus, userId, SemiontProject, type Logger } from '@semiont/core';
-import type { MakeMeaningConfig } from '../config';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 
@@ -21,17 +20,11 @@ let bootstrapCompleted = false;
  * Bootstrap entity types projection if it doesn't exist.
  * Uses a system user ID (00000000-0000-0000-0000-000000000000) for bootstrap events.
  */
-export async function bootstrapEntityTypes(eventBus: EventBus, config: MakeMeaningConfig, logger?: Logger): Promise<void> {
+export async function bootstrapEntityTypes(eventBus: EventBus, project: SemiontProject, logger?: Logger): Promise<void> {
   if (bootstrapCompleted) {
     logger?.debug('Entity types bootstrap already completed, skipping');
     return;
   }
-
-  const projectRoot = config._metadata?.projectRoot;
-  if (!projectRoot) {
-    throw new Error('config._metadata.projectRoot is required for entity types bootstrap');
-  }
-  const project = new SemiontProject(projectRoot);
 
   const projectionPath = path.join(
     project.stateDir,

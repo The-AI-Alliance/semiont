@@ -19,7 +19,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { startMakeMeaning, type MakeMeaningService, type MakeMeaningConfig } from '../service';
 import type { Logger } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, SemiontProject } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -34,19 +34,18 @@ const mockLogger: Logger = {
 
 describe('Make-Meaning Service', () => {
   let testDir: string;
+  let project: SemiontProject;
   let config: MakeMeaningConfig;
   let service: MakeMeaningService | null = null;
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    // Create temporary test directory
     testDir = join(tmpdir(), `semiont-test-service-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
+    project = new SemiontProject(testDir, 'test');
 
-    // Create EventBus
     eventBus = new EventBus();
 
-    // Create test configuration
     config = {
       services: {
         graph: {
@@ -61,31 +60,24 @@ describe('Make-Meaning Service', () => {
       workers: {
         default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      _metadata: {
-        projectRoot: testDir
-      },
     };
   });
 
   afterEach(async () => {
-    // Stop service if it was started
     if (service) {
       await service.stop();
       service = null;
     }
-
-    // Destroy EventBus
     if (eventBus) {
       eventBus.destroy();
     }
-
-    // Clean up test directory
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
   describe('initialization', () => {
     it('should initialize job queue', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       expect(service.jobQueue).toBeDefined();
       expect(typeof service.jobQueue.createJob).toBe('function');
@@ -93,7 +85,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should create event store', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       expect(service.eventStore).toBeDefined();
       expect(typeof service.eventStore.appendEvent).toBe('function');
@@ -103,7 +95,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should create knowledge base with content store', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       expect(service.kb).toBeDefined();
       expect(service.kb.content).toBeDefined();
@@ -112,21 +104,21 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should connect to graph database', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       expect(service.graphDb).toBeDefined();
       expect(typeof service.graphDb.disconnect).toBe('function');
     });
 
     it('should initialize graph consumer', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       expect(service.graphConsumer).toBeDefined();
       expect(typeof service.graphConsumer.stop).toBe('function');
     });
 
     it('should instantiate all workers', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       expect(service.workers).toBeDefined();
       expect(service.workers.detection).toBeDefined();
@@ -142,21 +134,21 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should return service handle with stop method', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       expect(service).toBeDefined();
       expect(typeof service.stop).toBe('function');
     });
 
     it('should handle absolute filesystem paths', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
       expect(service).toBeDefined();
     });
   });
 
   describe('lifecycle', () => {
     it('should start and stop cleanly', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
       expect(service).toBeDefined();
 
       // Should not throw
@@ -167,7 +159,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should stop all workers on service stop', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       // Spy on worker stop methods
       const detectionStopSpy = vi.spyOn(service.workers.detection, 'stop');
@@ -190,7 +182,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should stop graph consumer on service stop', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       const consumerStopSpy = vi.spyOn(service.graphConsumer, 'stop');
 
@@ -202,7 +194,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should disconnect graph database on service stop', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       const dbDisconnectSpy = vi.spyOn(service.graphDb, 'disconnect');
 
@@ -217,7 +209,7 @@ describe('Make-Meaning Service', () => {
   describe('integration', () => {
     it('should complete initialization without errors', async () => {
       // Service initialization includes bootstrap step
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       // If we got here, bootstrap completed successfully
       expect(service).toBeDefined();
@@ -229,18 +221,12 @@ describe('Make-Meaning Service', () => {
     it('should allow multiple service instances with different directories', async () => {
       const testDir2 = join(tmpdir(), `semiont-test-service-2-${Date.now()}`);
       await fs.mkdir(testDir2, { recursive: true });
-
-      const config2 = {
-        ...config,
-        _metadata: {
-          projectRoot: testDir2
-        }
-      };
+      const project2 = new SemiontProject(testDir2, 'test');
 
       const eventBus2 = new EventBus();
 
-      const service1 = await startMakeMeaning(config, eventBus, mockLogger);
-      const service2 = await startMakeMeaning(config2, eventBus2, mockLogger);
+      const service1 = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const service2 = await startMakeMeaning(project2, config, eventBus2, mockLogger);
 
       expect(service1).toBeDefined();
       expect(service2).toBeDefined();
@@ -249,6 +235,7 @@ describe('Make-Meaning Service', () => {
       await service1.stop();
       await service2.stop();
       eventBus2.destroy();
+      await project2.destroy();
       await fs.rm(testDir2, { recursive: true, force: true });
 
       // Clear service reference since we stopped it
@@ -256,7 +243,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should share event bus and inference client across workers', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
       // All workers should share the same eventBus instance
       const eventBusRefs = [

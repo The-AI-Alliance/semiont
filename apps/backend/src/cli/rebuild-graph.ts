@@ -11,7 +11,7 @@
  */
 
 import { startMakeMeaning } from '@semiont/make-meaning';
-import { resourceId as makeResourceId, EventBus } from '@semiont/core';
+import { resourceId as makeResourceId, EventBus, SemiontProject } from '@semiont/core';
 import { loadEnvironmentConfig, makeMeaningConfigFrom } from '../utils/config';
 import { initializeLogger, getLogger } from '../logger';
 
@@ -35,7 +35,7 @@ async function rebuildGraph(rId?: string) {
   const eventBus = new EventBus();
 
   // Start make-meaning to get eventStore and graphConsumer
-  const makeMeaning = await startMakeMeaning(makeMeaningConfigFrom(config), eventBus, logger);
+  const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
   const { graphConsumer: consumer } = makeMeaning;
 
   if (rId) {

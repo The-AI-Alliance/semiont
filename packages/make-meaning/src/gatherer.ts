@@ -37,7 +37,7 @@ import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { LLMContext } from './llm-context';
 import { readEntityTypesProjection } from './views/entity-types-reader';
-import type { MakeMeaningConfig } from './config';
+import type { SemiontProject } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type StoredEvent = { event: any; metadata: any };
@@ -51,7 +51,7 @@ export class Gatherer {
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
     logger: Logger,
-    private config?: MakeMeaningConfig,
+    private project?: SemiontProject,
   ) {
     this.logger = logger;
   }
@@ -444,10 +444,10 @@ export class Gatherer {
 
   private async handleEntityTypes(event: EventMap['mark:entity-types-requested']): Promise<void> {
     try {
-      if (!this.config) {
-        throw new Error('MakeMeaningConfig required for entity type reads');
+      if (!this.project) {
+        throw new Error('SemiontProject required for entity type reads');
       }
-      const entityTypes = await readEntityTypesProjection(this.config);
+      const entityTypes = await readEntityTypesProjection(this.project);
 
       this.eventBus.get('mark:entity-types-result').next({
         correlationId: event.correlationId,

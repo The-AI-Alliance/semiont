@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { resourceId, userId, type Logger } from '@semiont/core';
+import { resourceId, userId, type Logger, SemiontProject } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
@@ -32,16 +32,8 @@ describe('SSE Event Flow - End-to-End', () => {
 
     // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
     const { createEventStore } = await import('@semiont/event-sourcing');
-    eventStore = createEventStore(
-      testDir,
-      testDir,
-      {
-        enableSharding: false,
-        maxEventsPerFile: 100,
-      },
-      undefined,
-      mockLogger
-    );
+    const project = new SemiontProject(testDir);
+    eventStore = createEventStore(project, { enableSharding: false, maxEventsPerFile: 100 }, undefined, mockLogger);
   });
 
   afterAll(async () => {

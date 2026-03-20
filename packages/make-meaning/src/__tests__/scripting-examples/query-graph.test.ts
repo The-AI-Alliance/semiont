@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
-import { userId, resourceId as makeResourceId } from '@semiont/core';
+import { userId, resourceId as makeResourceId, SemiontProject } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -45,16 +45,16 @@ const mockLogger: Logger = {
 
 describe('Scripting Example: Query Graph Database', () => {
   let testDir: string;
+  let project: SemiontProject;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    // Create temporary test directory
     testDir = join(tmpdir(), `semiont-graph-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
+    project = new SemiontProject(testDir, 'test');
 
-    // Create test configuration with in-memory graph
     config = {
       services: {
         graph: {
@@ -69,16 +69,10 @@ describe('Scripting Example: Query Graph Database', () => {
       workers: {
         default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      _metadata: {
-        projectRoot: testDir
-      },
     };
 
-    // Create EventBus
     eventBus = new EventBus();
-
-    // Start make-meaning service
-    makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
+    makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
   });
 
   afterEach(async () => {

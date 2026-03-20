@@ -44,9 +44,6 @@ export interface MakeMeaningConfig {
   actors?: ActorInferenceConfig;
   /** Per-worker-type inference config */
   workers?: WorkerInferenceConfig;
-  _metadata?: {
-    projectRoot: string;
-  };
 }
 
 /**

@@ -31,6 +31,7 @@ import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { type EnvironmentConfig, EventBus } from '@semiont/core';
 import { startMakeMeaning } from '@semiont/make-meaning';
+import { SemiontProject } from '@semiont/core';
 import { loadEnvironmentConfig, makeMeaningConfigFrom } from './utils/config';
 
 import { User } from '@prisma/client';
@@ -75,7 +76,7 @@ if (databaseUrlConstructed) {
 const eventBus = new EventBus();
 
 // Initialize make-meaning service (job queue, workers, graph consumer)
-const makeMeaning = await startMakeMeaning(makeMeaningConfigFrom(config), eventBus, logger);
+const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
 
 // Import route definitions
 import { healthRouter } from './routes/health';

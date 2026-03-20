@@ -67,11 +67,10 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       workers: {
         default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      _metadata: { projectRoot: project.root },
     };
 
     eventBus = new EventBus();
-    makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
+    makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
   });
 
   afterEach(async () => {

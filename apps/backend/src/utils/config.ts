@@ -71,8 +71,5 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
     },
     actors: meta?.actors,
     workers: meta?.workers,
-    _metadata: config._metadata?.projectRoot
-      ? { projectRoot: config._metadata.projectRoot }
-      : undefined,
   };
 }

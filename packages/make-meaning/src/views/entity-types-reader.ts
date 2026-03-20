@@ -7,18 +7,12 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { SemiontProject } from '@semiont/core';
-import type { MakeMeaningConfig } from '../config';
+import type { SemiontProject } from '@semiont/core';
 
 /**
  * Read entity types from view storage projection
  */
-export async function readEntityTypesProjection(config: MakeMeaningConfig): Promise<string[]> {
-  const projectRoot = config._metadata?.projectRoot;
-  if (!projectRoot) {
-    throw new Error('config._metadata.projectRoot is required for entity types reader');
-  }
-  const project = new SemiontProject(projectRoot);
+export async function readEntityTypesProjection(project: SemiontProject): Promise<string[]> {
 
   const entityTypesPath = path.join(
     project.stateDir,

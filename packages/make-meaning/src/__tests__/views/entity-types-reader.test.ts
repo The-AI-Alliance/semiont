@@ -4,7 +4,6 @@
  * Tests the entity types projection reader:
  * - Reading existing projection files
  * - Handling missing projection files (returns empty array)
- * - Path resolution (absolute and relative)
  * - JSON parsing
  * - Error handling for malformed JSON
  * - Integration with bootstrap (after bootstrap, reader returns types)
@@ -20,7 +19,6 @@ import { createKnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
 import { getGraphDatabase } from '@semiont/graph';
 import type { GraphServiceConfig } from '@semiont/core';
-import type { MakeMeaningConfig } from '../../config';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { createTestProject } from '../helpers/test-project';
@@ -36,14 +34,9 @@ const mockLogger: Logger = {
 describe('Entity Types Projection Reader', () => {
   let project: SemiontProject;
   let teardown: () => Promise<void>;
-  let config: MakeMeaningConfig;
 
   beforeEach(async () => {
     ({ project, teardown } = await createTestProject('reader'));
-    config = {
-      services: {},
-      _metadata: { projectRoot: project.root },
-    };
   });
 
   afterEach(async () => {
@@ -56,7 +49,7 @@ describe('Entity Types Projection Reader', () => {
       await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['Person', 'Organization', 'Location'] }));
 
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
 
       expect(result).toEqual(['Person', 'Organization', 'Location']);
     });
@@ -66,7 +59,7 @@ describe('Entity Types Projection Reader', () => {
       await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['Zebra', 'Apple', 'Mango'] }));
 
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
 
       expect(result).toEqual(['Zebra', 'Apple', 'Mango']); // Returns as-is from file
     });
@@ -80,11 +73,11 @@ describe('Entity Types Projection Reader', () => {
       const kb = createKnowledgeBase(eventStore, project, graphDb, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
-      await bootstrapEntityTypes(eventBus, config);
+      await bootstrapEntityTypes(eventBus, project);
       await stower.stop();
       eventBus.destroy();
 
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
 
       expect(result.length).toBe(DEFAULT_ENTITY_TYPES.length);
       expect(result).toEqual(expect.arrayContaining(DEFAULT_ENTITY_TYPES));
@@ -93,12 +86,12 @@ describe('Entity Types Projection Reader', () => {
 
   describe('handling missing projections', () => {
     it('should return empty array when projection does not exist', async () => {
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
       expect(result).toEqual([]);
     });
 
     it('should return empty array when projection directory does not exist', async () => {
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
       expect(result).toEqual([]);
     });
   });
@@ -109,7 +102,7 @@ describe('Entity Types Projection Reader', () => {
       await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['Type1', 'Type2'] }, null, 2));
 
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
 
       expect(result).toEqual(['Type1', 'Type2']);
     });
@@ -119,7 +112,7 @@ describe('Entity Types Projection Reader', () => {
       await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, JSON.stringify({ otherProperty: 'value' }));
 
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
 
       expect(result).toEqual([]);
     });
@@ -129,7 +122,7 @@ describe('Entity Types Projection Reader', () => {
       await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, 'invalid json {');
 
-      await expect(readEntityTypesProjection(config)).rejects.toThrow();
+      await expect(readEntityTypesProjection(project)).rejects.toThrow();
     });
   });
 
@@ -139,23 +132,19 @@ describe('Entity Types Projection Reader', () => {
       await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['AbsolutePathTest'] }));
 
-      const result = await readEntityTypesProjection(config);
+      const result = await readEntityTypesProjection(project);
 
       expect(result).toEqual(['AbsolutePathTest']);
     });
 
     it('should handle different path configurations', async () => {
       const { project: altProject, teardown: altTeardown } = await createTestProject('reader-alt');
-      const altConfig = {
-        ...config,
-        _metadata: { projectRoot: altProject.root }
-      };
 
       const projectionPath = join(altProject.stateDir, 'projections', '__system__', 'entitytypes.json');
       await fs.mkdir(join(altProject.stateDir, 'projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['AlternatePath'] }));
 
-      const result = await readEntityTypesProjection(altConfig);
+      const result = await readEntityTypesProjection(altProject);
       await altTeardown();
 
       expect(result).toEqual(['AlternatePath']);
@@ -163,20 +152,12 @@ describe('Entity Types Projection Reader', () => {
   });
 
   describe('error handling', () => {
-    it('should throw if projectRoot is not configured', async () => {
-      const invalidConfig = { ...config, _metadata: undefined };
-
-      await expect(
-        readEntityTypesProjection(invalidConfig as MakeMeaningConfig)
-      ).rejects.toThrow('projectRoot is required');
-    });
-
     it('should handle filesystem errors other than ENOENT', async () => {
       // Create a directory where file should be (causes EISDIR error on read)
       const projectionPath = join(project.stateDir, 'projections', '__system__', 'entitytypes.json');
       await fs.mkdir(projectionPath, { recursive: true });
 
-      await expect(readEntityTypesProjection(config)).rejects.toThrow();
+      await expect(readEntityTypesProjection(project)).rejects.toThrow();
     });
   });
 
@@ -191,14 +172,14 @@ describe('Entity Types Projection Reader', () => {
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
 
-      const beforeBootstrap = await readEntityTypesProjection(config);
+      const beforeBootstrap = await readEntityTypesProjection(project);
       expect(beforeBootstrap).toEqual([]);
 
-      await bootstrapEntityTypes(eventBus, config);
+      await bootstrapEntityTypes(eventBus, project);
       await stower.stop();
       eventBus.destroy();
 
-      const afterBootstrap = await readEntityTypesProjection(config);
+      const afterBootstrap = await readEntityTypesProjection(project);
       expect(afterBootstrap.length).toBeGreaterThan(0);
       expect(afterBootstrap).toEqual(DEFAULT_ENTITY_TYPES.sort());
     });
@@ -208,11 +189,11 @@ describe('Entity Types Projection Reader', () => {
       await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
 
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['Type1'] }));
-      const initial = await readEntityTypesProjection(config);
+      const initial = await readEntityTypesProjection(project);
       expect(initial).toEqual(['Type1']);
 
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['Type1', 'Type2'] }));
-      const updated = await readEntityTypesProjection(config);
+      const updated = await readEntityTypesProjection(project);
       expect(updated).toEqual(['Type1', 'Type2']);
     });
   });

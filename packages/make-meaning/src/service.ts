@@ -64,17 +64,12 @@ export interface MakeMeaningService {
   stop: () => Promise<void>;
 }
 
-export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
+export async function startMakeMeaning(project: SemiontProject, config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
   // 1. Validate configuration
   const graphConfig = config.services?.graph;
   if (!graphConfig) {
     throw new Error('services.graph is required for make-meaning service');
   }
-  const projectRoot = config._metadata?.projectRoot;
-  if (!projectRoot) {
-    throw new Error('config._metadata.projectRoot is required for make-meaning service');
-  }
-  const project = new SemiontProject(projectRoot);
 
   // 2. Initialize job queue
   const jobQueueLogger = logger.child({ component: 'job-queue' });
@@ -177,11 +172,11 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
 
   // 9b. Bootstrap entity types (requires Stower to be running, emits via EventBus)
   const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
-  await bootstrapEntityTypes(eventBus, config, bootstrapLogger);
+  await bootstrapEntityTypes(eventBus, project, bootstrapLogger);
 
   // 10. Start Gatherer actor
   const gathererLogger = logger.child({ component: 'gatherer' });
-  const gatherer = new Gatherer(kb, eventBus, gathererInferenceClient, gathererLogger, config);
+  const gatherer = new Gatherer(kb, eventBus, gathererInferenceClient, gathererLogger, project);
   await gatherer.initialize();
 
   // 10. Start Matcher actor
