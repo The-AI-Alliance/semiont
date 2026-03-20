@@ -162,33 +162,24 @@ export function createTestSemiontJson(projectName: string = 'test-project'): any
 }
 
 /**
- * Writes test configuration files to a directory
+ * Writes test configuration files to a directory.
+ * Creates .semiont/config (TOML) as the project anchor.
+ * The environments parameter is kept for call-site compatibility but is ignored —
+ * environment config now lives in ~/.semiontconfig, not committed files.
  * @param dir - Directory to write configs to
- * @param environments - List of environments to create configs for
+ * @param _environments - Ignored; kept for compatibility
  */
 export function writeTestConfigs(
   dir: string,
-  environments: string[] = ['local', 'test', 'staging', 'production']
+  _environments: string[] = []
 ): void {
-  // Write semiont.json
-  const semiontJson = createTestSemiontJson(path.basename(dir));
+  const projectName = path.basename(dir);
+  const dotSemiontDir = path.join(dir, '.semiont');
+  fs.mkdirSync(dotSemiontDir, { recursive: true });
   fs.writeFileSync(
-    path.join(dir, 'semiont.json'),
-    JSON.stringify(semiontJson, null, 2)
+    path.join(dotSemiontDir, 'config'),
+    `[project]\nname = "${projectName}"\n`
   );
-  
-  // Create environments directory
-  const envDir = path.join(dir, 'environments');
-  fs.mkdirSync(envDir, { recursive: true });
-  
-  // Write environment configs
-  for (const env of environments) {
-    const config = createTestConfig(env);
-    fs.writeFileSync(
-      path.join(envDir, `${env}.json`),
-      JSON.stringify(config, null, 2)
-    );
-  }
 }
 
 /**
@@ -225,10 +216,6 @@ export function createMockService(
       user: 'postgres',
       password: 'testpass'
     },
-    filesystem: {
-      platform: { type: 'mock' },
-      path: './test-data'
-    }
   };
   
   return {
@@ -261,9 +248,7 @@ export function createInMemoryTestEnvironment(): {
  * This is useful when testing without actual file system operations
  */
 export function mockDeploymentResolver(testDir: string): void {
-  // This would typically involve mocking the platform-resolver module
-  // For now, we ensure test configs exist on disk
-  if (!fs.existsSync(path.join(testDir, 'semiont.json'))) {
+  if (!fs.existsSync(path.join(testDir, '.semiont', 'config'))) {
     writeTestConfigs(testDir);
   }
 }

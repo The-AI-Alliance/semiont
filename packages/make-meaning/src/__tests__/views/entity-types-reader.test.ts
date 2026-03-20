@@ -59,8 +59,8 @@ describe('Entity Types Projection Reader', () => {
   describe('reading existing projections', () => {
     it('should return entity types from existing projection', async () => {
       // Create projection file
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(
         projectionPath,
         JSON.stringify({ entityTypes: ['Person', 'Organization', 'Location'] })
@@ -73,8 +73,8 @@ describe('Entity Types Projection Reader', () => {
 
     it('should return sorted entity types', async () => {
       // Create projection with unsorted types
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(
         projectionPath,
         JSON.stringify({ entityTypes: ['Zebra', 'Apple', 'Mango'] })
@@ -123,8 +123,8 @@ describe('Entity Types Projection Reader', () => {
 
   describe('JSON parsing', () => {
     it('should parse valid JSON projection', async () => {
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(
         projectionPath,
         JSON.stringify({
@@ -138,8 +138,8 @@ describe('Entity Types Projection Reader', () => {
     });
 
     it('should return empty array if entityTypes property is missing', async () => {
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(
         projectionPath,
         JSON.stringify({ otherProperty: 'value' })
@@ -151,8 +151,8 @@ describe('Entity Types Projection Reader', () => {
     });
 
     it('should throw on malformed JSON', async () => {
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, 'invalid json {');
 
       await expect(readEntityTypesProjection(config)).rejects.toThrow();
@@ -162,8 +162,8 @@ describe('Entity Types Projection Reader', () => {
   describe('path resolution', () => {
     it('should handle absolute filesystem paths', async () => {
       // Create projection in test directory
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(
         projectionPath,
         JSON.stringify({ entityTypes: ['AbsolutePathTest'] })
@@ -180,22 +180,14 @@ describe('Entity Types Projection Reader', () => {
 
       const alternateConfig = {
         ...config,
-        services: {
-          ...config.services,
-          filesystem: {
-            platform: { type: 'posix' as const },
-            path: alternateDir
-          }
-        },
         _metadata: {
-          environment: 'test',
           projectRoot: alternateDir
         }
       };
 
       // Create projection in alternate directory
-      const projectionPath = join(alternateDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(alternateDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(alternateDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(alternateDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(
         projectionPath,
         JSON.stringify({ entityTypes: ['AlternatePath'] })
@@ -208,17 +200,17 @@ describe('Entity Types Projection Reader', () => {
   });
 
   describe('error handling', () => {
-    it('should throw if filesystem path is not configured', async () => {
-      const invalidConfig = { ...config, services: { ...config.services, filesystem: undefined! } };
+    it('should throw if projectRoot is not configured', async () => {
+      const invalidConfig = { ...config, _metadata: undefined };
 
       await expect(
         readEntityTypesProjection(invalidConfig as MakeMeaningConfig)
-      ).rejects.toThrow();
+      ).rejects.toThrow('projectRoot is required');
     });
 
     it('should handle filesystem errors other than ENOENT', async () => {
       // Create a directory where file should be (causes EISDIR error on read)
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
       await fs.mkdir(projectionPath, { recursive: true });
 
       await expect(readEntityTypesProjection(config)).rejects.toThrow();
@@ -252,8 +244,8 @@ describe('Entity Types Projection Reader', () => {
     });
 
     it('should reflect updates to projection file', async () => {
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
 
       // Initial projection
       await fs.writeFile(

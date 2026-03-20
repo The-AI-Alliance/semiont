@@ -191,11 +191,12 @@ export class CLITestEnvironment {
    * Create a test configuration file
    */
   createConfigFile(dir: string, config: any): string {
-    return this.createTestFile(
-      dir,
-      'semiont.json',
-      JSON.stringify(config, null, 2)
-    );
+    const dotSemiontDir = path.join(dir, '.semiont');
+    fs.mkdirSync(dotSemiontDir, { recursive: true });
+    const filePath = path.join(dotSemiontDir, 'config');
+    const projectName = (config as any)?.project ?? path.basename(dir);
+    fs.writeFileSync(filePath, `[project]\nname = "${projectName}"\n`);
+    return filePath;
   }
 
   /**

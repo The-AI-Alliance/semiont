@@ -13,7 +13,7 @@
 import { startMakeMeaning } from '@semiont/make-meaning';
 import { EventQuery, EventValidator } from '@semiont/event-sourcing';
 import { resourceId as makeResourceId, EventBus } from '@semiont/core';
-import { loadEnvironmentConfig } from '../utils/config';
+import { loadEnvironmentConfig, makeMeaningConfigFrom } from '../utils/config';
 import { initializeLogger, getLogger } from '../logger';
 
 async function rebuildProjections(rId?: string) {
@@ -36,7 +36,7 @@ async function rebuildProjections(rId?: string) {
   const eventBus = new EventBus();
 
   // Start make-meaning to get eventStore
-  const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+  const makeMeaning = await startMakeMeaning(makeMeaningConfigFrom(config), eventBus, logger);
   const { eventStore } = makeMeaning;
   const query = new EventQuery(eventStore.log.storage);
   const validator = new EventValidator();

@@ -1,7 +1,5 @@
 // Factory and inference clients (AI primitives only)
 export {
-  getInferenceClient,
-  getInferenceModel,
   createInferenceClient,
   type InferenceClientConfig,
   type InferenceClientType,

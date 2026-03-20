@@ -78,7 +78,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, config);
 
       // Verify projection file was created
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
       const exists = await fs.access(projectionPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });
@@ -142,7 +142,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, config);
 
       // Read projection file
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
       const content = await fs.readFile(projectionPath, 'utf-8');
       const projection = JSON.parse(content);
 
@@ -172,8 +172,8 @@ describe('Entity Types Bootstrap', () => {
 
     it('should detect existing projection on filesystem', async () => {
       // Manually create projection file
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(testDir, 'projections', '__system__'), { recursive: true });
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
+      await fs.mkdir(join(testDir, '.semiont/data/projections', '__system__'), { recursive: true });
       await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['Person'] }));
 
       await bootstrapEntityTypes(eventBus, config);
@@ -202,7 +202,7 @@ describe('Entity Types Bootstrap', () => {
       // Config already uses absolute path (testDir)
       await bootstrapEntityTypes(eventBus, config);
 
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
       const exists = await fs.access(projectionPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });
@@ -213,15 +213,7 @@ describe('Entity Types Bootstrap', () => {
 
       const alternateConfig = {
         ...config,
-        services: {
-          ...config.services,
-          filesystem: {
-            platform: { type: 'posix' as const },
-            path: alternateDir
-          }
-        },
         _metadata: {
-          environment: 'test',
           projectRoot: alternateDir
         }
       };
@@ -242,14 +234,14 @@ describe('Entity Types Bootstrap', () => {
       altEventBus.destroy();
 
       // Projection should be in the alternate directory
-      const projectionPath = join(alternateDir, 'projections', '__system__', 'entitytypes.json');
+      const projectionPath = join(alternateDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
       const exists = await fs.access(projectionPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });
 
     it('should create projection directory if it does not exist', async () => {
       // Verify directory doesn't exist initially
-      const projectionDir = join(testDir, 'projections', '__system__');
+      const projectionDir = join(testDir, '.semiont/data/projections', '__system__');
       const existsBefore = await fs.access(projectionDir).then(() => true).catch(() => false);
       expect(existsBefore).toBe(false);
 
@@ -262,12 +254,12 @@ describe('Entity Types Bootstrap', () => {
   });
 
   describe('error handling', () => {
-    it('should throw if filesystem path is not configured', async () => {
-      const invalidConfig = { ...config, services: { ...config.services, filesystem: undefined! } };
+    it('should throw if projectRoot is not configured', async () => {
+      const invalidConfig = { ...config, _metadata: undefined };
 
       await expect(
         bootstrapEntityTypes(eventBus, invalidConfig as MakeMeaningConfig)
-      ).rejects.toThrow();
+      ).rejects.toThrow('projectRoot is required');
     });
 
     it('should propagate filesystem errors other than ENOENT', async () => {
@@ -285,7 +277,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, config);
 
       // Delete projection to simulate fresh start
-      const projectionPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projectionPath = join(testDir, '.semiont/data/projections', '__system__', 'entitytypes.json');
       await fs.unlink(projectionPath);
 
       // Reset flag

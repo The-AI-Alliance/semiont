@@ -1,10 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getInferenceClient, getInferenceModel } from '../factory.js';
-import {
-  createTestConfig,
-  createConfigWithoutModel,
-  createConfigWithEnvVar,
-} from './helpers/mock-config.js';
+import { describe, it, expect, vi } from 'vitest';
+import { createInferenceClient } from '../factory.js';
+import type { InferenceClientConfig } from '../factory.js';
 import type { Logger } from '@semiont/core';
 
 const mockLogger: Logger = {
@@ -15,90 +11,50 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-describe('@semiont/inference - factory', () => {
-  beforeEach(() => {
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+describe('@semiont/inference - createInferenceClient', () => {
+  it('creates an Anthropic client', () => {
+    const config: InferenceClientConfig = {
+      type: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: 'test-key',
+    };
+    const client = createInferenceClient(config, mockLogger);
+    expect(client).toBeDefined();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
+  it('creates an Ollama client', () => {
+    const config: InferenceClientConfig = {
+      type: 'ollama',
+      model: 'llama3.2',
+    };
+    const client = createInferenceClient(config, mockLogger);
+    expect(client).toBeDefined();
   });
 
-  describe('getInferenceModel', () => {
-    it('should return the configured model', () => {
-      const config = createTestConfig();
-      const model = getInferenceModel(config);
-      expect(model).toBe('claude-3-5-sonnet-20241022');
-    });
-
-    it('should throw error if model is not configured', () => {
-      const config = createConfigWithoutModel();
-      expect(() => getInferenceModel(config)).toThrow('Inference model not configured');
-    });
-
-    it('should handle edge cases (empty string model)', () => {
-      const config = createTestConfig({ model: '' });
-      expect(() => getInferenceModel(config)).toThrow('Inference model not configured');
-    });
+  it('throws for missing Anthropic apiKey', () => {
+    const config: InferenceClientConfig = {
+      type: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: undefined,
+    };
+    expect(() => createInferenceClient(config)).toThrow('apiKey is required');
   });
 
-  describe('getInferenceClient', () => {
-    it('should create Anthropic client on first call', async () => {
-      const config = createTestConfig();
-      const client = await getInferenceClient(config, mockLogger);
+  it('throws for empty Anthropic apiKey', () => {
+    const config: InferenceClientConfig = {
+      type: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      apiKey: '',
+    };
+    expect(() => createInferenceClient(config)).toThrow('apiKey is required');
+  });
 
-      expect(client).toBeDefined();
-    });
-
-    it('should create new client instance on each call', async () => {
-      const config = createTestConfig();
-
-      const client1 = await getInferenceClient(config, mockLogger);
-      const client2 = await getInferenceClient(config, mockLogger);
-
-      // Should be different instances (no singleton pattern)
-      // Singleton behavior is managed by MakeMeaningService
-      expect(client1).not.toBe(client2);
-      // But both should be valid clients
-      expect(client1).toBeDefined();
-      expect(client2).toBeDefined();
-    });
-
-    it('should expand environment variable in apiKey', async () => {
-      vi.stubEnv('ANTHROPIC_API_KEY', 'env-key-from-var');
-      const config = createConfigWithEnvVar('ANTHROPIC_API_KEY');
-
-      // Should not throw - means expansion worked
-      const client = await getInferenceClient(config, mockLogger);
-      expect(client).toBeDefined();
-    });
-
-    it('should throw error if environment variable not set', async () => {
-      const config = createConfigWithEnvVar('NONEXISTENT_VAR');
-
-      await expect(getInferenceClient(config, mockLogger)).rejects.toThrow(
-        'Environment variable NONEXISTENT_VAR is not set'
-      );
-    });
-
-    it('should log configuration on initialization', async () => {
-      const config = createTestConfig({ model: 'claude-3-opus-20240229' });
-
-      await getInferenceClient(config, mockLogger);
-
-      expect(mockLogger.info).toHaveBeenCalledWith('Loading inference client configuration', {
-        type: 'anthropic',
-        model: 'claude-3-opus-20240229',
-        endpoint: undefined,
-        hasApiKey: true,
-      });
-
-      expect(mockLogger.info).toHaveBeenCalledWith('Inference client initialized', {
-        type: 'anthropic',
-        model: 'claude-3-opus-20240229'
-      });
-    });
+  it('throws for unsupported type', () => {
+    const config = {
+      type: 'openai' as 'anthropic',
+      model: 'gpt-4',
+      apiKey: 'test',
+    };
+    expect(() => createInferenceClient(config)).toThrow('Unsupported inference client type');
   });
 });

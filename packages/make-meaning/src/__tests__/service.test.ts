@@ -49,33 +49,22 @@ describe('Make-Meaning Service', () => {
     // Create test configuration
     config = {
       services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
         graph: {
           platform: { type: 'posix' },
           type: 'memory'
         }
       },
+      actors: {
+        gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+        matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+      },
+      workers: {
+        default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+      },
       _metadata: {
         projectRoot: testDir
       },
-    } as MakeMeaningConfig;
+    };
   });
 
   afterEach(async () => {
@@ -122,13 +111,6 @@ describe('Make-Meaning Service', () => {
       expect(typeof service.kb.content.retrieve).toBe('function');
     });
 
-    it('should create inference client', async () => {
-      service = await startMakeMeaning(config, eventBus, mockLogger);
-
-      expect(service.inferenceClient).toBeDefined();
-      expect(typeof service.inferenceClient.generateText).toBe('function');
-    });
-
     it('should connect to graph database', async () => {
       service = await startMakeMeaning(config, eventBus, mockLogger);
 
@@ -164,22 +146,6 @@ describe('Make-Meaning Service', () => {
 
       expect(service).toBeDefined();
       expect(typeof service.stop).toBe('function');
-    });
-
-    it('should handle relative filesystem paths', async () => {
-      const relativeConfig = {
-        ...config,
-        services: {
-          ...config.services,
-          filesystem: {
-            platform: { type: 'posix' as const },
-            path: './relative-test-path'
-          }
-        }
-      };
-
-      service = await startMakeMeaning(relativeConfig, eventBus, mockLogger);
-      expect(service).toBeDefined();
     });
 
     it('should handle absolute filesystem paths', async () => {
@@ -266,15 +232,7 @@ describe('Make-Meaning Service', () => {
 
       const config2 = {
         ...config,
-        services: {
-          ...config.services,
-          filesystem: {
-            platform: { type: 'posix' as const },
-            path: testDir2
-          }
-        },
         _metadata: {
-          environment: 'test',
           projectRoot: testDir2
         }
       };
@@ -315,20 +273,6 @@ describe('Make-Meaning Service', () => {
         expect(ref).toBe(eventBus);
       });
 
-      // All workers should share the same inference client
-      const inferenceClientRefs = [
-        service.workers.detection,
-        service.workers.generation,
-        service.workers.highlight,
-        service.workers.assessment,
-        service.workers.comment,
-        service.workers.tag,
-      ].map(w => (w as any).inferenceClient);
-
-      // All should be the same instance
-      inferenceClientRefs.forEach(ref => {
-        expect(ref).toBe(service!.inferenceClient);
-      });
     });
   });
 });

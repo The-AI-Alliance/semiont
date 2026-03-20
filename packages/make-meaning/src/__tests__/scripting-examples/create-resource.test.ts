@@ -41,42 +41,25 @@ describe('Scripting Example: Create Resource', () => {
     testDir = join(tmpdir(), `semiont-scripting-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    // Create test configuration (same pattern as service.test.ts)
+    // Create test configuration
     config = {
       services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
         graph: {
           platform: { type: 'posix' },
           type: 'memory'
         }
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
+      actors: {
+        gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+        matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+      },
+      workers: {
+        default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
       _metadata: {
         projectRoot: testDir
       },
-    } as MakeMeaningConfig;
+    };
 
     // Create EventBus (caller controls this)
     eventBus = new EventBus();

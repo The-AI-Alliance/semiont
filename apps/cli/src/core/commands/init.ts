@@ -37,7 +37,6 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 import { getTemplatesDir as getTemplatesDirFromPaths } from '../io/cli-paths.js';
-import { checkEnvVarsInConfig, preflightFromChecks } from '../handlers/preflight-utils.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -147,11 +146,6 @@ async function init(
         console.log(`${colors.cyan}[DRY RUN] Would create:${colors.reset}`);
         console.log(`  - .semiont/`);
         console.log(`  - .semiont/config`);
-        console.log(`  - semiont.json`);
-        console.log(`  - environments/`);
-        environments.forEach(env => {
-          console.log(`    - ${env}.json`);
-        });
         console.log(`  - cdk/`);
         console.log(`    - data-stack.ts`);
         console.log(`    - app-stack.ts`);
@@ -176,37 +170,6 @@ async function init(
         console.log(`${colors.green}✅ Created .semiont/${colors.reset}`);
       }
 
-      // Copy semiont.json template
-      copyTemplate('semiont.json', path.join(projectDir, 'semiont.json'), {
-        'my-semiont-project': projectName
-      });
-
-      if (!options.quiet) {
-        console.log(`${colors.green}✅ Created semiont.json${colors.reset}`);
-      }
-      
-      // Copy environment templates
-      const envDir = path.join(projectDir, 'environments');
-      fs.mkdirSync(envDir, { recursive: true });
-      
-      for (const envName of environments) {
-        // Copy the environment template if it exists, otherwise skip
-        const templatesDir = getTemplatesDir();
-        const templatePath = path.join(templatesDir, 'environments', `${envName}.json`);
-
-        if (fs.existsSync(templatePath)) {
-          copyTemplate(`environments/${envName}.json`, path.join(envDir, `${envName}.json`));
-
-          if (!options.quiet) {
-            console.log(`${colors.green}✅ Created environments/${envName}.json${colors.reset}`);
-          }
-        } else {
-          if (!options.quiet) {
-            console.log(`${colors.yellow}⚠️  No template for environment '${envName}', skipped${colors.reset}`);
-          }
-        }
-      }
-      
       // Copy all template files
       copyTemplate('cdk', path.join(projectDir, 'cdk'));
       copyTemplate('package.json', path.join(projectDir, 'package.json'));
@@ -217,38 +180,10 @@ async function init(
         console.log(`${colors.green}✅ Created CDK infrastructure files${colors.reset}`);
       }
 
-      // Run provision preflight: scan created env files for unresolved ${VAR} references
-      for (const envName of environments) {
-        const envFilePath = path.join(envDir, `${envName}.json`);
-        if (fs.existsSync(envFilePath)) {
-          try {
-            const envContent = JSON.parse(fs.readFileSync(envFilePath, 'utf8'));
-            const preflight = preflightFromChecks(checkEnvVarsInConfig(envContent));
-            if (!preflight.pass && !options.quiet) {
-              console.log(`\n${colors.yellow}Preflight for '${envName}' environment:${colors.reset}`);
-              for (const check of preflight.checks) {
-                if (check.pass) {
-                  if (options.verbose) {
-                    console.log(`  ${colors.green}${check.message}${colors.reset}`);
-                  }
-                } else {
-                  console.log(`  ${colors.yellow}${check.message}${colors.reset}`);
-                  results.summary.warnings++;
-                }
-              }
-            } else if (options.verbose && preflight.checks.length > 0 && !options.quiet) {
-              console.log(`\n${colors.green}Preflight for '${envName}' environment: all variables set${colors.reset}`);
-            }
-          } catch {
-            // JSON parse error — skip preflight for this file
-          }
-        }
-      }
-
       if (!options.quiet) {
         console.log(`\n${colors.bright}Project initialized successfully!${colors.reset}`);
         console.log(`\nNext steps:`);
-        console.log(`  1. Review environments/local.json and set any credentials`);
+        console.log(`  1. Edit ~/.semiontconfig to configure inference and database credentials`);
         console.log(`  2. Run '${colors.cyan}semiont provision${colors.reset}' to set up services`);
         console.log(`  3. Run '${colors.cyan}semiont start${colors.reset}' to launch all services`);
       }
@@ -258,7 +193,7 @@ async function init(
         projectName,
         directory: projectDir,
         environments: environments,
-        filesCreated: 1 + environments.length + 2, // semiont.json + env files + 2 CDK files
+        filesCreated: 3, // .semiont/config + 2 CDK files
       };
     }
   } catch (error) {

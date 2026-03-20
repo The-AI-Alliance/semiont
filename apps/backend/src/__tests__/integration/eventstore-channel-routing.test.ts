@@ -43,11 +43,9 @@ describe('EventStore Channel Routing Integration', () => {
     const { createEventStore } = await import('@semiont/event-sourcing');
     eventStore = createEventStore(
       testDir,
-      {
-        enableSharding: false,
-        maxEventsPerFile: 100,
-      },
-      coreEventBus, // Pass CoreEventBus to enable channel routing
+      testDir,
+      { enableSharding: false, maxEventsPerFile: 100 },
+      coreEventBus,
       mockLogger
     );
   });
