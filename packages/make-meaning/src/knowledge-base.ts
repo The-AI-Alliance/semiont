@@ -27,14 +27,15 @@ export interface KnowledgeBase {
 
 export function createKnowledgeBase(
   eventStore: EventStore,
-  basePath: string,
+  stateDir: string,
+  dataDir: string,
   projectRoot: string | undefined,
   graphDb: GraphDatabase,
   logger: Logger,
 ): KnowledgeBase {
-  const views = new FilesystemViewStorage(basePath, projectRoot);
+  const views = new FilesystemViewStorage(stateDir, projectRoot);
   const content = new FilesystemRepresentationStore(
-    { basePath },
+    { basePath: dataDir },
     projectRoot,
     logger.child({ component: 'representation-store' }),
   );

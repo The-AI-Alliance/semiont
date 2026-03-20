@@ -19,9 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
 import { userId, entityType } from '@semiont/core';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createTestProject, type TestProject } from '../helpers/test-project';
 
 // Mock @semiont/inference for predictable testing
 const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
@@ -51,24 +49,16 @@ const mockLogger: Logger = {
 };
 
 describe('Scripting Example: Batch Entity Detection', () => {
-  let testDir: string;
+  let project: TestProject;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-batch-detection-test-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    project = await createTestProject('batch');
 
-    // Create test configuration
     config = {
-      services: {
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
+      services: { graph: { platform: { type: 'posix' }, type: 'memory' } },
       actors: {
         gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
         matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
@@ -76,31 +66,17 @@ describe('Scripting Example: Batch Entity Detection', () => {
       workers: {
         default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      _metadata: {
-        projectRoot: testDir
-      },
+      _metadata: { projectRoot: project.root },
     };
 
-    // Create EventBus
     eventBus = new EventBus();
-
-    // Start make-meaning service
     makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
   });
 
   afterEach(async () => {
-    // Stop service
-    if (makeMeaning) {
-      await makeMeaning.stop();
-    }
-
-    // Destroy EventBus
-    if (eventBus) {
-      eventBus.destroy();
-    }
-
-    // Clean up test directory
-    await fs.rm(testDir, { recursive: true, force: true });
+    if (makeMeaning) await makeMeaning.stop();
+    if (eventBus) eventBus.destroy();
+    await project.teardown();
   });
 
   it('processes multiple resources in parallel with completion tracking', async () => {

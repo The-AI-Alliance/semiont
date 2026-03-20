@@ -44,29 +44,21 @@ const mockLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
-  error: vi.fn((msg, ctx) => console.error('[mockLogger.error]', msg, JSON.stringify(ctx))),
+  error: vi.fn((msg, ctx) => console.error('[E]', msg, JSON.stringify(ctx))),
   child: vi.fn(() => mockLogger)
 };
 
 describe('Scripting Example: Entity Detection with Progress', () => {
-  let testDir: string;
+  let project: TestProject;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-detection-test-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    project = await createTestProject('annotate');
 
-    // Create test configuration
     config = {
-      services: {
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
+      services: { graph: { platform: { type: 'posix' }, type: 'memory' } },
       actors: {
         gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
         matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
@@ -74,31 +66,17 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       workers: {
         default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      _metadata: {
-        projectRoot: testDir
-      },
+      _metadata: { projectRoot: project.root },
     };
 
-    // Create EventBus
     eventBus = new EventBus();
-
-    // Start make-meaning service
     makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
   });
 
   afterEach(async () => {
-    // Stop service
-    if (makeMeaning) {
-      await makeMeaning.stop();
-    }
-
-    // Destroy EventBus
-    if (eventBus) {
-      eventBus.destroy();
-    }
-
-    // Clean up test directory
-    await fs.rm(testDir, { recursive: true, force: true });
+    if (makeMeaning) await makeMeaning.stop();
+    if (eventBus) eventBus.destroy();
+    await project.teardown();
   });
 
   it('monitors detection progress events', async () => {

@@ -9,7 +9,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { EventBus, userId, type Logger } from '@semiont/core';
+import { EventBus, userId, SemiontProject, type Logger } from '@semiont/core';
 import type { MakeMeaningConfig } from '../config';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
@@ -31,10 +31,10 @@ export async function bootstrapEntityTypes(eventBus: EventBus, config: MakeMeani
   if (!projectRoot) {
     throw new Error('config._metadata.projectRoot is required for entity types bootstrap');
   }
-  const basePath = path.join(projectRoot, '.semiont', 'data');
+  const project = new SemiontProject(projectRoot);
 
   const projectionPath = path.join(
-    basePath,
+    project.stateDir,
     'projections',
     '__system__',
     'entitytypes.json'

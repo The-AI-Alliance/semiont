@@ -165,7 +165,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
   const graphDb = await getGraphDatabase(graphConfig);
 
   // 7. Create Knowledge Base (groups event store, views, content store, graph)
-  const kb = createKnowledgeBase(eventStore, basePath, projectRoot, graphDb, logger);
+  const kb = createKnowledgeBase(eventStore, stateDir, basePath, projectRoot, graphDb, logger);
 
   // 8. Start graph consumer
   const graphConsumerLogger = logger.child({ component: 'graph-consumer' });

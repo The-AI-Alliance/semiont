@@ -92,7 +92,7 @@ describe('Entity Types Projection Reader', () => {
       const eventBus = new EventBus();
       const eventStore = createEventStore(join(testDir, '.semiont', 'data'), join(testDir, '.semiont', 'data'), undefined, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const kb = createKnowledgeBase(eventStore, join(testDir, '.semiont', 'data'), testDir, graphDb, mockLogger);
+      const kb = createKnowledgeBase(eventStore, join(testDir, '.semiont', 'data'), join(testDir, '.semiont', 'data'), testDir, graphDb, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
       await bootstrapEntityTypes(eventBus, config);
@@ -224,7 +224,7 @@ describe('Entity Types Projection Reader', () => {
       const eventBus = new EventBus();
       const eventStore = createEventStore(join(testDir, '.semiont', 'data'), join(testDir, '.semiont', 'data'), undefined, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const kb = createKnowledgeBase(eventStore, join(testDir, '.semiont', 'data'), testDir, graphDb, mockLogger);
+      const kb = createKnowledgeBase(eventStore, join(testDir, '.semiont', 'data'), join(testDir, '.semiont', 'data'), testDir, graphDb, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
 
