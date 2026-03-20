@@ -11,6 +11,10 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { Logger } from '@semiont/core';
 
+function fakeProject(dataDir: string) {
+  return { dataDir } as any;
+}
+
 const mockLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
@@ -26,7 +30,7 @@ describe('FilesystemRepresentationStore', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-rep-store-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-    store = new FilesystemRepresentationStore({ basePath: testDir }, undefined, mockLogger);
+    store = new FilesystemRepresentationStore(fakeProject(testDir), mockLogger);
   });
 
   afterAll(async () => {
@@ -34,28 +38,8 @@ describe('FilesystemRepresentationStore', () => {
   });
 
   describe('Constructor', () => {
-    it('should accept absolute basePath', () => {
-      const absolutePath = join(tmpdir(), 'test-absolute');
-      const testStore = new FilesystemRepresentationStore({ basePath: absolutePath }, undefined, mockLogger);
-      expect(testStore).toBeDefined();
-    });
-
-    it('should resolve relative basePath against projectRoot', () => {
-      const projectRoot = tmpdir();
-      const relativePath = 'data/representations';
-      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, projectRoot, mockLogger);
-      expect(testStore).toBeDefined();
-    });
-
-    it('should resolve relative basePath against cwd when no projectRoot', () => {
-      const relativePath = 'data';
-      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, undefined, mockLogger);
-      expect(testStore).toBeDefined();
-    });
-
-    it('should normalize paths with trailing slashes', () => {
-      const pathWithSlash = join(tmpdir(), 'test-trailing/');
-      const testStore = new FilesystemRepresentationStore({ basePath: pathWithSlash }, undefined, mockLogger);
+    it('should create store from project', () => {
+      const testStore = new FilesystemRepresentationStore(fakeProject(join(tmpdir(), 'test-ctor')), mockLogger);
       expect(testStore).toBeDefined();
     });
   });

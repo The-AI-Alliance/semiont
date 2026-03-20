@@ -20,9 +20,7 @@ import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
 import { getGraphDatabase } from '@semiont/graph';
 import type { GraphServiceConfig } from '@semiont/core';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createTestProject } from './helpers/test-project';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 
@@ -56,7 +54,7 @@ const mockLogger: Logger = {
 };
 
 describe('AnnotationOperations', () => {
-  let testDir: string;
+  let teardown: () => Promise<void>;
   let testEventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
@@ -64,17 +62,15 @@ describe('AnnotationOperations', () => {
   let testResourceId: string;
 
   beforeAll(async () => {
-    // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-test-annotation-ops-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    const { project, teardown: td } = await createTestProject('annotation-ops');
+    teardown = td;
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    testEventStore = createEventStore(testDir, testDir, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(project, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    // Share the event store's view storage with the KB to avoid two separate FilesystemViewStorage instances
     const { FilesystemRepresentationStore } = await import('@semiont/content');
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
+    const repStore = new FilesystemRepresentationStore(project, mockLogger);
     kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb };
 
     stower = new Stower(kb, eventBus, mockLogger);
@@ -98,7 +94,7 @@ describe('AnnotationOperations', () => {
   afterAll(async () => {
     await stower.stop();
     eventBus.destroy();
-    await fs.rm(testDir, { recursive: true, force: true });
+    await teardown();
   });
 
   describe('createAnnotation', () => {

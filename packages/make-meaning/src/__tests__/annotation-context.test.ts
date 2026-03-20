@@ -8,13 +8,11 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
 import { resourceId, annotationId, userId, type Logger } from '@semiont/core';
-import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
+import { createEventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
 import type { KnowledgeBase } from '../knowledge-base';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createTestProject } from './helpers/test-project';
 
 function createMockGraphDb(): GraphDatabase {
   return {
@@ -63,29 +61,26 @@ const mockLogger: Logger = {
 };
 
 describe('AnnotationContext', () => {
-  let testDir: string;
+  let project: Awaited<ReturnType<typeof createTestProject>>['project'];
+  let teardown: () => Promise<void>;
   let kb: KnowledgeBase;
   let mockGraphDb: GraphDatabase;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-annotation-context-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    ({ project, teardown } = await createTestProject('annotation-context'));
 
-    const viewStorage = new FilesystemViewStorage(testDir, testDir);
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
     mockGraphDb = createMockGraphDb();
-
+    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
     kb = {
       eventStore,
-      views: viewStorage,
-      content: repStore,
+      views: eventStore.viewStorage,
+      content: new FilesystemRepresentationStore(project, mockLogger),
       graph: mockGraphDb,
     };
   });
 
   afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await teardown();
   });
 
   // Helper to create a test resource
@@ -93,7 +88,7 @@ describe('AnnotationContext', () => {
     const testContent = Buffer.from(content, 'utf-8');
     const { checksum } = await kb.content.store(testContent, { mediaType: 'text/plain' });
 
-    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'resource.created',
@@ -130,7 +125,7 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'annotation.added',
@@ -311,7 +306,7 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
@@ -474,7 +469,7 @@ describe('AnnotationContext', () => {
       await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
 
       // Add a sibling annotation with entity types
-      const eventStore = createEventStore(testDir, testDir, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: resourceId(testResourceId),

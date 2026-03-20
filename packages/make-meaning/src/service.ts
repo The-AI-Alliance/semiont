@@ -75,12 +75,10 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
     throw new Error('config._metadata.projectRoot is required for make-meaning service');
   }
   const project = new SemiontProject(projectRoot);
-  const basePath = project.dataDir;
-  const stateDir = project.stateDir;
 
   // 2. Initialize job queue
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = new JobQueue({ dataDir: stateDir }, jobQueueLogger, eventBus);
+  const jobQueue = new JobQueue({ dataDir: project.stateDir }, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // 2b. Subscribe to job status queries
@@ -123,7 +121,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
 
   // 3. Create shared event store with EventBus integration
   const eventStoreLogger = logger.child({ component: 'event-store' });
-  const eventStore = createEventStoreCore(basePath, stateDir, undefined, eventBus, eventStoreLogger);
+  const eventStore = createEventStoreCore(project, undefined, eventBus, eventStoreLogger);
 
   // 4. Create per-actor inference clients
   const gathererInferenceClient = createInferenceClient(

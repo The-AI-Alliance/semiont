@@ -31,10 +31,9 @@ export function createKnowledgeBase(
   graphDb: GraphDatabase,
   logger: Logger,
 ): KnowledgeBase {
-  const views = new FilesystemViewStorage(project.stateDir, project.root);
+  const views = new FilesystemViewStorage(project);
   const content = new FilesystemRepresentationStore(
-    { basePath: project.dataDir },
-    project.root,
+    project,
     logger.child({ component: 'representation-store' }),
   );
   return { eventStore, views, content, graph: graphDb };

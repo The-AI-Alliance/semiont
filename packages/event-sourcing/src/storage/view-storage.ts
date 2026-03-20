@@ -11,7 +11,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
 import type { components } from '@semiont/core';
-import type { ResourceAnnotations, ResourceId, Logger } from '@semiont/core';
+import type { ResourceAnnotations, ResourceId, Logger, SemiontProject } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -33,20 +33,9 @@ export class FilesystemViewStorage implements ViewStorage {
   private basePath: string;
   private logger?: Logger;
 
-  constructor(basePath: string, projectRoot?: string, logger?: Logger) {
+  constructor(project: SemiontProject, logger?: Logger) {
     this.logger = logger;
-    // If path is absolute, use it directly
-    if (path.isAbsolute(basePath)) {
-      this.basePath = basePath;
-    }
-    // If projectRoot provided, resolve relative paths against it
-    else if (projectRoot) {
-      this.basePath = path.resolve(projectRoot, basePath);
-    }
-    // Otherwise fall back to resolving against cwd (backward compat)
-    else {
-      this.basePath = path.resolve(basePath);
-    }
+    this.basePath = project.stateDir;
   }
 
   private getProjectionPath(resourceId: ResourceId): string {

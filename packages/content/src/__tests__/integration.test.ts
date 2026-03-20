@@ -11,6 +11,10 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { Logger } from '@semiont/core';
 
+function fakeProject(dataDir: string) {
+  return { dataDir } as any;
+}
+
 const mockLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
@@ -26,7 +30,7 @@ describe('FilesystemRepresentationStore - Integration', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-integration-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-    store = new FilesystemRepresentationStore({ basePath: testDir }, undefined, mockLogger);
+    store = new FilesystemRepresentationStore(fakeProject(testDir), mockLogger);
   });
 
   afterAll(async () => {

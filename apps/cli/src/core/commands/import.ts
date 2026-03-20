@@ -116,7 +116,7 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
 
   // Bootstrap EventBus + Stower for import
   const eventBus = new EventBus();
-  const eventStore = createEventStore(project.dataDir, project.stateDir, undefined, eventBus, logger);
+  const eventStore = createEventStore(project, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();

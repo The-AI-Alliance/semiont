@@ -59,16 +59,12 @@ export async function runBackup(options: BackupOptions): Promise<CommandResults>
   }
 
   const project = new SemiontProject(projectRoot);
-  const basePath = project.dataDir;
-  const stateDir = project.stateDir;
-
   const logger = createCliLogger(options.verbose ?? false);
 
   // Bootstrap read-only stores
-  const eventStore = createEventStore(basePath, stateDir, undefined, undefined, logger);
+  const eventStore = createEventStore(project, undefined, undefined, logger);
   const contentStore = new FilesystemRepresentationStore(
-    { basePath },
-    projectRoot,
+    project,
     logger.child({ component: 'representation-store' }),
   );
 
