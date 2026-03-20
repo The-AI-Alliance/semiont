@@ -9,11 +9,8 @@ import { calculateChecksum } from '../checksum';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { SemiontProject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
-
-function fakeProject(dataDir: string) {
-  return { dataDir } as any;
-}
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -25,22 +22,24 @@ const mockLogger: Logger = {
 
 describe('FilesystemRepresentationStore', () => {
   let testDir: string;
+  let project: SemiontProject;
   let store: FilesystemRepresentationStore;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-rep-store-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-    store = new FilesystemRepresentationStore(fakeProject(testDir), mockLogger);
+    project = new SemiontProject(testDir, 'test');
+    store = new FilesystemRepresentationStore(project, mockLogger);
   });
 
   afterAll(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
   describe('Constructor', () => {
     it('should create store from project', () => {
-      const testStore = new FilesystemRepresentationStore(fakeProject(join(tmpdir(), 'test-ctor')), mockLogger);
-      expect(testStore).toBeDefined();
+      expect(store).toBeDefined();
     });
   });
 
@@ -113,8 +112,8 @@ describe('FilesystemRepresentationStore', () => {
         rel: 'derived',
       });
 
-      // Verify directory exists
-      const expectedDir = join(testDir, 'representations', 'application~1json', ab, cd);
+      // Verify directory exists (inside project.dataDir)
+      const expectedDir = join(project.dataDir, 'representations', 'application~1json', ab, cd);
       const dirExists = await fs.access(expectedDir)
         .then(() => true)
         .catch(() => false);

@@ -7,7 +7,7 @@ import { EventStore } from '../event-store';
 import { EventQuery } from '../query/event-query';
 import { EventValidator } from '../validation/event-validator';
 import { FilesystemViewStorage } from '../storage/view-storage';
-import { CREATION_METHODS } from '@semiont/core';
+import { CREATION_METHODS, SemiontProject } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -15,6 +15,7 @@ import { join } from 'path';
 
 describe('Event Store', () => {
   let testDir: string;
+  let project: SemiontProject;
   let eventStore: EventStore;
   let query: EventQuery;
   let validator: EventValidator;
@@ -22,8 +23,9 @@ describe('Event Store', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
+    project = new SemiontProject(testDir, 'test');
 
-    const viewStorage = new FilesystemViewStorage(testDir);
+    const viewStorage = new FilesystemViewStorage(project);
 
     eventStore = new EventStore(
       {
@@ -41,6 +43,7 @@ describe('Event Store', () => {
   });
 
   afterAll(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 

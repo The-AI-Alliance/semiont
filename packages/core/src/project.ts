@@ -34,8 +34,15 @@ export class SemiontProject {
   // Ephemeral — runtime
   readonly runtimeDir: string;
 
-  constructor(projectRoot: string) {
+  constructor(projectRoot: string, name?: string) {
     this.root = projectRoot;
+    if (name !== undefined) {
+      const configPath = path.join(projectRoot, '.semiont', 'config');
+      if (!fs.existsSync(configPath)) {
+        fs.mkdirSync(path.join(projectRoot, '.semiont'), { recursive: true });
+        fs.writeFileSync(configPath, `[project]\nname = "${name}"\n`);
+      }
+    }
     this.name = SemiontProject.readName(projectRoot);
 
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');

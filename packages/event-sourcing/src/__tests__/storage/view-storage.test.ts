@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import type { ResourceView } from '../../storage/view-storage';
-import { resourceId } from '@semiont/core';
+import { resourceId, SemiontProject } from '@semiont/core';
 import type { ResourceId, Motivation } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -36,16 +36,18 @@ function createResourceAnnotations(rid: ResourceId, overrides = {}) {
 
 describe('FilesystemViewStorage', () => {
   let testDir: string;
+  let project: SemiontProject;
   let storage: FilesystemViewStorage;
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-viewstorage-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-
-    storage = new FilesystemViewStorage(testDir);
+    project = new SemiontProject(testDir, 'test');
+    storage = new FilesystemViewStorage(project);
   });
 
   afterEach(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -54,14 +56,9 @@ describe('FilesystemViewStorage', () => {
       expect(storage).toBeDefined();
     });
 
-    it('should handle relative basePath', () => {
-      const relativeStorage = new FilesystemViewStorage('data');
-      expect(relativeStorage).toBeDefined();
-    });
-
-    it('should handle absolute basePath', () => {
-      const absoluteStorage = new FilesystemViewStorage(testDir);
-      expect(absoluteStorage).toBeDefined();
+    it('should create storage from project', () => {
+      const testStorage = new FilesystemViewStorage(project);
+      expect(testStorage).toBeDefined();
     });
   });
 

@@ -14,6 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
+import { SemiontProject } from '@semiont/core';
 import { GraphDBConsumer } from '../graph/consumer';
 import { resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
 import type { Logger } from '@semiont/core';
@@ -75,6 +76,7 @@ function createMockGraphDb(): GraphDatabase {
 
 describe('GraphDBConsumer', () => {
   let testDir: string;
+  let project: SemiontProject;
   let eventStore: EventStore;
   let graphDb: GraphDatabase;
   let consumer: GraphDBConsumer;
@@ -83,7 +85,8 @@ describe('GraphDBConsumer', () => {
     testDir = join(tmpdir(), `semiont-consumer-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const viewStorage = new FilesystemViewStorage(testDir);
+    project = new SemiontProject(testDir, 'test');
+    const viewStorage = new FilesystemViewStorage(project);
 
     eventStore = new EventStore(
       { basePath: testDir, dataDir: testDir, enableSharding: false, maxEventsPerFile: 100 },
@@ -93,6 +96,7 @@ describe('GraphDBConsumer', () => {
   });
 
   afterAll(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 

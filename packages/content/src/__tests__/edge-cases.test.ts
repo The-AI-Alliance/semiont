@@ -9,6 +9,7 @@ import { getExtensionForMimeType, hasKnownExtension } from '../mime-extensions';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { SemiontProject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 
 const mockLogger: Logger = {
@@ -21,15 +22,18 @@ const mockLogger: Logger = {
 
 describe('Edge Cases - Extreme Scenarios', () => {
   let testDir: string;
+  let project: SemiontProject;
   let store: FilesystemRepresentationStore;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-edge-cases-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-    store = new FilesystemRepresentationStore({ basePath: testDir }, undefined, mockLogger);
+    project = new SemiontProject(testDir, 'test');
+    store = new FilesystemRepresentationStore(project, mockLogger);
   });
 
   afterAll(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -265,14 +269,12 @@ describe('Edge Cases - Extreme Scenarios', () => {
 
   describe('Checksum collision scenarios', () => {
     it('should handle checksums starting with 00', async () => {
-      // We can't force a checksum, but we can test retrieval with such a checksum
       const content = Buffer.from('Test content for low checksum');
       const stored = await store.store(content, {
         mediaType: 'text/plain',
         rel: 'original',
       });
 
-      // Should work regardless of checksum value
       const retrieved = await store.retrieve(stored.checksum, 'text/plain');
       expect(retrieved.toString()).toBe('Test content for low checksum');
     });
@@ -295,7 +297,6 @@ describe('Edge Cases - Extreme Scenarios', () => {
         rel: 'original',
       });
 
-      // Should work with any checksum pattern
       const retrieved = await store.retrieve(stored.checksum, 'text/plain');
       expect(retrieved.toString()).toBe('Pattern test');
     });
