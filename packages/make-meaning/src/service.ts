@@ -73,7 +73,7 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
 
   // 2. Initialize job queue
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = new JobQueue({ dataDir: project.stateDir }, jobQueueLogger, eventBus);
+  const jobQueue = new JobQueue(project, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // 2b. Subscribe to job status queries

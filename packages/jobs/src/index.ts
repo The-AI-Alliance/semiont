@@ -10,7 +10,7 @@
  */
 
 // Job Queue
-export { JobQueue, type JobQueueConfig, getJobQueue, initializeJobQueue } from './job-queue';
+export { JobQueue } from './job-queue';
 
 // Job Worker
 export { JobWorker } from './job-worker';

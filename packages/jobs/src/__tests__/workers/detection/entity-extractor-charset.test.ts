@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceAnnotationWorker, type DetectedAnnotation } from '../../../workers/reference-annotation-worker';
 import { JobQueue, type ContentFetcher } from '@semiont/jobs';
 import type { Logger } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, SemiontProject } from '@semiont/core';
 
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -83,7 +83,7 @@ describe('Entity Detection - Charset Handling', () => {
     testDir = join(tmpdir(), `semiont-test-charset-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
+    const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
     worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
   });

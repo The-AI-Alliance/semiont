@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { CommentAnnotationWorker } from '../../../workers/comment-annotation-worker';
 import { JobQueue, type RunningJob, type CommentDetectionParams, type CommentDetectionProgress, type ContentFetcher } from '@semiont/jobs';
-import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, SemiontProject, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -53,7 +53,7 @@ describe('CommentAnnotationWorker - Event Emission', () => {
 
   beforeEach(async () => {
     eventBus = new EventBus();
-    const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
+    const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
     worker = new CommentAnnotationWorker(jobQueue, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
     mockInferenceClient.setResponses(['[]']);

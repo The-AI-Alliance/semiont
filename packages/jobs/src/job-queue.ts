@@ -8,12 +8,8 @@
 import { promises as fs, watch, type FSWatcher } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
-import type { JobId, Logger } from '@semiont/core';
+import type { JobId, Logger, SemiontProject } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
-
-export interface JobQueueConfig {
-  dataDir: string;
-}
 
 export class JobQueue {
   private jobsDir: string;
@@ -24,11 +20,11 @@ export class JobQueue {
   private loadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
-    config: JobQueueConfig,
+    project: SemiontProject,
     logger: Logger,
     private eventBus?: EventBus
   ) {
-    this.jobsDir = path.join(config.dataDir, 'jobs');
+    this.jobsDir = project.jobsDir;
     this.logger = logger;
   }
 
@@ -365,18 +361,3 @@ export class JobQueue {
   }
 }
 
-// Singleton instance
-let jobQueue: JobQueue | null = null;
-
-export function getJobQueue(): JobQueue {
-  if (!jobQueue) {
-    throw new Error('JobQueue not initialized. Call initializeJobQueue() first.');
-  }
-  return jobQueue;
-}
-
-export async function initializeJobQueue(config: JobQueueConfig, logger: Logger, eventBus?: EventBus): Promise<JobQueue> {
-  jobQueue = new JobQueue(config, logger, eventBus);
-  await jobQueue.initialize();
-  return jobQueue;
-}
