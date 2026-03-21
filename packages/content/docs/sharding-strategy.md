@@ -117,8 +117,8 @@ Most filesystems handle <1,000 files per directory efficiently.
 For checksum `5aaa0b72abc123...` and media type `text/markdown`:
 
 ```
-/var/semiont/storage/               # basePath
-  representations/                   # Fixed prefix
+my-project/                          # basePath (project root)
+  representations/                   # Fixed prefix (committed to git)
     text~1markdown/                  # Media type (/ → ~1)
       5a/                            # ab = checksum[0:2]
         aa/                          # cd = checksum[2:4]

@@ -22,6 +22,7 @@ import type { GraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper: wait for fire-and-forget callbacks + burst buffer flush + idle timeout
 const tick = (ms = 350) => new Promise(resolve => setTimeout(resolve, ms));
@@ -82,14 +83,14 @@ describe('GraphDBConsumer', () => {
   let consumer: GraphDBConsumer;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-consumer-test-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-consumer-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
     const viewStorage = new FilesystemViewStorage(project);
 
     eventStore = new EventStore(
-      { basePath: testDir, dataDir: testDir, enableSharding: false, maxEventsPerFile: 100 },
+      { dataDir: testDir, enableSharding: false, maxEventsPerFile: 100 },
       testDir,
       viewStorage,
     );

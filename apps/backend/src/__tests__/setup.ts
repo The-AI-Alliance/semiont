@@ -7,6 +7,7 @@ import { vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { handlers } from './mocks/server';
 import { promises as fs } from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import type { EnvironmentConfig } from '@semiont/core';
 
 // Create mock Prisma client that will be used by all tests
@@ -39,7 +40,7 @@ vi.mock('../db', () => ({
 }));
 
 // Use a unique directory per worker thread to avoid race conditions
-const testDir = `/tmp/semiont-test-${process.pid}-${Date.now()}`;
+const testDir = `/tmp/semiont-test-${process.pid}-${uuidv4()}`;
 
 // Mock config loader to provide in-memory config (no filesystem needed)
 vi.mock('../utils/config', () => ({

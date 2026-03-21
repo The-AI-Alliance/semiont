@@ -23,6 +23,7 @@ import { EventBus, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -40,9 +41,9 @@ describe('Make-Meaning Service', () => {
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-service-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-service-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
 
     eventBus = new EventBus();
 
@@ -219,9 +220,9 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should allow multiple service instances with different directories', async () => {
-      const testDir2 = join(tmpdir(), `semiont-test-service-2-${Date.now()}`);
+      const testDir2 = join(tmpdir(), `semiont-test-service-2-${uuidv4()}`);
       await fs.mkdir(testDir2, { recursive: true });
-      const project2 = new SemiontProject(testDir2, 'test');
+      const project2 = new SemiontProject(testDir2);
 
       const eventBus2 = new EventBus();
 

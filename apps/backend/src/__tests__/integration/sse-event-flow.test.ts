@@ -12,6 +12,7 @@ import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -27,7 +28,7 @@ describe('SSE Event Flow - End-to-End', () => {
   let eventStore: EventStore;
 
   beforeAll(async () => {
-    testDir = path.join(tmpdir(), `semiont-test-e2e-${Date.now()}`);
+    testDir = path.join(tmpdir(), `semiont-test-e2e-${uuidv4()}`);
     await fsPromises.mkdir(testDir, { recursive: true });
 
     // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup

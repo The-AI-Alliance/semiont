@@ -15,6 +15,7 @@
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import { SemiontProject } from '@semiont/core/node';
 
 export interface TestProject {
@@ -23,7 +24,7 @@ export interface TestProject {
 }
 
 export async function createTestProject(nameHint: string = 'test'): Promise<TestProject> {
-  const root = join(tmpdir(), `semiont-${nameHint}-${Date.now()}`);
+  const root = join(tmpdir(), `semiont-${nameHint}-${uuidv4()}`);
   await fs.mkdir(join(root, '.semiont'), { recursive: true });
   await fs.writeFile(
     join(root, '.semiont', 'config'),

@@ -12,6 +12,7 @@ import { CREATION_METHODS, resourceId, userId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('Event Store', () => {
   let testDir: string;
@@ -21,15 +22,14 @@ describe('Event Store', () => {
   let validator: EventValidator;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
 
     const viewStorage = new FilesystemViewStorage(project);
 
     eventStore = new EventStore(
       {
-        basePath: testDir,
         dataDir: testDir,
         enableSharding: false, // Faster without sharding
         maxEventsPerFile: 100,

@@ -8,6 +8,7 @@ import { createEventStore } from '../event-store-factory';
 import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -24,9 +25,9 @@ describe('createEventStore', () => {
   let project: SemiontProject;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-factory-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-factory-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir, `test-factory-${uuidv4()}`);
   });
 
   afterEach(async () => {

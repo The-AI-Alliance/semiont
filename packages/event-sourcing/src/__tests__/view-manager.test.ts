@@ -11,6 +11,7 @@ import type { StoredEvent, EventMetadata } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal EventMetadata for tests
 function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
@@ -28,7 +29,7 @@ describe('ViewManager', () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-viewmanager-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-viewmanager-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     // Create mock view storage

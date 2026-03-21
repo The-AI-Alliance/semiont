@@ -14,7 +14,6 @@ import type { EventStorageConfig } from './storage/event-storage';
 /**
  * Create and initialize an EventStore instance
  *
- * @param basePath - Absolute path to the data directory (must be resolved by caller)
  * @param config - Optional additional storage configuration
  * @param eventBus - Optional @semiont/core EventBus for publishing domain events
  * @param logger - Optional logger for structured logging
@@ -43,7 +42,6 @@ export function createEventStore(
   return new EventStore(
     {
       ...config,
-      basePath: project.dataDir,
       dataDir: project.eventsDir,
       enableSharding: true,
       numShards: 65536, // 4 hex digits (0000-ffff)

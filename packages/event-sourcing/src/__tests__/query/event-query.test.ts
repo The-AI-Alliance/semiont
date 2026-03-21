@@ -13,6 +13,7 @@ import { EventStorage } from '../../storage/event-storage';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('EventQuery', () => {
   let testDir: string;
@@ -20,11 +21,10 @@ describe('EventQuery', () => {
   let query: EventQuery;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-query-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-query-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     storage = new EventStorage({
-      basePath: testDir,
       dataDir: testDir,
       enableSharding: false, // Faster for tests
       maxEventsPerFile: 100,

@@ -15,7 +15,6 @@ import { type ResourceId, type StoredEvent, type ResourceEvent, type EventQuery,
 import { EventStorage } from './storage/event-storage';
 
 export interface EventLogConfig {
-  basePath: string;
   dataDir: string;
   enableSharding?: boolean;
   maxEventsPerFile?: number;
@@ -27,7 +26,6 @@ export class EventLog {
 
   constructor(config: EventLogConfig, logger?: Logger) {
     this.storage = new EventStorage({
-      basePath: config.basePath,
       dataDir: config.dataDir,
       enableSharding: config.enableSharding ?? true,
       maxEventsPerFile: config.maxEventsPerFile ?? 10000,

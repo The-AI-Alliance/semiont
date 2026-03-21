@@ -13,6 +13,7 @@ import { resourceId, userId, EventBus, jobId, entityType, type Logger } from '@s
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock @semiont/inference
 let mockInferenceClient: any;
@@ -50,7 +51,7 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
     const { MockInferenceClient } = await import('@semiont/inference');
     mockInferenceClient = new MockInferenceClient(['[]']);
 
-    testDir = join(tmpdir(), `semiont-test-worker-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-worker-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
   });
 
