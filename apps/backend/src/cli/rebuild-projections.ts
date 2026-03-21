@@ -12,19 +12,19 @@
 
 import { startMakeMeaning } from '@semiont/make-meaning';
 import { EventQuery, EventValidator } from '@semiont/event-sourcing';
-import { resourceId as makeResourceId, EventBus, SemiontProject } from '@semiont/core';
-import { loadEnvironmentConfig, makeMeaningConfigFrom } from '../utils/config';
+import { resourceId as makeResourceId, EventBus, SemiontProject, loadEnvironmentConfig } from '@semiont/core';
+import { makeMeaningConfigFrom } from '../utils/config';
 import { initializeLogger, getLogger } from '../logger';
 
-async function rebuildProjections(rId?: string) {
-  // Load config - uses SEMIONT_ROOT and SEMIONT_ENV from environment
+async function rebuildProjections(rId?: string, environment?: string) {
   const projectRoot = process.env.SEMIONT_ROOT;
   if (!projectRoot) {
     throw new Error('SEMIONT_ROOT environment variable is not set');
   }
-  const environment = process.env.SEMIONT_ENV || 'development';
+  // environment: --environment flag > SEMIONT_ENV > fallback
+  const env = environment ?? process.env.SEMIONT_ENV ?? 'development';
 
-  const config = loadEnvironmentConfig(projectRoot, environment);
+  const config = loadEnvironmentConfig(projectRoot, env);
 
   // Initialize logger
   initializeLogger(config.logLevel);
@@ -99,10 +99,13 @@ async function rebuildProjections(rId?: string) {
   logger.info('Rebuild projections completed');
 }
 
-// Parse command line arguments
-const rId = process.argv[2];
+// Parse command line arguments: [resourceId] [--environment <env>]
+const args = process.argv.slice(2);
+const envFlagIdx = args.indexOf('--environment');
+const envArg = envFlagIdx !== -1 ? args[envFlagIdx + 1] : undefined;
+const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
 
-rebuildProjections(rId)
+rebuildProjections(rId, envArg)
   .catch(err => {
     const logger = getLogger();
     logger.error('Rebuild projections failed', {

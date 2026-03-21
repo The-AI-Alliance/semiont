@@ -20,9 +20,6 @@ import { baseUrl, accessToken } from '@semiont/core';
 import * as handlers from './handlers.js';
 
 // Configuration from environment variables
-if (!process.env.SEMIONT_ENV) {
-  throw new Error('SEMIONT_ENV environment variable is required');
-}
 if (!process.env.SEMIONT_API_URL) {
   throw new Error('SEMIONT_API_URL environment variable is required');
 }
@@ -30,7 +27,6 @@ if (!process.env.SEMIONT_ACCESS_TOKEN) {
   throw new Error('SEMIONT_ACCESS_TOKEN environment variable is required');
 }
 
-const SEMIONT_ENV = process.env.SEMIONT_ENV;
 const SEMIONT_API_URL = process.env.SEMIONT_API_URL;
 const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
 
@@ -353,7 +349,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   console.error('[MCP Server] Starting up...');
   console.error('[MCP Server] Environment:', {
-    SEMIONT_ENV,
     SEMIONT_API_URL,
     NODE_ENV: process.env.NODE_ENV,
     cwd: process.cwd()

@@ -1,31 +1,11 @@
 /**
  * Backend Configuration Utilities
- *
- * Node.js-specific config loading using @semiont/core's TOML loader.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { createTomlConfigLoader, type TomlFileReader, type EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig } from '@semiont/core';
 import type { MakeMeaningConfig } from '@semiont/make-meaning';
 
-const nodeTomlFileReader: TomlFileReader = {
-  readIfExists: (filePath: string) => {
-    const absolutePath = path.resolve(filePath);
-    return fs.existsSync(absolutePath)
-      ? fs.readFileSync(absolutePath, 'utf-8')
-      : null;
-  },
-};
-
-/**
- * Load environment configuration from ~/.semiontconfig (TOML)
- */
-export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
-  const globalConfigPath = path.join(os.homedir(), '.semiontconfig');
-  return createTomlConfigLoader(nodeTomlFileReader, globalConfigPath, process.env)(projectRoot, environment);
-}
+export { loadEnvironmentConfig } from '@semiont/core';
 
 /**
  * Extract the MakeMeaningConfig slice from a full EnvironmentConfig.
