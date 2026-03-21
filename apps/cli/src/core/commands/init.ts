@@ -37,7 +37,7 @@ import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
-import { getTemplatesDir as getTemplatesDirFromPaths } from '../io/cli-paths.js';
+
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -59,44 +59,6 @@ export type InitOptions = z.output<typeof InitOptionsSchema>;
 // =====================================================================
 // TEMPLATE CONFIGURATIONS
 // =====================================================================
-
-function getTemplatesDir(): string {
-  if (process.env.SEMIONT_TEMPLATES_DIR) {
-    return process.env.SEMIONT_TEMPLATES_DIR;
-  }
-  return getTemplatesDirFromPaths(import.meta.url);
-}
-
-// Copy template file or directory
-function copyTemplate(source: string, dest: string, replacements?: Record<string, string>): void {
-  const templatesDir = getTemplatesDir();
-  const sourcePath = path.join(templatesDir, source);
-  
-  if (fs.statSync(sourcePath).isDirectory()) {
-    // Create destination directory
-    fs.mkdirSync(dest, { recursive: true });
-    
-    // Copy all files in directory
-    const files = fs.readdirSync(sourcePath);
-    for (const file of files) {
-      copyTemplate(path.join(source, file), path.join(dest, file), replacements);
-    }
-  } else {
-    // Copy file
-    let content = fs.readFileSync(sourcePath, 'utf8');
-    
-    // Apply replacements if provided
-    if (replacements) {
-      for (const [key, value] of Object.entries(replacements)) {
-        content = content.replace(new RegExp(key, 'g'), value);
-      }
-    }
-    
-    // Ensure destination directory exists
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, content);
-  }
-}
 
 
 // =====================================================================
@@ -147,9 +109,6 @@ async function init(
         console.log(`${colors.cyan}[DRY RUN] Would create:${colors.reset}`);
         console.log(`  - .semiont/`);
         console.log(`  - .semiont/config`);
-        console.log(`  - cdk/`);
-        console.log(`    - data-stack.ts`);
-        console.log(`    - app-stack.ts`);
       }
       
       results.summary.succeeded = 1;
@@ -173,15 +132,6 @@ async function init(
         console.log(`${colors.green}✅ Created .semiont/${colors.reset}`);
       }
 
-      // Copy all template files
-      copyTemplate('cdk', path.join(projectDir, 'cdk'));
-      copyTemplate('package.json', path.join(projectDir, 'package.json'));
-      copyTemplate('tsconfig.json', path.join(projectDir, 'tsconfig.json'));
-      copyTemplate('cdk.json', path.join(projectDir, 'cdk.json'));
-      
-      if (!options.quiet) {
-        console.log(`${colors.green}✅ Created CDK infrastructure files${colors.reset}`);
-      }
 
       if (!options.quiet) {
         console.log(`\n${colors.bright}Project initialized successfully!${colors.reset}`);
@@ -196,7 +146,7 @@ async function init(
         projectName,
         directory: projectDir,
         environments: environments,
-        filesCreated: 3, // .semiont/config + 2 CDK files
+        filesCreated: 1,
       };
     }
   } catch (error) {
