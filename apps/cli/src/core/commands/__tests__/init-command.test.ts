@@ -3,12 +3,20 @@
  * Uses real filesystem with temporary directories
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { init, type InitOptions } from '../init';
+
+// Mock readline so prompt() resolves immediately without blocking stdin
+vi.mock('readline', () => ({
+  createInterface: vi.fn(() => ({
+    question: vi.fn((_q: string, cb: (a: string) => void) => cb('test-user')),
+    close: vi.fn(),
+  })),
+}));
 
 // Helper to create complete InitOptions with defaults
 function createInitOptions(partial: Partial<InitOptions> = {}): InitOptions {
@@ -30,12 +38,17 @@ function createInitOptions(partial: Partial<InitOptions> = {}): InitOptions {
 
 describe('init command', () => {
   let testDir: string;
+  let fakeHome: string;
   let originalCwd: string;
+  let originalHome: string | undefined;
 
   beforeEach(() => {
     originalCwd = process.cwd();
+    originalHome = process.env.HOME;
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-init-test-'));
+    fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-init-home-'));
     process.chdir(testDir);
+    process.env.HOME = fakeHome;
 
     const testFilePath = fileURLToPath(import.meta.url);
     const testFileDir = path.dirname(testFilePath);
@@ -44,9 +57,17 @@ describe('init command', () => {
 
   afterEach(() => {
     process.chdir(originalCwd);
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
     delete process.env.SEMIONT_TEMPLATES_DIR;
     if (fs.existsSync(testDir)) {
       fs.rmSync(testDir, { recursive: true, force: true });
+    }
+    if (fs.existsSync(fakeHome)) {
+      fs.rmSync(fakeHome, { recursive: true, force: true });
     }
   });
 
@@ -137,6 +158,32 @@ describe('init command', () => {
       expect(result.executionContext.dryRun).toBe(true);
       // In dry run, .semiont/ should not be created
       expect(fs.existsSync('.semiont')).toBe(false);
+    });
+  });
+
+  describe('global config (~/.semiontconfig)', () => {
+    it('should create ~/.semiontconfig when it does not exist', async () => {
+      const globalConfigPath = path.join(fakeHome, '.semiontconfig');
+      expect(fs.existsSync(globalConfigPath)).toBe(false);
+
+      await init(createInitOptions({ quiet: true }));
+
+      expect(fs.existsSync(globalConfigPath)).toBe(true);
+      const content = fs.readFileSync(globalConfigPath, 'utf-8');
+      expect(content).toContain('[user]');
+      expect(content).toContain('[defaults]');
+      expect(content).toContain('[environments.local.backend]');
+    });
+
+    it('should not overwrite ~/.semiontconfig when it already exists', async () => {
+      const globalConfigPath = path.join(fakeHome, '.semiontconfig');
+      const existing = '[user]\nname = "existing-user"\nemail = "existing@example.com"\n';
+      fs.writeFileSync(globalConfigPath, existing, 'utf-8');
+
+      await init(createInitOptions({ quiet: true }));
+
+      const content = fs.readFileSync(globalConfigPath, 'utf-8');
+      expect(content).toBe(existing);
     });
   });
 
