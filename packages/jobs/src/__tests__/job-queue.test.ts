@@ -8,7 +8,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
-import { entityType, jobId, userId, resourceId, annotationId, EventBus, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
 
 const mockLogger = {
   debug: vi.fn(),

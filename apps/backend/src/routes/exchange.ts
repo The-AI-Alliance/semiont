@@ -14,7 +14,8 @@ import { Hono } from 'hono';
 import { Readable, Writable } from 'node:stream';
 import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
-import { userId as makeUserId, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { userId as makeUserId } from '@semiont/core';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import {

@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
-import { SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { GraphDBConsumer } from '../graph/consumer';
 import { resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
 import type { Logger } from '@semiont/core';

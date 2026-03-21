@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createEventStore } from '../event-store-factory';
-import { SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';

@@ -15,7 +15,7 @@
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
 export interface TestProject {
   project: SemiontProject;

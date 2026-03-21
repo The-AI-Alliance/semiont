@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/config/node-config-loader.d.ts",
+      "import": "./dist/config/node-config-loader.js",
+      "default": "./dist/config/node-config-loader.js"
     }
   },
   "engines": {
@@ -51,6 +56,7 @@
     "semiont"
   ],
   "author": "Semiont Team",
+  "sideEffects": false,
   "license": "Apache-2.0",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",

@@ -5,7 +5,7 @@
 import type { EnvironmentConfig } from '@semiont/core';
 import type { MakeMeaningConfig } from '@semiont/make-meaning';
 
-export { loadEnvironmentConfig } from '@semiont/core';
+export { loadEnvironmentConfig } from '@semiont/core/node';
 
 /**
  * Extract the MakeMeaningConfig slice from a full EnvironmentConfig.

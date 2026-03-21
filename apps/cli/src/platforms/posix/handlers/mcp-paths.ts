@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import { SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
 /**
  * MCP service paths on POSIX platform

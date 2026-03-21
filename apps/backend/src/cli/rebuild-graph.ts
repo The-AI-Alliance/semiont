@@ -11,7 +11,8 @@
  */
 
 import { startMakeMeaning } from '@semiont/make-meaning';
-import { resourceId as makeResourceId, EventBus, SemiontProject, loadEnvironmentConfig } from '@semiont/core';
+import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
+import { resourceId as makeResourceId, EventBus } from '@semiont/core';
 import { makeMeaningConfigFrom } from '../utils/config';
 import { initializeLogger, getLogger } from '../logger';
 

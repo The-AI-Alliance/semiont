@@ -9,7 +9,8 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { EventBus, userId, SemiontProject, type Logger } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, userId, type Logger } from '@semiont/core';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 

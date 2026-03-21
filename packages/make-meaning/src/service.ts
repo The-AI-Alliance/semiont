@@ -13,8 +13,8 @@
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { getPrimaryRepresentation } from '@semiont/api-client';
-import type { Logger, ResourceId } from '@semiont/core';
-import { EventBus, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, type ResourceId } from '@semiont/core';
 import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
 
 export type { MakeMeaningConfig } from './config';

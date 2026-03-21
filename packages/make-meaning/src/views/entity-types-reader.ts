@@ -7,7 +7,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { SemiontProject } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
 
 /**
  * Read entity types from view storage projection

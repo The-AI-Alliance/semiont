@@ -4,6 +4,8 @@ import * as path from 'path';
 import { createTomlConfigLoader } from './toml-loader.js';
 import type { EnvironmentConfig } from './config.types.js';
 
+export { SemiontProject } from '../project.js';
+
 const nodeTomlFileReader = {
   readIfExists: (filePath: string): string | null =>
     fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null,

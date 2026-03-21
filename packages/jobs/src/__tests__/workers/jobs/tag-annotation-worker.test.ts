@@ -8,8 +8,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { TagAnnotationWorker } from '../../../workers/tag-annotation-worker';
 import { JobQueue, type RunningJob, type TagDetectionParams, type TagDetectionProgress, type ContentFetcher } from '@semiont/jobs';
-import { resourceId, userId, EventBus, SemiontProject, type Logger } from '@semiont/core';
-import { jobId } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { resourceId, userId, EventBus, jobId, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

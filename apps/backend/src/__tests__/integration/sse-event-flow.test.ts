@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { resourceId, userId, type Logger, SemiontProject } from '@semiont/core';
-import { jobId } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { resourceId, userId, jobId, type Logger } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';

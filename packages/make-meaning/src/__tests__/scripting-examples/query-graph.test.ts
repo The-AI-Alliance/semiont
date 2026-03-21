@@ -15,9 +15,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus, type Logger } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, userId, resourceId as makeResourceId } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
-import { userId, resourceId as makeResourceId, SemiontProject } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

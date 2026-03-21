@@ -26,6 +26,7 @@
 
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
+import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId, resourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
@@ -37,7 +38,6 @@ import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { LLMContext } from './llm-context';
 import { readEntityTypesProjection } from './views/entity-types-reader';
-import type { SemiontProject } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type StoredEvent = { event: any; metadata: any };

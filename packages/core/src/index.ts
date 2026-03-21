@@ -213,9 +213,6 @@ export type {
   ServicePlatformConfig
 } from './config/config.types';
 
-// Project paths (durable + ephemeral, XDG-resolved once at construction)
-export { SemiontProject } from './project';
-
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
 export const SDK_VERSION = '0.1.0';

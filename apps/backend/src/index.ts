@@ -29,9 +29,9 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
+import { SemiontProject } from '@semiont/core/node';
 import { type EnvironmentConfig, EventBus } from '@semiont/core';
 import { startMakeMeaning } from '@semiont/make-meaning';
-import { SemiontProject } from '@semiont/core';
 import { loadEnvironmentConfig, makeMeaningConfigFrom } from './utils/config';
 
 import { User } from '@prisma/client';

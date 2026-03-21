@@ -8,8 +8,8 @@
 import { promises as fs, watch, type FSWatcher } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
-import type { JobId, Logger, SemiontProject } from '@semiont/core';
-import type { EventBus } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
+import type { JobId, Logger, EventBus } from '@semiont/core';
 
 export class JobQueue {
   private jobsDir: string;

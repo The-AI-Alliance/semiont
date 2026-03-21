@@ -32,7 +32,7 @@
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';

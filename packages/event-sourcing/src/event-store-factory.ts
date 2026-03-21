@@ -5,7 +5,8 @@
  * This is the canonical way to instantiate an EventStore.
  */
 
-import type { EventBus as CoreEventBus, Logger, SemiontProject } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
+import type { EventBus as CoreEventBus, Logger } from '@semiont/core';
 import { EventStore } from './event-store';
 import { FilesystemViewStorage } from './storage/view-storage';
 import type { EventStorageConfig } from './storage/event-storage';

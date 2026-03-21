@@ -11,12 +11,12 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
-import { userId, EventBus, CREATION_METHODS, type Logger, type SemiontProject } from '@semiont/core';
+import { type SemiontProject } from '@semiont/core/node';
+import { userId, EventBus, CREATION_METHODS, type Logger, type GraphServiceConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
 import { getGraphDatabase } from '@semiont/graph';
-import type { GraphServiceConfig } from '@semiont/core';
 import { createTestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {

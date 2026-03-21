@@ -9,8 +9,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
+import { SemiontProject } from '@semiont/core/node';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import type { StoredEvent, ResourceEvent } from '@semiont/core';
-import { resourceId, userId, annotationId, SemiontProject } from '@semiont/core';
 
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';

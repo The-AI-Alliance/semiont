@@ -4,16 +4,14 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import type { components } from '@semiont/core';
-import type { ResourceCreatedEvent, Logger } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
-import { CREATION_METHODS } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import type { components, ResourceCreatedEvent, Logger } from '@semiont/core';
+import { resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type AnnotationBody = components['schemas']['AnnotationBody'];
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { AnnotationContext, type KnowledgeBase } from '@semiont/make-meaning';
-import { SemiontProject } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 const mockLogger: Logger = {

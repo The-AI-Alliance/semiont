@@ -18,8 +18,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { startMakeMeaning, type MakeMeaningService, type MakeMeaningConfig } from '../service';
-import type { Logger } from '@semiont/core';
-import { EventBus, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

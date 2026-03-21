@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import { SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
 /**
  * Proxy service paths on POSIX platform

@@ -16,7 +16,8 @@ import type { EventStore } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import type { Logger, SemiontProject } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
+import type { Logger } from '@semiont/core';
 
 export interface KnowledgeBase {
   eventStore: EventStore;

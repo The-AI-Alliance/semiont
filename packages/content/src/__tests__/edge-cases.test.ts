@@ -9,7 +9,7 @@ import { getExtensionForMimeType, hasKnownExtension } from '../mime-extensions';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 
 const mockLogger: Logger = {

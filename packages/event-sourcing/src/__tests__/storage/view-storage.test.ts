@@ -6,7 +6,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import type { ResourceView } from '../../storage/view-storage';
-import { resourceId, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { resourceId } from '@semiont/core';
 import type { ResourceId, Motivation } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';

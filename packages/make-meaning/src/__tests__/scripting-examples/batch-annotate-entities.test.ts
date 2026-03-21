@@ -16,9 +16,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus, type Logger, type SemiontProject } from '@semiont/core';
+import { type SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, userId, entityType } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
-import { userId, entityType } from '@semiont/core';
 import { createTestProject } from '../helpers/test-project';
 
 // Mock @semiont/inference for predictable testing

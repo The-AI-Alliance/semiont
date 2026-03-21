@@ -13,8 +13,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
-import type { Logger, UserId } from '@semiont/core';
-import { EventBus, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, type UserId } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { importLinkedData, Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';

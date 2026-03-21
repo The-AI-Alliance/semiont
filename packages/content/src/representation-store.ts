@@ -34,7 +34,8 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import type { Logger, SemiontProject } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
+import type { Logger } from '@semiont/core';
 import { calculateChecksum } from './checksum';
 import { getExtensionForMimeType } from './mime-extensions';
 

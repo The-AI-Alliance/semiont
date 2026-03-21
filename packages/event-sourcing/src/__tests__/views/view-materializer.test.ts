@@ -6,7 +6,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ViewMaterializer } from '../../views/view-materializer';
 import { FilesystemViewStorage } from '../../storage/view-storage';
-import { resourceId, userId, annotationId, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { resourceId, userId, annotationId } from '@semiont/core';
 import type { StoredEvent, EventMetadata, Motivation } from '@semiont/core';
 
 import { promises as fs } from 'fs';

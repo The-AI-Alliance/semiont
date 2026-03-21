@@ -9,7 +9,8 @@ import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import { JobWorker } from '../job-worker';
 import type { AnyJob, PendingJob, DetectionParams } from '../types';
-import { jobId, entityType, userId, resourceId, EventBus, SemiontProject } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { jobId, entityType, userId, resourceId, EventBus } from '@semiont/core';
 
 const mockLogger = {
   debug: vi.fn(),
