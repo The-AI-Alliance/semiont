@@ -216,9 +216,6 @@ export type {
 // Project paths (durable + ephemeral, XDG-resolved once at construction)
 export { SemiontProject } from './project';
 
-// Node.js config loader (canonical entry point for server processes)
-export { loadEnvironmentConfig } from './config/node-config-loader.js';
-
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
 export const SDK_VERSION = '0.1.0';
