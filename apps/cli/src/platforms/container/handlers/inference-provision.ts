@@ -1,7 +1,8 @@
 import { execFileSync } from 'child_process';
 import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import type { InferenceServiceConfig } from '@semiont/core';
+import type { OllamaProviderConfig } from '@semiont/core';
+import { InferenceService } from '../../../services/inference-service.js';
 import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult, PreflightCheck } from '../../../core/handlers/types.js';
 
@@ -10,14 +11,14 @@ const VOLUME_NAME = 'semiont-ollama-models';
 
 const provisionInference = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, runtime, containerName } = context;
-  const serviceConfig = service.config as InferenceServiceConfig;
-  const model = serviceConfig.model;
+  const serviceConfig = service.config as unknown as OllamaProviderConfig;
+  const models = (service as InferenceService).getModels();
   const image = serviceConfig.image || OLLAMA_IMAGE;
 
-  if (!model) {
+  if (models.length === 0) {
     return {
       success: false,
-      error: 'No model configured for inference service',
+      error: 'No models configured for ollama inference provider',
       metadata: { serviceType: 'inference' }
     };
   }
@@ -48,31 +49,35 @@ const provisionInference = async (context: ContainerProvisionHandlerContext): Pr
     // Volume may already exist — that's fine
   }
 
-  // Pull the model inside a temporary container
-  if (!service.quiet) {
-    printInfo(`Pulling model ${model} (this may take several minutes)...`);
-  }
+  const pulledModels: string[] = [];
 
-  try {
-    execFileSync(runtime, [
-      'run', '--rm',
-      '-v', `${VOLUME_NAME}:/root/.ollama`,
-      image,
-      'pull', model,
-    ], {
-      stdio: service.quiet ? 'ignore' : 'inherit',
-      timeout: 600_000, // 10 minutes for large model pulls
-    });
-  } catch (error) {
-    return {
-      success: false,
-      error: `Failed to pull model ${model}: ${error}`,
-      metadata: { serviceType: 'inference', model, image }
-    };
-  }
+  for (const model of models) {
+    if (!service.quiet) {
+      printInfo(`Pulling model ${model} (this may take several minutes)...`);
+    }
 
-  if (!service.quiet) {
-    printSuccess(`Model ${model} pulled successfully`);
+    try {
+      execFileSync(runtime, [
+        'run', '--rm',
+        '-v', `${VOLUME_NAME}:/root/.ollama`,
+        image,
+        'pull', model,
+      ], {
+        stdio: service.quiet ? 'ignore' : 'inherit',
+        timeout: 600_000, // 10 minutes for large model pulls
+      });
+      pulledModels.push(model);
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to pull model ${model}: ${error}`,
+        metadata: { serviceType: 'inference', model, image }
+      };
+    }
+
+    if (!service.quiet) {
+      printSuccess(`Model ${model} pulled successfully`);
+    }
   }
 
   return {
@@ -88,7 +93,7 @@ const provisionInference = async (context: ContainerProvisionHandlerContext): Pr
     },
     metadata: {
       serviceType: 'inference',
-      model,
+      models: pulledModels,
       image,
       volume: VOLUME_NAME,
     }

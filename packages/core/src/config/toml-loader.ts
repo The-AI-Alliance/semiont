@@ -15,7 +15,8 @@
  */
 
 import { parse as parseToml } from 'smol-toml';
-import type { EnvironmentConfig } from './config.types';
+import type { EnvironmentConfig, OllamaProviderConfig, AnthropicProviderConfig } from './config.types';
+import type { PlatformType } from './config.types';
 
 function resolveEnvVars(obj: unknown, env: Record<string, string | undefined>): unknown {
   if (typeof obj === 'string') {
@@ -105,6 +106,25 @@ interface EnvironmentSection {
     default?: { inference?: InferenceConfig };
   };
   workers?: Record<string, { inference?: InferenceConfig }>;
+  actors?: Record<string, { inference?: InferenceConfig }>;
+  inference?: {
+    ollama?: {
+      platform?: string;
+      baseURL?: string;
+      port?: number;
+      image?: string;
+      command?: string;
+      timeout?: number;
+      wait?: number;
+      logsEndpoint?: string;
+    };
+    anthropic?: {
+      platform?: string;
+      endpoint?: string;
+      apiKey?: string;
+    };
+    [key: string]: unknown;
+  };
   logLevel?: 'error' | 'warn' | 'info' | 'http' | 'debug';
 }
 
@@ -190,6 +210,56 @@ export function loadTomlConfig(
   // 6. Map to EnvironmentConfig
   const backend = resolved.backend;
   const site = resolved.site;
+  const inferenceSection = resolved.inference;
+
+  // Build inference providers config
+  let inferenceProviders: EnvironmentConfig['inference'] | undefined;
+  if (inferenceSection) {
+    inferenceProviders = {};
+    if (inferenceSection.ollama) {
+      const s = inferenceSection.ollama;
+      inferenceProviders.ollama = {
+        platform: { type: (s.platform ?? 'posix') as PlatformType },
+        baseURL: s.baseURL,
+        port: s.port,
+        image: s.image,
+        command: s.command,
+        timeout: s.timeout,
+        wait: s.wait,
+        logsEndpoint: s.logsEndpoint,
+      } as OllamaProviderConfig;
+    }
+    if (inferenceSection.anthropic) {
+      const s = inferenceSection.anthropic;
+      inferenceProviders.anthropic = {
+        platform: 'external',
+        endpoint: s.endpoint ?? 'https://api.anthropic.com',
+        apiKey: s.apiKey ?? '',
+      } as AnthropicProviderConfig;
+    }
+  }
+
+  // Build top-level workers/actors maps for EnvironmentConfig
+  const topLevelWorkers: EnvironmentConfig['workers'] = {};
+  for (const [name, w] of Object.entries(workersSection)) {
+    if (w.inference) {
+      topLevelWorkers[name] = { inference: { type: w.inference.type, model: w.inference.model } };
+    }
+  }
+  const topLevelActors: EnvironmentConfig['actors'] = {};
+  const actorsSection = resolved.actors ?? {};
+  for (const [name, a] of Object.entries(actorsSection)) {
+    if (a.inference) {
+      topLevelActors[name] = { inference: { type: a.inference.type, model: a.inference.model } };
+    }
+  }
+  // Also include make-meaning actors
+  if (makeMeaningSection?.actors?.gatherer?.inference) {
+    topLevelActors['gatherer'] = { inference: { type: makeMeaningSection.actors.gatherer.inference.type, model: makeMeaningSection.actors.gatherer.inference.model } };
+  }
+  if (makeMeaningSection?.actors?.matcher?.inference) {
+    topLevelActors['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
+  }
 
   const config: EnvironmentConfig = {
     services: {
@@ -201,6 +271,9 @@ export function loadTomlConfig(
       } : undefined,
       graph: makeMeaningSection?.graph as EnvironmentConfig['services']['graph'],
     },
+    ...(inferenceProviders ? { inference: inferenceProviders } : {}),
+    ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
+    ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
     site: site ? {
       domain: site.domain ?? 'localhost',
       siteName: site.siteName,

@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getInferencePaths } from './inference-paths.js';
-import type { InferenceServiceConfig } from '@semiont/core';
+import type { OllamaProviderConfig } from '@semiont/core';
 import { checkCommandAvailable, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
@@ -11,7 +11,7 @@ const OLLAMA_DEFAULT_PORT = 11434;
 
 const startInference = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
-  const serviceConfig = service.config as InferenceServiceConfig;
+  const serviceConfig = service.config as unknown as OllamaProviderConfig;
   const port = serviceConfig.port || OLLAMA_DEFAULT_PORT;
 
   const paths = getInferencePaths(context);
@@ -127,7 +127,7 @@ async function isOllamaRunning(port: number): Promise<boolean> {
 }
 
 const preflightInferenceStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
-  const serviceConfig = context.service.config as InferenceServiceConfig;
+  const serviceConfig = context.service.config as unknown as OllamaProviderConfig;
   const port = serviceConfig.port || OLLAMA_DEFAULT_PORT;
 
   return preflightFromChecks([

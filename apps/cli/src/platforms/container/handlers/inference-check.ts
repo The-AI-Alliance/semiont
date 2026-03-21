@@ -1,7 +1,8 @@
 import { execFileSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
-import type { InferenceServiceConfig } from '@semiont/core';
-import { checkContainerRuntime, checkConfigField, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { OllamaProviderConfig } from '@semiont/core';
+import { InferenceService } from '../../../services/inference-service.js';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 const OLLAMA_DEFAULT_PORT = 11434;
 
@@ -11,14 +12,14 @@ interface OllamaTagsResponse {
 
 const checkInference = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, runtime, containerName } = context;
-  const serviceConfig = service.config as InferenceServiceConfig;
-  const model = serviceConfig.model;
+  const serviceConfig = service.config as unknown as OllamaProviderConfig;
+  const models = (service as InferenceService).getModels();
   const port = serviceConfig.port || OLLAMA_DEFAULT_PORT;
   const endpoint = `http://localhost:${port}`;
 
   let status: 'running' | 'stopped' | 'unhealthy' | 'unknown' = 'stopped';
   let containerId: string | undefined;
-  let modelAvailable = false;
+  const modelAvailability: Record<string, boolean> = {};
 
   // Check container status
   try {
@@ -45,11 +46,10 @@ const checkInference = async (context: ContainerCheckHandlerContext): Promise<Ch
       const res = await fetch(`${endpoint}/api/tags`);
       if (res.ok) {
         const data = await res.json() as OllamaTagsResponse;
-        const models = data.models || [];
-        const modelNames = models.map((m) => m.name);
+        const modelNames = (data.models || []).map((m) => m.name);
 
-        if (model) {
-          modelAvailable = modelNames.some((name) =>
+        for (const model of models) {
+          modelAvailability[model] = modelNames.some((name) =>
             name === model || name.startsWith(`${model}:`) || model.startsWith(`${name.split(':')[0]}:`)
           );
         }
@@ -95,8 +95,8 @@ const checkInference = async (context: ContainerCheckHandlerContext): Promise<Ch
       details: {
         port,
         endpoint,
-        model,
-        modelAvailable,
+        models,
+        modelAvailability,
         containerName,
         status: status === 'running' ? 'accepting connections' : 'not running',
       }
@@ -104,18 +104,16 @@ const checkInference = async (context: ContainerCheckHandlerContext): Promise<Ch
     logs,
     metadata: {
       serviceType: 'inference',
-      model,
-      modelAvailable,
+      models,
+      modelAvailability,
       stateVerified: true,
     }
   };
 };
 
 const preflightInferenceCheck = async (context: ContainerCheckHandlerContext) => {
-  const config = context.service.config as InferenceServiceConfig;
   return preflightFromChecks([
     checkContainerRuntime(context.runtime),
-    checkConfigField(config.model, 'inference.model'),
   ]);
 };
 
