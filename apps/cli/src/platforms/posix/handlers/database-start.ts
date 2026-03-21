@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
@@ -85,7 +86,7 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
     }
 
     // Write PID file
-    fs.mkdirSync(paths.runtimeDir, { recursive: true });
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
     fs.writeFileSync(pidFile, proc.pid.toString());
 
     // Always log database errors

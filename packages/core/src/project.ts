@@ -14,6 +14,7 @@ import * as path from 'path';
  *
  * Ephemeral paths (outside the project root, never committed):
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
+ *   dataHome       — $XDG_DATA_HOME/semiont/{name}/   (persistent user data, e.g. database files)
  *   stateDir       — $XDG_STATE_HOME/semiont/{name}/
  *   projectionsDir — stateDir/projections/
  *   jobsDir        — stateDir/jobs/
@@ -29,6 +30,9 @@ export class SemiontProject {
 
   // Ephemeral — config (generated config files for managed processes)
   readonly configDir: string;
+
+  // Ephemeral — data (persistent user data managed by semiont)
+  readonly dataHome: string;
 
   // Ephemeral — state
   readonly stateDir: string;
@@ -54,6 +58,9 @@ export class SemiontProject {
 
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     this.configDir = path.join(xdgConfig, 'semiont', this.name);
+
+    const xdgData = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+    this.dataHome = path.join(xdgData, 'semiont', this.name);
 
     const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
     this.stateDir = path.join(xdgState, 'semiont', this.name);

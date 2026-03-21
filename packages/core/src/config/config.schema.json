@@ -572,6 +572,10 @@
         "database": {
           "type": "string"
         },
+        "dataDir": {
+          "type": "string",
+          "description": "Override the default data storage directory ($XDG_DATA_HOME/semiont/{name}/database/{service})"
+        },
         "storageSize": {
           "type": "string"
         },
