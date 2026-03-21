@@ -59,7 +59,6 @@
     "@semiont/core": "*",
     "@vitest/ui": "4.0.18",
     "nanoid": "^5.1.7",
-    "prisma": "6.19.2",
     "uuid": "^10.0.0"
   }
 }

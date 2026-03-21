@@ -14,8 +14,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
     "@semiont/api-client": "*",
-    "@vitest/ui": "4.0.18",
-    "prisma": "6.19.2"
+    "@vitest/ui": "4.0.18"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

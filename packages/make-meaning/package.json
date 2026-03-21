@@ -32,8 +32,7 @@
     "@semiont/inference": "*",
     "@semiont/jobs": "*",
     "@semiont/ontology": "*",
-    "@vitest/ui": "4.0.18",
-    "prisma": "6.19.2"
+    "@vitest/ui": "4.0.18"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
