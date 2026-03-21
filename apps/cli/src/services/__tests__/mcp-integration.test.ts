@@ -165,7 +165,7 @@ describe('MCP OAuth Flow Integration', () => {
       mockSpawn.mockReturnValue({
         pid: 54321,
         unref: vi.fn(),
-        on: vi.fn((event, callback) => {
+        on: vi.fn((event: string, callback: (...args: any[]) => void) => {
           if (event === 'spawn') {
             callback();
           }
@@ -207,7 +207,7 @@ describe('MCP OAuth Flow Integration', () => {
       mockSpawn.mockReturnValueOnce({
         pid: 11111,
         unref: vi.fn(),
-        on: vi.fn((event, callback) => {
+        on: vi.fn((event: string, callback: (...args: any[]) => void) => {
           if (event === 'exit') {
             // Simulate crash with non-zero exit code
             setTimeout(() => callback(1), 100);
@@ -221,7 +221,7 @@ describe('MCP OAuth Flow Integration', () => {
       mockSpawn.mockReturnValueOnce({
         pid: 22222,
         unref: vi.fn(),
-        on: vi.fn((event, callback) => {
+        on: vi.fn((event: string, callback: (...args: any[]) => void) => {
           if (event === 'spawn') {
             callback();
           }

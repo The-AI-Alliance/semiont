@@ -20,7 +20,7 @@ vi.mock('@semiont/core', async () => {
   return {
     ...actual,
     findProjectRoot: vi.fn(() => '/test/project/root'),
-    loadEnvironmentConfig: vi.fn((_projectRoot, _environment) => ({
+    loadEnvironmentConfig: vi.fn((_projectRoot: string, _environment: string) => ({
       _metadata: {
         environment: _environment,
         projectRoot: _projectRoot
@@ -29,8 +29,8 @@ vi.mock('@semiont/core', async () => {
       env: { NODE_ENV: 'test' }
     })),
     getAvailableEnvironments: vi.fn(() => ['dev', 'staging', 'production', 'test']),
-    isValidEnvironment: vi.fn((env) => ['dev', 'staging', 'production', 'test'].includes(env)),
-    parseEnvironment: vi.fn((env) => {
+    isValidEnvironment: vi.fn((env: string) => ['dev', 'staging', 'production', 'test'].includes(env)),
+    parseEnvironment: vi.fn((env: string) => {
       const valid = ['dev', 'staging', 'production', 'test'];
       if (valid.includes(env)) return env;
       throw new Error(`Invalid environment: ${env}. Available environments: ${valid.join(', ')}`);
