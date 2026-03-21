@@ -53,7 +53,7 @@ const provisionInference = async (context: PosixProvisionHandlerContext): Promis
     success: true,
     resources: {
       platform: 'posix',
-      data: { path: paths.runtimeDir }
+      data: { path: paths.logsDir }
     },
     metadata: {
       serviceType: 'inference',
