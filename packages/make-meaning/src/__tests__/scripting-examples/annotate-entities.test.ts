@@ -44,7 +44,7 @@ const mockLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
-  error: vi.fn((msg, ctx) => console.error('[E]', msg, JSON.stringify(ctx))),
+  error: vi.fn(),
   child: vi.fn(() => mockLogger)
 };
 
