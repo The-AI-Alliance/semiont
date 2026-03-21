@@ -21,6 +21,7 @@ import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMe
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock @semiont/inference
 const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
@@ -51,9 +52,9 @@ describe('Scripting Example: Query Graph Database', () => {
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-graph-test-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-graph-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
 
     config = {
       services: {

@@ -13,6 +13,7 @@ import type { StoredEvent, EventMetadata, Motivation } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal EventMetadata for tests
 function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
@@ -31,10 +32,10 @@ describe('ViewMaterializer', () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-materializer-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-materializer-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
     viewStorage = new FilesystemViewStorage(project);
     materializer = new ViewMaterializer(viewStorage, {
       basePath: testDir,

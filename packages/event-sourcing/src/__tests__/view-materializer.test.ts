@@ -16,6 +16,7 @@ import type { StoredEvent, ResourceEvent } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import { getPrimaryRepresentation } from '@semiont/api-client';
 
 describe('ViewMaterializer', () => {
@@ -25,10 +26,10 @@ describe('ViewMaterializer', () => {
   let viewStorage: FilesystemViewStorage;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-projector-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-projector-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    project = new SemiontProject(testDir, `test-${Date.now()}`);
+    project = new SemiontProject(testDir);
     viewStorage = new FilesystemViewStorage(project);
     projector = new ViewMaterializer(viewStorage, {
       basePath: testDir,

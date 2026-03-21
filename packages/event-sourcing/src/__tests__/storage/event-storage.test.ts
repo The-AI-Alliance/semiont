@@ -12,13 +12,14 @@ import { resourceId, userId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('EventStorage', () => {
   let testDir: string;
   let storage: EventStorage;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-storage-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-storage-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     storage = new EventStorage({

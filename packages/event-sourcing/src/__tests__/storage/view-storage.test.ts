@@ -12,6 +12,7 @@ import type { ResourceId, Motivation } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal ResourceDescriptor for tests
 function createResourceDescriptor(id: string, name: string, overrides = {}) {
@@ -41,9 +42,9 @@ describe('FilesystemViewStorage', () => {
   let storage: FilesystemViewStorage;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-viewstorage-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-viewstorage-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
     storage = new FilesystemViewStorage(project);
   });
 

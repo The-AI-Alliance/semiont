@@ -9,6 +9,7 @@ import { calculateChecksum } from '../checksum';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 
@@ -26,9 +27,9 @@ describe('FilesystemRepresentationStore', () => {
   let store: FilesystemRepresentationStore;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-rep-store-test-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-rep-store-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
     store = new FilesystemRepresentationStore(project, mockLogger);
   });
 

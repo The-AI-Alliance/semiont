@@ -13,6 +13,7 @@ import { resourceId, userId, EventBus, jobId, type Logger } from '@semiont/core'
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock @semiont/inference to avoid external API calls
 let mockInferenceClient: any;
@@ -68,7 +69,7 @@ describe('TagAnnotationWorker - Event Emission', () => {
     const { MockInferenceClient } = await import('@semiont/inference');
     mockInferenceClient = new MockInferenceClient(['[]']);
 
-    testDir = join(tmpdir(), `semiont-test-tag-worker-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-tag-worker-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
   });
 

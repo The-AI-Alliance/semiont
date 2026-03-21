@@ -19,6 +19,7 @@ import { EventBus, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 
 // Mock inference to avoid actual API calls
@@ -80,7 +81,7 @@ describe('Entity Detection - Charset Handling', () => {
   let worker: ReferenceAnnotationWorker;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-charset-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-charset-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());

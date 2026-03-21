@@ -9,13 +9,14 @@ import { resourceId, userId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('EventLog', () => {
   let testDir: string;
   let log: EventLog;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-eventlog-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-eventlog-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     log = new EventLog({

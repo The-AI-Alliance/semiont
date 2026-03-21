@@ -21,6 +21,7 @@ import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '..
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -38,9 +39,9 @@ describe('Scripting Example: Create Resource', () => {
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-scripting-test-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-scripting-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, 'test');
+    project = new SemiontProject(testDir);
 
     config = {
       services: {

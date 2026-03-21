@@ -20,6 +20,7 @@ import { resourceId, userId, EventBus, jobId, entityType, type Logger } from '@s
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock @semiont/inference to avoid external API calls
 let mockInferenceClient: any;
@@ -61,7 +62,7 @@ describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
 
   beforeEach(async () => {
     // Create temporary test directory for each test
-    testDir = join(tmpdir(), `semiont-test-ref-worker-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-ref-worker-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     // Initialize job queue
