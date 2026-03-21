@@ -15,6 +15,20 @@ Core types and domain logic for the Semiont semantic knowledge platform. This pa
 - ✅ **Backend** (`apps/backend`) - Server implementation, imports types from core
 - ✅ **Packages** - Other monorepo packages that need OpenAPI types or EventBus
 - ✅ **Internal Utilities** - Type generation, validation, domain logic
+- ✅ **Frontend / Browser** - Types and pure utilities (main barrel is browser-safe)
+
+## Who Should Use `@semiont/core/node` Instead
+
+Node.js-specific exports live in the `/node` subpath:
+
+```typescript
+import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
+```
+
+- **`SemiontProject`** — represents a project on the filesystem; resolves XDG directories, reads/writes files. Not usable in a browser.
+- **`loadEnvironmentConfig`** — loads `~/.semiontconfig` + `.semiont/config` using `fs`/`os`/`path`. Not usable in a browser.
+
+**Rule**: If your code runs in a browser or edge runtime, use `@semiont/core`. If it runs in Node.js and needs filesystem access, use `@semiont/core/node`.
 
 ## Who Should Use `@semiont/api-client` Instead
 

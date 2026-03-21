@@ -4,48 +4,32 @@
 
 The backend uses filesystem-based storage for all document and annotation data, with PostgreSQL used only for user authentication.
 
+All runtime paths are derived from `SemiontProject` (imported from `@semiont/core/node`), which resolves XDG base directories at construction time. No runtime files are written into the project directory.
+
 ## Storage Architecture
 
 ```
-dataDir/
-├── representations/          # Content-addressed document storage
-│   └── {mediaType}/         # Organized by MIME type
-│       └── {shard}/         # 4-hex sharding
-│           └── rep-{checksum}.{ext}
-├── events/                  # Immutable event log
-│   └── {shard}/            # Resource-based sharding
+$XDG_STATE_HOME/semiont/{project}/      (~/.local/state/semiont/{project}/)
+├── events/                              # Immutable event log (system of record)
+│   └── {shard}/
 │       └── {resourceId}/
 │           └── events-{seq}.jsonl
-├── views/                   # Materialized current state
+├── views/                               # Materialized current state
 │   └── {shard}/
 │       └── {resourceId}.json
-└── jobs/                    # Job queue
+└── jobs/                                # Job queue
     ├── pending/
     ├── running/
     ├── complete/
-    └── failed/
+    ├── failed/
+    └── cancelled/
 ```
 
-## Content-Addressed Storage
-
-Document content is stored by SHA-256 checksum:
-
-### Storage Path
-```typescript
-// Checksum: sha256:abcd1234...
-// Path: representations/text~1plain/ab/cd/rep-abcd1234.txt
-```
-
-### Benefits
-- Automatic deduplication
-- Content integrity verification
-- Efficient storage utilization
-
-See [@semiont/content](../../../packages/content/docs/API.md) for implementation details.
+Resources reference their content via `storageUri` (e.g. `file://README.md`) — Semiont reads files where they live in the working tree rather than copying them into a separate store.
 
 ## Event Storage
 
-Events stored as append-only JSONL files:
+Events are stored as append-only JSONL files — the system of record for all domain events:
 
 ### File Structure
 ```jsonl
@@ -54,15 +38,14 @@ Events stored as append-only JSONL files:
 ```
 
 ### Sharding Strategy
-- 4-hex sharding (65,536 shards)
-- Jump consistent hash distribution
-- File rotation at 10,000 events
+- 65,536 shards via jump consistent hash keyed by resource ID
+- File rotation at 10,000 events per shard
 
-See [@semiont/event-sourcing](../../../packages/event-sourcing/docs/) for details.
+See [@semiont/event-sourcing](../../../packages/event-sourcing/docs/) for implementation details.
 
 ## View Storage
 
-Materialized views stored as JSON files:
+Materialized views stored as JSON files — derived from the event log, rebuildable at any time:
 
 ### Resource View
 ```json
@@ -70,100 +53,62 @@ Materialized views stored as JSON files:
   "@context": "https://schema.org/",
   "@id": "http://localhost:4000/resources/doc-123",
   "name": "Document Title",
-  "representations": [{
-    "checksum": "sha256:abc123...",
-    "mediaType": "text/plain"
-  }],
+  "storageUri": "file://README.md",
   "annotations": [...]
 }
 ```
 
 ## Job Queue Storage
 
-Filesystem-based job queue with atomic operations:
+Filesystem-based job queue with atomic state transitions:
 
 ### State Transitions
 ```
 pending/ → running/ → complete/
                    ↘ failed/
+                   ↘ cancelled/
 ```
 
-### Atomic Operations
-- Use file moves for state changes
-- Leverage filesystem atomicity
-- No external dependencies
+State transitions use file moves for atomicity — no database dependency, no external broker.
 
 See [@semiont/jobs](../../../packages/jobs/docs/API.md) for implementation.
 
-## Platform Variations
+## Path Resolution
 
-### Local Development (POSIX)
-```javascript
-{
-  "filesystem": {
-    "platform": { "type": "posix" },
-    "path": "./data"
-  }
-}
+All paths are resolved through `SemiontProject`:
+
+```typescript
+import { SemiontProject } from '@semiont/core/node';
+
+const project = new SemiontProject(projectRoot);
+
+// Event log and views — state dir
+project.stateDir   // $XDG_STATE_HOME/semiont/{project}/
+
+// Job queue — also state dir
+project.jobsDir    // $XDG_STATE_HOME/semiont/{project}/jobs/
+
+// Generated configs (e.g. envoy.yaml) — config dir
+project.configDir  // $XDG_CONFIG_HOME/semiont/{project}/
+
+// Runtime (pid files, sockets) — runtime dir
+project.runtimeDir // $XDG_RUNTIME_DIR/semiont/{project}/
+
+// Persistent data (database files) — data dir
+project.dataHome   // $XDG_DATA_HOME/semiont/{project}/
 ```
 
-### Docker Containers
-```javascript
-{
-  "filesystem": {
-    "platform": { "type": "container" },
-    "path": "/data",
-    "volume": "semiont-data"
-  }
-}
-```
-
-### AWS Production
-```javascript
-{
-  "filesystem": {
-    "platform": { "type": "aws" },
-    "s3Bucket": "semiont-data",
-    "efsId": "fs-12345678"
-  }
-}
-```
-
-## Performance Considerations
-
-### Sharding
-- 65,536 shards prevent directory size issues
-- Jump hash ensures uniform distribution
-- Supports millions of resources
-
-### Caching
-- Views cached in memory with TTL
-- Checksum lookup table for deduplication
-- Event sequence tracking per resource
-
-### File Rotation
-- Events rotate at 10,000 entries
-- Old jobs cleaned after retention period
-- Completed views archived periodically
+On macOS, `$XDG_RUNTIME_DIR` is not set by default; the fallback is `$TMPDIR/semiont/{project}/`.
 
 ## Backup Strategy
 
 ### What to Backup
-1. **Critical**: `representations/` - Document content
-2. **Critical**: `events/` - Complete history
-3. **Optional**: `views/` - Can rebuild from events
-4. **Optional**: `jobs/complete/` - Historical records
+1. **Critical**: `$XDG_STATE_HOME/semiont/{project}/events/` — complete history, system of record
+2. **Optional**: `$XDG_STATE_HOME/semiont/{project}/views/` — can rebuild from events
 
-### Backup Commands
+Views can always be regenerated by replaying the event log:
 ```bash
-# Local backup
-rsync -av dataDir/ backup/
-
-# S3 backup
-aws s3 sync dataDir/ s3://backup-bucket/
-
-# Incremental backup
-rsync -av --link-dest=backup/latest dataDir/ backup/$(date +%Y%m%d)/
+semiont rebuild --service backend --environment local
 ```
 
 ## Disaster Recovery
@@ -177,42 +122,20 @@ await eventStore.rebuildAllViews();
 await graphConsumer.rebuildAll();
 ```
 
-### Verify Integrity
-```bash
-# Check event chain integrity
-find dataDir/events -name "*.jsonl" -exec \
-  node scripts/verify-event-chain.js {} \;
-
-# Verify content checksums
-find dataDir/representations -type f -exec \
-  node scripts/verify-checksum.js {} \;
-```
-
 ## Monitoring
 
 ### Disk Usage
 ```bash
 # Monitor storage growth
-du -sh dataDir/*
+du -sh ~/.local/state/semiont/*/
 
-# Find large files
-find dataDir -type f -size +10M
-
-# Check shard distribution
-for dir in dataDir/events/*/; do
-  echo "$(basename $dir): $(find $dir -type f | wc -l) files"
-done
+# Check event shard distribution
+find ~/.local/state/semiont/my-project/events -name "*.jsonl" | wc -l
 ```
-
-### Performance Metrics
-- Write latency per operation
-- Read cache hit rate
-- Shard distribution uniformity
-- File rotation frequency
 
 ## Related Documentation
 
 - [Event Store Architecture](../../../packages/event-sourcing/docs/ARCHITECTURE.md)
-- [Content Storage API](../../../packages/content/docs/API.md)
 - [Job Queue Patterns](../../../packages/jobs/docs/API.md)
-- [Database Guide](./DATABASE.md) - User authentication only
+- [Database Guide](./DATABASE.md) — User authentication only
+- [Configuration Guide](../../../docs/administration/CONFIGURATION.md) — XDG path configuration

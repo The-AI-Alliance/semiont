@@ -56,28 +56,24 @@ semiont watch --environment local
 
 ### Service Configuration
 
-Services are configured per environment in `environments/*.json`:
+Services are configured per environment in `~/.semiontconfig`:
 
-```json
-{
-  "services": {
-    "backend": {
-      "platform": { "type": "posix" },
-      "command": "npm run dev",
-      "port": 4000,
-      "env": {
-        "DATABASE_URL": "postgresql://...",
-        "JWT_SECRET": "..."
-      }
-    },
-    "graph": {
-      "platform": { "type": "container" },
-      "image": "neo4j:5",
-      "port": 7687
-    }
-  }
-}
+```toml
+[environments.local.backend]
+port = 4000
+publicURL = "http://localhost:4000"
+corsOrigin = "http://localhost:3000"
+
+[environments.local.make-meaning.graph]
+type = "memory"   # or: neo4j
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+apiKey = "${ANTHROPIC_API_KEY}"
 ```
+
+See [Configuration Guide](../administration/CONFIGURATION.md) for the full schema.
 
 ## Platform Support
 

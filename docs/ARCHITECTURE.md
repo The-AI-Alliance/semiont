@@ -162,7 +162,7 @@ graph TB
 
 | Store | Purpose | Access Pattern |
 |-------|---------|---------------|
-| **Event Log** | Immutable append-only log of all domain events | Stower appends; Gatherer/Matcher read |
+| **Event Log** | Immutable append-only log of all domain events; system of record, committed to version control | Stower appends; Gatherer/Matcher read |
 | **Materialized Views** | Denormalized projections for fast reads | Gatherer/Matcher query by resource URI |
 | **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Stower writes; Gatherer reads by SHA-256 checksum |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Gatherer/Matcher traverse and search |
@@ -241,7 +241,7 @@ See [packages/README.md](../packages/README.md) for the complete dependency grap
 
 ## Platform and Deployment
 
-Services run on different platforms via environment configuration. The platform is selected per-service in `semiont.json` + environment overlays.
+Services run on different platforms, configured in `~/.semiontconfig` per environment.
 
 ### Platform Types
 - **POSIX** — Local processes (development, Codespaces)
@@ -252,7 +252,7 @@ Services run on different platforms via environment configuration. The platform 
 
 | Environment | Compute | Storage | Graph | Users DB |
 |-------------|---------|---------|-------|----------|
-| **Local** | Local processes | Filesystem | In-memory | SQLite or PostgreSQL |
+| **Local** | Local processes | Filesystem | In-memory | PostgreSQL |
 | **Production (AWS)** | ECS Fargate | S3/EFS | Neptune | RDS PostgreSQL |
 
 ### Service Management
@@ -264,7 +264,7 @@ semiont check --service all
 semiont stop --environment production
 ```
 
-See [CLI Documentation](../apps/cli/README.md) for details.
+See [CLI Documentation](../apps/cli/README.md) and [Configuration Guide](./administration/CONFIGURATION.md) for details.
 
 ## Related Documentation
 

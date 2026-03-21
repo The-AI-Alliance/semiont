@@ -1,8 +1,8 @@
 # Local Semiont
 
-Run Semiont locally using published npm packages -- no need to clone the Semiont repository.
+Run Semiont locally using published npm packages — no need to clone the Semiont repository.
 
-The CLI installs and provisions backend and frontend from pre-built npm packages, generates `.env` files, and runs database migrations. The database and Envoy proxy run as containers (Docker/Podman).
+The CLI installs and provisions backend and frontend from pre-built npm packages, runs database migrations, and starts all services. The database and Envoy proxy run as containers (Docker/Podman).
 
 ## Quick Start
 
@@ -51,18 +51,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 **Option B: Ollama (local)**
 
-Install [Ollama](https://ollama.com/), then set `type: "ollama"` and `model: "gemma2:9b"` in your inference service config (see `environments/local.json`). No API key required. `semiont provision` will pull the model automatically.
-
-### Graph (Neo4j)
-
-Required for knowledge graph features. Other graph databases coming soon. Set up a free instance at [Neo4j Aura](https://neo4j.com/cloud/aura/) or run Neo4j locally.
-
-```bash
-export NEO4J_URI=bolt://localhost:7687
-export NEO4J_USERNAME=neo4j
-export NEO4J_PASSWORD=your-password
-export NEO4J_DATABASE=neo4j
-```
+Install [Ollama](https://ollama.com/). `semiont provision` will pull the configured model automatically. No API key required.
 
 ## Setup
 
@@ -77,31 +66,33 @@ npm install -g @semiont/cli
 ```bash
 mkdir my_semiont_project
 cd my_semiont_project
-export SEMIONT_ROOT=$(pwd)
-export SEMIONT_ENV=local
-semiont init --verbose
+semiont init
 ```
 
-`SEMIONT_ROOT` tells the CLI where your project lives, so you can run commands from any directory. `semiont init` creates `semiont.json` and `environments/local.json`.
+`semiont init` creates:
+- `.semiont/config` — project name (committed to version control)
+- `~/.semiontconfig` — your global config file (if it doesn't exist yet), with a prompt for your name, email, and default environment
+- `~/.config/semiont/` — XDG config directory (mode 0700)
 
-Review `environments/local.json` and edit database credentials or ports as needed. The default configuration uses:
-- **backend** and **frontend** as `posix` platform (local Node.js processes, resolved from installed npm packages)
-- **database** as `container` platform (Docker/Podman)
-- **graph** as `external` platform (Neo4j, uses `NEO4J_*` environment variables)
-- **inference** as `external` platform (Anthropic with `ANTHROPIC_API_KEY`, or Ollama at `localhost:11434`)
+If `~/.semiontconfig` already exists, `semiont init` only creates `.semiont/config` for the new project.
+
+After `init`, review `~/.semiontconfig` and set your inference provider and database credentials. See [Configuration Guide](./administration/CONFIGURATION.md) for the full schema.
 
 ### 3. Provision Services
 
 ```bash
-semiont provision --verbose
+semiont provision
 ```
 
-This generates `.env` files for backend and frontend, runs database migrations using the Prisma schema bundled in the backend package, and processes proxy configuration.
+This:
+- Generates `~/.config/semiont/secrets` with a JWT secret (if absent)
+- Generates `~/.config/semiont/{project}/proxy/envoy.yaml`
+- Runs database migrations
 
 ### 4. Start Services
 
 ```bash
-semiont start --verbose
+semiont start
 semiont check
 ```
 
@@ -147,6 +138,20 @@ semiont provision --service frontend
 semiont provision --service backend
 ```
 
+### View Logs
+
+```bash
+semiont logs --service backend
+semiont logs --service frontend
+```
+
+Log files are stored in `~/.local/state/semiont/{project}/`.
+
 ## Developer Mode
 
 If you need to modify Semiont itself (backend, frontend, or CLI), see the [Semiont repository](https://github.com/The-AI-Alliance/semiont) for development setup instructions.
+
+## Related Documentation
+
+- [Configuration Guide](./administration/CONFIGURATION.md) — Full configuration reference
+- [Services Overview](./services/OVERVIEW.md) — Service catalog and runtime layout
