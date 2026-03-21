@@ -160,16 +160,9 @@ export function loadTomlConfig(
     projectName = projectConfig.project?.name ?? projectName;
   }
 
-  // 2. Read global config
+  // 2. Read global config (optional — missing config yields empty environments)
   const globalContent = reader.readIfExists(globalConfigPath);
-  if (!globalContent) {
-    throw new Error(
-      `Global config not found at ${globalConfigPath}. ` +
-      `Run 'semiont init' to create it.`
-    );
-  }
-
-  const raw = parseToml(globalContent) as SemiontConfigFile;
+  const raw = globalContent ? (parseToml(globalContent) as SemiontConfigFile) : ({} as SemiontConfigFile);
 
   // 3. Extract environment section
   const envSection: EnvironmentSection = raw.environments?.[environment] ?? {};
