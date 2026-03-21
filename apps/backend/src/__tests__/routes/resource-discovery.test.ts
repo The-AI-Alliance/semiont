@@ -58,7 +58,7 @@ const setupMocks = () => {
         };
       })
     },
-    startMakeMeaning: vi.fn().mockImplementation(async (_config: any, eventBus: any) => {
+    startMakeMeaning: vi.fn().mockImplementation(async (_project: any, _config: any, eventBus: any) => {
       // Bridge gather events — routes emit requests, Gatherer would handle them
       const { LLMContext: MockLLMContext } = await import('@semiont/make-meaning');
       eventBus.get('gather:resource-requested').subscribe(async (event: any) => {

@@ -95,7 +95,7 @@ vi.mock('@semiont/make-meaning', () => ({
       }]
     })
   },
-  startMakeMeaning: vi.fn().mockImplementation(async (_config: any, eventBus: any) => {
+  startMakeMeaning: vi.fn().mockImplementation(async (_project: any, _config: any, eventBus: any) => {
     // Subscribe mock Gatherer to browse events so eventBusRequest gets responses
     eventBus.get('browse:annotations-requested').subscribe((e: any) => {
       eventBus.get('browse:annotations-result').next({
