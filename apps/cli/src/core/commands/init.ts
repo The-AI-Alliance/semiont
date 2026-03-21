@@ -31,7 +31,9 @@
 
 import { z } from 'zod';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
+import * as readline from 'readline';
 import { SemiontProject } from '@semiont/core/node';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
@@ -57,9 +59,79 @@ export const InitOptionsSchema = BaseOptionsSchema.extend({
 export type InitOptions = z.output<typeof InitOptionsSchema>;
 
 // =====================================================================
-// TEMPLATE CONFIGURATIONS
+// HELPERS
 // =====================================================================
 
+function prompt(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * Create a minimal ~/.semiontconfig with a [user] section and a [environments.local] skeleton.
+ */
+function globalConfigTemplate(name: string, email: string): string {
+  return `[user]
+name = "${name}"
+email = "${email}"
+
+[defaults]
+environment = "local"
+
+[environments.local.backend]
+port = 3001
+publicURL = "http://localhost:3001"
+
+[environments.local.frontend]
+port = 3000
+publicURL = "http://localhost:3000"
+
+# Uncomment and fill in your inference provider credentials:
+# [environments.local.inference]
+# provider = "anthropic"
+# apiKey = "\${ANTHROPIC_API_KEY}"
+
+# Uncomment and fill in your database credentials:
+# [environments.local.database]
+# [environments.local.database.environment]
+# POSTGRES_USER = "semiont"
+# POSTGRES_PASSWORD = "\${POSTGRES_PASSWORD}"
+# POSTGRES_DB = "semiont"
+`;
+}
+
+/**
+ * Ensure ~/.semiontconfig exists.
+ * - If it already exists: do nothing, return false.
+ * - If it does not exist: prompt for name/email, write template, return true.
+ */
+async function ensureGlobalConfig(quiet: boolean): Promise<boolean> {
+  const configPath = path.join(os.homedir(), '.semiontconfig');
+  if (fs.existsSync(configPath)) {
+    if (!quiet) {
+      console.log(`${colors.green}✓${colors.reset} ~/.semiontconfig already exists`);
+    }
+    return false;
+  }
+
+  console.log(`\n${colors.cyan}No ~/.semiontconfig found — creating one now.${colors.reset}`);
+
+  const defaultName = process.env.USER || process.env.USERNAME || '';
+  const nameAnswer = await prompt(`  Your name [${defaultName}]: `);
+  const name = nameAnswer || defaultName;
+
+  const emailAnswer = await prompt(`  Your email: `);
+  const email = emailAnswer;
+
+  fs.writeFileSync(configPath, globalConfigTemplate(name, email), 'utf-8');
+  console.log(`${colors.green}✅ Created ~/.semiontconfig${colors.reset}`);
+  return true;
+}
 
 // =====================================================================
 // COMMAND IMPLEMENTATION
@@ -132,11 +204,13 @@ async function init(
         console.log(`${colors.green}✅ Created .semiont/${colors.reset}`);
       }
 
+      // Ensure global config exists (prompts if missing)
+      await ensureGlobalConfig(options.quiet);
 
       if (!options.quiet) {
         console.log(`\n${colors.bright}Project initialized successfully!${colors.reset}`);
         console.log(`\nNext steps:`);
-        console.log(`  1. Edit ~/.semiontconfig to configure inference and database credentials`);
+        console.log(`  1. Edit ${colors.cyan}~/.semiontconfig${colors.reset} to add inference and database credentials`);
         console.log(`  2. Run '${colors.cyan}semiont provision${colors.reset}' to set up services`);
         console.log(`  3. Run '${colors.cyan}semiont start${colors.reset}' to launch all services`);
       }
