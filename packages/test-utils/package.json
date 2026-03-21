@@ -13,8 +13,7 @@
   },
   "dependencies": {
     "@faker-js/faker": "^8.3.1",
-    "@vitest/ui": "4.0.18",
-    "prisma": "6.19.2"
+    "@vitest/ui": "4.0.18"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

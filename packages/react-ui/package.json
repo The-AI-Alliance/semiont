@@ -105,7 +105,6 @@
   "dependencies": {
     "@semiont/api-client": "*",
     "@semiont/core": "*",
-    "@vitest/ui": "4.0.18",
-    "prisma": "6.19.2"
+    "@vitest/ui": "4.0.18"
   }
 }

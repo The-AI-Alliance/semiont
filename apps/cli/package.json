@@ -78,13 +78,12 @@
     "js-yaml": "^4.1.0",
     "neo4j-driver": "^6.0.1",
     "smol-toml": "^1.6.0",
-    "prisma": "6.19.2",
     "react": "^19.2.4",
     "socket.io": "^4.5.4",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@prisma/client": "^6.13.0",
+    "@prisma/client": "^7.5.0",
     "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/react": "^19.2.14",
