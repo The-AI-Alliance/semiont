@@ -89,7 +89,7 @@ describe('GraphDBConsumer', () => {
     const viewStorage = new FilesystemViewStorage(project);
 
     eventStore = new EventStore(
-      { basePath: testDir, dataDir: testDir, enableSharding: false, maxEventsPerFile: 100 },
+      { dataDir: testDir, enableSharding: false, maxEventsPerFile: 100 },
       testDir,
       viewStorage,
     );

@@ -51,7 +51,6 @@ export class EventStore {
 
     // Initialize focused components
     const logConfig: EventLogConfig = {
-      basePath: config.basePath,
       dataDir: config.dataDir,
       enableSharding: config.enableSharding,
       maxEventsPerFile: config.maxEventsPerFile,

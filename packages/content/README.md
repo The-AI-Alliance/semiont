@@ -86,12 +86,16 @@ const checksum = calculateChecksum(content);
 
 ### Storage Path Structure
 
+In a semiont project, `basePath` is the project root (the directory containing
+`.semiont/`). The `representations/` directory is committed to version control —
+it is the durable content store for the project.
+
 ```
-basePath/
+my-project/               ← basePath (project root)
 └── representations/
-    └── {mediaType}/        # URL-encoded MIME type
-        └── {ab}/           # First 2 hex chars of checksum
-            └── {cd}/       # Next 2 hex chars (65,536 shards)
+    └── {mediaType}/      # URL-encoded MIME type
+        └── {ab}/         # First 2 hex chars of checksum
+            └── {cd}/     # Next 2 hex chars (65,536 shards)
                 └── rep-{checksum}.{ext}
 ```
 

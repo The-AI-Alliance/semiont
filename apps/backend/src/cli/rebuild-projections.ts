@@ -87,7 +87,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
     // TODO: Implement full directory scan across all shards
     // For now, show usage message
     logger.info('To rebuild all projections, you need to:');
-    logger.info(`1. Scan all event shards in <projectRoot>/.semiont/data/events/shards/`);
+    logger.info(`1. Scan all event shards in <projectRoot>/.semiont/events/`);
     logger.info('2. For each resource found, call eventStore.materializer.materialize(resourceId)');
     logger.info('3. Views are automatically saved to ViewStorage');
     logger.info('For now, rebuild individual resources by ID');

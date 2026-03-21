@@ -22,7 +22,6 @@ describe('EventStorage', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     storage = new EventStorage({
-      basePath: testDir,
       dataDir: testDir,
       enableSharding: true,
       maxEventsPerFile: 3, // Small for testing rotation
@@ -175,7 +174,6 @@ describe('EventStorage', () => {
 
       // Create new storage instance (simulates restart)
       const newStorage = new EventStorage({
-        basePath: testDir,
         dataDir: testDir,
         enableSharding: true,
         maxEventsPerFile: 3,
@@ -218,7 +216,6 @@ describe('EventStorage', () => {
 
     it('should bypass sharding when disabled', () => {
       const noShardStorage = new EventStorage({
-        basePath: testDir,
         dataDir: testDir,
         enableSharding: false,
       });

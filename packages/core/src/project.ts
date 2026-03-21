@@ -10,7 +10,7 @@ import * as path from 'path';
  *
  * Durable paths (inside the project root, committed or repo-local):
  *   eventsDir  — .semiont/events/     (system of record, committed)
- *   dataDir    — .semiont/data/       (content store, repo-local, not committed)
+ *   dataDir    — projectRoot/         (representations store root; representations/ is committed)
  *
  * Ephemeral paths (outside the project root, never committed):
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
@@ -54,7 +54,7 @@ export class SemiontProject {
     this.name = SemiontProject.readName(projectRoot);
 
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');
-    this.dataDir = path.join(projectRoot, '.semiont', 'data');
+    this.dataDir = projectRoot;
 
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     this.configDir = path.join(xdgConfig, 'semiont', this.name);

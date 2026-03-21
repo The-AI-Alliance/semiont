@@ -12,14 +12,12 @@ The package has no dependencies on web frameworks or HTTP libraries:
 // ✅ Works anywhere
 import { FilesystemRepresentationStore } from '@semiont/content';
 
-// CLI tools
+// In a semiont project — basePath is always project.root (the directory containing .semiont/)
+// The store is instantiated via new FilesystemRepresentationStore(project, logger)
+// representations/ at the project root is committed to version control
+
+// Standalone CLI tools or tests (arbitrary basePath)
 const store = new FilesystemRepresentationStore({ basePath: './storage' });
-
-// Background workers
-const store = new FilesystemRepresentationStore({ basePath: '/var/workers/storage' });
-
-// Lambda functions
-const store = new FilesystemRepresentationStore({ basePath: '/tmp/storage' });
 ```
 
 From [package.json](../package.json): Only depends on `@semiont/core` for checksum calculation.
@@ -49,16 +47,13 @@ From [src/representation-store.ts](../src/representation-store.ts): The `Represe
 Minimal configuration required:
 
 ```typescript
-// Just provide a base path
+// In a semiont project: pass the SemiontProject — basePath becomes project.root
+const store = new FilesystemRepresentationStore(project, logger);
+
+// Standalone (arbitrary basePath)
 const store = new FilesystemRepresentationStore({
   basePath: '/path/to/storage'
 });
-
-// Optional: project root for relative paths
-const store = new FilesystemRepresentationStore(
-  { basePath: 'data/storage' },
-  '/project/root'
-);
 ```
 
 No complex initialization, connection pools, or setup required.

@@ -19,7 +19,6 @@ describe('EventLog', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     log = new EventLog({
-      basePath: testDir,
       dataDir: testDir,
       enableSharding: true,
       maxEventsPerFile: 100,
@@ -38,7 +37,6 @@ describe('EventLog', () => {
 
     it('should use default values for optional config', () => {
       const defaultLog = new EventLog({
-        basePath: testDir,
         dataDir: testDir,
       });
 
