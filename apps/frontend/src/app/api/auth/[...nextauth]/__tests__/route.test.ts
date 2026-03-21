@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock NextAuth - use globalThis reference to avoid hoisting issues
 vi.mock('next-auth', () => ({
-  default: vi.fn((options) => {
+  default: vi.fn((options: any) => {
     // Initialize on first use
     if (!(globalThis as any).mockNextAuthCalls) {
       (globalThis as any).mockNextAuthCalls = [];

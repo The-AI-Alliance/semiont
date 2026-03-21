@@ -32,7 +32,7 @@ vi.mock('@semiont/react-ui', async () => {
     AUTH_EVENTS: {
       FORBIDDEN: 'auth:forbidden'
     },
-    onAuthEvent: vi.fn((event, callback) => {
+    onAuthEvent: vi.fn((event: string, _callback: (...args: any[]) => void) => {
       // Return cleanup function
       return () => {};
     })

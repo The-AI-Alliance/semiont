@@ -50,7 +50,7 @@ global.URL = {
   canParse: vi.fn(() => true),
   parse: vi.fn(() => null)
 } as any;
-global.Blob = vi.fn().mockImplementation(function(content, options) { return {
+global.Blob = vi.fn().mockImplementation(function(content: any, options: any) { return {
   content,
   options,
   size: content?.[0]?.length || 0,
