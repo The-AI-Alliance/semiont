@@ -13,6 +13,7 @@ import * as path from 'path';
  *   dataDir    — .semiont/data/       (content store, repo-local, not committed)
  *
  * Ephemeral paths (outside the project root, never committed):
+ *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   stateDir       — $XDG_STATE_HOME/semiont/{name}/
  *   projectionsDir — stateDir/projections/
  *   jobsDir        — stateDir/jobs/
@@ -25,6 +26,9 @@ export class SemiontProject {
   // Durable
   readonly eventsDir: string;
   readonly dataDir: string;
+
+  // Ephemeral — config (generated config files for managed processes)
+  readonly configDir: string;
 
   // Ephemeral — state
   readonly stateDir: string;
@@ -48,6 +52,9 @@ export class SemiontProject {
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');
     this.dataDir = path.join(projectRoot, '.semiont', 'data');
 
+    const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+    this.configDir = path.join(xdgConfig, 'semiont', this.name);
+
     const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
     this.stateDir = path.join(xdgState, 'semiont', this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
@@ -64,6 +71,7 @@ export class SemiontProject {
    */
   async destroy(): Promise<void> {
     await Promise.all([
+      fs.promises.rm(this.configDir, { recursive: true, force: true }),
       fs.promises.rm(this.stateDir, { recursive: true, force: true }),
       fs.promises.rm(this.runtimeDir, { recursive: true, force: true }),
     ]);

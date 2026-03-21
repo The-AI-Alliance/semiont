@@ -6,7 +6,7 @@ import { SemiontProject } from '@semiont/core';
  * Proxy service paths on POSIX platform
  */
 export interface ProxyPaths {
-  runtimeDir: string;     // Base directory for proxy runtime files
+  configDir: string;      // Base directory for generated proxy config files
   pidFile: string;        // Process ID file
   configFile: string;     // Envoy configuration file
   logsDir: string;        // Directory for log files
@@ -20,13 +20,13 @@ export interface ProxyPaths {
 export function getProxyPaths<T>(context: BaseHandlerContext<T>): ProxyPaths {
   const projectRoot = context.service.projectRoot;
   const project = new SemiontProject(projectRoot);
-  const runtimeDir = path.join(projectRoot, 'proxy');
+  const configDir = path.join(project.configDir, 'proxy');
   const logsDir = path.join(project.stateDir, 'proxy');
 
   return {
-    runtimeDir,
+    configDir,
     pidFile: path.join(project.runtimeDir, 'proxy.pid'),
-    configFile: path.join(runtimeDir, 'envoy.yaml'),
+    configFile: path.join(configDir, 'envoy.yaml'),
     logsDir,
     appLogFile: path.join(logsDir, 'proxy.log'),
     accessLogFile: path.join(logsDir, 'access.log'),

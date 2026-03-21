@@ -26,7 +26,7 @@ const checkProxyService = async (context: PosixCheckHandlerContext): Promise<Che
   const details: Record<string, unknown> = {
     proxyPort,
     adminPort,
-    runtimeDir: paths.runtimeDir
+    configDir: paths.configDir
   };
 
   // Check for PID file
