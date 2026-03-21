@@ -51,7 +51,7 @@ jobs:
     # Install dependencies for better analysis
     - name: Install all dependencies
       if: matrix.language == 'javascript' || matrix.language == 'typescript'
-      run: npm install
+      run: npm ci
       continue-on-error: true
 
     - name: Perform CodeQL Analysis
