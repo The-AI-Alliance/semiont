@@ -107,10 +107,10 @@ describe('loadTomlConfig', () => {
     expect(actors?.gatherer?.apiKey).toBe('${MY_API_KEY}');
   });
 
-  it('throws when global config file is not found', () => {
-    expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(null), {})
-    ).toThrow(/Global config not found/);
+  it('returns empty config when global config file is not found', () => {
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(null), {});
+    expect(config.services?.backend).toBeUndefined();
+    expect(config._metadata?.environment).toBe('local');
   });
 
   it('returns empty services for unknown environment', () => {
