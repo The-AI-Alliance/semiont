@@ -1,8 +1,8 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { SemiontProject } from '@semiont/core/node';
 
 export interface InferencePaths {
-  runtimeDir: string;
   pidFile: string;
   logsDir: string;
   appLogFile: string;
@@ -11,13 +11,13 @@ export interface InferencePaths {
 
 export function getInferencePaths<T>(context: BaseHandlerContext<T>): InferencePaths {
   const projectRoot = context.service.projectRoot;
-  const runtimeDir = path.join(projectRoot, 'inference');
+  const project = new SemiontProject(projectRoot);
+  const logsDir = path.join(project.stateDir, 'inference');
 
   return {
-    runtimeDir,
-    pidFile: path.join(runtimeDir, 'ollama.pid'),
-    logsDir: path.join(runtimeDir, 'logs'),
-    appLogFile: path.join(runtimeDir, 'logs', 'ollama.log'),
-    errorLogFile: path.join(runtimeDir, 'logs', 'ollama-error.log'),
+    pidFile: path.join(project.runtimeDir, 'ollama.pid'),
+    logsDir,
+    appLogFile: path.join(logsDir, 'ollama.log'),
+    errorLogFile: path.join(logsDir, 'ollama-error.log'),
   };
 }

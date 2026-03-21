@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies and build packages
         run: |
           cd ../..
-          npm install
+          npm install --include=optional
           npm run build:packages
 
       - name: Build and install CLI
@@ -232,7 +232,7 @@ jobs:
       - name: Install dependencies and build packages
         run: |
           cd ../..
-          npm install
+          npm install --include=optional
           npm run build:packages
 
       - name: Build and install CLI
@@ -245,8 +245,37 @@ jobs:
           # Initialize project configuration
           cd ../..
           semiont init --name "test-project" --environments "ci" --force
-          # Set secrets for test
-          echo '{"DATABASE_PASSWORD":"testpassword","JWT_SECRET":"test-secret-for-ci","GOOGLE_CLIENT_ID":"test-client-id","GOOGLE_CLIENT_SECRET":"test-client-secret"}' > .secrets.json
+          # Write ~/.semiontconfig with ci environment so backend can start
+          printf '%s\n' \
+            '[environments.ci.backend]' \
+            'port = 4000' \
+            'publicURL = "http://localhost:4000"' \
+            'corsOrigin = "http://localhost:3000"' \
+            '' \
+            '[environments.ci.site]' \
+            'domain = "localhost"' \
+            'siteName = "Semiont CI"' \
+            'adminEmail = "admin@localhost"' \
+            'oauthAllowedDomains = ["localhost"]' \
+            '' \
+            '[environments.ci.make-meaning.graph]' \
+            'type = "memory"' \
+            '' \
+            '[environments.ci.make-meaning.actors.gatherer.inference]' \
+            'type = "ollama"' \
+            'model = "llama3"' \
+            'baseURL = "http://localhost:11434"' \
+            '' \
+            '[environments.ci.make-meaning.actors.matcher.inference]' \
+            'type = "ollama"' \
+            'model = "llama3"' \
+            'baseURL = "http://localhost:11434"' \
+            '' \
+            '[environments.ci.workers.default.inference]' \
+            'type = "ollama"' \
+            'model = "llama3"' \
+            'baseURL = "http://localhost:11434"' \
+            > ~/.semiontconfig
           cd apps/backend
           ./node_modules/.bin/prisma db push --url "$DATABASE_URL"
         env:

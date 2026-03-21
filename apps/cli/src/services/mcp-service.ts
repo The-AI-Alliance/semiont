@@ -97,7 +97,6 @@ export class MCPService extends BaseService {
     
     return {
       ...baseEnv,
-      SEMIONT_ENV: this.environment,
       SEMIONT_API_URL: this.getApiUrl()
     };
   }

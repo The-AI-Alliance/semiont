@@ -81,7 +81,7 @@
     "@testing-library/react": "^16.1.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.23",
     "axe-core": "^4.11.0",
     "cssnano": "^7.1.2",
@@ -90,7 +90,7 @@
     "postcss-import": "^16.1.1",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.0.18"
   },
   "publishConfig": {
     "access": "public"
@@ -104,6 +104,8 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "@vitest/ui": "4.0.18",
+    "prisma": "6.19.2"
   }
 }

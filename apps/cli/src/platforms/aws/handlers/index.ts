@@ -2,7 +2,6 @@ import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 import { lambdaCheckDescriptor } from './lambda-check.js';
 import { ecsCheckDescriptor } from './ecs-check.js';
-import { efsCheckDescriptor } from './efs-check.js';
 import { rdsCheckDescriptor } from './rds-check.js';
 import { s3CloudFrontCheckDescriptor } from './s3-cloudfront-check.js';
 import { neptuneCheckDescriptor } from './neptune-check.js';
@@ -21,7 +20,6 @@ const awsHandlers: Array<HandlerDescriptor<any, any>> = [
   // Check handlers
   lambdaCheckDescriptor,
   ecsCheckDescriptor,
-  efsCheckDescriptor,
   rdsCheckDescriptor,
   s3CloudFrontCheckDescriptor,
   neptuneCheckDescriptor,

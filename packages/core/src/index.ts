@@ -168,39 +168,27 @@ export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
 
-// Configuration - Pure functions only (no filesystem dependencies)
-// Callers should read config files themselves and pass contents to parseAndMergeConfigs
-// Or use createConfigLoader with a platform-specific file reader
+// Configuration types
+export type {
+  EnvironmentConfig,
+  SiteConfig,
+  AppConfig,
+} from './config/config.types';
+
 export {
-  deepMerge,
-  resolveEnvVars,
-  parseAndMergeConfigs,
-  createConfigLoader,
-  listEnvironmentNames,
-  getNodeEnvForEnvironment,
-  hasAWSConfig,
-  displayConfiguration,
-  // Types
-  type EnvironmentConfig,
-  type ServiceConfig,
-  type AWSConfig,
-  type SiteConfig,
-  type AppConfig,
-  type ConfigFileReader,
-} from './config/environment-loader';
+  loadTomlConfig,
+  createTomlConfigLoader,
+  type TomlFileReader,
+  type InferenceConfig as TomlInferenceConfig,
+  type ActorInferenceConfig as TomlActorInferenceConfig,
+  type WorkerInferenceConfig as TomlWorkerInferenceConfig,
+} from './config/toml-loader';
 
 export {
   parseEnvironment,
   validateEnvironment,
   type Environment,
 } from './config/environment-validator';
-export {
-  formatErrors,
-  validateSemiontConfig,
-  validateEnvironmentConfig,
-  validateSiteConfig,
-  type ValidationResult,
-} from './config/config-validator';
 export { ConfigurationError } from './config/configuration-error';
 export type { ProxyServiceConfig } from './config/config.types';
 export {
@@ -215,8 +203,9 @@ export type {
   FrontendServiceConfig,
   DatabaseServiceConfig,
   GraphServiceConfig,
-  FilesystemServiceConfig,
-  InferenceServiceConfig,
+  OllamaProviderConfig,
+  AnthropicProviderConfig,
+  InferenceProvidersConfig,
   McpServiceConfig,
   ServicesConfig,
   SemiontConfig,

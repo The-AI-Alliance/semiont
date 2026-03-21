@@ -16,12 +16,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus, type Logger } from '@semiont/core';
+import { type SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, userId, entityType } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
-import { userId, entityType } from '@semiont/core';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createTestProject } from '../helpers/test-project';
 
 // Mock @semiont/inference for predictable testing
 const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
@@ -37,7 +35,7 @@ vi.mock('@semiont/inference', async () => {
   ]);
 
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    createInferenceClient: vi.fn().mockReturnValue(mockInferenceClient.client),
     MockInferenceClient,
   };
 });
@@ -46,78 +44,39 @@ const mockLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
-  error: vi.fn(),
+  error: vi.fn((msg, ctx) => console.error('[E]', msg, JSON.stringify(ctx))),
   child: vi.fn(() => mockLogger)
 };
 
 describe('Scripting Example: Entity Detection with Progress', () => {
-  let testDir: string;
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-detection-test-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    ({ project, teardown } = await createTestProject('annotate'));
 
-    // Create test configuration
     config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
+      services: { graph: { platform: { type: 'posix' }, type: 'memory' } },
+      actors: {
+        gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+        matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
+      workers: {
+        default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      _metadata: {
-        projectRoot: testDir
-      },
-    } as MakeMeaningConfig;
+    };
 
-    // Create EventBus
     eventBus = new EventBus();
-
-    // Start make-meaning service
-    makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
+    makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
   });
 
   afterEach(async () => {
-    // Stop service
-    if (makeMeaning) {
-      await makeMeaning.stop();
-    }
-
-    // Destroy EventBus
-    if (eventBus) {
-      eventBus.destroy();
-    }
-
-    // Clean up test directory
-    await fs.rm(testDir, { recursive: true, force: true });
+    if (makeMeaning) await makeMeaning.stop();
+    if (eventBus) eventBus.destroy();
+    await teardown();
   });
 
   it('monitors detection progress events', async () => {

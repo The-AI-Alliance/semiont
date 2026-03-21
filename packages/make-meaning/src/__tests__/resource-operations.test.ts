@@ -11,15 +11,13 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
-import { userId, EventBus, CREATION_METHODS, type Logger } from '@semiont/core';
+import { type SemiontProject } from '@semiont/core/node';
+import { userId, EventBus, CREATION_METHODS, type Logger, type GraphServiceConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
 import { getGraphDatabase } from '@semiont/graph';
-import type { GraphServiceConfig } from '@semiont/core';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createTestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -30,18 +28,18 @@ const mockLogger: Logger = {
 };
 
 describe('ResourceOperations', () => {
-  let testDir: string;
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
   let testEventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-resource-ops-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    ({ project, teardown } = await createTestProject('resource-ops'));
 
     eventBus = new EventBus();
-    testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(project, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const kb = createKnowledgeBase(testEventStore, testDir, testDir, graphDb, mockLogger);
+    const kb = createKnowledgeBase(testEventStore, project, graphDb, mockLogger);
 
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
@@ -50,7 +48,7 @@ describe('ResourceOperations', () => {
   afterAll(async () => {
     await stower.stop();
     eventBus.destroy();
-    await fs.rm(testDir, { recursive: true, force: true });
+    await teardown();
   });
 
   describe('createResource', () => {

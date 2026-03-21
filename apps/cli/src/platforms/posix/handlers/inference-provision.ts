@@ -3,19 +3,18 @@ import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getInferencePaths } from './inference-paths.js';
-import type { InferenceServiceConfig } from '@semiont/core';
+import { InferenceService } from '../../../services/inference-service.js';
 import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult, PreflightCheck } from '../../../core/handlers/types.js';
 
 const provisionInference = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
-  const serviceConfig = service.config as InferenceServiceConfig;
-  const model = serviceConfig.model;
+  const models = (service as InferenceService).getModels();
 
-  if (!model) {
+  if (models.length === 0) {
     return {
       success: false,
-      error: 'No model configured for inference service',
+      error: 'No models configured for ollama inference provider',
       metadata: { serviceType: 'inference' }
     };
   }
@@ -25,36 +24,40 @@ const provisionInference = async (context: PosixProvisionHandlerContext): Promis
   // Create runtime directories
   fs.mkdirSync(paths.logsDir, { recursive: true });
 
-  if (!service.quiet) {
-    printInfo(`Pulling model ${model}...`);
-  }
+  const pulledModels: string[] = [];
 
-  // Pull the model
-  try {
-    execFileSync('ollama', ['pull', model], {
-      stdio: service.quiet ? 'ignore' : 'inherit',
-    });
-  } catch (error) {
-    return {
-      success: false,
-      error: `Failed to pull model ${model}: ${error}`,
-      metadata: { serviceType: 'inference', model }
-    };
-  }
+  for (const model of models) {
+    if (!service.quiet) {
+      printInfo(`Pulling model ${model}...`);
+    }
 
-  if (!service.quiet) {
-    printSuccess(`Model ${model} pulled successfully`);
+    try {
+      execFileSync('ollama', ['pull', model], {
+        stdio: service.quiet ? 'ignore' : 'inherit',
+      });
+      pulledModels.push(model);
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to pull model ${model}: ${error}`,
+        metadata: { serviceType: 'inference', model }
+      };
+    }
+
+    if (!service.quiet) {
+      printSuccess(`Model ${model} pulled successfully`);
+    }
   }
 
   return {
     success: true,
     resources: {
       platform: 'posix',
-      data: { path: paths.runtimeDir }
+      data: { path: paths.logsDir }
     },
     metadata: {
       serviceType: 'inference',
-      model,
+      models: pulledModels,
     }
   };
 };

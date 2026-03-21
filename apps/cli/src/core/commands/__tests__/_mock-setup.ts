@@ -20,7 +20,6 @@ vi.mock('@semiont/core', async () => {
   return {
     ...actual,
     findProjectRoot: vi.fn(() => '/test/project/root'),
-    getNodeEnvForEnvironment: vi.fn(() => 'test'),
     loadEnvironmentConfig: vi.fn((_projectRoot, _environment) => ({
       _metadata: {
         environment: _environment,

@@ -1,46 +1,27 @@
 /**
  * Backend Configuration Utilities
- *
- * Node.js-specific config loading using @semiont/core's createConfigLoader
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { createConfigLoader, type ConfigFileReader } from '@semiont/core';
+import type { EnvironmentConfig } from '@semiont/core';
+import type { MakeMeaningConfig } from '@semiont/make-meaning';
+
+export { loadEnvironmentConfig } from '@semiont/core/node';
 
 /**
- * Node.js file reader implementation for config loading
+ * Extract the MakeMeaningConfig slice from a full EnvironmentConfig.
+ * actors and workers come from _metadata (populated by the TOML loader).
  */
-const nodeFileReader: ConfigFileReader = {
-  readIfExists: (filePath: string) => {
-    const absolutePath = path.resolve(filePath);
-    return fs.existsSync(absolutePath)
-      ? fs.readFileSync(absolutePath, 'utf-8')
-      : null;
-  },
+export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningConfig {
+  const meta = config._metadata as (EnvironmentConfig['_metadata'] & {
+    actors?: MakeMeaningConfig['actors'];
+    workers?: MakeMeaningConfig['workers'];
+  }) | undefined;
 
-  readRequired: (filePath: string) => {
-    const absolutePath = path.resolve(filePath);
-    if (!fs.existsSync(absolutePath)) {
-      throw new Error(`Configuration file not found: ${absolutePath}`);
-    }
-    return fs.readFileSync(absolutePath, 'utf-8');
-  },
-};
-
-/**
- * Load environment configuration from filesystem
- * Uses Node.js fs module for file I/O
- *
- * @param projectRoot - Absolute path to project root
- * @param environment - Environment name (e.g., 'local', 'production')
- * @returns Merged and validated environment configuration
- *
- * @example
- * ```typescript
- * const projectRoot = process.env.SEMIONT_ROOT;
- * if (!projectRoot) throw new Error('SEMIONT_ROOT not set');
- * const config = loadEnvironmentConfig(projectRoot, 'production');
- * ```
- */
-export const loadEnvironmentConfig = createConfigLoader(nodeFileReader);
+  return {
+    services: {
+      graph: config.services?.graph,
+    },
+    actors: meta?.actors,
+    workers: meta?.workers,
+  };
+}

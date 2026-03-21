@@ -21,16 +21,17 @@ The Semiont CLI follows a layered architecture that separates concerns and enabl
 The Semiont CLI is built around five fundamental concepts that work together:
 
 ### 1. Environment
-**Location:** `environments/` directory  
-**Purpose:** Define deployment contexts and service configurations  
-**Pattern:** Environment files specify which services exist and how they're deployed
+**Location:** `~/.semiontconfig` (global) + `.semiont/config` (project name)
+**Purpose:** Define deployment contexts and service configurations
+**Pattern:** Environment sections in `~/.semiontconfig` specify how each service is configured
 
-Environments represent different deployment contexts (dev, staging, production) and are the primary configuration mechanism:
-- **Configuration Files**: JSON files in `environments/` directory
-- **Service Definitions**: Which services exist in this environment
-- **Platform Mappings**: Which platform each service uses
-- **Service Configuration**: Environment-specific settings
-- **Resolution**: `--environment` flag or `SEMIONT_ENV` variable (required)
+Environments represent different deployment contexts (local, staging, production) and are the primary configuration mechanism:
+- **Configuration**: TOML sections in `~/.semiontconfig` under `[environments.<name>.*]`
+- **Project anchor**: `.semiont/config` holds the project name (committed to version control)
+- **Service Configuration**: Ports, URLs, inference providers, database settings
+- **Resolution**: `--environment` flag, `SEMIONT_ENV` variable, or `defaults.environment` in `~/.semiontconfig`
+
+See [Configuration Guide](../../../docs/administration/CONFIGURATION.md) for the full schema.
 
 ### 2. Commands
 **Location:** `src/core/commands/`  
@@ -472,7 +473,7 @@ User Output
 ### Service Deployment Resolution
 
 ```
-Environment Config (JSON file)
+Environment Config (~/.semiontconfig + .semiont/config)
     ↓
 Platform Resolver
     ↓
@@ -595,68 +596,45 @@ type PlatformResources =
 
 ### Environment as the Primary Configuration
 
-Environments are the central configuration mechanism in Semiont:
-
-```
-environments/
-├── dev.json        # Local development
-├── staging.json    # Staging deployment
-└── prod.json       # Production deployment
-```
+Environments are configured in `~/.semiontconfig` under `[environments.<name>.*]` sections. The project name in `.semiont/config` connects the project to its user-side configuration.
 
 #### Environment Resolution
-1. **Command Line**: `--environment dev` (highest priority)
-2. **Environment Variable**: `SEMIONT_ENV=dev`
-3. **Error**: If neither is set, execution fails with clear message
+1. **Command Line**: `--environment local` (highest priority)
+2. **Environment Variable**: `SEMIONT_ENV=local`
+3. **Default**: `defaults.environment` in `~/.semiontconfig`
 
-#### Example Environment Configuration
-```json
-{
-  "platform": {
-    "default": "container"  // Default platform for services
-  },
-  "services": {
-    "backend": {
-      "platform": "posix",    // Override default platform
-      "port": 3000,
-      "command": "npm start",
-      "env": {                  // Service-specific env vars
-        "NODE_ENV": "development",
-        "LOG_LEVEL": "debug"
-      }
-    },
-    "database": {
-      "platform": "container",
-      "image": "postgres:15",
-      "port": 5432,
-      "volumes": ["/data/postgres:/var/lib/postgresql/data"]
-    },
-    "worker": {
-      "platform": "aws",
-      "serviceType": "lambda",  // Hint for service type
-      "memory": 512,
-      "timeout": 300
-    }
-  },
-  "aws": {                      // Platform-specific config
-    "region": "us-west-2",
-    "profile": "staging"
-  }
-}
+#### Example Configuration (`~/.semiontconfig`)
+```toml
+[defaults]
+environment = "local"
+
+[environments.local.backend]
+port = 3001
+publicURL = "http://localhost:3001"
+corsOrigin = "http://localhost:3000"
+
+[environments.local.database]
+host = "localhost"
+port = 5432
+name = "semiont_local"
+user = "postgres"
+password = "${POSTGRES_PASSWORD}"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+apiKey = "${ANTHROPIC_API_KEY}"
 ```
 
+See [Configuration Guide](../../../docs/administration/CONFIGURATION.md) for the complete schema.
+
 ### Configuration Resolution Order
-1. **Environment Selection**: `--environment` or `SEMIONT_ENV` (required)
-2. **Environment Config**: Load `environments/<env>.json`
-3. **Service Discovery**: Find all services defined in environment
+1. **Environment Selection**: `--environment` flag, `SEMIONT_ENV`, or `defaults.environment`
+2. **Config Load**: `~/.semiontconfig` + `.semiont/config` (project name)
+3. **Service Discovery**: Services derived from environment config sections
 4. **Platform Resolution**: Determine platform for each service
 5. **Service Type Determination**: Based on service characteristics
 6. **Handler Selection**: Find handler for (platform, serviceType, command)
-7. **Configuration Merge**:
-   - Environment-specific config
-   - Service-specific overrides
-   - Platform defaults
-   - Service defaults
 
 ## Extension Points
 

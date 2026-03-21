@@ -9,6 +9,7 @@ import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import { JobWorker } from '../job-worker';
 import type { AnyJob, PendingJob, DetectionParams } from '../types';
+import { SemiontProject } from '@semiont/core/node';
 import { jobId, entityType, userId, resourceId, EventBus } from '@semiont/core';
 
 const mockLogger = {
@@ -87,7 +88,7 @@ describe('JobWorker', () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-worker-test-'));
-    jobQueue = new JobQueue({ dataDir: tempDir }, mockLogger, new EventBus());
+    jobQueue = new JobQueue(new SemiontProject(tempDir), mockLogger, new EventBus());
     await jobQueue.initialize();
     worker = new TestJobWorker(jobQueue, 50, 100, mockLogger); // Fast poll interval for tests
   });

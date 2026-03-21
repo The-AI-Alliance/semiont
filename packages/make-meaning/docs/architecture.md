@@ -199,37 +199,33 @@ EventBus (callback, fire-and-forget)
 
 ## Storage Architecture
 
+All paths are resolved through `SemiontProject` (from `@semiont/core/node`) using XDG base directories. `project.stateDir` resolves to `$XDG_STATE_HOME/semiont/{project}/` (default: `~/.local/state/semiont/{project}/`).
+
 ### Event Store
 
-Append-only log of domain events:
+Append-only log of domain events — the system of record, committed to version control:
 
 ```
-data/events/<resource-id>/events.ndjson
+.semiont/events/{shard}/{resourceId}/events-{seq}.jsonl
 ```
 
 ### View Storage
 
-Projections of current state from events:
+Projections of current state rebuilt from events:
 
 ```
-data/views/<resource-id>.json
-```
-
-### Representation Store
-
-Content-addressed binary storage:
-
-```
-data/representations/<checksum>/content
+{stateDir}/views/{shard}/{resourceId}.json
 ```
 
 ### Job Queue
 
-Filesystem-based with in-memory pending queue:
+Filesystem-based with atomic state transitions via file moves:
 
 ```
-data/jobs/{pending,running,complete,failed,cancelled}/<job-id>.json
+{stateDir}/jobs/{pending,running,complete,failed,cancelled}/{job-id}.json
 ```
+
+Resources reference their content via `storageUri` (e.g. `file://README.md`). Semiont reads files where they live in the working tree.
 
 ## See Also
 

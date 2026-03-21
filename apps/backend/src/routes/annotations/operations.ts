@@ -86,7 +86,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const { kb, inferenceClient } = c.get('makeMeaning');
+  const { kb, gathererInferenceClient: inferenceClient } = c.get('makeMeaning');
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;

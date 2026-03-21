@@ -1,96 +1,92 @@
 /**
  * Configuration Loader for CLI
  *
- * Filesystem wrapper around @semiont/core's pure config functions.
+ * Filesystem wrapper around @semiont/core's TOML config functions.
  * This keeps fs operations out of the core package.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createConfigLoader, listEnvironmentNames, ConfigurationError, type ConfigFileReader } from '@semiont/core';
+import * as os from 'os';
+import { parse as parseToml } from 'smol-toml';
+import { createTomlConfigLoader, ConfigurationError, type TomlFileReader } from '@semiont/core';
 
 /**
- * Find project root from SEMIONT_ROOT environment variable
+ * Find project root by walking up from cwd looking for .semiont/.
+ * SEMIONT_ROOT, if set, is used as an explicit override (analogous to GIT_DIR).
  */
 export function findProjectRoot(): string {
-  const root = process.env.SEMIONT_ROOT;
-
-  if (!root) {
-    throw new ConfigurationError(
-      'SEMIONT_ROOT environment variable is not set',
-      undefined,
-      'Set SEMIONT_ROOT to your project directory, or use the semiont CLI which sets it automatically'
-    );
+  // Explicit override — skip the walk
+  const override = process.env.SEMIONT_ROOT;
+  if (override) {
+    if (!fs.existsSync(override)) {
+      throw new ConfigurationError(
+        `SEMIONT_ROOT points to non-existent directory: ${override}`,
+        undefined,
+        'Check that SEMIONT_ROOT is set correctly'
+      );
+    }
+    if (!fs.existsSync(path.join(override, '.semiont'))) {
+      throw new ConfigurationError(
+        `SEMIONT_ROOT does not contain a .semiont/ directory: ${override}`,
+        undefined,
+        'Run: semiont init'
+      );
+    }
+    return override;
   }
 
-  if (!fs.existsSync(root)) {
-    throw new ConfigurationError(
-      `SEMIONT_ROOT points to non-existent directory: ${root}`,
-      undefined,
-      'Check that SEMIONT_ROOT environment variable is set correctly'
-    );
+  // Walk up from cwd (analogous to git's .git/ discovery)
+  let dir = process.cwd();
+  while (true) {
+    if (fs.existsSync(path.join(dir, '.semiont'))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
   }
 
-  // Verify it's a valid project root
-  const hasSemiontJson = fs.existsSync(path.join(root, 'semiont.json'));
-  const hasEnvironments = fs.existsSync(path.join(root, 'environments'));
-
-  if (!hasSemiontJson && !hasEnvironments) {
-    throw new ConfigurationError(
-      `SEMIONT_ROOT does not point to a valid Semiont project: ${root}`,
-      undefined,
-      'Ensure SEMIONT_ROOT points to a directory containing semiont.json or environments/'
-    );
-  }
-
-  return root;
+  throw new ConfigurationError(
+    'No .semiont/ directory found in current directory or any parent',
+    undefined,
+    'Run: semiont init'
+  );
 }
 
 /**
- * Node.js file reader implementation for CLI config loading
+ * Node.js file reader for TOML config loading
  */
-const nodeFileReader: ConfigFileReader = {
+const nodeTomlFileReader: TomlFileReader = {
   readIfExists: (filePath: string) => {
     const absolutePath = path.resolve(filePath);
     return fs.existsSync(absolutePath)
       ? fs.readFileSync(absolutePath, 'utf-8')
       : null;
   },
-
-  readRequired: (filePath: string) => {
-    const absolutePath = path.resolve(filePath);
-    if (!fs.existsSync(absolutePath)) {
-      throw new ConfigurationError(
-        `Configuration file not found: ${absolutePath}`,
-        undefined,
-        `Create the configuration file or use: semiont init`
-      );
-    }
-    return fs.readFileSync(absolutePath, 'utf-8');
-  },
 };
 
 /**
- * Load environment configuration from filesystem
- * Uses createConfigLoader from @semiont/core with Node.js file reader
+ * Load environment configuration from ~/.semiontconfig (TOML)
  */
-export const loadEnvironmentConfig = createConfigLoader(nodeFileReader);
+export function loadEnvironmentConfig(projectRoot: string, environment: string) {
+  const configPath = path.join(os.homedir(), '.semiontconfig');
+  return createTomlConfigLoader(nodeTomlFileReader, configPath, process.env)(projectRoot, environment);
+}
 
 /**
- * Get available environments by scanning environments directory
+ * Get available environments from ~/.semiontconfig [environments.*] keys
  */
 export function getAvailableEnvironments(): string[] {
+  const configPath = path.join(os.homedir(), '.semiontconfig');
   try {
-    const projectRoot = findProjectRoot();
-    const configDir = path.join(projectRoot, 'environments');
-
-    if (!fs.existsSync(configDir)) {
-      return [];
-    }
-
-    const files = fs.readdirSync(configDir);
-    return listEnvironmentNames(files);
-  } catch (error) {
+    const content = fs.existsSync(configPath)
+      ? fs.readFileSync(configPath, 'utf-8')
+      : null;
+    if (!content) return [];
+    const parsed = parseToml(content) as { environments?: Record<string, unknown> };
+    return Object.keys(parsed.environments ?? {}).sort();
+  } catch {
     return [];
   }
 }
@@ -101,3 +97,8 @@ export function getAvailableEnvironments(): string[] {
 export function isValidEnvironment(environment: string): boolean {
   return getAvailableEnvironments().includes(environment);
 }
+
+/**
+ * Read the project name from .semiont/config ([project] name = "...").
+ * Falls back to the basename of projectRoot if the file is absent or has no name key.
+ */

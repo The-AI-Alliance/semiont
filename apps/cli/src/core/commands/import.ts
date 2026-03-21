@@ -13,8 +13,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
-import type { Logger, UserId } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, type UserId } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { importLinkedData, Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
@@ -22,7 +22,7 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
-import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
+import { findProjectRoot } from '../config-loader.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -95,18 +95,10 @@ export type ImportOptions = z.output<typeof ImportOptionsSchema>;
 export async function runImport(options: ImportOptions): Promise<CommandResults> {
   const startTime = Date.now();
 
-  const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+  const projectRoot = findProjectRoot();
   const environment = options.environment!;
-  const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
-  const configuredPath = envConfig.services?.filesystem?.path;
-  if (!configuredPath) {
-    throw new Error('services.filesystem.path is required in environment config');
-  }
-
-  const basePath = path.isAbsolute(configuredPath)
-    ? configuredPath
-    : path.resolve(projectRoot, configuredPath);
+  const project = new SemiontProject(projectRoot);
 
   const logger = createCliLogger(options.verbose ?? false);
 
@@ -124,8 +116,8 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
 
   // Bootstrap EventBus + Stower for import
   const eventBus = new EventBus();
-  const eventStore = createEventStore(basePath, undefined, eventBus, logger);
-  const kb = createKnowledgeBase(eventStore, basePath, projectRoot, createNoopGraphDatabase(), logger);
+  const eventStore = createEventStore(project, undefined, eventBus, logger);
+  const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 

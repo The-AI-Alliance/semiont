@@ -40,6 +40,7 @@ export class EventStore {
 
   constructor(
     config: EventStorageConfig,
+    stateDir: string,
     viewStorage: ViewStorage,
     coreEventBus?: CoreEventBus,
     logger?: Logger
@@ -60,7 +61,7 @@ export class EventStore {
     this.bus = new EventBus(logger?.child({ component: 'EventBus' }));
 
     const viewConfig: ViewManagerConfig = {
-      basePath: config.basePath,
+      basePath: stateDir,
     };
     this.views = new ViewManager(viewStorage, viewConfig, logger?.child({ component: 'ViewManager' }));
   }

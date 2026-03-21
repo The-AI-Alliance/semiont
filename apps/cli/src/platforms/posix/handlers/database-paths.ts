@@ -1,17 +1,12 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { SemiontProject } from '@semiont/core/node';
 
-/**
- * Database service paths on POSIX platform
- *
- * runtimeDir: read-write state under $SEMIONT_ROOT/database/
- */
 export interface DatabasePaths {
-  runtimeDir: string;     // Base directory for runtime state (read-write)
-  pidFile: string;        // Process ID file (in runtimeDir)
-  logsDir: string;        // Directory for log files (in runtimeDir)
-  appLogFile: string;     // Application log file (in runtimeDir)
-  errorLogFile: string;   // Error log file (in runtimeDir)
+  pidFile: string;        // Process ID file
+  logsDir: string;        // Directory for log files
+  appLogFile: string;     // Application log file
+  errorLogFile: string;   // Error log file
   dataDir: string;        // Data storage directory
 }
 
@@ -20,15 +15,17 @@ export interface DatabasePaths {
  */
 export function getDatabasePaths<T>(context: BaseHandlerContext<T>): DatabasePaths {
   const projectRoot = context.service.projectRoot;
-  const runtimeDir = path.join(projectRoot, 'database');
-  const dataDir = path.join(runtimeDir, 'data', context.service.name);
+  const project = new SemiontProject(projectRoot);
+  const config = context.service.config as { dataDir?: string };
+  const dataDir = config.dataDir
+    ?? path.join(project.dataHome, 'database', context.service.name);
+  const logsDir = path.join(project.stateDir, 'database');
 
   return {
-    runtimeDir,
-    pidFile: path.join(runtimeDir, 'database.pid'),
-    logsDir: path.join(runtimeDir, 'logs'),
-    appLogFile: path.join(runtimeDir, 'logs', 'app.log'),
-    errorLogFile: path.join(runtimeDir, 'logs', 'error.log'),
+    pidFile: path.join(project.runtimeDir, 'database.pid'),
+    logsDir,
+    appLogFile: path.join(logsDir, 'app.log'),
+    errorLogFile: path.join(logsDir, 'error.log'),
     dataDir,
   };
 }

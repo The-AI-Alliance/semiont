@@ -43,6 +43,7 @@ const testDir = `/tmp/semiont-test-${process.pid}-${Date.now()}`;
 
 // Mock config loader to provide in-memory config (no filesystem needed)
 vi.mock('../utils/config', () => ({
+  makeMeaningConfigFrom: vi.fn(() => ({ services: {}, actors: undefined, workers: undefined })),
   loadEnvironmentConfig: vi.fn((_projectRoot: string, _env: string): EnvironmentConfig => ({
     services: {
       backend: {

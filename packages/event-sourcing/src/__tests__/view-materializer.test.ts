@@ -9,8 +9,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
-import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId } from '@semiont/core';
+import type { StoredEvent, ResourceEvent } from '@semiont/core';
+
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -19,19 +21,22 @@ import { getPrimaryRepresentation } from '@semiont/api-client';
 describe('ViewMaterializer', () => {
   let testDir: string;
   let projector: ViewMaterializer;
+  let project: SemiontProject;
   let viewStorage: FilesystemViewStorage;
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-projector-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    viewStorage = new FilesystemViewStorage(testDir);
+    project = new SemiontProject(testDir, `test-${Date.now()}`);
+    viewStorage = new FilesystemViewStorage(project);
     projector = new ViewMaterializer(viewStorage, {
       basePath: testDir,
     });
   });
 
   afterEach(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 

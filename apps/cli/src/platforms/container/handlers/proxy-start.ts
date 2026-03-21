@@ -110,7 +110,7 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
     '--name', containerName,
     '-p', `${proxyPort}:8080`,
     '-p', `${adminPort}:9901`,
-    '-v', `${paths.runtimeDir}:/etc/envoy:ro`,
+    '-v', `${paths.configDir}:/etc/envoy:ro`,
     '--add-host=host.docker.internal:host-gateway',  // Ensure IPv4 resolution for upstream services
     '--restart', 'unless-stopped',
     '--log-driver', 'json-file',

@@ -7,29 +7,15 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { MakeMeaningConfig } from '../config';
+import type { SemiontProject } from '@semiont/core/node';
 
 /**
  * Read entity types from view storage projection
  */
-export async function readEntityTypesProjection(config: MakeMeaningConfig): Promise<string[]> {
-  // Resolve basePath against project root if relative
-  const configuredPath = config.services.filesystem?.path;
-  if (!configuredPath) {
-    throw new Error('services.filesystem.path is required for entity types reader');
-  }
-  const projectRoot = config._metadata?.projectRoot;
-  let basePath: string;
-  if (path.isAbsolute(configuredPath)) {
-    basePath = configuredPath;
-  } else if (projectRoot) {
-    basePath = path.resolve(projectRoot, configuredPath);
-  } else {
-    basePath = path.resolve(configuredPath);
-  }
+export async function readEntityTypesProjection(project: SemiontProject): Promise<string[]> {
 
   const entityTypesPath = path.join(
-    basePath,
+    project.stateDir,
     'projections',
     '__system__',
     'entitytypes.json'

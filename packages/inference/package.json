@@ -26,13 +26,15 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.63.0",
     "@semiont/api-client": "*",
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "@vitest/ui": "4.0.18",
+    "prisma": "6.19.2"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.0.18"
   },
   "publishConfig": {
     "access": "public"

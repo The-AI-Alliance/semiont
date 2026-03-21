@@ -15,5 +15,4 @@ export * from './service-factory.js';
 export * from './backend-service.js';
 export * from './frontend-service.js';
 export * from './database-service.js';
-export * from './filesystem-service.js';
 export * from './mcp-service.js';

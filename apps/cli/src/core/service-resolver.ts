@@ -6,9 +6,12 @@
  */
 
 import * as path from 'path';
-import { PlatformType, EnvironmentConfig } from '@semiont/core';
-import { ServiceConfig } from '@semiont/core';
-import { ConfigurationError } from '@semiont/core';
+import { PlatformType, EnvironmentConfig, ConfigurationError } from '@semiont/core';
+
+interface ServiceConfig {
+  platform?: { type: PlatformType };
+  [key: string]: unknown;
+}
 
 /**
  * Service platform information
@@ -129,7 +132,7 @@ export function resolveServiceDeployments(
     platformInfos.push({
       name: serviceName,
       platform,
-      config: serviceConfig
+      config: serviceConfig as ServiceConfig
     });
   }
 

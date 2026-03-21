@@ -1,256 +1,148 @@
 /**
  * Dynamic Environment Discovery Tests
- * 
- * Core tests that verify the CLI uses filesystem-based environment discovery
- * instead of hardcoded validation.
+ *
+ * Tests that verify the CLI uses TOML-based environment discovery from
+ * ~/.semiontconfig instead of hardcoded validation.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '../core/config-loader.js';
 
 describe('Dynamic Environment Discovery', () => {
   let testDir: string;
-  let configDir: string;
+  let fakeHome: string;
+  let originalHome: string;
   let originalCwd: string;
-  
+
   beforeEach(() => {
     originalCwd = process.cwd();
+    originalHome = process.env.HOME ?? os.homedir();
+
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-env-test-'));
-    // Use the correct path structure (environments/ not config/environments/)
-    configDir = path.join(testDir, 'environments');
-    fs.mkdirSync(configDir, { recursive: true });
-    
-    // Create a semiont.json file so findProjectRoot can find it
-    fs.writeFileSync(
-      path.join(testDir, 'semiont.json'),
-      JSON.stringify({ version: '1.0.0', project: 'test' }, null, 2)
-    );
-    
+    fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-home-'));
+
+    fs.mkdirSync(path.join(testDir, '.semiont'), { recursive: true });
+
+    process.env.HOME = fakeHome;
     process.chdir(testDir);
-    // Set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
-    process.env.SEMIONT_ROOT = testDir;
   });
-  
+
   afterEach(() => {
+    process.env.HOME = originalHome;
     process.chdir(originalCwd);
-    delete process.env.SEMIONT_ROOT;
     fs.rmSync(testDir, { recursive: true, force: true });
+    fs.rmSync(fakeHome, { recursive: true, force: true });
   });
-  
-  it('should discover custom environments from filesystem', async () => {
-    // Create custom environment files that would NOT be in hardcoded lists
-    const customEnvironments = {
-      'demo.json': {
-        platform: { default: 'posix' },
-        site: { domain: 'demo.local' },
-        services: {
-          backend: {
-            platform: { type: 'posix' },
-            port: 4000,
-            publicURL: 'http://demo.local:4000',
-            corsOrigin: 'http://demo.local:3000'
-          }
-        }
-      },
-      'feature-branch.json': {
-        platform: { default: 'container' },
-        site: { domain: 'feature.local' },
-        services: {
-          api: {
-            platform: { type: 'container' },
-            port: 8080,
-            publicURL: 'http://feature.local:8080',
-            corsOrigin: 'http://feature.local:3000'
-          }
-        }
-      },
-      'user-test.json': {
-        platform: { default: 'aws' },
-        site: { domain: 'usertest.com' },
-        services: {
-          web: {
-            platform: { type: 'aws' },
-            port: 80,
-            publicURL: 'https://usertest.com',
-            corsOrigin: 'https://usertest.com'
-          }
-        }
-      }
-    };
-    
-    // Write the config files
-    for (const [filename, config] of Object.entries(customEnvironments)) {
-      fs.writeFileSync(
-        path.join(configDir, filename),
-        JSON.stringify(config, null, 2)
-      );
-    }
-    
-    // Import the modules after setting up the filesystem
-    const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/config-loader.js');
-    
+
+  it('should discover custom environments from TOML config', () => {
+    fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[environments.demo.backend]
+port = 4000
+publicURL = "http://demo.local:4000"
+corsOrigin = "http://demo.local:3000"
+
+[environments.demo.site]
+domain = "demo.local"
+
+[environments.feature-branch.backend]
+port = 8080
+publicURL = "http://feature.local:8080"
+corsOrigin = "http://feature.local:3000"
+
+[environments.feature-branch.site]
+domain = "feature.local"
+
+[environments.user-test.site]
+domain = "usertest.com"
+`);
+
     const discovered = getAvailableEnvironments();
-    
-    // Should discover all custom environments
+
     expect(discovered.sort()).toEqual(['demo', 'feature-branch', 'user-test']);
-    
-    // All should be valid
+
     expect(isValidEnvironment('demo')).toBe(true);
     expect(isValidEnvironment('feature-branch')).toBe(true);
     expect(isValidEnvironment('user-test')).toBe(true);
-    
-    // Should NOT be valid if not in filesystem
+
     expect(isValidEnvironment('production')).toBe(false);
     expect(isValidEnvironment('staging')).toBe(false);
-    
-    // Should load configurations correctly
+
     const demoConfig = loadEnvironmentConfig(testDir, 'demo');
     expect(demoConfig.site?.domain).toBe('demo.local');
     expect(demoConfig.services?.backend).toBeDefined();
 
     const featureConfig = loadEnvironmentConfig(testDir, 'feature-branch');
     expect(featureConfig.site?.domain).toBe('feature.local');
-    expect(featureConfig.services?.api).toBeDefined();
   });
-  
-  it('should handle mixed standard and custom environments', async () => {
-    const mixedEnvironments = {
-      'local.json': {
-        platform: { default: 'container' },
-        site: { domain: 'localhost' },
-        services: { backend: { platform: { type: 'container' } } }
-      },
-      'production.json': {
-        platform: { default: 'aws' },
-        site: { domain: 'prod.example.com' },
-        services: { backend: { platform: { type: 'aws' } } }
-      },
-      'my-custom-env.json': {
-        platform: { default: 'posix' },
-        site: { domain: 'custom.local' },
-        services: { backend: { platform: { type: 'posix' } } }
-      }
-    };
-    
-    for (const [filename, config] of Object.entries(mixedEnvironments)) {
-      fs.writeFileSync(
-        path.join(configDir, filename),
-        JSON.stringify(config, null, 2)
-      );
-    }
-    
-    const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/config-loader.js');
-    
+
+  it('should handle mixed standard and custom environments', () => {
+    fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[environments.local.backend]
+port = 3001
+
+[environments.production.backend]
+port = 3001
+
+[environments.my-custom-env.backend]
+port = 3001
+`);
+
     const discovered = getAvailableEnvironments();
-    
-    // Should discover all environments regardless of "standard" vs "custom"
+
     expect(discovered.sort()).toEqual(['local', 'my-custom-env', 'production']);
-    
-    // All should be equally valid - no special treatment for "standard" names
+
     expect(isValidEnvironment('local')).toBe(true);
     expect(isValidEnvironment('production')).toBe(true);
     expect(isValidEnvironment('my-custom-env')).toBe(true);
-    
-    // Filesystem is the authority
-    expect(isValidEnvironment('development')).toBe(false); // Not created
-    expect(isValidEnvironment('staging')).toBe(false);     // Not created
+
+    expect(isValidEnvironment('development')).toBe(false);
+    expect(isValidEnvironment('staging')).toBe(false);
   });
-  
-  it('should return empty array when no environments exist', async () => {
-    // Remove config directory entirely
-    fs.rmSync(configDir, { recursive: true, force: true });
-    
-    const { getAvailableEnvironments } = await import('../core/config-loader.js');
-    
+
+  it('should return empty array when no config file exists', () => {
+    // fakeHome has no .semiontconfig
     const environments = getAvailableEnvironments();
     expect(environments).toEqual([]);
   });
-  
-  it('should ignore non-json files', async () => {
-    fs.writeFileSync(path.join(configDir, 'valid.json'), JSON.stringify({ services: {} }));
-    fs.writeFileSync(path.join(configDir, 'readme.txt'), 'not a config');
-    fs.writeFileSync(path.join(configDir, 'backup.json.bak'), 'old config');
-    fs.writeFileSync(path.join(configDir, 'script.js'), 'console.log("hello")');
-    
-    const { getAvailableEnvironments } = await import('../core/config-loader.js');
-    
+
+  it('should return empty array when config has no environments section', () => {
+    fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[user]
+name = "Test User"
+`);
+
     const environments = getAvailableEnvironments();
-    expect(environments).toEqual(['valid']);
+    expect(environments).toEqual([]);
   });
-  
-  it('should demonstrate filesystem authority over hardcoded validation', async () => {
-    // This is the key test - create environments that would have been
-    // rejected by the old hardcoded ['local', 'development', 'staging', 'production']
-    
-    const newEnvironments = {
-      'sandbox.json': {
-        platform: { default: 'container' },
-        site: { domain: 'sandbox.example.com' },
-        services: {
-          api: {
-            platform: { type: 'container' },
-            port: 8080,
-            publicURL: 'http://sandbox.example.com:8080',
-            corsOrigin: 'http://sandbox.example.com:3000'
-          },
-          web: {
-            platform: { type: 'container' },
-            port: 3000,
-            publicURL: 'http://sandbox.example.com:3000',
-            siteName: 'Sandbox'
-          }
-        }
-      },
-      'integration-testing.json': {
-        platform: { default: 'aws' },
-        site: { domain: 'integration.example.com' },
-        services: {
-          backend: {
-            platform: { type: 'aws' },
-            port: 443,
-            publicURL: 'https://integration.example.com',
-            corsOrigin: 'https://integration.example.com'
-          },
-          database: {
-            platform: { type: 'aws' },
-            port: 5432,
-            host: 'db.integration.example.com',
-            type: 'postgresql'
-          }
-        }
-      }
-    };
-    
-    for (const [filename, config] of Object.entries(newEnvironments)) {
-      fs.writeFileSync(
-        path.join(configDir, filename),
-        JSON.stringify(config, null, 2)
-      );
-    }
-    
-    const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/config-loader.js');
-    
-    // These would have been rejected by hardcoded validation
+
+  it('should demonstrate TOML config authority over hardcoded validation', () => {
+    fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[environments.sandbox.backend]
+port = 8080
+publicURL = "http://sandbox.example.com:8080"
+corsOrigin = "http://sandbox.example.com:3000"
+
+[environments.sandbox.site]
+domain = "sandbox.example.com"
+
+[environments.integration-testing.site]
+domain = "integration.example.com"
+`);
+
     expect(isValidEnvironment('sandbox')).toBe(true);
     expect(isValidEnvironment('integration-testing')).toBe(true);
-    
-    // Should be discoverable
+
     const environments = getAvailableEnvironments();
     expect(environments).toContain('sandbox');
     expect(environments).toContain('integration-testing');
-    
-    // Should load correctly
+
     const sandboxConfig = loadEnvironmentConfig(testDir, 'sandbox');
-    expect((sandboxConfig.services as any)?.api?.port).toBe(8080);
-    expect((sandboxConfig.services as any)?.web?.port).toBe(3000);
+    expect(sandboxConfig.services?.backend?.port).toBe(8080);
 
     const integrationConfig = loadEnvironmentConfig(testDir, 'integration-testing');
-    expect(integrationConfig.platform?.default).toBe('aws');
     expect(integrationConfig.site?.domain).toBe('integration.example.com');
   });
 });

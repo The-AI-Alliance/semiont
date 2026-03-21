@@ -43,11 +43,11 @@ const provisionProxyService = async (context: PosixProvisionHandlerContext): Pro
   const paths = getProxyPaths(context);
 
   // Create directories
-  fs.mkdirSync(paths.runtimeDir, { recursive: true });
+  fs.mkdirSync(paths.configDir, { recursive: true });
   fs.mkdirSync(paths.logsDir, { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created proxy directories in: ${paths.runtimeDir}`);
+    printInfo(`Created proxy directories in: ${paths.configDir}`);
   }
 
   // Get port configurations

@@ -6,7 +6,7 @@
  * 
  * Responsibilities:
  * - Discovers services from environment configuration files
- * - Manages built-in services (frontend, backend, database, filesystem)
+ * - Manages built-in services (frontend, backend, database)
  * - Validates service names
  * - Loads service-specific configuration from environment files
  * - Caches discovered services for performance
@@ -26,7 +26,7 @@ import { findProjectRoot } from './config-loader.js';
 /**
  * Built-in services that are always available
  */
-export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database', 'filesystem'] as const;
+export const BUILT_IN_SERVICES = ['frontend', 'backend', 'database'] as const;
 
 export type BuiltInService = typeof BUILT_IN_SERVICES[number];
 export type ServiceName = string; // Allow any string for custom services

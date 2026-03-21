@@ -11,8 +11,6 @@ import type {
   FrontendServiceConfig,
   DatabaseServiceConfig,
   GraphServiceConfig,
-  FilesystemServiceConfig,
-  InferenceServiceConfig,
   McpServiceConfig
 } from '@semiont/core';
 
@@ -29,13 +27,14 @@ export interface Config {
 }
 
 /**
- * Service configuration - uses schema-generated types
+ * Service configuration - uses schema-generated types.
+ * OllamaProviderConfig and AnthropicProviderConfig are excluded from this union
+ * because they lack the common fields (env, environment) that BaseService accesses.
+ * InferenceService handles both provider types internally via its own cast.
  */
 export type ServiceConfig =
   | BackendServiceConfig
   | FrontendServiceConfig
   | DatabaseServiceConfig
   | GraphServiceConfig
-  | FilesystemServiceConfig
-  | InferenceServiceConfig
   | McpServiceConfig;

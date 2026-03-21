@@ -1,11 +1,12 @@
 import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { SemiontProject } from '@semiont/core/node';
 
 /**
  * Proxy service paths on POSIX platform
  */
 export interface ProxyPaths {
-  runtimeDir: string;     // Base directory for proxy runtime files
+  configDir: string;      // Base directory for generated proxy config files
   pidFile: string;        // Process ID file
   configFile: string;     // Envoy configuration file
   logsDir: string;        // Directory for log files
@@ -18,14 +19,16 @@ export interface ProxyPaths {
  */
 export function getProxyPaths<T>(context: BaseHandlerContext<T>): ProxyPaths {
   const projectRoot = context.service.projectRoot;
-  const runtimeDir = path.join(projectRoot, 'proxy');
+  const project = new SemiontProject(projectRoot);
+  const configDir = path.join(project.configDir, 'proxy');
+  const logsDir = path.join(project.stateDir, 'proxy');
 
   return {
-    runtimeDir,
-    pidFile: path.join(runtimeDir, 'proxy.pid'),
-    configFile: path.join(runtimeDir, 'envoy.yaml'),
-    logsDir: path.join(runtimeDir, 'logs'),
-    appLogFile: path.join(runtimeDir, 'logs', 'proxy.log'),
-    accessLogFile: path.join(runtimeDir, 'logs', 'access.log'),
+    configDir,
+    pidFile: path.join(project.runtimeDir, 'proxy.pid'),
+    configFile: path.join(configDir, 'envoy.yaml'),
+    logsDir,
+    appLogFile: path.join(logsDir, 'proxy.log'),
+    accessLogFile: path.join(logsDir, 'access.log'),
   };
 }

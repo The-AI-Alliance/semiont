@@ -50,7 +50,6 @@ export class PosixPlatform extends Platform {
     if (declaredType === 'frontend') return 'frontend';
     if (declaredType === 'backend') return 'backend';
     if (declaredType === 'database') return 'database';
-    if (declaredType === 'filesystem') return 'filesystem';
     if (declaredType === 'graph') return 'graph';
     if (declaredType === 'mcp') return 'mcp';
     if (declaredType === 'proxy') return 'proxy';
@@ -59,7 +58,7 @@ export class PosixPlatform extends Platform {
 
     throw new Error(
       `Unsupported service type for posix platform: '${declaredType}'. ` +
-      `Supported types: frontend, backend, database, filesystem, graph, mcp, proxy, inference`
+      `Supported types: frontend, backend, database, graph, mcp, proxy, inference`
     );
   }
   
@@ -101,9 +100,6 @@ export class PosixPlatform extends Platform {
       
       case 'database':
         return this.collectDatabaseLogs(service, state, options);
-        
-      case 'filesystem':
-        return this.collectFilesystemLogs(service, state, options);
         
       case 'mcp':
         return this.collectMcpLogs(service, state, options);
@@ -278,18 +274,6 @@ export class PosixPlatform extends Platform {
     }
     
     return logs.length > 0 ? logs : undefined;
-  }
-  
-  /**
-   * Collect logs from a filesystem service
-   */
-  private async collectFilesystemLogs(
-    service: Service,
-    state: import('../../core/state-manager.js').ServiceState | null,
-    options?: LogOptions
-  ): Promise<LogEntry[] | undefined> {
-    // Similar to process logs but check filesystem-specific locations
-    return this.collectProcessLogs(service, state, options);
   }
   
   /**

@@ -12,6 +12,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
+import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -51,39 +52,27 @@ export type ExportOptions = z.output<typeof ExportOptionsSchema>;
 export async function runExport(options: ExportOptions): Promise<CommandResults> {
   const startTime = Date.now();
 
-  const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+  const projectRoot = findProjectRoot();
   const environment = options.environment!;
   const envConfig = loadEnvironmentConfig(projectRoot, environment);
-
-  const configuredPath = envConfig.services?.filesystem?.path;
-  if (!configuredPath) {
-    throw new Error('services.filesystem.path is required in environment config');
-  }
 
   const baseUrl = envConfig.services?.backend?.publicURL;
   if (!baseUrl) {
     throw new Error('services.backend.publicURL is required in environment config');
   }
 
-  const basePath = path.isAbsolute(configuredPath)
-    ? configuredPath
-    : path.resolve(projectRoot, configuredPath);
-
+  const project = new SemiontProject(projectRoot);
   const logger = createCliLogger(options.verbose ?? false);
 
   // Bootstrap read-only stores
-  const eventStore = createEventStore(basePath, undefined, undefined, logger);
+  const eventStore = createEventStore(project, undefined, undefined, logger);
   const contentStore = new FilesystemRepresentationStore(
-    { basePath },
-    projectRoot,
+    project,
     logger.child({ component: 'representation-store' }),
   );
 
   // Read entity types from the entity-types projection
-  const entityTypes = await readEntityTypesProjection({
-    services: { filesystem: envConfig.services!.filesystem! },
-    _metadata: { projectRoot },
-  });
+  const entityTypes = await readEntityTypesProjection(project);
 
   const outPath = path.resolve(options.out);
 

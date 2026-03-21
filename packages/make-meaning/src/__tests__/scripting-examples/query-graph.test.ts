@@ -15,9 +15,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus, type Logger } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, userId, resourceId as makeResourceId } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
-import { userId, resourceId as makeResourceId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -30,7 +30,7 @@ vi.mock('@semiont/inference', async () => {
   mockInferenceClient.client = new MockInferenceClient(['[]']);
 
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    createInferenceClient: vi.fn().mockReturnValue(mockInferenceClient.client),
     MockInferenceClient,
   };
 });
@@ -45,57 +45,34 @@ const mockLogger: Logger = {
 
 describe('Scripting Example: Query Graph Database', () => {
   let testDir: string;
+  let project: SemiontProject;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
   beforeEach(async () => {
-    // Create temporary test directory
     testDir = join(tmpdir(), `semiont-graph-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
+    project = new SemiontProject(testDir, 'test');
 
-    // Create test configuration with in-memory graph
     config = {
       services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
         graph: {
           platform: { type: 'posix' },
-          type: 'memory' // Use in-memory graph for fast testing
+          type: 'memory'
         }
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
+      actors: {
+        gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+        matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-      _metadata: {
-        projectRoot: testDir
+      workers: {
+        default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
       },
-    } as MakeMeaningConfig;
+    };
 
-    // Create EventBus
     eventBus = new EventBus();
-
-    // Start make-meaning service
-    makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
+    makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
   });
 
   afterEach(async () => {

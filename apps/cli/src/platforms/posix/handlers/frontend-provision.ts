@@ -6,7 +6,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, resolveSharedSecret } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -44,7 +44,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, runtimeDir, logsDir, tmpDir, envLocalFile: envFile } = paths;
+  const { sourceDir: frontendSourceDir, runtimeDir, logsDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
@@ -59,144 +59,23 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   // Create runtime directories under project root
   fs.mkdirSync(runtimeDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
-  fs.mkdirSync(tmpDir, { recursive: true });
 
   if (!service.quiet) {
     printInfo(`Created runtime directories in: ${runtimeDir}`);
   }
   
-  // Setup .env.local file
-  const envExamplePath = path.join(frontendSourceDir, '.env.example');
-  
-  // Check if .env.local already exists and backup if it does
-  if (fs.existsSync(envFile)) {
-    const backupPath = `${envFile}.backup.${Date.now()}`;
-    fs.copyFileSync(envFile, backupPath);
-    if (!service.quiet) {
-      printWarning(`.env.local already exists, backing up to: ${path.basename(backupPath)}`);
-      printInfo('Creating new .env.local with updated configuration...');
-    }
-  }
-  
-  // Resolve NEXTAUTH_SECRET in sync with backend's JWT_SECRET
-  const { secret: nextAuthSecret, message: nextAuthSecretMessage, peerWillBeOutOfSync: nextAuthPeerOutOfSync } = resolveSharedSecret(
-    projectRoot,
-    'frontend/.env.local', 'NEXTAUTH_SECRET',
-    'backend/.env',        'JWT_SECRET',
-    () => crypto.randomBytes(32).toString('base64'),
-    options.rotateSecret === true
-  );
-  printInfo(nextAuthSecretMessage);
-  if (nextAuthPeerOutOfSync) {
-    printWarning('backend JWT_SECRET is now out of sync — re-provision backend to restore authentication');
-  }
-
-  // Get values from service config (already validated by schema)
-  // Type narrowing: we know this is a frontend service
-  const config = service.config as FrontendServiceConfig;
-  const port = config.port;
-  const siteName = config.siteName;
-
-  // All fields validated by preflight — safe to use ! assertions
-  const backendService = service.environmentConfig.services['backend']!;
-  // For POSIX platform, use 127.0.0.1 URL for server-side API calls
-  // (publicURL may be Codespaces public URL which requires external auth)
-  // Use 127.0.0.1 instead of localhost to avoid ECONNREFUSED in Node.js
-  const backendUrl = `http://127.0.0.1:${backendService.port!}`;
-
-  // Get OAuth allowed domains from environment config
-  const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains || [];
-
-  const frontendService = service.environmentConfig.services['frontend']!;
-  const frontendUrl = frontendService.publicURL!;
-
-  // Build allowed origins for Server Actions (when behind proxy/load balancer)
-  const allowedOrigins: string[] = [];
-
-  // Add any configured allowed origins from environment config
-  if (frontendService.allowedOrigins && Array.isArray(frontendService.allowedOrigins)) {
-    allowedOrigins.push(...frontendService.allowedOrigins);
-  }
-
-  // Add public URL host (e.g., Codespaces URL)
-  const publicUrl = new URL(frontendUrl);
-  allowedOrigins.push(publicUrl.host);
-
-  // Always create/overwrite .env.local with minimal configuration
-  // Most config now comes from the semiont config system
-  const envUpdates: Record<string, string> = {
-    'NODE_ENV': 'development',
-    'PORT': port.toString(),
-    'NEXTAUTH_URL': frontendUrl,
-    'NEXTAUTH_SECRET': nextAuthSecret,
-    'SERVER_API_URL': backendUrl,
-    'NEXT_PUBLIC_SITE_NAME': siteName,
-    'NEXT_PUBLIC_BASE_URL': frontendUrl,
-    'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(','),
-    'NEXT_PUBLIC_ALLOWED_ORIGINS': allowedOrigins.join(',')
-  };
-  
-  if (fs.existsSync(envExamplePath)) {
-    // Use .env.example as template
-    let envContent = fs.readFileSync(envExamplePath, 'utf-8');
-    
-    // Parse and update env file
-    const lines = envContent.split('\n');
-    const updatedLines = lines.map(line => {
-      if (line.startsWith('#') || !line.includes('=')) {
-        return line;
-      }
-      const [key] = line.split('=');
-      if (envUpdates[key]) {
-        return `${key}=${envUpdates[key]}`;
-      }
-      return line;
-    });
-    
-    // Add any missing keys
-    for (const [key, value] of Object.entries(envUpdates)) {
-      if (!updatedLines.some(line => line.startsWith(`${key}=`))) {
-        updatedLines.push(`${key}=${value}`);
-      }
-    }
-    
-    fs.writeFileSync(envFile, updatedLines.join('\n'));
-    
-    if (!service.quiet) {
-      printSuccess('Created .env.local with updated configuration');
-      printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
-    }
+  let nextAuthSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
+  if (!nextAuthSecret) {
+    nextAuthSecret = crypto.randomBytes(32).toString('base64');
+    writeSecret('JWT_SECRET', nextAuthSecret);
+    printInfo(options.rotateSecret ? 'Generated new JWT_SECRET (--rotate-secret)' : 'Generated new JWT_SECRET');
   } else {
-    // Create .env.local from scratch
-    const basicEnv = `# Frontend Environment Configuration
-NODE_ENV=development
-PORT=${port}
-NEXTAUTH_URL=${frontendUrl}
-NEXTAUTH_SECRET=${nextAuthSecret}
-
-# Backend API URL for server-side calls (uses localhost for POSIX platform)
-SERVER_API_URL=${backendUrl}
-
-# Site name (from frontend.siteName in environment config)
-NEXT_PUBLIC_SITE_NAME=${siteName}
-
-# Base URL for frontend (from frontend.publicURL in environment config)
-NEXT_PUBLIC_BASE_URL=${frontendUrl}
-
-# OAuth allowed domains (comma-separated)
-NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
-`;
-    fs.writeFileSync(envFile, basicEnv);
-
-    if (!service.quiet) {
-      printSuccess('Created .env.local with updated configuration');
-      printSuccess(`Generated secure NEXTAUTH_SECRET (32 bytes)`);
-    }
+    printInfo('Using existing JWT_SECRET from secrets file');
   }
-  
+
   // Clean up stale .env.local in sourceDir (SEMIONT_REPO mode only).
-  // Next.js dev server auto-loads .env.local from cwd, so a leftover file
-  // in sourceDir would shadow the env vars the CLI passes via spawn.
+  // Next.js auto-loads .env.local from cwd at startup — this cannot be suppressed
+  // via spawn({ env }). Any pre-existing stale file would shadow CLI-injected vars.
   if (!paths.fromNpmPackage) {
     const staleEnvLocal = path.join(frontendSourceDir, '.env.local');
     if (fs.existsSync(staleEnvLocal)) {
@@ -204,7 +83,6 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
       fs.renameSync(staleEnvLocal, backupPath);
       if (!service.quiet) {
         printWarning(`Moved stale ${staleEnvLocal} to ${path.basename(backupPath)}`);
-        printInfo(`Runtime .env.local is now at: ${envFile}`);
       }
     }
   }
@@ -296,21 +174,28 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
       }
 
       try {
-        // Load env vars for build
-        const envVars: Record<string, string> = {};
-        if (fs.existsSync(envFile)) {
-          const envContent = fs.readFileSync(envFile, 'utf-8');
-          envContent.split('\n').forEach(line => {
-            if (!line.startsWith('#') && line.includes('=')) {
-              const [key, ...valueParts] = line.split('=');
-              envVars[key.trim()] = valueParts.join('=').trim();
-            }
-          });
-        }
+        const buildConfig = service.config as FrontendServiceConfig;
+        const buildEnvConfig = service.environmentConfig;
+        const buildFrontendService = buildEnvConfig.services['frontend']!;
+        const buildFrontendUrl = buildFrontendService.publicURL!;
+        const buildBackendPort = buildEnvConfig.services['backend']!.port!;
+        const buildOauthDomains = buildEnvConfig.site?.oauthAllowedDomains || [];
+        const buildAllowedOrigins: string[] = [...(buildFrontendService.allowedOrigins || [])];
+        buildAllowedOrigins.push(new URL(buildFrontendUrl).host);
 
         execFileSync('npm', ['run', 'build'], {
           cwd: frontendSourceDir,
-          env: { ...process.env, ...envVars },
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            PORT: buildConfig.port.toString(),
+            NEXTAUTH_URL: buildFrontendUrl,
+            SERVER_API_URL: `http://127.0.0.1:${buildBackendPort}`,
+            NEXT_PUBLIC_SITE_NAME: buildConfig.siteName,
+            NEXT_PUBLIC_BASE_URL: buildFrontendUrl,
+            NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: buildOauthDomains.join(','),
+            NEXT_PUBLIC_ALLOWED_ORIGINS: buildAllowedOrigins.join(','),
+          },
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
 
@@ -333,9 +218,7 @@ This directory contains runtime files for the frontend service.
 
 ## Structure
 
-- \`.env.local\` - Environment configuration
 - \`logs/\` - Application logs
-- \`tmp/\` - Temporary files
 - \`frontend.pid\` - Process ID when running
 
 ## Source Code
@@ -356,9 +239,7 @@ ${paths.fromNpmPackage ? `Installed npm package: ${frontendSourceDir}` : `Semion
     serviceType: 'frontend',
     frontendSourceDir,
     runtimeDir,
-    envFile,
     logsDir,
-    tmpDir,
     configured: true
   };
 
@@ -368,12 +249,10 @@ ${paths.fromNpmPackage ? `Installed npm package: ${frontendSourceDir}` : `Semion
     printInfo('Frontend details:');
     printInfo(`  Source directory: ${frontendSourceDir}`);
     printInfo(`  Runtime directory: ${runtimeDir}`);
-    printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
     printInfo('Next steps:');
-    printInfo(`  1. Review and update ${envFile}`);
-    printInfo(`  2. Ensure backend is running`);
+    printInfo(`  1. Ensure backend is running`);
     printInfo(`  3. Start frontend: semiont start --service frontend --environment ${service.environment}`);
   }
   

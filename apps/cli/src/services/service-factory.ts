@@ -8,17 +8,18 @@
 import { Service } from '../core/service-interface.js';
 import { ServiceName } from '../core/service-discovery.js';
 import { Config, ServiceConfig } from '../core/cli-config.js';
-import { PlatformType, EnvironmentConfig } from '@semiont/core';
+import { PlatformType, EnvironmentConfig, OllamaProviderConfig, AnthropicProviderConfig } from '@semiont/core';
 import { BackendService } from './backend-service.js';
 import { FrontendService } from './frontend-service.js';
 import { DatabaseService } from './database-service.js';
-import { FilesystemService } from './filesystem-service.js';
 import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
 import { InferenceService } from './inference-service.js';
 import { ProxyService } from './proxy-service.js';
 
-const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'filesystem', 'graph', 'mcp', 'inference', 'proxy'] as const;
+const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference', 'proxy'] as const;
+
+type InferenceProviderConfig = OllamaProviderConfig | AnthropicProviderConfig;
 
 export class ServiceFactory {
   /**
@@ -48,17 +49,11 @@ export class ServiceFactory {
       case 'database':
         return new DatabaseService(name, platform, envConfig, serviceConfig, runtimeFlags);
 
-      case 'filesystem':
-        return new FilesystemService(name, platform, envConfig, serviceConfig, runtimeFlags);
-
       case 'graph':
         return new GraphService('graph', platform, envConfig, serviceConfig, runtimeFlags);
 
       case 'mcp':
         return new MCPService(name, platform, envConfig, serviceConfig, runtimeFlags);
-
-      case 'inference':
-        return new InferenceService(name, platform, envConfig, serviceConfig, runtimeFlags);
 
       case 'proxy':
         return new ProxyService('proxy', platform, envConfig, serviceConfig, runtimeFlags);
@@ -68,5 +63,32 @@ export class ServiceFactory {
           `Unknown service type: '${name}'. Supported services: ${SUPPORTED_SERVICES.join(', ')}`
         );
     }
+  }
+
+  /**
+   * Create one InferenceService instance per configured inference provider.
+   * Commands that handle --service inference call this instead of create().
+   */
+  static createInferenceServices(
+    platform: PlatformType,
+    config: Config,
+    envConfig: EnvironmentConfig,
+  ): InferenceService[] {
+    const runtimeFlags = {
+      verbose: config.verbose,
+      quiet: config.quiet,
+      dryRun: config.dryRun,
+      forceDiscovery: config.forceDiscovery,
+    };
+    return Object.entries(envConfig.inference ?? {}).map(([inferenceType, providerConfig]) =>
+      new InferenceService(
+        'inference',
+        platform,
+        envConfig,
+        providerConfig as InferenceProviderConfig,
+        runtimeFlags,
+        inferenceType,
+      )
+    );
   }
 }

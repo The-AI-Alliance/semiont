@@ -1,7 +1,7 @@
 import { execFileSync } from 'child_process';
 import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import type { InferenceServiceConfig } from '@semiont/core';
+import type { OllamaProviderConfig } from '@semiont/core';
 import { checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
@@ -11,7 +11,7 @@ const VOLUME_NAME = 'semiont-ollama-models';
 
 const startInference = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, runtime, containerName } = context;
-  const serviceConfig = service.config as InferenceServiceConfig;
+  const serviceConfig = service.config as unknown as OllamaProviderConfig;
   const port = serviceConfig.port || OLLAMA_DEFAULT_PORT;
   const image = serviceConfig.image || OLLAMA_IMAGE;
 
@@ -153,7 +153,7 @@ function detectNvidiaGpu(): boolean {
 }
 
 const preflightInferenceStart = async (context: ContainerStartHandlerContext): Promise<PreflightResult> => {
-  const serviceConfig = context.service.config as InferenceServiceConfig;
+  const serviceConfig = context.service.config as unknown as OllamaProviderConfig;
   const port = serviceConfig.port || OLLAMA_DEFAULT_PORT;
   return preflightFromChecks([
     checkContainerRuntime(context.runtime),

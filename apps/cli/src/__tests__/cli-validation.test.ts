@@ -1,231 +1,152 @@
 /**
  * CLI Environment Validation Tests
- * 
- * Tests that verify the main CLI properly validates environments dynamically
- * and provides helpful error messages when environments are missing.
+ *
+ * Tests that verify the CLI properly validates environments dynamically
+ * via TOML config and provides helpful error messages when environments are missing.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-
-// We'll test the CLI argument parsing logic indirectly by testing the 
-// functions it calls, since the main CLI does process.exit() which is
-// hard to test directly.
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } from '../core/config-loader.js';
 
 describe('CLI Environment Validation Logic', () => {
   let testDir: string;
-  let configDir: string;
+  let fakeHome: string;
+  let originalHome: string;
   let originalCwd: string;
-  
+
   beforeEach(() => {
     originalCwd = process.cwd();
+    originalHome = process.env.HOME ?? os.homedir();
+
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-cli-test-'));
-    // Use the correct path structure (environments/ not config/environments/)
-    configDir = path.join(testDir, 'environments');
-    fs.mkdirSync(configDir, { recursive: true });
-    
-    // Create a semiont.json file so findProjectRoot can find it
-    fs.writeFileSync(
-      path.join(testDir, 'semiont.json'),
-      JSON.stringify({ version: '1.0.0', project: 'test' }, null, 2)
-    );
-    
+    fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-home-'));
+
+    fs.mkdirSync(path.join(testDir, '.semiont'), { recursive: true });
+
+    process.env.HOME = fakeHome;
     process.chdir(testDir);
-    // Set SEMIONT_ROOT to ensure findProjectRoot uses our test directory
-    process.env.SEMIONT_ROOT = testDir;
   });
-  
+
   afterEach(() => {
+    process.env.HOME = originalHome;
     process.chdir(originalCwd);
-    delete process.env.SEMIONT_ROOT;
     fs.rmSync(testDir, { recursive: true, force: true });
+    fs.rmSync(fakeHome, { recursive: true, force: true });
   });
-  
+
   describe('Environment Error Messages', () => {
-    it('should provide helpful error when no environments exist', async () => {
-      // Remove environments directory entirely
-      fs.rmSync(configDir, { recursive: true, force: true });
-      
-      const { getAvailableEnvironments } = await import('../core/config-loader.js');
+    it('should provide helpful error when no environments exist', () => {
+      // fakeHome has no .semiontconfig
       const environments = getAvailableEnvironments();
-      
+
       expect(environments).toEqual([]);
-      
-      // This simulates what the CLI would do
-      const errorMessage = environments.length === 0 
+
+      const errorMessage = environments.length === 0
         ? `No environment configurations found. Create files in environments/`
         : `Unknown environment 'test'. Available: ${environments.join(', ')}`;
-      
+
       expect(errorMessage).toBe(`No environment configurations found. Create files in environments/`);
     });
-    
-    it('should list available environments in error messages', async () => {
-      // Create some test environments
-      const testEnvs = ['local', 'staging', 'custom-env'];
-      for (const env of testEnvs) {
-        fs.writeFileSync(
-          path.join(configDir, `${env}.json`),
-          JSON.stringify({ services: {} })
-        );
-      }
-      
-      const { getAvailableEnvironments, isValidEnvironment } = await import('../core/config-loader.js');
-      
+
+    it('should list available environments in error messages', () => {
+      fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[environments.local.backend]
+port = 3001
+
+[environments.staging.backend]
+port = 3002
+
+[environments.custom-env.backend]
+port = 3003
+`);
+
       const environments = getAvailableEnvironments();
       const isValid = isValidEnvironment('nonexistent');
-      
+
       expect(environments.sort()).toEqual(['custom-env', 'local', 'staging']);
       expect(isValid).toBe(false);
-      
-      // This simulates the CLI error message logic
-      const errorMessage = !isValid 
+
+      const errorMessage = !isValid
         ? `Unknown environment 'nonexistent'. Available: ${environments.join(', ')}`
         : '';
-      
+
       expect(errorMessage).toBe(`Unknown environment 'nonexistent'. Available: custom-env, local, staging`);
     });
   });
-  
+
   describe('Dynamic Help Text', () => {
-    it('should reflect discovered environments in help', async () => {
-      const testEnvs = ['dev', 'prod', 'my-feature'];
-      for (const env of testEnvs) {
-        fs.writeFileSync(
-          path.join(configDir, `${env}.json`),
-          JSON.stringify({ 
-            platform: { default: 'posix' },
-            services: {} 
-          })
-        );
-      }
-      
-      const { getAvailableEnvironments } = await import('../core/config-loader.js');
+    it('should reflect discovered environments in help', () => {
+      fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[environments.dev.backend]
+port = 3001
+
+[environments.my-feature.backend]
+port = 3002
+
+[environments.prod.backend]
+port = 3003
+`);
+
       const environments = getAvailableEnvironments();
-      
-      // This simulates the help text generation
       const helpText = `Environment (${environments.join(', ') || 'none found'})`;
-      
+
       expect(helpText).toBe('Environment (dev, my-feature, prod)');
     });
-    
-    it('should show "none found" when no environments exist', async () => {
-      fs.rmSync(configDir, { recursive: true, force: true });
-      
-      const { getAvailableEnvironments } = await import('../core/config-loader.js');
+
+    it('should show "none found" when no environments exist', () => {
+      // fakeHome has no .semiontconfig
       const environments = getAvailableEnvironments();
-      
       const helpText = `Environment (${environments.join(', ') || 'none found'})`;
-      
+
       expect(helpText).toBe('Environment (none found)');
     });
   });
-  
+
   describe('Service Discovery with Custom Environments', () => {
-    it('should load services from custom environment configs', async () => {
-      const customConfig = {
-        platform: { default: 'container' },
-        site: {
-          domain: 'demo.example.com',
-          adminEmail: 'admin@demo.example.com'
-        },
-        services: {
-          api: {
-            platform: { type: 'container' },
-            port: 8080,
-            image: 'my-api:latest'
-          },
-          web: {
-            platform: { type: 'container' },
-            port: 3000,
-            image: 'my-web:latest'
-          },
-          cache: {
-            platform: { type: 'container' },
-            port: 6379,
-            image: 'redis:7'
-          }
-        }
-      };
-      
-      fs.writeFileSync(
-        path.join(configDir, 'demo.json'),
-        JSON.stringify(customConfig, null, 2)
-      );
-      
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/config-loader.js');
+    it('should load services from custom environment configs', () => {
+      fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[environments.demo.backend]
+port = 8080
+publicURL = "http://demo.example.com:8080"
+corsOrigin = "http://demo.example.com:3000"
+
+[environments.demo.site]
+domain = "demo.example.com"
+adminEmail = "admin@demo.example.com"
+`);
 
       expect(isValidEnvironment('demo')).toBe(true);
 
       const config = loadEnvironmentConfig(testDir, 'demo');
-      expect(config.services).toHaveProperty('api');
-      expect(config.services).toHaveProperty('web');
-      expect(config.services).toHaveProperty('cache');
-      expect((config.services as any).api?.port).toBe(8080);
+      expect(config.services?.backend?.port).toBe(8080);
       expect(config.site?.domain).toBe('demo.example.com');
     });
   });
-  
-  describe('Configuration Validation', () => {
-    it('should validate complete environment configurations', async () => {
-      const validConfig = {
-        platform: { default: 'posix' },
-        site: {
-          domain: 'test.local',
-          adminEmail: 'admin@test.local',
-          supportEmail: 'support@test.local'
-        },
-        app: {
-          features: {
-            enableAnalytics: false,
-            enableMaintenanceMode: false
-          },
-          security: {
-            sessionTimeout: 3600,
-            maxLoginAttempts: 5
-          }
-        },
-        services: {
-          backend: {
-            platform: { type: 'posix' },
-            port: 4001,
-            publicURL: 'http://test.local:4001',
-            corsOrigin: 'http://test.local:4000',
-            command: 'npm start'
-          },
-          frontend: {
-            platform: { type: 'posix' },
-            port: 4000,
-            publicURL: 'http://test.local:4000',
-            siteName: 'Test Site',
-            command: 'npm start'
-          }
-        }
-      };
-      
-      fs.writeFileSync(
-        path.join(configDir, 'test.json'),
-        JSON.stringify(validConfig, null, 2)
-      );
-      
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/config-loader.js');
+
+  describe('Configuration Loading', () => {
+    it('should load complete environment configurations', () => {
+      fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
+[environments.test.backend]
+port = 4001
+publicURL = "http://test.local:4001"
+corsOrigin = "http://test.local:4000"
+
+[environments.test.site]
+domain = "test.local"
+adminEmail = "admin@test.local"
+`);
 
       expect(isValidEnvironment('test')).toBe(true);
 
       const loaded = loadEnvironmentConfig(testDir, 'test');
-      
-      // Verify all sections are present
-      expect(loaded.platform).toBeDefined();
+
       expect(loaded.site).toBeDefined();
-      expect(loaded.app).toBeDefined();
       expect(loaded.services).toBeDefined();
-      
-      // Verify specific values
       expect(loaded.site?.domain).toBe('test.local');
-      expect(loaded.app?.security?.sessionTimeout).toBe(3600);
       expect(loaded.services?.backend?.port).toBe(4001);
-      expect(loaded.services?.frontend?.port).toBe(4000);
     });
   });
 });

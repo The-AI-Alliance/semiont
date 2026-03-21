@@ -110,7 +110,7 @@ function runSemiontSafe(args: string[], env: NodeJS.ProcessEnv): { success: bool
 // SERVICE READINESS
 // =====================================================================
 
-const REQUIRED_SERVICES = ['database', 'filesystem', 'backend', 'frontend', 'proxy'];
+const REQUIRED_SERVICES = ['database', 'backend', 'frontend', 'proxy'];
 const EXTERNAL_SERVICES = ['graph', 'inference'];
 const ALL_SERVICES = [...REQUIRED_SERVICES, ...EXTERNAL_SERVICES];
 
@@ -157,8 +157,6 @@ function isProvisioned(serviceName: string, semiotRoot: string): boolean {
       return fs.existsSync(path.join(semiotRoot, 'backend', '.env'));
     case 'frontend':
       return fs.existsSync(path.join(semiotRoot, 'frontend', '.env'));
-    case 'filesystem':
-      return fs.existsSync(path.join(semiotRoot, 'data'));
     case 'database':
     case 'proxy':
     // For these, rely on check result only — we don't have a simple local sentinel
@@ -193,22 +191,37 @@ async function local(options: LocalOptions): Promise<CommandResults> {
   console.log(`\n${colors.bright}🌐 Semiont Local Setup${colors.reset}\n`);
 
   try {
-    // ─── Step 1: SEMIONT_ROOT ────────────────────────────────────────────
+    // ─── Step 1: Project directory ───────────────────────────────────────
 
-    let semiotRoot = process.env.SEMIONT_ROOT || '';
+    // Walk up from cwd to find an existing .semiont/ project
+    let semiotRoot = '';
+    {
+      let dir = process.cwd();
+      while (true) {
+        if (fs.existsSync(path.join(dir, '.semiont'))) {
+          semiotRoot = dir;
+          break;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+    }
+
     if (!semiotRoot) {
       const defaultPath = path.join(process.env.HOME || process.cwd(), 'semiont');
       const answer = await prompt(
-        `${colors.cyan}SEMIONT_ROOT is not set.${colors.reset}\n` +
-        `Press Enter to use ${colors.bright}${defaultPath}${colors.reset}, or type a path: `
+        `${colors.cyan}No .semiont/ project found.${colors.reset}\n` +
+        `Press Enter to create one in ${colors.bright}${defaultPath}${colors.reset}, or type a path: `
       );
       semiotRoot = answer || defaultPath;
       fs.mkdirSync(semiotRoot, { recursive: true });
       process.env.SEMIONT_ROOT = semiotRoot;
-      envVarsToAdvise.push(`export SEMIONT_ROOT=${semiotRoot}`);
       console.log(`${colors.green}✓${colors.reset} Using ${semiotRoot}\n`);
+      console.log(`${colors.dim}Tip: cd ${semiotRoot} to run semiont commands without SEMIONT_ROOT${colors.reset}\n`);
     } else {
-      console.log(`${colors.green}✓${colors.reset} SEMIONT_ROOT=${semiotRoot}\n`);
+      console.log(`${colors.green}✓${colors.reset} Found project at ${semiotRoot}\n`);
+      process.env.SEMIONT_ROOT = semiotRoot;
     }
 
     // ─── Step 1b: SEMIONT_ENV ───────────────────────────────────────────
@@ -227,9 +240,7 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     // ─── Step 2: Init ───────────────────────────────────────────────────
 
-    const semiontJsonPath = path.join(semiotRoot, 'semiont.json');
-    const envFilePath = path.join(semiotRoot, 'environments', `${semiotEnv}.json`);
-    const isInitialized = fs.existsSync(semiontJsonPath) && fs.existsSync(envFilePath);
+    const isInitialized = fs.existsSync(path.join(semiotRoot, '.semiont'));
 
     if (isInitialized) {
       console.log(`${colors.green}✓${colors.reset} Project already initialized\n`);

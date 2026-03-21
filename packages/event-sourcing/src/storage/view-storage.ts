@@ -10,8 +10,8 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
-import type { components } from '@semiont/core';
-import type { ResourceAnnotations, ResourceId, Logger } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
+import type { components, ResourceAnnotations, ResourceId, Logger } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -33,26 +33,15 @@ export class FilesystemViewStorage implements ViewStorage {
   private basePath: string;
   private logger?: Logger;
 
-  constructor(basePath: string, projectRoot?: string, logger?: Logger) {
+  constructor(project: SemiontProject, logger?: Logger) {
     this.logger = logger;
-    // If path is absolute, use it directly
-    if (path.isAbsolute(basePath)) {
-      this.basePath = basePath;
-    }
-    // If projectRoot provided, resolve relative paths against it
-    else if (projectRoot) {
-      this.basePath = path.resolve(projectRoot, basePath);
-    }
-    // Otherwise fall back to resolving against cwd (backward compat)
-    else {
-      this.basePath = path.resolve(basePath);
-    }
+    this.basePath = project.stateDir;
   }
 
   private getProjectionPath(resourceId: ResourceId): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(resourceId);
-    return path.join(this.basePath, 'projections', 'resources', ab, cd, `${resourceId}.json`);
+    return path.join(this.basePath, 'resources', ab, cd, `${resourceId}.json`);
   }
 
   async save(resourceId: ResourceId, projection: ResourceView): Promise<void> {
@@ -118,7 +107,7 @@ export class FilesystemViewStorage implements ViewStorage {
 
   async getAll(): Promise<ResourceView[]> {
     const views: ResourceView[] = [];
-    const annotationsPath = path.join(this.basePath, 'projections', 'resources');
+    const annotationsPath = path.join(this.basePath, 'resources');
 
     try {
       // Recursively walk through all shard directories

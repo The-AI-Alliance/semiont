@@ -128,7 +128,7 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
   const startTime = Date.now();
 
   // Load DATABASE_URL from environment config
-  const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+  const projectRoot = findProjectRoot();
   const environment = options.environment!;
   const envConfig = loadEnvironmentConfig(projectRoot, environment);
   const dbConfig = envConfig.services?.database;

@@ -24,9 +24,7 @@ import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { createTestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -48,7 +46,7 @@ vi.mock('@semiont/inference', async () => {
 });
 
 describe('LLM Context', () => {
-  let testDir: string;
+  let teardown: () => Promise<void>;
   let eventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
@@ -65,17 +63,15 @@ describe('LLM Context', () => {
       JSON.stringify(['Reference 1', 'Reference 2'])
     ]);
 
-    // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-test-llm-context-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-
-    // Create test configuration
     graphConfig = { type: 'memory' } as GraphServiceConfig;
+
+    const { project, teardown: td } = await createTestProject('llm-context');
+    teardown = td;
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-    repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
+    eventStore = createEventStore(project, undefined, eventBus, mockLogger);
+    repStore = new FilesystemRepresentationStore(project, mockLogger);
 
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
@@ -115,7 +111,7 @@ describe('LLM Context', () => {
   afterAll(async () => {
     await stower.stop();
     eventBus.destroy();
-    await fs.rm(testDir, { recursive: true, force: true });
+    await teardown();
   });
 
   describe('resource context retrieval', () => {

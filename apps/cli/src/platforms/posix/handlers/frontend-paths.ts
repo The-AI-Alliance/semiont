@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { createRequire } from 'module';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { SemiontProject } from '@semiont/core/node';
 
 /**
  * Frontend service paths on POSIX platform
@@ -12,11 +13,9 @@ export interface FrontendPaths {
   sourceDir: string;      // Base directory for frontend source (read-only)
   runtimeDir: string;     // Base directory for runtime state (read-write)
   pidFile: string;        // Process ID file (in runtimeDir)
-  envLocalFile: string;   // Environment configuration file (in runtimeDir)
   logsDir: string;        // Directory for log files (in runtimeDir)
   appLogFile: string;     // Application log file (in runtimeDir)
   errorLogFile: string;   // Error log file (in runtimeDir)
-  tmpDir: string;         // Temporary files directory (in runtimeDir)
   nextDir: string;        // Next.js build directory (in sourceDir)
   fromNpmPackage: boolean; // Whether source is an installed npm package
 }
@@ -47,19 +46,20 @@ export function resolveFrontendNpmPackage(projectRoot: string): string | null {
  */
 export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPaths {
   const projectRoot = context.service.projectRoot;
+  const project = new SemiontProject(projectRoot);
   const runtimeDir = path.join(projectRoot, 'frontend');
   const semiontRepo = context.options?.semiontRepo;
 
   // 1. Explicit repo path (developer mode)
   if (semiontRepo) {
     const sourceDir = path.join(semiontRepo, 'apps', 'frontend');
-    return buildPaths(sourceDir, runtimeDir, false);
+    return buildPaths(sourceDir, runtimeDir, project, false);
   }
 
   // 2. Installed npm package
   const npmDir = resolveFrontendNpmPackage(projectRoot);
   if (npmDir) {
-    return buildPaths(npmDir, runtimeDir, true);
+    return buildPaths(npmDir, runtimeDir, project, true);
   }
 
   // 3. Fail loudly
@@ -70,16 +70,15 @@ export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPat
   );
 }
 
-function buildPaths(sourceDir: string, runtimeDir: string, fromNpmPackage: boolean): FrontendPaths {
+function buildPaths(sourceDir: string, runtimeDir: string, project: SemiontProject, fromNpmPackage: boolean): FrontendPaths {
+  const logsDir = path.join(project.stateDir, 'frontend');
   return {
     sourceDir,
     runtimeDir,
-    pidFile: path.join(runtimeDir, 'frontend.pid'),
-    envLocalFile: path.join(runtimeDir, '.env.local'),
-    logsDir: path.join(runtimeDir, 'logs'),
-    appLogFile: path.join(runtimeDir, 'logs', 'app.log'),
-    errorLogFile: path.join(runtimeDir, 'logs', 'error.log'),
-    tmpDir: path.join(runtimeDir, 'tmp'),
+    pidFile: path.join(project.runtimeDir, 'frontend.pid'),
+    logsDir,
+    appLogFile: path.join(logsDir, 'app.log'),
+    errorLogFile: path.join(logsDir, 'error.log'),
     nextDir: path.join(sourceDir, '.next'),
     fromNpmPackage,
   };

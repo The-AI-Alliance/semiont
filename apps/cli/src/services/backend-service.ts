@@ -31,7 +31,7 @@
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { execFileSync } from 'child_process';
-import { getNodeEnvForEnvironment, type BackendServiceConfig } from '@semiont/core';
+import type { BackendServiceConfig } from '@semiont/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
@@ -124,7 +124,7 @@ export class BackendService extends BaseService {
   private buildEnvironment(): Record<string, string> {
     return {
       PORT: this.getPort().toString(),
-      NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
+      NODE_ENV: this.envConfig.env?.NODE_ENV ?? 'development',
       SEMIONT_ENV: this.environment,
       SEMIONT_ENVIRONMENT: this.environment,
       ...(this.envConfig.site?.domain && { SITE_DOMAIN: this.envConfig.site.domain }),

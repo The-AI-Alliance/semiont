@@ -6,8 +6,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ViewMaterializer } from '../../views/view-materializer';
 import { FilesystemViewStorage } from '../../storage/view-storage';
+import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import type { StoredEvent, EventMetadata, Motivation } from '@semiont/core';
+
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -24,6 +26,7 @@ function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMe
 
 describe('ViewMaterializer', () => {
   let materializer: ViewMaterializer;
+  let project: SemiontProject;
   let viewStorage: FilesystemViewStorage;
   let testDir: string;
 
@@ -31,13 +34,15 @@ describe('ViewMaterializer', () => {
     testDir = join(tmpdir(), `semiont-test-materializer-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    viewStorage = new FilesystemViewStorage(testDir);
+    project = new SemiontProject(testDir, 'test');
+    viewStorage = new FilesystemViewStorage(project);
     materializer = new ViewMaterializer(viewStorage, {
       basePath: testDir,
     });
   });
 
   afterEach(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 

@@ -1,70 +1,71 @@
 import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
-import type { InferenceServiceConfig } from '@semiont/core';
+import type { OllamaProviderConfig, AnthropicProviderConfig } from '@semiont/core';
+import { InferenceService } from '../../../services/inference-service.js';
 import { checkEnvVarResolved, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import Anthropic from '@anthropic-ai/sdk';
 
-const SUPPORTED_TYPES = ['anthropic', 'ollama'] as const;
-
 /**
- * Check handler for external inference services (Claude, Ollama, etc.)
+ * Check handler for external inference services (Anthropic, Ollama).
+ * Branches on inferenceType from the InferenceService instance.
  */
 const checkExternalInference = async (context: ExternalCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service } = context;
-  const serviceConfig = service.config as InferenceServiceConfig;
-  const inferenceType = serviceConfig.type;
-
-  if (!inferenceType) {
-    return {
-      success: false,
-      error: 'Inference service type not configured. Set "type" in service configuration.',
-      status: 'unknown',
-      metadata: { serviceType: 'inference' }
-    };
-  }
-
-  if (!SUPPORTED_TYPES.includes(inferenceType as typeof SUPPORTED_TYPES[number])) {
-    return {
-      success: false,
-      error: `Unsupported inference type: "${inferenceType}". Supported types: ${SUPPORTED_TYPES.join(', ')}`,
-      status: 'unknown',
-      metadata: { serviceType: 'inference', inferenceType, supportedTypes: [...SUPPORTED_TYPES] }
-    };
-  }
-
-  const endpoint = serviceConfig.endpoint;
-  const model = serviceConfig.model;
-
-  if (!endpoint) {
-    return {
-      success: false,
-      error: 'No endpoint configured for inference service',
-      status: 'unknown',
-      metadata: { serviceType: 'inference', inferenceType }
-    };
-  }
-
-  if (!model) {
-    return {
-      success: false,
-      error: 'No model configured for inference service',
-      status: 'unknown',
-      metadata: { serviceType: 'inference', inferenceType }
-    };
-  }
+  const inferenceService = service as InferenceService;
+  const inferenceType = inferenceService.getInferenceType();
 
   try {
     const startTime = Date.now();
     let responsePreview: string | undefined;
     let status: 'running' | 'stopped' | 'unhealthy' | 'unknown' = 'unknown';
+    let endpoint: string;
+    let model: string;
 
     if (inferenceType === 'anthropic') {
-      const result = await checkAnthropic(serviceConfig, endpoint, model);
+      const config = service.config as unknown as AnthropicProviderConfig;
+      endpoint = config.endpoint ?? 'https://api.anthropic.com';
+      const models = inferenceService.getModels();
+      model = models[0] ?? '';
+
+      if (!model) {
+        return {
+          success: false,
+          error: 'No model configured for anthropic inference provider',
+          status: 'unknown',
+          metadata: { serviceType: 'inference', inferenceType }
+        };
+      }
+
+      const result = await checkAnthropic(config, endpoint, model);
       status = result.status;
       responsePreview = result.responsePreview;
+
     } else if (inferenceType === 'ollama') {
+      const config = service.config as unknown as OllamaProviderConfig;
+      const port = config.port ?? 11434;
+      endpoint = config.baseURL ?? `http://localhost:${port}`;
+      const models = inferenceService.getModels();
+      model = models[0] ?? '';
+
+      if (!model) {
+        return {
+          success: false,
+          error: 'No model configured for ollama inference provider',
+          status: 'unknown',
+          metadata: { serviceType: 'inference', inferenceType }
+        };
+      }
+
       const result = await checkOllama(endpoint, model);
       status = result.status;
       responsePreview = result.responsePreview;
+
+    } else {
+      return {
+        success: false,
+        error: `Unsupported inference type: "${inferenceType}"`,
+        status: 'unknown',
+        metadata: { serviceType: 'inference', inferenceType }
+      };
     }
 
     const responseTime = Date.now() - startTime;
@@ -91,16 +92,19 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
     };
 
   } catch (error: unknown) {
-    return handleCheckError(error, inferenceType, endpoint, model);
+    const config = service.config as unknown as Record<string, unknown>;
+    const endpoint = (config.endpoint ?? config.baseURL ?? '') as string;
+    const models = (service as InferenceService).getModels();
+    return handleCheckError(error, inferenceType, endpoint, models[0] ?? '');
   }
 };
 
 async function checkAnthropic(
-  serviceConfig: InferenceServiceConfig,
+  config: AnthropicProviderConfig,
   endpoint: string,
   model: string,
 ): Promise<{ status: 'running'; responsePreview?: string }> {
-  let apiKey: string | undefined = serviceConfig.apiKey;
+  let apiKey: string | undefined = config.apiKey;
 
   if (apiKey && apiKey.startsWith('${') && apiKey.endsWith('}')) {
     const envVarName = apiKey.slice(2, -1);
@@ -108,7 +112,7 @@ async function checkAnthropic(
   }
 
   if (!apiKey) {
-    throw new Error('Anthropic API key not configured. Set apiKey in service config.');
+    throw new Error('Anthropic API key not configured. Set apiKey in inference provider config.');
   }
 
   const client = new Anthropic({ apiKey, baseURL: endpoint });
@@ -142,10 +146,8 @@ async function checkOllama(
   }
 
   const data = await res.json() as OllamaTagsResponse;
-  const models = data.models || [];
-  const modelNames = models.map((m) => m.name);
+  const modelNames = (data.models || []).map((m) => m.name);
 
-  // Ollama model names may include tag suffix (e.g. "gemma2:9b" or "gemma2:latest")
   const found = modelNames.some((name) =>
     name === model || name.startsWith(`${model}:`) || model.startsWith(`${name.split(':')[0]}:`)
   );
@@ -173,7 +175,7 @@ function handleCheckError(
   const errorDetails = (err?.error as Record<string, unknown>)?.message as string | undefined;
 
   let status: 'running' | 'stopped' | 'unhealthy' | 'unknown' = 'unhealthy';
-  let health: { healthy: boolean; details: Record<string, any> };
+  let health: { healthy: boolean; details: Record<string, unknown> };
 
   if (errorCode === 401 || errorCode === 403 || errorMessage.includes('API key') || errorMessage.includes('Authentication')) {
     status = 'stopped';
@@ -222,15 +224,14 @@ function handleCheckError(
 }
 
 const preflightInferenceCheck = async (context: ExternalCheckHandlerContext) => {
-  const serviceConfig = context.service.config as InferenceServiceConfig;
-  const checks = [
-    checkEnvVarResolved(serviceConfig.endpoint, 'endpoint'),
-    checkEnvVarResolved(serviceConfig.model, 'model'),
-  ];
+  const inferenceService = context.service as InferenceService;
+  const inferenceType = inferenceService.getInferenceType();
+  const config = context.service.config as unknown as Record<string, unknown>;
 
-  // Only check API key for providers that require it
-  if (serviceConfig.type !== 'ollama') {
-    checks.push(checkEnvVarResolved(serviceConfig.apiKey, 'API key'));
+  const checks = [];
+  if (inferenceType === 'anthropic') {
+    checks.push(checkEnvVarResolved(config.endpoint as string | undefined, 'endpoint'));
+    checks.push(checkEnvVarResolved(config.apiKey as string | undefined, 'API key'));
   }
 
   return preflightFromChecks(checks);

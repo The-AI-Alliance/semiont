@@ -9,8 +9,8 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
+import { SemiontProject } from '@semiont/core/node';
 import { EventBus, userId, type Logger } from '@semiont/core';
-import type { MakeMeaningConfig } from '../config';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 
@@ -21,29 +21,14 @@ let bootstrapCompleted = false;
  * Bootstrap entity types projection if it doesn't exist.
  * Uses a system user ID (00000000-0000-0000-0000-000000000000) for bootstrap events.
  */
-export async function bootstrapEntityTypes(eventBus: EventBus, config: MakeMeaningConfig, logger?: Logger): Promise<void> {
+export async function bootstrapEntityTypes(eventBus: EventBus, project: SemiontProject, logger?: Logger): Promise<void> {
   if (bootstrapCompleted) {
     logger?.debug('Entity types bootstrap already completed, skipping');
     return;
   }
 
-  // Resolve basePath against project root if relative
-  const configuredPath = config.services.filesystem?.path;
-  if (!configuredPath) {
-    throw new Error('services.filesystem.path is required for entity types bootstrap');
-  }
-  const projectRoot = config._metadata?.projectRoot;
-  let basePath: string;
-  if (path.isAbsolute(configuredPath)) {
-    basePath = configuredPath;
-  } else if (projectRoot) {
-    basePath = path.resolve(projectRoot, configuredPath);
-  } else {
-    basePath = path.resolve(configuredPath);
-  }
-
   const projectionPath = path.join(
-    basePath,
+    project.stateDir,
     'projections',
     '__system__',
     'entitytypes.json'

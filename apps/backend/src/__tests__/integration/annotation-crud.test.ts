@@ -4,10 +4,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import type { components } from '@semiont/core';
-import type { ResourceCreatedEvent, Logger } from '@semiont/core';
-import { resourceId, userId, annotationId } from '@semiont/core';
-import { CREATION_METHODS } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import type { components, ResourceCreatedEvent, Logger } from '@semiont/core';
+import { resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type AnnotationBody = components['schemas']['AnnotationBody'];
@@ -25,26 +24,21 @@ const mockLogger: Logger = {
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
   let testEnv: TestEnvironmentConfig;
+  let project: SemiontProject;
   let kb: KnowledgeBase;
   const testDocId = resourceId('test-doc-integration-' + Date.now());
   const testDocId2 = resourceId('test-doc-target-' + Date.now());
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
+    project = new SemiontProject(testEnv.config._metadata!.projectRoot);
 
     // Create KnowledgeBase for AnnotationContext calls
-    const dataPath = testEnv.config.services.filesystem!.path;
-    const projectRoot = testEnv.config._metadata?.projectRoot;
-    const viewStorage = new FilesystemViewStorage(dataPath, projectRoot);
+    const viewStorage = new FilesystemViewStorage(project);
     kb = { eventStore: {} as any, views: viewStorage, content: {} as any, graph: {} as any };
 
     // Create test resources in event store
-    const eventStore = await createEventStore(
-      testEnv.config.services.filesystem!.path,
-      undefined,
-      undefined,
-      mockLogger
-    );
+    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
     const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
       type: 'resource.created',
@@ -86,12 +80,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(
-      testEnv.config.services.filesystem!.path,
-      undefined,
-      undefined,
-      mockLogger
-    );
+      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -137,12 +126,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should create annotation with TextualBody entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(
-      testEnv.config.services.filesystem!.path,
-      undefined,
-      undefined,
-      mockLogger
-    );
+      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -214,12 +198,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Resolve Annotation (add SpecificResource)', () => {
     it('should add SpecificResource to existing entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(
-      testEnv.config.services.filesystem!.path,
-      undefined,
-      undefined,
-      mockLogger
-    );
+      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
       // Create stub annotation with entity tags
       const stubId = annotationId('test-resolve-stub-' + Date.now());
@@ -319,12 +298,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should resolve annotation with empty body to have only SpecificResource', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(
-      testEnv.config.services.filesystem!.path,
-      undefined,
-      undefined,
-      mockLogger
-    );
+      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
       // Create stub with empty body
       const stubId = annotationId('test-resolve-empty-' + Date.now());
@@ -435,12 +409,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Delete Annotation', () => {
     it('should delete annotation with multi-body', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(
-      testEnv.config.services.filesystem!.path,
-      undefined,
-      undefined,
-      mockLogger
-    );
+      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
       // Create annotation
       const deleteId = annotationId('test-delete-' + Date.now());
@@ -514,12 +483,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('W3C Compliance in Integration', () => {
     it('should maintain W3C structure through event sourcing', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore(
-      testEnv.config.services.filesystem!.path,
-      undefined,
-      undefined,
-      mockLogger
-    );
+      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
       const w3cId = 'test-w3c-' + Date.now();
       const annotation: Omit<Annotation, 'creator' | 'created'> = {

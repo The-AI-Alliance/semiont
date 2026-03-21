@@ -10,20 +10,19 @@
  *   const makeMeaning = await startMakeMeaning(config);
  */
 
-import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { getPrimaryRepresentation } from '@semiont/api-client';
-import type { Logger, ResourceId } from '@semiont/core';
-import { EventBus } from '@semiont/core';
-import type { MakeMeaningConfig } from './config';
+import { SemiontProject } from '@semiont/core/node';
+import { EventBus, type Logger, type ResourceId } from '@semiont/core';
+import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
 
 export type { MakeMeaningConfig } from './config';
 
 import { Readable } from 'stream';
 import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
-import { getInferenceClient, type InferenceClient } from '@semiont/inference';
+import { createInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
 import {
   ReferenceAnnotationWorker,
@@ -46,8 +45,9 @@ export interface MakeMeaningService {
   kb: KnowledgeBase;
   jobQueue: JobQueue;
   eventStore: EventStore;
-  inferenceClient: InferenceClient;
   graphDb: GraphDatabase;
+  /** Inference client for the Gatherer actor — use for context-assembly operations */
+  gathererInferenceClient: InferenceClient;
   workers: {
     detection: ReferenceAnnotationWorker;
     generation: GenerationWorker;
@@ -64,32 +64,16 @@ export interface MakeMeaningService {
   stop: () => Promise<void>;
 }
 
-export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
+export async function startMakeMeaning(project: SemiontProject, config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
   // 1. Validate configuration
-  const filesystemConfig = config.services?.filesystem;
-  if (!filesystemConfig?.path) {
-    throw new Error('services.filesystem.path is required for make-meaning service');
-  }
   const graphConfig = config.services?.graph;
   if (!graphConfig) {
     throw new Error('services.graph is required for make-meaning service');
   }
-  const configuredPath = filesystemConfig.path;
-
-  // Resolve basePath to absolute path
-  const projectRoot = config._metadata?.projectRoot;
-  let basePath: string;
-  if (path.isAbsolute(configuredPath)) {
-    basePath = configuredPath;
-  } else if (projectRoot) {
-    basePath = path.resolve(projectRoot, configuredPath);
-  } else {
-    basePath = path.resolve(configuredPath);
-  }
 
   // 2. Initialize job queue
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = new JobQueue({ dataDir: basePath }, jobQueueLogger, eventBus);
+  const jobQueue = new JobQueue(project, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // 2b. Subscribe to job status queries
@@ -132,21 +116,49 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
 
   // 3. Create shared event store with EventBus integration
   const eventStoreLogger = logger.child({ component: 'event-store' });
-  const eventStore = createEventStoreCore(basePath, undefined, eventBus, eventStoreLogger);
+  const eventStore = createEventStoreCore(project, undefined, eventBus, eventStoreLogger);
 
-  // 4. Create inference client (shared across all workers)
-  const inferenceLogger = logger.child({ component: 'inference-client' });
-  const inferenceConfig = config.services?.inference;
-  if (!inferenceConfig) {
-    throw new Error('services.inference is required for make-meaning service');
-  }
-  const inferenceClient = await getInferenceClient(inferenceConfig, inferenceLogger);
+  // 4. Create per-actor inference clients
+  const gathererInferenceClient = createInferenceClient(
+    resolveActorInference(config, 'gatherer'),
+    logger.child({ component: 'inference-client-gatherer' })
+  );
+  const matcherInferenceClient = createInferenceClient(
+    resolveActorInference(config, 'matcher'),
+    logger.child({ component: 'inference-client-matcher' })
+  );
+
+  // 5. Create per-worker inference clients
+  const detectionInferenceClient = createInferenceClient(
+    resolveWorkerInference(config, 'reference-annotation'),
+    logger.child({ component: 'inference-client-reference-annotation' })
+  );
+  const generationInferenceClient = createInferenceClient(
+    resolveWorkerInference(config, 'generation'),
+    logger.child({ component: 'inference-client-generation' })
+  );
+  const highlightInferenceClient = createInferenceClient(
+    resolveWorkerInference(config, 'highlight-annotation'),
+    logger.child({ component: 'inference-client-highlight-annotation' })
+  );
+  const assessmentInferenceClient = createInferenceClient(
+    resolveWorkerInference(config, 'assessment-annotation'),
+    logger.child({ component: 'inference-client-assessment-annotation' })
+  );
+  const commentInferenceClient = createInferenceClient(
+    resolveWorkerInference(config, 'comment-annotation'),
+    logger.child({ component: 'inference-client-comment-annotation' })
+  );
+  const tagInferenceClient = createInferenceClient(
+    resolveWorkerInference(config, 'tag-annotation'),
+    logger.child({ component: 'inference-client-tag-annotation' })
+  );
 
   // 6. Create graph database connection
   const graphDb = await getGraphDatabase(graphConfig);
 
   // 7. Create Knowledge Base (groups event store, views, content store, graph)
-  const kb = createKnowledgeBase(eventStore, basePath, projectRoot, graphDb, logger);
+  const kb = createKnowledgeBase(eventStore, project, graphDb, logger);
 
   // 8. Start graph consumer
   const graphConsumerLogger = logger.child({ component: 'graph-consumer' });
@@ -160,16 +172,16 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
 
   // 9b. Bootstrap entity types (requires Stower to be running, emits via EventBus)
   const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
-  await bootstrapEntityTypes(eventBus, config, bootstrapLogger);
+  await bootstrapEntityTypes(eventBus, project, bootstrapLogger);
 
   // 10. Start Gatherer actor
   const gathererLogger = logger.child({ component: 'gatherer' });
-  const gatherer = new Gatherer(kb, eventBus, inferenceClient, gathererLogger, config);
+  const gatherer = new Gatherer(kb, eventBus, gathererInferenceClient, gathererLogger, project);
   await gatherer.initialize();
 
   // 10. Start Matcher actor
   const matcherLogger = logger.child({ component: 'matcher' });
-  const matcher = new Matcher(kb, eventBus, matcherLogger, inferenceClient);
+  const matcher = new Matcher(kb, eventBus, matcherLogger, matcherInferenceClient);
   await matcher.initialize();
 
   // 10b. Start CloneTokenManager actor
@@ -196,14 +208,14 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
   const commentLogger = logger.child({ component: 'comment-detection-worker' });
   const tagLogger = logger.child({ component: 'tag-detection-worker' });
 
-  // 13. Instantiate workers with EventBus, ContentFetcher, and logger
+  // 13. Instantiate workers with per-worker inference clients
   const workers = {
-    detection: new ReferenceAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, detectionLogger),
-    generation: new GenerationWorker(jobQueue, inferenceClient, eventBus, generationLogger),
-    highlight: new HighlightAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, highlightLogger),
-    assessment: new AssessmentAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, assessmentLogger),
-    comment: new CommentAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, commentLogger),
-    tag: new TagAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, tagLogger),
+    detection: new ReferenceAnnotationWorker(jobQueue, detectionInferenceClient, eventBus, contentFetcher, detectionLogger),
+    generation: new GenerationWorker(jobQueue, generationInferenceClient, eventBus, generationLogger),
+    highlight: new HighlightAnnotationWorker(jobQueue, highlightInferenceClient, eventBus, contentFetcher, highlightLogger),
+    assessment: new AssessmentAnnotationWorker(jobQueue, assessmentInferenceClient, eventBus, contentFetcher, assessmentLogger),
+    comment: new CommentAnnotationWorker(jobQueue, commentInferenceClient, eventBus, contentFetcher, commentLogger),
+    tag: new TagAnnotationWorker(jobQueue, tagInferenceClient, eventBus, contentFetcher, tagLogger),
   };
 
   // 11. Start all workers (non-blocking)
@@ -230,8 +242,8 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
     kb,
     jobQueue,
     eventStore,
-    inferenceClient,
     graphDb,
+    gathererInferenceClient,
     workers,
     graphConsumer,
     stower,

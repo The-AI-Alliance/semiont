@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, jobId, type Logger, EventBus as CoreEventBus } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
@@ -41,15 +42,8 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Create EventStore with CoreEventBus to enable domain event publishing
     const { createEventStore } = await import('@semiont/event-sourcing');
-    eventStore = createEventStore(
-      testDir,
-      {
-        enableSharding: false,
-        maxEventsPerFile: 100,
-      },
-      coreEventBus, // Pass CoreEventBus to enable channel routing
-      mockLogger
-    );
+    const project = new SemiontProject(testDir);
+    eventStore = createEventStore(project, { enableSharding: false, maxEventsPerFile: 100 }, coreEventBus, mockLogger);
   });
 
   afterAll(async () => {

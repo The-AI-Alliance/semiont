@@ -9,6 +9,7 @@ import { calculateChecksum } from '../checksum';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 
 const mockLogger: Logger = {
@@ -21,42 +22,24 @@ const mockLogger: Logger = {
 
 describe('FilesystemRepresentationStore', () => {
   let testDir: string;
+  let project: SemiontProject;
   let store: FilesystemRepresentationStore;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-rep-store-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-    store = new FilesystemRepresentationStore({ basePath: testDir }, undefined, mockLogger);
+    project = new SemiontProject(testDir, 'test');
+    store = new FilesystemRepresentationStore(project, mockLogger);
   });
 
   afterAll(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
   describe('Constructor', () => {
-    it('should accept absolute basePath', () => {
-      const absolutePath = join(tmpdir(), 'test-absolute');
-      const testStore = new FilesystemRepresentationStore({ basePath: absolutePath }, undefined, mockLogger);
-      expect(testStore).toBeDefined();
-    });
-
-    it('should resolve relative basePath against projectRoot', () => {
-      const projectRoot = tmpdir();
-      const relativePath = 'data/representations';
-      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, projectRoot, mockLogger);
-      expect(testStore).toBeDefined();
-    });
-
-    it('should resolve relative basePath against cwd when no projectRoot', () => {
-      const relativePath = 'data';
-      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, undefined, mockLogger);
-      expect(testStore).toBeDefined();
-    });
-
-    it('should normalize paths with trailing slashes', () => {
-      const pathWithSlash = join(tmpdir(), 'test-trailing/');
-      const testStore = new FilesystemRepresentationStore({ basePath: pathWithSlash }, undefined, mockLogger);
-      expect(testStore).toBeDefined();
+    it('should create store from project', () => {
+      expect(store).toBeDefined();
     });
   });
 
@@ -129,8 +112,8 @@ describe('FilesystemRepresentationStore', () => {
         rel: 'derived',
       });
 
-      // Verify directory exists
-      const expectedDir = join(testDir, 'representations', 'application~1json', ab, cd);
+      // Verify directory exists (inside project.dataDir)
+      const expectedDir = join(project.dataDir, 'representations', 'application~1json', ab, cd);
       const dirExists = await fs.access(expectedDir)
         .then(() => true)
         .catch(() => false);

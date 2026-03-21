@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
+import { SemiontProject } from '@semiont/core/node';
 import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
 
 const mockLogger = {
@@ -160,12 +161,14 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
 
 describe('JobQueue', () => {
   let tempDir: string;
+  let project: SemiontProject;
   let jobQueue: JobQueue;
 
   beforeEach(async () => {
     // Create a temporary directory for tests
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
-    jobQueue = new JobQueue({ dataDir: tempDir }, mockLogger, new EventBus());
+    project = new SemiontProject(tempDir);
+    jobQueue = new JobQueue(project, mockLogger, new EventBus());
     await jobQueue.initialize();
   });
 
@@ -179,7 +182,7 @@ describe('JobQueue', () => {
       const statuses: JobStatus[] = ['pending', 'running', 'complete', 'failed', 'cancelled'];
 
       for (const status of statuses) {
-        const statusDir = path.join(tempDir, 'jobs', status);
+        const statusDir = path.join(project.jobsDir,status);
         const stats = await fs.stat(statusDir);
         expect(stats.isDirectory()).toBe(true);
       }
@@ -197,7 +200,7 @@ describe('JobQueue', () => {
 
       await jobQueue.createJob(job);
 
-      const jobPath = path.join(tempDir, 'jobs', 'pending', 'job-123.json');
+      const jobPath = path.join(project.jobsDir,'pending', 'job-123.json');
       const content = await fs.readFile(jobPath, 'utf-8');
       const savedJob = JSON.parse(content);
 
@@ -209,7 +212,7 @@ describe('JobQueue', () => {
 
       await jobQueue.createJob(job);
 
-      const jobPath = path.join(tempDir, 'jobs', 'pending', 'job-456.json');
+      const jobPath = path.join(project.jobsDir,'pending', 'job-456.json');
       const exists = await fs.access(jobPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });
@@ -219,7 +222,7 @@ describe('JobQueue', () => {
 
       await jobQueue.createJob(job);
 
-      const jobPath = path.join(tempDir, 'jobs', 'running', 'job-running.json');
+      const jobPath = path.join(project.jobsDir,'running', 'job-running.json');
       const exists = await fs.access(jobPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });
@@ -272,12 +275,12 @@ describe('JobQueue', () => {
       await jobQueue.updateJob(runningJob, 'pending');
 
       // Check old location is gone
-      const pendingPath = path.join(tempDir, 'jobs', 'pending', 'job-123.json');
+      const pendingPath = path.join(project.jobsDir,'pending', 'job-123.json');
       const pendingExists = await fs.access(pendingPath).then(() => true).catch(() => false);
       expect(pendingExists).toBe(false);
 
       // Check new location exists
-      const runningPath = path.join(tempDir, 'jobs', 'running', 'job-123.json');
+      const runningPath = path.join(project.jobsDir,'running', 'job-123.json');
       const runningExists = await fs.access(runningPath).then(() => true).catch(() => false);
       expect(runningExists).toBe(true);
     });
@@ -487,7 +490,7 @@ describe('JobQueue', () => {
   describe('EventBus Integration', () => {
     test('should emit job:queued event when creating a job', async () => {
       const eventBus = new EventBus();
-      const testQueue = new JobQueue({ dataDir: tempDir }, mockLogger, eventBus);
+      const testQueue = new JobQueue(project, mockLogger, eventBus);
       await testQueue.initialize();
 
       const events: any[] = [];
@@ -511,7 +514,7 @@ describe('JobQueue', () => {
     });
 
     test('should not fail when EventBus is not provided', async () => {
-      const testQueue = new JobQueue({ dataDir: tempDir }, mockLogger, undefined);
+      const testQueue = new JobQueue(project, mockLogger, undefined);
       await testQueue.initialize();
 
       const job = createPendingDetectionJob('job-no-eventbus');

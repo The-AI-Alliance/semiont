@@ -11,19 +11,20 @@
  */
 
 import { startMakeMeaning } from '@semiont/make-meaning';
+import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { resourceId as makeResourceId, EventBus } from '@semiont/core';
-import { loadEnvironmentConfig } from '../utils/config';
+import { makeMeaningConfigFrom } from '../utils/config';
 import { initializeLogger, getLogger } from '../logger';
 
-async function rebuildGraph(rId?: string) {
-  // Load config - uses SEMIONT_ROOT and SEMIONT_ENV from environment
+async function rebuildGraph(rId?: string, environment?: string) {
   const projectRoot = process.env.SEMIONT_ROOT;
   if (!projectRoot) {
     throw new Error('SEMIONT_ROOT environment variable is not set');
   }
-  const environment = process.env.SEMIONT_ENV || 'development';
+  // environment: --environment flag > SEMIONT_ENV > fallback
+  const env = environment ?? process.env.SEMIONT_ENV ?? 'development';
 
-  const config = loadEnvironmentConfig(projectRoot, environment);
+  const config = loadEnvironmentConfig(projectRoot, env);
 
   // Initialize logger
   initializeLogger(config.logLevel);
@@ -35,7 +36,7 @@ async function rebuildGraph(rId?: string) {
   const eventBus = new EventBus();
 
   // Start make-meaning to get eventStore and graphConsumer
-  const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+  const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
   const { graphConsumer: consumer } = makeMeaning;
 
   if (rId) {
@@ -86,10 +87,13 @@ async function rebuildGraph(rId?: string) {
   logger.info('Rebuild graph completed');
 }
 
-// Parse command line arguments
-const rId = process.argv[2];
+// Parse command line arguments: [resourceId] [--environment <env>]
+const args = process.argv.slice(2);
+const envFlagIdx = args.indexOf('--environment');
+const envArg = envFlagIdx !== -1 ? args[envFlagIdx + 1] : undefined;
+const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
 
-rebuildGraph(rId)
+rebuildGraph(rId, envArg)
   .catch(err => {
     const logger = getLogger();
     logger.error('Rebuild graph failed', {

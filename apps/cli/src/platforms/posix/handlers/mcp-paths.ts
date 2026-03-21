@@ -1,6 +1,7 @@
-import * as path from 'path';
 import * as os from 'os';
+import * as path from 'path';
 import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+import { SemiontProject } from '@semiont/core/node';
 
 /**
  * MCP service paths on POSIX platform
@@ -17,10 +18,10 @@ export interface MCPPaths {
  */
 export function getMCPPaths<T>(context: BaseHandlerContext<T>): MCPPaths {
   const service = context.service;
+  const project = new SemiontProject(service.projectRoot);
 
   const configDir = path.join(
-    os.homedir(),
-    '.config',
+    process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'),
     'semiont'
   );
 
@@ -31,7 +32,7 @@ export function getMCPPaths<T>(context: BaseHandlerContext<T>): MCPPaths {
 
   return {
     configDir,
-    pidFile: path.join(configDir, 'mcp.pid'),
+    pidFile: path.join(project.runtimeDir, 'mcp.pid'),
     authFile
   };
 }

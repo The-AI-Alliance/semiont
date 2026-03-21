@@ -110,16 +110,6 @@ export interface WorkerRequirement {
   deadLetterQueue?: boolean;
 }
 
-/**
- * Filesystem service requirements
- */
-export interface FilesystemRequirement {
-  watchPaths?: string[];
-  syncInterval?: number;
-  maxFileSize?: string;
-  allowedExtensions?: string[];
-  indexingEnabled?: boolean;
-}
 
 /**
  * MCP (Model Context Protocol) service requirements
@@ -176,7 +166,6 @@ export interface ServiceRequirements {
   // Platform-specific requirements
   database?: DatabaseRequirement;
   worker?: WorkerRequirement;
-  filesystem?: FilesystemRequirement;
   mcp?: MCPRequirement;
   external?: ExternalRequirement;
 }
