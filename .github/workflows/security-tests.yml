@@ -260,6 +260,21 @@ jobs:
             '' \
             '[environments.ci.make-meaning.graph]' \
             'type = "memory"' \
+            '' \
+            '[environments.ci.make-meaning.actors.gatherer.inference]' \
+            'type = "ollama"' \
+            'model = "llama3"' \
+            'baseURL = "http://localhost:11434"' \
+            '' \
+            '[environments.ci.make-meaning.actors.matcher.inference]' \
+            'type = "ollama"' \
+            'model = "llama3"' \
+            'baseURL = "http://localhost:11434"' \
+            '' \
+            '[environments.ci.workers.default.inference]' \
+            'type = "ollama"' \
+            'model = "llama3"' \
+            'baseURL = "http://localhost:11434"' \
             > ~/.semiontconfig
           cd apps/backend
           ./node_modules/.bin/prisma db push --url "$DATABASE_URL"
