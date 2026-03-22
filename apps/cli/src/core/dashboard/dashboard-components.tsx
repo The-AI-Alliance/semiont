@@ -6,7 +6,10 @@ export interface ServiceStatus {
   name: string;
   status: 'healthy' | 'unhealthy' | 'warning' | 'unknown';
   details?: string;
+  evidence?: string[];  // short proof tags shown in the status column
+  checkedAt?: Date;     // when the check was last run
   lastUpdated?: Date;
+  hostname?: string;  // public URL or hostname for display
   // ECS-specific details
   revision?: number;
   desiredCount?: number;
@@ -61,6 +64,7 @@ export interface MetricData {
 export interface ActorStatus {
   state: 'idle' | 'active' | 'error' | 'unknown';
   model?: string;
+  provider?: string;  // e.g. 'ollama', 'anthropic'
   lastActivity?: Date;
   errorMessage?: string;
 }
@@ -68,7 +72,7 @@ export interface ActorStatus {
 export interface MakeMeaningStatus {
   eventLog: { path: string; eventCount?: number; streamCount?: number; sizeBytes?: number };
   contentStore: { path: string; fileCount?: number; sizeBytes?: number };
-  graph: { status: 'healthy' | 'unhealthy' | 'unknown'; address?: string; database?: string };
+  graph: { status: 'healthy' | 'unhealthy' | 'unknown'; address?: string; database?: string; evidence?: string[] };
   materializedViews: { path: string; fileCount?: number; lastUpdated?: Date };
   actors: {
     gatherer: ActorStatus;

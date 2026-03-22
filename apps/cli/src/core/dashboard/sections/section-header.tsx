@@ -23,9 +23,9 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ title, healthyCoun
         <button className="collapse-toggle" aria-label={collapsed ? 'Expand' : 'Collapse'}>
           {collapsed ? '▶' : '▼'}
         </button>
-        <span className="semiont-panel-header__title">{title}</span>
+        <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--semiont-text-primary)', flex: 1 }}>{title}</span>
         <span className={badgeVariant(healthyCount, totalCount)}>
-          {healthyCount}/{totalCount} healthy
+          <span className="semiont-badge__text">{healthyCount}/{totalCount} healthy</span>
         </span>
       </div>
       {!collapsed && (

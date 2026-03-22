@@ -27,7 +27,6 @@ export class WebDashboardServer {
   private server: ReturnType<typeof createServer>;
   private io: SocketIOServer;
   protected dataSource: DashboardDataSource;
-  private updateInterval: NodeJS.Timeout | null = null;
   private port: number;
   private environment: string;
   private refreshInterval: number;
@@ -113,54 +112,84 @@ export class WebDashboardServer {
     });
   }
   
+  // Multiple independent timers — different data has different natural refresh rates
+  private servicesInterval: NodeJS.Timeout | null = null;
+  private makeMeaningInterval: NodeJS.Timeout | null = null;
+  private actorsInterval: NodeJS.Timeout | null = null;
+
   private setupSocketHandlers(): void {
     this.io.on('connection', (socket) => {
-      console.log('Client connected to dashboard');
-      
-      // Send initial data
-      this.sendDashboardUpdate();
-      
-      // Start periodic updates if not already running
-      if (!this.updateInterval) {
-        this.startPeriodicUpdates();
-      }
-      
+      // Send initial data for all channels immediately
+      this.sendServicesUpdate();
+      this.sendMakeMeaningUpdate();
+      this.sendActorsUpdate();
+
+      if (!this.servicesInterval) this.startPeriodicUpdates();
+
       socket.on('disconnect', () => {
-        console.log('Client disconnected from dashboard');
-        
-        // Stop updates if no clients connected
-        if (this.io.sockets.sockets.size === 0) {
-          this.stopPeriodicUpdates();
-        }
+        if (this.io.sockets.sockets.size === 0) this.stopPeriodicUpdates();
       });
-      
+
       socket.on('refresh', () => {
-        this.sendDashboardUpdate();
+        this.sendServicesUpdate();
+        this.sendMakeMeaningUpdate();
+        this.sendActorsUpdate();
       });
     });
   }
-  
-  private async sendDashboardUpdate(): Promise<void> {
+
+  private async sendServicesUpdate(): Promise<void> {
     try {
       const data = await this.dataSource.getDashboardData();
-      this.io.emit('dashboard-update', data);
+      this.io.emit('services-update', {
+        services: data.services,
+        logs: data.logs,
+        lastUpdate: data.lastUpdate,
+      });
     } catch (error) {
-      console.error('Failed to send dashboard update:', error);
-      this.io.emit('dashboard-error', { message: 'Failed to fetch data' });
+      console.error('Failed to send services update:', error);
     }
   }
-  
+
+  private async sendMakeMeaningUpdate(): Promise<void> {
+    try {
+      const mm = await this.dataSource.getMakeMeaningStatus();
+      this.io.emit('make-meaning-update', { ...mm, lastUpdate: new Date() });
+    } catch (error) {
+      console.error('Failed to send make-meaning update:', error);
+    }
+  }
+
+  private async sendActorsUpdate(): Promise<void> {
+    try {
+      const [mm, workers] = await Promise.all([
+        this.dataSource.getMakeMeaningStatus(),
+        this.dataSource.getWorkerStatus(),
+      ]);
+      const now = new Date();
+      this.io.emit('actors-update', { actors: mm.actors, lastUpdate: now });
+      this.io.emit('workers-update', { workers, lastUpdate: now });
+    } catch (error) {
+      console.error('Failed to send actors update:', error);
+    }
+  }
+
   private startPeriodicUpdates(): void {
-    this.updateInterval = setInterval(() => {
-      this.sendDashboardUpdate();
-    }, this.refreshInterval * 1000);
+    // Services: slow — involves running `check` on each service
+    this.servicesInterval = setInterval(() => this.sendServicesUpdate(), this.refreshInterval * 1000);
+    // File stats: medium — just fs.readdirSync/statSync
+    this.makeMeaningInterval = setInterval(() => this.sendMakeMeaningUpdate(), 10_000);
+    // Actor/worker status: fast — single HTTP call to backend
+    this.actorsInterval = setInterval(() => this.sendActorsUpdate(), 5_000);
   }
-  
+
   private stopPeriodicUpdates(): void {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-      this.updateInterval = null;
+    for (const t of [this.servicesInterval, this.makeMeaningInterval, this.actorsInterval]) {
+      if (t) clearInterval(t);
     }
+    this.servicesInterval = null;
+    this.makeMeaningInterval = null;
+    this.actorsInterval = null;
   }
   
   public async start(): Promise<void> {
@@ -186,11 +215,14 @@ export class WebDashboardServer {
     if (useBundle) {
       return `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Semiont Dashboard - ${this.environment}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>

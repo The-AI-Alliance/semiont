@@ -1,57 +1,91 @@
 import React from 'react';
-import { SectionHeader } from './section-header.js';
 import type { ServiceStatus } from '../dashboard-components.js';
+
+const TAG = 'semiont-tag semiont-tag--secondary semiont-tag--compact';
+
+const MAKE_MEANING_SERVICES = new Set(['graph', 'neo4j', 'janusgraph', 'neptune']);
+
+// Display order for web interface services
+const SERVICE_ORDER = ['proxy', 'frontend', 'backend', 'database'];
 
 function indicatorClass(status: ServiceStatus['status']): string {
   switch (status) {
     case 'healthy':   return 'semiont-indicator semiont-indicator--online';
     case 'unhealthy': return 'semiont-indicator semiont-indicator--offline';
-    case 'warning':   return 'semiont-indicator semiont-indicator--warning';
+    case 'warning':   return 'semiont-indicator semiont-indicator--busy';
     default:          return 'semiont-indicator';
   }
 }
 
-const ServiceCard: React.FC<{ service: ServiceStatus }> = ({ service }) => {
-  const details = service.details || '';
-  // Extract port from details like "Port: 4000" or "pid: 1234"
-  const portMatch = details.match(/[Pp]ort:\s*(\d+)/);
-  const pidMatch = details.match(/[Pp][Ii][Dd]:\s*(\d+)/);
-  const containerMatch = details.match(/[Cc]ontainer:\s*(\S+)/);
-  const volumeMatch = details.match(/[Vv]olume(?:[Nn]ame)?:\s*(\S+)/);
+function statusLabel(status: ServiceStatus['status']): string {
+  switch (status) {
+    case 'healthy':   return 'healthy';
+    case 'unhealthy': return 'unhealthy';
+    case 'warning':   return 'warning';
+    default:          return 'unknown';
+  }
+}
 
-  const primaryValue = portMatch ? `:${portMatch[1]}` :
-                       containerMatch ? containerMatch[1].slice(0, 16) :
-                       service.status;
+function statusBadgeClass(status: ServiceStatus['status']): string {
+  switch (status) {
+    case 'healthy':   return 'semiont-badge semiont-badge--success';
+    case 'unhealthy': return 'semiont-badge semiont-badge--error';
+    case 'warning':   return 'semiont-badge semiont-badge--warning';
+    default:          return 'semiont-badge semiont-badge--info';
+  }
+}
 
-  const tags: string[] = [];
-  if (pidMatch) tags.push(`pid:${pidMatch[1]}`);
-  if (volumeMatch) tags.push(`vol:${volumeMatch[1].slice(0, 20)}`);
-  if (service.runningCount !== undefined && service.desiredCount !== undefined) {
-    tags.push(`${service.runningCount}/${service.desiredCount}`);
+const ServiceRow: React.FC<{ service: ServiceStatus }> = ({ service }) => {
+  // Evidence tags: prefer structured evidence, fall back to parsing details string
+  const tags: string[] = service.evidence && service.evidence.length > 0
+    ? [...service.evidence]
+    : (() => {
+        const details = service.details || '';
+        const out: string[] = [];
+        const pidMatch       = details.match(/[Pp][Ii][Dd]:\s*(\d+)/);
+        const containerMatch = details.match(/[Cc]ontainer:\s*(\S+)/);
+        if (pidMatch) out.push(`pid ${pidMatch[1]}`);
+        if (containerMatch) out.push(`container ${containerMatch[1].slice(0, 12)}`);
+        if (service.runningCount !== undefined && service.desiredCount !== undefined) {
+          out.push(`${service.runningCount}/${service.desiredCount} tasks`);
+        }
+        return out;
+      })();
+
+  if (service.checkedAt) {
+    tags.push(`checked ${new Date(service.checkedAt).toLocaleTimeString()}`);
   }
 
   const consoleLinks = getConsoleLinks(service);
 
   return (
-    <div className="semiont-stat-card">
-      <span className={indicatorClass(service.status)} />
-      <div className="semiont-stat-card__label">{service.name}</div>
-      <div className="semiont-stat-card__value">{primaryValue}</div>
-      {tags.length > 0 && (
-        <div className="semiont-stat-card__meta">
-          {tags.map((t, i) => <span key={i} className="semiont-tag">{t}</span>)}
-        </div>
-      )}
-      {consoleLinks.length > 0 && (
-        <div className="stat-card-actions">
-          {consoleLinks.map((link, i) => (
-            <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-               className="semiont-button" data-variant="ghost" data-size="sm">
-              {link.label}
-            </a>
-          ))}
-        </div>
-      )}
+    <div className="service-row">
+      <div className="service-row__indicator">
+        <span className={indicatorClass(service.status)} />
+      </div>
+      <div className="service-row__name">{service.name}</div>
+      <div className="service-row__host">
+        {service.hostname
+          ? <span className="service-row__hostname">{service.hostname}</span>
+          : <span className="service-row__hostname service-row__hostname--dim">—</span>
+        }
+      </div>
+      <div className="service-row__status">
+        <span className={statusBadgeClass(service.status)}>
+          <span className="semiont-badge__text">{statusLabel(service.status)}</span>
+        </span>
+      </div>
+      <div className="service-row__tags">
+        {tags.map((t, i) => <span key={i} className={TAG}>{t}</span>)}
+      </div>
+      <div className="service-row__actions">
+        {consoleLinks.map((link, i) => (
+          <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+             className="semiont-tag semiont-tag--info semiont-tag--compact">
+            {link.label}
+          </a>
+        ))}
+      </div>
     </div>
   );
 };
@@ -76,13 +110,29 @@ interface Props {
 }
 
 export const SectionWebInterface: React.FC<Props> = ({ services }) => {
-  const healthyCount = services.filter(s => s.status === 'healthy').length;
+  const webServices = services.filter(s => !MAKE_MEANING_SERVICES.has(s.name.toLowerCase()));
+
+  // Sort by preferred order, then alphabetically for anything unknown
+  const sorted = [...webServices].sort((a, b) => {
+    const ai = SERVICE_ORDER.indexOf(a.name.toLowerCase());
+    const bi = SERVICE_ORDER.indexOf(b.name.toLowerCase());
+    if (ai === -1 && bi === -1) return a.name.localeCompare(b.name);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 
   return (
-    <SectionHeader title="Web Interface" healthyCount={healthyCount} totalCount={services.length}>
-      <div className="stat-card-grid">
-        {services.map((s, i) => <ServiceCard key={i} service={s} />)}
+    <div className="service-list">
+      <div className="service-list__header">
+        <div className="service-row__indicator" />
+        <div className="service-row__name">Service</div>
+        <div className="service-row__host">Address</div>
+        <div className="service-row__status">Status</div>
+        <div className="service-row__tags">Details</div>
+        <div className="service-row__actions" />
       </div>
-    </SectionHeader>
+      {sorted.map((s, i) => <ServiceRow key={i} service={s} />)}
+    </div>
   );
 };
