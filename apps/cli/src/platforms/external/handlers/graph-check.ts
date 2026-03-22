@@ -26,11 +26,20 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
     config.database = serviceConfig.database;
     config.authentication = serviceConfig.username ? 'configured' : 'not configured';
 
+    // Resolve any remaining ${VAR} placeholders from process.env
+    const resolveVar = (v: string | undefined) =>
+      v?.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? '');
+
+    const uri = resolveVar(serviceConfig.uri);
+    const username = resolveVar(serviceConfig.username);
+    const password = resolveVar(serviceConfig.password);
+    const database = resolveVar(serviceConfig.database);
+
     // Test actual connectivity
-    if (serviceConfig.uri && serviceConfig.username && serviceConfig.password) {
+    if (uri && username && password) {
       const driver = neo4j.driver(
-        serviceConfig.uri,
-        neo4j.auth.basic(serviceConfig.username, serviceConfig.password)
+        uri,
+        neo4j.auth.basic(username, password)
       );
 
       try {
@@ -51,7 +60,7 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
               message: `Neo4j connected successfully`,
               protocolVersion: serverInfo.protocolVersion,
               address: serverInfo.address,
-              database: serviceConfig.database,
+              database,
               configuration: config
             }
           },

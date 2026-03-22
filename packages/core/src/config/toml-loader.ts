@@ -41,7 +41,12 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
 
 function resolveEnvVars(obj: unknown, env: Record<string, string | undefined>): unknown {
   if (typeof obj === 'string') {
-    return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => env[varName] ?? match);
+    return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+      if (env[varName] === undefined) {
+        throw new Error(`Environment variable ${varName} is not set (referenced in config as ${match})`);
+      }
+      return env[varName] as string;
+    });
   }
   if (Array.isArray(obj)) {
     return obj.map(item => resolveEnvVars(item, env));
@@ -98,6 +103,7 @@ interface SemiontConfigFile {
 }
 
 interface GraphSection {
+  platform?: string;
   type?: string;
   name?: string;
   uri?: string;
@@ -109,6 +115,7 @@ interface GraphSection {
 
 interface InferenceFlatSection {
   type?: 'anthropic' | 'ollama';
+  platform?: string;
   model?: string;
   maxTokens?: number;
   apiKey?: string;
@@ -292,13 +299,13 @@ export function loadTomlConfig(
     inferenceProviders = {};
     if (inferenceSection.type === 'anthropic') {
       inferenceProviders.anthropic = {
-        platform: 'external',
+        platform: requirePlatform(inferenceSection.platform, 'inference'),
         endpoint: inferenceSection.endpoint ?? 'https://api.anthropic.com',
         apiKey: inferenceSection.apiKey ?? '',
       } as AnthropicProviderConfig;
     } else if (inferenceSection.type === 'ollama') {
       inferenceProviders.ollama = {
-        platform: { type: 'posix' as PlatformType },
+        platform: { type: requirePlatform(inferenceSection.platform, 'inference') },
         baseURL: inferenceSection.baseURL,
         port: inferenceSection.baseURL ? undefined : 11434,
       } as OllamaProviderConfig;
@@ -352,8 +359,8 @@ export function loadTomlConfig(
         frontendPort: frontend?.port ?? 3000,
       } : undefined,
       graph: resolved.graph ? {
-        platform: { type: 'external' as PlatformType },
         ...resolved.graph,
+        platform: { type: requirePlatform(resolved.graph.platform as string | undefined, 'graph') },
         type: (resolved.graph.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
       } as EnvironmentConfig['services']['graph'] : (makeMeaningSection?.graph as EnvironmentConfig['services']['graph']),
       database: resolved.database ? {

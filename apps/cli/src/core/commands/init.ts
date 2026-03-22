@@ -116,6 +116,7 @@ port = 8080
 publicURL = "http://localhost:8080"
 
 [environments.local.graph]
+platform = "external"
 type = "neo4j"
 name = "neo4j"
 uri = "\${NEO4J_URI}"
@@ -124,6 +125,7 @@ password = "\${NEO4J_PASSWORD}"
 database = "\${NEO4J_DATABASE}"
 
 [environments.local.inference]
+platform = "external"
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 maxTokens = 8192
