@@ -5,7 +5,6 @@
  * Maps services to their configured platforms based on environment configuration.
  */
 
-import * as path from 'path';
 import { PlatformType, EnvironmentConfig, ConfigurationError } from '@semiont/core';
 
 interface ServiceConfig {
@@ -44,32 +43,19 @@ export function getServicePlatform(
     throw new ConfigurationError(
       `Service '${serviceName}' not found in environment '${environment}'`,
       environment,
-      `Add '${serviceName}' to environments/${environment}.json`
+      `Add '${serviceName}' to [environments.${environment}] in ~/.semiontconfig or .semiont/config`
     );
   }
 
-  // Service-specific platform type takes precedence
   if (serviceConfig.platform?.type) {
     return serviceConfig.platform.type;
   }
 
-  // Fall back to environment default
-  if (config.platform?.default) {
-    return config.platform.default;
-  }
-
-  // No default - require explicit configuration
+  // Platform is required — no defaults
   throw new ConfigurationError(
     `Platform not specified for service '${serviceName}'`,
     environment,
-    `Add platform configuration to the service or set a default platform in environments/${environment}.json:
-    "platform": { "default": "container" }
-    OR
-    "services": {
-      "${serviceName}": {
-        "platform": { "type": "container" }
-      }
-    }`
+    `Add platform to the service in ~/.semiontconfig:\n  [environments.${environment}.${serviceName}]\n  platform = "posix|container|external"`
   );
 }
 
@@ -98,15 +84,13 @@ export function resolveServiceDeployments(
     const serviceConfig = config.services?.[serviceName];
     if (!serviceConfig) {
       const availableServices = Object.keys(config.services || {});
-      const configPath = path.join(projectRoot, 'environments', `${environment}.json`);
-
       console.warn(`❌ Service '${serviceName}' not found in environment '${environment}'`);
       if (availableServices.length > 0) {
         console.warn(`   Available services: ${availableServices.join(', ')}`);
       } else {
         console.warn(`   No services configured in this environment`);
       }
-      console.warn(`   To fix: Add '${serviceName}' service configuration to ${configPath}`);
+      console.warn(`   To fix: Add [environments.${environment}.${serviceName}] to ~/.semiontconfig or .semiont/config`);
       console.warn(`   Example configuration:`);
       console.warn(`   "${serviceName}": {`);
       console.warn(`     "platform": { "type": "container" },`);

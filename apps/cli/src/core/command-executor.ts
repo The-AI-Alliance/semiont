@@ -269,14 +269,14 @@ export async function generateGlobalHelp(): Promise<string> {
   
   lines.push('ENVIRONMENT VARIABLES:');
   lines.push('  SEMIONT_ENV                 Environment to use when --environment flag is not provided');
-  lines.push('  SEMIONT_ROOT                Project root directory (parent of environments/)');
+  lines.push('  SEMIONT_ROOT                Project root directory (overrides .semiont/ discovery)');
   lines.push('  SEMIONT_REPO                Path to Semiont repository (fallback for --semiont-repo)');
   lines.push('');
   
   lines.push('PROJECT RESOLUTION:');
   lines.push('  Semiont identifies the project root using:');
   lines.push('  1. SEMIONT_ROOT environment variable (if set) - must point to valid project');
-  lines.push('  2. Current working directory - must contain semiont.json or environments/');
+  lines.push('  2. Walks up from current working directory looking for .semiont/');
   lines.push('');
   
   lines.push('COMMANDS:');

@@ -1,32 +1,22 @@
 /**
  * Init Command
- * 
- * Initializes a new Semiont project by creating configuration files and directory structure.
- * This command sets up the foundation for managing services across different environments
- * and platforms.
- * 
+ *
+ * Initializes a new Semiont project by creating .semiont/config and, if missing,
+ * ~/.semiontconfig with user identity and service defaults.
+ *
  * Workflow:
- * 1. Detects existing project structure
- * 2. Prompts for project configuration (interactive mode)
- * 3. Creates semiont.json project manifest
- * 4. Generates environment configuration files
- * 5. Creates directory structure for services
- * 6. Optionally initializes git repository
- * 
+ * 1. Detects existing .semiont/ directory
+ * 2. Creates .semiont/config (project identity and site config)
+ * 3. Creates ~/.semiontconfig if it does not exist (prompts for user identity)
+ *
  * Options:
  * - --name: Project name
- * - --template: Use a specific project template
- * - --environments: Comma-separated list of environments to create
- * - --platform: Default platform for services
- * - --interactive: Run in interactive mode with prompts
- * - --force: Overwrite existing configuration
- * 
+ * - --directory: Project directory (defaults to cwd)
+ * - --force: Overwrite existing .semiont/config
+ *
  * Created Structure:
- * - semiont.json: Main project configuration
- * - environments/: Environment-specific configurations
- * - services/: Service definitions and code
- * - state/: Runtime state storage (gitignored)
- * - backups/: Backup storage location (gitignored)
+ * - .semiont/config: Project-local TOML config (name, version, site)
+ * - ~/.semiontconfig: Global user TOML config (credentials, ports, service platforms)
  */
 
 import { z } from 'zod';
