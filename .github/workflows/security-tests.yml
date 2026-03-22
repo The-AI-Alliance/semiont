@@ -248,6 +248,7 @@ jobs:
           # Write ~/.semiontconfig with ci environment so backend can start
           printf '%s\n' \
             '[environments.ci.backend]' \
+            'platform = "posix"' \
             'port = 4000' \
             'publicURL = "http://localhost:4000"' \
             'corsOrigin = "http://localhost:3000"' \
