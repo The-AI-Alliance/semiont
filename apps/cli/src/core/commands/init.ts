@@ -73,6 +73,23 @@ function prompt(question: string): Promise<string> {
 }
 
 /**
+ * Create the .semiont/config content for a new project.
+ * Contains project identity and site configuration (project-specific, not user-specific).
+ */
+function projectConfigTemplate(projectName: string): string {
+  return `[project]
+name = "${projectName}"
+version = "0.1.0"
+
+[site]
+domain = "localhost:8080"
+siteName = "${projectName}"
+adminEmail = ""
+oauthAllowedDomains = ["example.com"]
+`;
+}
+
+/**
  * Create a minimal ~/.semiontconfig with a [user] section and a [environments.local] skeleton.
  */
 function globalConfigTemplate(name: string, email: string): string {
@@ -84,24 +101,55 @@ email = "${email}"
 environment = "local"
 
 [environments.local.backend]
-port = 3001
-publicURL = "http://localhost:3001"
+platform = "posix"
+port = 4000
+publicURL = "http://localhost:8080"
 
 [environments.local.frontend]
+platform = "posix"
 port = 3000
-publicURL = "http://localhost:3000"
+publicURL = "http://localhost:8080"
 
-# Uncomment and fill in your inference provider credentials:
-# [environments.local.inference]
-# provider = "anthropic"
-# apiKey = "\${ANTHROPIC_API_KEY}"
+[environments.local.proxy]
+platform = "container"
+port = 8080
+publicURL = "http://localhost:8080"
 
-# Uncomment and fill in your database credentials:
-# [environments.local.database]
-# [environments.local.database.environment]
-# POSTGRES_USER = "semiont"
-# POSTGRES_PASSWORD = "\${POSTGRES_PASSWORD}"
-# POSTGRES_DB = "semiont"
+[environments.local.graph]
+type = "neo4j"
+name = "neo4j"
+uri = "\${NEO4J_URI}"
+username = "\${NEO4J_USERNAME}"
+password = "\${NEO4J_PASSWORD}"
+database = "\${NEO4J_DATABASE}"
+
+[environments.local.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+maxTokens = 8192
+endpoint = "https://api.anthropic.com"
+apiKey = "\${ANTHROPIC_API_KEY}"
+
+[environments.local.actors.gatherer.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.actors.matcher.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.database]
+platform = "container"
+image = "postgres:15-alpine"
+host = "localhost"
+port = 5432
+name = "semiont"
+user = "postgres"
+password = "\${POSTGRES_PASSWORD}"
 `;
 }
 
@@ -191,14 +239,15 @@ async function init(
         dryRun: true,
       };
     } else {
-      // If --force, remove existing config so SemiontProject will write the new name
-      const configPath = path.join(dotSemiontDir, 'config');
-      if (options.force && fs.existsSync(configPath)) {
-        fs.unlinkSync(configPath);
+      // Write .semiont/config with project identity and site skeleton
+      const dotSemiontConfigPath = path.join(dotSemiontDir, 'config');
+      if (!fs.existsSync(dotSemiontDir) || options.force) {
+        fs.mkdirSync(dotSemiontDir, { recursive: true });
+        fs.writeFileSync(dotSemiontConfigPath, projectConfigTemplate(projectName));
       }
 
-      // Create .semiont/ anchor directory with minimal config
-      new SemiontProject(projectDir, projectName);
+      // Construct SemiontProject to set up ephemeral XDG dirs
+      new SemiontProject(projectDir);
 
       if (!options.quiet) {
         console.log(`${colors.green}✅ Created .semiont/${colors.reset}`);

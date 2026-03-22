@@ -21,12 +21,12 @@
 
 import type { ServiceConfig } from './cli-config.js';
 import { commandRequiresServices } from './command-discovery.js';
-import { getAvailableServices, isValidService, ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
+import { ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
 import { EnvironmentConfig, parseEnvironment } from '@semiont/core';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { serviceSupportsCommand } from './service-command-capabilities.js';
-import * as path from 'path';
+
 
 /**
  * Check if a service supports a command by examining its requirements
@@ -104,8 +104,9 @@ export async function getServicesWithCapability(
   capability: ServiceCapability,
   envConfig: EnvironmentConfig
 ): Promise<string[]> {
-  const environment = envConfig._metadata?.environment;
-  const allServices = await getAvailableServices(environment);
+  // Derive service list from envConfig (the TOML loader populates this from ~/.semiontconfig)
+  // This replaces the old JSON-file-based discovery and correctly includes graph, inference, etc.
+  const allServices = Object.keys(envConfig.services || {});
 
   // Check if this capability is actually a service command
   const isServiceCommand = await commandRequiresServices(capability);
@@ -155,8 +156,9 @@ export async function resolveServiceSelector(
     return getServicesWithCapability(capability, envConfig);
   }
 
-  // Validate the specific service
-  if (await isValidService(selector, environment)) {
+  const availableServices = Object.keys(envConfig.services || {});
+
+  if (availableServices.includes(selector)) {
     // Check if the service supports the capability
     const capableServices = await getServicesWithCapability(capability, envConfig);
     if (capableServices.includes(selector)) {
@@ -165,21 +167,11 @@ export async function resolveServiceSelector(
       throw new Error(`Service '${selector}' does not support capability '${capability}'`);
     }
   } else {
-    const availableServices = await getAvailableServices(environment);
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!projectRoot) {
-      throw new Error('Project root is required in envConfig._metadata');
-    }
-    const configPath = path.join(projectRoot, 'environments', `${environment}.json`);
-
-    const errorMessage = [
-      `Unknown service '${selector}' in environment '${environment}'`,
-      `Available services: ${availableServices.join(', ')}`,
-      `To fix: Add '${selector}' service to ${configPath}`,
-      `Or choose from available services: ${availableServices.join(', ')}`
-    ].join('\n');
-
-    throw new Error(errorMessage);
+    throw new Error(
+      `Unknown service '${selector}' in environment '${environment}'\n` +
+      `Available services: ${availableServices.join(', ')}\n` +
+      `To fix: Add '[environments.${environment}.${selector}]' to ~/.semiontconfig`
+    );
   }
 }
 

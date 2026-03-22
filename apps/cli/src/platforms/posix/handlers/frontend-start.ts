@@ -106,8 +106,9 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     nextPublicVars.forEach(k => printInfo(`  ${k}=${(env as Record<string, string>)[k]}`));
   }
   
-  // Ensure logs directory exists
+  // Ensure logs and pid directories exist
   fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(pidFile), { recursive: true });
   
   // Setup log files
   const appLogPath = path.join(logsDir, 'app.log');
@@ -136,7 +137,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   if (paths.fromNpmPackage) {
     // npm package: run standalone server directly
     command = 'node';
-    args = [path.join(frontendSourceDir, 'standalone', 'apps', 'frontend', 'server.js')];
+    args = [path.join(frontendSourceDir, '.next', 'standalone', 'apps', 'frontend', 'server.js')];
   } else if (config.devMode) {
     command = 'npm';
     args = ['run', 'dev'];
@@ -198,7 +199,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     
     // Build resources
     const commandStr = paths.fromNpmPackage
-      ? `node standalone/apps/frontend/server.js`
+      ? `node .next/standalone/apps/frontend/server.js`
       : config.devMode ? 'npm run dev' : 'npm start';
     const resources: PlatformResources = {
       platform: 'posix',

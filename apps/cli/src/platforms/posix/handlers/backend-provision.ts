@@ -69,9 +69,9 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const envConfig = service.environmentConfig;
   const dbConfig = envConfig.services!.database!;
 
-  const dbUser = dbConfig.environment!.POSTGRES_USER!;
-  const dbPassword = dbConfig.environment!.POSTGRES_PASSWORD!;
-  const dbName = dbConfig.environment!.POSTGRES_DB!;
+  const dbUser = dbConfig.user!;
+  const dbPassword = dbConfig.password!;
+  const dbName = dbConfig.name!;
   const dbPort = dbConfig.port!;
 
   // Use database host from config if available, fallback to localhost
@@ -79,7 +79,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 
   if (!service.quiet) {
-    printInfo(`Using database configuration from ${service.environment}.json:`);
+    printInfo(`Using database configuration for environment '${service.environment}':`);
+
     printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
     printInfo(`  User: ${dbUser}`);
   }
@@ -347,9 +348,9 @@ const preflightBackendProvision = async (context: PosixProvisionHandlerContext):
   checks.push(
     checkConfigPort(config.port, 'backend.port'),
     checkConfigUrl(config.publicURL, 'backend.publicURL'),
-    checkConfigField(db?.environment?.POSTGRES_USER, 'database.environment.POSTGRES_USER'),
-    checkConfigField(db?.environment?.POSTGRES_PASSWORD, 'database.environment.POSTGRES_PASSWORD'),
-    checkConfigField(db?.environment?.POSTGRES_DB, 'database.environment.POSTGRES_DB'),
+    checkConfigField(db?.user, 'database.user'),
+    checkConfigField(db?.password, 'database.password'),
+    checkConfigField(db?.name, 'database.name'),
     checkConfigPort(db?.port, 'database.port'),
     checkConfigUrl(envConfig.services?.frontend?.publicURL, 'frontend.publicURL'),
     checkConfigField(envConfig.site?.domain, 'site.domain'),
