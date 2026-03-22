@@ -156,14 +156,8 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
     
     if (!service.quiet) {
       printSuccess(`✅ Frontend service ${service.name} stopped successfully`);
-      
-      // Show log locations for debugging
-      if (service.verbose) {
-        printInfo('');
-        printInfo('Log files:');
-        printInfo(`  App log: ${appLogPath}`);
-        printInfo(`  Error log: ${errorLogPath}`);
-      }
+      printInfo(`  App log: ${appLogPath}`);
+      printInfo(`  Error log: ${errorLogPath}`);
     }
     
     return {

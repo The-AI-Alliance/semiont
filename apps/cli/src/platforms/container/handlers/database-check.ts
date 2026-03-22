@@ -71,6 +71,8 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
       }
       health.healthy = true;
       health.details = {
+        containerName,
+        volumeName: `${containerName}-data`,
         database: 'accepting connections',
         port,
         containerHealth: 'running'
@@ -78,6 +80,8 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
     } catch {
       health.healthy = false;
       health.details = {
+        containerName,
+        volumeName: `${containerName}-data`,
         database: 'not accepting connections',
         port,
         containerHealth: 'running'

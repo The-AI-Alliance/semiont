@@ -263,6 +263,15 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
     return {
       success: true,
       status: 'running',
+      health: {
+        healthy: isHealthy,
+        details: {
+          containerName,
+          configFile: paths.configFile,
+          proxyPort,
+          ...(config.type === 'envoy' ? { adminPort } : {})
+        }
+      },
       metadata
     };
   } else {

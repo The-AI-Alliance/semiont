@@ -140,12 +140,7 @@ export function getServicesByPlatform(
     const typedConfig = serviceConfig as ServiceConfig;
 
     // Determine service platform
-    let servicePlatform: PlatformType | undefined;
-    if (typedConfig.platform?.type) {
-      servicePlatform = typedConfig.platform.type;
-    } else if (config.platform?.default) {
-      servicePlatform = config.platform.default;
-    }
+    const servicePlatform: PlatformType | undefined = typedConfig.platform?.type;
 
     // Skip services without platform configuration
     if (!servicePlatform) {
