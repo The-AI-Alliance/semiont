@@ -503,7 +503,7 @@ describe('ResourceContext', () => {
         },
       ];
 
-      vi.mocked(getPrimaryRepresentation).mockImplementation((resource) => {
+      vi.mocked(getPrimaryRepresentation).mockImplementation((resource: Parameters<typeof getPrimaryRepresentation>[0]) => {
         const reps = resource?.representations;
         return Array.isArray(reps) ? reps[0] : reps;
       });

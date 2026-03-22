@@ -1,8 +1,8 @@
 /**
  * Test setup utilities for Semiont CLI tests
- * 
+ *
  * Provides helpers for creating properly initialized test environments
- * with semiont.json and environment configs
+ * with .semiont/config (TOML) and ~/.semiontconfig.
  */
 
 import * as fs from 'fs';
@@ -73,95 +73,6 @@ export async function createTestEnvironment(
 }
 
 /**
- * Creates a test environment config with all required services
- * @param envName - Name of the environment
- * @returns Environment configuration object
- */
-export function createTestConfig(envName: string = 'test'): any {
-  const config: any = {
-    _comment: `Test environment: ${envName}`,
-    platform: {
-      default: 'mock'
-    },
-    env: {
-      NODE_ENV: 'test'
-    },
-    services: {
-      frontend: {
-        command: 'npm test',
-        port: 3000
-      },
-      backend: {
-        command: 'npm test',
-        port: 3001
-      },
-      database: {
-        platform: {
-          type: 'mock'
-        },
-        port: 5432,
-        user: 'postgres',
-        password: 'testpass'
-      },
-      filesystem: {
-        platform: {
-          type: 'mock'
-        },
-        path: './test-data'
-      }
-    }
-  };
-  
-  // Add AWS config for production and staging environments
-  if (envName === 'production' || envName === 'staging') {
-    config.aws = {
-      region: 'us-east-1',
-      accountId: '123456789012'
-    };
-    config.platform.default = 'aws';
-  }
-  
-  return config;
-}
-
-/**
- * Creates a test semiont.json configuration
- * @param projectName - Name of the project
- * @returns Semiont configuration object
- */
-export function createTestSemiontJson(projectName: string = 'test-project'): any {
-  return {
-    version: '1.0',
-    project: projectName,
-    site: {
-      siteName: projectName,
-      domain: `${projectName}.test.com`,
-      adminEmail: 'admin@test.com',
-      supportEmail: 'support@test.com',
-      oauthAllowedDomains: ['test.com']
-    },
-    defaults: {
-      region: 'us-east-1',
-      platform: {
-        type: 'container'
-      },
-      services: {
-        frontend: {
-          port: 3000
-        },
-        backend: {
-          port: 3001
-        },
-        database: {
-          port: 5432,
-          user: 'postgres'
-        }
-      }
-    }
-  };
-}
-
-/**
  * Writes test configuration files to a directory.
  * Creates .semiont/config (TOML) as the project anchor.
  * The environments parameter is kept for call-site compatibility but is ignored —
@@ -192,63 +103,3 @@ export function cleanupTestEnvironment(dir: string): void {
   }
 }
 
-/**
- * Creates a mock service configuration
- * @param serviceName - Name of the service
- * @param overrides - Optional overrides for the service config
- */
-export function createMockService(
-  serviceName: string,
-  overrides: any = {}
-): any {
-  const defaults: Record<string, any> = {
-    frontend: {
-      command: 'npm test',
-      port: 3000
-    },
-    backend: {
-      command: 'npm test',
-      port: 3001
-    },
-    database: {
-      platform: { type: 'mock' },
-      port: 5432,
-      user: 'postgres',
-      password: 'testpass'
-    },
-  };
-  
-  return {
-    ...defaults[serviceName] || {},
-    ...overrides
-  };
-}
-
-/**
- * Creates a complete test environment configuration in memory
- * without writing to disk
- */
-export function createInMemoryTestEnvironment(): {
-  semiontJson: any;
-  environments: Record<string, any>;
-} {
-  return {
-    semiontJson: createTestSemiontJson(),
-    environments: {
-      local: createTestConfig('local'),
-      test: createTestConfig('test'),
-      staging: createTestConfig('staging'),
-      production: createTestConfig('production')
-    }
-  };
-}
-
-/**
- * Mocks the deployment resolver to return test configurations
- * This is useful when testing without actual file system operations
- */
-export function mockDeploymentResolver(testDir: string): void {
-  if (!fs.existsSync(path.join(testDir, '.semiont', 'config'))) {
-    writeTestConfigs(testDir);
-  }
-}

@@ -177,11 +177,22 @@ export class OutputFormatter {
       if (health && !options.quiet) {
         const healthStatus = health.healthy ? c.green + 'healthy' : c.red + 'unhealthy';
         output += `   ${c.dim}health: ${healthStatus}${c.reset}\n`;
-        
-        // Show health details in verbose mode
+
+        // Always show actionable path info from health details
+        const pathKeys = ['appLog', 'errorLog', 'pidFile', 'backendDir', 'frontendDir', 'dataDir', 'volumeName', 'containerName'];
+        if (health.details) {
+          for (const key of pathKeys) {
+            const value = health.details[key];
+            if (value !== undefined && value !== null) {
+              output += `   ${c.dim}${key}: ${this.formatValue(value)}${c.reset}\n`;
+            }
+          }
+        }
+
+        // Show all other health details in verbose mode
         if (options.verbose && health.details) {
           for (const [key, value] of Object.entries(health.details)) {
-            if (value !== undefined && value !== null && key !== 'taskDefinition') {
+            if (value !== undefined && value !== null && key !== 'taskDefinition' && !pathKeys.includes(key)) {
               output += `     ${c.dim}${key}: ${this.formatValue(value)}${c.reset}\n`;
             }
           }

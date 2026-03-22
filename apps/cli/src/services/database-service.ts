@@ -133,8 +133,15 @@ export class DatabaseService extends BaseService {
   }
   
   override getEnvironmentVariables(): Record<string, string> {
-    // Just return what's configured - no magic, no defaults, no process.env
-    return this.config.environment || {};
+    if (this.config.environment && Object.keys(this.config.environment).length > 0) {
+      return this.config.environment;
+    }
+    // Build postgres container env vars from flat config fields
+    const vars: Record<string, string> = {};
+    if (this.typedConfig.user) vars['POSTGRES_USER'] = this.typedConfig.user;
+    if (this.typedConfig.password) vars['POSTGRES_PASSWORD'] = this.typedConfig.password;
+    if (this.typedConfig.name) vars['POSTGRES_DB'] = this.typedConfig.name;
+    return vars;
   }
   
   // =====================================================================

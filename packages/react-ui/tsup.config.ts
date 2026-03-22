@@ -8,7 +8,7 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   outDir: 'dist',
-  external: ['react', 'react-dom', '@tanstack/react-query', 'use-sync-external-store'],
+  external: ['react', 'react-dom', '@tanstack/react-query', 'use-sync-external-store', 'vitest'],
   banner: {
     js: "'use client';",
   },

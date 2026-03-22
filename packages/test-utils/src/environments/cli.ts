@@ -46,17 +46,6 @@ export class CLITestEnvironment {
   }
 
   /**
-   * Create a semiont.json config
-   */
-  static createConfig(dir: string, config: any): string {
-    return this.createFile(
-      dir,
-      'semiont.json',
-      JSON.stringify(config, null, 2)
-    );
-  }
-
-  /**
    * Clean up all test directories
    */
   static cleanup() {

@@ -44,24 +44,28 @@ import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
  * Load PrismaClient from @semiont/backend's generated client.
  * When installed globally, the CLI's own @prisma/client has no generated output.
  * We resolve from the project's node_modules (same pattern as backend-paths.ts).
+ * DATABASE_URL must be set in process.env before calling this.
  */
-function loadPrismaClient(projectRoot: string): new (opts?: any) => import('@prisma/client').PrismaClient {
-  // Resolve from project's node_modules, not the CLI's install location
+function loadPrismaClient(projectRoot: string): import('@prisma/client').PrismaClient {
   const req = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
 
   // Try loading from @semiont/backend's generated client first
   try {
     const backendPkgPath = req.resolve('@semiont/backend/package.json');
     const backendReq = createRequire(backendPkgPath);
-    const mod = backendReq('@prisma/client');
-    return mod.PrismaClient;
+    const { PrismaClient } = backendReq('@prisma/client');
+    const { PrismaPg } = backendReq('@prisma/adapter-pg');
+    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+    return new PrismaClient({ adapter });
   } catch {
     // Fall back to direct @prisma/client in project (monorepo workspace)
   }
 
   try {
-    const mod = req('@prisma/client');
-    return mod.PrismaClient;
+    const { PrismaClient } = req('@prisma/client');
+    const { PrismaPg } = req('@prisma/adapter-pg');
+    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+    return new PrismaClient({ adapter });
   } catch {
     throw new Error(
       '@prisma/client not initialized. Run "semiont provision" first, or run "prisma generate" in the backend directory.'
@@ -133,26 +137,24 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
   const envConfig = loadEnvironmentConfig(projectRoot, environment);
   const dbConfig = envConfig.services?.database;
 
-  if (!dbConfig?.environment) {
-    throw new Error('Database configuration not found in environment file');
+  if (!dbConfig) {
+    throw new Error('Database configuration not found in environment config');
   }
 
-  const dbUser = dbConfig.environment.POSTGRES_USER;
-  const dbPassword = dbConfig.environment.POSTGRES_PASSWORD;
-  const dbName = dbConfig.environment.POSTGRES_DB;
+  const dbUser = dbConfig.user;
+  const dbPassword = dbConfig.password;
+  const dbName = dbConfig.name;
   const dbPort = dbConfig.port;
   const dbHost = dbConfig.host || 'localhost';
 
   if (!dbUser || !dbPassword || !dbName || !dbPort) {
-    throw new Error('Incomplete database configuration: need POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, and port');
+    throw new Error('Incomplete database configuration: need user, password, name, and port');
   }
 
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 
-  const PrismaClient = loadPrismaClient(projectRoot);
-  const prisma = new PrismaClient({
-    datasources: { db: { url: databaseUrl } },
-  });
+  process.env.DATABASE_URL = databaseUrl;
+  const prisma = loadPrismaClient(projectRoot);
 
   try {
     // Validate email

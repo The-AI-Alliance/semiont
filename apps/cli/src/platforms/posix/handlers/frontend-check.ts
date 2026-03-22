@@ -29,6 +29,9 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     frontendDir,
     port: config.port,
     source: paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO',
+    pidFile,
+    appLog: appLogPath,
+    errorLog: errorLogPath,
   };
   
   // Check if frontend directory exists

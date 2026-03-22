@@ -23,7 +23,7 @@ vi.mock('../validation', () => ({
 
 // Mock Google Provider
 vi.mock('next-auth/providers/google', () => ({
-  default: vi.fn((config) => ({
+  default: vi.fn((config: any) => ({
     id: 'google',
     name: 'Google',
     type: 'oauth',

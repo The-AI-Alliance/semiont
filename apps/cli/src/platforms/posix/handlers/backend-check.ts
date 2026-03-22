@@ -31,6 +31,9 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     backendDir,
     port: config.port,
     source: paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO',
+    pidFile,
+    appLog: appLogPath,
+    errorLog: errorLogPath,
   };
   
   // Check if backend directory exists

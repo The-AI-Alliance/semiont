@@ -1,32 +1,22 @@
 /**
  * Init Command
- * 
- * Initializes a new Semiont project by creating configuration files and directory structure.
- * This command sets up the foundation for managing services across different environments
- * and platforms.
- * 
+ *
+ * Initializes a new Semiont project by creating .semiont/config and, if missing,
+ * ~/.semiontconfig with user identity and service defaults.
+ *
  * Workflow:
- * 1. Detects existing project structure
- * 2. Prompts for project configuration (interactive mode)
- * 3. Creates semiont.json project manifest
- * 4. Generates environment configuration files
- * 5. Creates directory structure for services
- * 6. Optionally initializes git repository
- * 
+ * 1. Detects existing .semiont/ directory
+ * 2. Creates .semiont/config (project identity and site config)
+ * 3. Creates ~/.semiontconfig if it does not exist (prompts for user identity)
+ *
  * Options:
  * - --name: Project name
- * - --template: Use a specific project template
- * - --environments: Comma-separated list of environments to create
- * - --platform: Default platform for services
- * - --interactive: Run in interactive mode with prompts
- * - --force: Overwrite existing configuration
- * 
+ * - --directory: Project directory (defaults to cwd)
+ * - --force: Overwrite existing .semiont/config
+ *
  * Created Structure:
- * - semiont.json: Main project configuration
- * - environments/: Environment-specific configurations
- * - services/: Service definitions and code
- * - state/: Runtime state storage (gitignored)
- * - backups/: Backup storage location (gitignored)
+ * - .semiont/config: Project-local TOML config (name, version, site)
+ * - ~/.semiontconfig: Global user TOML config (credentials, ports, service platforms)
  */
 
 import { z } from 'zod';
@@ -73,6 +63,23 @@ function prompt(question: string): Promise<string> {
 }
 
 /**
+ * Create the .semiont/config content for a new project.
+ * Contains project identity and site configuration (project-specific, not user-specific).
+ */
+function projectConfigTemplate(projectName: string): string {
+  return `[project]
+name = "${projectName}"
+version = "0.1.0"
+
+[site]
+domain = "localhost:8080"
+siteName = "${projectName}"
+adminEmail = ""
+oauthAllowedDomains = ["example.com"]
+`;
+}
+
+/**
  * Create a minimal ~/.semiontconfig with a [user] section and a [environments.local] skeleton.
  */
 function globalConfigTemplate(name: string, email: string): string {
@@ -84,24 +91,81 @@ email = "${email}"
 environment = "local"
 
 [environments.local.backend]
-port = 3001
-publicURL = "http://localhost:3001"
+platform = "posix"
+port = 4000
+publicURL = "http://localhost:8080"
 
 [environments.local.frontend]
+platform = "posix"
 port = 3000
-publicURL = "http://localhost:3000"
+publicURL = "http://localhost:8080"
 
-# Uncomment and fill in your inference provider credentials:
-# [environments.local.inference]
-# provider = "anthropic"
-# apiKey = "\${ANTHROPIC_API_KEY}"
+[environments.local.proxy]
+platform = "container"
+port = 8080
+publicURL = "http://localhost:8080"
 
-# Uncomment and fill in your database credentials:
-# [environments.local.database]
-# [environments.local.database.environment]
-# POSTGRES_USER = "semiont"
-# POSTGRES_PASSWORD = "\${POSTGRES_PASSWORD}"
-# POSTGRES_DB = "semiont"
+[environments.local.graph]
+platform = "external"
+type = "neo4j"
+name = "neo4j"
+uri = "\${NEO4J_URI}"
+username = "\${NEO4J_USERNAME}"
+password = "\${NEO4J_PASSWORD}"
+database = "\${NEO4J_DATABASE}"
+
+[environments.local.inference]
+platform = "external"
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+maxTokens = 8192
+endpoint = "https://api.anthropic.com"
+apiKey = "\${ANTHROPIC_API_KEY}"
+
+[environments.local.actors.gatherer.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.actors.matcher.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.reference-annotation.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.highlight-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+
+[environments.local.workers.assessment-annotation.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.comment-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+
+[environments.local.workers.tag-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+
+[environments.local.workers.generation.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.database]
+platform = "container"
+image = "postgres:15-alpine"
+host = "localhost"
+port = 5432
+name = "semiont"
+user = "postgres"
+password = "\${POSTGRES_PASSWORD}"
 `;
 }
 
@@ -191,14 +255,15 @@ async function init(
         dryRun: true,
       };
     } else {
-      // If --force, remove existing config so SemiontProject will write the new name
-      const configPath = path.join(dotSemiontDir, 'config');
-      if (options.force && fs.existsSync(configPath)) {
-        fs.unlinkSync(configPath);
+      // Write .semiont/config with project identity and site skeleton
+      const dotSemiontConfigPath = path.join(dotSemiontDir, 'config');
+      if (!fs.existsSync(dotSemiontDir) || options.force) {
+        fs.mkdirSync(dotSemiontDir, { recursive: true });
+        fs.writeFileSync(dotSemiontConfigPath, projectConfigTemplate(projectName));
       }
 
-      // Create .semiont/ anchor directory with minimal config
-      new SemiontProject(projectDir, projectName);
+      // Construct SemiontProject to set up ephemeral XDG dirs
+      new SemiontProject(projectDir);
 
       if (!options.quiet) {
         console.log(`${colors.green}✅ Created .semiont/${colors.reset}`);

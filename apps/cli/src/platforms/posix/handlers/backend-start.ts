@@ -85,9 +85,9 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
   const envConfig = service.environmentConfig;
   const dbConfig = envConfig.services!.database!;
-  const dbUser = dbConfig.environment!.POSTGRES_USER!;
-  const dbPassword = dbConfig.environment!.POSTGRES_PASSWORD!;
-  const dbName = dbConfig.environment!.POSTGRES_DB!;
+  const dbUser = dbConfig.user!;
+  const dbPassword = dbConfig.password!;
+  const dbName = dbConfig.name!;
   const dbPort = dbConfig.port!;
   const dbHost = dbConfig.host || 'localhost';
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
@@ -115,8 +115,9 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     SEMIONT_ENV: service.environment,
   };
   
-  // Ensure logs directory exists
+  // Ensure logs and pid directories exist
   fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(pidFile), { recursive: true });
   
   // Setup log files
   const appLogPath = path.join(logsDir, 'app.log');

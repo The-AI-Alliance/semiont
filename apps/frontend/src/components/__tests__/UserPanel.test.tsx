@@ -104,7 +104,7 @@ describe('UserPanel Component', () => {
     mockFormatTime.mockReturnValue('1 hour');
 
     // Default URL sanitization
-    mockSanitizeImageURL.mockImplementation((url) => url);
+    mockSanitizeImageURL.mockImplementation((url: string) => url);
   });
 
   describe('Rendering', () => {

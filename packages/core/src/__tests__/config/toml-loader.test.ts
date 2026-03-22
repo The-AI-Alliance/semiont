@@ -3,6 +3,7 @@ import { loadTomlConfig } from '../../config/toml-loader';
 
 const MINIMAL_TOML = `
 [environments.local.backend]
+platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
 frontendURL = "http://localhost:3000"
@@ -100,11 +101,10 @@ describe('loadTomlConfig', () => {
     expect(actors?.gatherer?.apiKey).toBe('sk-secret');
   });
 
-  it('leaves unresolved ${VAR} when env var is missing', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML), {});
-
-    const actors = (config._metadata as any)?.actors;
-    expect(actors?.gatherer?.apiKey).toBe('${MY_API_KEY}');
+  it('throws when ${VAR} references a missing env var', () => {
+    expect(() =>
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML), {})
+    ).toThrow('Environment variable MY_API_KEY is not set');
   });
 
   it('returns empty config when global config file is not found', () => {

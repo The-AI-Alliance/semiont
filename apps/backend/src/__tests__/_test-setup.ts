@@ -13,6 +13,7 @@ import type { EnvironmentConfig } from '@semiont/core';
 const MINIMAL_SEMIONTCONFIG = `
 [environments.integration]
 [environments.integration.backend]
+platform = "posix"
 port = 4000
 publicURL = "http://localhost:4000"
 corsOrigin = "http://localhost:3000"
@@ -40,6 +41,7 @@ oauthAllowedDomains = ["test.local"]
 
 [environments.unit]
 [environments.unit.backend]
+platform = "posix"
 port = 4000
 publicURL = "http://localhost:4000"
 corsOrigin = "http://localhost:3000"

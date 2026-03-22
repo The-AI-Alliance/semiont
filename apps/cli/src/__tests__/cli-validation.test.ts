@@ -54,12 +54,15 @@ describe('CLI Environment Validation Logic', () => {
     it('should list available environments in error messages', () => {
       fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.local.backend]
+platform = "posix"
 port = 3001
 
 [environments.staging.backend]
+platform = "posix"
 port = 3002
 
 [environments.custom-env.backend]
+platform = "posix"
 port = 3003
 `);
 
@@ -81,12 +84,15 @@ port = 3003
     it('should reflect discovered environments in help', () => {
       fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.dev.backend]
+platform = "posix"
 port = 3001
 
 [environments.my-feature.backend]
+platform = "posix"
 port = 3002
 
 [environments.prod.backend]
+platform = "posix"
 port = 3003
 `);
 
@@ -109,6 +115,7 @@ port = 3003
     it('should load services from custom environment configs', () => {
       fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.demo.backend]
+platform = "posix"
 port = 8080
 publicURL = "http://demo.example.com:8080"
 corsOrigin = "http://demo.example.com:3000"
@@ -130,6 +137,7 @@ adminEmail = "admin@demo.example.com"
     it('should load complete environment configurations', () => {
       fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.test.backend]
+platform = "posix"
 port = 4001
 publicURL = "http://test.local:4001"
 corsOrigin = "http://test.local:4000"

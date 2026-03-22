@@ -25,8 +25,6 @@ function createWatchOptions(partial: Partial<WatchOptions> = {}): WatchOptions {
     target: 'all',
     noFollow: false,
     interval: 30,
-    terminal: false,
-    term: undefined,
     port: 3333,
     service: undefined,
     ...partial
