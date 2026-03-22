@@ -4,12 +4,18 @@
  * Provides real-time data collection using the Platform Strategy pattern
  */
 
+import * as fs from 'fs';
+import * as http from 'http';
 import { check } from '../commands/check.js';
 import { CommandResult } from '../command-result.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
+import { SemiontProject } from '@semiont/core/node';
 
-import type { ServiceStatus, LogEntry, MetricData } from '../dashboard/dashboard-components.js';
+import type {
+  ServiceStatus, LogEntry, MetricData,
+  MakeMeaningStatus, WorkerStatus
+} from '../dashboard/dashboard-components.js';
 
 export interface DashboardData {
   services: ServiceStatus[];
@@ -17,6 +23,8 @@ export interface DashboardData {
   metrics: MetricData[];
   lastUpdate: Date;
   isRefreshing: boolean;
+  makeMeaning: MakeMeaningStatus;
+  workers: WorkerStatus[];
 }
 
 export class DashboardDataSource {
@@ -37,7 +45,9 @@ export class DashboardDataSource {
         logs: [],
         metrics: [],
         lastUpdate: new Date(),
-        isRefreshing: false
+        isRefreshing: false,
+        makeMeaning: this.emptyMakeMeaningStatus(),
+        workers: []
       };
     }
 
@@ -202,8 +212,138 @@ export class DashboardDataSource {
       logs,
       metrics,
       lastUpdate: new Date(),
-      isRefreshing: false
+      isRefreshing: false,
+      makeMeaning: await this.getMakeMeaningStatus(),
+      workers: await this.getWorkerStatus()
     };
+  }
+
+  private emptyMakeMeaningStatus(): MakeMeaningStatus {
+    const unknown = { state: 'unknown' as const };
+    return {
+      eventLog: { path: '' },
+      contentStore: { path: '' },
+      graph: { status: 'unknown' },
+      materializedViews: { path: '' },
+      actors: { gatherer: unknown, matcher: unknown, stower: unknown }
+    };
+  }
+
+  async getMakeMeaningStatus(): Promise<MakeMeaningStatus> {
+    const unknown = { state: 'unknown' as const };
+    const result = this.emptyMakeMeaningStatus();
+
+    // File-stat based sources — work without backend running
+    try {
+      const project = new SemiontProject(process.cwd());
+
+      // Event log
+      result.eventLog.path = project.eventsDir;
+      if (fs.existsSync(project.eventsDir)) {
+        const entries = fs.readdirSync(project.eventsDir);
+        result.eventLog.streamCount = entries.length;
+        let totalBytes = 0;
+        let eventCount = 0;
+        for (const entry of entries) {
+          try {
+            const stat = fs.statSync(`${project.eventsDir}/${entry}`);
+            totalBytes += stat.size;
+            // Rough event count: each line ~100 bytes
+            eventCount += Math.floor(stat.size / 100);
+          } catch { /* skip */ }
+        }
+        result.eventLog.sizeBytes = totalBytes;
+        result.eventLog.eventCount = eventCount;
+      }
+
+      // Content store
+      result.contentStore.path = project.dataHome;
+      if (fs.existsSync(project.dataHome)) {
+        let fileCount = 0;
+        let sizeBytes = 0;
+        for (const entry of fs.readdirSync(project.dataHome)) {
+          try {
+            const stat = fs.statSync(`${project.dataHome}/${entry}`);
+            if (stat.isFile()) { fileCount++; sizeBytes += stat.size; }
+          } catch { /* skip */ }
+        }
+        result.contentStore.fileCount = fileCount;
+        result.contentStore.sizeBytes = sizeBytes;
+      }
+
+      // Materialized views
+      result.materializedViews.path = project.projectionsDir;
+      if (fs.existsSync(project.projectionsDir)) {
+        const entries = fs.readdirSync(project.projectionsDir);
+        result.materializedViews.fileCount = entries.length;
+        let lastUpdated: Date | undefined;
+        for (const entry of entries) {
+          try {
+            const stat = fs.statSync(`${project.projectionsDir}/${entry}`);
+            if (!lastUpdated || stat.mtime > lastUpdated) lastUpdated = stat.mtime;
+          } catch { /* skip */ }
+        }
+        result.materializedViews.lastUpdated = lastUpdated;
+      }
+    } catch { /* not a semiont project dir */ }
+
+    // Graph: re-use status from services[] if graph service was checked
+    // (set by caller via getDashboardData — actors below are from backend API)
+
+    // Actor status from backend health API
+    const backendPort = this.envConfig
+      ? (this.envConfig as any)?.services?.backend?.port ?? 4000
+      : 4000;
+    try {
+      const health = await this.fetchBackendHealth(backendPort);
+      if (health?.actors) {
+        result.actors.gatherer = health.actors.gatherer ?? unknown;
+        result.actors.matcher = health.actors.matcher ?? unknown;
+        result.actors.stower = health.actors.stower ?? unknown;
+      }
+    } catch { /* backend not running — leave as unknown */ }
+
+    return result;
+  }
+
+  async getWorkerStatus(): Promise<WorkerStatus[]> {
+    const types: WorkerStatus['type'][] = [
+      'reference-annotation', 'highlight-annotation', 'assessment-annotation',
+      'comment-annotation', 'tag-annotation', 'generation'
+    ];
+
+    const backendPort = this.envConfig
+      ? (this.envConfig as any)?.services?.backend?.port ?? 4000
+      : 4000;
+
+    try {
+      const health = await this.fetchBackendHealth(backendPort);
+      if (health?.workers && Array.isArray(health.workers)) {
+        return health.workers as WorkerStatus[];
+      }
+    } catch { /* backend not running */ }
+
+    // Default: all idle with zero counts
+    return types.map(type => ({
+      type,
+      state: 'idle' as const,
+      pendingCount: 0,
+      activeCount: 0
+    }));
+  }
+
+  private fetchBackendHealth(port: number): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const req = http.get(`http://localhost:${port}/api/health`, { timeout: 2000 }, (res) => {
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch { reject(new Error('Invalid JSON')); }
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    });
   }
 
   private mapStatus(status?: 'running' | 'stopped' | 'unknown' | string): 'healthy' | 'warning' | 'unhealthy' | 'unknown' {
@@ -264,4 +404,4 @@ export class DashboardDataSource {
 }
 
 // Re-export types for convenience
-export type { ServiceStatus, LogEntry, MetricData } from '../dashboard/dashboard-components.js';
+export type { ServiceStatus, LogEntry, MetricData, MakeMeaningStatus, WorkerStatus, ActorStatus } from '../dashboard/dashboard-components.js';
