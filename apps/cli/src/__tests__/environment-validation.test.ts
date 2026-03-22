@@ -46,12 +46,15 @@ describe('Dynamic Environment Validation', () => {
     it('should discover environments from TOML config', () => {
       writeSemiontConfig(fakeHome, `
 [environments.local.backend]
+platform = "posix"
 port = 3001
 
 [environments.staging.backend]
+platform = "posix"
 port = 3002
 
 [environments.custom.backend]
+platform = "posix"
 port = 3003
 `);
 
@@ -81,9 +84,11 @@ name = "Test User"
     it('should handle custom environment names', () => {
       writeSemiontConfig(fakeHome, `
 [environments.dev-branch-123.backend]
+platform = "posix"
 port = 3001
 
 [environments.feature_test.backend]
+platform = "posix"
 port = 3002
 `);
 
@@ -96,12 +101,15 @@ port = 3002
     beforeEach(() => {
       writeSemiontConfig(fakeHome, `
 [environments.local.backend]
+platform = "posix"
 port = 3001
 
 [environments.staging.backend]
+platform = "posix"
 port = 3002
 
 [environments.my-custom-env.backend]
+platform = "posix"
 port = 3003
 `);
     });
@@ -128,6 +136,7 @@ port = 3003
     it('should load custom environment configurations', () => {
       writeSemiontConfig(fakeHome, `
 [environments.custom.backend]
+platform = "posix"
 port = 8080
 publicURL = "http://custom.example.com:8080"
 corsOrigin = "http://custom.example.com:3000"
@@ -198,6 +207,7 @@ describe('Environment Discovery Integration', () => {
 
     const sections = customEnvironments.map(env => `
 [environments.${env}.backend]
+platform = "posix"
 port = 3001
 publicURL = "http://${env}.example.com:3001"
 
@@ -224,18 +234,23 @@ domain = "${env}.example.com"
   it('should handle mixed standard and custom environments', () => {
     writeSemiontConfig(fakeHome, `
 [environments.local.backend]
+platform = "posix"
 port = 3001
 
 [environments.production.backend]
+platform = "posix"
 port = 3001
 
 [environments.demo.backend]
+platform = "posix"
 port = 3001
 
 [environments.feature-branch-abc.backend]
+platform = "posix"
 port = 3001
 
 [environments.integration.backend]
+platform = "posix"
 port = 3001
 `);
 

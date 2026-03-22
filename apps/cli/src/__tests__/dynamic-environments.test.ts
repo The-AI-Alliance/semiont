@@ -40,6 +40,7 @@ describe('Dynamic Environment Discovery', () => {
   it('should discover custom environments from TOML config', () => {
     fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.demo.backend]
+platform = "posix"
 port = 4000
 publicURL = "http://demo.local:4000"
 corsOrigin = "http://demo.local:3000"
@@ -48,6 +49,7 @@ corsOrigin = "http://demo.local:3000"
 domain = "demo.local"
 
 [environments.feature-branch.backend]
+platform = "posix"
 port = 8080
 publicURL = "http://feature.local:8080"
 corsOrigin = "http://feature.local:3000"
@@ -81,12 +83,15 @@ domain = "usertest.com"
   it('should handle mixed standard and custom environments', () => {
     fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.local.backend]
+platform = "posix"
 port = 3001
 
 [environments.production.backend]
+platform = "posix"
 port = 3001
 
 [environments.my-custom-env.backend]
+platform = "posix"
 port = 3001
 `);
 
@@ -121,6 +126,7 @@ name = "Test User"
   it('should demonstrate TOML config authority over hardcoded validation', () => {
     fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.sandbox.backend]
+platform = "posix"
 port = 8080
 publicURL = "http://sandbox.example.com:8080"
 corsOrigin = "http://sandbox.example.com:3000"
