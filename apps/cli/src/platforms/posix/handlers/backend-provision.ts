@@ -271,32 +271,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
   
-  // Create README in runtime directory
-  const readmePath = path.join(runtimeDir, 'RUNTIME.md');
-  if (!fs.existsSync(readmePath)) {
-    const readmeContent = `# Backend Runtime Directory
-
-This directory contains runtime files for the backend service.
-
-## Structure
-
-- \`logs/\` - Application logs
-- \`backend.pid\` - Process ID when running
-
-## Source Code
-
-${paths.fromNpmPackage ? `Installed npm package: ${backendSourceDir}` : `Semiont repo: ${backendSourceDir}`}
-
-## Commands
-
-- Start: \`semiont start --service backend --environment ${service.environment}\`
-- Check: \`semiont check --service backend --environment ${service.environment}\`
-- Stop: \`semiont stop --service backend --environment ${service.environment}\`
-- Logs: \`tail -f ${logsDir}/app.log\`
-`;
-    fs.writeFileSync(readmePath, readmeContent);
-  }
-  
   const metadata = {
     serviceType: 'backend',
     backendSourceDir,

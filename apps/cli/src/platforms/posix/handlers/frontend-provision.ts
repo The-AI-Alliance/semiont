@@ -209,32 +209,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     }
   }
   
-  // Create README in runtime directory
-  const readmePath = path.join(runtimeDir, 'RUNTIME.md');
-  if (!fs.existsSync(readmePath)) {
-    const readmeContent = `# Frontend Runtime Directory
-
-This directory contains runtime files for the frontend service.
-
-## Structure
-
-- \`logs/\` - Application logs
-- \`frontend.pid\` - Process ID when running
-
-## Source Code
-
-${paths.fromNpmPackage ? `Installed npm package: ${frontendSourceDir}` : `Semiont repo: ${frontendSourceDir}`}
-
-## Commands
-
-- Start: \`semiont start --service frontend --environment ${service.environment}\`
-- Check: \`semiont check --service frontend --environment ${service.environment}\`
-- Stop: \`semiont stop --service frontend --environment ${service.environment}\`
-- Logs: \`tail -f ${logsDir}/app.log\`
-`;
-    fs.writeFileSync(readmePath, readmeContent);
-  }
-  
   const metadata = {
     serviceType: 'frontend',
     frontendSourceDir,
