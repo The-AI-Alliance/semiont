@@ -134,6 +134,30 @@ model = "claude-sonnet-4-5-20250929"
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 
+[environments.local.workers.reference-annotation.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.highlight-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+
+[environments.local.workers.assessment-annotation.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.comment-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+
+[environments.local.workers.tag-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+
+[environments.local.workers.generation.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
 [environments.local.database]
 platform = "container"
 image = "postgres:15-alpine"
