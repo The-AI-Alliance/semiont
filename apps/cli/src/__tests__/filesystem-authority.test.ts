@@ -40,6 +40,7 @@ describe('TOML Config Authority for Environment Validation', () => {
   it('should confirm TOML config authority over hardcoded environment lists', () => {
     fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.foo.backend]
+platform = "posix"
 port = 8080
 publicURL = "http://foo.example.com:8080"
 corsOrigin = "http://foo.example.com:3000"
@@ -125,6 +126,7 @@ domain = "${env}.test.local"
     // Write one environment
     fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.new-env.backend]
+platform = "posix"
 port = 3001
 `);
 
@@ -135,9 +137,11 @@ port = 3001
     // Add a second environment
     fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.new-env.backend]
+platform = "posix"
 port = 3001
 
 [environments.another-env.backend]
+platform = "posix"
 port = 3002
 `);
 
@@ -149,6 +153,7 @@ port = 3002
     // Remove new-env by overwriting config with only another-env
     fs.writeFileSync(path.join(fakeHome, '.semiontconfig'), `
 [environments.another-env.backend]
+platform = "posix"
 port = 3002
 `);
 
