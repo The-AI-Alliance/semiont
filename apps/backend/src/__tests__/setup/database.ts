@@ -19,7 +19,7 @@ export class DatabaseTestSetup {
     // Disable ryuk (resource reaper) which can cause issues with ssh2 module
     process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
     
-    // Start PostgreSQL container aligned with environments/test.json
+    // Start PostgreSQL container aligned with ~/.semiontconfig [environments.test.database]
     this.container = await new PostgreSqlContainer('postgres:15-alpine')
       .withDatabase('semiont_test')  // Matches config: name: 'semiont_test'
       .withUsername('test_user')     // Matches config: user: 'test_user'

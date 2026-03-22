@@ -36,7 +36,7 @@ import { loadEnvironmentConfig, makeMeaningConfigFrom } from './utils/config';
 
 import { User } from '@prisma/client';
 
-// Load configuration from semiont.json + environments/{SEMIONT_ENV}.json
+// Load configuration from .semiont/config + ~/.semiontconfig (TOML)
 // SEMIONT_ROOT and SEMIONT_ENV are read from environment
 const env = process.env.SEMIONT_ENV || 'local';
 const projectRoot = process.env.SEMIONT_ROOT;
