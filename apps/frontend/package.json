@@ -12,7 +12,7 @@
     "dev:css": "node scripts/merge-translations.js && SKIP_TYPECHECK=true next dev",
     "dev:quick": "node scripts/merge-translations.js && next dev --hostname 0.0.0.0 --experimental-https",
     "prebuild": "node scripts/merge-translations.js",
-    "build": "node scripts/copy-favicons.js && node scripts/copy-pdfjs.js && npm run typecheck && NODE_OPTIONS='--max-old-space-size=4096' next build --webpack",
+    "build": "node scripts/copy-favicons.js && node scripts/copy-pdfjs.js && npm run typecheck && NODE_OPTIONS='--max-old-space-size=4096' next build --webpack && cp -r public .next/standalone/apps/frontend/public && cp -r .next/static .next/standalone/apps/frontend/.next/static",
     "build:quick": "next build --webpack",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "prestart": "node scripts/merge-translations.js",
