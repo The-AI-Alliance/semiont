@@ -82,7 +82,7 @@
     "@rolldown/binding-linux-arm64-gnu": "1.0.0-rc.9",
     "@rolldown/binding-linux-arm64-musl": "1.0.0-rc.9",
     "@rolldown/binding-darwin-arm64": "1.0.0-rc.9",
-    "@rolldown/binding-darwin-x64": "1.0.0-rc.9",
+    "@rolldown/binding-darwin-x64": "1.0.0-rc.11",
     "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.9"
   },
   "dependencies": {
