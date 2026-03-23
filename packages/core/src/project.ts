@@ -21,7 +21,9 @@ import * as path from 'path';
  *   jobsDir         — stateDir/jobs/
  *   backendLogsDir  — stateDir/backend/
  *   frontendLogsDir — stateDir/frontend/
- *   runtimeDir     — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
+ *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
+ *   backendPidFile  — runtimeDir/backend.pid
+ *   frontendPidFile — runtimeDir/frontend.pid
  */
 export class SemiontProject {
   readonly root: string;
@@ -47,6 +49,8 @@ export class SemiontProject {
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
+  readonly backendPidFile: string;
+  readonly frontendPidFile: string;
 
   constructor(projectRoot: string, name?: string) {
     this.root = projectRoot;
@@ -79,6 +83,8 @@ export class SemiontProject {
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';
     this.runtimeDir = path.join(runtimeBase, 'semiont', this.name);
+    this.backendPidFile = path.join(this.runtimeDir, 'backend.pid');
+    this.frontendPidFile = path.join(this.runtimeDir, 'frontend.pid');
   }
 
   /**
