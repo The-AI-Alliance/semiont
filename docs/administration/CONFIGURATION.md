@@ -133,7 +133,9 @@ semiont start
 
 ## Inference Configuration
 
-Each actor and worker can have independently configured inference. Inference config merges from most-specific to least-specific:
+Semiont supports **Anthropic** (cloud) and **Ollama** (local) inference providers. Each actor and worker can be independently configured, and providers can be mixed within a single environment.
+
+Inference config merges from most-specific to least-specific:
 
 ```
 worker.<name>.inference  →  workers.default.inference  →  (error if missing)
@@ -152,17 +154,64 @@ apiKey = "${ANTHROPIC_API_KEY}"
 
 ### Ollama (local)
 
-```toml
-# The Ollama server (used by semiont provision to pull models)
-[environments.local.ollama]
-baseURL = "http://localhost:11434"
-models = ["llama3.2", "mistral"]
+Ollama configuration has two parts: the server declaration (used by `semiont provision` to know where the server runs) and per-worker inference routing.
 
-# Per-worker routing
+```toml
+# Ollama server location
+[environments.local.inference.ollama]
+platform = "posix"
+baseURL = "http://localhost:11434"
+
+# Route all workers to Ollama by default
 [environments.local.workers.default.inference]
 type = "ollama"
-model = "llama3.2"
-# baseURL defaults to environments.local.ollama.baseURL if omitted
+model = "gemma3:4b"
+```
+
+### Mixed Providers
+
+Workers can use different providers independently. A typical setup uses a capable cloud model for reasoning-heavy workers and a fast local model for simpler detection:
+
+```toml
+# Anthropic for most workers
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.actors.gatherer.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.actors.matcher.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+# Ollama for highlight detection (fast, lower stakes)
+[environments.local.workers.highlight-annotation.inference]
+type = "ollama"
+model = "gemma3:4b"
+
+# Haiku for lightweight comment/tag workers
+[environments.local.workers.comment-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+
+[environments.local.workers.tag-annotation.inference]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+```
+
+Both providers must be declared when used together:
+
+```toml
+[environments.local.inference.anthropic]
+platform = "external"
+endpoint = "https://api.anthropic.com"
+apiKey = "${ANTHROPIC_API_KEY}"
+
+[environments.local.inference.ollama]
+platform = "posix"
+baseURL = "http://localhost:11434"
 ```
 
 ## Graph Configuration
@@ -189,7 +238,7 @@ Only a small number of environment variables are used:
 |---|---|---|
 | `SEMIONT_ROOT` | Override project root discovery | No (auto-detected) |
 | `SEMIONT_ENV` | Default environment selection | No (falls back to `defaults.environment`) |
-| `ANTHROPIC_API_KEY` | Resolved from `${ANTHROPIC_API_KEY}` in config | If using Anthropic |
+| `ANTHROPIC_API_KEY` | Resolved from `${ANTHROPIC_API_KEY}` in config | If using Anthropic (not needed for Ollama-only) |
 | `POSTGRES_PASSWORD` | Resolved from `${POSTGRES_PASSWORD}` in config | If using variable refs |
 
 Variable references in `~/.semiontconfig` use `${VAR_NAME}` syntax and are resolved from `process.env` at load time.
