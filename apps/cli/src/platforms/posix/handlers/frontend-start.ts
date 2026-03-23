@@ -7,7 +7,7 @@ import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths } from './frontend-paths.js';
-import { checkPortFree, checkCommandAvailable, checkConfigPort, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -248,12 +248,17 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
 const preflightFrontendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as FrontendServiceConfig;
+  const paths = getFrontendPaths(context);
   const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'frontend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
-  checks.push(checkJwtSecretExists());
+  checks.push(
+    checkFileExists(paths.serverScript, 'frontend server.js'),
+    checkFileExists(paths.logsDir, 'frontend logs dir (run: semiont provision)'),
+    checkJwtSecretExists(),
+  );
   return preflightFromChecks(checks);
 };
 

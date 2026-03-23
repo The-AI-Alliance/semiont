@@ -6,7 +6,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -107,17 +107,13 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 const preflightFrontendProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as FrontendServiceConfig;
   const envConfig = context.service.environmentConfig;
-  const paths = getFrontendPaths(context);
   const checks = [
     checkCommandAvailable('node'),
-    checkFileExists(paths.serverScript, 'frontend standalone server.js'),
-  ];
-  checks.push(
     checkConfigPort(config.port, 'frontend.port'),
     checkConfigField(config.siteName, 'frontend.siteName'),
     checkConfigPort(envConfig.services?.backend?.port, 'backend.port'),
     checkConfigUrl(envConfig.services?.frontend?.publicURL, 'frontend.publicURL'),
-  );
+  ];
   return preflightFromChecks(checks);
 };
 

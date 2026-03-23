@@ -6,7 +6,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkEnvVarsInConfig, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -175,12 +175,8 @@ const preflightBackendProvision = async (context: PosixProvisionHandlerContext):
   const config = context.service.config as BackendServiceConfig;
   const envConfig = context.service.environmentConfig;
   const db = envConfig.services?.database;
-  const paths = getBackendPaths(context);
   const checks = [
     checkCommandAvailable('npx'),
-    checkFileExists(paths.entryPoint, 'backend dist/index.js'),
-  ];
-  checks.push(
     checkConfigPort(config.port, 'backend.port'),
     checkConfigUrl(config.publicURL, 'backend.publicURL'),
     checkConfigField(db?.user, 'database.user'),
@@ -190,7 +186,8 @@ const preflightBackendProvision = async (context: PosixProvisionHandlerContext):
     checkConfigUrl(envConfig.services?.frontend?.publicURL, 'frontend.publicURL'),
     checkConfigField(envConfig.site?.domain, 'site.domain'),
     checkConfigNonEmptyArray(envConfig.site?.oauthAllowedDomains, 'site.oauthAllowedDomains'),
-  );
+    ...checkEnvVarsInConfig(db as unknown as Record<string, unknown>),
+  ];
   return preflightFromChecks(checks);
 };
 
