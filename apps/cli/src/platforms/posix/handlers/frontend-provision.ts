@@ -43,11 +43,11 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, logsDir } = paths;
+  const { serverScript, logsDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
-    printInfo(`Using installed npm package: ${frontendSourceDir}`);
+    printInfo(`Using installed npm package: ${serverScript}`);
   }
 
   // Create runtime directories
@@ -74,7 +74,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   const metadata = {
     serviceType: 'frontend',
-    frontendSourceDir,
+    serverScript,
     logsDir,
     configured: true
   };
@@ -83,7 +83,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     printSuccess(`✅ Frontend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Frontend details:');
-    printInfo(`  Source directory: ${frontendSourceDir}`);
+    printInfo(`  Server script: ${serverScript}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
     printInfo('Next steps:');
@@ -97,8 +97,8 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     resources: {
       platform: 'posix',
       data: {
-        path: frontendSourceDir,
-        workingDirectory: frontendSourceDir
+        path: serverScript,
+        workingDirectory: path.dirname(serverScript)
       }
     }
   };
@@ -110,7 +110,7 @@ const preflightFrontendProvision = async (context: PosixProvisionHandlerContext)
   const paths = getFrontendPaths(context);
   const checks = [
     checkCommandAvailable('node'),
-    checkFileExists(path.join(paths.sourceDir, '.next', 'standalone', 'apps', 'frontend', 'server.js'), 'frontend standalone server.js'),
+    checkFileExists(paths.serverScript, 'frontend standalone server.js'),
   ];
   checks.push(
     checkConfigPort(config.port, 'frontend.port'),

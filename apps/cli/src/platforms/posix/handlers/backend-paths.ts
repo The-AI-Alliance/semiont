@@ -6,12 +6,12 @@ import { SemiontProject } from '@semiont/core/node';
 /**
  * Backend service paths on POSIX platform
  *
- * sourceDir: read-only code from the installed @semiont/backend npm package
+ * entryPoint: absolute path to dist/index.js in the installed @semiont/backend npm package
  * All runtime/log/pid paths come from SemiontProject.
  */
 export interface BackendPaths {
   project: SemiontProject; // Canonical project paths (XDG-derived)
-  sourceDir: string;       // Base directory for backend source (read-only, from npm package)
+  entryPoint: string;      // Absolute path to dist/index.js in the installed npm package
   pidFile: string;         // project.backendPidFile
   logsDir: string;         // project.backendLogsDir
   appLogFile: string;      // logsDir/app.log
@@ -51,7 +51,7 @@ export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths
 
   return {
     project,
-    sourceDir:    npmDir,
+    entryPoint:   path.join(npmDir, 'dist', 'index.js'),
     pidFile:      project.backendPidFile,
     logsDir:      project.backendLogsDir,
     appLogFile:   path.join(project.backendLogsDir, 'app.log'),

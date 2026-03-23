@@ -15,18 +15,18 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
   const { service } = context;
 
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+  const { entryPoint, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
 
   if (service.verbose) {
-    printInfo(`Source: ${backendSourceDir}`);
+    printInfo(`Entry point: ${entryPoint}`);
   }
 
-  // Check if backend source directory exists
-  if (!fs.existsSync(backendSourceDir)) {
+  // Check if backend entry point exists (i.e. package is installed)
+  if (!fs.existsSync(entryPoint)) {
     return {
       success: false,
       error: 'Backend not found',
-      metadata: { serviceType: 'backend', backendSourceDir }
+      metadata: { serviceType: 'backend', entryPoint }
     };
   }
   
@@ -161,7 +161,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
       metadata: {
         serviceType: 'backend',
         pid,
-        backendSourceDir,
+        entryPoint,
         graceful: killed
       }
     };

@@ -20,22 +20,22 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+  const { serverScript, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
 
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
   let details: Record<string, unknown> = {
-    frontendDir,
+    serverScript,
     port: config.port,
     source: 'npm package',
     pidFile,
     appLog: appLogPath,
     errorLog: errorLogPath,
   };
-  
-  // Check if frontend directory exists
-  if (!fs.existsSync(frontendDir)) {
+
+  // Check if frontend server script exists (i.e. package is installed)
+  if (!fs.existsSync(serverScript)) {
     details.message = 'Frontend not provisioned';
     return {
       success: true,
@@ -192,8 +192,8 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     data: {
       pid,
       port: config.port,
-      path: frontendDir,
-      workingDirectory: frontendDir,
+      path: serverScript,
+      workingDirectory: serverScript,
       logFile: appLogPath
     }
   } : undefined;
@@ -209,7 +209,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     logs,
     metadata: {
       serviceType: 'frontend',
-      frontendDir,
+      serverScript,
       port: config.port
     }
   };

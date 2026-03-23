@@ -44,11 +44,11 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   // Get backend paths (throws if source cannot be found)
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, logsDir } = paths;
+  const { entryPoint, logsDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
-    printInfo(`Using installed npm package: ${paths.sourceDir}`);
+    printInfo(`Using installed npm package: ${entryPoint}`);
   }
 
   // Create runtime directories
@@ -91,7 +91,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   // npm package: pre-built, skip install/build but still generate Prisma client
   // (the generated client is platform-specific and not shipped in the npm package)
-  const prismaSchemaPath = path.join(backendSourceDir, 'prisma', 'schema.prisma');
+  const packageDir = path.dirname(path.dirname(entryPoint)); // entryPoint is dist/index.js
+  const prismaSchemaPath = path.join(packageDir, 'prisma', 'schema.prisma');
 
   if (!service.quiet) {
     printInfo('Using pre-built npm package — skipping install and build');
@@ -140,7 +141,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   const metadata = {
     serviceType: 'backend',
-    backendSourceDir,
+    entryPoint,
     logsDir,
     configured: true
   };
@@ -149,7 +150,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printSuccess(`✅ Backend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Backend details:');
-    printInfo(`  Source directory: ${backendSourceDir}`);
+    printInfo(`  Entry point: ${entryPoint}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
     printInfo('Next steps:');
@@ -163,8 +164,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     resources: {
       platform: 'posix',
       data: {
-        path: backendSourceDir,
-        workingDirectory: backendSourceDir
+        path: entryPoint,
+        workingDirectory: path.dirname(entryPoint)
       }
     }
   };
@@ -177,7 +178,7 @@ const preflightBackendProvision = async (context: PosixProvisionHandlerContext):
   const paths = getBackendPaths(context);
   const checks = [
     checkCommandAvailable('npx'),
-    checkFileExists(path.join(paths.sourceDir, 'dist', 'index.js'), 'backend dist/index.js'),
+    checkFileExists(paths.entryPoint, 'backend dist/index.js'),
   ];
   checks.push(
     checkConfigPort(config.port, 'backend.port'),

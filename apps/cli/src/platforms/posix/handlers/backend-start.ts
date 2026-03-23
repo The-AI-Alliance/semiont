@@ -22,26 +22,26 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
   // Get backend paths
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, pidFile, logsDir } = paths;
+  const { entryPoint, pidFile, logsDir } = paths;
 
   if (service.verbose) {
-    printInfo(`Source: ${backendSourceDir}`);
+    printInfo(`Entry point: ${entryPoint}`);
   }
 
-  if (!fs.existsSync(backendSourceDir)) {
+  if (!fs.existsSync(entryPoint)) {
     return {
       success: false,
-      error: `Backend source not found at ${backendSourceDir}`,
+      error: `Backend entry point not found at ${entryPoint}`,
       metadata: { serviceType: 'backend' }
     };
   }
-  
+
   // Check if backend is provisioned (logsDir created by provision)
   if (!fs.existsSync(logsDir)) {
     return {
       success: false,
       error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment}`,
-      metadata: { serviceType: 'backend', backendSourceDir }
+      metadata: { serviceType: 'backend', entryPoint }
     };
   }
   
@@ -133,14 +133,12 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   
   if (!service.quiet) {
     printInfo(`Starting backend service ${service.name}...`);
-    printInfo(`Source: ${backendSourceDir}`);
+    printInfo(`Entry point: ${entryPoint}`);
     printInfo(`Port: ${port}`);
-    printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // npm package: run dist/index.js directly
   const command = 'node';
-  const args = [path.join(backendSourceDir, 'dist', 'index.js')];
+  const args = [entryPoint];
 
   try {
     // Open log files for writing (process will write directly)
@@ -149,7 +147,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
     // Spawn the backend process
     const proc = spawn(command, args, {
-      cwd: backendSourceDir,  // Run from source directory
+      cwd: path.dirname(entryPoint),
       env,
       detached: true,
       stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
@@ -194,15 +192,15 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
     
     // Build resources
-    const commandStr = 'node dist/index.js';
+    const commandStr = `node ${entryPoint}`;
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
         pid: proc.pid,
         port,
         command: commandStr,
-        workingDirectory: backendSourceDir,
-        path: backendSourceDir,
+        workingDirectory: path.dirname(entryPoint),
+        path: entryPoint,
         logFile: appLogPath
       }
     };
@@ -233,7 +231,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
         serviceType: 'backend',
         pid: proc.pid,
         port,
-        backendSourceDir,
+        entryPoint,
         logsDir,
         command: commandStr
       }

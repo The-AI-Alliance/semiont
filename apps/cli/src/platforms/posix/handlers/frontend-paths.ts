@@ -6,17 +6,17 @@ import { SemiontProject } from '@semiont/core/node';
 /**
  * Frontend service paths on POSIX platform
  *
- * sourceDir: read-only code from the installed @semiont/frontend npm package
+ * serverScript: absolute path to the Next.js standalone server in the installed @semiont/frontend npm package
  * All runtime/log/pid paths come from SemiontProject.
  */
 export interface FrontendPaths {
   project: SemiontProject; // Canonical project paths (XDG-derived)
-  sourceDir: string;       // Base directory for frontend source (read-only, from npm package)
+  serverScript: string;    // Absolute path to .next/standalone/.../server.js in the installed npm package
   pidFile: string;         // project.frontendPidFile
   logsDir: string;         // project.frontendLogsDir
   appLogFile: string;      // logsDir/app.log
   errorLogFile: string;    // logsDir/error.log
-  nextDir: string;         // Next.js build directory (in sourceDir)
+  nextDir: string;         // Next.js build directory (.next/ in the installed npm package)
 }
 
 /**
@@ -52,7 +52,7 @@ export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPat
 
   return {
     project,
-    sourceDir:    npmDir,
+    serverScript: path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js'),
     pidFile:      project.frontendPidFile,
     logsDir:      project.frontendLogsDir,
     appLogFile:   path.join(project.frontendLogsDir, 'app.log'),

@@ -22,22 +22,22 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
 
   // Get backend paths
   const paths = getBackendPaths(context);
-  const { sourceDir: backendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
-  
+  const { entryPoint, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
   let details: Record<string, unknown> = {
-    backendDir,
+    entryPoint,
     port: config.port,
     source: 'npm package',
     pidFile,
     appLog: appLogPath,
     errorLog: errorLogPath,
   };
-  
-  // Check if backend directory exists
-  if (!fs.existsSync(backendDir)) {
+
+  // Check if backend entry point exists (i.e. package is installed)
+  if (!fs.existsSync(entryPoint)) {
     details.message = 'Backend not provisioned';
     return {
       success: true,
@@ -177,8 +177,8 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     data: {
       pid,
       port: config.port,
-      path: backendDir,
-      workingDirectory: backendDir,
+      path: entryPoint,
+      workingDirectory: entryPoint,
       logFile: appLogPath
     }
   } : undefined;
@@ -194,7 +194,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     logs,
     metadata: {
       serviceType: 'backend',
-      backendDir,
+      entryPoint,
       port: config.port
     }
   };

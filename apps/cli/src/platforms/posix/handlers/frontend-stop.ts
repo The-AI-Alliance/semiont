@@ -16,18 +16,18 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+  const { serverScript, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
 
   if (service.verbose) {
-    printInfo(`Source: ${frontendSourceDir}`);
+    printInfo(`Server script: ${serverScript}`);
   }
 
-  // Check if frontend source directory exists
-  if (!fs.existsSync(frontendSourceDir)) {
+  // Check if frontend server script exists (i.e. package is installed)
+  if (!fs.existsSync(serverScript)) {
     return {
       success: false,
       error: 'Frontend not found',
-      metadata: { serviceType: 'frontend', frontendSourceDir }
+      metadata: { serviceType: 'frontend', serverScript }
     };
   }
   
@@ -164,7 +164,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       metadata: {
         serviceType: 'frontend',
         pid,
-        frontendSourceDir,
+        serverScript,
         graceful
       }
     };

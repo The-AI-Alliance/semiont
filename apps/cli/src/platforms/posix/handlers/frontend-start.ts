@@ -22,26 +22,26 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, pidFile, logsDir } = paths;
+  const { serverScript, pidFile, logsDir } = paths;
 
   if (service.verbose) {
-    printInfo(`Source: ${frontendSourceDir}`);
+    printInfo(`Server script: ${serverScript}`);
   }
 
-  if (!fs.existsSync(frontendSourceDir)) {
+  if (!fs.existsSync(serverScript)) {
     return {
       success: false,
-      error: `Frontend source not found at ${frontendSourceDir}`,
+      error: `Frontend server script not found at ${serverScript}`,
       metadata: { serviceType: 'frontend' }
     };
   }
-  
+
   // Check if frontend is provisioned (logsDir created by provision)
   if (!fs.existsSync(logsDir)) {
     return {
       success: false,
       error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment}`,
-      metadata: { serviceType: 'frontend', frontendSourceDir }
+      metadata: { serviceType: 'frontend', serverScript }
     };
   }
   
@@ -124,14 +124,13 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   
   if (!service.quiet) {
     printInfo(`Starting frontend service ${service.name}...`);
-    printInfo(`Source: ${frontendSourceDir}`);
+    printInfo(`Server script: ${serverScript}`);
     printInfo(`Port: ${port}`);
     printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // npm package: run standalone server directly
   const command = 'node';
-  const args = [path.join(frontendSourceDir, '.next', 'standalone', 'apps', 'frontend', 'server.js')];
+  const args = [serverScript];
 
   try {
     // Open log files for writing (process will write directly)
@@ -140,7 +139,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
     // Spawn the frontend process with stdio redirected to files
     const proc = spawn(command, args, {
-      cwd: frontendSourceDir,  // Run from source directory
+      cwd: path.dirname(serverScript),
       env,
       detached: true,
       stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
@@ -185,15 +184,15 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     }
     
     // Build resources
-    const commandStr = 'node .next/standalone/apps/frontend/server.js';
+    const commandStr = `node ${serverScript}`;
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
         pid: proc.pid,
         port,
         command: commandStr,
-        workingDirectory: frontendSourceDir,
-        path: frontendSourceDir,
+        workingDirectory: path.dirname(serverScript),
+        path: serverScript,
         logFile: appLogPath
       }
     };
@@ -224,7 +223,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         serviceType: 'frontend',
         pid: proc.pid,
         port,
-        frontendSourceDir,
+        serverScript,
         logsDir,
         command: commandStr
       }
