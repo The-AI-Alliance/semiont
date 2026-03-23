@@ -58,6 +58,11 @@ export function TagEntry({
       <div className="semiont-annotation-entry__quote" data-type="tag">
         "{selectedText.substring(0, 150)}{selectedText.length > 150 ? '...' : ''}"
       </div>
+      {tag.generator && (
+        <div className="semiont-annotation-entry__metadata">
+          Via {typeof tag.generator === 'string' ? tag.generator : tag.generator.name}
+        </div>
+      )}
     </div>
   );
 }

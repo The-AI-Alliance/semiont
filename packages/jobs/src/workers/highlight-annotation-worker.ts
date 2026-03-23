@@ -15,6 +15,9 @@ import type { ResourceId } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
 import type { HighlightMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
+import type { components } from '@semiont/core';
+
+type Agent = components['schemas']['Agent'];
 
 export class HighlightAnnotationWorker extends JobWorker {
   private isFirstProgress = true;
@@ -22,6 +25,7 @@ export class HighlightAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private inferenceClient: InferenceClient,
+    private generator: Agent,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
     logger: Logger
@@ -229,6 +233,7 @@ export class HighlightAnnotationWorker extends JobWorker {
     });
 
     // Create W3C annotation with motivation: highlighting
+    // generator records which worker + inference provider produced this annotation
     // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -236,6 +241,7 @@ export class HighlightAnnotationWorker extends JobWorker {
       'id': annotationIdVal,
       'motivation': 'highlighting' as const,
       creator,
+      generator: this.generator,
       created: new Date().toISOString(),
       'target': {
         type: 'SpecificResource' as const,

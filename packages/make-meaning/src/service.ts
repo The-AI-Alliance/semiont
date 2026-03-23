@@ -16,6 +16,7 @@ import { getPrimaryRepresentation } from '@semiont/api-client';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, type ResourceId } from '@semiont/core';
 import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
+import { inferenceConfigToGenerator } from './agent-utils';
 
 export type { MakeMeaningConfig } from './config';
 
@@ -128,31 +129,31 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
     logger.child({ component: 'inference-client-matcher' })
   );
 
-  // 5. Create per-worker inference clients
-  const detectionInferenceClient = createInferenceClient(
-    resolveWorkerInference(config, 'reference-annotation'),
-    logger.child({ component: 'inference-client-reference-annotation' })
-  );
+  // 5. Create per-worker inference clients and generator Agents
+  const detectionInferenceCfg = resolveWorkerInference(config, 'reference-annotation');
+  const detectionInferenceClient = createInferenceClient(detectionInferenceCfg, logger.child({ component: 'inference-client-reference-annotation' }));
+  const detectionGenerator = inferenceConfigToGenerator('Reference Worker', detectionInferenceCfg);
+
   const generationInferenceClient = createInferenceClient(
     resolveWorkerInference(config, 'generation'),
     logger.child({ component: 'inference-client-generation' })
   );
-  const highlightInferenceClient = createInferenceClient(
-    resolveWorkerInference(config, 'highlight-annotation'),
-    logger.child({ component: 'inference-client-highlight-annotation' })
-  );
-  const assessmentInferenceClient = createInferenceClient(
-    resolveWorkerInference(config, 'assessment-annotation'),
-    logger.child({ component: 'inference-client-assessment-annotation' })
-  );
-  const commentInferenceClient = createInferenceClient(
-    resolveWorkerInference(config, 'comment-annotation'),
-    logger.child({ component: 'inference-client-comment-annotation' })
-  );
-  const tagInferenceClient = createInferenceClient(
-    resolveWorkerInference(config, 'tag-annotation'),
-    logger.child({ component: 'inference-client-tag-annotation' })
-  );
+
+  const highlightInferenceCfg = resolveWorkerInference(config, 'highlight-annotation');
+  const highlightInferenceClient = createInferenceClient(highlightInferenceCfg, logger.child({ component: 'inference-client-highlight-annotation' }));
+  const highlightGenerator = inferenceConfigToGenerator('Highlight Worker', highlightInferenceCfg);
+
+  const assessmentInferenceCfg = resolveWorkerInference(config, 'assessment-annotation');
+  const assessmentInferenceClient = createInferenceClient(assessmentInferenceCfg, logger.child({ component: 'inference-client-assessment-annotation' }));
+  const assessmentGenerator = inferenceConfigToGenerator('Assessment Worker', assessmentInferenceCfg);
+
+  const commentInferenceCfg = resolveWorkerInference(config, 'comment-annotation');
+  const commentInferenceClient = createInferenceClient(commentInferenceCfg, logger.child({ component: 'inference-client-comment-annotation' }));
+  const commentGenerator = inferenceConfigToGenerator('Comment Worker', commentInferenceCfg);
+
+  const tagInferenceCfg = resolveWorkerInference(config, 'tag-annotation');
+  const tagInferenceClient = createInferenceClient(tagInferenceCfg, logger.child({ component: 'inference-client-tag-annotation' }));
+  const tagGenerator = inferenceConfigToGenerator('Tag Worker', tagInferenceCfg);
 
   // 6. Create graph database connection
   const graphDb = await getGraphDatabase(graphConfig);
@@ -210,12 +211,12 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
 
   // 13. Instantiate workers with per-worker inference clients
   const workers = {
-    detection: new ReferenceAnnotationWorker(jobQueue, detectionInferenceClient, eventBus, contentFetcher, detectionLogger),
+    detection: new ReferenceAnnotationWorker(jobQueue, detectionInferenceClient, detectionGenerator, eventBus, contentFetcher, detectionLogger),
     generation: new GenerationWorker(jobQueue, generationInferenceClient, eventBus, generationLogger),
-    highlight: new HighlightAnnotationWorker(jobQueue, highlightInferenceClient, eventBus, contentFetcher, highlightLogger),
-    assessment: new AssessmentAnnotationWorker(jobQueue, assessmentInferenceClient, eventBus, contentFetcher, assessmentLogger),
-    comment: new CommentAnnotationWorker(jobQueue, commentInferenceClient, eventBus, contentFetcher, commentLogger),
-    tag: new TagAnnotationWorker(jobQueue, tagInferenceClient, eventBus, contentFetcher, tagLogger),
+    highlight: new HighlightAnnotationWorker(jobQueue, highlightInferenceClient, highlightGenerator, eventBus, contentFetcher, highlightLogger),
+    assessment: new AssessmentAnnotationWorker(jobQueue, assessmentInferenceClient, assessmentGenerator, eventBus, contentFetcher, assessmentLogger),
+    comment: new CommentAnnotationWorker(jobQueue, commentInferenceClient, commentGenerator, eventBus, contentFetcher, commentLogger),
+    tag: new TagAnnotationWorker(jobQueue, tagInferenceClient, tagGenerator, eventBus, contentFetcher, tagLogger),
   };
 
   // 11. Start all workers (non-blocking)

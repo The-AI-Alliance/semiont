@@ -19,6 +19,9 @@ import type { Logger } from '@semiont/core';
 import { validateAndCorrectOffsets } from '@semiont/api-client';
 import { extractEntities } from './detection/entity-extractor';
 import type { InferenceClient } from '@semiont/inference';
+import type { components } from '@semiont/core';
+
+type Agent = components['schemas']['Agent'];
 
 export interface DetectedAnnotation {
   annotation: {
@@ -37,6 +40,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private inferenceClient: InferenceClient,
+    private generator: Agent,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
     logger: Logger
@@ -196,6 +200,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
             id: referenceId,
             motivation: 'linking' as const,
             creator,
+            generator: this.generator,
             created: new Date().toISOString(),
             target: {
               source: job.params.resourceId as string,

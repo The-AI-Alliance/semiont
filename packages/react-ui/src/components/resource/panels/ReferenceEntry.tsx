@@ -169,6 +169,11 @@ export function ReferenceEntry({
           ))}
         </div>
       )}
+      {reference.generator && (
+        <div className="semiont-annotation-entry__metadata">
+          Via {typeof reference.generator === 'string' ? reference.generator : reference.generator.name}
+        </div>
+      )}
     </div>
   );
 }

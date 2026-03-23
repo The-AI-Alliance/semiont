@@ -139,6 +139,11 @@ export function CommentEntry({
           <div className="semiont-annotation-entry__metadata">
             By {typeof comment.creator === 'string' ? comment.creator : comment.creator?.name || 'Unknown'} • {formatRelativeTime(comment.created || new Date().toISOString())}
           </div>
+          {comment.generator && (
+            <div className="semiont-annotation-entry__metadata">
+              Via {typeof comment.generator === 'string' ? comment.generator : comment.generator.name}
+            </div>
+          )}
           {annotateMode && (
             <div className="semiont-annotation-entry__actions" onClick={(e) => e.stopPropagation()}>
               <button

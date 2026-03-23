@@ -65,6 +65,11 @@ export function HighlightEntry({
       <div className="semiont-annotation-entry__metadata">
         By {typeof highlight.creator === 'string' ? highlight.creator : highlight.creator?.name || 'Unknown'} • {formatRelativeTime(highlight.created || new Date().toISOString())}
       </div>
+      {highlight.generator && (
+        <div className="semiont-annotation-entry__metadata">
+          Via {typeof highlight.generator === 'string' ? highlight.generator : highlight.generator.name}
+        </div>
+      )}
     </div>
   );
 }
