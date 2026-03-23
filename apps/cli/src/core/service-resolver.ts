@@ -81,6 +81,20 @@ export function resolveServiceDeployments(
   const platformInfos: ServicePlatformInfo[] = [];
 
   for (const serviceName of serviceNames) {
+    // inference is stored in config.inference (keyed by provider), not config.services
+    if (serviceName === 'inference') {
+      const inferenceProviders = config.inference ?? {};
+      for (const [providerType, providerConfig] of Object.entries(inferenceProviders)) {
+        const platform = (providerConfig as any)?.platform?.type ?? (providerConfig as any)?.platform ?? 'external';
+        platformInfos.push({
+          name: 'inference',
+          platform: platform as PlatformType,
+          config: { ...(providerConfig as object), inferenceType: providerType } as ServiceConfig,
+        });
+      }
+      continue;
+    }
+
     const serviceConfig = config.services?.[serviceName];
     if (!serviceConfig) {
       const availableServices = Object.keys(config.services || {});
@@ -90,12 +104,6 @@ export function resolveServiceDeployments(
       } else {
         console.warn(`   No services configured in this environment`);
       }
-      console.warn(`   To fix: Add [environments.${environment}.${serviceName}] to ~/.semiontconfig or .semiont/config`);
-      console.warn(`   Example configuration:`);
-      console.warn(`   "${serviceName}": {`);
-      console.warn(`     "platform": { "type": "container" },`);
-      console.warn(`     "port": 3000`);
-      console.warn(`   }`);
       console.warn('');
       continue;
     }

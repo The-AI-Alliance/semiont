@@ -65,28 +65,31 @@ async function checkServiceSupportsCommand(
     const { getAvailableEnvironments } = await import('../core/config-loader.js');
     const availableEnvironments = getAvailableEnvironments();
 
-    // Create service instance to check its requirements
-    const deployment = deployments[0];
-    const service = ServiceFactory.create(
-      serviceName as ServiceName,
-      deployment.platform,
-      {
-        projectRoot,
-        environment: parseEnvironment(environment, availableEnvironments),
-        verbose: false,
-        quiet: true,
-        dryRun: false
-      },
-      envConfig,
-      {
-        ...deployment.config,
-        platform: { type: deployment.platform }
-      } as ServiceConfig
-    );
+    // For multi-provider services (e.g. inference), return true if any provider supports the command
+    for (const deployment of deployments) {
+      const service = ServiceFactory.create(
+        serviceName as ServiceName,
+        deployment.platform,
+        {
+          projectRoot,
+          environment: parseEnvironment(environment, availableEnvironments),
+          verbose: false,
+          quiet: true,
+          dryRun: false
+        },
+        envConfig,
+        {
+          ...deployment.config,
+          platform: { type: deployment.platform }
+        } as ServiceConfig
+      );
 
-    // Check if service declares support for this command
-    const requirements = service.getRequirements();
-    return serviceSupportsCommand(requirements.annotations, command);
+      const requirements = service.getRequirements();
+      if (serviceSupportsCommand(requirements.annotations, command)) {
+        return true;
+      }
+    }
+    return false;
   } catch {
     // If we can't create the service, assume it doesn't support the command
     return false;
@@ -105,8 +108,11 @@ export async function getServicesWithCapability(
   envConfig: EnvironmentConfig
 ): Promise<string[]> {
   // Derive service list from envConfig (the TOML loader populates this from ~/.semiontconfig)
-  // This replaces the old JSON-file-based discovery and correctly includes graph, inference, etc.
+  // inference lives in envConfig.inference (keyed by provider type), not envConfig.services
   const allServices = Object.keys(envConfig.services || {});
+  if (envConfig.inference && Object.keys(envConfig.inference).length > 0) {
+    allServices.push('inference');
+  }
 
   // Check if this capability is actually a service command
   const isServiceCommand = await commandRequiresServices(capability);
@@ -157,6 +163,10 @@ export async function resolveServiceSelector(
   }
 
   const availableServices = Object.keys(envConfig.services || {});
+  // inference lives in envConfig.inference, not envConfig.services
+  if (envConfig.inference && Object.keys(envConfig.inference).length > 0) {
+    availableServices.push('inference');
+  }
 
   if (availableServices.includes(selector)) {
     // Check if the service supports the capability
@@ -169,8 +179,7 @@ export async function resolveServiceSelector(
   } else {
     throw new Error(
       `Unknown service '${selector}' in environment '${environment}'\n` +
-      `Available services: ${availableServices.join(', ')}\n` +
-      `To fix: Add '[environments.${environment}.${selector}]' to ~/.semiontconfig`
+      `Available services: ${availableServices.join(', ')}`
     );
   }
 }

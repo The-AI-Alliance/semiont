@@ -46,8 +46,11 @@ export class InferenceService extends BaseService {
           [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
           [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
           [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
-          [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
           [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
+          // Ollama supports provision (model pulling) even when external — only Anthropic doesn't
+          ...(this.inferenceType !== 'ollama' ? {
+            [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
+          } : {}),
         } : {}),
       }
     };

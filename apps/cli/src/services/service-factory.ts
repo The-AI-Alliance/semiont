@@ -58,6 +58,14 @@ export class ServiceFactory {
       case 'proxy':
         return new ProxyService('proxy', platform, envConfig, serviceConfig, runtimeFlags);
 
+      case 'inference': {
+        const inferenceType = (serviceConfig as any).inferenceType as string;
+        if (!inferenceType) {
+          throw new Error(`inference service config is missing 'inferenceType'`);
+        }
+        return new InferenceService(name, platform, envConfig, serviceConfig as unknown as InferenceProviderConfig, runtimeFlags, inferenceType);
+      }
+
       default:
         throw new Error(
           `Unknown service type: '${name}'. Supported services: ${SUPPORTED_SERVICES.join(', ')}`
