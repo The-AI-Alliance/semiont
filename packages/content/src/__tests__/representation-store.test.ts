@@ -114,7 +114,7 @@ describe('FilesystemRepresentationStore', () => {
       });
 
       // Verify directory exists (inside project.dataDir)
-      const expectedDir = join(project.dataDir, 'representations', 'application~1json', ab, cd);
+      const expectedDir = join(project.representationsDir,'application~1json', ab, cd);
       const dirExists = await fs.access(expectedDir)
         .then(() => true)
         .catch(() => false);

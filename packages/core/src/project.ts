@@ -11,15 +11,22 @@ import * as path from 'path';
  * Durable paths (inside the project root, committed or repo-local):
  *   eventsDir          — .semiont/events/      (system of record, committed)
  *   representationsDir — representations/      (content store, committed)
- *   dataDir            — projectRoot/          (project root)
  *
  * Ephemeral paths (outside the project root, never committed):
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   dataHome       — $XDG_DATA_HOME/semiont/{name}/   (persistent user data, e.g. database files)
- *   stateDir       — $XDG_STATE_HOME/semiont/{name}/
- *   projectionsDir — stateDir/projections/
- *   jobsDir        — stateDir/jobs/
- *   runtimeDir     — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
+ *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
+ *   projectionsDir  — stateDir/projections/
+ *   jobsDir         — stateDir/jobs/
+ *   backendLogsDir      — stateDir/backend/
+ *   backendAppLogFile   — backendLogsDir/app.log
+ *   backendErrorLogFile — backendLogsDir/error.log
+ *   frontendLogsDir     — stateDir/frontend/
+ *   frontendAppLogFile  — frontendLogsDir/app.log
+ *   frontendErrorLogFile — frontendLogsDir/error.log
+ *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
+ *   backendPidFile  — runtimeDir/backend.pid
+ *   frontendPidFile — runtimeDir/frontend.pid
  */
 export class SemiontProject {
   readonly root: string;
@@ -28,7 +35,6 @@ export class SemiontProject {
   // Durable
   readonly eventsDir: string;
   readonly representationsDir: string;
-  readonly dataDir: string;
 
   // Ephemeral — config (generated config files for managed processes)
   readonly configDir: string;
@@ -40,9 +46,17 @@ export class SemiontProject {
   readonly stateDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
+  readonly backendLogsDir: string;
+  readonly backendAppLogFile: string;
+  readonly backendErrorLogFile: string;
+  readonly frontendLogsDir: string;
+  readonly frontendAppLogFile: string;
+  readonly frontendErrorLogFile: string;
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
+  readonly backendPidFile: string;
+  readonly frontendPidFile: string;
 
   constructor(projectRoot: string, name?: string) {
     this.root = projectRoot;
@@ -57,7 +71,6 @@ export class SemiontProject {
 
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');
     this.representationsDir = path.join(projectRoot, 'representations');
-    this.dataDir = projectRoot;
 
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     this.configDir = path.join(xdgConfig, 'semiont', this.name);
@@ -69,10 +82,18 @@ export class SemiontProject {
     this.stateDir = path.join(xdgState, 'semiont', this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
+    this.backendLogsDir = path.join(this.stateDir, 'backend');
+    this.backendAppLogFile = path.join(this.backendLogsDir, 'app.log');
+    this.backendErrorLogFile = path.join(this.backendLogsDir, 'error.log');
+    this.frontendLogsDir = path.join(this.stateDir, 'frontend');
+    this.frontendAppLogFile = path.join(this.frontendLogsDir, 'app.log');
+    this.frontendErrorLogFile = path.join(this.frontendLogsDir, 'error.log');
 
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';
     this.runtimeDir = path.join(runtimeBase, 'semiont', this.name);
+    this.backendPidFile = path.join(this.runtimeDir, 'backend.pid');
+    this.frontendPidFile = path.join(this.runtimeDir, 'frontend.pid');
   }
 
   /**

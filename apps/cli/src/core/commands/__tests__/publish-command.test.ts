@@ -27,7 +27,6 @@ function createPublishOptions(partial: Partial<PublishOptions> = {}): PublishOpt
     service: undefined,
     tag: undefined,
     registry: undefined,
-    semiontRepo: undefined,
     ...partial
   };
 }

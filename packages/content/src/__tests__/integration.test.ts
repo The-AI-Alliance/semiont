@@ -175,7 +175,7 @@ describe('FilesystemRepresentationStore - Integration', () => {
       });
 
       // Verify directory structure exists
-      const expectedDir = join(project.dataDir, 'representations', 'text~1plain', ab, cd);
+      const expectedDir = join(project.representationsDir,'text~1plain', ab, cd);
       const dirExists = await fs.access(expectedDir)
         .then(() => true)
         .catch(() => false);
@@ -202,7 +202,7 @@ describe('FilesystemRepresentationStore - Integration', () => {
       // Should encode / as ~1 in path
       const ab = stored.checksum.substring(0, 2);
       const cd = stored.checksum.substring(2, 4);
-      const expectedDir = join(project.dataDir, 'representations', 'image~1svg+xml', ab, cd);
+      const expectedDir = join(project.representationsDir,'image~1svg+xml', ab, cd);
 
       const dirExists = await fs.access(expectedDir)
         .then(() => true)
@@ -223,9 +223,9 @@ describe('FilesystemRepresentationStore - Integration', () => {
       await store.store(Buffer.from('# Markdown'), { mediaType: 'text/markdown', rel: 'original' });
 
       // Should have separate directories for each media type
-      const textPlainDir = join(project.dataDir, 'representations', 'text~1plain');
-      const jsonDir = join(project.dataDir, 'representations', 'application~1json');
-      const markdownDir = join(project.dataDir, 'representations', 'text~1markdown');
+      const textPlainDir = join(project.representationsDir,'text~1plain');
+      const jsonDir = join(project.representationsDir,'application~1json');
+      const markdownDir = join(project.representationsDir,'text~1markdown');
 
       const textPlainExists = await fs.access(textPlainDir).then(() => true).catch(() => false);
       const jsonExists = await fs.access(jsonDir).then(() => true).catch(() => false);
@@ -268,7 +268,7 @@ describe('FilesystemRepresentationStore - Integration', () => {
       // Only one file on disk
       const ab = stored1.checksum.substring(0, 2);
       const cd = stored1.checksum.substring(2, 4);
-      const dir = join(project.dataDir, 'representations', 'text~1plain', ab, cd);
+      const dir = join(project.representationsDir,'text~1plain', ab, cd);
       const files = await fs.readdir(dir);
 
       const repFiles = files.filter(f => f.startsWith('rep-'));
@@ -435,8 +435,8 @@ describe('FilesystemRepresentationStore - Integration', () => {
       const ab2 = storedUtf8.checksum.substring(0, 2);
       const cd2 = storedUtf8.checksum.substring(2, 4);
 
-      const latin1File = join(project.dataDir, 'representations', 'text~1plain', ab1, cd1, `rep-${storedLatin1.checksum}.txt`);
-      const utf8File = join(project.dataDir, 'representations', 'text~1plain', ab2, cd2, `rep-${storedUtf8.checksum}.txt`);
+      const latin1File = join(project.representationsDir,'text~1plain', ab1, cd1, `rep-${storedLatin1.checksum}.txt`);
+      const utf8File = join(project.representationsDir,'text~1plain', ab2, cd2, `rep-${storedUtf8.checksum}.txt`);
 
       const latin1Exists = await fs.access(latin1File).then(() => true).catch(() => false);
       const utf8Exists = await fs.access(utf8File).then(() => true).catch(() => false);

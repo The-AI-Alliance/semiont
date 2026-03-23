@@ -26,7 +26,6 @@ const CheckOptionsSchema = BaseOptionsSchema.extend({
   deep: z.boolean().default(true),  // Deep checking on by default
   wait: z.boolean().default(false),
   timeout: z.number().optional(),
-  semiontRepo: z.string().optional(),
 });
 
 export type CheckOptions = z.output<typeof CheckOptionsSchema>;
@@ -57,7 +56,6 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
     wait: options.wait,
     timeout: options.timeout,
     all: options.all,
-    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
   }),
   
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {

@@ -93,14 +93,14 @@ function createTransports(config: LoggerConfig): winston.transport[] {
   }
 
   if (config.transports.includes('file')) {
-    // Separate files for different log levels
+    const logDir = process.env.LOG_DIR ?? 'logs';
     transports.push(
       new winston.transports.File({
-        filename: 'logs/error.log',
+        filename: `${logDir}/error.log`,
         level: 'error'
       }),
       new winston.transports.File({
-        filename: 'logs/combined.log',
+        filename: `${logDir}/combined.log`,
         level: config.level
       })
     );

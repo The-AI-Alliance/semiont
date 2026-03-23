@@ -4,9 +4,10 @@ import * as crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
-import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
-import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
+import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { resolveBackendNpmPackage } from './backend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
+import { checkCommandAvailable, checkEnvVarsInConfig, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -20,8 +21,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   const projectRoot = service.projectRoot;
 
-  // Install @semiont/backend npm package if not already available and no SEMIONT_REPO
-  if (!context.options?.semiontRepo && !resolveBackendNpmPackage(projectRoot)) {
+  // Install @semiont/backend npm package if not already available
+  if (!resolveBackendNpmPackage(projectRoot)) {
     if (!service.quiet) {
       printInfo('Installing @semiont/backend...');
     }
@@ -42,26 +43,29 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
 
-  // Get backend paths (throws if source cannot be found)
-  const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, runtimeDir, logsDir } = paths;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  if (!npmDir) {
+    return {
+      success: false,
+      error: 'Cannot find @semiont/backend after install',
+      metadata: { serviceType: 'backend' }
+    };
+  }
+
+  const entryPoint = path.join(npmDir, 'dist', 'index.js');
+  const project = new SemiontProject(projectRoot);
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
-    if (paths.fromNpmPackage) {
-      printInfo(`Using installed npm package: ${paths.sourceDir}`);
-    } else {
-      printInfo(`Using semiont repo: ${options.semiontRepo}`);
-    }
-    printInfo(`Runtime directory: ${runtimeDir}`);
+    printInfo(`Using installed npm package: ${entryPoint}`);
   }
 
-  // Create runtime directories under project root
-  fs.mkdirSync(runtimeDir, { recursive: true });
-  fs.mkdirSync(logsDir, { recursive: true });
+  // Create runtime directories
+  fs.mkdirSync(project.backendLogsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(project.backendPidFile), { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${runtimeDir}`);
+    printInfo(`Created runtime directories in: ${project.backendLogsDir}`);
   }
 
   // Get environment configuration from service
@@ -84,7 +88,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
     printInfo(`  User: ${dbUser}`);
   }
-  
+
   let jwtSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
   if (!jwtSecret) {
     jwtSecret = service.environmentConfig.app?.security?.jwtSecret ?? crypto.randomBytes(32).toString('base64');
@@ -94,158 +98,31 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo('Using existing JWT_SECRET from secrets file');
   }
 
-  const prismaSchemaPath = path.join(backendSourceDir, 'prisma', 'schema.prisma');
+  // npm package: pre-built, skip install/build but still generate Prisma client
+  // (the generated client is platform-specific and not shipped in the npm package)
+  const packageDir = path.dirname(path.dirname(entryPoint)); // entryPoint is dist/index.js
+  const prismaSchemaPath = path.join(packageDir, 'prisma', 'schema.prisma');
 
-  if (paths.fromNpmPackage) {
-    // npm package: pre-built, skip install/build but still generate Prisma client
-    // (the generated client is platform-specific and not shipped in the npm package)
+  if (!service.quiet) {
+    printInfo('Using pre-built npm package — skipping install and build');
+  }
+
+  if (fs.existsSync(prismaSchemaPath)) {
     if (!service.quiet) {
-      printInfo('Using pre-built npm package — skipping install and build');
-    }
-
-    if (fs.existsSync(prismaSchemaPath)) {
-      if (!service.quiet) {
-        printInfo('Generating Prisma client...');
-      }
-
-      try {
-        execFileSync('npx', ['prisma', 'generate'], {
-          cwd: backendSourceDir,
-          stdio: service.verbose ? 'inherit' : 'pipe'
-        });
-
-        if (!service.quiet) {
-          printSuccess('Prisma client generated');
-        }
-      } catch (error) {
-        printWarning(`Failed to generate Prisma client: ${error}`);
-      }
-    }
-  } else {
-    // Monorepo: install deps, generate prisma, build workspace deps, build app
-
-    // Install npm dependencies
-    if (!service.quiet) {
-      printInfo('Installing npm dependencies...');
+      printInfo('Generating Prisma client...');
     }
 
     try {
-      const semiontRepo = context.options?.semiontRepo;
-      if (!semiontRepo) {
-        throw new Error('SEMIONT_REPO not configured');
-      }
-
-      const monorepoRoot = path.resolve(semiontRepo);
-      const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
-
-      if (fs.existsSync(rootPackageJsonPath)) {
-        const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
-        if (rootPackageJson.workspaces) {
-          execFileSync('npm', ['install'], {
-            cwd: monorepoRoot,
-            stdio: service.verbose ? 'inherit' : 'pipe'
-          });
-        } else {
-          execFileSync('npm', ['install'], {
-            cwd: backendSourceDir,
-            stdio: service.verbose ? 'inherit' : 'pipe'
-          });
-        }
-      } else {
-        execFileSync('npm', ['install'], {
-          cwd: backendSourceDir,
-          stdio: service.verbose ? 'inherit' : 'pipe'
-        });
-      }
-
-      if (!service.quiet) {
-        printSuccess('Dependencies installed successfully');
-      }
-    } catch (error) {
-      printError(`Failed to install dependencies: ${error}`);
-      return {
-        success: false,
-        error: `Failed to install dependencies: ${error}`,
-        metadata: { serviceType: 'backend', backendSourceDir }
-      };
-    }
-
-    // Generate Prisma client if schema exists
-    if (fs.existsSync(prismaSchemaPath)) {
-      if (!service.quiet) {
-        printInfo('Generating Prisma client...');
-      }
-
-      try {
-        execFileSync('npx', ['prisma', 'generate'], {
-          cwd: backendSourceDir,
-          stdio: service.verbose ? 'inherit' : 'pipe'
-        });
-
-        if (!service.quiet) {
-          printSuccess('Prisma client generated');
-        }
-      } catch (error) {
-        printWarning(`Failed to generate Prisma client: ${error}`);
-      }
-    }
-
-    // Build workspace packages that backend depends on
-    if (!service.quiet) {
-      printInfo('Building workspace dependencies...');
-    }
-
-    try {
-      const monorepoRoot = path.dirname(path.dirname(backendSourceDir));
-      const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
-
-      if (fs.existsSync(rootPackageJsonPath)) {
-        const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
-        if (rootPackageJson.workspaces) {
-          execFileSync('npm', ['run', 'build', '--workspace=@semiont/core', '--if-present'], {
-            cwd: monorepoRoot,
-            stdio: service.verbose ? 'inherit' : 'pipe'
-          });
-          execFileSync('npm', ['run', 'build', '--workspace=@semiont/event-sourcing', '--if-present'], {
-            cwd: monorepoRoot,
-            stdio: service.verbose ? 'inherit' : 'pipe'
-          });
-          execFileSync('npm', ['run', 'build', '--workspace=@semiont/api-client', '--if-present'], {
-            cwd: monorepoRoot,
-            stdio: service.verbose ? 'inherit' : 'pipe'
-          });
-
-          if (!service.quiet) {
-            printSuccess('Workspace dependencies built successfully');
-          }
-        }
-      }
-    } catch (error) {
-      printWarning(`Failed to build workspace dependencies: ${error}`);
-      printInfo('You may need to build manually: npm run build --workspace=@semiont/core');
-    }
-
-    // Build backend application
-    if (!service.quiet) {
-      printInfo('Building backend application...');
-    }
-
-    try {
-      execFileSync('npm', ['run', 'build'], {
-        cwd: backendSourceDir,
+      execFileSync('npx', ['prisma', 'generate', `--schema=${prismaSchemaPath}`], {
+        cwd: project.stateDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
 
       if (!service.quiet) {
-        printSuccess('Backend application built successfully');
+        printSuccess('Prisma client generated');
       }
     } catch (error) {
-      printError(`Failed to build backend application: ${error}`);
-      return {
-        success: false,
-        error: `Failed to build backend application: ${error}`,
-        metadata: { serviceType: 'backend', backendSourceDir }
-      };
+      printWarning(`Failed to generate Prisma client: ${error}`);
     }
   }
 
@@ -254,14 +131,14 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     if (!service.quiet) {
       printInfo('Running database migrations...');
     }
-    
+
     try {
-      execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
-        cwd: backendSourceDir,
+      execFileSync('npx', ['prisma', 'migrate', 'deploy', `--schema=${prismaSchemaPath}`], {
+        cwd: project.stateDir,
         env: { ...process.env, DATABASE_URL: databaseUrl },
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
-      
+
       if (!service.quiet) {
         printSuccess('Database migrations completed');
       }
@@ -270,12 +147,11 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       printInfo('You may need to run migrations manually: npx prisma migrate deploy');
     }
   }
-  
+
   const metadata = {
     serviceType: 'backend',
-    backendSourceDir,
-    runtimeDir,
-    logsDir,
+    entryPoint,
+    logsDir: project.backendLogsDir,
     configured: true
   };
 
@@ -283,9 +159,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printSuccess(`✅ Backend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Backend details:');
-    printInfo(`  Source directory: ${backendSourceDir}`);
-    printInfo(`  Runtime directory: ${runtimeDir}`);
-    printInfo(`  Logs directory: ${logsDir}`);
+    printInfo(`  Entry point: ${entryPoint}`);
+    printInfo(`  Logs directory: ${project.backendLogsDir}`);
     printInfo('');
     printInfo('Next steps:');
     printInfo(`  1. Ensure database is running`);
@@ -298,8 +173,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     resources: {
       platform: 'posix',
       data: {
-        path: backendSourceDir,
-        workingDirectory: backendSourceDir
+        path: entryPoint,
+        workingDirectory: path.dirname(entryPoint)
       }
     }
   };
@@ -309,17 +184,8 @@ const preflightBackendProvision = async (context: PosixProvisionHandlerContext):
   const config = context.service.config as BackendServiceConfig;
   const envConfig = context.service.environmentConfig;
   const db = envConfig.services?.database;
-  const paths = getBackendPaths(context);
-  const checks = paths.fromNpmPackage
-    ? [
-        checkFileExists(path.join(paths.sourceDir, 'dist', 'index.js'), 'backend dist/index.js'),
-      ]
-    : [
-        checkCommandAvailable('npm'),
-        checkCommandAvailable('npx'),
-        checkFileExists(path.join(paths.sourceDir, 'package.json'), 'backend package.json'),
-      ];
-  checks.push(
+  const checks = [
+    checkCommandAvailable('npx'),
     checkConfigPort(config.port, 'backend.port'),
     checkConfigUrl(config.publicURL, 'backend.publicURL'),
     checkConfigField(db?.user, 'database.user'),
@@ -329,7 +195,8 @@ const preflightBackendProvision = async (context: PosixProvisionHandlerContext):
     checkConfigUrl(envConfig.services?.frontend?.publicURL, 'frontend.publicURL'),
     checkConfigField(envConfig.site?.domain, 'site.domain'),
     checkConfigNonEmptyArray(envConfig.site?.oauthAllowedDomains, 'site.oauthAllowedDomains'),
-  );
+    ...checkEnvVarsInConfig(db as unknown as Record<string, unknown>),
+  ];
   return preflightFromChecks(checks);
 };
 

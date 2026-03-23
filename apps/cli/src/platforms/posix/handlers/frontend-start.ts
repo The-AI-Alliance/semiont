@@ -6,8 +6,9 @@ import type { FrontendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { getFrontendPaths } from './frontend-paths.js';
-import { checkPortFree, checkCommandAvailable, checkConfigPort, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { resolveFrontendNpmPackage } from './frontend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -20,29 +21,38 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   const { service } = context;
   const config = service.config as FrontendServiceConfig;
 
-  // Get frontend paths
-  const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, runtimeDir, pidFile, logsDir } = paths;
-
-  if (service.verbose) {
-    printInfo(`Source: ${frontendSourceDir}`);
-    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
-  }
-
-  if (!fs.existsSync(frontendSourceDir)) {
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  if (!npmDir) {
     return {
       success: false,
-      error: `Frontend source not found at ${frontendSourceDir}`,
+      error: 'Frontend not provisioned. Run: semiont provision --service frontend',
       metadata: { serviceType: 'frontend' }
     };
   }
-  
-  // Check if frontend is provisioned (runtimeDir created by provision)
-  if (!fs.existsSync(runtimeDir)) {
+  const serverScript = path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js');
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.frontendPidFile;
+  const logsDir = project.frontendLogsDir;
+
+  if (service.verbose) {
+    printInfo(`Server script: ${serverScript}`);
+  }
+
+  if (!fs.existsSync(serverScript)) {
+    return {
+      success: false,
+      error: `Frontend server script not found at ${serverScript}`,
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+
+  // Check if frontend is provisioned (logsDir created by provision)
+  if (!fs.existsSync(logsDir)) {
     return {
       success: false,
       error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment}`,
-      metadata: { serviceType: 'frontend', frontendSourceDir }
+      metadata: { serviceType: 'frontend', serverScript }
     };
   }
   
@@ -125,26 +135,13 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   
   if (!service.quiet) {
     printInfo(`Starting frontend service ${service.name}...`);
-    printInfo(`Source: ${frontendSourceDir}`);
+    printInfo(`Server script: ${serverScript}`);
     printInfo(`Port: ${port}`);
     printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // Determine command based on source type and devMode
-  let command: string;
-  let args: string[];
-
-  if (paths.fromNpmPackage) {
-    // npm package: run standalone server directly
-    command = 'node';
-    args = [path.join(frontendSourceDir, '.next', 'standalone', 'apps', 'frontend', 'server.js')];
-  } else if (config.devMode) {
-    command = 'npm';
-    args = ['run', 'dev'];
-  } else {
-    command = 'npm';
-    args = ['start'];
-  }
+  const command = 'node';
+  const args = [serverScript];
 
   try {
     // Open log files for writing (process will write directly)
@@ -153,7 +150,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
     // Spawn the frontend process with stdio redirected to files
     const proc = spawn(command, args, {
-      cwd: frontendSourceDir,  // Run from source directory
+      cwd: path.dirname(serverScript),
       env,
       detached: true,
       stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
@@ -198,17 +195,15 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     }
     
     // Build resources
-    const commandStr = paths.fromNpmPackage
-      ? `node .next/standalone/apps/frontend/server.js`
-      : config.devMode ? 'npm run dev' : 'npm start';
+    const commandStr = `node ${serverScript}`;
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
         pid: proc.pid,
         port,
         command: commandStr,
-        workingDirectory: frontendSourceDir,
-        path: frontendSourceDir,
+        workingDirectory: path.dirname(serverScript),
+        path: serverScript,
         logFile: appLogPath
       }
     };
@@ -239,7 +234,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         serviceType: 'frontend',
         pid: proc.pid,
         port,
-        frontendSourceDir,
+        serverScript,
         logsDir,
         command: commandStr
       }
@@ -264,15 +259,26 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
 const preflightFrontendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as FrontendServiceConfig;
-  const paths = getFrontendPaths(context);
-  const checks = paths.fromNpmPackage
-    ? [checkCommandAvailable('node')]
-    : [checkCommandAvailable('npm')];
+  const projectRoot = context.service.projectRoot;
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  const project = new SemiontProject(projectRoot);
+  const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'frontend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
-  checks.push(checkJwtSecretExists());
+  if (npmDir) {
+    checks.push(checkFileExists(
+      path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js'),
+      'frontend server.js'
+    ));
+  } else {
+    checks.push({ name: 'frontend-npm-package', pass: false, message: '@semiont/frontend not installed — run: semiont provision' });
+  }
+  checks.push(
+    checkFileExists(project.frontendLogsDir, 'frontend logs dir (run: semiont provision)'),
+    checkJwtSecretExists(),
+  );
   return preflightFromChecks(checks);
 };
 
