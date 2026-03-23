@@ -79,7 +79,8 @@ client.sse.annotateReferences(resourceId, {
 All types create annotations with:
 - **Target**: Text selection with dual selectors (TextPositionSelector + TextQuoteSelector)
 - **Body**: Empty for highlights, assessment text for assessments, comment text for comments, entity type tags for references
-- **Creator**: W3C Agent with DID:WEB identifier
+- **Creator**: W3C Agent identifying who requested the annotation
+- **Generator**: W3C SoftwareAgent identifying the worker and inference model that produced it (present when a worker did the work, absent when an agent annotated directly)
 - **Created**: ISO 8601 timestamp
 
 ---
@@ -100,6 +101,13 @@ Every detected annotation follows the [W3C Web Annotation Data Model](https://ww
     "id": "did:web:localhost:users:alice",
     "type": "Person",
     "name": "Alice"
+  },
+  "generator": {
+    "@type": "SoftwareAgent",
+    "name": "Highlight Worker / Anthropic claude-sonnet-4-6",
+    "worker": "Highlight Worker",
+    "inferenceProvider": "anthropic",
+    "model": "claude-sonnet-4-6"
   },
   "created": "2025-12-04T10:30:00Z",
   "target": {

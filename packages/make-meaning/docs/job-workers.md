@@ -26,8 +26,8 @@ All annotation workers follow the same pattern:
 ```typescript
 constructor(
   jobQueue: JobQueue,
-  config: EnvironmentConfig,
   inferenceClient: InferenceClient,
+  generator: Agent,              // Pre-built W3C SoftwareAgent for attribution
   eventBus: EventBus,
   contentFetcher: ContentFetcher,  // (not on GenerationWorker)
   logger: Logger,
@@ -36,13 +36,15 @@ constructor(
 
 `GenerationWorker` does not take a `ContentFetcher` — it fetches content differently.
 
+The `generator` is a W3C `Agent` with `@type: "SoftwareAgent"` that identifies which worker and inference model produced the annotation. It is built once at startup by `inferenceConfigToGenerator()` in `service.ts` and injected into the worker — workers never receive or read `InferenceConfig` directly.
+
 ## EventBus Integration
 
 Workers emit commands on the EventBus. The Stower subscribes and handles persistence.
 
 ### Annotation Creation
 
-Workers build a full W3C `Annotation` with `creator` and `created`, then emit `mark:create`:
+Workers build a full W3C `Annotation` with `creator`, `generator`, and `created`, then emit `mark:create`:
 
 ```typescript
 eventBus.get('mark:create').next({
@@ -51,11 +53,12 @@ eventBus.get('mark:create').next({
   body: [...],
   userId: job.metadata.userId,
   resourceId: job.params.resourceId,
-  annotation,  // Full Annotation with creator/created
+  annotation,  // Full Annotation with creator/generator/created
 });
 ```
 
-The `creator` is built from `JobMetadata` fields (`userName`, `userEmail`, `userDomain`) using `userToAgent()`.
+- **`creator`** — built from `JobMetadata` fields (`userName`, `userEmail`, `userDomain`) using `userToAgent()`. Identifies the agent that requested the job.
+- **`generator`** — the pre-built `SoftwareAgent` passed into the worker constructor. Identifies the software (worker type, inference provider, model) that produced the annotation. Conforms to W3C Web Annotation §3.2.1.
 
 ### Job Lifecycle
 
@@ -79,7 +82,19 @@ The Stower translates these into domain events (`job.started`, `job.progress`, `
 
 ## Instantiation
 
-Workers are created by `startMakeMeaning()` in [service.ts](../src/service.ts). The `ContentFetcher` is backed by the KB's ViewStorage and RepresentationStore:
+Workers are created by `startMakeMeaning()` in [service.ts](../src/service.ts). For each worker, the service resolves the inference config, creates the client, builds the generator descriptor, and passes all three:
+
+```typescript
+const highlightInferenceCfg = resolveWorkerInference(config, 'highlight-annotation');
+const highlightInferenceClient = createInferenceClient(highlightInferenceCfg, logger);
+const highlightGenerator = inferenceConfigToGenerator('Highlight Worker', highlightInferenceCfg);
+
+new HighlightAnnotationWorker(jobQueue, highlightInferenceClient, highlightGenerator, eventBus, contentFetcher, logger)
+```
+
+`inferenceConfigToGenerator()` lives in `packages/make-meaning/src/agent-utils.ts` and never leaks `InferenceConfig` into `@semiont/jobs`.
+
+The `ContentFetcher` is backed by the KB's ViewStorage and RepresentationStore:
 
 ```typescript
 const contentFetcher: ContentFetcher = async (resourceId) => {

@@ -57,7 +57,21 @@ Every W3C annotation has these required fields:
 ### Optional Fields
 
 - **`modified`**: ISO 8601 timestamp of last modification
-- **`generator`**: Software that created the annotation
+- **`generator`**: Software that produced the annotation (W3C §3.2.1). All AI-generated annotations include this field:
+
+```json
+{
+  "generator": {
+    "@type": "SoftwareAgent",
+    "name": "Highlight Worker / Anthropic claude-sonnet-4-6",
+    "worker": "Highlight Worker",
+    "inferenceProvider": "anthropic",
+    "model": "claude-sonnet-4-6"
+  }
+}
+```
+
+`creator` identifies the agent that requested the annotation; `generator` identifies the software that produced it. Annotations created directly by an agent (not via a worker) omit `generator`.
 
 ## Annotation Types
 
@@ -399,6 +413,7 @@ Semiont annotations are fully W3C-compliant and can be exported as standard JSON
 - ✅ Full W3C Web Annotation Data Model compliance
 - ✅ JSON-LD context from `http://www.w3.org/ns/anno.jsonld`
 - ✅ Decentralized identifiers (DID:WEB) for creators
+- ✅ `generator` field on AI-produced annotations (W3C §3.2.1)
 - ✅ Content-addressed document IDs for federation-readiness
 - ✅ Interoperable with other W3C annotation tools
 
