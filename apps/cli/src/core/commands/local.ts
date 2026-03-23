@@ -22,6 +22,7 @@ import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { SemiontProject } from '@semiont/core/node';
 
 // =====================================================================
 // SCHEMA
@@ -331,7 +332,9 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     // ─── Step 4: Admin credentials ──────────────────────────────────────
 
-    const credentialsPath = path.join(semiotRoot, 'credentials.txt');
+    const project = new SemiontProject(semiotRoot);
+    fs.mkdirSync(project.configDir, { recursive: true });
+    const credentialsPath = path.join(project.configDir, 'credentials.txt');
     if (fs.existsSync(credentialsPath)) {
       console.log(`${colors.green}✓${colors.reset} Credentials file already exists at ${credentialsPath}\n`);
     } else {
