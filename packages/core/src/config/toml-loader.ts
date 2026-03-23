@@ -114,6 +114,7 @@ interface GraphSection {
 }
 
 interface InferenceFlatSection {
+  // Flat (single-provider) format: type = "anthropic"|"ollama" at this level
   type?: 'anthropic' | 'ollama';
   platform?: string;
   model?: string;
@@ -121,6 +122,9 @@ interface InferenceFlatSection {
   apiKey?: string;
   endpoint?: string;
   baseURL?: string;
+  // Keyed (multi-provider) format: [inference.anthropic] / [inference.ollama]
+  anthropic?: { platform?: string; apiKey?: string; endpoint?: string };
+  ollama?: { platform?: string; baseURL?: string; port?: number };
 }
 
 interface EnvironmentSection {
@@ -247,11 +251,41 @@ export function loadTomlConfig(
 
   function mergeWithFlatInference(specific: InferenceConfig): InferenceConfig {
     if (!flatInference) return specific;
+    // For keyed sub-sections, inherit credentials from the matching provider sub-section.
+    // For flat (legacy) format, flatInference.type is required to know which fields apply.
+    const providerDefaults: Partial<InferenceConfig> = {};
+    if (specific.type === 'anthropic') {
+      const a = flatInference.anthropic;
+      if (a) {
+        providerDefaults.apiKey = a.apiKey;
+        providerDefaults.endpoint = a.endpoint;
+      } else {
+        if (!flatInference.type) {
+          throw new Error(
+            `[environments.${environment}.inference] is missing 'type'. ` +
+            `Add type = "anthropic" or use [inference.anthropic] sub-section.`
+          );
+        }
+        providerDefaults.apiKey = flatInference.apiKey;
+        providerDefaults.endpoint = flatInference.endpoint;
+      }
+    } else if (specific.type === 'ollama') {
+      const o = flatInference.ollama;
+      if (o) {
+        providerDefaults.baseURL = o.baseURL;
+      } else {
+        if (!flatInference.type) {
+          throw new Error(
+            `[environments.${environment}.inference] is missing 'type'. ` +
+            `Add type = "ollama" or use [inference.ollama] sub-section.`
+          );
+        }
+        providerDefaults.baseURL = flatInference.baseURL;
+      }
+    }
     return {
-      apiKey: flatInference.apiKey,
       maxTokens: flatInference.maxTokens,
-      endpoint: flatInference.endpoint,
-      baseURL: flatInference.baseURL,
+      ...providerDefaults,
       ...specific,
     };
   }
@@ -292,17 +326,35 @@ export function loadTomlConfig(
   const site = resolved.site ?? projectSite;
   const inferenceSection = resolved.inference;
 
-  // Build inference providers config
-  // Supports flat format: [environments.local.inference] with type = "anthropic"|"ollama"
+  // Build inference providers config.
+  // Supports two formats:
+  //   Flat:  [environments.local.inference] type = "anthropic"|"ollama"  (single provider)
+  //   Keyed: [environments.local.inference.anthropic] / [environments.local.inference.ollama] (multi-provider)
   let inferenceProviders: EnvironmentConfig['inference'] | undefined;
   if (inferenceSection) {
     inferenceProviders = {};
-    if (inferenceSection.type === 'anthropic') {
+    // Keyed sub-sections take priority
+    if (inferenceSection.anthropic) {
+      const a = inferenceSection.anthropic;
+      inferenceProviders.anthropic = {
+        platform: requirePlatform(a.platform, 'inference.anthropic'),
+        endpoint: a.endpoint ?? 'https://api.anthropic.com',
+        apiKey: a.apiKey ?? '',
+      } as AnthropicProviderConfig;
+    } else if (inferenceSection.type === 'anthropic') {
       inferenceProviders.anthropic = {
         platform: requirePlatform(inferenceSection.platform, 'inference'),
         endpoint: inferenceSection.endpoint ?? 'https://api.anthropic.com',
         apiKey: inferenceSection.apiKey ?? '',
       } as AnthropicProviderConfig;
+    }
+    if (inferenceSection.ollama) {
+      const o = inferenceSection.ollama;
+      inferenceProviders.ollama = {
+        platform: { type: requirePlatform(o.platform, 'inference.ollama') },
+        baseURL: o.baseURL,
+        port: o.baseURL ? undefined : (o.port ?? 11434),
+      } as OllamaProviderConfig;
     } else if (inferenceSection.type === 'ollama') {
       inferenceProviders.ollama = {
         platform: { type: requirePlatform(inferenceSection.platform, 'inference') },

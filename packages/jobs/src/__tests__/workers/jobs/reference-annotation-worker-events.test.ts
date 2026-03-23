@@ -42,6 +42,8 @@ const mockContentFetcher: ContentFetcher = async () => {
   return Readable.from([Buffer.from('test content')]);
 };
 
+const mockGenerator = { '@type': 'SoftwareAgent', name: 'Reference Worker / Test' };
+
 describe('ReferenceAnnotationWorker - Event Emission', () => {
   let worker: ReferenceAnnotationWorker;
   let testDir: string;
@@ -59,7 +61,7 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient, mockGenerator, eventBus, mockContentFetcher, mockLogger);
     mockInferenceClient.setResponses(['[]']);
   });
 
@@ -172,12 +174,13 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
 
     sub.unsubscribe();
 
-    // If entities were detected, they should have the correct motivation
+    // If entities were detected, they should have the correct motivation and generator
     if (markEvents.length > 0) {
       expect(markEvents[0]).toMatchObject({
         annotation: expect.objectContaining({ motivation: 'linking' }),
         resourceId: resourceId('res-test-4'),
       });
+      expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
     }
 
     // Main assertion: Job completed without errors

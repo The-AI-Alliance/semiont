@@ -39,6 +39,8 @@ const mockContentFetcher: ContentFetcher = async () => {
   return Readable.from([Buffer.from('test content')]);
 };
 
+const mockGenerator = { '@type': 'SoftwareAgent', name: 'Highlight Worker / Test' };
+
 describe('HighlightAnnotationWorker - Event Emission', () => {
   let worker: HighlightAnnotationWorker;
   let testDir: string;
@@ -56,7 +58,7 @@ describe('HighlightAnnotationWorker - Event Emission', () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new HighlightAnnotationWorker(jobQueue, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    worker = new HighlightAnnotationWorker(jobQueue, mockInferenceClient, mockGenerator, eventBus, mockContentFetcher, mockLogger);
     mockInferenceClient.setResponses(['[]']);
   });
 
@@ -170,11 +172,13 @@ describe('HighlightAnnotationWorker - Event Emission', () => {
       userId: userId('user-1'),
       resourceId: resourceId('res-highlight-4'),
     });
+    expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
 
     expect(markEvents[1]).toMatchObject({
       annotation: expect.objectContaining({ motivation: 'highlighting' }),
       userId: userId('user-1'),
       resourceId: resourceId('res-highlight-4'),
     });
+    expect(markEvents[1].annotation.generator).toEqual(mockGenerator);
   });
 });

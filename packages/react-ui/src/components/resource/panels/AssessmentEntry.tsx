@@ -109,6 +109,11 @@ export function AssessmentEntry({
       <div className="semiont-annotation-entry__metadata">
         By {typeof assessment.creator === 'string' ? assessment.creator : assessment.creator?.name || 'Unknown'} • {formatRelativeTime(assessment.created || new Date().toISOString())}
       </div>
+      {assessment.generator && (
+        <div className="semiont-annotation-entry__metadata">
+          Via {typeof assessment.generator === 'string' ? assessment.generator : assessment.generator.name}
+        </div>
+      )}
     </div>
   );
 }

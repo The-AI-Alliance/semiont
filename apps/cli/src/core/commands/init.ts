@@ -114,11 +114,8 @@ username = "\${NEO4J_USERNAME}"
 password = "\${NEO4J_PASSWORD}"
 database = "\${NEO4J_DATABASE}"
 
-[environments.local.inference]
+[environments.local.inference.anthropic]
 platform = "external"
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
-maxTokens = 8192
 endpoint = "https://api.anthropic.com"
 apiKey = "\${ANTHROPIC_API_KEY}"
 

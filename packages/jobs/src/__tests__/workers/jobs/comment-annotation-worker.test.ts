@@ -39,6 +39,8 @@ const mockContentFetcher: ContentFetcher = async () => {
   return Readable.from([Buffer.from('test content')]);
 };
 
+const mockGenerator = { '@type': 'SoftwareAgent', name: 'Comment Worker / Test' };
+
 describe('CommentAnnotationWorker - Event Emission', () => {
   let worker: CommentAnnotationWorker;
   let testDir: string;
@@ -56,7 +58,7 @@ describe('CommentAnnotationWorker - Event Emission', () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new CommentAnnotationWorker(jobQueue, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    worker = new CommentAnnotationWorker(jobQueue, mockInferenceClient, mockGenerator, eventBus, mockContentFetcher, mockLogger);
     mockInferenceClient.setResponses(['[]']);
   });
 
@@ -172,6 +174,7 @@ describe('CommentAnnotationWorker - Event Emission', () => {
     expect(markEvents[0].annotation.body).toEqual(
       expect.arrayContaining([expect.objectContaining({ value: 'First comment' })])
     );
+    expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
 
     expect(markEvents[1]).toMatchObject({
       annotation: expect.objectContaining({ motivation: 'commenting' }),
@@ -181,5 +184,6 @@ describe('CommentAnnotationWorker - Event Emission', () => {
     expect(markEvents[1].annotation.body).toEqual(
       expect.arrayContaining([expect.objectContaining({ value: 'Second comment' })])
     );
+    expect(markEvents[1].annotation.generator).toEqual(mockGenerator);
   });
 });

@@ -15,6 +15,9 @@ import type { ResourceId } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
 import type { CommentMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
+import type { components } from '@semiont/core';
+
+type Agent = components['schemas']['Agent'];
 
 export class CommentAnnotationWorker extends JobWorker {
   private isFirstProgress = true;
@@ -22,6 +25,7 @@ export class CommentAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private inferenceClient: InferenceClient,
+    private generator: Agent,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
     logger: Logger
@@ -236,6 +240,7 @@ export class CommentAnnotationWorker extends JobWorker {
       id: annotationIdVal,
       motivation: 'commenting' as const,
       creator,
+      generator: this.generator,
       created: new Date().toISOString(),
       target: {
         type: 'SpecificResource' as const,

@@ -76,6 +76,8 @@ const mockContentFetcher: ContentFetcher = async () => {
   return Readable.from([Buffer.from('test content')]);
 };
 
+const mockGenerator = { '@type': 'SoftwareAgent', name: 'Reference Worker / Test' };
+
 describe('Entity Detection - Charset Handling', () => {
   let testDir: string;
   let worker: ReferenceAnnotationWorker;
@@ -86,7 +88,7 @@ describe('Entity Detection - Charset Handling', () => {
 
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient.client, mockGenerator, new EventBus(), mockContentFetcher, mockLogger);
   });
 
   afterAll(async () => {

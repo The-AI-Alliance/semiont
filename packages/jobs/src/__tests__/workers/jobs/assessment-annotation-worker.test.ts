@@ -39,6 +39,8 @@ const mockContentFetcher: ContentFetcher = async () => {
   return Readable.from([Buffer.from('test content')]);
 };
 
+const mockGenerator = { '@type': 'SoftwareAgent', name: 'Assessment Worker / Test' };
+
 describe('AssessmentAnnotationWorker - Event Emission', () => {
   let worker: AssessmentAnnotationWorker;
   let testDir: string;
@@ -58,7 +60,7 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new AssessmentAnnotationWorker(jobQueue, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    worker = new AssessmentAnnotationWorker(jobQueue, mockInferenceClient, mockGenerator, eventBus, mockContentFetcher, mockLogger);
     mockInferenceClient.setResponses(['[]']);
   });
 
@@ -213,6 +215,7 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
     expect(markEvents[0].annotation.body).toMatchObject({
       value: 'This claim lacks empirical support'
     });
+    expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
 
     // Check second assessment annotation
     expect(markEvents[1]).toMatchObject({
@@ -223,5 +226,6 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
     expect(markEvents[1].annotation.body).toMatchObject({
       value: 'Requires additional verification'
     });
+    expect(markEvents[1].annotation.generator).toEqual(mockGenerator);
   });
 });

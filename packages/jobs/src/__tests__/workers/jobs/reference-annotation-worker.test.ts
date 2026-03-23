@@ -48,6 +48,8 @@ const mockContentFetcher: ContentFetcher = async () => {
   return Readable.from([Buffer.from('test content')]);
 };
 
+const mockGenerator = { '@type': 'SoftwareAgent', name: 'Reference Worker / Test' };
+
 describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
   let worker: ReferenceAnnotationWorker;
   let testDir: string;
@@ -69,7 +71,7 @@ describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
     eventBus = new EventBus();
     jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient, mockGenerator, eventBus, mockContentFetcher, mockLogger);
 
     // Set default mock response (empty array - no entities found)
     mockInferenceClient.setResponses(['[]']);
