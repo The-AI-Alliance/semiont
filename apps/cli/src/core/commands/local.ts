@@ -193,19 +193,12 @@ async function local(options: LocalOptions): Promise<CommandResults> {
   try {
     // ─── Step 1: Project directory ───────────────────────────────────────
 
-    // Walk up from cwd to find an existing .semiont/ project
+    // Only check cwd — do NOT walk up. Walking up would silently adopt an ancestor
+    // project, which is wrong for `semiont local` (unlike `git` which intentionally
+    // operates on the nearest ancestor repo).
     let semiotRoot = '';
-    {
-      let dir = process.cwd();
-      while (true) {
-        if (fs.existsSync(path.join(dir, '.semiont'))) {
-          semiotRoot = dir;
-          break;
-        }
-        const parent = path.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-      }
+    if (fs.existsSync(path.join(process.cwd(), '.semiont'))) {
+      semiotRoot = process.cwd();
     }
 
     if (!semiotRoot) {
