@@ -15,7 +15,6 @@ export interface BackendPaths {
   logsDir: string;         // project.backendLogsDir
   appLogFile: string;      // logsDir/app.log
   errorLogFile: string;    // logsDir/error.log
-  distDir: string;         // Compiled distribution directory (in sourceDir)
   fromNpmPackage: boolean; // Whether source is an installed npm package
 }
 
@@ -74,7 +73,6 @@ function buildPaths(sourceDir: string, project: SemiontProject, fromNpmPackage: 
     logsDir:      project.backendLogsDir,
     appLogFile:   path.join(project.backendLogsDir, 'app.log'),
     errorLogFile: path.join(project.backendLogsDir, 'error.log'),
-    distDir:      path.join(sourceDir, 'dist'),
     fromNpmPackage,
   };
 }
