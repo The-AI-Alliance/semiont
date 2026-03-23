@@ -19,7 +19,6 @@ export function checkContainerRuntime(runtime: string): PreflightCheck {
  * Returns a human-readable string like "PID 1234" or null if unable to determine.
  */
 function findPortOwner(port: number): string | null {
-  const { execFileSync } = require('child_process');
   try {
     if (process.platform === 'darwin' || process.platform === 'linux') {
       const out = execFileSync('lsof', ['-ti', `:${port}`], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }) as string;
