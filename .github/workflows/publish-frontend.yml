@@ -72,7 +72,7 @@ jobs:
           exit 1
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./apps/frontend/Dockerfile
