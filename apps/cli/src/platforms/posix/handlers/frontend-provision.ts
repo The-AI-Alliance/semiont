@@ -44,7 +44,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, runtimeDir, logsDir } = paths;
+  const { sourceDir: frontendSourceDir, logsDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
@@ -53,15 +53,14 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     } else {
       printInfo(`Using source directory: ${frontendSourceDir}`);
     }
-    printInfo(`Runtime directory: ${runtimeDir}`);
   }
 
-  // Create runtime directories under project root
-  fs.mkdirSync(runtimeDir, { recursive: true });
+  // Create runtime directories
   fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(paths.pidFile), { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${runtimeDir}`);
+    printInfo(`Created runtime directories in: ${logsDir}`);
   }
   
   let nextAuthSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
@@ -212,7 +211,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const metadata = {
     serviceType: 'frontend',
     frontendSourceDir,
-    runtimeDir,
     logsDir,
     configured: true
   };
@@ -222,7 +220,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     printInfo('');
     printInfo('Frontend details:');
     printInfo(`  Source directory: ${frontendSourceDir}`);
-    printInfo(`  Runtime directory: ${runtimeDir}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
     printInfo('Next steps:');

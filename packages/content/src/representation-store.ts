@@ -92,7 +92,7 @@ export class FilesystemRepresentationStore implements RepresentationStore {
 
   constructor(project: SemiontProject, logger?: Logger) {
     this.logger = logger;
-    this.basePath = project.dataDir;
+    this.basePath = project.representationsDir;
   }
 
   async store(content: Buffer, metadata: RepresentationMetadata): Promise<StoredRepresentation> {
@@ -116,7 +116,6 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     // Build file path using raw hex checksum as filename with proper extension
     const filePath = path.join(
       this.basePath,
-      'representations',
       mediaTypePath,
       ab,
       cd,
@@ -170,7 +169,6 @@ export class FilesystemRepresentationStore implements RepresentationStore {
     // Build file path from raw hex checksum with proper extension
     const filePath = path.join(
       this.basePath,
-      'representations',
       mediaTypePath,
       ab,
       cd,

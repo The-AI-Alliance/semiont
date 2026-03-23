@@ -44,7 +44,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   // Get backend paths (throws if source cannot be found)
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, runtimeDir, logsDir } = paths;
+  const { sourceDir: backendSourceDir, logsDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
@@ -53,15 +53,14 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     } else {
       printInfo(`Using semiont repo: ${options.semiontRepo}`);
     }
-    printInfo(`Runtime directory: ${runtimeDir}`);
   }
 
-  // Create runtime directories under project root
-  fs.mkdirSync(runtimeDir, { recursive: true });
+  // Create runtime directories
   fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(paths.pidFile), { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${runtimeDir}`);
+    printInfo(`Created runtime directories in: ${logsDir}`);
   }
 
   // Get environment configuration from service
@@ -274,7 +273,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const metadata = {
     serviceType: 'backend',
     backendSourceDir,
-    runtimeDir,
     logsDir,
     configured: true
   };
@@ -284,7 +282,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo('');
     printInfo('Backend details:');
     printInfo(`  Source directory: ${backendSourceDir}`);
-    printInfo(`  Runtime directory: ${runtimeDir}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
     printInfo('Next steps:');

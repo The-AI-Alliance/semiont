@@ -22,7 +22,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, runtimeDir, pidFile, logsDir } = paths;
+  const { sourceDir: frontendSourceDir, pidFile, logsDir } = paths;
 
   if (service.verbose) {
     printInfo(`Source: ${frontendSourceDir}`);
@@ -37,8 +37,8 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     };
   }
   
-  // Check if frontend is provisioned (runtimeDir created by provision)
-  if (!fs.existsSync(runtimeDir)) {
+  // Check if frontend is provisioned (logsDir created by provision)
+  if (!fs.existsSync(logsDir)) {
     return {
       success: false,
       error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment}`,

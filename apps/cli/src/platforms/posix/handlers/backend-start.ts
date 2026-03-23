@@ -22,7 +22,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
   // Get backend paths
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, runtimeDir, pidFile, logsDir } = paths;
+  const { sourceDir: backendSourceDir, pidFile, logsDir } = paths;
 
   if (service.verbose) {
     printInfo(`Source: ${backendSourceDir}`);
@@ -37,8 +37,8 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     };
   }
   
-  // Check if backend is provisioned (runtimeDir created by provision)
-  if (!fs.existsSync(runtimeDir)) {
+  // Check if backend is provisioned (logsDir created by provision)
+  if (!fs.existsSync(logsDir)) {
     return {
       success: false,
       error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment}`,
