@@ -13,6 +13,16 @@ const WORKER_LABELS: Record<WorkerStatus['type'], string> = {
   'generation':            'Generation',
 };
 
+function idleSince(last: Date): string {
+  const ms = Date.now() - last.getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1)   return 'just now';
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 function workerIndicatorClass(w: WorkerStatus): string {
   if (w.state === 'error') return 'semiont-indicator semiont-indicator--offline';
   if (w.activeCount > 0)   return 'semiont-indicator semiont-indicator--online semiont-indicator--pulse';
@@ -47,7 +57,19 @@ export const SectionWorkers: React.FC<Props> = ({ workers, inferenceServices }) 
                   {w.activeCount} active
                 </span>
                 <span className={TAG_SEC}>{w.pendingCount} pending</span>
-                {w.lastProcessed && (
+                {w.completedCount > 0 && (
+                  <span className={TAG_SEC}>{w.completedCount} done</span>
+                )}
+                {w.failedCount > 0 && (
+                  <span className={'semiont-tag semiont-tag--warning semiont-tag--compact'}>{w.failedCount} failed</span>
+                )}
+                {w.state === 'idle' && !w.lastProcessed && (
+                  <span className={TAG_SEC}>never used</span>
+                )}
+                {w.lastProcessed && w.state === 'idle' && (
+                  <span className={TAG_SEC}>last used {idleSince(new Date(w.lastProcessed))}</span>
+                )}
+                {w.lastProcessed && w.state !== 'idle' && (
                   <span className={TAG_SEC}>last {new Date(w.lastProcessed).toLocaleTimeString()}</span>
                 )}
               </div>

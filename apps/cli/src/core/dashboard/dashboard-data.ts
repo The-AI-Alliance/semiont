@@ -327,24 +327,72 @@ export class DashboardDataSource {
       'comment-annotation', 'tag-annotation', 'generation'
     ];
 
-    const backendPort = this.envConfig
-      ? (this.envConfig as any)?.services?.backend?.port ?? 4000
-      : 4000;
-
     try {
-      const health = await this.fetchBackendHealth(backendPort);
-      if (health?.workers && Array.isArray(health.workers)) {
-        return health.workers as WorkerStatus[];
-      }
-    } catch { /* backend not running */ }
+      const project = new SemiontProject(findProjectRoot());
+      const jobsDir = project.jobsDir;
 
-    // Default: all idle with zero counts
-    return types.map(type => ({
-      type,
-      state: 'idle' as const,
-      pendingCount: 0,
-      activeCount: 0
-    }));
+      // Scan all status directories once, grouping by job type
+      const counts: Record<WorkerStatus['type'], {
+        pending: number; running: number; complete: number; failed: number;
+        lastProcessed: Date | undefined;
+      }> = {} as any;
+
+      for (const t of types) {
+        counts[t] = { pending: 0, running: 0, complete: 0, failed: 0, lastProcessed: undefined };
+      }
+
+      const statusDirs: Array<{ dir: string; bucket: 'pending' | 'running' | 'complete' | 'failed' }> = [
+        { dir: `${jobsDir}/pending`,  bucket: 'pending'  },
+        { dir: `${jobsDir}/running`,  bucket: 'running'  },
+        { dir: `${jobsDir}/complete`, bucket: 'complete' },
+        { dir: `${jobsDir}/failed`,   bucket: 'failed'   },
+      ];
+
+      for (const { dir, bucket } of statusDirs) {
+        if (!fs.existsSync(dir)) continue;
+        for (const file of fs.readdirSync(dir)) {
+          try {
+            const raw = fs.readFileSync(`${dir}/${file}`, 'utf-8');
+            const job = JSON.parse(raw);
+            const type = job?.metadata?.type as WorkerStatus['type'];
+            if (!counts[type]) continue;
+            counts[type][bucket]++;
+            if ((bucket === 'complete' || bucket === 'failed') && job.completedAt) {
+              const t = new Date(job.completedAt);
+              if (!counts[type].lastProcessed || t > counts[type].lastProcessed!) {
+                counts[type].lastProcessed = t;
+              }
+            }
+          } catch { /* skip unreadable */ }
+        }
+      }
+
+      return types.map(type => {
+        const c = counts[type];
+        const state: WorkerStatus['state'] =
+          c.running > 0 ? 'active' :
+          c.failed  > 0 ? 'error'  : 'idle';
+        return {
+          type,
+          state,
+          pendingCount:   c.pending,
+          activeCount:    c.running,
+          completedCount: c.complete,
+          failedCount:    c.failed,
+          lastProcessed:  c.lastProcessed,
+        };
+      });
+    } catch {
+      // Jobs dir not found or project not initialised — return empty defaults
+      return types.map(type => ({
+        type,
+        state: 'idle' as const,
+        pendingCount: 0,
+        activeCount: 0,
+        completedCount: 0,
+        failedCount: 0,
+      }));
+    }
   }
 
   private fetchBackendHealth(port: number): Promise<any> {
