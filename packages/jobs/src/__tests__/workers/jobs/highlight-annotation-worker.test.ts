@@ -172,11 +172,13 @@ describe('HighlightAnnotationWorker - Event Emission', () => {
       userId: userId('user-1'),
       resourceId: resourceId('res-highlight-4'),
     });
+    expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
 
     expect(markEvents[1]).toMatchObject({
       annotation: expect.objectContaining({ motivation: 'highlighting' }),
       userId: userId('user-1'),
       resourceId: resourceId('res-highlight-4'),
     });
+    expect(markEvents[1].annotation.generator).toEqual(mockGenerator);
   });
 });

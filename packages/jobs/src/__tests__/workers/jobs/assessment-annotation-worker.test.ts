@@ -215,6 +215,7 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
     expect(markEvents[0].annotation.body).toMatchObject({
       value: 'This claim lacks empirical support'
     });
+    expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
 
     // Check second assessment annotation
     expect(markEvents[1]).toMatchObject({
@@ -225,5 +226,6 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
     expect(markEvents[1].annotation.body).toMatchObject({
       value: 'Requires additional verification'
     });
+    expect(markEvents[1].annotation.generator).toEqual(mockGenerator);
   });
 });

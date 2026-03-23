@@ -174,6 +174,7 @@ describe('CommentAnnotationWorker - Event Emission', () => {
     expect(markEvents[0].annotation.body).toEqual(
       expect.arrayContaining([expect.objectContaining({ value: 'First comment' })])
     );
+    expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
 
     expect(markEvents[1]).toMatchObject({
       annotation: expect.objectContaining({ motivation: 'commenting' }),
@@ -183,5 +184,6 @@ describe('CommentAnnotationWorker - Event Emission', () => {
     expect(markEvents[1].annotation.body).toEqual(
       expect.arrayContaining([expect.objectContaining({ value: 'Second comment' })])
     );
+    expect(markEvents[1].annotation.generator).toEqual(mockGenerator);
   });
 });

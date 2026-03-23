@@ -174,12 +174,13 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
 
     sub.unsubscribe();
 
-    // If entities were detected, they should have the correct motivation
+    // If entities were detected, they should have the correct motivation and generator
     if (markEvents.length > 0) {
       expect(markEvents[0]).toMatchObject({
         annotation: expect.objectContaining({ motivation: 'linking' }),
         resourceId: resourceId('res-test-4'),
       });
+      expect(markEvents[0].annotation.generator).toEqual(mockGenerator);
     }
 
     // Main assertion: Job completed without errors

@@ -204,13 +204,14 @@ describe('TagAnnotationWorker - Event Emission', () => {
 
     expect(markEvents.length).toBe(2);
 
-    // All annotations should be tagging motivation
+    // All annotations should be tagging motivation with generator
     for (const event of markEvents) {
       expect(event).toMatchObject({
         annotation: expect.objectContaining({ motivation: 'tagging' }),
         userId: userId('user-1'),
         resourceId: resourceId('res-tag-4'),
       });
+      expect(event.annotation.generator).toEqual(mockGenerator);
     }
   });
 });
