@@ -4,7 +4,8 @@ import * as crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
+import { resolveFrontendNpmPackage } from './frontend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 import type { FrontendServiceConfig } from '@semiont/core';
 import { checkCommandAvailable, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -41,9 +42,17 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     }
   }
 
-  // Get frontend paths
-  const paths = getFrontendPaths(context);
-  const { serverScript, logsDir } = paths;
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  if (!npmDir) {
+    return {
+      success: false,
+      error: 'Cannot find @semiont/frontend after install',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+
+  const serverScript = path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js');
+  const project = new SemiontProject(projectRoot);
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
@@ -51,11 +60,11 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   }
 
   // Create runtime directories
-  fs.mkdirSync(logsDir, { recursive: true });
-  fs.mkdirSync(path.dirname(paths.pidFile), { recursive: true });
+  fs.mkdirSync(project.frontendLogsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(project.frontendPidFile), { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${logsDir}`);
+    printInfo(`Created runtime directories in: ${project.frontendLogsDir}`);
   }
 
   let nextAuthSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
@@ -75,7 +84,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const metadata = {
     serviceType: 'frontend',
     serverScript,
-    logsDir,
+    logsDir: project.frontendLogsDir,
     configured: true
   };
 
@@ -84,7 +93,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     printInfo('');
     printInfo('Frontend details:');
     printInfo(`  Server script: ${serverScript}`);
-    printInfo(`  Logs directory: ${logsDir}`);
+    printInfo(`  Logs directory: ${project.frontendLogsDir}`);
     printInfo('');
     printInfo('Next steps:');
     printInfo(`  1. Ensure backend is running`);

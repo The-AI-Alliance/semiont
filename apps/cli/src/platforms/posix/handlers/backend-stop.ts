@@ -1,9 +1,11 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated } from '../utils/process-manager.js';
 import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
-import { getBackendPaths } from './backend-paths.js';
+import { resolveBackendNpmPackage } from './backend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 
 /**
  * Stop handler for backend services on POSIX systems
@@ -14,15 +16,20 @@ import { getBackendPaths } from './backend-paths.js';
 const stopBackendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
 
-  const paths = getBackendPaths(context);
-  const { entryPoint, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const entryPoint = npmDir ? path.join(npmDir, 'dist', 'index.js') : null;
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.backendPidFile;
+  const appLogPath = project.backendAppLogFile;
+  const errorLogPath = project.backendErrorLogFile;
 
   if (service.verbose) {
     printInfo(`Entry point: ${entryPoint}`);
   }
 
   // Check if backend entry point exists (i.e. package is installed)
-  if (!fs.existsSync(entryPoint)) {
+  if (!entryPoint || !fs.existsSync(entryPoint)) {
     return {
       success: false,
       error: 'Backend not found',

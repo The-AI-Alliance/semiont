@@ -1,25 +1,8 @@
 import * as path from 'path';
 import { createRequire } from 'module';
-import type { BaseHandlerContext } from '../../../core/handlers/types.js';
-import { SemiontProject } from '@semiont/core/node';
 
 /**
- * Backend service paths on POSIX platform
- *
- * entryPoint: absolute path to dist/index.js in the installed @semiont/backend npm package
- * All runtime/log/pid paths come from SemiontProject.
- */
-export interface BackendPaths {
-  project: SemiontProject; // Canonical project paths (XDG-derived)
-  entryPoint: string;      // Absolute path to dist/index.js in the installed npm package
-  pidFile: string;         // project.backendPidFile
-  logsDir: string;         // project.backendLogsDir
-  appLogFile: string;      // logsDir/app.log
-  errorLogFile: string;    // logsDir/error.log
-}
-
-/**
- * Resolve the backend source directory from an installed @semiont/backend npm package.
+ * Resolve the backend npm package directory from an installed @semiont/backend package.
  * Returns the package directory or null if not installed.
  */
 export function resolveBackendNpmPackage(projectRoot: string): string | null {
@@ -30,31 +13,4 @@ export function resolveBackendNpmPackage(projectRoot: string): string | null {
   } catch {
     return null;
   }
-}
-
-/**
- * Get all backend paths for POSIX platform.
- *
- * Source: installed @semiont/backend npm package.
- * Runtime files always go to XDG state dir (via SemiontProject).
- */
-export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths {
-  const projectRoot = context.service.projectRoot;
-  const project = new SemiontProject(projectRoot);
-
-  const npmDir = resolveBackendNpmPackage(projectRoot);
-  if (!npmDir) {
-    throw new Error(
-      'Cannot find backend source. Run: npm install @semiont/backend'
-    );
-  }
-
-  return {
-    project,
-    entryPoint:   path.join(npmDir, 'dist', 'index.js'),
-    pidFile:      project.backendPidFile,
-    logsDir:      project.backendLogsDir,
-    appLogFile:   path.join(project.backendLogsDir, 'app.log'),
-    errorLogFile: path.join(project.backendLogsDir, 'error.log'),
-  };
 }

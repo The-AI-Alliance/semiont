@@ -18,8 +18,12 @@ import * as path from 'path';
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
- *   backendLogsDir  — stateDir/backend/
- *   frontendLogsDir — stateDir/frontend/
+ *   backendLogsDir      — stateDir/backend/
+ *   backendAppLogFile   — backendLogsDir/app.log
+ *   backendErrorLogFile — backendLogsDir/error.log
+ *   frontendLogsDir     — stateDir/frontend/
+ *   frontendAppLogFile  — frontendLogsDir/app.log
+ *   frontendErrorLogFile — frontendLogsDir/error.log
  *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
  *   backendPidFile  — runtimeDir/backend.pid
  *   frontendPidFile — runtimeDir/frontend.pid
@@ -43,7 +47,11 @@ export class SemiontProject {
   readonly projectionsDir: string;
   readonly jobsDir: string;
   readonly backendLogsDir: string;
+  readonly backendAppLogFile: string;
+  readonly backendErrorLogFile: string;
   readonly frontendLogsDir: string;
+  readonly frontendAppLogFile: string;
+  readonly frontendErrorLogFile: string;
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
@@ -75,7 +83,11 @@ export class SemiontProject {
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
     this.backendLogsDir = path.join(this.stateDir, 'backend');
+    this.backendAppLogFile = path.join(this.backendLogsDir, 'app.log');
+    this.backendErrorLogFile = path.join(this.backendLogsDir, 'error.log');
     this.frontendLogsDir = path.join(this.stateDir, 'frontend');
+    this.frontendAppLogFile = path.join(this.frontendLogsDir, 'app.log');
+    this.frontendErrorLogFile = path.join(this.frontendLogsDir, 'error.log');
 
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';

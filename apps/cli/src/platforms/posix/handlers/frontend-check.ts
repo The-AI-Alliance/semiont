@@ -1,8 +1,10 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
-import { getFrontendPaths } from './frontend-paths.js';
+import { resolveFrontendNpmPackage } from './frontend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 import type { FrontendServiceConfig } from '@semiont/core';
 import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
@@ -18,9 +20,13 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
   // Type narrowing for frontend service config
   const config = service.config as FrontendServiceConfig;
 
-  // Get frontend paths
-  const paths = getFrontendPaths(context);
-  const { serverScript, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  const serverScript = npmDir ? path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js') : null;
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.frontendPidFile;
+  const appLogPath = project.frontendAppLogFile;
+  const errorLogPath = project.frontendErrorLogFile;
 
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
@@ -35,7 +41,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
   };
 
   // Check if frontend server script exists (i.e. package is installed)
-  if (!fs.existsSync(serverScript)) {
+  if (!serverScript || !fs.existsSync(serverScript)) {
     details.message = 'Frontend not provisioned';
     return {
       success: true,
@@ -192,8 +198,8 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
     data: {
       pid,
       port: config.port,
-      path: serverScript,
-      workingDirectory: serverScript,
+      path: serverScript ?? undefined,
+      workingDirectory: serverScript ?? undefined,
       logFile: appLogPath
     }
   } : undefined;

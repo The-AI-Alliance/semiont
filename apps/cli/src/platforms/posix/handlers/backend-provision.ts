@@ -5,7 +5,8 @@ import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage } from './backend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 import { checkCommandAvailable, checkEnvVarsInConfig, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
@@ -42,9 +43,17 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
 
-  // Get backend paths (throws if source cannot be found)
-  const paths = getBackendPaths(context);
-  const { entryPoint, logsDir } = paths;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  if (!npmDir) {
+    return {
+      success: false,
+      error: 'Cannot find @semiont/backend after install',
+      metadata: { serviceType: 'backend' }
+    };
+  }
+
+  const entryPoint = path.join(npmDir, 'dist', 'index.js');
+  const project = new SemiontProject(projectRoot);
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
@@ -52,11 +61,11 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
 
   // Create runtime directories
-  fs.mkdirSync(logsDir, { recursive: true });
-  fs.mkdirSync(path.dirname(paths.pidFile), { recursive: true });
+  fs.mkdirSync(project.backendLogsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(project.backendPidFile), { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${logsDir}`);
+    printInfo(`Created runtime directories in: ${project.backendLogsDir}`);
   }
 
   // Get environment configuration from service
@@ -105,7 +114,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
     try {
       execFileSync('npx', ['prisma', 'generate', `--schema=${prismaSchemaPath}`], {
-        cwd: paths.project.stateDir,
+        cwd: project.stateDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
 
@@ -125,7 +134,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
     try {
       execFileSync('npx', ['prisma', 'migrate', 'deploy', `--schema=${prismaSchemaPath}`], {
-        cwd: paths.project.stateDir,
+        cwd: project.stateDir,
         env: { ...process.env, DATABASE_URL: databaseUrl },
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
@@ -142,7 +151,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const metadata = {
     serviceType: 'backend',
     entryPoint,
-    logsDir,
+    logsDir: project.backendLogsDir,
     configured: true
   };
 
@@ -151,7 +160,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     printInfo('');
     printInfo('Backend details:');
     printInfo(`  Entry point: ${entryPoint}`);
-    printInfo(`  Logs directory: ${logsDir}`);
+    printInfo(`  Logs directory: ${project.backendLogsDir}`);
     printInfo('');
     printInfo('Next steps:');
     printInfo(`  1. Ensure database is running`);

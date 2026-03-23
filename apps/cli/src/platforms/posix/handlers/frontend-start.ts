@@ -6,7 +6,8 @@ import type { FrontendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { getFrontendPaths } from './frontend-paths.js';
+import { resolveFrontendNpmPackage } from './frontend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 import { checkPortFree, checkCommandAvailable, checkConfigPort, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
@@ -20,9 +21,19 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   const { service } = context;
   const config = service.config as FrontendServiceConfig;
 
-  // Get frontend paths
-  const paths = getFrontendPaths(context);
-  const { serverScript, pidFile, logsDir } = paths;
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  if (!npmDir) {
+    return {
+      success: false,
+      error: 'Frontend not provisioned. Run: semiont provision --service frontend',
+      metadata: { serviceType: 'frontend' }
+    };
+  }
+  const serverScript = path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js');
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.frontendPidFile;
+  const logsDir = project.frontendLogsDir;
 
   if (service.verbose) {
     printInfo(`Server script: ${serverScript}`);
@@ -248,15 +259,24 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
 const preflightFrontendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as FrontendServiceConfig;
-  const paths = getFrontendPaths(context);
+  const projectRoot = context.service.projectRoot;
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  const project = new SemiontProject(projectRoot);
   const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'frontend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
+  if (npmDir) {
+    checks.push(checkFileExists(
+      path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js'),
+      'frontend server.js'
+    ));
+  } else {
+    checks.push({ name: 'frontend-npm-package', pass: false, message: '@semiont/frontend not installed — run: semiont provision' });
+  }
   checks.push(
-    checkFileExists(paths.serverScript, 'frontend server.js'),
-    checkFileExists(paths.logsDir, 'frontend logs dir (run: semiont provision)'),
+    checkFileExists(project.frontendLogsDir, 'frontend logs dir (run: semiont provision)'),
     checkJwtSecretExists(),
   );
   return preflightFromChecks(checks);

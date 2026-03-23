@@ -6,7 +6,8 @@ import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { getBackendPaths } from './backend-paths.js';
+import { resolveBackendNpmPackage } from './backend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 import { checkPortFree, checkCommandAvailable, checkConfigPort, checkConfigField, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
@@ -20,9 +21,19 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const { service } = context;
   const config = service.config as BackendServiceConfig;
 
-  // Get backend paths
-  const paths = getBackendPaths(context);
-  const { entryPoint, pidFile, logsDir } = paths;
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  if (!npmDir) {
+    return {
+      success: false,
+      error: 'Backend not provisioned. Run: semiont provision --service backend',
+      metadata: { serviceType: 'backend' }
+    };
+  }
+  const entryPoint = path.join(npmDir, 'dist', 'index.js');
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.backendPidFile;
+  const logsDir = project.backendLogsDir;
 
   if (service.verbose) {
     printInfo(`Entry point: ${entryPoint}`);
@@ -256,17 +267,23 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
-  const paths = getBackendPaths(context);
+  const projectRoot = context.service.projectRoot;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const project = new SemiontProject(projectRoot);
   const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'backend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
+  if (npmDir) {
+    checks.push(checkFileExists(path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
+  } else {
+    checks.push({ name: 'backend-npm-package', pass: false, message: '@semiont/backend not installed — run: semiont provision' });
+  }
   checks.push(
-    checkFileExists(paths.entryPoint, 'backend dist/index.js'),
-    checkFileExists(paths.logsDir, 'backend logs dir (run: semiont provision)'),
+    checkFileExists(project.backendLogsDir, 'backend logs dir (run: semiont provision)'),
     checkJwtSecretExists(),
-    checkConfigField(context.service.projectRoot, 'projectRoot'),
+    checkConfigField(projectRoot, 'projectRoot'),
   );
   return preflightFromChecks(checks);
 };
