@@ -1,5 +1,6 @@
 import React from 'react';
-import type { WorkerStatus } from '../dashboard-components.js';
+import type { WorkerStatus, ServiceStatus } from '../dashboard-components.js';
+import { SectionInference } from './dashboard-shared.js';
 
 const TAG_SEC = 'semiont-tag semiont-tag--secondary semiont-tag--compact';
 
@@ -21,33 +22,41 @@ function workerIndicatorClass(w: WorkerStatus): string {
 
 interface Props {
   workers: WorkerStatus[];
+  inferenceServices: ServiceStatus[];
 }
 
-export const SectionWorkers: React.FC<Props> = ({ workers }) => {
+export const SectionWorkers: React.FC<Props> = ({ workers, inferenceServices }) => {
   return (
-    <div className="mm-list">
-      <div className="mm-row mm-row--header">
-        <div className="mm-row__indicator" />
-        <div className="mm-row__label">Worker</div>
-        <div className="mm-row__value">Status</div>
-        <div className="mm-row__tags">Details</div>
-      </div>
-      {workers.map((w, i) => (
-        <div key={i} className="mm-row">
-          <div className="mm-row__indicator"><span className={workerIndicatorClass(w)} /></div>
-          <div className="mm-row__label">{WORKER_LABELS[w.type]}</div>
-          <div className="mm-row__value">{w.state}</div>
-          <div className="mm-row__tags">
-            <span className={w.activeCount > 0 ? 'semiont-tag semiont-tag--success semiont-tag--compact' : TAG_SEC}>
-              {w.activeCount} active
-            </span>
-            <span className={TAG_SEC}>{w.pendingCount} pending</span>
-            {w.lastProcessed && (
-              <span className={TAG_SEC}>last {new Date(w.lastProcessed).toLocaleTimeString()}</span>
-            )}
+    <div className="mm-sections">
+      <div className="mm-group">
+        <div className="mm-group__title">Workers</div>
+        <div className="mm-list">
+          <div className="mm-row mm-row--header">
+            <div className="mm-row__indicator" />
+            <div className="mm-row__label">Worker</div>
+            <div className="mm-row__value">Status</div>
+            <div className="mm-row__tags">Details</div>
           </div>
+          {workers.map((w, i) => (
+            <div key={i} className="mm-row">
+              <div className="mm-row__indicator"><span className={workerIndicatorClass(w)} /></div>
+              <div className="mm-row__label">{WORKER_LABELS[w.type]}</div>
+              <div className="mm-row__value">{w.state}</div>
+              <div className="mm-row__tags">
+                <span className={w.activeCount > 0 ? 'semiont-tag semiont-tag--success semiont-tag--compact' : TAG_SEC}>
+                  {w.activeCount} active
+                </span>
+                <span className={TAG_SEC}>{w.pendingCount} pending</span>
+                {w.lastProcessed && (
+                  <span className={TAG_SEC}>last {new Date(w.lastProcessed).toLocaleTimeString()}</span>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      <SectionInference inferenceServices={inferenceServices} />
     </div>
   );
 };

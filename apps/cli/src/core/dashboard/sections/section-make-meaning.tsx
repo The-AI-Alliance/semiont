@@ -1,7 +1,6 @@
 import React from 'react';
-import type { MakeMeaningStatus, ActorStatus } from '../dashboard-components.js';
-
-const TAG = 'semiont-tag semiont-tag--secondary semiont-tag--compact';
+import type { MakeMeaningStatus, ActorStatus, ServiceStatus } from '../dashboard-components.js';
+import { MmRow, MmGroup, SectionInference } from './dashboard-shared.js';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -33,36 +32,12 @@ function graphIndicatorClass(status: MakeMeaningStatus['graph']['status']): stri
   }
 }
 
-const MmRow: React.FC<{
-  indicator: string;
-  label: string;
-  value: string;
-  tags?: (string | undefined | false)[];
-}> = ({ indicator, label, value, tags }) => (
-  <div className="mm-row">
-    <div className="mm-row__indicator"><span className={indicator} /></div>
-    <div className="mm-row__label">{label}</div>
-    <div className="mm-row__value">{value}</div>
-    <div className="mm-row__tags">
-      {tags?.filter(Boolean).map((t, i) => (
-        <span key={i} className={TAG}>{t as string}</span>
-      ))}
-    </div>
-  </div>
-);
-
-const MmGroup: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="mm-group">
-    <div className="mm-group__title">{title}</div>
-    <div className="mm-list">{children}</div>
-  </div>
-);
-
 interface Props {
   makeMeaning: MakeMeaningStatus;
+  inferenceServices: ServiceStatus[];
 }
 
-export const SectionMakeMeaning: React.FC<Props> = ({ makeMeaning: mm }) => {
+export const SectionMakeMeaning: React.FC<Props> = ({ makeMeaning: mm, inferenceServices }) => {
   return (
     <div className="mm-sections">
 
@@ -135,6 +110,8 @@ export const SectionMakeMeaning: React.FC<Props> = ({ makeMeaning: mm }) => {
           );
         })}
       </MmGroup>
+
+      <SectionInference inferenceServices={inferenceServices} />
 
     </div>
   );

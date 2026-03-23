@@ -17,6 +17,7 @@ import type {
   MakeMeaningStatus, WorkerStatus
 } from '../dashboard/dashboard-components.js';
 
+
 export interface DashboardData {
   services: ServiceStatus[];
   logs: LogEntry[];
@@ -83,7 +84,7 @@ export class DashboardDataSource {
         if (!checkResult) {
           // No result returned - service check failed
           services.push({
-            name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
+            name: deployment.name,
             status: 'unknown',
             details: 'Check failed - no result',
             lastUpdated: new Date()
@@ -94,7 +95,7 @@ export class DashboardDataSource {
         // Convert to dashboard format with all new fields
         const checkedAt = new Date();
         const serviceStatus: ServiceStatus = {
-          name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
+          name: deployment.name,
           status: this.mapStatus(checkResult.extensions?.status || 'unknown'),
           details: checkResult.error || this.getDetails(checkResult),
           evidence: this.getEvidence(checkResult),
@@ -398,6 +399,21 @@ export class DashboardDataSource {
     const meta = checkResult.metadata as any;
 
     if (!d && !meta) return ev;
+
+    // Inference evidence (Anthropic or Ollama)
+    if (meta?.serviceType === 'inference') {
+      if (d?.endpoint)      ev.push(d.endpoint);
+      if (d?.model)         ev.push(d.model);
+      if (d?.responseTime)  ev.push(d.responseTime);
+      if (d?.responsePreview) ev.push(`"${String(d.responsePreview).slice(0, 20)}"`);
+      // Ollama: show model availability
+      if (d?.modelAvailability) {
+        for (const [m, avail] of Object.entries(d.modelAvailability as Record<string, boolean>)) {
+          ev.push(`${m} ${avail ? '✓' : '✗'}`);
+        }
+      }
+      return ev;
+    }
 
     // Generic connection/protocol evidence (works for neo4j bolt, gremlin ws, etc.)
     if (d?.address)          ev.push(`connected ${d.address}`);
