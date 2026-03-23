@@ -16,9 +16,11 @@ import * as path from 'path';
  * Ephemeral paths (outside the project root, never committed):
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   dataHome       — $XDG_DATA_HOME/semiont/{name}/   (persistent user data, e.g. database files)
- *   stateDir       — $XDG_STATE_HOME/semiont/{name}/
- *   projectionsDir — stateDir/projections/
- *   jobsDir        — stateDir/jobs/
+ *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
+ *   projectionsDir  — stateDir/projections/
+ *   jobsDir         — stateDir/jobs/
+ *   backendLogsDir  — stateDir/backend/
+ *   frontendLogsDir — stateDir/frontend/
  *   runtimeDir     — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
  */
 export class SemiontProject {
@@ -40,6 +42,8 @@ export class SemiontProject {
   readonly stateDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
+  readonly backendLogsDir: string;
+  readonly frontendLogsDir: string;
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
@@ -69,6 +73,8 @@ export class SemiontProject {
     this.stateDir = path.join(xdgState, 'semiont', this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
+    this.backendLogsDir = path.join(this.stateDir, 'backend');
+    this.frontendLogsDir = path.join(this.stateDir, 'frontend');
 
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';

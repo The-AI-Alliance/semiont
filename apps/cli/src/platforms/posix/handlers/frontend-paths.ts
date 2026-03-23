@@ -71,7 +71,7 @@ export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPat
 }
 
 function buildPaths(sourceDir: string, runtimeDir: string, project: SemiontProject, fromNpmPackage: boolean): FrontendPaths {
-  const logsDir = path.join(project.stateDir, 'frontend');
+  const logsDir = project.frontendLogsDir;
   return {
     sourceDir,
     runtimeDir,

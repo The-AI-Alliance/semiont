@@ -71,7 +71,7 @@ export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths
 }
 
 function buildPaths(sourceDir: string, runtimeDir: string, project: SemiontProject, fromNpmPackage: boolean): BackendPaths {
-  const logsDir = path.join(project.stateDir, 'backend');
+  const logsDir = project.backendLogsDir;
   return {
     sourceDir,
     runtimeDir,
