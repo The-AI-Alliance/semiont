@@ -87,5 +87,7 @@ export interface WorkerStatus {
   state: 'idle' | 'active' | 'error';
   pendingCount: number;
   activeCount: number;
+  completedCount: number;
+  failedCount: number;
   lastProcessed?: Date;
 }

@@ -60,9 +60,9 @@ const TabBar: React.FC<{
   wkHealthy: number; wkTotal: number;
 }> = ({ active, onChange, webHealthy, webTotal, mmHealthy, mmTotal, wkHealthy, wkTotal }) => {
   const tabs: { id: TabId; label: string; healthy: number; total: number }[] = [
-    { id: 'web',          label: 'Web Interface',  healthy: webHealthy, total: webTotal },
     { id: 'make-meaning', label: 'Make Meaning',   healthy: mmHealthy,  total: mmTotal  },
-    { id: 'workers',      label: 'Job Workers',    healthy: wkHealthy,  total: wkTotal  },
+    { id: 'workers',      label: 'Workers',        healthy: wkHealthy,  total: wkTotal  },
+    { id: 'web',          label: 'Web Interface',  healthy: webHealthy, total: webTotal },
   ];
 
   function badgeClass(healthy: number, total: number) {
@@ -100,7 +100,7 @@ export const WebDashboardApp: React.FC<{
   environment: string;
   refreshInterval: number;
 }> = ({ environment, refreshInterval }) => {
-  const [activeTab, setActiveTab] = useState<TabId>('web');
+  const [activeTab, setActiveTab] = useState<TabId>('make-meaning');
 
   const [services,   setServices]   = useState<ServiceStatus[]>([]);
   const [serviceLogs, setServiceLogs] = useState<LogEntry[]>([]);
@@ -172,7 +172,8 @@ export const WebDashboardApp: React.FC<{
     : makeMeaning;
 
   const MAKE_MEANING_SERVICES = new Set(['graph', 'neo4j', 'janusgraph', 'neptune']);
-  const webServices = services.filter(s => !MAKE_MEANING_SERVICES.has(s.name.toLowerCase()));
+  const inferenceServices = services.filter(s => s.name.toLowerCase().startsWith('inference.'));
+  const webServices = services.filter(s => !MAKE_MEANING_SERVICES.has(s.name.toLowerCase()) && !s.name.toLowerCase().startsWith('inference.'));
   const webHealthy = webServices.filter(s => s.status === 'healthy').length;
 
   // Make Meaning healthy count (mirrors section-make-meaning countHealthy)
@@ -227,7 +228,7 @@ export const WebDashboardApp: React.FC<{
               <div className="tab-meta">
                 <UpdateTime time={mmUpdated} label="updated" />
               </div>
-              <SectionMakeMeaning makeMeaning={mm} />
+              <SectionMakeMeaning makeMeaning={mm} inferenceServices={inferenceServices} />
               <LogViewer logs={[]} />
             </>
           )}
@@ -237,7 +238,7 @@ export const WebDashboardApp: React.FC<{
               <div className="tab-meta">
                 <UpdateTime time={workersUpdated} label="updated" />
               </div>
-              <SectionWorkers workers={workers} />
+              <SectionWorkers workers={workers} inferenceServices={inferenceServices} />
               <LogViewer logs={[]} />
             </>
           )}

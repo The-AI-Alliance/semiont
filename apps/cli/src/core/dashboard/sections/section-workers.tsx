@@ -1,5 +1,6 @@
 import React from 'react';
-import type { WorkerStatus } from '../dashboard-components.js';
+import type { WorkerStatus, ServiceStatus } from '../dashboard-components.js';
+import { SectionInference } from './dashboard-shared.js';
 
 const TAG_SEC = 'semiont-tag semiont-tag--secondary semiont-tag--compact';
 
@@ -12,6 +13,16 @@ const WORKER_LABELS: Record<WorkerStatus['type'], string> = {
   'generation':            'Generation',
 };
 
+function idleSince(last: Date): string {
+  const ms = Date.now() - last.getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1)   return 'just now';
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 function workerIndicatorClass(w: WorkerStatus): string {
   if (w.state === 'error') return 'semiont-indicator semiont-indicator--offline';
   if (w.activeCount > 0)   return 'semiont-indicator semiont-indicator--online semiont-indicator--pulse';
@@ -21,33 +32,53 @@ function workerIndicatorClass(w: WorkerStatus): string {
 
 interface Props {
   workers: WorkerStatus[];
+  inferenceServices: ServiceStatus[];
 }
 
-export const SectionWorkers: React.FC<Props> = ({ workers }) => {
+export const SectionWorkers: React.FC<Props> = ({ workers, inferenceServices }) => {
   return (
-    <div className="mm-list">
-      <div className="mm-row mm-row--header">
-        <div className="mm-row__indicator" />
-        <div className="mm-row__label">Worker</div>
-        <div className="mm-row__value">Status</div>
-        <div className="mm-row__tags">Details</div>
-      </div>
-      {workers.map((w, i) => (
-        <div key={i} className="mm-row">
-          <div className="mm-row__indicator"><span className={workerIndicatorClass(w)} /></div>
-          <div className="mm-row__label">{WORKER_LABELS[w.type]}</div>
-          <div className="mm-row__value">{w.state}</div>
-          <div className="mm-row__tags">
-            <span className={w.activeCount > 0 ? 'semiont-tag semiont-tag--success semiont-tag--compact' : TAG_SEC}>
-              {w.activeCount} active
-            </span>
-            <span className={TAG_SEC}>{w.pendingCount} pending</span>
-            {w.lastProcessed && (
-              <span className={TAG_SEC}>last {new Date(w.lastProcessed).toLocaleTimeString()}</span>
-            )}
+    <div className="mm-sections">
+      <div className="mm-group">
+        <div className="mm-group__title">Workers</div>
+        <div className="mm-list">
+          <div className="mm-row mm-row--header">
+            <div className="mm-row__indicator" />
+            <div className="mm-row__label">Worker</div>
+            <div className="mm-row__value">Status</div>
+            <div className="mm-row__tags">Details</div>
           </div>
+          {workers.map((w, i) => (
+            <div key={i} className="mm-row">
+              <div className="mm-row__indicator"><span className={workerIndicatorClass(w)} /></div>
+              <div className="mm-row__label">{WORKER_LABELS[w.type]}</div>
+              <div className="mm-row__value">{w.state}</div>
+              <div className="mm-row__tags">
+                <span className={w.activeCount > 0 ? 'semiont-tag semiont-tag--success semiont-tag--compact' : TAG_SEC}>
+                  {w.activeCount} active
+                </span>
+                <span className={TAG_SEC}>{w.pendingCount} pending</span>
+                {w.completedCount > 0 && (
+                  <span className={TAG_SEC}>{w.completedCount} done</span>
+                )}
+                {w.failedCount > 0 && (
+                  <span className={'semiont-tag semiont-tag--warning semiont-tag--compact'}>{w.failedCount} failed</span>
+                )}
+                {w.state === 'idle' && !w.lastProcessed && (
+                  <span className={TAG_SEC}>never used</span>
+                )}
+                {w.lastProcessed && w.state === 'idle' && (
+                  <span className={TAG_SEC}>last used {idleSince(new Date(w.lastProcessed))}</span>
+                )}
+                {w.lastProcessed && w.state !== 'idle' && (
+                  <span className={TAG_SEC}>last {new Date(w.lastProcessed).toLocaleTimeString()}</span>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      <SectionInference inferenceServices={inferenceServices} />
     </div>
   );
 };
