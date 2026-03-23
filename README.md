@@ -15,7 +15,7 @@
 
 **Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
-Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure.
+Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure. Inference runs on **Anthropic** (cloud) or **Ollama** (local) — mix providers per worker to balance cost, capability, and privacy.
 
 ![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
 
