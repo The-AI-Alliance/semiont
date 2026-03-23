@@ -30,7 +30,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   let details: Record<string, unknown> = {
     backendDir,
     port: config.port,
-    source: paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO',
+    source: 'npm package',
     pidFile,
     appLog: appLogPath,
     errorLog: errorLogPath,

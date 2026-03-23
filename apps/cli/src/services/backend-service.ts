@@ -54,13 +54,6 @@ export class BackendService extends BaseService {
     const baseRequirements = RequirementPresets.statelessApi();
     delete baseRequirements.network; // Remove network from preset to avoid port conflicts
     
-    // Add dockerfile path if semiontRepo is provided
-    const buildConfig = this.typedConfig.semiontRepo ? {
-      dockerfile: `${this.typedConfig.semiontRepo}/apps/backend/Dockerfile`,
-      buildContext: this.typedConfig.semiontRepo,
-      prebuilt: false
-    } : baseRequirements.build;
-    
     // Define backend-specific requirements
     const backendRequirements: ServiceRequirements = {
       network: {
@@ -81,7 +74,7 @@ export class BackendService extends BaseService {
           }
         ]
       },
-      build: buildConfig || {
+      build: baseRequirements.build || {
         dockerfile: 'Dockerfile.backend',
         buildContext: path.join(this.projectRoot, 'apps/backend'),
         buildArgs: {

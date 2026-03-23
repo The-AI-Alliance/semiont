@@ -26,7 +26,6 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
   if (service.verbose) {
     printInfo(`Source: ${frontendSourceDir}`);
-    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
   }
 
   if (!fs.existsSync(frontendSourceDir)) {
@@ -130,21 +129,9 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // Determine command based on source type and devMode
-  let command: string;
-  let args: string[];
-
-  if (paths.fromNpmPackage) {
-    // npm package: run standalone server directly
-    command = 'node';
-    args = [path.join(frontendSourceDir, '.next', 'standalone', 'apps', 'frontend', 'server.js')];
-  } else if (config.devMode) {
-    command = 'npm';
-    args = ['run', 'dev'];
-  } else {
-    command = 'npm';
-    args = ['start'];
-  }
+  // npm package: run standalone server directly
+  const command = 'node';
+  const args = [path.join(frontendSourceDir, '.next', 'standalone', 'apps', 'frontend', 'server.js')];
 
   try {
     // Open log files for writing (process will write directly)
@@ -198,9 +185,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     }
     
     // Build resources
-    const commandStr = paths.fromNpmPackage
-      ? `node .next/standalone/apps/frontend/server.js`
-      : config.devMode ? 'npm run dev' : 'npm start';
+    const commandStr = 'node .next/standalone/apps/frontend/server.js';
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
@@ -264,10 +249,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
 const preflightFrontendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as FrontendServiceConfig;
-  const paths = getFrontendPaths(context);
-  const checks = paths.fromNpmPackage
-    ? [checkCommandAvailable('node')]
-    : [checkCommandAvailable('npm')];
+  const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'frontend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));

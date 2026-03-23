@@ -19,7 +19,6 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
 
   if (service.verbose) {
     printInfo(`Source: ${backendSourceDir}`);
-    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
   }
 
   // Check if backend source directory exists

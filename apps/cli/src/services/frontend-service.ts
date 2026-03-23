@@ -75,16 +75,6 @@ export class FrontendService extends BaseService {
       }
     };
     
-    // Add dockerfile path if semiontRepo is provided
-    if (this.typedConfig.semiontRepo) {
-      requirements.build = {
-        ...requirements.build,
-        dockerfile: `${this.typedConfig.semiontRepo}/apps/frontend/Dockerfile`,
-        buildContext: this.typedConfig.semiontRepo,
-        prebuilt: false
-      };
-    }
-    
     return requirements;
   }
   

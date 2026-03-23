@@ -34,7 +34,6 @@ const PublishOptionsSchema = BaseOptionsSchema.extend({
   all: z.boolean().default(false),
   tag: z.string().optional(),  // Custom version tag
   registry: z.string().optional(),  // Override default registry
-  semiontRepo: z.string().optional(),  // Path to Semiont repository for builds
   noCache: z.boolean().optional().default(false),  // Skip Docker cache
 });
 
@@ -52,14 +51,12 @@ const publishDescriptor: CommandDescriptor<PublishOptions> = createCommandDescri
     platform: serviceInfo.platform,
     tag: options.tag,
     registry: options.registry,
-    semiontRepo: options.semiontRepo,
     noCache: options.noCache,
   }),
-  
+
   extractHandlerOptions: (options) => ({
     tag: options.tag,
     registry: options.registry,
-    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
     noCache: options.noCache,
     verbose: options.verbose,
     quiet: options.quiet,
@@ -153,10 +150,6 @@ export const publishCommand = new CommandBuilder()
       '--registry': {
         type: 'string',
         description: 'Override default registry',
-      },
-      '--semiont-repo': {
-        type: 'string',
-        description: 'Path to Semiont repository for builds',
       },
       '--no-cache': {
         type: 'boolean',

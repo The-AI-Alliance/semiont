@@ -20,7 +20,6 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
 
   if (service.verbose) {
     printInfo(`Source: ${frontendSourceDir}`);
-    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
   }
 
   // Check if frontend source directory exists

@@ -26,7 +26,6 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
   if (service.verbose) {
     printInfo(`Source: ${backendSourceDir}`);
-    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
   }
 
   if (!fs.existsSync(backendSourceDir)) {
@@ -139,21 +138,9 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // Determine command based on source type and devMode
-  let command: string;
-  let args: string[];
-
-  if (paths.fromNpmPackage) {
-    // npm package: run dist/index.js directly
-    command = 'node';
-    args = [path.join(backendSourceDir, 'dist', 'index.js')];
-  } else if (config.devMode) {
-    command = 'npm';
-    args = ['run', 'dev'];
-  } else {
-    command = 'npm';
-    args = ['start'];
-  }
+  // npm package: run dist/index.js directly
+  const command = 'node';
+  const args = [path.join(backendSourceDir, 'dist', 'index.js')];
 
   try {
     // Open log files for writing (process will write directly)
@@ -207,9 +194,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
     
     // Build resources
-    const commandStr = paths.fromNpmPackage
-      ? `node dist/index.js`
-      : config.devMode ? 'npm run dev' : 'npm start';
+    const commandStr = 'node dist/index.js';
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
@@ -273,10 +258,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
-  const paths = getBackendPaths(context);
-  const checks = paths.fromNpmPackage
-    ? [checkCommandAvailable('node')]
-    : [checkCommandAvailable('npm')];
+  const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'backend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));

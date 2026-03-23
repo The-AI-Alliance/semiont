@@ -28,7 +28,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
   let details: Record<string, unknown> = {
     frontendDir,
     port: config.port,
-    source: paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO',
+    source: 'npm package',
     pidFile,
     appLog: appLogPath,
     errorLog: errorLogPath,

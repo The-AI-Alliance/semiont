@@ -157,9 +157,6 @@
         "memory": {
           "type": "string"
         },
-        "semiontRepo": {
-          "type": "string"
-        },
         "databaseUrl": {
           "type": "string"
         },
@@ -309,9 +306,6 @@
           "type": "string"
         },
         "image": {
-          "type": "string"
-        },
-        "semiontRepo": {
           "type": "string"
         },
         "projectRoot": {

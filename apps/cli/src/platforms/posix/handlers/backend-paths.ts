@@ -6,17 +6,16 @@ import { SemiontProject } from '@semiont/core/node';
 /**
  * Backend service paths on POSIX platform
  *
- * sourceDir: read-only code (npm package or SEMIONT_REPO checkout)
+ * sourceDir: read-only code from the installed @semiont/backend npm package
  * All runtime/log/pid paths come from SemiontProject.
  */
 export interface BackendPaths {
   project: SemiontProject; // Canonical project paths (XDG-derived)
-  sourceDir: string;       // Base directory for backend source (read-only)
+  sourceDir: string;       // Base directory for backend source (read-only, from npm package)
   pidFile: string;         // project.backendPidFile
   logsDir: string;         // project.backendLogsDir
   appLogFile: string;      // logsDir/app.log
   errorLogFile: string;    // logsDir/error.log
-  fromNpmPackage: boolean; // Whether source is an installed npm package
 }
 
 /**
@@ -36,45 +35,26 @@ export function resolveBackendNpmPackage(projectRoot: string): string | null {
 /**
  * Get all backend paths for POSIX platform.
  *
- * Source resolution order:
- *   1. SEMIONT_REPO (if set) — developer mode, working on semiont source
- *   2. Installed @semiont/backend npm package
- *   3. Fail with clear error
- *
- * Runtime files always go to $SEMIONT_ROOT/backend/ (following proxy-paths.ts pattern).
+ * Source: installed @semiont/backend npm package.
+ * Runtime files always go to XDG state dir (via SemiontProject).
  */
 export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths {
   const projectRoot = context.service.projectRoot;
   const project = new SemiontProject(projectRoot);
-  const semiontRepo = context.options?.semiontRepo;
 
-  // 1. Explicit repo path (developer mode)
-  if (semiontRepo) {
-    return buildPaths(path.join(semiontRepo, 'apps', 'backend'), project, false);
-  }
-
-  // 2. Installed npm package
   const npmDir = resolveBackendNpmPackage(projectRoot);
-  if (npmDir) {
-    return buildPaths(npmDir, project, true);
+  if (!npmDir) {
+    throw new Error(
+      'Cannot find backend source. Run: npm install @semiont/backend'
+    );
   }
 
-  // 3. Fail loudly
-  throw new Error(
-    'Cannot find backend source. Either:\n' +
-    '  - Set SEMIONT_REPO to your semiont clone, or\n' +
-    '  - Run: npm install @semiont/backend'
-  );
-}
-
-function buildPaths(sourceDir: string, project: SemiontProject, fromNpmPackage: boolean): BackendPaths {
   return {
     project,
-    sourceDir,
+    sourceDir:    npmDir,
     pidFile:      project.backendPidFile,
     logsDir:      project.backendLogsDir,
     appLogFile:   path.join(project.backendLogsDir, 'app.log'),
     errorLogFile: path.join(project.backendLogsDir, 'error.log'),
-    fromNpmPackage,
   };
 }
