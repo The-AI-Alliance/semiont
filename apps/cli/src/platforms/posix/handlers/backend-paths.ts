@@ -10,6 +10,7 @@ import { SemiontProject } from '@semiont/core/node';
  * All runtime/log/pid paths come from SemiontProject.
  */
 export interface BackendPaths {
+  project: SemiontProject; // Canonical project paths (XDG-derived)
   sourceDir: string;       // Base directory for backend source (read-only)
   pidFile: string;         // project.backendPidFile
   logsDir: string;         // project.backendLogsDir
@@ -68,6 +69,7 @@ export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths
 
 function buildPaths(sourceDir: string, project: SemiontProject, fromNpmPackage: boolean): BackendPaths {
   return {
+    project,
     sourceDir,
     pidFile:      project.backendPidFile,
     logsDir:      project.backendLogsDir,

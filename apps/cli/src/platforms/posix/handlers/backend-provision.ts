@@ -108,8 +108,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       }
 
       try {
-        execFileSync('npx', ['prisma', 'generate'], {
-          cwd: backendSourceDir,
+        execFileSync('npx', ['prisma', 'generate', `--schema=${prismaSchemaPath}`], {
+          cwd: paths.project.stateDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
 
@@ -176,8 +176,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       }
 
       try {
-        execFileSync('npx', ['prisma', 'generate'], {
-          cwd: backendSourceDir,
+        execFileSync('npx', ['prisma', 'generate', `--schema=${prismaSchemaPath}`], {
+          cwd: paths.project.stateDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
 
@@ -255,8 +255,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
     
     try {
-      execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
-        cwd: backendSourceDir,
+      execFileSync('npx', ['prisma', 'migrate', 'deploy', `--schema=${prismaSchemaPath}`], {
+        cwd: paths.project.stateDir,
         env: { ...process.env, DATABASE_URL: databaseUrl },
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
