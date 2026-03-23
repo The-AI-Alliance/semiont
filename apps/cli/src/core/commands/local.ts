@@ -29,9 +29,11 @@ import { SemiontProject } from '@semiont/core/node';
 // =====================================================================
 
 const LocalOptionsSchema = BaseOptionsSchema.extend({
+  directory: z.string().optional(),
   email: z.string().optional(),
   password: z.string().optional(),
   generatePassword: z.boolean().default(true),
+  yes: z.boolean().default(false),
 }).transform((data) => ({
   ...data,
   environment: data.environment || '_local_',
@@ -194,25 +196,30 @@ async function local(options: LocalOptions): Promise<CommandResults> {
   try {
     // ─── Step 1: Project directory ───────────────────────────────────────
 
-    // Only check cwd — do NOT walk up. Walking up would silently adopt an ancestor
-    // project, which is wrong for `semiont local` (unlike `git` which intentionally
-    // operates on the nearest ancestor repo).
+    // Only check cwd (or --directory if given) — do NOT walk up. Walking up would
+    // silently adopt an ancestor project, which is wrong for `semiont local`.
+    const explicitDir = options.directory ? path.resolve(options.directory) : null;
     let semiotRoot = '';
-    if (fs.existsSync(path.join(process.cwd(), '.semiont'))) {
-      semiotRoot = process.cwd();
+    const checkDir = explicitDir || process.cwd();
+    if (fs.existsSync(path.join(checkDir, '.semiont'))) {
+      semiotRoot = checkDir;
     }
 
     if (!semiotRoot) {
-      const defaultPath = path.join(process.env.HOME || process.cwd(), 'semiont');
-      const answer = await prompt(
-        `${colors.cyan}No .semiont/ project found.${colors.reset}\n` +
-        `Press Enter to create one in ${colors.bright}${defaultPath}${colors.reset}, or type a path: `
-      );
+      const defaultPath = explicitDir || process.cwd();
+      const answer = options.yes || explicitDir
+        ? ''
+        : await prompt(
+            `${colors.cyan}No .semiont/ project found.${colors.reset}\n` +
+            `Press Enter to create one in ${colors.bright}${defaultPath}${colors.reset}, or type a path: `
+          );
       semiotRoot = answer || defaultPath;
       fs.mkdirSync(semiotRoot, { recursive: true });
       process.env.SEMIONT_ROOT = semiotRoot;
       console.log(`${colors.green}✓${colors.reset} Using ${semiotRoot}\n`);
-      console.log(`${colors.dim}Tip: cd ${semiotRoot} to run semiont commands without SEMIONT_ROOT${colors.reset}\n`);
+      if (semiotRoot !== process.cwd()) {
+        console.log(`${colors.dim}Tip: cd ${semiotRoot} to run semiont commands without SEMIONT_ROOT${colors.reset}\n`);
+      }
     } else {
       console.log(`${colors.green}✓${colors.reset} Found project at ${semiotRoot}\n`);
       process.env.SEMIONT_ROOT = semiotRoot;
@@ -342,12 +349,12 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
       let email = options.email;
       if (!email) {
-        const answer = await prompt(`  Admin email [admin@local]: `);
+        const answer = options.yes ? '' : await prompt(`  Admin email [admin@local]: `);
         email = answer || 'admin@local';
       }
 
       let generatePassword = options.generatePassword;
-      if (!options.password) {
+      if (!options.password && !options.yes) {
         const answer = await prompt(`  Generate password? [Y/n]: `);
         generatePassword = answer === '' || answer.toLowerCase() === 'y';
       }
@@ -421,6 +428,10 @@ export const localCommand = new CommandBuilder()
   .description('Set up and start Semiont locally (init + provision + start + useradd)')
   .schema(LocalOptionsSchema)
   .args(withBaseArgs({
+    '--directory': {
+      type: 'string',
+      description: 'Project directory (default: cwd)',
+    },
     '--email': {
       type: 'string',
       description: 'Admin user email (default: admin@local)',
@@ -434,8 +445,14 @@ export const localCommand = new CommandBuilder()
       description: 'Generate a random admin password',
       default: true,
     },
+    '--yes': {
+      type: 'boolean',
+      description: 'Non-interactive: accept all defaults (for scripts)',
+      default: false,
+    },
   }, {
     '--email': '--email',
+    '--yes': '-y',
   }))
   .requiresEnvironment(false)
   .requiresServices(false)
@@ -443,6 +460,8 @@ export const localCommand = new CommandBuilder()
     'semiont local',
     'semiont local --email me@example.com',
     'semiont local --email me@example.com --generate-password',
+    'semiont local --yes',
+    'semiont local --directory /opt/myproject --email me@example.com --yes',
   )
   .setupHandler(local)
   .build();
