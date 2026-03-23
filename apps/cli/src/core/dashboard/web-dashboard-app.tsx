@@ -60,9 +60,9 @@ const TabBar: React.FC<{
   wkHealthy: number; wkTotal: number;
 }> = ({ active, onChange, webHealthy, webTotal, mmHealthy, mmTotal, wkHealthy, wkTotal }) => {
   const tabs: { id: TabId; label: string; healthy: number; total: number }[] = [
-    { id: 'web',          label: 'Web Interface',  healthy: webHealthy, total: webTotal },
     { id: 'make-meaning', label: 'Make Meaning',   healthy: mmHealthy,  total: mmTotal  },
-    { id: 'workers',      label: 'Job Workers',    healthy: wkHealthy,  total: wkTotal  },
+    { id: 'workers',      label: 'Workers',        healthy: wkHealthy,  total: wkTotal  },
+    { id: 'web',          label: 'Web Interface',  healthy: webHealthy, total: webTotal },
   ];
 
   function badgeClass(healthy: number, total: number) {
@@ -100,7 +100,7 @@ export const WebDashboardApp: React.FC<{
   environment: string;
   refreshInterval: number;
 }> = ({ environment, refreshInterval }) => {
-  const [activeTab, setActiveTab] = useState<TabId>('web');
+  const [activeTab, setActiveTab] = useState<TabId>('make-meaning');
 
   const [services,   setServices]   = useState<ServiceStatus[]>([]);
   const [serviceLogs, setServiceLogs] = useState<LogEntry[]>([]);
