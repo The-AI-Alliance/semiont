@@ -11,6 +11,7 @@ import { CommandResult } from '../command-result.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
 import { SemiontProject } from '@semiont/core/node';
+import { findProjectRoot } from '../config-loader.js';
 
 import type {
   ServiceStatus, LogEntry, MetricData,
@@ -239,7 +240,7 @@ export class DashboardDataSource {
 
     // File-stat based sources — work without backend running
     try {
-      const project = new SemiontProject(process.cwd());
+      const project = new SemiontProject(findProjectRoot());
 
       // Event log
       result.eventLog.path = project.eventsDir;
@@ -260,10 +261,11 @@ export class DashboardDataSource {
         result.eventLog.eventCount = eventCount;
       }
 
-      // Content store — recursive scan
-      result.contentStore.path = project.dataHome;
-      if (fs.existsSync(project.dataHome)) {
-        const { fileCount, sizeBytes } = this.dirStats(project.dataHome);
+      // Content store — recursive scan of representations/ inside the project root
+      const representationsDir = `${project.dataDir}/representations`;
+      result.contentStore.path = representationsDir;
+      if (fs.existsSync(representationsDir)) {
+        const { fileCount, sizeBytes } = this.dirStats(representationsDir);
         result.contentStore.fileCount = fileCount;
         result.contentStore.sizeBytes = sizeBytes;
       }
