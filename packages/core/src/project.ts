@@ -9,8 +9,9 @@ import * as path from 'path';
  * XDG environment variables are read here and nowhere else.
  *
  * Durable paths (inside the project root, committed or repo-local):
- *   eventsDir  — .semiont/events/     (system of record, committed)
- *   dataDir    — projectRoot/         (representations store root; representations/ is committed)
+ *   eventsDir          — .semiont/events/      (system of record, committed)
+ *   representationsDir — representations/      (content store, committed)
+ *   dataDir            — projectRoot/          (project root)
  *
  * Ephemeral paths (outside the project root, never committed):
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
@@ -26,6 +27,7 @@ export class SemiontProject {
 
   // Durable
   readonly eventsDir: string;
+  readonly representationsDir: string;
   readonly dataDir: string;
 
   // Ephemeral — config (generated config files for managed processes)
@@ -54,6 +56,7 @@ export class SemiontProject {
     this.name = SemiontProject.readName(projectRoot);
 
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');
+    this.representationsDir = path.join(projectRoot, 'representations');
     this.dataDir = projectRoot;
 
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');

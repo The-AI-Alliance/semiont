@@ -261,11 +261,10 @@ export class DashboardDataSource {
         result.eventLog.eventCount = eventCount;
       }
 
-      // Content store — recursive scan of representations/ inside the project root
-      const representationsDir = `${project.dataDir}/representations`;
-      result.contentStore.path = representationsDir;
-      if (fs.existsSync(representationsDir)) {
-        const { fileCount, sizeBytes } = this.dirStats(representationsDir);
+      // Content store — recursive scan
+      result.contentStore.path = project.representationsDir;
+      if (fs.existsSync(project.representationsDir)) {
+        const { fileCount, sizeBytes } = this.dirStats(project.representationsDir);
         result.contentStore.fileCount = fileCount;
         result.contentStore.sizeBytes = sizeBytes;
       }
