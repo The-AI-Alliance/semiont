@@ -27,7 +27,7 @@ import type { ServiceConfig } from './cli-config.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from './config-loader.js';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot, resolveEnvironment } from './config-loader.js';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError, printInfo } from './io/cli-logger.js';
@@ -158,19 +158,8 @@ export async function executeCommand(
 
     // Validate environment if required
     if (command.requiresEnvironment) {
-      // Check for environment from --environment flag or SEMIONT_ENV variable
-      if (!options.environment) {
-        const envFromVariable = process.env.SEMIONT_ENV;
-        if (envFromVariable) {
-          options.environment = envFromVariable;
-        } else {
-          const availableEnvs = getAvailableEnvironments();
-          throw new Error(
-            `Environment not specified. Use --environment flag or set SEMIONT_ENV environment variable. ` +
-            `Available: ${availableEnvs.length > 0 ? availableEnvs.join(', ') : 'none found'}`
-          );
-        }
-      }
+      // Check for environment: --environment flag > SEMIONT_ENV > defaults.environment in ~/.semiontconfig
+      options.environment = resolveEnvironment(options.environment);
       
       if (!isValidEnvironment(options.environment)) {
         const availableEnvs = getAvailableEnvironments();

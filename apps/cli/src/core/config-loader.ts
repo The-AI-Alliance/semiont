@@ -75,6 +75,38 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string) 
 }
 
 /**
+ * Resolve the active environment from (in order of precedence):
+ *   1. explicit value passed in (e.g. from --environment flag)
+ *   2. SEMIONT_ENV environment variable
+ *   3. defaults.environment in ~/.semiontconfig
+ *
+ * Throws if none of the above yields a value.
+ */
+export function resolveEnvironment(explicit?: string): string {
+  const resolved = explicit || process.env.SEMIONT_ENV || readDefaultEnvironment();
+  if (resolved) return resolved;
+  const availableEnvs = getAvailableEnvironments();
+  throw new Error(
+    `Environment not specified. Use --environment flag, set SEMIONT_ENV, or set defaults.environment in ~/.semiontconfig. ` +
+    `Available: ${availableEnvs.length > 0 ? availableEnvs.join(', ') : 'none found'}`
+  );
+}
+
+function readDefaultEnvironment(): string | null {
+  const configPath = path.join(os.homedir(), '.semiontconfig');
+  try {
+    const content = fs.existsSync(configPath)
+      ? fs.readFileSync(configPath, 'utf-8')
+      : null;
+    if (!content) return null;
+    const parsed = parseToml(content) as { defaults?: { environment?: string } };
+    return parsed.defaults?.environment ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get available environments from ~/.semiontconfig [environments.*] keys
  */
 export function getAvailableEnvironments(): string[] {
