@@ -198,7 +198,7 @@ function ComposeResourceContent() {
           entityTypes: params.entityTypes || [],
           language: params.language,
           creationMethod: 'ui',
-          storageUri: params.storagePath,
+          storageUri: params.storageUri,
         });
 
         newResourceId = response.resourceId;

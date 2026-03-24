@@ -96,7 +96,7 @@ export interface ResourceComposePageProps {
 export interface SaveResourceParams {
   mode: 'new' | 'clone' | 'reference';
   name: string;
-  storagePath: string;
+  storageUri: string;
   content?: string;
   file?: File;
   format?: string;
@@ -220,7 +220,7 @@ export function ResourceComposePage({
       const params: SaveResourceParams = {
         mode,
         name: newResourceName,
-        storagePath: `file://${storagePath}`,
+        storageUri: `file://${storagePath}`,
         content: newResourceContent,
         format: uploadedFile ? fileMimeType : selectedFormat,
         entityTypes: selectedEntityTypes,
