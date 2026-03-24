@@ -6,7 +6,7 @@ import { LOCALES } from '@semiont/api-client';
 
 export interface GenerationConfig {
   title: string;
-  storageUri: string;
+  storagePath: string;
   prompt?: string;
   language: string;
   temperature: number;
@@ -49,7 +49,7 @@ export function ConfigureGenerationStep({
   translations: t,
 }: ConfigureGenerationStepProps) {
   const [title, setTitle] = useState(defaultTitle);
-  const [storageUri, setStorageUri] = useState('');
+  const [storagePath, setStoragePath] = useState('');
   const [prompt, setPrompt] = useState('');
   const [language, setLanguage] = useState(locale);
   const [temperature, setTemperature] = useState(0.7);
@@ -60,7 +60,7 @@ export function ConfigureGenerationStep({
     const trimmedPrompt = prompt.trim();
     onGenerate({
       title,
-      storageUri,
+      storagePath: `file://${storagePath}`,
       ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
       language,
       temperature,
@@ -89,19 +89,21 @@ export function ConfigureGenerationStep({
 
       {/* Storage URI */}
       <div className="semiont-form__field">
-        <label htmlFor="wizard-storageUri" className="semiont-form__label">
+        <label htmlFor="wizard-storagePath" className="semiont-form__label">
           Save location
         </label>
-        <input
-          id="wizard-storageUri"
-          type="text"
-          value={storageUri}
-          onChange={(e) => setStorageUri(e.target.value)}
-          required
-          pattern="file://.+"
-          className="semiont-input"
-          placeholder="file://generated/my-resource.md"
-        />
+        <div className="semiont-input-addon">
+          <span className="semiont-input-addon__prefix">file://</span>
+          <input
+            id="wizard-storagePath"
+            type="text"
+            value={storagePath}
+            onChange={(e) => setStoragePath(e.target.value)}
+            required
+            className="semiont-input semiont-input--addon"
+            placeholder="generated/my-resource.md"
+          />
+        </div>
       </div>
 
       {/* Additional Instructions */}

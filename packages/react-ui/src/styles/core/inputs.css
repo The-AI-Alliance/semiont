@@ -105,6 +105,68 @@
   font-size: var(--semiont-text-base);
 }
 
+/* Input with inline prefix (e.g. "file://") */
+.semiont-input-addon {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  overflow: hidden;
+  background-color: var(--semiont-bg-primary);
+}
+
+[data-theme="dark"] .semiont-input-addon {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-input-addon:focus-within {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-input-addon:focus-within {
+  outline-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.semiont-input-addon__prefix {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  font-size: var(--semiont-text-sm);
+  font-family: var(--semiont-font-mono, monospace);
+  color: var(--semiont-text-tertiary);
+  background-color: var(--semiont-color-gray-50);
+  border-right: 1px solid var(--semiont-color-gray-300);
+  user-select: none;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .semiont-input-addon__prefix {
+  background-color: var(--semiont-color-gray-800);
+  border-right-color: var(--semiont-color-gray-700);
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-input--addon {
+  border: none;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.semiont-input--addon:focus-visible,
+.semiont-input--addon:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
 /* Placeholder */
 .semiont-input::placeholder {
   color: var(--semiont-text-tertiary);

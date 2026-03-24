@@ -32,7 +32,7 @@
     },
     "storageUri": {
       "type": "string",
-      "description": "Where the bytes live (s3://, file://, https://, ipfs://, etc.)."
+      "description": "Working-tree URI identifying where the bytes live. Only file:// is supported (e.g. file://docs/overview.md)."
     },
     "filename": {
       "type": "string"

@@ -96,7 +96,7 @@ export interface ResourceComposePageProps {
 export interface SaveResourceParams {
   mode: 'new' | 'clone' | 'reference';
   name: string;
-  storageUri: string;
+  storagePath: string;
   content?: string;
   file?: File;
   format?: string;
@@ -151,8 +151,8 @@ export function ResourceComposePage({
   // Character encoding selection - default to UTF-8 (empty string means use default)
   const [selectedCharset, setSelectedCharset] = useState<string>('');
 
-  // Storage URI — where the file will live in the working tree
-  const [storageUri, setStorageUri] = useState('');
+  // Working-tree path (bare, no protocol prefix) — converted to file:// URI on submit
+  const [storagePath, setStoragePath] = useState('');
 
   // Archive original checkbox (for clones only)
   const [archiveOriginal, setArchiveOriginal] = useState(true);
@@ -220,7 +220,7 @@ export function ResourceComposePage({
       const params: SaveResourceParams = {
         mode,
         name: newResourceName,
-        storageUri,
+        storagePath: `file://${storagePath}`,
         content: newResourceContent,
         format: uploadedFile ? fileMimeType : selectedFormat,
         entityTypes: selectedEntityTypes,
@@ -359,20 +359,22 @@ export function ResourceComposePage({
 
           {/* Storage URI */}
           <div className="semiont-form__field">
-            <label htmlFor="storageUri" className="semiont-form__label">
+            <label htmlFor="storagePath" className="semiont-form__label">
               Save location
             </label>
-            <input
-              id="storageUri"
-              type="text"
-              value={storageUri}
-              onChange={(e) => setStorageUri(e.target.value)}
-              placeholder="file://docs/my-resource.md"
-              pattern="file://.+"
-              className="semiont-input"
-              required
-              disabled={isCreating}
-            />
+            <div className="semiont-input-addon">
+              <span className="semiont-input-addon__prefix">file://</span>
+              <input
+                id="storagePath"
+                type="text"
+                value={storagePath}
+                onChange={(e) => setStoragePath(e.target.value)}
+                placeholder="docs/my-resource.md"
+                required
+                className="semiont-input semiont-input--addon"
+                disabled={isCreating}
+              />
+            </div>
           </div>
 
           {/* Entity Types Selection */}
