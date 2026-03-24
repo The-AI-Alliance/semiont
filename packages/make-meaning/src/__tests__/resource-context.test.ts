@@ -453,6 +453,7 @@ describe('ResourceContext', () => {
       entityTypes: ['Document'],
       creationMethod: 'api',
       dateCreated: '2024-01-01T00:00:00Z',
+      storageUri: 'abc123',
       representations: [
         {
           mediaType: 'text/plain',
@@ -483,7 +484,7 @@ describe('ResourceContext', () => {
         ...mockResource,
         content,
       });
-      expect(mockRepStore.retrieve).toHaveBeenCalledWith('abc123', 'text/plain');
+      expect(mockRepStore.retrieve).toHaveBeenCalledWith('abc123');
       expect(decodeRepresentation).toHaveBeenCalledWith(Buffer.from(content), 'text/plain');
     });
 
