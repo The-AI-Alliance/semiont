@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
+import { WorkingTreeStore } from '@semiont/content';
 import { exportBackup } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -63,9 +63,9 @@ export async function runBackup(options: BackupOptions): Promise<CommandResults>
 
   // Bootstrap read-only stores
   const eventStore = createEventStore(project, undefined, undefined, logger);
-  const contentStore = new FilesystemRepresentationStore(
+  const contentStore = new WorkingTreeStore(
     project,
-    logger.child({ component: 'representation-store' }),
+    logger.child({ component: 'content-store' }),
   );
 
   const outPath = path.resolve(options.out);

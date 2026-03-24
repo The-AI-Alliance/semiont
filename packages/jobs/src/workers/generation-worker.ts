@@ -158,6 +158,7 @@ export class GenerationWorker extends JobWorker {
       creationMethod: CREATION_METHODS.GENERATED,
       isDraft: true,
       generatedFrom: job.params.referenceId,
+      storageUri: job.params.storageUri,
     };
 
     const result$ = race(

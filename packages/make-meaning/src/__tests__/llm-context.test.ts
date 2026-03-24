@@ -21,7 +21,7 @@ import { AnnotationOperations } from '../annotation-operations';
 import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
 import type { GraphServiceConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
+import { WorkingTreeStore } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
 import { createTestProject } from './helpers/test-project';
@@ -50,7 +50,6 @@ describe('LLM Context', () => {
   let eventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
-  let repStore: RepresentationStore;
   let graphConfig: GraphServiceConfig;
   let kb: KnowledgeBase;
   let testResourceId: string;
@@ -71,12 +70,11 @@ describe('LLM Context', () => {
     // Initialize EventBus and stores
     eventBus = new EventBus();
     eventStore = createEventStore(project, undefined, eventBus, mockLogger);
-    repStore = new FilesystemRepresentationStore(project, mockLogger);
 
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
     const graphDb = await getGraphDatabase(graphConfig);
-    kb = { eventStore, views: eventStore.viewStorage, content: repStore, graph: graphDb };
+    kb = { eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir };
 
     // Start Stower
     stower = new Stower(kb, eventBus, mockLogger);

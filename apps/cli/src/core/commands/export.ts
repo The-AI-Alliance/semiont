@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
+import { WorkingTreeStore } from '@semiont/content';
 import { exportLinkedData } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
@@ -66,9 +66,9 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
 
   // Bootstrap read-only stores
   const eventStore = createEventStore(project, undefined, undefined, logger);
-  const contentStore = new FilesystemRepresentationStore(
+  const contentStore = new WorkingTreeStore(
     project,
-    logger.child({ component: 'representation-store' }),
+    logger.child({ component: 'content-store' }),
   );
 
   // Read entity types from the entity-types projection

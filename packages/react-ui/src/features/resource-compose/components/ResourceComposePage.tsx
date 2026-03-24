@@ -96,6 +96,7 @@ export interface ResourceComposePageProps {
 export interface SaveResourceParams {
   mode: 'new' | 'clone' | 'reference';
   name: string;
+  storageUri: string;
   content?: string;
   file?: File;
   format?: string;
@@ -149,6 +150,9 @@ export function ResourceComposePage({
 
   // Character encoding selection - default to UTF-8 (empty string means use default)
   const [selectedCharset, setSelectedCharset] = useState<string>('');
+
+  // Storage URI — where the file will live in the working tree
+  const [storageUri, setStorageUri] = useState('');
 
   // Archive original checkbox (for clones only)
   const [archiveOriginal, setArchiveOriginal] = useState(true);
@@ -216,6 +220,7 @@ export function ResourceComposePage({
       const params: SaveResourceParams = {
         mode,
         name: newResourceName,
+        storageUri,
         content: newResourceContent,
         format: uploadedFile ? fileMimeType : selectedFormat,
         entityTypes: selectedEntityTypes,
@@ -346,6 +351,24 @@ export function ResourceComposePage({
               value={newResourceName}
               onChange={(e) => setNewResourceName(e.target.value)}
               placeholder={t.resourceNamePlaceholder}
+              className="semiont-input"
+              required
+              disabled={isCreating}
+            />
+          </div>
+
+          {/* Storage URI */}
+          <div className="semiont-form__field">
+            <label htmlFor="storageUri" className="semiont-form__label">
+              Save location
+            </label>
+            <input
+              id="storageUri"
+              type="text"
+              value={storageUri}
+              onChange={(e) => setStorageUri(e.target.value)}
+              placeholder="file://docs/my-resource.md"
+              pattern="file://.+"
               className="semiont-input"
               required
               disabled={isCreating}

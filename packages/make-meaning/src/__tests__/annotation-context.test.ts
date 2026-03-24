@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
 import { resourceId, annotationId, userId, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
+import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
 import type { KnowledgeBase } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
@@ -74,8 +74,9 @@ describe('AnnotationContext', () => {
     kb = {
       eventStore,
       views: eventStore.viewStorage,
-      content: new FilesystemRepresentationStore(project, mockLogger),
+      content: new WorkingTreeStore(project, mockLogger),
       graph: mockGraphDb,
+      projectionsDir: project.projectionsDir,
     };
   });
 
@@ -86,7 +87,8 @@ describe('AnnotationContext', () => {
   // Helper to create a test resource
   async function createTestResource(id: string, content: string): Promise<void> {
     const testContent = Buffer.from(content, 'utf-8');
-    const { checksum } = await kb.content.store(testContent, { mediaType: 'text/plain' });
+    const storageUri = `file://test-resources/${id}.txt`;
+    const { checksum } = await kb.content.store(testContent, storageUri);
 
     const eventStore = createEventStore(project, undefined, undefined, mockLogger);
 
@@ -99,6 +101,7 @@ describe('AnnotationContext', () => {
         name: `Test Resource ${id}`,
         format: 'text/plain',
         contentChecksum: checksum,
+        storageUri,
         creationMethod: 'api'
       }
     });

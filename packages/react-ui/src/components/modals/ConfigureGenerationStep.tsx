@@ -6,6 +6,7 @@ import { LOCALES } from '@semiont/api-client';
 
 export interface GenerationConfig {
   title: string;
+  storageUri: string;
   prompt?: string;
   language: string;
   temperature: number;
@@ -48,6 +49,7 @@ export function ConfigureGenerationStep({
   translations: t,
 }: ConfigureGenerationStepProps) {
   const [title, setTitle] = useState(defaultTitle);
+  const [storageUri, setStorageUri] = useState('');
   const [prompt, setPrompt] = useState('');
   const [language, setLanguage] = useState(locale);
   const [temperature, setTemperature] = useState(0.7);
@@ -58,6 +60,7 @@ export function ConfigureGenerationStep({
     const trimmedPrompt = prompt.trim();
     onGenerate({
       title,
+      storageUri,
       ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
       language,
       temperature,
@@ -81,6 +84,23 @@ export function ConfigureGenerationStep({
           required
           className="semiont-input"
           placeholder={t.resourceTitlePlaceholder}
+        />
+      </div>
+
+      {/* Storage URI */}
+      <div className="semiont-form__field">
+        <label htmlFor="wizard-storageUri" className="semiont-form__label">
+          Save location
+        </label>
+        <input
+          id="wizard-storageUri"
+          type="text"
+          value={storageUri}
+          onChange={(e) => setStorageUri(e.target.value)}
+          required
+          pattern="file://.+"
+          className="semiont-input"
+          placeholder="file://generated/my-resource.md"
         />
       </div>
 

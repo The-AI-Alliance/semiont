@@ -10,7 +10,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
-import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
+import { getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
 import { eventBusRequest } from '../../../utils/event-bus-request';
@@ -55,12 +55,11 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      const primaryRep = getPrimaryRepresentation(resource);
-      if (!primaryRep || !primaryRep.checksum || !primaryRep.mediaType) {
+      if (!resource.storageUri) {
         throw new HTTPException(404, { message: 'Resource representation not found' });
       }
 
-      const content = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      const content = await kb.content.retrieve(resource.storageUri);
       if (!content) {
         throw new HTTPException(404, { message: 'Resource representation not found' });
       }

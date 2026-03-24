@@ -52,6 +52,7 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
     eventStore: {} as any,
     views: {} as any,
     content: {} as any,
+    projectionsDir: '',
     graph: {
       searchResources: overrides.searchResources ?? vi.fn().mockResolvedValue([]),
       getResourceReferencedBy: overrides.getResourceReferencedBy ?? vi.fn().mockResolvedValue([]),

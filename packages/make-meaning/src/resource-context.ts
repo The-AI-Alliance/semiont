@@ -76,10 +76,10 @@ export class ResourceContext {
     return await Promise.all(
       resources.map(async (doc) => {
         try {
-          const primaryRep = getPrimaryRepresentation(doc);
-          if (primaryRep?.checksum && primaryRep?.mediaType) {
-            const contentBuffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
-            const contentPreview = decodeRepresentation(contentBuffer, primaryRep.mediaType).slice(0, 200);
+          if (doc.storageUri) {
+            const contentBuffer = await kb.content.retrieve(doc.storageUri);
+            const primaryRep = getPrimaryRepresentation(doc);
+            const contentPreview = decodeRepresentation(contentBuffer, primaryRep?.mediaType ?? 'text/plain').slice(0, 200);
             return { ...doc, content: contentPreview };
           }
           return { ...doc, content: '' };
@@ -98,10 +98,10 @@ export class ResourceContext {
     resource: ResourceDescriptor,
     kb: KnowledgeBase
   ): Promise<string | undefined> {
-    const primaryRep = getPrimaryRepresentation(resource);
-    if (primaryRep?.checksum && primaryRep?.mediaType) {
-      const contentBuffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
-      return decodeRepresentation(contentBuffer, primaryRep.mediaType);
+    if (resource.storageUri) {
+      const contentBuffer = await kb.content.retrieve(resource.storageUri);
+      const primaryRep = getPrimaryRepresentation(resource);
+      return decodeRepresentation(contentBuffer, primaryRep?.mediaType ?? 'text/plain');
     }
     return undefined;
   }

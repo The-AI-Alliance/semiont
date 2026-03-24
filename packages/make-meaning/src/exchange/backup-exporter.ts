@@ -30,9 +30,9 @@ export interface BackupEventStoreReader {
   };
 }
 
-/** Subset of RepresentationStore used by the backup exporter. */
+/** Subset of WorkingTreeStore used by the backup exporter. */
 export interface BackupContentReader {
-  retrieve(checksum: string, mediaType: string): Promise<Buffer>;
+  retrieve(storageUri: string): Promise<Buffer>;
 }
 
 export interface BackupExporterOptions {
@@ -88,10 +88,10 @@ export async function exportBackup(
   const contentBlobs: Map<string, { data: Buffer; ext: string }> = new Map();
   let totalContentBytes = 0;
 
-  for (const [checksum, mediaType] of contentRefs) {
-    const data = await content.retrieve(checksum, mediaType);
+  for (const [storageUri, mediaType] of contentRefs) {
+    const data = await content.retrieve(storageUri);
     const ext = getExtensionForMimeType(mediaType);
-    contentBlobs.set(checksum, { data, ext });
+    contentBlobs.set(storageUri, { data, ext });
     totalContentBytes += data.length;
   }
 
@@ -137,9 +137,10 @@ export async function exportBackup(
       yield { name: fileName, data: Buffer.from(jsonl, 'utf8') };
     }
 
-    // 3. Content blobs
-    for (const [checksum, { data, ext }] of contentBlobs) {
-      yield { name: `${checksum}${ext}`, data };
+    // 3. Content blobs — stored under their working-tree path (strip file:// prefix)
+    for (const [storageUri, { data }] of contentBlobs) {
+      const blobPath = storageUri.startsWith('file://') ? storageUri.slice(7) : storageUri;
+      yield { name: blobPath, data };
     }
   }
 
@@ -167,11 +168,11 @@ function collectContentRefs(
     for (const stored of events) {
       if (stored.event.type === 'resource.created') {
         const payload = stored.event.payload as {
-          contentChecksum?: string;
+          storageUri?: string;
           format?: string;
         };
-        if (payload.contentChecksum && payload.format) {
-          refs.set(payload.contentChecksum, payload.format);
+        if (payload.storageUri && payload.format) {
+          refs.set(payload.storageUri, payload.format);
         }
       }
     }

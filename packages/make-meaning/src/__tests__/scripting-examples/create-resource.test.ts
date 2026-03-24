@@ -101,13 +101,13 @@ describe('Scripting Example: Create Resource', () => {
     expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.name).toBe('Test Document');
     expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.format).toBe('text/plain');
 
-    // Verify content was stored (retrieve by checksum from event payload)
-    const checksum = createdEvent!.event.type === 'resource.created'
-      ? createdEvent!.event.payload.contentChecksum
+    // Verify content was stored (retrieve by storageUri from event payload)
+    const storageUri = createdEvent!.event.type === 'resource.created'
+      ? createdEvent!.event.payload.storageUri
       : undefined;
-    expect(checksum).toBeDefined();
+    expect(storageUri).toBeDefined();
 
-    const storedRep = await makeMeaning.kb.content.retrieve(checksum!, 'text/plain');
+    const storedRep = await makeMeaning.kb.content.retrieve(storageUri!);
     expect(storedRep).toBeDefined();
     expect(storedRep.toString()).toBe('Hello, world!');
   });

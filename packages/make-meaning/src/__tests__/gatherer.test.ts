@@ -48,6 +48,7 @@ function createMockKb(): KnowledgeBase {
     views: {} as any,
     content: {} as any,
     graph: {} as any,
+    projectionsDir: '',
   };
 }
 

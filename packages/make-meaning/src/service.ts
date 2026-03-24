@@ -12,7 +12,6 @@
 
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
-import { getPrimaryRepresentation } from '@semiont/api-client';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, type ResourceId } from '@semiont/core';
 import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
@@ -193,10 +192,8 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
   // 11. Create ContentFetcher backed by KB views + content store
   const contentFetcher: ContentFetcher = async (resourceId: ResourceId): Promise<Readable | null> => {
     const view = await kb.views.get(resourceId);
-    if (!view) return null;
-    const primaryRep = getPrimaryRepresentation(view.resource);
-    if (!primaryRep?.checksum || !primaryRep?.mediaType) return null;
-    const buffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
+    if (!view?.resource.storageUri) return null;
+    const buffer = await kb.content.retrieve(view.resource.storageUri);
     if (!buffer) return null;
     return Readable.from([buffer]);
   };

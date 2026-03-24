@@ -273,11 +273,13 @@ export class SemiontApiClient {
     creationMethod?: string;
     sourceAnnotationId?: string;
     sourceResourceId?: string;
+    storageUri: string;
   }, options?: RequestOptions): Promise<{ resourceId: string }> {
     // Build FormData
     const formData = new FormData();
     formData.append('name', data.name);
     formData.append('format', data.format);
+    formData.append('storageUri', data.storageUri);
 
     // Handle File or Buffer
     if (data.file instanceof File) {

@@ -195,6 +195,7 @@ export function ResourceViewerPage({
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
     onGenerateDocument(referenceId, {
       title: config.title,
+      storageUri: config.storageUri,
       prompt: config.prompt,
       language: config.language,
       temperature: config.temperature,

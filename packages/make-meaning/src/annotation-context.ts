@@ -33,8 +33,8 @@ import type {
 import { resourceId as createResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { ResourceContext } from './resource-context';
+import type { WorkingTreeStore } from '@semiont/content';
 import type { KnowledgeBase } from './knowledge-base';
-import type { RepresentationStore } from '@semiont/content';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
@@ -142,12 +142,12 @@ export class AnnotationContext {
     // Build source context if requested
     let sourceContext;
     if (includeSourceContext) {
-      const primaryRep = getPrimaryRepresentation(sourceDoc);
-      if (!primaryRep?.checksum || !primaryRep?.mediaType) {
-        throw new Error('Source content not found');
+      if (!sourceDoc.storageUri) {
+        throw new Error('Source content not found: no storageUri');
       }
-      const sourceContent = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
-      const contentStr = decodeRepresentation(sourceContent, primaryRep.mediaType);
+      const primaryRep = getPrimaryRepresentation(sourceDoc);
+      const sourceContent = await kb.content.retrieve(sourceDoc.storageUri);
+      const contentStr = decodeRepresentation(sourceContent, primaryRep?.mediaType ?? 'text/plain');
 
       const targetSelectorRaw = getTargetSelector(annotation.target);
 
@@ -197,10 +197,10 @@ export class AnnotationContext {
     // Build target context if requested and available
     let targetContext;
     if (includeTargetContext && targetDoc) {
-      const targetRep = getPrimaryRepresentation(targetDoc);
-      if (targetRep?.checksum && targetRep?.mediaType) {
-        const targetContent = await kb.content.retrieve(targetRep.checksum, targetRep.mediaType);
-        const contentStr = decodeRepresentation(targetContent, targetRep.mediaType);
+      if (targetDoc.storageUri) {
+        const targetRep = getPrimaryRepresentation(targetDoc);
+        const targetContent = await kb.content.retrieve(targetDoc.storageUri);
+        const contentStr = decodeRepresentation(targetContent, targetRep?.mediaType ?? 'text/plain');
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
@@ -585,14 +585,14 @@ Summary:`;
    */
   private static async getResourceContent(
     resource: ResourceDescriptor,
-    repStore: RepresentationStore
+    content: WorkingTreeStore
   ): Promise<string> {
-    const primaryRep = getPrimaryRepresentation(resource);
-    if (!primaryRep?.checksum || !primaryRep?.mediaType) {
-      throw new Error('Resource content not found');
+    if (!resource.storageUri) {
+      throw new Error('Resource content not found: no storageUri');
     }
-    const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-    return decodeRepresentation(content, primaryRep.mediaType);
+    const primaryRep = getPrimaryRepresentation(resource);
+    const buf = await content.retrieve(resource.storageUri);
+    return decodeRepresentation(buf, primaryRep?.mediaType ?? 'text/plain');
   }
 
   /**

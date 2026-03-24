@@ -114,6 +114,7 @@ export type EventMap = {
       temperature?: number;
       maxTokens?: number;
       context: GatheredContext;
+      storageUri: string;
     };
   };
   'yield:progress': YieldProgress;
@@ -127,7 +128,9 @@ export type EventMap = {
   // Resource operations
   'yield:create': {
     name: string;
-    content: Buffer;
+    content?: Buffer;           // Bytes to write (API/GUI/AI path). Omit when file already exists on disk (CLI path).
+    storageUri?: string;        // Working-tree URI (e.g. file://docs/overview.md). Required for CLI path.
+    contentChecksum?: string;   // SHA-256 for CLI path verification. Computed from content when content is provided.
     format: components['schemas']['ContentFormat'];
     userId: UserId;
     language?: string;
@@ -142,6 +145,26 @@ export type EventMap = {
     resource: components['schemas']['ResourceDescriptor'];
   };
   'yield:create-failed': { error: Error };
+
+  'yield:update': {
+    resourceId: ResourceId;
+    storageUri: string;          // file:// URI of the file that changed
+    content?: Buffer;            // New content (API/GUI/AI path). Omit when file already exists on disk (CLI path).
+    contentChecksum: string;     // SHA-256 of new content
+    userId: UserId;
+  };
+  'yield:updated': { resourceId: ResourceId };
+  'yield:update-failed': { resourceId: ResourceId; error: Error };
+
+  'yield:mv': {
+    fromUri: string;   // Previous file:// URI
+    toUri: string;     // New file:// URI
+    userId: UserId;
+    noGit?: boolean;   // Skip git mv even when .git/ exists
+  };
+  'yield:moved': { resourceId: ResourceId };
+  'yield:move-failed': { fromUri: string; error: Error };
+
   'yield:clone': void;
 
   // Clone token operations (CloneTokenManager handles these)
@@ -297,13 +320,14 @@ export type EventMap = {
   // Command/Event pairs: UI emits command → Backend confirms with domain event
 
   // Archive command (UI) → archived event (backend confirmation via SSE)
-  // Frontend emits void (undefined); backend route enriches with userId + resourceId
-  'mark:archive': void | { userId: UserId; resourceId?: ResourceId };
+  // Frontend emits void (undefined); backend route enriches with userId + resourceId + storageUri
+  // keepFile: if true, use git rm --cached (remove from index only, keep file on disk)
+  'mark:archive': void | { userId: UserId; resourceId?: ResourceId; storageUri?: string; keepFile?: boolean };
   'mark:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
 
   // Unarchive command (UI) → unarchived event (backend confirmation via SSE)
   // Frontend emits void (undefined); backend route enriches with userId + resourceId
-  'mark:unarchive': void | { userId: UserId; resourceId?: ResourceId };
+  'mark:unarchive': void | { userId: UserId; resourceId?: ResourceId; storageUri?: string };
   'mark:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
   // ========================================================================
