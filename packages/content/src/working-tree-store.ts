@@ -42,11 +42,17 @@ export interface StoredResource {
  */
 export class WorkingTreeStore {
   private projectRoot: string;
+  private gitSync: boolean;
   private logger?: Logger;
 
   constructor(project: SemiontProject, logger?: Logger) {
     this.projectRoot = project.root;
+    this.gitSync = project.gitSync;
     this.logger = logger;
+  }
+
+  private shouldRunGit(noGit?: boolean): boolean {
+    return this.gitSync && !noGit;
   }
 
   /**
@@ -58,7 +64,7 @@ export class WorkingTreeStore {
    * @param storageUri - file:// URI (e.g. "file://docs/overview.md")
    * @returns Stored resource metadata
    */
-  async store(content: Buffer, storageUri: string): Promise<StoredResource> {
+  async store(content: Buffer, storageUri: string, options?: { noGit?: boolean }): Promise<StoredResource> {
     const filePath = this.resolveUri(storageUri);
     const checksum = calculateChecksum(content);
 
@@ -66,6 +72,10 @@ export class WorkingTreeStore {
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, content);
+
+    if (this.shouldRunGit(options?.noGit)) {
+      execFileSync('git', ['add', filePath], { cwd: this.projectRoot });
+    }
 
     this.logger?.info('Resource stored', { storageUri, checksum, byteSize: content.length });
 
@@ -89,7 +99,7 @@ export class WorkingTreeStore {
    * @throws ChecksumMismatchError if expectedChecksum is provided and does not match
    * @throws Error if file does not exist
    */
-  async register(storageUri: string, expectedChecksum?: string): Promise<StoredResource> {
+  async register(storageUri: string, expectedChecksum?: string, options?: { noGit?: boolean }): Promise<StoredResource> {
     const filePath = this.resolveUri(storageUri);
 
     this.logger?.debug('Registering resource', { storageUri });
@@ -99,6 +109,10 @@ export class WorkingTreeStore {
 
     if (expectedChecksum !== undefined && !verifyChecksum(content, expectedChecksum)) {
       throw new ChecksumMismatchError(storageUri, expectedChecksum, checksum);
+    }
+
+    if (this.shouldRunGit(options?.noGit)) {
+      execFileSync('git', ['add', filePath], { cwd: this.projectRoot });
     }
 
     this.logger?.info('Resource registered', { storageUri, checksum, byteSize: content.length });
@@ -147,8 +161,7 @@ export class WorkingTreeStore {
 
     await fs.mkdir(path.dirname(toPath), { recursive: true });
 
-    const useGit = !options?.noGit && await this.hasGit();
-    if (useGit) {
+    if (this.shouldRunGit(options?.noGit)) {
       // git mv handles both the filesystem rename and the index update
       execFileSync('git', ['mv', fromPath, toPath], { cwd: this.projectRoot });
     } else {
@@ -158,29 +171,41 @@ export class WorkingTreeStore {
     this.logger?.info('Resource moved', { fromUri, toUri });
   }
 
-  private async hasGit(): Promise<boolean> {
-    try {
-      await fs.access(path.join(this.projectRoot, '.git'));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   /**
-   * Remove a file.
+   * Remove a file from the working tree.
+   *
+   * If .git/ exists and noGit is not set:
+   *   - keepFile false (default): runs `git rm` (removes from index and disk)
+   *   - keepFile true: runs `git rm --cached` (removes from index only, file stays on disk)
+   * If no .git/ or noGit: true:
+   *   - keepFile false: runs fs.unlink
+   *   - keepFile true: no-op on filesystem
    *
    * @param storageUri - file:// URI
-   * @param keepFile - If true, do not delete the file (caller will handle via git rm --cached)
+   * @param options.noGit - Skip git rm even if .git/ is present
+   * @param options.keepFile - Remove from git index only; leave file on disk
    */
-  async remove(storageUri: string, options?: { keepFile?: boolean }): Promise<void> {
-    if (options?.keepFile) {
-      this.logger?.info('Resource removed from index (file kept on disk)', { storageUri });
+  async remove(storageUri: string, options?: { noGit?: boolean; keepFile?: boolean }): Promise<void> {
+    const filePath = this.resolveUri(storageUri);
+    const keepFile = options?.keepFile ?? false;
+
+    this.logger?.debug('Removing resource', { storageUri, keepFile });
+
+    const useGit = this.shouldRunGit(options?.noGit);
+
+    if (useGit) {
+      const gitArgs = keepFile
+        ? ['rm', '--cached', filePath]
+        : ['rm', filePath];
+      execFileSync('git', gitArgs, { cwd: this.projectRoot });
+      this.logger?.info('Resource removed', { storageUri, keepFile, git: true });
       return;
     }
 
-    const filePath = this.resolveUri(storageUri);
-    this.logger?.debug('Removing resource', { storageUri });
+    if (keepFile) {
+      this.logger?.info('Resource removed from index (file kept on disk)', { storageUri });
+      return;
+    }
 
     try {
       await fs.unlink(filePath);

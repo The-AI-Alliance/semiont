@@ -5,6 +5,15 @@ import * as os from 'os';
 import * as path from 'path';
 import type { PreflightCheck, PreflightResult } from './types.js';
 
+export function checkGitAvailable(): PreflightCheck {
+  try {
+    execFileSync('git', ['--version'], { stdio: 'ignore', timeout: 5000 });
+    return { name: 'git', pass: true, message: 'git is available' };
+  } catch {
+    return { name: 'git', pass: false, message: 'git is not installed or not in PATH (required for git sync)' };
+  }
+}
+
 export function checkContainerRuntime(runtime: string): PreflightCheck {
   try {
     execFileSync(runtime, ['--version'], { stdio: 'ignore', timeout: 5000 });

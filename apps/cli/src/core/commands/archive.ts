@@ -22,6 +22,7 @@ import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
+import { checkGitAvailable } from '../handlers/preflight-utils.js';
 import type { ResourceId } from '@semiont/core';
 
 function createCliLogger(verbose: boolean): Logger {
@@ -59,6 +60,7 @@ function createNoopGraphDatabase(): GraphDatabase {
 export const ArchiveOptionsSchema = BaseOptionsSchema.extend({
   files: z.array(z.string()).min(1, 'At least one file path is required'),
   keepFile: z.boolean().default(false),
+  noGit: z.boolean().default(false),
 });
 
 export type ArchiveOptions = z.output<typeof ArchiveOptionsSchema>;
@@ -75,6 +77,12 @@ export async function runArchive(options: ArchiveOptions): Promise<CommandResult
   const userId = `did:web:localhost:users:${process.env.USER ?? 'cli'}` as UserId;
 
   const project = new SemiontProject(projectRoot);
+
+  if (project.gitSync && !options.noGit) {
+    const gitCheck = checkGitAvailable();
+    if (!gitCheck.pass) throw new Error(gitCheck.message);
+  }
+
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
@@ -115,6 +123,7 @@ export async function runArchive(options: ArchiveOptions): Promise<CommandResult
         resourceId: resourceId as ResourceId,
         storageUri,
         keepFile: options.keepFile,
+        noGit: options.noGit,
       });
 
       // Give Stower time to process (mark:archive has no result event)
@@ -159,6 +168,11 @@ export const archiveCmd = new CommandBuilder()
       '--keep-file': {
         type: 'boolean',
         description: 'Remove from git index only — keep file on disk',
+        default: false,
+      },
+      '--no-git': {
+        type: 'boolean',
+        description: 'Skip git rm even when gitSync is configured',
         default: false,
       },
     },

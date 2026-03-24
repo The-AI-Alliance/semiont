@@ -11,6 +11,7 @@
  */
 
 import { promises as fs } from 'fs';
+import { execFileSync } from 'child_process';
 import * as path from 'path';
 import { createReadStream } from 'fs';
 import * as readline from 'readline';
@@ -25,6 +26,8 @@ export interface EventStorageConfig {
   enableSharding?: boolean;      // Enable 4-hex sharding (default: true)
   numShards?: number;            // Number of shards (default: 65536)
   enableCompression?: boolean;   // Gzip rotated files (default: true)
+  gitSync?: boolean;             // Stage event log files in git index after each write (default: false)
+  projectRoot?: string;          // Project root for git operations (required when gitSync is true)
 }
 
 /**
@@ -32,7 +35,7 @@ export interface EventStorageConfig {
  * Owns: file I/O, sharding, AND sequence/hash tracking
  */
 export class EventStorage {
-  private config: Required<EventStorageConfig>;
+  private config: Omit<Required<EventStorageConfig>, 'projectRoot'> & { projectRoot?: string };
   private logger?: Logger;
 
   // Per-resource sequence tracking: resourceId -> sequence number
@@ -50,6 +53,8 @@ export class EventStorage {
       enableSharding: config.enableSharding ?? true,
       numShards: config.numShards || 65536,
       enableCompression: config.enableCompression ?? true,
+      gitSync: config.gitSync ?? false,
+      projectRoot: config.projectRoot,
     };
   }
 
@@ -210,6 +215,11 @@ export class EventStorage {
     const eventLine = JSON.stringify(event) + '\n';
     await fs.appendFile(targetPath, eventLine, 'utf-8');
     current.eventCount++;
+
+    // Stage the event log file in git index if configured
+    if (this.config.gitSync && this.config.projectRoot) {
+      execFileSync('git', ['add', targetPath], { cwd: this.config.projectRoot });
+    }
   }
 
   /**

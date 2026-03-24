@@ -19,6 +19,7 @@ import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
+import { checkGitAvailable } from '../handlers/preflight-utils.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -105,6 +106,12 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
   }
 
   const project = new SemiontProject(projectRoot);
+
+  if (project.gitSync && !options.noGit) {
+    const gitCheck = checkGitAvailable();
+    if (!gitCheck.pass) throw new Error(gitCheck.message);
+  }
+
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);

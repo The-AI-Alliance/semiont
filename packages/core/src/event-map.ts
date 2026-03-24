@@ -139,6 +139,7 @@ export type EventMap = {
     isDraft?: boolean;
     generatedFrom?: string;
     generationPrompt?: string;
+    noGit?: boolean;            // Skip git operations even when gitSync is configured
   };
   'yield:created': {
     resourceId: ResourceId;
@@ -152,6 +153,7 @@ export type EventMap = {
     content?: Buffer;            // New content (API/GUI/AI path). Omit when file already exists on disk (CLI path).
     contentChecksum: string;     // SHA-256 of new content
     userId: UserId;
+    noGit?: boolean;             // Skip git operations even when gitSync is configured
   };
   'yield:updated': { resourceId: ResourceId };
   'yield:update-failed': { resourceId: ResourceId; error: Error };
@@ -322,7 +324,7 @@ export type EventMap = {
   // Archive command (UI) → archived event (backend confirmation via SSE)
   // Frontend emits void (undefined); backend route enriches with userId + resourceId + storageUri
   // keepFile: if true, use git rm --cached (remove from index only, keep file on disk)
-  'mark:archive': void | { userId: UserId; resourceId?: ResourceId; storageUri?: string; keepFile?: boolean };
+  'mark:archive': void | { userId: UserId; resourceId?: ResourceId; storageUri?: string; keepFile?: boolean; noGit?: boolean };
   'mark:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
 
   // Unarchive command (UI) → unarchived event (backend confirmation via SSE)

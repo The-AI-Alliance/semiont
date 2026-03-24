@@ -32,6 +32,10 @@ export class SemiontProject {
   readonly root: string;
   readonly name: string;
 
+  /** True if [git] sync = true in .semiont/config. When true, semiont stages
+   *  working-tree and event-log changes in the git index automatically. */
+  readonly gitSync: boolean;
+
   // Durable
   readonly eventsDir: string;
   readonly representationsDir: string;
@@ -68,6 +72,7 @@ export class SemiontProject {
       }
     }
     this.name = SemiontProject.readName(projectRoot);
+    this.gitSync = SemiontProject.readGitSync(projectRoot);
 
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');
     this.representationsDir = path.join(projectRoot, 'representations');
@@ -106,6 +111,27 @@ export class SemiontProject {
       fs.promises.rm(this.stateDir, { recursive: true, force: true }),
       fs.promises.rm(this.runtimeDir, { recursive: true, force: true }),
     ]);
+  }
+
+  /**
+   * Read [git] sync from .semiont/config.
+   * Defaults to false if the section or key is absent.
+   */
+  private static readGitSync(projectRoot: string): boolean {
+    const configPath = path.join(projectRoot, '.semiont', 'config');
+    if (!fs.existsSync(configPath)) return false;
+    const content = fs.readFileSync(configPath, 'utf-8');
+    let inGitSection = false;
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed === '[git]') { inGitSection = true; continue; }
+      if (trimmed.startsWith('[')) { inGitSection = false; continue; }
+      if (inGitSection && trimmed.startsWith('sync') && trimmed.includes('=')) {
+        const value = trimmed.split('=')[1]?.trim();
+        return value === 'true';
+      }
+    }
+    return false;
   }
 
   /**

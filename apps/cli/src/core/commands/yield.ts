@@ -25,6 +25,7 @@ import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
+import { checkGitAvailable } from '../handlers/preflight-utils.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -83,6 +84,7 @@ function guessFormat(filePath: string): string {
 export const YieldOptionsSchema = BaseOptionsSchema.extend({
   files: z.array(z.string()).min(1, 'At least one file path is required'),
   name: z.string().optional(),
+  noGit: z.boolean().default(false),
 });
 
 export type YieldOptions = z.output<typeof YieldOptionsSchema>;
@@ -103,6 +105,12 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
   }
 
   const project = new SemiontProject(projectRoot);
+
+  if (project.gitSync && !options.noGit) {
+    const gitCheck = checkGitAvailable();
+    if (!gitCheck.pass) throw new Error(gitCheck.message);
+  }
+
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
@@ -153,7 +161,7 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
         const created = await new Promise<string>((resolve, reject) => {
           const sub = eventBus.get('yield:created').subscribe(e => { sub.unsubscribe(); resolve(e.resourceId); });
           eventBus.get('yield:create-failed').subscribe(e => reject(e.error));
-          eventBus.get('yield:create').next({ name, storageUri, contentChecksum, format, userId });
+          eventBus.get('yield:create').next({ name, storageUri, contentChecksum, format, userId, noGit: options.noGit });
         });
 
         if (!options.quiet) printSuccess(`Yielded: ${filePath} → ${created}`);
@@ -171,6 +179,7 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
             storageUri,
             contentChecksum,
             userId,
+            noGit: options.noGit,
           });
         });
         void updated;
@@ -214,6 +223,11 @@ export const yieldCmd = new CommandBuilder()
       '--name': {
         type: 'string',
         description: 'Resource name (only valid for a single new file)',
+      },
+      '--no-git': {
+        type: 'boolean',
+        description: 'Skip git add even when gitSync is configured',
+        default: false,
       },
     },
     aliases: {

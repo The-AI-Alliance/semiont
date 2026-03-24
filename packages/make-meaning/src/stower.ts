@@ -104,7 +104,7 @@ export class Stower {
 
       if (event.content !== undefined) {
         // API/GUI/AI path: write bytes to disk
-        const stored = await this.kb.content.store(event.content, resolvedStorageUri);
+        const stored = await this.kb.content.store(event.content, resolvedStorageUri, { noGit: event.noGit });
         checksum = stored.checksum;
         byteSize = stored.byteSize;
       } else {
@@ -112,7 +112,7 @@ export class Stower {
         if (!event.storageUri) {
           throw new Error('yield:create without content requires storageUri');
         }
-        const stored = await this.kb.content.register(resolvedStorageUri, event.contentChecksum);
+        const stored = await this.kb.content.register(resolvedStorageUri, event.contentChecksum, { noGit: event.noGit });
         checksum = stored.checksum;
         byteSize = stored.byteSize;
       }
@@ -177,11 +177,11 @@ export class Stower {
       let byteSize: number;
       if (event.content) {
         // API/GUI/AI path: write content to disk
-        const stored = await this.kb.content.store(event.content, event.storageUri);
+        const stored = await this.kb.content.store(event.content, event.storageUri, { noGit: event.noGit });
         byteSize = stored.byteSize;
       } else {
         // CLI path: file already on disk, just verify checksum
-        const stored = await this.kb.content.register(event.storageUri, event.contentChecksum);
+        const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
         byteSize = stored.byteSize;
       }
       await this.kb.eventStore.appendEvent({
@@ -304,7 +304,7 @@ export class Stower {
       return; // Frontend-only event (void) — not for Stower
     }
     if (event.storageUri) {
-      await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile });
+      await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
     }
     await this.kb.eventStore.appendEvent({
       type: 'resource.archived',

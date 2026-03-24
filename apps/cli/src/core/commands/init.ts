@@ -71,6 +71,9 @@ function projectConfigTemplate(projectName: string): string {
 name = "${projectName}"
 version = "0.1.0"
 
+[git]
+sync = true
+
 [site]
 domain = "localhost:8080"
 siteName = "${projectName}"
