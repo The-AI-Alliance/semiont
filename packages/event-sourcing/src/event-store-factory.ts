@@ -46,7 +46,6 @@ export function createEventStore(
       enableSharding: true,
       numShards: 65536, // 4 hex digits (0000-ffff)
       gitSync: project.gitSync,
-      projectRoot: project.root,
     },
     project.stateDir,
     viewStorage,

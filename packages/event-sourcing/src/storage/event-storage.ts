@@ -27,7 +27,6 @@ export interface EventStorageConfig {
   numShards?: number;            // Number of shards (default: 65536)
   enableCompression?: boolean;   // Gzip rotated files (default: true)
   gitSync?: boolean;             // Stage event log files in git index after each write (default: false)
-  projectRoot?: string;          // Project root for git operations (required when gitSync is true)
 }
 
 /**
@@ -35,7 +34,7 @@ export interface EventStorageConfig {
  * Owns: file I/O, sharding, AND sequence/hash tracking
  */
 export class EventStorage {
-  private config: Omit<Required<EventStorageConfig>, 'projectRoot'> & { projectRoot?: string };
+  private config: Required<EventStorageConfig>;
   private logger?: Logger;
 
   // Per-resource sequence tracking: resourceId -> sequence number
@@ -54,7 +53,6 @@ export class EventStorage {
       numShards: config.numShards || 65536,
       enableCompression: config.enableCompression ?? true,
       gitSync: config.gitSync ?? false,
-      projectRoot: config.projectRoot,
     };
   }
 
@@ -113,8 +111,8 @@ export class EventStorage {
       await fs.writeFile(filePath, '', 'utf-8');
 
       // Stage the new event stream directory in git
-      if (this.config.gitSync && this.config.projectRoot) {
-        execFileSync('git', ['add', filePath], { cwd: this.config.projectRoot });
+      if (this.config.gitSync) {
+        execFileSync('git', ['add', filePath]);
       }
 
       // Initialize sequence number
@@ -222,8 +220,8 @@ export class EventStorage {
     current.eventCount++;
 
     // Stage the event log file in git index if configured
-    if (this.config.gitSync && this.config.projectRoot) {
-      execFileSync('git', ['add', targetPath], { cwd: this.config.projectRoot });
+    if (this.config.gitSync) {
+      execFileSync('git', ['add', targetPath]);
     }
   }
 
