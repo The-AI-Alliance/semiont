@@ -254,7 +254,7 @@ export function ResourceViewerPage({
   useEffect(() => {
     if (resource && rUri) {
       const mediaType = getPrimaryMediaType(resource);
-      addResource(rUri, resource.name, mediaType || undefined);
+      addResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('lastViewedDocumentId', rUri);
       }
