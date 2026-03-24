@@ -143,7 +143,7 @@ describe('backup-importer', () => {
     // Wire up handlers
     eventBus.get('yield:create').subscribe((msg) => {
       expect(msg.name).toBe('Test Doc');
-      expect(msg.content.toString('utf8')).toBe('# Hello World');
+      expect(msg.content!.toString('utf8')).toBe('# Hello World');
       defer(() => eventBus.get('yield:created').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,

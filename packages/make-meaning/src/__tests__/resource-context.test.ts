@@ -40,6 +40,7 @@ describe('ResourceContext', () => {
       views: mockViewStorage,
       content: mockRepStore,
       graph: {} as any,
+      projectionsDir: '',
     };
   });
 

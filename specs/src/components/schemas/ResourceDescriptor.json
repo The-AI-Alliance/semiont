@@ -249,6 +249,14 @@
       "type": "string",
       "format": "uri",
       "description": "Original URI from a source knowledge base when this resource was imported"
+    },
+    "storageUri": {
+      "type": "string",
+      "description": "Working-tree URI for this resource (e.g. file://docs/overview.md). Stable across updates and moves."
+    },
+    "currentChecksum": {
+      "type": "string",
+      "description": "SHA-256 hex hash of the current content. Updated on resource.created, resource.updated, resource.cloned events."
     }
   }
 }

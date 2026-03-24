@@ -26,6 +26,8 @@
           "enum": [
             "resource.created",
             "resource.cloned",
+            "resource.updated",
+            "resource.moved",
             "resource.archived",
             "resource.unarchived",
             "annotation.added",

@@ -23,6 +23,7 @@ describe('GraphContext', () => {
     views: {} as any,
     content: {} as any,
     graph: mockGraphDb as any,
+    projectionsDir: '',
   };
 
   it('should get backlinks for a resource', async () => {

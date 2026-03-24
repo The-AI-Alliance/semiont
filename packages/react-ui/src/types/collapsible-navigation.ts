@@ -1,15 +1,7 @@
 import { ComponentType, ReactNode } from 'react';
+import type { OpenResource } from './OpenResourcesManager';
 
-/**
- * Represents an open resource/document in the navigation
- */
-export interface OpenResource {
-  id: string;
-  name: string;
-  openedAt: number;
-  mediaType?: string;
-  order?: number;
-}
+export type { OpenResource };
 
 /**
  * Props for the sortable resource tab component

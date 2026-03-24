@@ -9,8 +9,7 @@ export * from './types/annotation-props';
 export * from './types/AnnotationManager';
 export * from './types/CacheManager';
 export * from './types/navigation';
-export type { OpenResourcesManager } from './types/OpenResourcesManager';
-export { type OpenResource as OpenResourceFromManager } from './types/OpenResourcesManager';
+export type { OpenResourcesManager, OpenResource } from './types/OpenResourcesManager';
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
@@ -130,8 +129,7 @@ export * from './components/navigation/CollapsibleResourceNavigation';
 export * from './components/navigation/SortableResourceTab';
 export type {
   CollapsibleResourceNavigationProps,
-  SortableResourceTabProps,
-  OpenResource
+  SortableResourceTabProps
 } from './types/collapsible-navigation';
 export type {
   SimpleNavigationItem,

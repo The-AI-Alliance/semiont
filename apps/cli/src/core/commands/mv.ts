@@ -1,27 +1,25 @@
 /**
- * Restore Command
+ * Mv Command
  *
- * Restores a knowledge base from a backup archive.
- * Replays events through EventBus → Stower so all derived state
- * (materialized views, graph) rebuilds naturally.
+ * Moves (renames) a resource's file on disk and records the move in the event log.
+ * The resource is identified by its current `file://`-relative storageUri.
  *
  * Usage:
- *   semiont restore --file backup.tar.gz
+ *   semiont mv docs/old-name.md docs/new-name.md
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { z } from 'zod';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger } from '@semiont/core';
+import { EventBus, type Logger, type UserId } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
-import { importBackup, Stower, createKnowledgeBase } from '@semiont/make-meaning';
+import { Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
+import { checkGitAvailable } from '../handlers/preflight-utils.js';
 
 function createCliLogger(verbose: boolean): Logger {
   return {
@@ -33,12 +31,8 @@ function createCliLogger(verbose: boolean): Logger {
   };
 }
 
-/**
- * Noop graph database for restore — the graph rebuilds from events
- * after restore via the GraphDBConsumer, not during restore.
- */
 function createNoopGraphDatabase(): GraphDatabase {
-  const noop = async (): Promise<never> => { throw new Error('Graph not available during restore'); };
+  const noop = async (): Promise<never> => { throw new Error('Graph not available during mv'); };
   return {
     connect: async () => {},
     disconnect: async () => {},
@@ -80,35 +74,44 @@ function createNoopGraphDatabase(): GraphDatabase {
 // SCHEMA
 // =====================================================================
 
-export const RestoreOptionsSchema = BaseOptionsSchema.extend({
-  file: z.string().min(1, 'Input file path is required'),
+export const MvOptionsSchema = BaseOptionsSchema.extend({
+  from: z.string().min(1, 'Source path is required'),
+  to: z.string().min(1, 'Destination path is required'),
+  noGit: z.boolean().default(false),
 });
 
-export type RestoreOptions = z.output<typeof RestoreOptionsSchema>;
+export type MvOptions = z.output<typeof MvOptionsSchema>;
 
 // =====================================================================
 // IMPLEMENTATION
 // =====================================================================
 
-export async function runRestore(options: RestoreOptions): Promise<CommandResults> {
+export async function runMv(options: MvOptions): Promise<CommandResults> {
   const startTime = Date.now();
 
   const projectRoot = findProjectRoot();
   const environment = options.environment!;
-
-  const project = new SemiontProject(projectRoot);
   const logger = createCliLogger(options.verbose ?? false);
 
-  const filePath = path.resolve(options.file);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
-  }
+  // Normalise to file:// URIs (strip leading ./ if present)
+  const normalise = (p: string) => {
+    const stripped = p.replace(/^\.\//, '');
+    return stripped.startsWith('file://') ? stripped : `file://${stripped}`;
+  };
+  const fromUri = normalise(options.from);
+  const toUri = normalise(options.to);
 
   if (!options.quiet) {
-    printInfo(`Restoring from ${filePath}`);
+    printInfo(`Moving resource: ${fromUri} → ${toUri}`);
   }
 
-  // Bootstrap EventBus + Stower for restore
+  const project = new SemiontProject(projectRoot);
+
+  if (project.gitSync && !options.noGit) {
+    const gitCheck = checkGitAvailable();
+    if (!gitCheck.pass) throw new Error(gitCheck.message);
+  }
+
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
@@ -116,39 +119,39 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
   await stower.initialize();
 
   try {
-    const input = fs.createReadStream(filePath);
-    const result = await importBackup(input, { eventBus, logger });
+    // Emit yield:mv — Stower resolves resourceId via storage-uri-index, moves file, appends resource.moved
+    const movedPromise = new Promise<void>((resolve, reject) => {
+      const sub = eventBus.get('yield:moved').subscribe(() => { sub.unsubscribe(); resolve(); });
+      eventBus.get('yield:move-failed').subscribe((e) => { reject(new Error(e.error?.message ?? 'Move failed')); });
+    });
+
+    const userId = `did:web:localhost:users:${process.env.USER ?? 'cli'}` as UserId;
+    eventBus.get('yield:mv').next({ fromUri, toUri, userId, noGit: options.noGit });
+    await movedPromise;
 
     if (!options.quiet) {
-      printSuccess(
-        `Restore complete: ${result.stats.eventsReplayed} events, ` +
-        `${result.stats.resourcesCreated} resources, ` +
-        `${result.stats.annotationsCreated} annotations` +
-        (result.hashChainValid ? '' : ' (WARNING: hash chain invalid)')
-      );
+      printSuccess(`Moved: ${fromUri} → ${toUri}`);
     }
 
     const duration = Date.now() - startTime;
     return {
-      command: 'restore',
+      command: 'mv',
       environment,
       timestamp: new Date(),
       duration,
-      summary: {
-        succeeded: 1, failed: 0, total: 1,
-        warnings: result.hashChainValid ? 0 : 1,
-      },
+      summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
       executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
       results: [{
-        entity: filePath,
+        entity: fromUri,
         platform: 'posix',
         success: true,
-        metadata: { format: 'backup', ...result.stats, hashChainValid: result.hashChainValid },
+        metadata: { fromUri, toUri },
         duration,
       }],
     };
   } finally {
     await stower.stop();
+    eventBus.destroy();
   }
 }
 
@@ -156,25 +159,32 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
 // COMMAND DEFINITION
 // =====================================================================
 
-export const restoreCmd = new CommandBuilder()
-  .name('restore')
-  .description('Restore a knowledge base from a backup archive')
+export const mvCmd = new CommandBuilder()
+  .name('mv')
+  .description('Move (rename) a tracked resource file and record the move in the event log')
   .requiresEnvironment(true)
   .requiresServices(false)
   .examples(
-    'semiont restore --file backup.tar.gz',
+    'semiont mv docs/old-name.md docs/new-name.md',
+    'semiont mv file://docs/old.md file://docs/new.md',
   )
   .args({
     args: {
-      '--file': {
+      '--from': {
         type: 'string',
-        description: 'Input file path (required)',
+        description: 'Source path or file:// URI',
+      },
+      '--to': {
+        type: 'string',
+        description: 'Destination path or file:// URI',
+      },
+      '--no-git': {
+        type: 'boolean',
+        description: 'Skip git mv even when inside a git repository',
       },
     },
-    aliases: {
-      '-f': '--file',
-    },
+    aliases: {},
   })
-  .schema(RestoreOptionsSchema)
-  .handler(runRestore)
+  .schema(MvOptionsSchema)
+  .handler(runMv)
   .build();

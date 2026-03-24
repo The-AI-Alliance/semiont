@@ -67,11 +67,11 @@ describe('AnnotationOperations', () => {
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    testEventStore = createEventStore(project, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const { FilesystemRepresentationStore } = await import('@semiont/content');
-    const repStore = new FilesystemRepresentationStore(project, mockLogger);
-    kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb };
+    const { WorkingTreeStore } = await import('@semiont/content');
+    const repStore = new WorkingTreeStore(project, mockLogger);
+    kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir };
 
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();

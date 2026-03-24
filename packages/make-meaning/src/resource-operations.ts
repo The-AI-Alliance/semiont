@@ -37,6 +37,7 @@ export interface CreateResourceInput {
   language?: string;
   entityTypes?: string[];
   creationMethod?: CreationMethod;
+  storageUri?: string;
 }
 
 export class ResourceOperations {
@@ -72,6 +73,7 @@ export class ResourceOperations {
       language: input.language,
       entityTypes: input.entityTypes,
       creationMethod: input.creationMethod,
+      storageUri: input.storageUri,
     });
 
     const outcome = await firstValueFrom(result$);

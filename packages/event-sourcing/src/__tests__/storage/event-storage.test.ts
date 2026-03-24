@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventStorage } from '../../storage/event-storage';
 import { resourceId, userId } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -16,14 +17,15 @@ import { v4 as uuidv4 } from 'uuid';
 
 describe('EventStorage', () => {
   let testDir: string;
+  let project: SemiontProject;
   let storage: EventStorage;
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-storage-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    project = new SemiontProject(testDir);
 
-    storage = new EventStorage({
-      dataDir: testDir,
+    storage = new EventStorage(project, {
       enableSharding: true,
       maxEventsPerFile: 3, // Small for testing rotation
       numShards: 256, // Smaller for testing
@@ -31,6 +33,7 @@ describe('EventStorage', () => {
   });
 
   afterEach(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -174,8 +177,7 @@ describe('EventStorage', () => {
       }, resourceId('doc1'));
 
       // Create new storage instance (simulates restart)
-      const newStorage = new EventStorage({
-        dataDir: testDir,
+      const newStorage = new EventStorage(project, {
         enableSharding: true,
         maxEventsPerFile: 3,
         numShards: 256,
@@ -216,10 +218,7 @@ describe('EventStorage', () => {
     });
 
     it('should bypass sharding when disabled', () => {
-      const noShardStorage = new EventStorage({
-        dataDir: testDir,
-        enableSharding: false,
-      });
+      const noShardStorage = new EventStorage(project, { enableSharding: false });
 
       const path = noShardStorage.getShardPath(resourceId('doc-test123'));
       expect(path).toBe('');
@@ -235,7 +234,7 @@ describe('EventStorage', () => {
       }, resourceId('doc1'));
 
       const shardPath = storage.getShardPath(resourceId('doc1'));
-      const docPath = join(testDir, 'events', shardPath, 'doc1');
+      const docPath = join(project.eventsDir, shardPath, 'doc1');
 
       const exists = await fs.access(docPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
@@ -346,7 +345,7 @@ describe('EventStorage', () => {
         payload: { entityType: 'Person' },
       }, resourceId('__system__'));
 
-      const systemPath = join(testDir, 'events', '__system__');
+      const systemPath = join(project.eventsDir, '__system__');
       const exists = await fs.access(systemPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });

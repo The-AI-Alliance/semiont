@@ -1,18 +1,18 @@
 {
-  "version": "0.3.8",
+  "version": "0.3.9",
   "packages": {
-    "@semiont/api-client": "0.3.8",
-    "@semiont/core": "0.3.8",
-    "@semiont/ontology": "0.3.8",
-    "@semiont/content": "0.3.8",
-    "@semiont/event-sourcing": "0.3.8",
-    "@semiont/graph": "0.3.8",
-    "@semiont/inference": "0.3.8",
-    "@semiont/jobs": "0.3.8",
-    "@semiont/make-meaning": "0.3.8",
-    "@semiont/react-ui": "0.3.8",
-    "@semiont/cli": "0.3.8",
-    "semiont-backend": "0.3.8",
-    "semiont-frontend": "0.3.8"
+    "@semiont/api-client": "0.3.9",
+    "@semiont/core": "0.3.9",
+    "@semiont/ontology": "0.3.9",
+    "@semiont/content": "0.3.9",
+    "@semiont/event-sourcing": "0.3.9",
+    "@semiont/graph": "0.3.9",
+    "@semiont/inference": "0.3.9",
+    "@semiont/jobs": "0.3.9",
+    "@semiont/make-meaning": "0.3.9",
+    "@semiont/react-ui": "0.3.9",
+    "@semiont/cli": "0.3.9",
+    "semiont-backend": "0.3.9",
+    "semiont-frontend": "0.3.9"
   }
 }

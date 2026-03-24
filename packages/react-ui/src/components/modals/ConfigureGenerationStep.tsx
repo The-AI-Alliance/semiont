@@ -6,6 +6,7 @@ import { LOCALES } from '@semiont/api-client';
 
 export interface GenerationConfig {
   title: string;
+  storagePath: string;
   prompt?: string;
   language: string;
   temperature: number;
@@ -48,6 +49,7 @@ export function ConfigureGenerationStep({
   translations: t,
 }: ConfigureGenerationStepProps) {
   const [title, setTitle] = useState(defaultTitle);
+  const [storagePath, setStoragePath] = useState('');
   const [prompt, setPrompt] = useState('');
   const [language, setLanguage] = useState(locale);
   const [temperature, setTemperature] = useState(0.7);
@@ -58,6 +60,7 @@ export function ConfigureGenerationStep({
     const trimmedPrompt = prompt.trim();
     onGenerate({
       title,
+      storagePath: `file://${storagePath}`,
       ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
       language,
       temperature,
@@ -82,6 +85,25 @@ export function ConfigureGenerationStep({
           className="semiont-input"
           placeholder={t.resourceTitlePlaceholder}
         />
+      </div>
+
+      {/* Storage URI */}
+      <div className="semiont-form__field">
+        <label htmlFor="wizard-storagePath" className="semiont-form__label">
+          Save location
+        </label>
+        <div className="semiont-input-addon">
+          <span className="semiont-input-addon__prefix">file://</span>
+          <input
+            id="wizard-storagePath"
+            type="text"
+            value={storagePath}
+            onChange={(e) => setStoragePath(e.target.value)}
+            required
+            className="semiont-input semiont-input--addon"
+            placeholder="generated/my-resource.md"
+          />
+        </div>
       </div>
 
       {/* Additional Instructions */}

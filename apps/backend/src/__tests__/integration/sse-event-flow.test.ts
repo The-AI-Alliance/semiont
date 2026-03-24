@@ -34,7 +34,8 @@ describe('SSE Event Flow - End-to-End', () => {
     // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
     const { createEventStore } = await import('@semiont/event-sourcing');
     const project = new SemiontProject(testDir);
-    eventStore = createEventStore(project, { enableSharding: false, maxEventsPerFile: 100 }, undefined, mockLogger);
+    eventStore = createEventStore(project, undefined, mockLogger);
+
   });
 
   afterAll(async () => {

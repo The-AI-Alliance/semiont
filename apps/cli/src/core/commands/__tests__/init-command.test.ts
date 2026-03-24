@@ -29,6 +29,7 @@ function createInitOptions(partial: Partial<InitOptions> = {}): InitOptions {
     forceDiscovery: false,
     preflight: false,
     force: false,
+    noGit: false,
     environments: ['local', 'test', 'staging', 'production'],
     name: undefined,
     directory: undefined,

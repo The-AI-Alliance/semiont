@@ -37,7 +37,7 @@ describe('createEventStore', () => {
 
   describe('Factory function', () => {
     it('should create EventStore with valid config', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
       expect(eventStore.log).toBeDefined();
@@ -46,31 +46,27 @@ describe('createEventStore', () => {
     });
 
     it('should create EventStore with default sharding enabled', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
       expect(eventStore.log.storage).toBeDefined();
     });
 
     it('should create EventStore with sharding disabled', () => {
-      const eventStore = createEventStore(project, {
-        enableSharding: false,
-      }, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
       expect(eventStore.log.storage).toBeDefined();
     });
 
-    it('should create EventStore with custom maxEventsPerFile', () => {
-      const eventStore = createEventStore(project, {
-        maxEventsPerFile: 5000,
-      }, undefined, mockLogger);
+    it('should create EventStore with default maxEventsPerFile', () => {
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
     });
 
     it('should initialize view storage', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore.views.materializer).toBeDefined();
     });
@@ -78,32 +74,29 @@ describe('createEventStore', () => {
 
   describe('Component initialization', () => {
     it('should initialize EventLog with correct config', () => {
-      const eventStore = createEventStore(project, {
-        enableSharding: true,
-        maxEventsPerFile: 1000,
-      }, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore.log).toBeDefined();
       expect(eventStore.log.storage).toBeDefined();
     });
 
     it('should initialize EventBus', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore.bus).toBeDefined();
       expect(eventStore.bus.subscriptions).toBeDefined();
     });
 
     it('should initialize ViewManager with storage and config', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore.views).toBeDefined();
       expect(eventStore.views.materializer).toBeDefined();
     });
 
     it('should share EventSubscriptions singleton across EventBus instances', () => {
-      const eventStore1 = createEventStore(project, undefined, undefined, mockLogger);
-      const eventStore2 = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore1 = createEventStore(project, undefined, mockLogger);
+      const eventStore2 = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore1.bus.subscriptions).toBe(eventStore2.bus.subscriptions);
     });
@@ -111,14 +104,14 @@ describe('createEventStore', () => {
 
   describe('Storage paths', () => {
     it('should configure event storage', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore.log).toBeDefined();
       expect(eventStore.log.storage).toBeDefined();
     });
 
     it('should set up view storage', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore.views).toBeDefined();
     });
@@ -126,7 +119,7 @@ describe('createEventStore', () => {
 
   describe('Integration', () => {
     it('should create fully functional EventStore', () => {
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
 
       expect(eventStore.log).toBeDefined();
       expect(eventStore.bus).toBeDefined();

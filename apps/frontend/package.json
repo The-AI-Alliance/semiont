@@ -1,6 +1,6 @@
 {
   "name": "semiont-frontend",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "scripts": {
     "audit:compliance": "./scripts/generate-compliance-report.sh",
@@ -56,8 +56,13 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
+<<<<<<< HEAD
     "@semiont/api-client": "^0.3.8",
     "@semiont/react-ui": "^0.3.8",
+=======
+    "@semiont/api-client": "^0.3.9",
+    "@semiont/react-ui": "^0.3.9",
+>>>>>>> 2026-03-23-reps
     "@tanstack/react-query": "^5.90.16",
     "next": "^16.1.6",
     "next-auth": "^4.24.5",

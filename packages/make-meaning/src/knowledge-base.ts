@@ -6,7 +6,7 @@
  *
  * - Event Log (immutable append-only) — via EventStore
  * - Materialized Views (fast single-doc queries) — via ViewStorage
- * - Content Store (SHA-256 addressed, deduplicated) — via RepresentationStore
+ * - Content Store (working-tree files, URI-addressed) — via WorkingTreeStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
  *
  * The Gatherer and Matcher are the only actors that read from these stores directly.
@@ -14,7 +14,7 @@
 
 import type { EventStore } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
+import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
 import type { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
@@ -22,8 +22,9 @@ import type { Logger } from '@semiont/core';
 export interface KnowledgeBase {
   eventStore: EventStore;
   views: ViewStorage;
-  content: RepresentationStore;
+  content: WorkingTreeStore;
   graph: GraphDatabase;
+  projectionsDir: string;
 }
 
 export function createKnowledgeBase(
@@ -33,9 +34,9 @@ export function createKnowledgeBase(
   logger: Logger,
 ): KnowledgeBase {
   const views = new FilesystemViewStorage(project);
-  const content = new FilesystemRepresentationStore(
+  const content = new WorkingTreeStore(
     project,
-    logger.child({ component: 'representation-store' }),
+    logger.child({ component: 'working-tree-store' }),
   );
-  return { eventStore, views, content, graph: graphDb };
+  return { eventStore, views, content, graph: graphDb, projectionsDir: project.projectionsDir };
 }

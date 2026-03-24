@@ -46,6 +46,9 @@ export function SortableResourceTab({
 
   const iconEmoji = getResourceIcon(resource.mediaType);
   const isCurrentlyDragging = isSortableDragging || isDragging;
+  const tooltipText = resource.storageUri
+    ? resource.storageUri.replace(/^file:\/\//, '')
+    : resource.name;
 
   // Handle keyboard shortcuts for reordering (Alt + Up/Down)
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -76,7 +79,7 @@ export function SortableResourceTab({
       <LinkComponent
         href={href}
         className="semiont-resource-tab__link"
-        title={resource.name}
+        title={tooltipText}
       >
         <span className="semiont-resource-tab__icon" aria-hidden="true">
           {iconEmoji}

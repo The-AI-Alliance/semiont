@@ -18,12 +18,12 @@ import type {
   Logger,
 } from '@semiont/core';
 import { EventBus as CoreEventBus } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
 import type { ViewStorage } from './storage/view-storage';
 // Import focused components
-import { EventLog, type EventLogConfig } from './event-log';
+import { EventLog } from './event-log';
 import { EventBus } from './event-bus';
 import { ViewManager, type ViewManagerConfig } from './view-manager';
-import type { EventStorageConfig } from './storage/event-storage';
 
 /**
  * EventStore orchestrates event sourcing operations
@@ -39,7 +39,7 @@ export class EventStore {
   readonly coreEventBus?: CoreEventBus;
 
   constructor(
-    config: EventStorageConfig,
+    project: SemiontProject,
     stateDir: string,
     viewStorage: ViewStorage,
     coreEventBus?: CoreEventBus,
@@ -50,12 +50,7 @@ export class EventStore {
     this.coreEventBus = coreEventBus;
 
     // Initialize focused components
-    const logConfig: EventLogConfig = {
-      dataDir: config.dataDir,
-      enableSharding: config.enableSharding,
-      maxEventsPerFile: config.maxEventsPerFile,
-    };
-    this.log = new EventLog(logConfig, logger?.child({ component: 'EventLog' }));
+    this.log = new EventLog({ project }, logger?.child({ component: 'EventLog' }));
 
     this.bus = new EventBus(logger?.child({ component: 'EventBus' }));
 

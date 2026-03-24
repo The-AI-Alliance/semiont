@@ -1,17 +1,15 @@
 /**
  * @semiont/content
  *
- * Content-addressed storage for resource representations.
- * Framework-independent storage with automatic deduplication.
+ * Working tree storage for project resources.
  */
 
-// Representation Store
+// Working Tree Store
 export {
-  FilesystemRepresentationStore,
-  type RepresentationStore,
-  type RepresentationMetadata,
-  type StoredRepresentation
-} from './representation-store';
+  WorkingTreeStore,
+  ChecksumMismatchError,
+  type StoredResource,
+} from './working-tree-store';
 
 // MIME Extensions
 export {

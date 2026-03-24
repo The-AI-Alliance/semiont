@@ -61,5 +61,6 @@ Thumbs.db
 *.log
 
 # CLI specific
+src/core/dashboard/embedded-assets.ts
 semiont.json.bak
 test-init/
