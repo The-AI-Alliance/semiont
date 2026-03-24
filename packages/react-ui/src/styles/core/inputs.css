@@ -160,6 +160,10 @@
   min-width: 0;
 }
 
+[data-theme="dark"] .semiont-input--addon {
+  border: none;
+}
+
 .semiont-input--addon:focus-visible,
 .semiont-input--addon:focus {
   outline: none;
