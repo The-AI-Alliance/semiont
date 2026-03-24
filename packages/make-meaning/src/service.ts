@@ -116,7 +116,7 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
 
   // 3. Create shared event store with EventBus integration
   const eventStoreLogger = logger.child({ component: 'event-store' });
-  const eventStore = createEventStoreCore(project, undefined, eventBus, eventStoreLogger);
+  const eventStore = createEventStoreCore(project, eventBus, eventStoreLogger);
 
   // 4. Create per-actor inference clients
   const gathererInferenceClient = createInferenceClient(

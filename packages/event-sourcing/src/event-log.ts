@@ -12,10 +12,11 @@
  */
 
 import { type ResourceId, type StoredEvent, type ResourceEvent, type EventQuery, type Logger } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
 import { EventStorage } from './storage/event-storage';
 
 export interface EventLogConfig {
-  dataDir: string;
+  project: SemiontProject;
   enableSharding?: boolean;
   maxEventsPerFile?: number;
 }
@@ -25,10 +26,9 @@ export class EventLog {
   readonly storage: EventStorage;
 
   constructor(config: EventLogConfig, logger?: Logger) {
-    this.storage = new EventStorage({
-      dataDir: config.dataDir,
-      enableSharding: config.enableSharding ?? true,
-      maxEventsPerFile: config.maxEventsPerFile ?? 10000,
+    this.storage = new EventStorage(config.project, {
+      enableSharding: config.enableSharding,
+      maxEventsPerFile: config.maxEventsPerFile,
     }, logger?.child({ component: 'EventStorage' }));
   }
 

@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { resourceId, userId, annotationId } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { EventQuery } from '../../query/event-query';
 import { EventStorage } from '../../storage/event-storage';
 import { promises as fs } from 'fs';
@@ -17,15 +18,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 describe('EventQuery', () => {
   let testDir: string;
+  let project: SemiontProject;
   let storage: EventStorage;
   let query: EventQuery;
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-query-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    project = new SemiontProject(testDir);
 
-    storage = new EventStorage({
-      dataDir: testDir,
+    storage = new EventStorage(project, {
       enableSharding: false, // Faster for tests
       maxEventsPerFile: 100,
     });
@@ -84,6 +86,7 @@ describe('EventQuery', () => {
   });
 
   afterEach(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -212,10 +215,7 @@ describe('EventQuery', () => {
 
   describe('Filter by Timestamp', () => {
     it('should filter by fromTimestamp', async () => {
-      // Get all events first
       const allEvents = await query.getResourceEvents(resourceId('doc1'));
-
-      // Use 3rd event's timestamp as cutoff
       const cutoff = allEvents[2]?.event.timestamp!;
 
       const events = await query.queryEvents({
@@ -223,7 +223,6 @@ describe('EventQuery', () => {
         fromTimestamp: cutoff,
       });
 
-      // Should get events 3, 4, 5 (sequences 3-5)
       expect(events.length).toBeGreaterThanOrEqual(3);
       events.forEach(e => {
         expect(e.event.timestamp >= cutoff).toBe(true);
@@ -232,8 +231,6 @@ describe('EventQuery', () => {
 
     it('should filter by toTimestamp', async () => {
       const allEvents = await query.getResourceEvents(resourceId('doc1'));
-
-      // Use 2nd event's timestamp as cutoff (sequence 2)
       const cutoff = allEvents[1]?.event.timestamp!;
 
       const events = await query.queryEvents({
@@ -241,23 +238,18 @@ describe('EventQuery', () => {
         toTimestamp: cutoff,
       });
 
-      // All returned events must have timestamp <= cutoff
       events.forEach(e => {
         expect(e.event.timestamp <= cutoff).toBe(true);
       });
 
-      // Must include events 1 and 2 (sequences 1, 2)
       const sequences = events.map(e => e.metadata.sequenceNumber).sort();
       expect(sequences).toContain(1);
       expect(sequences).toContain(2);
-
-      // Should NOT include events with timestamps strictly greater than cutoff
       expect(events.every(e => e.event.timestamp <= cutoff)).toBe(true);
     });
 
     it('should filter by timestamp range', async () => {
       const allEvents = await query.getResourceEvents(resourceId('doc1'));
-
       const from = allEvents[1]?.event.timestamp!;
       const to = allEvents[3]?.event.timestamp!;
 
@@ -267,7 +259,6 @@ describe('EventQuery', () => {
         toTimestamp: to,
       });
 
-      // Should get events in range (inclusive)
       expect(events.length).toBeGreaterThanOrEqual(2);
       events.forEach(e => {
         expect(e.event.timestamp >= from).toBe(true);
@@ -469,7 +460,6 @@ describe('EventQuery', () => {
 
   describe('Performance', () => {
     it('should handle large result sets efficiently', async () => {
-      // Add many events
       for (let i = 0; i < 100; i++) {
         await storage.appendEvent({
           type: 'annotation.added',
@@ -494,11 +484,10 @@ describe('EventQuery', () => {
       const duration = Date.now() - start;
 
       expect(events).toHaveLength(100);
-      expect(duration).toBeLessThan(200); // Should be fast (<200ms)
+      expect(duration).toBeLessThan(200);
     });
 
     it('should apply filters efficiently on large sets', async () => {
-      // Add many events
       for (let i = 0; i < 100; i++) {
         await storage.appendEvent({
           type: i % 2 === 0 ? 'annotation.added' : 'annotation.removed',
@@ -530,7 +519,7 @@ describe('EventQuery', () => {
       const duration = Date.now() - start;
 
       expect(events.length).toBeLessThanOrEqual(10);
-      expect(duration).toBeLessThan(100); // Should be fast (<100ms)
+      expect(duration).toBeLessThan(100);
     });
   });
 });

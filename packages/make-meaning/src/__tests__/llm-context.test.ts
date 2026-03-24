@@ -69,7 +69,7 @@ describe('LLM Context', () => {
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    eventStore = createEventStore(project, undefined, eventBus, mockLogger);
+    eventStore = createEventStore(project, eventBus, mockLogger);
 
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');

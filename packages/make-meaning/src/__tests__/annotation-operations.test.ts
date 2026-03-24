@@ -67,7 +67,7 @@ describe('AnnotationOperations', () => {
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    testEventStore = createEventStore(project, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     const { WorkingTreeStore } = await import('@semiont/content');
     const repStore = new WorkingTreeStore(project, mockLogger);

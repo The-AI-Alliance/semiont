@@ -18,15 +18,14 @@ import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
 import type { StoredEvent, ResourceEvent, EventMetadata, ResourceId, Logger } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
 import { jumpConsistentHash, sha256 } from './shard-utils';
 
 export interface EventStorageConfig {
-  dataDir: string;               // Events directory (e.g., <projectRoot>/.semiont/events)
   maxEventsPerFile?: number;     // File rotation threshold (default: 10000)
   enableSharding?: boolean;      // Enable 4-hex sharding (default: true)
   numShards?: number;            // Number of shards (default: 65536)
   enableCompression?: boolean;   // Gzip rotated files (default: true)
-  gitSync?: boolean;             // Stage event log files in git index after each write (default: false)
 }
 
 /**
@@ -35,6 +34,7 @@ export interface EventStorageConfig {
  */
 export class EventStorage {
   private config: Required<EventStorageConfig>;
+  private project: SemiontProject;
   private logger?: Logger;
 
   // Per-resource sequence tracking: resourceId -> sequence number
@@ -44,15 +44,14 @@ export class EventStorage {
   // Per-resource current file cache: avoids fs.readdir() + countEventsInFile() on every append
   private currentFiles: Map<string, { path: string; eventCount: number }> = new Map();
 
-  constructor(config: EventStorageConfig, logger?: Logger) {
+  constructor(project: SemiontProject, config?: EventStorageConfig, logger?: Logger) {
+    this.project = project;
     this.logger = logger;
     this.config = {
-      dataDir: config.dataDir,
-      maxEventsPerFile: config.maxEventsPerFile || 10000,
-      enableSharding: config.enableSharding ?? true,
-      numShards: config.numShards || 65536,
-      enableCompression: config.enableCompression ?? true,
-      gitSync: config.gitSync ?? false,
+      maxEventsPerFile: config?.maxEventsPerFile || 10000,
+      enableSharding: config?.enableSharding ?? true,
+      numShards: config?.numShards || 65536,
+      enableCompression: config?.enableCompression ?? true,
     };
   }
 
@@ -82,7 +81,7 @@ export class EventStorage {
    */
   getResourcePath(resourceId: ResourceId): string {
     const shardPath = this.getShardPath(resourceId);
-    return path.join(this.config.dataDir, 'events', shardPath, resourceId);
+    return path.join(this.project.eventsDir, shardPath, resourceId);
   }
 
   /**
@@ -111,8 +110,8 @@ export class EventStorage {
       await fs.writeFile(filePath, '', 'utf-8');
 
       // Stage the new event stream directory in git
-      if (this.config.gitSync) {
-        execFileSync('git', ['add', filePath]);
+      if (this.project.gitSync) {
+        execFileSync('git', ['add', docPath], { cwd: this.project.root });
       }
 
       // Initialize sequence number
@@ -220,8 +219,8 @@ export class EventStorage {
     current.eventCount++;
 
     // Stage the event log file in git index if configured
-    if (this.config.gitSync) {
-      execFileSync('git', ['add', targetPath]);
+    if (this.project.gitSync) {
+      execFileSync('git', ['add', targetPath], { cwd: this.project.root });
     }
   }
 
@@ -360,7 +359,7 @@ export class EventStorage {
    * Get all resource IDs by scanning shard directories
    */
   async getAllResourceIds(): Promise<ResourceId[]> {
-    const eventsDir = path.join(this.config.dataDir, 'events');
+    const eventsDir = this.project.eventsDir;
     const resourceIds: ResourceId[] = [];
 
     try {

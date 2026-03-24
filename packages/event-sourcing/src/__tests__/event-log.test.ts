@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventLog } from '../event-log';
 import { resourceId, userId } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -13,20 +14,23 @@ import { v4 as uuidv4 } from 'uuid';
 
 describe('EventLog', () => {
   let testDir: string;
+  let project: SemiontProject;
   let log: EventLog;
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-eventlog-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    project = new SemiontProject(testDir);
 
     log = new EventLog({
-      dataDir: testDir,
+      project,
       enableSharding: true,
       maxEventsPerFile: 100,
     });
   });
 
   afterEach(async () => {
+    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -37,9 +41,7 @@ describe('EventLog', () => {
     });
 
     it('should use default values for optional config', () => {
-      const defaultLog = new EventLog({
-        dataDir: testDir,
-      });
+      const defaultLog = new EventLog({ project });
 
       expect(defaultLog).toBeDefined();
       expect(defaultLog.storage).toBeDefined();

@@ -70,7 +70,7 @@ describe('AnnotationContext', () => {
     ({ project, teardown } = await createTestProject('annotation-context'));
 
     mockGraphDb = createMockGraphDb();
-    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(project, undefined, mockLogger);
     kb = {
       eventStore,
       views: eventStore.viewStorage,
@@ -90,7 +90,7 @@ describe('AnnotationContext', () => {
     const storageUri = `file://test-resources/${id}.txt`;
     const { checksum } = await kb.content.store(testContent, storageUri);
 
-    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(project, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'resource.created',
@@ -128,7 +128,7 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(project, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'annotation.added',
@@ -309,7 +309,7 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(project, undefined, mockLogger);
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
@@ -472,7 +472,7 @@ describe('AnnotationContext', () => {
       await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
 
       // Add a sibling annotation with entity types
-      const eventStore = createEventStore(project, undefined, undefined, mockLogger);
+      const eventStore = createEventStore(project, undefined, mockLogger);
       await eventStore.appendEvent({
         type: 'annotation.added',
         resourceId: resourceId(testResourceId),
