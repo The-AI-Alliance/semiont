@@ -112,6 +112,11 @@ export class EventStorage {
       const filePath = path.join(docPath, filename);
       await fs.writeFile(filePath, '', 'utf-8');
 
+      // Stage the new event stream directory in git
+      if (this.config.gitSync && this.config.projectRoot) {
+        execFileSync('git', ['add', filePath], { cwd: this.config.projectRoot });
+      }
+
       // Initialize sequence number
       this.resourceSequences.set(resourceId, 0);
 
