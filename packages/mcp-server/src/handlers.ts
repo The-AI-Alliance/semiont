@@ -17,6 +17,7 @@ export async function handleCreateResource(client: SemiontApiClient, auth: Acces
     file: file,
     format: format,
     entityTypes: args?.entityTypes || [],
+    storageUri: args?.storageUri,
   }, { auth });
 
   return {
@@ -194,6 +195,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
     prompt: args?.prompt,
     language: args?.language,
     context: contextData.context,
+    storageUri: args?.storageUri,
   };
 
   return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
