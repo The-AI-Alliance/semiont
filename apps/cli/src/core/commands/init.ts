@@ -251,6 +251,7 @@ async function init(
         console.log(`  - .semiont/`);
         console.log(`  - .semiont/config  (git.sync = ${!noGit})`);
         if (!noGit) {
+          console.log(`  - git init`);
           console.log(`  - git add .semiont/config`);
         }
       }
@@ -265,6 +266,7 @@ async function init(
     } else {
       // When --no-git: emit implications before writing anything
       if (noGit && !options.quiet) {
+        console.log(`${colors.yellow}ℹ --no-git: git init will be skipped${colors.reset}`);
         console.log(`${colors.yellow}ℹ --no-git: git.sync will be set to false in .semiont/config${colors.reset}`);
         console.log(`${colors.yellow}ℹ --no-git: .semiont/config will NOT be staged (git add skipped)${colors.reset}`);
         console.log(`${colors.yellow}ℹ --no-git: semiont yield/mv/archive will not stage files in the git index${colors.reset}`);
@@ -277,23 +279,23 @@ async function init(
         fs.writeFileSync(dotSemiontConfigPath, projectConfigTemplate(projectName, !noGit));
       }
 
-      // Stage .semiont/config unless --no-git
+      // Run git init and stage .semiont/config unless --no-git
       if (!noGit) {
         const gitCheck = checkGitAvailable();
         if (!gitCheck.pass) {
           if (!options.quiet) {
-            console.log(`${colors.yellow}⚠ git not available — skipping git add .semiont/config${colors.reset}`);
+            console.log(`${colors.yellow}⚠ git not available — skipping git init and git add .semiont/config${colors.reset}`);
           }
         } else {
-          try {
-            execFileSync('git', ['add', dotSemiontConfigPath], { cwd: projectDir });
-            if (!options.quiet) {
-              console.log(`${colors.green}✓${colors.reset} git add .semiont/config`);
-            }
-          } catch {
-            if (!options.quiet) {
-              console.log(`${colors.yellow}⚠ git add .semiont/config failed (not a git repo?)${colors.reset}`);
-            }
+          // git init (idempotent — safe to run in an existing repo)
+          execFileSync('git', ['init'], { cwd: projectDir });
+          if (!options.quiet) {
+            console.log(`${colors.green}✓${colors.reset} git init`);
+          }
+
+          execFileSync('git', ['add', dotSemiontConfigPath], { cwd: projectDir });
+          if (!options.quiet) {
+            console.log(`${colors.green}✓${colors.reset} git add .semiont/config`);
           }
         }
       }
