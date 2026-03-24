@@ -35,7 +35,7 @@
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "npm run typecheck && node build.mjs",
+    "build": "node build.mjs && npm run typecheck",
     "build:only": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
