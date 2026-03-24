@@ -24,11 +24,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
+import { execFileSync } from 'child_process';
 import { SemiontProject } from '@semiont/core/node';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { checkGitAvailable } from '../handlers/preflight-utils.js';
 
 
 // =====================================================================
@@ -39,6 +41,7 @@ export const InitOptionsSchema = BaseOptionsSchema.extend({
   name: z.string().optional(),
   directory: z.string().optional(),
   force: z.boolean().default(false),
+  noGit: z.boolean().default(false),
   environments: z.array(z.string()).default(['local', 'test', 'staging', 'production']),
 }).transform((data) => ({
   ...data,
@@ -66,13 +69,13 @@ function prompt(question: string): Promise<string> {
  * Create the .semiont/config content for a new project.
  * Contains project identity and site configuration (project-specific, not user-specific).
  */
-function projectConfigTemplate(projectName: string): string {
+function projectConfigTemplate(projectName: string, gitSync: boolean): string {
   return `[project]
 name = "${projectName}"
 version = "0.1.0"
 
 [git]
-sync = true
+sync = ${gitSync}
 
 [site]
 domain = "localhost:8080"
@@ -240,13 +243,18 @@ async function init(
       throw new Error('.semiont/ already exists. Use --force to overwrite.');
     }
     
+    const noGit = options.noGit;
+
     if (options.dryRun) {
       if (!options.quiet) {
         console.log(`${colors.cyan}[DRY RUN] Would create:${colors.reset}`);
         console.log(`  - .semiont/`);
-        console.log(`  - .semiont/config`);
+        console.log(`  - .semiont/config  (git.sync = ${!noGit})`);
+        if (!noGit) {
+          console.log(`  - git add .semiont/config`);
+        }
       }
-      
+
       results.summary.succeeded = 1;
       results.metadata = {
         projectName,
@@ -255,11 +263,39 @@ async function init(
         dryRun: true,
       };
     } else {
+      // When --no-git: emit implications before writing anything
+      if (noGit && !options.quiet) {
+        console.log(`${colors.yellow}ℹ --no-git: git.sync will be set to false in .semiont/config${colors.reset}`);
+        console.log(`${colors.yellow}ℹ --no-git: .semiont/config will NOT be staged (git add skipped)${colors.reset}`);
+        console.log(`${colors.yellow}ℹ --no-git: semiont yield/mv/archive will not stage files in the git index${colors.reset}`);
+      }
+
       // Write .semiont/config with project identity and site skeleton
       const dotSemiontConfigPath = path.join(dotSemiontDir, 'config');
       if (!fs.existsSync(dotSemiontDir) || options.force) {
         fs.mkdirSync(dotSemiontDir, { recursive: true });
-        fs.writeFileSync(dotSemiontConfigPath, projectConfigTemplate(projectName));
+        fs.writeFileSync(dotSemiontConfigPath, projectConfigTemplate(projectName, !noGit));
+      }
+
+      // Stage .semiont/config unless --no-git
+      if (!noGit) {
+        const gitCheck = checkGitAvailable();
+        if (!gitCheck.pass) {
+          if (!options.quiet) {
+            console.log(`${colors.yellow}⚠ git not available — skipping git add .semiont/config${colors.reset}`);
+          }
+        } else {
+          try {
+            execFileSync('git', ['add', dotSemiontConfigPath], { cwd: projectDir });
+            if (!options.quiet) {
+              console.log(`${colors.green}✓${colors.reset} git add .semiont/config`);
+            }
+          } catch {
+            if (!options.quiet) {
+              console.log(`${colors.yellow}⚠ git add .semiont/config failed (not a git repo?)${colors.reset}`);
+            }
+          }
+        }
       }
 
       // Construct SemiontProject to set up ephemeral XDG dirs
@@ -279,13 +315,14 @@ async function init(
         console.log(`  2. Run '${colors.cyan}semiont provision${colors.reset}' to set up services`);
         console.log(`  3. Run '${colors.cyan}semiont start${colors.reset}' to launch all services`);
       }
-      
+
       results.summary.succeeded = 1;
       results.metadata = {
         projectName,
         directory: projectDir,
         environments: environments,
         filesCreated: 1,
+        gitSync: !noGit,
       };
     }
   } catch (error) {
@@ -324,6 +361,11 @@ export const initCommand = new CommandBuilder()
     '--force': {
       type: 'boolean',
       description: 'Overwrite existing configuration',
+      default: false,
+    },
+    '--no-git': {
+      type: 'boolean',
+      description: 'Disable git sync (sets git.sync=false in config, skips git add)',
       default: false,
     },
     '--environments': {
