@@ -137,10 +137,10 @@ export async function exportBackup(
       yield { name: fileName, data: Buffer.from(jsonl, 'utf8') };
     }
 
-    // 3. Content blobs — stored under their working-tree path (strip file:// prefix)
-    for (const [storageUri, { data }] of contentBlobs) {
+    // 3. Content blobs — stored as {checksum}.{ext} at root level
+    for (const [storageUri, { data, ext }] of contentBlobs) {
       const blobPath = storageUri.startsWith('file://') ? storageUri.slice(7) : storageUri;
-      yield { name: blobPath, data };
+      yield { name: `${blobPath}${ext}`, data };
     }
   }
 

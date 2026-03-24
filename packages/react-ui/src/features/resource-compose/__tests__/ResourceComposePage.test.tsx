@@ -324,6 +324,10 @@ describe('ResourceComposePage', () => {
       const nameInput = screen.getByLabelText('Resource Name');
       fireEvent.change(nameInput, { target: { value: 'Test Resource' } });
 
+      // Fill in save location
+      const storagePathInput = screen.getByLabelText('Save location');
+      fireEvent.change(storagePathInput, { target: { value: 'docs/test-resource.md' } });
+
       // Fill in content
       const editor = screen.getByTestId('code-editor');
       fireEvent.change(editor, { target: { value: 'Test content' } });
@@ -336,15 +340,11 @@ describe('ResourceComposePage', () => {
         expect(onSaveResource).toHaveBeenCalledWith({
           mode: 'new',
           name: 'Test Resource',
+          storageUri: 'file://docs/test-resource.md',
           content: 'Test content',
-          file: undefined,
           format: 'text/markdown',
-          charset: undefined,
           entityTypes: [],
           language: 'en',
-          archiveOriginal: undefined,
-          referenceId: undefined,
-          sourceDocumentId: undefined,
         });
       });
     });
@@ -357,6 +357,10 @@ describe('ResourceComposePage', () => {
       // Fill in name
       const nameInput = screen.getByLabelText('Resource Name');
       fireEvent.change(nameInput, { target: { value: 'Test Resource' } });
+
+      // Fill in save location
+      const storagePathInput = screen.getByLabelText('Save location');
+      fireEvent.change(storagePathInput, { target: { value: 'docs/test-resource.md' } });
 
       // Select entity type
       const documentButton = screen.getByRole('button', { name: /Document entity type/ });
@@ -401,6 +405,9 @@ describe('ResourceComposePage', () => {
 
       const nameInput = screen.getByLabelText('Resource Name');
       fireEvent.change(nameInput, { target: { value: 'Test Resource' } });
+
+      const storagePathInput = screen.getByLabelText('Save location');
+      fireEvent.change(storagePathInput, { target: { value: 'docs/test-resource.md' } });
 
       const submitButton = screen.getByRole('button', { name: 'Create Resource' });
       fireEvent.click(submitButton);

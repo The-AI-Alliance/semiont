@@ -134,18 +134,19 @@ export async function exportLinkedData(
 
   logger?.info('Linked data export: enumerating resources', { count: resourceViews.length });
 
-  // Collect storageUris for content blobs
-  const storageUris = new Set<string>();
+  // Collect storageUris + mediaTypes for content blobs
+  const contentRefs = new Map<string, string>(); // storageUri -> mediaType
   for (const view of resourceViews) {
-    collectContentRefsFromResource(view.resource, storageUris);
+    collectContentRefsFromResource(view.resource, contentRefs);
   }
 
   // Read all content blobs
-  const contentBlobs = new Map<string, Buffer>();
-  for (const storageUri of storageUris) {
+  const contentBlobs = new Map<string, { data: Awaited<ReturnType<LinkedDataContentReader['retrieve']>>; ext: string }>();
+  for (const [storageUri, mediaType] of contentRefs) {
     try {
       const data = await content.retrieve(storageUri);
-      contentBlobs.set(storageUri, data);
+      const ext = getExtensionForMimeType(mediaType);
+      contentBlobs.set(storageUri, { data, ext });
     } catch (err) {
       logger?.warn('Failed to retrieve content blob', { storageUri, error: String(err) });
     }
@@ -184,10 +185,10 @@ export async function exportLinkedData(
       };
     }
 
-    // 3. Content blobs stored under their working-tree path (strip file:// prefix)
-    for (const [storageUri, data] of contentBlobs) {
+    // 3. Content blobs stored as {checksum}.{ext} at root level
+    for (const [storageUri, { data, ext }] of contentBlobs) {
       const blobPath = storageUri.startsWith('file://') ? storageUri.slice(7) : storageUri;
-      yield { name: blobPath, data };
+      yield { name: `${blobPath}${ext}`, data };
     }
   }
 
@@ -289,13 +290,15 @@ function normalizeRepresentations(
 }
 
 /**
- * Collect storageUri from a resource for content export.
+ * Collect storageUri + mediaType from a resource for content export.
  */
 function collectContentRefsFromResource(
   resource: ResourceDescriptor,
-  refs: Set<string>,
+  refs: Map<string, string>,
 ): void {
   if (resource.storageUri) {
-    refs.add(resource.storageUri);
+    const reps = normalizeRepresentations(resource.representations);
+    const mediaType = reps[0]?.mediaType ?? 'application/octet-stream';
+    refs.set(resource.storageUri, mediaType);
   }
 }

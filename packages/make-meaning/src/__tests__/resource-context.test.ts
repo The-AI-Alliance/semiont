@@ -528,6 +528,7 @@ describe('ResourceContext', () => {
     test('should handle resources without representations', async () => {
       const resourceWithoutReps: ResourceDescriptor = {
         ...mockResource,
+        storageUri: undefined,
         representations: [],
       };
 
@@ -549,6 +550,7 @@ describe('ResourceContext', () => {
 
       const resourceNoChecksum: ResourceDescriptor = {
         ...mockResource,
+        storageUri: undefined,
         representations: [repWithoutChecksum],
       };
 
