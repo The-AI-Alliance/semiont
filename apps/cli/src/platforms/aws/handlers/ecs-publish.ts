@@ -41,7 +41,7 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
       try {
         const gitHash = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
           encoding: 'utf-8',
-          cwd: service.config?.semiontRepo || service.projectRoot
+          cwd: service.projectRoot
         }).trim();
         version = gitHash;
       } catch {

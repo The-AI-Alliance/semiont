@@ -1,8 +1,10 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
-import { getBackendPaths } from './backend-paths.js';
+import { resolveBackendNpmPackage } from './backend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 import type { BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
@@ -20,24 +22,28 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   // Type narrowing for backend service config
   const config = service.config as BackendServiceConfig;
 
-  // Get backend paths
-  const paths = getBackendPaths(context);
-  const { sourceDir: backendDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
-  
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const entryPoint = npmDir ? path.join(npmDir, 'dist', 'index.js') : null;
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.backendPidFile;
+  const appLogPath = project.backendAppLogFile;
+  const errorLogPath = project.backendErrorLogFile;
+
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
   let healthy = false;
   let details: Record<string, unknown> = {
-    backendDir,
+    entryPoint,
     port: config.port,
-    source: paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO',
+    source: 'npm package',
     pidFile,
     appLog: appLogPath,
     errorLog: errorLogPath,
   };
-  
-  // Check if backend directory exists
-  if (!fs.existsSync(backendDir)) {
+
+  // Check if backend entry point exists (i.e. package is installed)
+  if (!entryPoint || !fs.existsSync(entryPoint)) {
     details.message = 'Backend not provisioned';
     return {
       success: true,
@@ -177,8 +183,8 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     data: {
       pid,
       port: config.port,
-      path: backendDir,
-      workingDirectory: backendDir,
+      path: entryPoint ?? undefined,
+      workingDirectory: entryPoint ?? undefined,
       logFile: appLogPath
     }
   } : undefined;
@@ -194,7 +200,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     logs,
     metadata: {
       serviceType: 'backend',
-      backendDir,
+      entryPoint,
       port: config.port
     }
   };

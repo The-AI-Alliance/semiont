@@ -15,8 +15,6 @@ import { graphProvisionDescriptor } from './graph-provision.js';
 import { backendProvisionDescriptor } from './backend-provision.js';
 import { frontendProvisionDescriptor } from './frontend-provision.js';
 import { proxyProvisionDescriptor } from './proxy-provision.js';
-import { backendPublishDescriptor } from './backend-publish.js';
-import { frontendPublishDescriptor } from './frontend-publish.js';
 import { graphStopDescriptor } from './graph-stop.js';
 import { backendStopDescriptor } from './backend-stop.js';
 import { frontendStopDescriptor } from './frontend-stop.js';
@@ -62,9 +60,6 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   frontendProvisionDescriptor,
   proxyProvisionDescriptor,
   inferenceProvisionDescriptor,
-  // Publish handlers
-  backendPublishDescriptor,
-  frontendPublishDescriptor
 ];
 
 // Export as base handler type for registry compatibility

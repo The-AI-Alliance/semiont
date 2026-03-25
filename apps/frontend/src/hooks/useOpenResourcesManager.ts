@@ -62,20 +62,20 @@ export function useOpenResourcesManager(): OpenResourcesManager {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const addResource = useCallback((id: string, name: string, mediaType?: string) => {
+  const addResource = useCallback((id: string, name: string, mediaType?: string, storageUri?: string) => {
     setOpenResources(prev => {
       const existing = prev.find(resource => resource.id === id);
       if (existing) {
-        // Update name and mediaType if resource already exists
+        // Update name, mediaType, and storageUri if resource already exists
         return prev.map(resource =>
-          resource.id === id ? { ...resource, name, ...(mediaType && { mediaType }) } : resource
+          resource.id === id ? { ...resource, name, ...(mediaType && { mediaType }), ...(storageUri && { storageUri }) } : resource
         );
       }
       // Add new resource with order = max order + 1
       const maxOrder = prev.length > 0
         ? Math.max(...prev.map(r => r.order ?? r.openedAt))
         : 0;
-      return [...prev, { id, name, openedAt: Date.now(), order: maxOrder + 1, ...(mediaType && { mediaType }) }];
+      return [...prev, { id, name, openedAt: Date.now(), order: maxOrder + 1, ...(mediaType && { mediaType }), ...(storageUri && { storageUri }) }];
     });
   }, []);
 

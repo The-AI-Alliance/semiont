@@ -33,6 +33,10 @@ import { exportCmd } from './commands/export.js';
 import { importCmd } from './commands/import.js';
 import { localCommand } from './commands/local.js';
 import { cleanCommand } from './commands/clean.js';
+import { mvCmd } from './commands/mv.js';
+import { yieldCmd } from './commands/yield.js';
+import { archiveCmd } from './commands/archive.js';
+import { unarchiveCmd } from './commands/unarchive.js';
 
 /**
  * Cache of loaded command definitions
@@ -60,6 +64,10 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'import': importCmd,
   'local': localCommand,
   'clean': cleanCommand,
+  'mv': mvCmd,
+  'yield': yieldCmd,
+  'archive': archiveCmd,
+  'unarchive': unarchiveCmd,
 };
 
 /**

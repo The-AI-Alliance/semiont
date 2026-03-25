@@ -67,15 +67,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             name: { type: 'string', description: 'Resource name' },
             content: { type: 'string', description: 'Resource content' },
-            entityTypes: { 
-              type: 'array', 
+            storageUri: { type: 'string', description: 'Working-tree URI where the resource will be stored (e.g. file://docs/my-resource.md)' },
+            entityTypes: {
+              type: 'array',
               items: { type: 'string' },
-              description: 'Entity types (e.g., Person, Topic, Concept)' 
+              description: 'Entity types (e.g., Person, Topic, Concept)'
             },
             contentType: { type: 'string', description: 'Content MIME type (default: text/plain)' },
             metadata: { type: 'object', description: 'Additional metadata' },
           },
-          required: ['name', 'content'],
+          required: ['name', 'content', 'storageUri'],
         },
       },
       {
@@ -181,15 +182,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {
             selectionId: { type: 'string', description: 'Selection ID' },
+            storageUri: { type: 'string', description: 'Working-tree URI where the generated resource will be saved (e.g. file://generated/overview.md)' },
             name: { type: 'string', description: 'Resource name (optional)' },
-            entityTypes: { 
+            entityTypes: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Entity types for the new resource' 
+              description: 'Entity types for the new resource'
             },
             prompt: { type: 'string', description: 'AI generation prompt' },
           },
-          required: ['selectionId'],
+          required: ['selectionId', 'storageUri'],
         },
       },
       // Context and Analysis

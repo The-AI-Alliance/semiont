@@ -6,8 +6,9 @@ import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { getBackendPaths } from './backend-paths.js';
-import { checkPortFree, checkCommandAvailable, checkConfigPort, checkConfigField, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { resolveBackendNpmPackage } from './backend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, checkConfigField, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -20,29 +21,38 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const { service } = context;
   const config = service.config as BackendServiceConfig;
 
-  // Get backend paths
-  const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, runtimeDir, pidFile, logsDir } = paths;
-
-  if (service.verbose) {
-    printInfo(`Source: ${backendSourceDir}`);
-    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
-  }
-
-  if (!fs.existsSync(backendSourceDir)) {
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  if (!npmDir) {
     return {
       success: false,
-      error: `Backend source not found at ${backendSourceDir}`,
+      error: 'Backend not provisioned. Run: semiont provision --service backend',
       metadata: { serviceType: 'backend' }
     };
   }
-  
-  // Check if backend is provisioned (runtimeDir created by provision)
-  if (!fs.existsSync(runtimeDir)) {
+  const entryPoint = path.join(npmDir, 'dist', 'index.js');
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.backendPidFile;
+  const logsDir = project.backendLogsDir;
+
+  if (service.verbose) {
+    printInfo(`Entry point: ${entryPoint}`);
+  }
+
+  if (!fs.existsSync(entryPoint)) {
+    return {
+      success: false,
+      error: `Backend entry point not found at ${entryPoint}`,
+      metadata: { serviceType: 'backend' }
+    };
+  }
+
+  // Check if backend is provisioned (logsDir created by provision)
+  if (!fs.existsSync(logsDir)) {
     return {
       success: false,
       error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment}`,
-      metadata: { serviceType: 'backend', backendSourceDir }
+      metadata: { serviceType: 'backend', entryPoint }
     };
   }
   
@@ -134,26 +144,12 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   
   if (!service.quiet) {
     printInfo(`Starting backend service ${service.name}...`);
-    printInfo(`Source: ${backendSourceDir}`);
+    printInfo(`Entry point: ${entryPoint}`);
     printInfo(`Port: ${port}`);
-    printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // Determine command based on source type and devMode
-  let command: string;
-  let args: string[];
-
-  if (paths.fromNpmPackage) {
-    // npm package: run dist/index.js directly
-    command = 'node';
-    args = [path.join(backendSourceDir, 'dist', 'index.js')];
-  } else if (config.devMode) {
-    command = 'npm';
-    args = ['run', 'dev'];
-  } else {
-    command = 'npm';
-    args = ['start'];
-  }
+  const command = 'node';
+  const args = [entryPoint];
 
   try {
     // Open log files for writing (process will write directly)
@@ -162,7 +158,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
     // Spawn the backend process
     const proc = spawn(command, args, {
-      cwd: backendSourceDir,  // Run from source directory
+      cwd: path.dirname(entryPoint),
       env,
       detached: true,
       stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
@@ -207,17 +203,15 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
     
     // Build resources
-    const commandStr = paths.fromNpmPackage
-      ? `node dist/index.js`
-      : config.devMode ? 'npm run dev' : 'npm start';
+    const commandStr = `node ${entryPoint}`;
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
         pid: proc.pid,
         port,
         command: commandStr,
-        workingDirectory: backendSourceDir,
-        path: backendSourceDir,
+        workingDirectory: path.dirname(entryPoint),
+        path: entryPoint,
         logFile: appLogPath
       }
     };
@@ -248,7 +242,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
         serviceType: 'backend',
         pid: proc.pid,
         port,
-        backendSourceDir,
+        entryPoint,
         logsDir,
         command: commandStr
       }
@@ -273,17 +267,23 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
-  const paths = getBackendPaths(context);
-  const checks = paths.fromNpmPackage
-    ? [checkCommandAvailable('node')]
-    : [checkCommandAvailable('npm')];
+  const projectRoot = context.service.projectRoot;
+  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const project = new SemiontProject(projectRoot);
+  const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'backend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
+  if (npmDir) {
+    checks.push(checkFileExists(path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
+  } else {
+    checks.push({ name: 'backend-npm-package', pass: false, message: '@semiont/backend not installed — run: semiont provision' });
+  }
   checks.push(
+    checkFileExists(project.backendLogsDir, 'backend logs dir (run: semiont provision)'),
     checkJwtSecretExists(),
-    checkConfigField(context.service.projectRoot, 'projectRoot'),
+    checkConfigField(projectRoot, 'projectRoot'),
   );
   return preflightFromChecks(checks);
 };

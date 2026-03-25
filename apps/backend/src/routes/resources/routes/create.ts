@@ -32,6 +32,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const language = formData.get('language') as string | null;
     const entityTypesStr = formData.get('entityTypes') as string | null;
     const creationMethod = formData.get('creationMethod') as string | null;
+    const storageUri = formData.get('storageUri') as string | null;
 
     // Validate required fields
     if (!name || !file || !formatRaw) {
@@ -60,6 +61,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
         language: language || undefined,
         entityTypes,
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
+        storageUri: storageUri || undefined,
       },
       userId(user.id),
       eventBus,

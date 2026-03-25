@@ -37,7 +37,7 @@ describe('ResourceOperations', () => {
     ({ project, teardown } = await createTestProject('resource-ops'));
 
     eventBus = new EventBus();
-    testEventStore = createEventStore(project, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     const kb = createKnowledgeBase(testEventStore, project, graphDb, mockLogger);
 

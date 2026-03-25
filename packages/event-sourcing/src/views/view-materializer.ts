@@ -27,6 +27,7 @@ import type {
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import type { ViewStorage, ResourceView } from '../storage/view-storage';
+import { writeStorageUriEntry, removeStorageUriEntry } from '../storage/storage-uri-index';
 
 export interface ViewMaterializerConfig {
   basePath: string;
@@ -99,6 +100,27 @@ export class ViewMaterializer {
     // Save updated view
     await this.viewStorage.save(resourceId, view);
     this.logger?.info('[ViewMaterializer] View saved', { resourceId, version: view.annotations.version, annotationCount: view.annotations.annotations.length });
+
+    // Update storage-uri index for URI-bearing events
+    await this.materializeStorageUriIndex(resourceId, event);
+  }
+
+  /**
+   * Update the storage-uri index in response to an event.
+   *
+   * Only resource.created (with storageUri), resource.moved, need index changes.
+   * resource.archived / resource.unarchived do NOT modify the index.
+   */
+  private async materializeStorageUriIndex(resourceId: ResourceId, event: ResourceEvent): Promise<void> {
+    const projectionsDir = path.join(this.config.basePath, 'projections');
+
+    if (event.type === 'resource.created' && event.payload.storageUri) {
+      await writeStorageUriEntry(projectionsDir, event.payload.storageUri, resourceId as string);
+    } else if (event.type === 'resource.moved') {
+      // Remove old URI, add new URI
+      await removeStorageUriEntry(projectionsDir, event.payload.fromUri);
+      await writeStorageUriEntry(projectionsDir, event.payload.toUri, resourceId as string);
+    }
   }
 
   /**
@@ -165,6 +187,12 @@ export class ViewMaterializer {
         // First-class fields
         resource.isDraft = event.payload.isDraft;
         resource.wasDerivedFrom = event.payload.generatedFrom;
+
+        // Working-tree URI and current checksum
+        if (event.payload.storageUri) {
+          resource.storageUri = event.payload.storageUri;
+        }
+        resource.currentChecksum = event.payload.contentChecksum;
         break;
 
       case 'resource.cloned':
@@ -186,6 +214,16 @@ export class ViewMaterializer {
           language: event.payload.language,
         } as Representation);
         resource.representations = reps2;
+        break;
+
+      case 'resource.updated':
+        resource.currentChecksum = event.payload.contentChecksum;
+        resource.dateModified = event.timestamp;
+        break;
+
+      case 'resource.moved':
+        resource.storageUri = event.payload.toUri;
+        resource.dateModified = event.timestamp;
         break;
 
       case 'resource.archived':
@@ -319,6 +357,8 @@ export class ViewMaterializer {
       // Resource metadata events don't affect annotations
       case 'resource.created':
       case 'resource.cloned':
+      case 'resource.updated':
+      case 'resource.moved':
       case 'resource.archived':
       case 'resource.unarchived':
       case 'representation.added':

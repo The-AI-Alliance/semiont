@@ -29,7 +29,6 @@ function createProvisionOptions(partial: Partial<ProvisionOptions> = {}): Provis
     destroy: false,
     stack: undefined,
     service: undefined,
-    semiontRepo: undefined,
     rotateSecret: false,
     ...partial
   };

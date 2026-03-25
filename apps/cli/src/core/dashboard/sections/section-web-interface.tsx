@@ -4,6 +4,19 @@ import type { ServiceStatus } from '../dashboard-components.js';
 const TAG = 'semiont-tag semiont-tag--secondary semiont-tag--compact';
 
 const MAKE_MEANING_SERVICES = new Set(['graph', 'neo4j', 'janusgraph', 'neptune']);
+const isInferenceService = (name: string) => name.toLowerCase().startsWith('inference.');
+
+function formatServiceName(name: string): string {
+  // "inference.anthropic" → "Inference (Anthropic)"
+  const dotIdx = name.indexOf('.');
+  if (dotIdx !== -1) {
+    const base = name.slice(0, dotIdx);
+    const qualifier = name.slice(dotIdx + 1);
+    return base.charAt(0).toUpperCase() + base.slice(1) +
+      ' (' + qualifier.charAt(0).toUpperCase() + qualifier.slice(1) + ')';
+  }
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
 
 // Display order for web interface services
 const SERVICE_ORDER = ['proxy', 'frontend', 'backend', 'database'];
@@ -63,7 +76,7 @@ const ServiceRow: React.FC<{ service: ServiceStatus }> = ({ service }) => {
       <div className="service-row__indicator">
         <span className={indicatorClass(service.status)} />
       </div>
-      <div className="service-row__name">{service.name}</div>
+      <div className="service-row__name">{formatServiceName(service.name)}</div>
       <div className="service-row__host">
         {service.hostname
           ? <span className="service-row__hostname">{service.hostname}</span>
@@ -110,7 +123,7 @@ interface Props {
 }
 
 export const SectionWebInterface: React.FC<Props> = ({ services }) => {
-  const webServices = services.filter(s => !MAKE_MEANING_SERVICES.has(s.name.toLowerCase()));
+  const webServices = services.filter(s => !MAKE_MEANING_SERVICES.has(s.name.toLowerCase()) && !isInferenceService(s.name));
 
   // Sort by preferred order, then alphabetically for anything unknown
   const sorted = [...webServices].sort((a, b) => {

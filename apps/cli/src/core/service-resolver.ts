@@ -87,7 +87,7 @@ export function resolveServiceDeployments(
       for (const [providerType, providerConfig] of Object.entries(inferenceProviders)) {
         const platform = (providerConfig as any)?.platform?.type ?? (providerConfig as any)?.platform ?? 'external';
         platformInfos.push({
-          name: 'inference',
+          name: `inference.${providerType}`,
           platform: platform as PlatformType,
           config: { ...(providerConfig as object), inferenceType: providerType } as ServiceConfig,
         });

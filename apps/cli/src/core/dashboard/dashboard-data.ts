@@ -11,11 +11,13 @@ import { CommandResult } from '../command-result.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
 import { isPlatformResources } from '../../platforms/platform-resources.js';
 import { SemiontProject } from '@semiont/core/node';
+import { findProjectRoot } from '../config-loader.js';
 
 import type {
   ServiceStatus, LogEntry, MetricData,
   MakeMeaningStatus, WorkerStatus
 } from '../dashboard/dashboard-components.js';
+
 
 export interface DashboardData {
   services: ServiceStatus[];
@@ -83,7 +85,7 @@ export class DashboardDataSource {
         if (!checkResult) {
           // No result returned - service check failed
           services.push({
-            name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
+            name: deployment.name,
             status: 'unknown',
             details: 'Check failed - no result',
             lastUpdated: new Date()
@@ -94,7 +96,7 @@ export class DashboardDataSource {
         // Convert to dashboard format with all new fields
         const checkedAt = new Date();
         const serviceStatus: ServiceStatus = {
-          name: deployment.name.charAt(0).toUpperCase() + deployment.name.slice(1),
+          name: deployment.name,
           status: this.mapStatus(checkResult.extensions?.status || 'unknown'),
           details: checkResult.error || this.getDetails(checkResult),
           evidence: this.getEvidence(checkResult),
@@ -238,7 +240,7 @@ export class DashboardDataSource {
 
     // File-stat based sources — work without backend running
     try {
-      const project = new SemiontProject(process.cwd());
+      const project = new SemiontProject(findProjectRoot());
 
       // Event log
       result.eventLog.path = project.eventsDir;
@@ -260,9 +262,9 @@ export class DashboardDataSource {
       }
 
       // Content store — recursive scan
-      result.contentStore.path = project.dataHome;
-      if (fs.existsSync(project.dataHome)) {
-        const { fileCount, sizeBytes } = this.dirStats(project.dataHome);
+      result.contentStore.path = project.representationsDir;
+      if (fs.existsSync(project.representationsDir)) {
+        const { fileCount, sizeBytes } = this.dirStats(project.representationsDir);
         result.contentStore.fileCount = fileCount;
         result.contentStore.sizeBytes = sizeBytes;
       }
@@ -325,24 +327,72 @@ export class DashboardDataSource {
       'comment-annotation', 'tag-annotation', 'generation'
     ];
 
-    const backendPort = this.envConfig
-      ? (this.envConfig as any)?.services?.backend?.port ?? 4000
-      : 4000;
-
     try {
-      const health = await this.fetchBackendHealth(backendPort);
-      if (health?.workers && Array.isArray(health.workers)) {
-        return health.workers as WorkerStatus[];
-      }
-    } catch { /* backend not running */ }
+      const project = new SemiontProject(findProjectRoot());
+      const jobsDir = project.jobsDir;
 
-    // Default: all idle with zero counts
-    return types.map(type => ({
-      type,
-      state: 'idle' as const,
-      pendingCount: 0,
-      activeCount: 0
-    }));
+      // Scan all status directories once, grouping by job type
+      const counts: Record<WorkerStatus['type'], {
+        pending: number; running: number; complete: number; failed: number;
+        lastProcessed: Date | undefined;
+      }> = {} as any;
+
+      for (const t of types) {
+        counts[t] = { pending: 0, running: 0, complete: 0, failed: 0, lastProcessed: undefined };
+      }
+
+      const statusDirs: Array<{ dir: string; bucket: 'pending' | 'running' | 'complete' | 'failed' }> = [
+        { dir: `${jobsDir}/pending`,  bucket: 'pending'  },
+        { dir: `${jobsDir}/running`,  bucket: 'running'  },
+        { dir: `${jobsDir}/complete`, bucket: 'complete' },
+        { dir: `${jobsDir}/failed`,   bucket: 'failed'   },
+      ];
+
+      for (const { dir, bucket } of statusDirs) {
+        if (!fs.existsSync(dir)) continue;
+        for (const file of fs.readdirSync(dir)) {
+          try {
+            const raw = fs.readFileSync(`${dir}/${file}`, 'utf-8');
+            const job = JSON.parse(raw);
+            const type = job?.metadata?.type as WorkerStatus['type'];
+            if (!counts[type]) continue;
+            counts[type][bucket]++;
+            if ((bucket === 'complete' || bucket === 'failed') && job.completedAt) {
+              const t = new Date(job.completedAt);
+              if (!counts[type].lastProcessed || t > counts[type].lastProcessed!) {
+                counts[type].lastProcessed = t;
+              }
+            }
+          } catch { /* skip unreadable */ }
+        }
+      }
+
+      return types.map(type => {
+        const c = counts[type];
+        const state: WorkerStatus['state'] =
+          c.running > 0 ? 'active' :
+          c.failed  > 0 ? 'error'  : 'idle';
+        return {
+          type,
+          state,
+          pendingCount:   c.pending,
+          activeCount:    c.running,
+          completedCount: c.complete,
+          failedCount:    c.failed,
+          lastProcessed:  c.lastProcessed,
+        };
+      });
+    } catch {
+      // Jobs dir not found or project not initialised — return empty defaults
+      return types.map(type => ({
+        type,
+        state: 'idle' as const,
+        pendingCount: 0,
+        activeCount: 0,
+        completedCount: 0,
+        failedCount: 0,
+      }));
+    }
   }
 
   private fetchBackendHealth(port: number): Promise<any> {
@@ -398,6 +448,21 @@ export class DashboardDataSource {
     const meta = checkResult.metadata as any;
 
     if (!d && !meta) return ev;
+
+    // Inference evidence (Anthropic or Ollama)
+    if (meta?.serviceType === 'inference') {
+      if (d?.endpoint)      ev.push(d.endpoint);
+      if (d?.model)         ev.push(d.model);
+      if (d?.responseTime)  ev.push(d.responseTime);
+      if (d?.responsePreview) ev.push(`"${String(d.responsePreview).slice(0, 20)}"`);
+      // Ollama: show model availability
+      if (d?.modelAvailability) {
+        for (const [m, avail] of Object.entries(d.modelAvailability as Record<string, boolean>)) {
+          ev.push(`${m} ${avail ? '✓' : '✗'}`);
+        }
+      }
+      return ev;
+    }
 
     // Generic connection/protocol evidence (works for neo4j bolt, gremlin ws, etc.)
     if (d?.address)          ev.push(`connected ${d.address}`);

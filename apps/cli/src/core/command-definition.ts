@@ -27,6 +27,7 @@ export interface ArgSpec {
   args: Record<string, ArgDefinition>;
   aliases?: Record<string, string>;
   positional?: string[]; // For commands like 'configure get <key>'
+  restAs?: string;       // Collect all remaining positional args into this field name
 }
 
 /**
@@ -92,6 +93,7 @@ export class CommandBuilder<TInput = any, TOptions = TInput, TResult = any> {
       args: { ...BASE_ARGS, ...spec.args },
       aliases: { ...BASE_ALIASES, ...spec.aliases },
       positional: spec.positional,
+      restAs: spec.restAs,
     };
     return this;
   }

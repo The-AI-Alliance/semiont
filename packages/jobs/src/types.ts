@@ -70,6 +70,7 @@ export interface GenerationParams {
   context?: GatheredContext;
   temperature?: number;
   maxTokens?: number;
+  storageUri?: string;
 }
 
 /**

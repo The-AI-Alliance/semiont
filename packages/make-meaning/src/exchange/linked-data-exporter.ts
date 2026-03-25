@@ -33,9 +33,9 @@ export interface LinkedDataViewReader {
   }>>;
 }
 
-/** Subset of RepresentationStore used by the linked-data exporter. */
+/** Subset of WorkingTreeStore used by the linked-data exporter. */
 export interface LinkedDataContentReader {
-  retrieve(checksum: string, mediaType: string): Promise<Buffer>;
+  retrieve(storageUri: string): Promise<Buffer>;
 }
 
 export interface LinkedDataExporterOptions {
@@ -134,21 +134,21 @@ export async function exportLinkedData(
 
   logger?.info('Linked data export: enumerating resources', { count: resourceViews.length });
 
-  // Collect content blobs referenced by representations
-  const contentRefs = new Map<string, string>(); // checksum → mediaType
+  // Collect storageUris + mediaTypes for content blobs
+  const contentRefs = new Map<string, string>(); // storageUri -> mediaType
   for (const view of resourceViews) {
     collectContentRefsFromResource(view.resource, contentRefs);
   }
 
   // Read all content blobs
-  const contentBlobs = new Map<string, { data: Buffer; ext: string }>();
-  for (const [checksum, mediaType] of contentRefs) {
+  const contentBlobs = new Map<string, { data: Awaited<ReturnType<LinkedDataContentReader['retrieve']>>; ext: string }>();
+  for (const [storageUri, mediaType] of contentRefs) {
     try {
-      const data = await content.retrieve(checksum, mediaType);
+      const data = await content.retrieve(storageUri);
       const ext = getExtensionForMimeType(mediaType);
-      contentBlobs.set(checksum, { data, ext });
+      contentBlobs.set(storageUri, { data, ext });
     } catch (err) {
-      logger?.warn('Failed to retrieve content blob', { checksum, mediaType, error: String(err) });
+      logger?.warn('Failed to retrieve content blob', { storageUri, error: String(err) });
     }
   }
 
@@ -185,9 +185,10 @@ export async function exportLinkedData(
       };
     }
 
-    // 3. Content blobs at root
-    for (const [checksum, { data, ext }] of contentBlobs) {
-      yield { name: `${checksum}${ext}`, data };
+    // 3. Content blobs stored as {checksum}.{ext} at root level
+    for (const [storageUri, { data, ext }] of contentBlobs) {
+      const blobPath = storageUri.startsWith('file://') ? storageUri.slice(7) : storageUri;
+      yield { name: `${blobPath}${ext}`, data };
     }
   }
 
@@ -289,19 +290,15 @@ function normalizeRepresentations(
 }
 
 /**
- * Collect content checksums and media types from a resource's representations.
+ * Collect storageUri + mediaType from a resource for content export.
  */
 function collectContentRefsFromResource(
   resource: ResourceDescriptor,
   refs: Map<string, string>,
 ): void {
-  const reps = normalizeRepresentations(resource.representations);
-  for (const rep of reps) {
-    if (rep.checksum && rep.mediaType) {
-      const rawChecksum = rep.checksum.startsWith('sha256:')
-        ? rep.checksum.slice(7)
-        : rep.checksum;
-      refs.set(rawChecksum, rep.mediaType);
-    }
+  if (resource.storageUri) {
+    const reps = normalizeRepresentations(resource.representations);
+    const mediaType = reps[0]?.mediaType ?? 'application/octet-stream';
+    refs.set(resource.storageUri, mediaType);
   }
 }

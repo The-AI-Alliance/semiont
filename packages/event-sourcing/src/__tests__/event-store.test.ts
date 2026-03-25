@@ -29,11 +29,7 @@ describe('Event Store', () => {
     const viewStorage = new FilesystemViewStorage(project);
 
     eventStore = new EventStore(
-      {
-        dataDir: testDir,
-        enableSharding: false, // Faster without sharding
-        maxEventsPerFile: 100,
-      },
+      project,
       testDir,
       viewStorage,
     );

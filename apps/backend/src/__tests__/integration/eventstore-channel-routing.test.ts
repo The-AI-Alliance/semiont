@@ -44,7 +44,7 @@ describe('EventStore Channel Routing Integration', () => {
     // Create EventStore with CoreEventBus to enable domain event publishing
     const { createEventStore } = await import('@semiont/event-sourcing');
     const project = new SemiontProject(testDir);
-    eventStore = createEventStore(project, { enableSharding: false, maxEventsPerFile: 100 }, coreEventBus, mockLogger);
+    eventStore = createEventStore(project, coreEventBus, mockLogger);
   });
 
   afterAll(async () => {

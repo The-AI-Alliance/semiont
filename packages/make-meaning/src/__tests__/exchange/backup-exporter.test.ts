@@ -130,7 +130,7 @@ describe('backup-exporter', () => {
     resourceEvents.set(resourceId, [
       makeStoredEvent('resource.created', {
         name: 'Test Doc',
-        contentChecksum: 'sha-content',
+        storageUri: 'sha-content',
         format: 'text/markdown',
         language: 'en',
         entityTypes: ['Person'],

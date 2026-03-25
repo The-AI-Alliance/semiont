@@ -195,6 +195,7 @@ export function ResourceViewerPage({
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
     onGenerateDocument(referenceId, {
       title: config.title,
+      storageUri: config.storagePath,
       prompt: config.prompt,
       language: config.language,
       temperature: config.temperature,
@@ -253,7 +254,7 @@ export function ResourceViewerPage({
   useEffect(() => {
     if (resource && rUri) {
       const mediaType = getPrimaryMediaType(resource);
-      addResource(rUri, resource.name, mediaType || undefined);
+      addResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('lastViewedDocumentId', rUri);
       }

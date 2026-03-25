@@ -27,6 +27,13 @@ export {
   FilesystemViewStorage,
 } from './storage/view-storage';
 export { getShardPath, sha256, jumpConsistentHash } from './storage/shard-utils';
+export {
+  resolveStorageUri,
+  writeStorageUriEntry,
+  removeStorageUriEntry,
+  ResourceNotFoundError,
+  type StorageUriEntry,
+} from './storage/storage-uri-index';
 
 // Subscriptions
 export {

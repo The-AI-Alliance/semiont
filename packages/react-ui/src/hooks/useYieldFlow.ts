@@ -35,6 +35,7 @@ export interface YieldFlowState {
   generationProgress: YieldProgress | null;
   onGenerateDocument: (referenceId: string, options: {
     title: string;
+    storageUri: string;
     prompt?: string;
     language?: string;
     temperature?: number;
@@ -94,6 +95,7 @@ export function useYieldFlow(
     referenceId: string,
     options: {
       title: string;
+      storageUri: string;
       prompt?: string;
       language?: string;
       temperature?: number;
@@ -112,6 +114,7 @@ export function useYieldFlow(
         ...options,
         language: options.language || locale,
         context: options.context,
+        storageUri: options.storageUri,
       }
     });
   }, [resourceId, clearNewAnnotationId, locale]); // eventBus is stable singleton

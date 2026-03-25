@@ -40,6 +40,7 @@ export interface ResourceCreatedEvent extends BaseEvent {
     contentByteSize?: number;    // Size of content in bytes
     creationMethod: CreationMethod;  // How the resource was created
     entityTypes?: string[];
+    storageUri?: string;         // Working-tree URI (e.g. file://docs/overview.md)
 
     // First-class fields (promoted from metadata)
     language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
@@ -75,6 +76,24 @@ export interface ResourceArchivedEvent extends BaseEvent {
 export interface ResourceUnarchivedEvent extends BaseEvent {
   type: 'resource.unarchived';
   payload: Record<string, never>;  // Empty payload
+}
+
+export interface ResourceUpdatedEvent extends BaseEvent {
+  type: 'resource.updated';
+  resourceId: ResourceId;  // Required - resource-scoped event
+  payload: {
+    contentChecksum: string;   // SHA-256 of new content
+    contentByteSize?: number;  // Size of content in bytes
+  };
+}
+
+export interface ResourceMovedEvent extends BaseEvent {
+  type: 'resource.moved';
+  resourceId: ResourceId;  // Required - resource-scoped event
+  payload: {
+    fromUri: string;  // Previous file:// URI
+    toUri: string;    // New file:// URI
+  };
 }
 
 // Representation events (multi-format support)
@@ -113,6 +132,7 @@ export interface AnnotationAddedEvent extends BaseEvent {
   type: 'annotation.added';
   payload: {
     annotation: Annotation;
+    contentChecksum?: string;  // SHA-256 of resource content at annotation time (for future staleness detection)
   };
 }
 
@@ -225,6 +245,8 @@ export interface EntityTypeAddedEvent extends BaseEvent {
 export type ResourceEvent =
   | ResourceCreatedEvent
   | ResourceClonedEvent
+  | ResourceUpdatedEvent
+  | ResourceMovedEvent
   | ResourceArchivedEvent
   | ResourceUnarchivedEvent
   | RepresentationAddedEvent      // Multi-format support

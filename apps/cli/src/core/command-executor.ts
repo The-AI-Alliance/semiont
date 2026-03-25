@@ -27,7 +27,7 @@ import type { ServiceConfig } from './cli-config.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from './config-loader.js';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot, resolveEnvironment } from './config-loader.js';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError, printInfo } from './io/cli-logger.js';
@@ -68,7 +68,7 @@ function printPreamble(options: any): void {
 
 function printVerboseEnv(options: any): void {
   if (!options.verbose) return;
-  const vars = ['SEMIONT_ROOT', 'SEMIONT_ENV', 'SEMIONT_REPO'] as const;
+  const vars = ['SEMIONT_ROOT', 'SEMIONT_ENV'] as const;
   for (const v of vars) {
     const val = process.env[v];
     if (val !== undefined) {
@@ -158,19 +158,8 @@ export async function executeCommand(
 
     // Validate environment if required
     if (command.requiresEnvironment) {
-      // Check for environment from --environment flag or SEMIONT_ENV variable
-      if (!options.environment) {
-        const envFromVariable = process.env.SEMIONT_ENV;
-        if (envFromVariable) {
-          options.environment = envFromVariable;
-        } else {
-          const availableEnvs = getAvailableEnvironments();
-          throw new Error(
-            `Environment not specified. Use --environment flag or set SEMIONT_ENV environment variable. ` +
-            `Available: ${availableEnvs.length > 0 ? availableEnvs.join(', ') : 'none found'}`
-          );
-        }
-      }
+      // Check for environment: --environment flag > SEMIONT_ENV > defaults.environment in ~/.semiontconfig
+      options.environment = resolveEnvironment(options.environment);
       
       if (!isValidEnvironment(options.environment)) {
         const availableEnvs = getAvailableEnvironments();
@@ -263,14 +252,12 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('  -v, --verbose               Enable verbose output');
   lines.push('  -o, --output <format>       Output format: summary, table, json, yaml');
   lines.push('  --dry-run                   Simulate actions without executing');
-  lines.push('  --semiont-repo <path>       Path to Semiont repository (for build commands)');
   lines.push('  --help                      Show help for a command');
   lines.push('');
-  
+
   lines.push('ENVIRONMENT VARIABLES:');
   lines.push('  SEMIONT_ENV                 Environment to use when --environment flag is not provided');
   lines.push('  SEMIONT_ROOT                Project root directory (overrides .semiont/ discovery)');
-  lines.push('  SEMIONT_REPO                Path to Semiont repository (fallback for --semiont-repo)');
   lines.push('');
   
   lines.push('PROJECT RESOLUTION:');
@@ -297,8 +284,8 @@ export async function generateGlobalHelp(): Promise<string> {
   lines.push('  # Provision infrastructure for production');
   lines.push('  semiont provision -e production');
   lines.push('');
-  lines.push('  # Build and publish frontend with custom repo path');
-  lines.push('  semiont publish -e production --service frontend --semiont-repo ~/repos/semiont');
+  lines.push('  # Build and publish frontend');
+  lines.push('  semiont publish -e production --service frontend');
   lines.push('');
   lines.push('  # Watch services using environment from SEMIONT_ENV');
   lines.push('  export SEMIONT_ENV=staging');

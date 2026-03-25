@@ -44,6 +44,9 @@ export interface OpenResource {
 
   /** Media type for icon display (e.g., 'application/pdf', 'text/plain') */
   mediaType?: string;
+
+  /** Working-tree URI (e.g. "file://docs/overview.md") — used as tooltip in navigation */
+  storageUri?: string;
 }
 
 export interface OpenResourcesManager {
@@ -55,8 +58,9 @@ export interface OpenResourcesManager {
    * @param id - Unique resource identifier
    * @param name - Display name of the resource
    * @param mediaType - Optional media type for icon display
+   * @param storageUri - Optional working-tree URI (e.g. "file://docs/overview.md")
    */
-  addResource: (id: string, name: string, mediaType?: string) => void;
+  addResource: (id: string, name: string, mediaType?: string, storageUri?: string) => void;
 
   /**
    * Remove a resource from the open list

@@ -138,6 +138,7 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
           context: body.context,
           temperature: body.temperature,
           maxTokens: body.maxTokens,
+          storageUri: body.storageUri,
         }
       };
 

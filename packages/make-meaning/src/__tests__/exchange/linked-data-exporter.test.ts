@@ -52,6 +52,7 @@ function makeResource(overrides: Partial<ResourceDescriptor> = {}): ResourceDesc
     '@context': 'https://schema.org',
     '@id': 'res-abc',
     name: 'Test Document',
+    storageUri: 'deadbeef1234',
     representations: [{
       mediaType: 'text/markdown',
       byteSize: 15,
@@ -185,6 +186,7 @@ describe('linked-data-exporter', () => {
 
   it('strips sha256: prefix from checksums', async () => {
     const resource = makeResource({
+      storageUri: 'abcdef',
       representations: [{
         mediaType: 'application/pdf',
         byteSize: 100,

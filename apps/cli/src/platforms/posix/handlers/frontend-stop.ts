@@ -1,8 +1,10 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated, isProcessRunning } from '../utils/process-manager.js';
-import { getFrontendPaths } from './frontend-paths.js';
+import { resolveFrontendNpmPackage } from './frontend-paths.js';
+import { SemiontProject } from '@semiont/core/node';
 import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
@@ -14,21 +16,24 @@ import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 const stopFrontendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
 
-  // Get frontend paths
-  const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+  const projectRoot = service.projectRoot;
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  const serverScript = npmDir ? path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js') : null;
+  const project = new SemiontProject(projectRoot);
+  const pidFile = project.frontendPidFile;
+  const appLogPath = project.frontendAppLogFile;
+  const errorLogPath = project.frontendErrorLogFile;
 
   if (service.verbose) {
-    printInfo(`Source: ${frontendSourceDir}`);
-    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
+    printInfo(`Server script: ${serverScript}`);
   }
 
-  // Check if frontend source directory exists
-  if (!fs.existsSync(frontendSourceDir)) {
+  // Check if frontend server script exists (i.e. package is installed)
+  if (!serverScript || !fs.existsSync(serverScript)) {
     return {
       success: false,
       error: 'Frontend not found',
-      metadata: { serviceType: 'frontend', frontendSourceDir }
+      metadata: { serviceType: 'frontend', serverScript }
     };
   }
   
@@ -165,7 +170,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       metadata: {
         serviceType: 'frontend',
         pid,
-        frontendSourceDir,
+        serverScript,
         graceful
       }
     };

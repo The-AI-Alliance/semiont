@@ -91,6 +91,11 @@ function normalizeArgs(
       }
     });
   }
+
+  // Handle variadic rest positionals (e.g. files)
+  if (spec.restAs && rawArgs._) {
+    normalized[spec.restAs] = rawArgs._;
+  }
   
   // Handle named arguments
   for (const [key, value] of Object.entries(rawArgs)) {

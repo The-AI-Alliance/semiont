@@ -71,8 +71,7 @@ export class CloneTokenManager {
       }
 
       // Verify content exists
-      const primaryRep = getPrimaryRepresentation(resource);
-      if (!primaryRep?.checksum || !primaryRep?.mediaType) {
+      if (!resource.storageUri) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
           error: new Error('Resource content not found'),
@@ -81,7 +80,7 @@ export class CloneTokenManager {
       }
 
       try {
-        await this.kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
+        await this.kb.content.retrieve(resource.storageUri);
       } catch {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,

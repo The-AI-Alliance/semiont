@@ -78,6 +78,8 @@ If `~/.semiontconfig` already exists, `semiont init` only creates `.semiont/conf
 
 After `init`, review `~/.semiontconfig` and set your inference provider and database credentials. See [Configuration Guide](./administration/CONFIGURATION.md) for the full schema.
 
+The project directory is a standard git repository. Resource files live directly in the project root and are committed to git alongside `.semiont/config` and `.semiont/events/`. See [Project Layout](./PROJECT-LAYOUT.md) for the full directory structure.
+
 ### 3. Provision Services
 
 ```bash
@@ -121,6 +123,24 @@ To run demo workflows, see the [Semiont Workflows](https://github.com/The-AI-All
 | Backend | 4000 | http://localhost:4000 (direct) |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 
+## Paths Outside the Project
+
+Machine-specific and secret state is kept in standard XDG directories, never committed to git:
+
+| Path | Contents |
+|------|----------|
+| `~/.semiontconfig` | Global user config: inference provider, database credentials, default environment |
+| `~/.config/semiont/{project}/` | Generated config files for managed processes (proxy, secrets) |
+| `~/.local/share/semiont/{project}/database/{service}/` | PostgreSQL data directory |
+| `~/.local/share/semiont/{project}/graph/` | JanusGraph data directory — only when `type = "janusgraph"` in config (not the default) |
+| `~/.local/state/semiont/{project}/projections/` | Materialized view cache (rebuilt from event log on demand) |
+| `~/.local/state/semiont/{project}/jobs/` | Background job state |
+| `~/.local/state/semiont/{project}/backend/` | Backend log files |
+| `~/.local/state/semiont/{project}/frontend/` | Frontend log files |
+| `$XDG_RUNTIME_DIR/semiont/{project}/` | PID files (falls back to `$TMPDIR/semiont/{project}/`) |
+
+See [Project Layout](./PROJECT-LAYOUT.md) for the full layout including what lives inside the project root.
+
 ## Common Tasks
 
 ### Start/Stop Individual Services
@@ -153,5 +173,6 @@ If you need to modify Semiont itself (backend, frontend, or CLI), see the [Semio
 
 ## Related Documentation
 
+- [Project Layout](./PROJECT-LAYOUT.md) — Directory structure and git integration
 - [Configuration Guide](./administration/CONFIGURATION.md) — Full configuration reference
 - [Services Overview](./services/OVERVIEW.md) — Service catalog and runtime layout
