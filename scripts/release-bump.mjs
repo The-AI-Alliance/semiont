@@ -172,6 +172,9 @@ Version bump type: ${bumpType}
     ...readdirSync('apps', { withFileTypes: true })
       .filter(d => d.isDirectory() && existsSync(join('apps', d.name, 'package.json')))
       .map(d => join('apps', d.name, 'package.json')),
+    ...readdirSync('apps', { withFileTypes: true })
+      .filter(d => d.isDirectory() && existsSync(join('apps', d.name, 'package.publish.json')))
+      .map(d => join('apps', d.name, 'package.publish.json')),
   ];
 
   exec('git', ['add', ...versionFiles], 'Staging version files');
