@@ -22,6 +22,7 @@ import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ensureGlobalConfig } from './init.js';
 
 // =====================================================================
 // SCHEMA
@@ -207,6 +208,10 @@ async function local(options: LocalOptions): Promise<CommandResults> {
     }
 
     const env = { ...process.env } as NodeJS.ProcessEnv;
+
+    // ─── Step 1c: Global config ──────────────────────────────────────────
+
+    await ensureGlobalConfig(false);
 
     // ─── Step 2: Init ───────────────────────────────────────────────────
 

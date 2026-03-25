@@ -177,7 +177,7 @@ password = "\${POSTGRES_PASSWORD}"
  * - If it already exists: do nothing, return false.
  * - If it does not exist: prompt for name/email, write template, return true.
  */
-async function ensureGlobalConfig(quiet: boolean): Promise<boolean> {
+export async function ensureGlobalConfig(quiet: boolean): Promise<boolean> {
   const configPath = path.join(os.homedir(), '.semiontconfig');
   if (fs.existsSync(configPath)) {
     if (!quiet) {
