@@ -384,7 +384,7 @@ export const localCommand = new CommandBuilder()
       default: false,
     },
   }, {
-    '--yes': '-y',
+    '-y': '--yes',
   }))
   .requiresEnvironment(false)
   .requiresServices(false)
