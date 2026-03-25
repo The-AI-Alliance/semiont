@@ -21,6 +21,7 @@
  * - --moderator: Grant moderator privileges
  * - --inactive: Create inactive user
  * - --update: Update existing user
+ * - --upsert: Create if absent, skip silently if already exists
  *
  * Security:
  * - Passwords hashed with argon2
@@ -86,6 +87,7 @@ export const UseraddOptionsSchema = BaseOptionsSchema.extend({
   moderator: z.boolean().default(false),
   inactive: z.boolean().default(false),
   update: z.boolean().default(false),
+  upsert: z.boolean().default(false),
 });
 
 export type UseraddOptions = z.output<typeof UseraddOptionsSchema>;
@@ -190,8 +192,24 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
     let user;
 
     if (existingUser) {
+      if (options.upsert) {
+        // User exists and --upsert was passed: treat as success, skip write
+        if (!options.quiet) {
+          printSuccess(`User already exists: ${options.email}`);
+        }
+        await prisma.$disconnect();
+        return {
+          command: 'useradd',
+          environment: options.environment!,
+          timestamp: new Date(),
+          summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
+          executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
+          results: [{ entity: options.email, platform: 'posix', success: true, metadata: { userId: existingUser.id, email: existingUser.email, isAdmin: existingUser.isAdmin, isModerator: existingUser.isModerator, isActive: existingUser.isActive }, duration: Date.now() - startTime }],
+          duration: Date.now() - startTime,
+        };
+      }
       if (!options.update) {
-        throw new Error(`User ${options.email} already exists. Use --update to modify.`);
+        throw new Error(`User ${options.email} already exists. Use --update to modify or --upsert to skip silently.`);
       }
 
       // Update existing user
@@ -340,6 +358,11 @@ export const useraddCommand = new CommandBuilder()
       '--update': {
         type: 'boolean',
         description: 'Update existing user',
+        default: false,
+      },
+      '--upsert': {
+        type: 'boolean',
+        description: 'Create user if absent, skip silently if already exists',
         default: false,
       },
     },

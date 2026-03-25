@@ -315,13 +315,11 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     console.log(`${colors.cyan}▶ Creating admin user...${colors.reset}`);
     const useraddResult = runSemiontSafe(
-      ['useradd', '--email', adminEmail, '--password', adminPassword, '--admin'],
+      ['useradd', '--email', adminEmail, '--password', adminPassword, '--admin', '--upsert'],
       env
     );
     if (useraddResult.success) {
-      console.log(`${colors.green}✓${colors.reset} Admin user created\n`);
-    } else if (useraddResult.error.includes('already exists')) {
-      console.log(`${colors.green}✓${colors.reset} Admin user already exists\n`);
+      console.log(`${colors.green}✓${colors.reset} Admin user ready\n`);
     } else {
       console.log(`${colors.yellow}⚠ useradd failed: ${useraddResult.error}${colors.reset}`);
       console.log(`  Run manually: semiont useradd --email ${adminEmail} --password ${adminPassword} --admin\n`);
