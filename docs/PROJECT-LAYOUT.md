@@ -52,13 +52,10 @@ places/scythian-steppe.md
 
 ```bash
 mkdir my-project && cd my-project
-git init
 semiont init
-git add .semiont/config
-git commit -m "init semiont project"
 ```
 
-`semiont init` also runs `git init` if the directory is not already a git repository.
+`semiont init` runs `git init` automatically if the directory is not already a git repository, and stages `.semiont/config` for you.
 
 ## Related
 
