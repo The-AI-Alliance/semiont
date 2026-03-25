@@ -53,6 +53,32 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 Install [Ollama](https://ollama.com/). `semiont provision` will pull the configured model automatically. No API key required.
 
+### Graph (Neo4j)
+
+Required for knowledge graph features. Set up a free instance at [Neo4j Aura](https://neo4j.com/cloud/aura/) or run Neo4j locally. Set the connection details in `~/.semiontconfig` under `[environments.local.graph]`:
+
+```toml
+[environments.local.graph]
+type = "neo4j"
+uri = "${NEO4J_URI}"
+username = "${NEO4J_USERNAME}"
+password = "${NEO4J_PASSWORD}"
+```
+
+Then export the corresponding environment variables:
+
+```bash
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USERNAME=neo4j
+export NEO4J_PASSWORD=your-password
+```
+
+Also install the `neo4j-driver` npm package alongside the CLI:
+
+```bash
+npm install -g neo4j-driver
+```
+
 ## Setup
 
 ### 1. Install the CLI
