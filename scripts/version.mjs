@@ -143,6 +143,34 @@ function syncVersions() {
     if (updated) {
       writeJSON(pkgPath, pkgJson);
     }
+
+    // Sync companion package.publish.json for backend and frontend
+    const publishPath =
+      pkg === 'semiont-backend' ? 'apps/backend/package.publish.json' :
+      pkg === 'semiont-frontend' ? 'apps/frontend/package.publish.json' :
+      null;
+    if (publishPath) {
+      const publishPkg = readJSON(publishPath);
+      let publishUpdated = false;
+      if (publishPkg.version !== version) {
+        console.log(`  Updating ${publishPath}: ${publishPkg.version} → ${version}`);
+        publishPkg.version = version;
+        publishUpdated = true;
+      }
+      if (publishPkg.dependencies) {
+        const expected = `^${version}`;
+        for (const [dep, depVersion] of Object.entries(publishPkg.dependencies)) {
+          if (dep.startsWith('@semiont/') && depVersion !== expected) {
+            console.log(`    └─ Syncing dependency ${dep}: ${depVersion} → ${expected}`);
+            publishPkg.dependencies[dep] = expected;
+            publishUpdated = true;
+          }
+        }
+      }
+      if (publishUpdated) {
+        writeJSON(publishPath, publishPkg);
+      }
+    }
   }
 
   console.log('\n✅ All packages synced!\n');
