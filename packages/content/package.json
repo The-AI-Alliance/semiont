@@ -1,6 +1,6 @@
 {
   "name": "@semiont/content",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "type": "module",
   "description": "Content-addressed storage for resource representations",
   "main": "./dist/index.js",
