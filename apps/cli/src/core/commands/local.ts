@@ -8,7 +8,7 @@
  * 1. Resolve/prompt SEMIONT_ROOT and SEMIONT_ENV
  * 2. semiont init (if not already initialized)
  * 3. For each service: check → provision/start as needed
- * 4. semiont useradd (if credentials.txt does not exist)
+ * 4. semiont useradd (hardcoded admin@example.com / password)
  * 5. semiont check (final)
  * 6. Print summary with login URL and env var reminders
  */
@@ -184,6 +184,7 @@ async function local(options: LocalOptions): Promise<CommandResults> {
       semiotRoot = answer || defaultPath;
       fs.mkdirSync(semiotRoot, { recursive: true });
       process.env.SEMIONT_ROOT = semiotRoot;
+      envVarsToAdvise.push(`export SEMIONT_ROOT=${semiotRoot}`);
       console.log(`${colors.green}✓${colors.reset} Using ${semiotRoot}\n`);
       if (semiotRoot !== process.cwd()) {
         console.log(`${colors.dim}Tip: cd ${semiotRoot} to run semiont commands without SEMIONT_ROOT${colors.reset}\n`);
@@ -218,8 +219,10 @@ async function local(options: LocalOptions): Promise<CommandResults> {
       try {
         runSemiont(['init'], env);
         console.log(`${colors.green}✓${colors.reset} Project initialized\n`);
-      } catch {
+      } catch (err) {
+        const initMsg = err instanceof Error ? err.message : String(err);
         console.error(`${colors.red}✗ semiont init failed — cannot continue${colors.reset}`);
+        console.error(`  ${initMsg}`);
         results.summary.failed = 1;
         results.duration = Date.now() - startTime;
         return results;
