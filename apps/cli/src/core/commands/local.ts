@@ -22,7 +22,6 @@ import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
-import { SemiontProject } from '@semiont/core/node';
 
 // =====================================================================
 // SCHEMA
@@ -30,9 +29,6 @@ import { SemiontProject } from '@semiont/core/node';
 
 const LocalOptionsSchema = BaseOptionsSchema.extend({
   directory: z.string().optional(),
-  email: z.string().optional(),
-  password: z.string().optional(),
-  generatePassword: z.boolean().default(true),
   yes: z.boolean().default(false),
 }).transform((data) => ({
   ...data,
@@ -55,34 +51,6 @@ function prompt(question: string): Promise<string> {
   });
 }
 
-function promptPassword(question: string): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    // Disable echo for password input
-    (process.stdout as any).write(question);
-    let password = '';
-    process.stdin.setRawMode?.(true);
-    process.stdin.resume();
-    process.stdin.setEncoding('utf8');
-    const onData = (ch: string) => {
-      if (ch === '\n' || ch === '\r' || ch === '\u0003') {
-        process.stdin.setRawMode?.(false);
-        process.stdin.pause();
-        process.stdin.removeListener('data', onData);
-        process.stdout.write('\n');
-        rl.close();
-        resolve(password);
-      } else if (ch === '\u007f') {
-        // Backspace
-        password = password.slice(0, -1);
-      } else {
-        password += ch;
-        process.stdout.write('*');
-      }
-    };
-    process.stdin.on('data', onData);
-  });
-}
 
 function runSemiont(args: string[], env: NodeJS.ProcessEnv, captureOutput = false): string {
   return execFileSync('semiont', args, {
@@ -339,46 +307,20 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     // ─── Step 4: Admin credentials ──────────────────────────────────────
 
-    const project = new SemiontProject(semiotRoot);
-    fs.mkdirSync(project.configDir, { recursive: true });
-    const credentialsPath = path.join(project.configDir, 'credentials.txt');
-    if (fs.existsSync(credentialsPath)) {
-      console.log(`${colors.green}✓${colors.reset} Credentials file already exists at ${credentialsPath}\n`);
+    const adminEmail = 'admin@example.com';
+    const adminPassword = 'password';
+
+    console.log(`${colors.cyan}▶ Creating admin user...${colors.reset}`);
+    const useraddResult = runSemiontSafe(
+      ['useradd', '--email', adminEmail, '--password', adminPassword, '--admin'],
+      env
+    );
+    if (useraddResult.success) {
+      console.log(`${colors.green}✓${colors.reset} Admin user created\n`);
     } else {
-      console.log(`${colors.cyan}▶ Creating admin user...${colors.reset}`);
-
-      let email = options.email;
-      if (!email) {
-        const answer = options.yes ? '' : await prompt(`  Admin email [admin@local]: `);
-        email = answer || 'admin@local';
-      }
-
-      let generatePassword = options.generatePassword;
-      if (!options.password && !options.yes) {
-        const answer = await prompt(`  Generate password? [Y/n]: `);
-        generatePassword = answer === '' || answer.toLowerCase() === 'y';
-      }
-
-      const useraddArgs = ['useradd', '--email', email, '--admin'];
-      if (generatePassword) {
-        useraddArgs.push('--generate-password');
-      } else {
-        const pw = options.password || await promptPassword(`  Password: `);
-        useraddArgs.push('--password', pw);
-      }
-
-      const useraddResult = runSemiontSafe(useraddArgs, env);
-      if (useraddResult.success) {
-        const output = useraddResult.output;
-        console.log(output);
-        fs.writeFileSync(credentialsPath, output, { mode: 0o600 });
-        console.log(`${colors.green}✓${colors.reset} Credentials saved to ${credentialsPath}`);
-        console.log(`${colors.yellow}  ⚠ credentials.txt contains a plaintext password — keep it safe${colors.reset}\n`);
-      } else {
-        console.log(`${colors.yellow}⚠ useradd failed: ${useraddResult.error}${colors.reset}`);
-        console.log(`  Run manually: semiont useradd --email <email> --generate-password --admin\n`);
-        warnings.push(`useradd failed: ${useraddResult.error}`);
-      }
+      console.log(`${colors.yellow}⚠ useradd failed: ${useraddResult.error}${colors.reset}`);
+      console.log(`  Run manually: semiont useradd --email ${adminEmail} --password ${adminPassword} --admin\n`);
+      warnings.push(`useradd failed: ${useraddResult.error}`);
     }
 
     // ─── Step 5: Final check ─────────────────────────────────────────────
@@ -389,7 +331,8 @@ async function local(options: LocalOptions): Promise<CommandResults> {
     // ─── Step 6: Summary ─────────────────────────────────────────────────
 
     console.log(`\n${colors.bright}${colors.green}✓ Semiont is running at http://localhost:8080${colors.reset}\n`);
-    console.log(`  Credentials: ${credentialsPath}`);
+    console.log(`  Admin email:    ${adminEmail}`);
+    console.log(`  Admin password: ${adminPassword}`);
 
     if (warnings.length > 0) {
       console.log(`\n${colors.yellow}Warnings:${colors.reset}`);
@@ -406,7 +349,7 @@ async function local(options: LocalOptions): Promise<CommandResults> {
     }
 
     results.summary.succeeded = 1;
-    results.metadata = { semiotRoot, semiotEnv, credentialsPath };
+    results.metadata = { semiotRoot, semiotEnv };
 
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -432,36 +375,20 @@ export const localCommand = new CommandBuilder()
       type: 'string',
       description: 'Project directory (default: cwd)',
     },
-    '--email': {
-      type: 'string',
-      description: 'Admin user email (default: admin@local)',
-    },
-    '--password': {
-      type: 'string',
-      description: 'Admin user password (default: auto-generate)',
-    },
-    '--generate-password': {
-      type: 'boolean',
-      description: 'Generate a random admin password',
-      default: true,
-    },
     '--yes': {
       type: 'boolean',
       description: 'Non-interactive: accept all defaults (for scripts)',
       default: false,
     },
   }, {
-    '--email': '--email',
     '--yes': '-y',
   }))
   .requiresEnvironment(false)
   .requiresServices(false)
   .examples(
     'semiont local',
-    'semiont local --email me@example.com',
-    'semiont local --email me@example.com --generate-password',
     'semiont local --yes',
-    'semiont local --directory /opt/myproject --email me@example.com --yes',
+    'semiont local --directory /opt/myproject --yes',
   )
   .setupHandler(local)
   .build();
