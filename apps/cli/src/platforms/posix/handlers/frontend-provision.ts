@@ -26,7 +26,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       printInfo('Installing @semiont/frontend...');
     }
     try {
-      execFileSync('npm', ['install', '@semiont/frontend'], {
+      execFileSync('npm', ['install', '@semiont/frontend', '--prefix', projectRoot], {
         cwd: projectRoot,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
@@ -51,7 +51,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     };
   }
 
-  const serverScript = path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js');
+  const serverScript = path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js');
   const project = new SemiontProject(projectRoot);
 
   if (!service.quiet) {

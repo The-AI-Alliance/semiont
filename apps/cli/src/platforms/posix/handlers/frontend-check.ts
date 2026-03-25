@@ -22,7 +22,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
 
   const projectRoot = service.projectRoot;
   const npmDir = resolveFrontendNpmPackage(projectRoot);
-  const serverScript = npmDir ? path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js') : null;
+  const serverScript = npmDir ? path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js') : null;
   const project = new SemiontProject(projectRoot);
   const pidFile = project.frontendPidFile;
   const appLogPath = project.frontendAppLogFile;

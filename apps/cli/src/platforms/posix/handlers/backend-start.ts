@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
@@ -142,6 +142,31 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   appLogStream.write(startupMessage);
   errorLogStream.write(startupMessage);
   
+  // Run migrations before starting (database must be running at this point)
+  const packageDir = path.dirname(path.dirname(entryPoint));
+  const prismaSchemaPath = path.join(packageDir, 'prisma', 'schema.prisma');
+  if (fs.existsSync(prismaSchemaPath)) {
+    if (!service.quiet) {
+      printInfo('Running database migrations...');
+    }
+    try {
+      execFileSync('npx', ['prisma', 'migrate', 'deploy', `--schema=${prismaSchemaPath}`], {
+        cwd: packageDir,
+        env: { ...process.env, DATABASE_URL: databaseUrl },
+        stdio: service.verbose ? 'inherit' : 'pipe'
+      });
+      if (!service.quiet) {
+        printInfo('Database migrations completed');
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to run database migrations: ${error}`,
+        metadata: { serviceType: 'backend' }
+      };
+    }
+  }
+
   if (!service.quiet) {
     printInfo(`Starting backend service ${service.name}...`);
     printInfo(`Entry point: ${entryPoint}`);

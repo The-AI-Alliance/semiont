@@ -1,6 +1,6 @@
 {
   "name": "@semiont/backend",
-  "version": "0.2.36",
+  "version": "0.4.1",
   "type": "module",
   "description": "Semiont backend server - pre-built for npm consumption",
   "bin": {
@@ -8,36 +8,27 @@
   },
   "files": [
     "dist",
-    "prisma"
+    "prisma",
+    "prisma.config.ts"
   ],
   "scripts": {
-    "postinstall": "prisma generate",
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.63.0",
-    "@aws-sdk/client-neptune": "^3.600.0",
-    "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@hono/node-server": "^1.17.1",
-    "@hono/swagger-ui": "^0.5.2",
-    "@prisma/client": "^6.13.0",
-    "@semiont/core": "^0.2.36",
-    "@semiont/event-sourcing": "^0.2.36",
-    "@semiont/graph": "^0.2.36",
-    "@semiont/inference": "^0.2.36",
-    "@semiont/jobs": "^0.2.36",
-    "@semiont/make-meaning": "^0.2.36",
+    "@hono/swagger-ui": "^0.6.1",
+    "@prisma/adapter-pg": "^7.5.0",
+    "@prisma/client": "^7.5.0",
+    "@semiont/core": "^0.4.1",
+    "@semiont/event-sourcing": "^0.4.1",
+    "@semiont/jobs": "^0.4.1",
+    "@semiont/make-meaning": "^0.4.1",
     "ajv": "^8.17.1",
-    "ajv-formats": "^2.1.1",
-    "argon2": "^0.43.0",
-    "dotenv": "^16.3.1",
-    "google-auth-library": "^9.10.0",
-    "gremlin": "^3.7.4",
+    "ajv-formats": "^3.0.1",
+    "argon2": "^0.44.0",
     "hono": "^4.8.10",
     "jsonwebtoken": "^9.0.2",
-    "neo4j-driver": "^5.28.2",
-    "prisma": "^6.14.0",
-    "uuid": "^9.0.1",
+    "prisma": "^7.5.0",
     "winston": "^3.19.0",
     "zod": "^4.0.0"
   },

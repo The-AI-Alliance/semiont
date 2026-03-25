@@ -30,7 +30,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       metadata: { serviceType: 'frontend' }
     };
   }
-  const serverScript = path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js');
+  const serverScript = path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js');
   const project = new SemiontProject(projectRoot);
   const pidFile = project.frontendPidFile;
   const logsDir = project.frontendLogsDir;
@@ -269,7 +269,7 @@ const preflightFrontendStart = async (context: PosixStartHandlerContext): Promis
   }
   if (npmDir) {
     checks.push(checkFileExists(
-      path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js'),
+      path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js'),
       'frontend server.js'
     ));
   } else {

@@ -27,7 +27,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       printInfo('Installing @semiont/backend...');
     }
     try {
-      execFileSync('npm', ['install', '@semiont/backend'], {
+      execFileSync('npm', ['install', '@semiont/backend', '--prefix', projectRoot], {
         cwd: projectRoot,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
@@ -73,20 +73,13 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const envConfig = service.environmentConfig;
   const dbConfig = envConfig.services!.database!;
 
-  const dbUser = dbConfig.user!;
-  const dbPassword = dbConfig.password!;
-  const dbName = dbConfig.name!;
-  const dbPort = dbConfig.port!;
-
-  // Use database host from config if available, fallback to localhost
-  const dbHost = dbConfig.host || 'localhost';
-  const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
-
   if (!service.quiet) {
+    const dbName = dbConfig.name!;
+    const dbHost = dbConfig.host || 'localhost';
+    const dbPort = dbConfig.port!;
     printInfo(`Using database configuration for environment '${service.environment}':`);
-
     printInfo(`  Database: ${dbName} on ${dbHost}:${dbPort}`);
-    printInfo(`  User: ${dbUser}`);
+    printInfo(`  User: ${dbConfig.user!}`);
   }
 
   let jwtSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
@@ -114,7 +107,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
     try {
       execFileSync('npx', ['prisma', 'generate', `--schema=${prismaSchemaPath}`], {
-        cwd: project.stateDir,
+        cwd: packageDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
 
@@ -123,28 +116,6 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       }
     } catch (error) {
       printWarning(`Failed to generate Prisma client: ${error}`);
-    }
-  }
-
-  // Check if we should run migrations
-  if (options.migrate !== false && fs.existsSync(prismaSchemaPath)) {
-    if (!service.quiet) {
-      printInfo('Running database migrations...');
-    }
-
-    try {
-      execFileSync('npx', ['prisma', 'migrate', 'deploy', `--schema=${prismaSchemaPath}`], {
-        cwd: project.stateDir,
-        env: { ...process.env, DATABASE_URL: databaseUrl },
-        stdio: service.verbose ? 'inherit' : 'pipe'
-      });
-
-      if (!service.quiet) {
-        printSuccess('Database migrations completed');
-      }
-    } catch (error) {
-      printWarning(`Failed to run migrations: ${error}`);
-      printInfo('You may need to run migrations manually: npx prisma migrate deploy');
     }
   }
 

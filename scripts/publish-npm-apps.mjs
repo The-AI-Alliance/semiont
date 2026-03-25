@@ -60,6 +60,7 @@ function stageBackend(version) {
   // Copy built artifacts
   cpSync(resolve(backendDir, 'dist'), resolve(stageDir, 'dist'), { recursive: true });
   cpSync(resolve(backendDir, 'prisma'), resolve(stageDir, 'prisma'), { recursive: true });
+  cpSync(resolve(backendDir, 'prisma.config.ts'), resolve(stageDir, 'prisma.config.ts'));
 
   // Copy and update publish package.json
   const publishPkg = JSON.parse(readFileSync(resolve(backendDir, 'package.publish.json'), 'utf-8'));
@@ -78,7 +79,7 @@ function stageBackend(version) {
   cpSync(resolve(backendDir, 'README.npm.md'), resolve(stageDir, 'README.md'));
 
   log(`  Staged @semiont/backend@${version} to ${stageDir}`);
-  log(`  Files: dist/, prisma/, package.json, README.md`);
+  log(`  Files: dist/, prisma/, prisma.config.ts, package.json, README.md`);
 
   return stageDir;
 }
