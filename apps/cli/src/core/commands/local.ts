@@ -8,7 +8,7 @@
  * 1. Resolve/prompt SEMIONT_ROOT and SEMIONT_ENV
  * 2. semiont init (if not already initialized)
  * 3. For each service: check → provision/start as needed
- * 4. semiont useradd (if credentials.txt does not exist)
+ * 4. semiont useradd (hardcoded admin@example.com / password)
  * 5. semiont check (final)
  * 6. Print summary with login URL and env var reminders
  */
@@ -22,6 +22,7 @@ import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ensureGlobalConfig } from './init.js';
 
 // =====================================================================
 // SCHEMA
@@ -184,6 +185,7 @@ async function local(options: LocalOptions): Promise<CommandResults> {
       semiotRoot = answer || defaultPath;
       fs.mkdirSync(semiotRoot, { recursive: true });
       process.env.SEMIONT_ROOT = semiotRoot;
+      envVarsToAdvise.push(`export SEMIONT_ROOT=${semiotRoot}`);
       console.log(`${colors.green}✓${colors.reset} Using ${semiotRoot}\n`);
       if (semiotRoot !== process.cwd()) {
         console.log(`${colors.dim}Tip: cd ${semiotRoot} to run semiont commands without SEMIONT_ROOT${colors.reset}\n`);
@@ -207,6 +209,10 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     const env = { ...process.env } as NodeJS.ProcessEnv;
 
+    // ─── Step 1c: Global config ──────────────────────────────────────────
+
+    await ensureGlobalConfig(false);
+
     // ─── Step 2: Init ───────────────────────────────────────────────────
 
     const isInitialized = fs.existsSync(path.join(semiotRoot, '.semiont'));
@@ -218,8 +224,10 @@ async function local(options: LocalOptions): Promise<CommandResults> {
       try {
         runSemiont(['init'], env);
         console.log(`${colors.green}✓${colors.reset} Project initialized\n`);
-      } catch {
+      } catch (err) {
+        const initMsg = err instanceof Error ? err.message : String(err);
         console.error(`${colors.red}✗ semiont init failed — cannot continue${colors.reset}`);
+        console.error(`  ${initMsg}`);
         results.summary.failed = 1;
         results.duration = Date.now() - startTime;
         return results;
@@ -312,11 +320,11 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     console.log(`${colors.cyan}▶ Creating admin user...${colors.reset}`);
     const useraddResult = runSemiontSafe(
-      ['useradd', '--email', adminEmail, '--password', adminPassword, '--admin'],
+      ['useradd', '--email', adminEmail, '--password', adminPassword, '--admin', '--upsert'],
       env
     );
     if (useraddResult.success) {
-      console.log(`${colors.green}✓${colors.reset} Admin user created\n`);
+      console.log(`${colors.green}✓${colors.reset} Admin user ready\n`);
     } else {
       console.log(`${colors.yellow}⚠ useradd failed: ${useraddResult.error}${colors.reset}`);
       console.log(`  Run manually: semiont useradd --email ${adminEmail} --password ${adminPassword} --admin\n`);
@@ -381,7 +389,7 @@ export const localCommand = new CommandBuilder()
       default: false,
     },
   }, {
-    '--yes': '-y',
+    '-y': '--yes',
   }))
   .requiresEnvironment(false)
   .requiresServices(false)
