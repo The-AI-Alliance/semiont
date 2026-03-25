@@ -320,6 +320,8 @@ async function local(options: LocalOptions): Promise<CommandResults> {
     );
     if (useraddResult.success) {
       console.log(`${colors.green}✓${colors.reset} Admin user created\n`);
+    } else if (useraddResult.error.includes('already exists')) {
+      console.log(`${colors.green}✓${colors.reset} Admin user already exists\n`);
     } else {
       console.log(`${colors.yellow}⚠ useradd failed: ${useraddResult.error}${colors.reset}`);
       console.log(`  Run manually: semiont useradd --email ${adminEmail} --password ${adminPassword} --admin\n`);
