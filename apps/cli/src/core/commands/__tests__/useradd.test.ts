@@ -22,6 +22,7 @@ function createUseraddOptions(partial: Partial<UseraddOptions> = {}): UseraddOpt
     moderator: false,
     inactive: false,
     update: false,
+    upsert: false,
     verbose: false,
     dryRun: false,
     quiet: true,
