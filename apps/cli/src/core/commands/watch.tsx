@@ -10,7 +10,7 @@ import { type ServicePlatformInfo } from '../service-resolver.js';
 import { type PlatformType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 
 import { Platform } from '../platform.js';
 import { AWSPlatform } from '../../platforms/aws/platform.js';
@@ -24,7 +24,7 @@ import { DashboardDataSource } from '../dashboard/dashboard-data.js';
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const WatchOptionsSchema = BaseOptionsSchema.extend({
+const WatchOptionsSchema = OpsOptionsSchema.extend({
   target: z.enum(['all', 'logs', 'metrics', 'services']).default('all'),
   noFollow: z.boolean().default(false),
   interval: z.number().int().positive().default(30),
@@ -221,7 +221,7 @@ export const watchCommand = new CommandBuilder()
   .schema(WatchOptionsSchema)
   .requiresEnvironment(true)
   .requiresServices(true)
-  .args(withBaseArgs({
+  .args(withOpsArgs({
     '--service': { type: 'string', description: 'Service name or "all" for all services' },
     '--target': { type: 'string', description: 'What to watch (all, logs, metrics, services)' },
     '--no-follow': { type: 'boolean', description: 'Do not follow new logs' },

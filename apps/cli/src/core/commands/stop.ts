@@ -10,7 +10,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -19,7 +19,7 @@ import { HandlerResult } from '../handlers/types.js';
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const StopOptionsSchema = BaseOptionsSchema.extend({
+const StopOptionsSchema = OpsOptionsSchema.extend({
   service: z.string().optional(),
   force: z.boolean().default(false).describe('Force stop without graceful shutdown'),
   timeout: z.number().default(30).describe('Timeout for graceful shutdown in seconds'),

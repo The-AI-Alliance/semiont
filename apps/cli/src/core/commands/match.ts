@@ -18,8 +18,8 @@ import type { components, GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
-import { findProjectRoot } from '../config-loader.js';
-import { createAuthenticatedClient } from '../api-client-factory.js';
+
+import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { SemiontApiClient } from '@semiont/api-client';
 import type { AccessToken } from '@semiont/core';
 
@@ -107,14 +107,14 @@ async function gatherContext(
 
 export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  const projectRoot = findProjectRoot();
-  const environment = options.environment!;
+  
 
   const [rawResourceId, rawAnnotationId] = options.args;
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
+  const rawBusUrl = resolveBusUrl(options.bus);
+  const { client, token } = loadCachedClient(rawBusUrl);
 
   // Step 1: gather context
   let context = await gatherContext(client, resourceId, annotationId, options.contextWindow, token);
@@ -146,7 +146,7 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
 
   return {
     command: 'match',
-    environment,
+    environment: rawBusUrl,
     timestamp: new Date(),
     duration: Date.now() - startTime,
     summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },

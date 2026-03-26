@@ -15,8 +15,8 @@ import { resourceId as toResourceId, EventBus } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
-import { findProjectRoot } from '../config-loader.js';
-import { createAuthenticatedClient } from '../api-client-factory.js';
+
+import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 
 // =====================================================================
 // SCHEMA
@@ -42,10 +42,10 @@ export type ListenOptions = z.output<typeof ListenOptionsSchema>;
 
 export async function runListen(options: ListenOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  const projectRoot = findProjectRoot();
-  const environment = options.environment!;
+  
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
+  const rawBusUrl = resolveBusUrl(options.bus);
+  const { client, token } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId] = options.args;
   const isResourceScoped = subcommand === 'resource';
@@ -81,7 +81,7 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
 
   return {
     command: 'listen',
-    environment,
+    environment: rawBusUrl,
     timestamp: new Date(),
     duration: Date.now() - startTime,
     summary: { succeeded: eventCount, failed: 0, total: eventCount, warnings: 0 },

@@ -1,8 +1,9 @@
 # Infrastructure Commands
 
-This guide covers the infrastructure-management side of the Semiont CLI: service lifecycle, deployment, backup/restore, and MCP.
+This guide covers the infrastructure-management side of the Semiont CLI: service lifecycle, deployment, and administration.
 
-For knowledge-base operations (`browse`, `gather`, `mark`, `yield`, `bind`, `match`, `listen`) see the main [README](../README.md).
+For knowledge-base setup (`init`, `backup`, `restore`, `verify`, `export`, `import`) see [Knowledge Base Commands](./KNOWLEDGE-BASE.md).
+For API operations (`browse`, `gather`, `mark`, `yield`, `bind`, `match`, `listen`, `beckon`) see [Knowledge Work Commands](./KNOWLEDGE-WORK.md).
 
 ---
 
@@ -47,7 +48,6 @@ See [Managing Environments](./ADDING_ENVIRONMENTS.md) for the full schema.
 ## Service Lifecycle
 
 ```bash
-semiont init -e local                     # Initialize a new project
 semiont provision -e local                # Provision infrastructure resources
 semiont start -e local                    # Start all services
 semiont start -e local --service backend  # Start one service
@@ -56,7 +56,7 @@ semiont stop -e local                     # Stop all services
 semiont watch -e local                    # Live web dashboard (port 3333)
 ```
 
-`--dry-run` is supported on all infrastructure commands and shows what would happen without making changes.
+`--dry-run` is supported on all commands and shows what would happen without making changes.
 
 ### Service selection
 
@@ -74,80 +74,16 @@ Platforms are configured per-service in `~/.semiontconfig`:
 - **`external`** — third-party or pre-existing services
 - **`mock`** — simulated services for testing
 
----
+### MCP (Model Context Protocol) server
 
-## Deployment: Publish and Update
-
-`publish` and `update` are intentionally separate:
-
-**Publish** — builds and pushes artifacts, does NOT deploy:
-```bash
-semiont publish --service frontend -e production
-```
-- Builds application and Docker images
-- Pushes to registries (ECR, Docker Hub, etc.)
-- Creates new task definitions / deployment manifests
-
-**Update** — deploys what `publish` prepared:
-```bash
-semiont update --service frontend -e production
-```
-- Detects newer versions created by `publish`
-- Deploys to running services
-- Reports success/failure
-
-For mutable tags (`:latest`), `update` can force redeployment even without version changes. For immutable tags (git hashes), `update` only deploys if a newer version exists.
-
----
-
-## Backup, Restore, and Verify
-
-These commands provide lossless whole-KB backup and restore. The archive is a tar.gz containing `.semiont/manifest.jsonl`, per-resource event streams, and content blobs.
+The `mcp` service exposes Semiont APIs to AI assistants via the Model Context Protocol.
 
 ```bash
-# Create a backup
-semiont backup -e production --out backup.tar.gz
-
-# Restore from a backup (replays events through EventBus + Stower)
-semiont restore -e production --file backup.tar.gz
-
-# Verify archive integrity without restoring (no environment needed)
-semiont verify --file backup.tar.gz
-```
-
-`verify` checks manifest format, hash chain integrity, first/last checksum match, event and blob counts.
-
----
-
-## Local Development Environment
-
-```bash
-semiont local start     # Start the local dev environment
-semiont local stop      # Stop the local dev environment
-semiont local status    # Show status
-```
-
----
-
-## MCP (Model Context Protocol) Server
-
-The Semiont CLI can run an MCP server so AI assistants can interact with Semiont APIs.
-
-### Setup (once per environment)
-
-```bash
-semiont provision --service mcp -e production
-# Opens browser for OAuth; stores refresh token in
-# ~/.config/semiont/mcp-auth-production.json
-```
-
-### Start
-
-```bash
+semiont provision --service mcp -e production   # OAuth setup (once)
 semiont start --service mcp -e production
 ```
 
-### AI application configuration
+AI application configuration:
 
 ```json
 {
@@ -162,23 +98,40 @@ semiont start --service mcp -e production
 }
 ```
 
-Tokens are cached locally (access tokens 1 hour, refresh tokens 30 days). Re-run `provision` if authentication fails.
+---
+
+## Administration
+
+```bash
+semiont useradd -e local --email user@example.com   # Create or update a user
+semiont clean -e local                               # Remove generated/cached files and Docker volumes
+```
+
+The `local` command is a shorthand for the full first-run sequence:
+
+```bash
+semiont local   # equivalent to: init → provision → start → useradd
+```
 
 ---
 
-## Other Commands
+## AWS ECS Deployment
+
+For teams deploying Semiont services to AWS ECS Fargate, the CLI includes built-in handlers for `publish` and `update`:
 
 ```bash
-semiont useradd -e local --email user@example.com   # Add a user
-semiont export -e local --out export.json            # Export KB data
-semiont import -e local --file export.json           # Import KB data
-semiont clean -e local                               # Remove generated/cached files
+semiont publish --service frontend -e production   # build → ECR push → new task definition
+semiont update --service frontend -e production    # deploy new task definition to ECS
 ```
+
+`publish` builds locally, pushes to ECR, and registers a new task definition revision. `update` detects the new revision and issues a rolling deployment, with optional `--wait` progress monitoring and CloudWatch log fetch on failure. Most teams will prefer to wire these steps into their own CI/CD pipelines directly.
 
 ---
 
 ## Further Reading
 
+- [Knowledge Base Commands](./KNOWLEDGE-BASE.md) — init, backup, restore, verify, export, import
+- [Knowledge Work Commands](./KNOWLEDGE-WORK.md) — login, browse, gather, mark, match, bind, listen, yield, beckon
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Managing Environments](./ADDING_ENVIRONMENTS.md)
 - [Adding Commands](./ADDING_COMMANDS.md)

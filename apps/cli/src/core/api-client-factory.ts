@@ -1,22 +1,22 @@
 /**
- * Authenticated API Client Factory
+ * API Client Factory
  *
- * Single point of entry for CLI commands that need to talk to the live backend.
- * Handles credential resolution, token acquisition, and caching.
+ * Two entry points:
  *
- * Credential resolution order:
- *   1. SEMIONT_USER / SEMIONT_PASSWORD environment variables
- *   2. [environments.<name>.auth] email / password in ~/.semiontconfig
- *   3. Error — no silent fallbacks
+ *   acquireToken(bus, email, password) — called by `semiont login`
+ *     Authenticates against the backend and writes the token to the store.
  *
- * Token cache: ~/.local/state/semiont/{project}/auth-token.json (mode 0600)
- * The backend issues opaque tokens with no expiry in the response; we cache for
- * TOKEN_CACHE_TTL_MS and re-authenticate when stale.
+ *   loadCachedClient(bus) — called by every API command
+ *     Reads the cached token for the given bus URL.
+ *     Throws a user-facing error if absent or expired — run `semiont login`.
+ *
+ * Token store: $XDG_STATE_HOME/semiont/auth/<slug>.json  (mode 0600)
+ * TTL: 24 hours. Slug derived from bus URL (scheme stripped, separators normalized).
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { SemiontProject } from '@semiont/core/node';
+import * as os from 'os';
 import { SemiontApiClient } from '@semiont/api-client';
 import {
   email as toEmail,
@@ -24,7 +24,6 @@ import {
   baseUrl as toBaseUrl,
   type AccessToken,
 } from '@semiont/core';
-import { loadEnvironmentConfig } from './config-loader.js';
 
 export interface AuthenticatedClient {
   client: SemiontApiClient;
@@ -32,16 +31,37 @@ export interface AuthenticatedClient {
 }
 
 interface TokenCache {
+  bus: string;
+  email: string;
   token: string;
   cachedAt: string;
-  email: string;
 }
 
-/** Re-authenticate after 1 hour */
-const TOKEN_CACHE_TTL_MS = 3_600_000;
+/** Re-authenticate after 24 hours */
+const TOKEN_CACHE_TTL_MS = 86_400_000;
 
-function tokenCachePath(project: SemiontProject): string {
-  return path.join(project.stateDir, 'auth-token.json');
+// ─── Path helpers ────────────────────────────────────────────────────────────
+
+function authStoreDir(): string {
+  const xdgState = process.env.XDG_STATE_HOME ?? path.join(os.homedir(), '.local', 'state');
+  return path.join(xdgState, 'semiont', 'auth');
+}
+
+/**
+ * Convert a bus URL to a safe filename slug.
+ * https://api.acme.com  →  api.acme.com
+ * http://localhost:4000 →  localhost-4000
+ */
+export function busSlug(rawUrl: string): string {
+  return rawUrl
+    .replace(/^https?:\/\//, '')   // strip scheme
+    .replace(/\/+$/, '')            // strip trailing slashes
+    .replace(/[:/]/g, '-')          // colons and slashes → dashes
+    .toLowerCase();
+}
+
+function tokenCachePath(rawBusUrl: string): string {
+  return path.join(authStoreDir(), `${busSlug(rawBusUrl)}.json`);
 }
 
 function readTokenCache(cachePath: string): TokenCache | null {
@@ -54,7 +74,7 @@ function readTokenCache(cachePath: string): TokenCache | null {
 }
 
 function writeTokenCache(cachePath: string, cache: TokenCache): void {
-  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true, mode: 0o700 });
   fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2), { mode: 0o600 });
 }
 
@@ -63,80 +83,60 @@ function isTokenValid(cache: TokenCache): boolean {
   return Date.now() < cachedAt + TOKEN_CACHE_TTL_MS;
 }
 
+// ─── Public API ──────────────────────────────────────────────────────────────
+
 /**
- * Create an authenticated SemiontApiClient for the given project and environment.
- * Caches the token in the XDG state directory and re-authenticates when stale.
+ * Authenticate against the backend and cache the token.
+ * Called by `semiont login`.
  */
-export interface ClientOverrides {
-  bus?: string;
-  user?: string;
-  password?: string;
-}
-
-export async function createAuthenticatedClient(
-  projectRoot: string,
-  environment: string,
-  overrides?: ClientOverrides,
-): Promise<AuthenticatedClient> {
-  const envConfig = loadEnvironmentConfig(projectRoot, environment);
-
-  const rawBaseUrl =
-    overrides?.bus
-    ?? process.env.SEMIONT_BUS
-    ?? envConfig.services?.backend?.publicURL;
-  if (!rawBaseUrl) {
-    throw new Error(
-      `Backend URL not configured. Use --bus, set $SEMIONT_BUS, or add services.backend.publicURL for environment '${environment}' in ~/.semiontconfig`
-    );
-  }
-
-  const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBaseUrl) });
-
-  // Resolve email
-  const emailStr =
-    overrides?.user
-    ?? process.env.SEMIONT_USER
-    ?? (envConfig as any).auth?.email
-    ?? null;
-
-  if (!emailStr) {
-    throw new Error(
-      `No auth email configured. Set SEMIONT_USER or add:\n` +
-      `  [environments.${environment}.auth]\n  email = "you@example.com"\n` +
-      `to ~/.semiontconfig`
-    );
-  }
-
-  // Return cached token if still valid for this email
-  const project = new SemiontProject(projectRoot);
-  const cachePath = tokenCachePath(project);
-  const cached = readTokenCache(cachePath);
-
-  if (cached && cached.email === emailStr && isTokenValid(cached)) {
-    return { client, token: toAccessToken(cached.token) };
-  }
-
-  // Need to re-authenticate — require password
-  const passwordStr =
-    overrides?.password
-    ?? process.env.SEMIONT_PASSWORD
-    ?? (envConfig as any).auth?.password
-    ?? null;
-
-  if (!passwordStr) {
-    throw new Error(
-      `No auth password configured. Set SEMIONT_PASSWORD or add:\n` +
-      `  password = "..."\n` +
-      `to [environments.${environment}.auth] in ~/.semiontconfig`
-    );
-  }
-
+export async function acquireToken(
+  rawBusUrl: string,
+  emailStr: string,
+  passwordStr: string,
+): Promise<void> {
+  const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl) });
   const authResult = await client.authenticatePassword(toEmail(emailStr), passwordStr);
-  const newCache: TokenCache = {
+  const cache: TokenCache = {
+    bus: rawBusUrl,
+    email: emailStr,
     token: authResult.token,
     cachedAt: new Date().toISOString(),
-    email: emailStr,
   };
-  writeTokenCache(cachePath, newCache);
-  return { client, token: toAccessToken(newCache.token) };
+  writeTokenCache(tokenCachePath(rawBusUrl), cache);
+}
+
+/**
+ * Load a cached token for the given bus URL and return an authenticated client.
+ * Called by every API command.
+ *
+ * Throws a user-facing error if no valid token exists.
+ */
+export function loadCachedClient(rawBusUrl: string): AuthenticatedClient {
+  const cachePath = tokenCachePath(rawBusUrl);
+  const cached = readTokenCache(cachePath);
+
+  if (!cached || !isTokenValid(cached)) {
+    throw new Error(
+      `Not logged in to ${rawBusUrl}.\n` +
+      `Run: semiont login --bus ${rawBusUrl}`
+    );
+  }
+
+  const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl) });
+  return { client, token: toAccessToken(cached.token) };
+}
+
+/**
+ * Resolve the bus URL from --bus flag or $SEMIONT_BUS.
+ * Throws if neither is set.
+ */
+export function resolveBusUrl(busFlag?: string): string {
+  const url = busFlag ?? process.env.SEMIONT_BUS;
+  if (!url) {
+    throw new Error(
+      'Backend URL not configured. Use --bus <url> or set $SEMIONT_BUS.\n' +
+      'Run `semiont login --bus <url>` to authenticate.'
+    );
+  }
+  return url;
 }

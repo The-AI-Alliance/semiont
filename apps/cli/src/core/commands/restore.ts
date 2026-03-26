@@ -19,7 +19,7 @@ import { importBackup, Stower, createKnowledgeBase } from '@semiont/make-meaning
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 
@@ -80,7 +80,7 @@ function createNoopGraphDatabase(): GraphDatabase {
 // SCHEMA
 // =====================================================================
 
-export const RestoreOptionsSchema = BaseOptionsSchema.extend({
+export const RestoreOptionsSchema = OpsOptionsSchema.extend({
   file: z.string().min(1, 'Input file path is required'),
 });
 

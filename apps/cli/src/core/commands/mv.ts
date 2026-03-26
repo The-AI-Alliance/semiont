@@ -16,7 +16,7 @@ import { Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { checkGitAvailable } from '../handlers/preflight-utils.js';
@@ -74,7 +74,7 @@ function createNoopGraphDatabase(): GraphDatabase {
 // SCHEMA
 // =====================================================================
 
-export const MvOptionsSchema = BaseOptionsSchema.extend({
+export const MvOptionsSchema = OpsOptionsSchema.extend({
   from: z.string().min(1, 'Source path is required'),
   to: z.string().min(1, 'Destination path is required'),
   noGit: z.boolean().default(false),

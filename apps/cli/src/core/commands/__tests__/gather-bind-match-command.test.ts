@@ -13,33 +13,26 @@ import { MatchOptionsSchema, runMatch, type MatchOptions } from '../match.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+const { mockSse, mockLoadCachedClient } = vi.hoisted(() => {
   const mockSse = {
     gatherResource: vi.fn(),
     gatherAnnotation: vi.fn(),
     bindAnnotation: vi.fn(),
     bindSearch: vi.fn(),
   };
-  const mockCreateAuthenticatedClient = vi.fn();
-  return { mockSse, mockCreateAuthenticatedClient };
+  const mockLoadCachedClient = vi.fn();
+  return { mockSse, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: mockCreateAuthenticatedClient,
-}));
-
-vi.mock('../../config-loader.js', () => ({
-  findProjectRoot: vi.fn(() => '/test/project/root'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    services: { backend: { publicURL: 'http://localhost:4000' } },
-  })),
+  resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
+  loadCachedClient: mockLoadCachedClient,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeGatherOptions(overrides: Partial<GatherOptions> = {}): GatherOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -53,15 +46,12 @@ function makeGatherOptions(overrides: Partial<GatherOptions> = {}): GatherOption
     summary: false,
     contextWindow: 1000,
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
 
 function makeBindOptions(overrides: Partial<BindOptions> = {}): BindOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -70,15 +60,12 @@ function makeBindOptions(overrides: Partial<BindOptions> = {}): BindOptions {
     preflight: false,
     args: ['urn:semiont:resource:doc-1', 'urn:semiont:annotation:ann-1', 'urn:semiont:resource:target'],
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
 
 function makeMatchOptions(overrides: Partial<MatchOptions> = {}): MatchOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -91,8 +78,6 @@ function makeMatchOptions(overrides: Partial<MatchOptions> = {}): MatchOptions {
     limit: 10,
     noSemantic: false,
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
@@ -102,7 +87,6 @@ function makeMatchOptions(overrides: Partial<MatchOptions> = {}): MatchOptions {
 describe('GatherOptionsSchema', () => {
   it('accepts "resource <id>"', () => {
     const r = GatherOptionsSchema.safeParse({
-      environment: 'test',
       args: ['resource', 'doc-1'],
     });
     expect(r.success).toBe(true);
@@ -110,7 +94,6 @@ describe('GatherOptionsSchema', () => {
 
   it('accepts "annotation <resourceId> <annotationId>"', () => {
     const r = GatherOptionsSchema.safeParse({
-      environment: 'test',
       args: ['annotation', 'doc-1', 'ann-1'],
     });
     expect(r.success).toBe(true);
@@ -118,7 +101,6 @@ describe('GatherOptionsSchema', () => {
 
   it('rejects args with fewer than 2 elements', () => {
     const r = GatherOptionsSchema.safeParse({
-      environment: 'test',
       args: ['resource'],
     });
     expect(r.success).toBe(false);
@@ -126,7 +108,6 @@ describe('GatherOptionsSchema', () => {
 
   it('rejects depth < 1', () => {
     const r = GatherOptionsSchema.safeParse({
-      environment: 'test',
       args: ['resource', 'doc-1'],
       depth: 0,
     });
@@ -135,7 +116,6 @@ describe('GatherOptionsSchema', () => {
 
   it('rejects depth > 3', () => {
     const r = GatherOptionsSchema.safeParse({
-      environment: 'test',
       args: ['resource', 'doc-1'],
       depth: 4,
     });
@@ -151,7 +131,7 @@ describe('runGather', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
     mockSse.gatherResource.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => eventBus.get('gather:finished').next({ context: mockContext }));
     });
@@ -191,7 +171,6 @@ await expect(runGather(makeGatherOptions())).rejects.toThrow('Gather timed out')
 describe('BindOptionsSchema', () => {
   it('accepts exactly 3 args', () => {
     const r = BindOptionsSchema.safeParse({
-      environment: 'test',
       args: ['doc-1', 'ann-1', 'target-1'],
     });
     expect(r.success).toBe(true);
@@ -199,7 +178,6 @@ describe('BindOptionsSchema', () => {
 
   it('rejects fewer than 3 args', () => {
     const r = BindOptionsSchema.safeParse({
-      environment: 'test',
       args: ['doc-1', 'ann-1'],
     });
     expect(r.success).toBe(false);
@@ -207,7 +185,6 @@ describe('BindOptionsSchema', () => {
 
   it('rejects more than 3 args', () => {
     const r = BindOptionsSchema.safeParse({
-      environment: 'test',
       args: ['doc-1', 'ann-1', 'target-1', 'extra'],
     });
     expect(r.success).toBe(false);
@@ -219,7 +196,7 @@ describe('BindOptionsSchema', () => {
 describe('runBind', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
     mockSse.bindAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => eventBus.get('bind:finished').next({}));
     });
@@ -257,7 +234,6 @@ await expect(runBind(makeBindOptions())).rejects.toThrow('Target not found');
 describe('MatchOptionsSchema', () => {
   it('accepts exactly 2 args', () => {
     const r = MatchOptionsSchema.safeParse({
-      environment: 'test',
       args: ['doc-1', 'ann-1'],
     });
     expect(r.success).toBe(true);
@@ -265,7 +241,6 @@ describe('MatchOptionsSchema', () => {
 
   it('rejects fewer than 2 args', () => {
     const r = MatchOptionsSchema.safeParse({
-      environment: 'test',
       args: ['doc-1'],
     });
     expect(r.success).toBe(false);
@@ -273,7 +248,6 @@ describe('MatchOptionsSchema', () => {
 
   it('rejects more than 2 args', () => {
     const r = MatchOptionsSchema.safeParse({
-      environment: 'test',
       args: ['doc-1', 'ann-1', 'extra'],
     });
     expect(r.success).toBe(false);
@@ -281,7 +255,6 @@ describe('MatchOptionsSchema', () => {
 
   it('rejects contextWindow < 100', () => {
     const r = MatchOptionsSchema.safeParse({
-      environment: 'test',
       args: ['doc-1', 'ann-1'],
       contextWindow: 50,
     });
@@ -296,7 +269,7 @@ describe('runMatch', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
     // gatherAnnotation resolves with context
     mockSse.gatherAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => {

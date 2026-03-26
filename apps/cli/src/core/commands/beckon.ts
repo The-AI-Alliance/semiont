@@ -21,8 +21,8 @@ import { z } from 'zod';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
-import { findProjectRoot } from '../config-loader.js';
-import { createAuthenticatedClient } from '../api-client-factory.js';
+
+import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 
 // =====================================================================
 // SCHEMA
@@ -43,10 +43,10 @@ export type BeckonOptions = z.output<typeof BeckonOptionsSchema>;
 
 export async function runBeckon(options: BeckonOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  const projectRoot = findProjectRoot();
-  const environment = options.environment!;
+  
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
+  const rawBusUrl = resolveBusUrl(options.bus);
+  const { client, token } = loadCachedClient(rawBusUrl);
 
   const [participantId] = options.participantArr;
 
@@ -70,7 +70,7 @@ export async function runBeckon(options: BeckonOptions): Promise<CommandResults>
 
   return {
     command: 'beckon',
-    environment,
+    environment: rawBusUrl,
     timestamp: new Date(),
     duration: Date.now() - startTime,
     summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },

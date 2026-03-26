@@ -31,13 +31,13 @@ import { SemiontProject } from '@semiont/core/node';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 
 // =====================================================================
 // SCHEMA
 // =====================================================================
 
-export const CleanOptionsSchema = BaseOptionsSchema.extend({
+export const CleanOptionsSchema = OpsOptionsSchema.extend({
   force: z.boolean().default(false),
   logs: z.boolean().default(false),
   pids: z.boolean().default(false),
@@ -333,7 +333,7 @@ export const cleanCommand = new CommandBuilder()
   .name('clean')
   .description('Remove ephemeral files (logs, PID files, generated config, Docker volumes)')
   .schema(CleanOptionsSchema)
-  .args(withBaseArgs({
+  .args(withOpsArgs({
     '--force': {
       type: 'boolean',
       description: 'Skip confirmation prompts',

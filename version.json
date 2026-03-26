@@ -11,6 +11,7 @@
     "@semiont/jobs": "0.4.3",
     "@semiont/make-meaning": "0.4.3",
     "@semiont/react-ui": "0.4.3",
+    "@semiont/mcp-server": "0.4.3",
     "@semiont/cli": "0.4.3",
     "semiont-backend": "0.4.3",
     "semiont-frontend": "0.4.3"

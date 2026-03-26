@@ -10,28 +10,21 @@ import { BeckonOptionsSchema, runBeckon, type BeckonOptions } from '../beckon.js
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const { mockBeckonAttention, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+const { mockBeckonAttention, mockLoadCachedClient } = vi.hoisted(() => {
   const mockBeckonAttention = vi.fn();
-  const mockCreateAuthenticatedClient = vi.fn();
-  return { mockBeckonAttention, mockCreateAuthenticatedClient };
+  const mockLoadCachedClient = vi.fn();
+  return { mockBeckonAttention, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: mockCreateAuthenticatedClient,
-}));
-
-vi.mock('../../config-loader.js', () => ({
-  findProjectRoot: vi.fn(() => '/test/project/root'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    services: { backend: { publicURL: 'http://localhost:4000' } },
-  })),
+  resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
+  loadCachedClient: mockLoadCachedClient,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeOptions(overrides: Partial<BeckonOptions> = {}): BeckonOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -43,8 +36,6 @@ function makeOptions(overrides: Partial<BeckonOptions> = {}): BeckonOptions {
     annotation: undefined,
     message: undefined,
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
@@ -54,7 +45,6 @@ function makeOptions(overrides: Partial<BeckonOptions> = {}): BeckonOptions {
 describe('BeckonOptionsSchema', () => {
   it('accepts minimum valid input', () => {
     const result = BeckonOptionsSchema.safeParse({
-      environment: 'test',
       participantArr: ['alice'],
       resource: 'urn:semiont:resource:doc-1',
     });
@@ -63,7 +53,6 @@ describe('BeckonOptionsSchema', () => {
 
   it('rejects empty participantArr', () => {
     const result = BeckonOptionsSchema.safeParse({
-      environment: 'test',
       participantArr: [],
       resource: 'urn:semiont:resource:doc-1',
     });
@@ -72,7 +61,6 @@ describe('BeckonOptionsSchema', () => {
 
   it('rejects multiple participants', () => {
     const result = BeckonOptionsSchema.safeParse({
-      environment: 'test',
       participantArr: ['alice', 'bob'],
       resource: 'urn:semiont:resource:doc-1',
     });
@@ -81,7 +69,6 @@ describe('BeckonOptionsSchema', () => {
 
   it('rejects missing resource', () => {
     const result = BeckonOptionsSchema.safeParse({
-      environment: 'test',
       participantArr: ['alice'],
     });
     expect(result.success).toBe(false);
@@ -89,7 +76,6 @@ describe('BeckonOptionsSchema', () => {
 
   it('rejects message longer than 500 chars', () => {
     const result = BeckonOptionsSchema.safeParse({
-      environment: 'test',
       participantArr: ['alice'],
       resource: 'urn:semiont:resource:doc-1',
       message: 'x'.repeat(501),
@@ -99,7 +85,6 @@ describe('BeckonOptionsSchema', () => {
 
   it('accepts optional annotation and message', () => {
     const result = BeckonOptionsSchema.safeParse({
-      environment: 'test',
       participantArr: ['alice'],
       resource: 'urn:semiont:resource:doc-1',
       annotation: 'urn:semiont:annotation:ann-1',
@@ -115,7 +100,7 @@ describe('runBeckon', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBeckonAttention.mockResolvedValue({ participant: 'alice', resourceId: 'urn:semiont:resource:doc-1' });
-    mockCreateAuthenticatedClient.mockResolvedValue({
+    mockLoadCachedClient.mockReturnValue({
       client: { beckonAttention: mockBeckonAttention },
       token: 'mock-token',
     });
@@ -124,7 +109,7 @@ describe('runBeckon', () => {
   it('returns a CommandResults with command=beckon', async () => {
     const result = await runBeckon(makeOptions());
     expect(result.command).toBe('beckon');
-    expect(result.environment).toBe('test');
+    expect(result.environment).toBe('http://localhost:4000');
     expect(result.summary.total).toBe(1);
     expect(result.summary.succeeded).toBe(1);
     expect(result.summary.failed).toBe(0);
