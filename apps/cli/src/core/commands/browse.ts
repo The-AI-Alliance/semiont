@@ -27,7 +27,7 @@ import { createAuthenticatedClient } from '../api-client-factory.js';
 // =====================================================================
 
 export const BrowseOptionsSchema = BaseOptionsSchema.extend({
-  args: z.array(z.string()).min(1, 'Subcommand required: resources | resource | annotation | references'),
+  args: z.array(z.string()).min(1, 'Subcommand required: resources | resource | annotation | references | events | history | entity-types'),
   // browse resources options
   search: z.string().optional(),
   entityType: z.array(z.string()).default([]),
@@ -37,7 +37,7 @@ export const BrowseOptionsSchema = BaseOptionsSchema.extend({
   references: z.boolean().default(false),
 }).superRefine((val, ctx) => {
   const sub = val.args[0];
-  const valid = ['resources', 'resource', 'annotation', 'references'];
+  const valid = ['resources', 'resource', 'annotation', 'references', 'events', 'history', 'entity-types'];
   if (!valid.includes(sub)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown subcommand '${sub}'. Valid: ${valid.join(', ')}` });
   }
@@ -49,6 +49,12 @@ export const BrowseOptionsSchema = BaseOptionsSchema.extend({
   }
   if (sub === 'references' && val.args.length < 2) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Usage: semiont browse references <resourceId>' });
+  }
+  if (sub === 'events' && val.args.length < 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Usage: semiont browse events <resourceId>' });
+  }
+  if (sub === 'history' && val.args.length < 3) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Usage: semiont browse history <resourceId> <annotationId>' });
   }
 });
 
@@ -111,13 +117,31 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
     result = await client.browseAnnotation(resourceId, annotationId, { auth: token });
     label = `${rawAnnotationId}: annotation on ${rawResourceId}`;
 
-  } else {
-    // subcommand === 'references'
+  } else if (subcommand === 'references') {
     const id = toResourceId(rawResourceId);
     const data = await client.browseReferences(id, { auth: token });
     result = data.referencedBy ?? [];
     const count = Array.isArray(result) ? result.length : 0;
     label = `${count} resource${count !== 1 ? 's' : ''} reference ${rawResourceId}`;
+
+  } else if (subcommand === 'events') {
+    const id = toResourceId(rawResourceId);
+    const data = await client.getResourceEvents(id, { auth: token });
+    result = data.events ?? data;
+    const items = Array.isArray(result) ? result : [];
+    label = `${items.length} event${items.length !== 1 ? 's' : ''} for ${rawResourceId}`;
+
+  } else if (subcommand === 'history') {
+    const resourceId = toResourceId(rawResourceId);
+    const annotationId = toAnnotationId(rawAnnotationId);
+    result = await client.getAnnotationHistory(resourceId, annotationId, { auth: token });
+    label = `history for annotation ${rawAnnotationId} on ${rawResourceId}`;
+
+  } else {
+    // subcommand === 'entity-types'
+    result = await client.listEntityTypes({ auth: token });
+    const items = Array.isArray(result) ? result : (result as any)?.tags ?? [];
+    label = `${items.length} entity type${items.length !== 1 ? 's' : ''}`;
   }
 
   if (!options.quiet) process.stderr.write(label + '\n');
@@ -142,7 +166,8 @@ export const browseCmd = new CommandBuilder()
   .name('browse')
   .description(
     'Human-readable traversal of the knowledge base. ' +
-    'Subcommands: resources (list), resource <id> (inspect), annotation <resourceId> <annotationId> (inspect), references <id> (who links here). ' +
+    'Subcommands: resources (list), resource <id> (inspect), annotation <resourceId> <annotationId> (inspect), references <id> (who links here), ' +
+    'events <resourceId> (historical event log), history <resourceId> <annotationId> (annotation audit trail), entity-types (available entity type catalogue). ' +
     'Outputs JSON to stdout; progress label to stderr. ' +
     'For LLM pipeline consumption use `semiont gather` instead.'
   )
@@ -157,8 +182,12 @@ export const browseCmd = new CommandBuilder()
     'semiont browse resource <resourceId> --references',
     'semiont browse annotation <resourceId> <annotationId>',
     'semiont browse references <resourceId>',
+    'semiont browse events <resourceId>',
+    'semiont browse history <resourceId> <annotationId>',
+    'semiont browse entity-types',
     'semiont browse resources --search "Paris" | jq \'.[]["@id"]\'',
     'semiont browse references <resourceId> | jq \'.[].name\'',
+    'semiont browse entity-types | jq \'.[].tag\'',
   )
   .args({
     ...withBaseArgs({
