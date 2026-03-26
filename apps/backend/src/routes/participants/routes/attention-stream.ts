@@ -13,7 +13,7 @@ import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EventBus } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
-import { getOrCreateStream, removeStream } from '../streams';
+import { getOrCreateChannel, removeChannel } from '../attention-channels';
 import { getLogger } from '../../../logger';
 
 type ParticipantsRouterType = Hono<{ Variables: { user: User; eventBus: EventBus } }>;
@@ -50,11 +50,11 @@ export function registerAttentionStream(router: ParticipantsRouterType) {
         isStreamClosed = true;
         if (keepAliveInterval) clearInterval(keepAliveInterval);
         subscription.unsubscribe();
-        removeStream(participantId);
+        removeChannel(participantId);
         closeStreamCallback?.();
       };
 
-      const subject = getOrCreateStream(participantId);
+      const subject = getOrCreateChannel(participantId);
       const subscription = subject.subscribe(async (signal) => {
         if (isStreamClosed) return;
         try {

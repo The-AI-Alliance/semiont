@@ -14,7 +14,7 @@ import type { EventBus } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
-import { getOrCreateStream } from '../streams';
+import { getOrCreateChannel } from '../attention-channels';
 
 type BeckonRequest = components['schemas']['BeckonRequest'];
 
@@ -27,7 +27,7 @@ export function registerBeckon(router: ParticipantsRouterType) {
       const { id: participantId } = c.req.param();
       const request = c.get('validatedBody') as BeckonRequest;
 
-      getOrCreateStream(participantId).next({
+      getOrCreateChannel(participantId).next({
         resourceId: request.resourceId,
         ...(request.annotationId ? { annotationId: request.annotationId } : {}),
       });
