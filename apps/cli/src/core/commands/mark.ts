@@ -1,10 +1,9 @@
 /**
  * Mark Command
  *
- * Creates a W3C Web Annotation on a resource via the live backend.
- * Calls POST /resources/{id}/annotations through SemiontApiClient.
+ * Two modes, selected by a required mode flag:
  *
- * Usage:
+ * MANUAL mode — create a single explicitly-specified annotation:
  *   semiont mark <resourceId> --motivation highlighting --quote "some text"
  *   semiont mark <resourceId> --motivation commenting --quote "some text" --body-text "my comment"
  *   semiont mark <resourceId> --motivation linking --quote "some text" --link <targetResourceId>
@@ -13,10 +12,16 @@
  * With --fetch-content, the resource text is fetched to auto-complete the dual selector:
  *   semiont mark <resourceId> --motivation highlighting --quote "some text" --fetch-content
  *   semiont mark <resourceId> --motivation highlighting --start 10 --end 25 --fetch-content
+ *
+ * DETECT mode — ask the backend to auto-annotate a resource using AI:
+ *   semiont mark <resourceId> --detect --motivation highlighting
+ *   semiont mark <resourceId> --detect --motivation assessing --tone analytical --density 4
+ *   semiont mark <resourceId> --detect --motivation linking --entity-type Location --entity-type Person
+ *   semiont mark <resourceId> --detect --motivation tagging --schema-id <id> --category Biology
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId } from '@semiont/core';
+import { resourceId as toResourceId, EventBus, type EntityType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
@@ -42,6 +47,11 @@ const CONTEXT_WINDOW = 32;
 export const MarkOptionsSchema = BaseOptionsSchema.extend({
   resourceIdArr: z.array(z.string()).min(1, 'resourceId is required').max(1, 'Only one resourceId allowed'),
   motivation: z.enum(MOTIVATIONS),
+
+  // ── Mode switch ──────────────────────────────────────────────────────
+  detect: z.boolean().default(false),
+
+  // ── Manual mode ──────────────────────────────────────────────────────
   // TextQuoteSelector
   quote: z.string().optional(),
   prefix: z.string().optional(),
@@ -62,6 +72,37 @@ export const MarkOptionsSchema = BaseOptionsSchema.extend({
   bodyLanguage: z.string().optional(),
   bodyPurpose: z.string().optional(),
   link: z.array(z.string()).optional(),
+
+  // ── Detect mode: shared ──────────────────────────────────────────────
+  instructions: z.string().optional(),
+  density: z.coerce.number().int().optional(),
+  tone: z.string().optional(),
+
+  // ── Detect mode: linking ─────────────────────────────────────────────
+  entityType: z.array(z.string()).default([]),
+  includeDescriptive: z.boolean().default(false),
+
+  // ── Detect mode: tagging ─────────────────────────────────────────────
+  schemaId: z.string().optional(),
+  category: z.array(z.string()).default([]),
+
+}).superRefine((val, ctx) => {
+  if (val.detect) {
+    const manualFlags = ['quote', 'start', 'end', 'svg', 'fragment', 'fetchContent', 'bodyText', 'link'] as const;
+    for (const f of manualFlags) {
+      const v = val[f];
+      if (v !== undefined && v !== false && !(Array.isArray(v) && v.length === 0)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `--${f.replace(/([A-Z])/g, '-$1').toLowerCase()} cannot be used with --detect` });
+      }
+    }
+    if (val.motivation === 'linking' && val.entityType.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--entity-type is required for --detect --motivation linking' });
+    }
+    if (val.motivation === 'tagging') {
+      if (!val.schemaId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--schema-id is required for --detect --motivation tagging' });
+      if (val.category.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--category is required for --detect --motivation tagging' });
+    }
+  }
 });
 
 export type MarkOptions = z.output<typeof MarkOptionsSchema>;
@@ -181,6 +222,68 @@ function buildBody(options: MarkOptions): CreateAnnotationRequest['body'] {
 }
 
 // =====================================================================
+// DETECT MODE
+// =====================================================================
+
+function waitForAssistFinished(eventBus: EventBus): Promise<{ motivation?: string; resourceId?: string; createdCount?: number }> {
+  return new Promise((resolve, reject) => {
+    const doneSub = eventBus.get('mark:assist-finished').subscribe((event: any) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      resolve({
+        motivation: event.motivation,
+        resourceId: event.resourceId,
+        createdCount: event.progress?.createdCount,
+      });
+    });
+    const failSub = eventBus.get('mark:assist-failed').subscribe((event: any) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      reject(new Error(event.payload?.message ?? 'Annotation failed'));
+    });
+  });
+}
+
+async function runDetect(
+  client: SemiontApiClient,
+  token: AccessToken,
+  options: MarkOptions,
+): Promise<{ motivation: string; resourceId: string; createdCount: number }> {
+  const rawResourceId = options.resourceIdArr[0];
+  const resourceId = toResourceId(rawResourceId);
+  const { motivation, instructions, density, tone, entityType, includeDescriptive, schemaId, category } = options;
+
+  if (!options.quiet) process.stderr.write(`Annotating ${motivation} on ${rawResourceId}...\n`);
+
+  const eventBus = new EventBus();
+  const donePromise = waitForAssistFinished(eventBus);
+  const auth = token;
+
+  switch (motivation) {
+    case 'highlighting':
+      client.sse.annotateHighlights(resourceId, { instructions, density }, { auth, eventBus });
+      break;
+    case 'assessing':
+      client.sse.annotateAssessments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
+      break;
+    case 'commenting':
+      client.sse.annotateComments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
+      break;
+    case 'linking':
+      client.sse.annotateReferences(resourceId, { entityTypes: entityType as EntityType[], includeDescriptiveReferences: includeDescriptive }, { auth, eventBus });
+      break;
+    case 'tagging':
+      client.sse.annotateTags(resourceId, { schemaId: schemaId!, categories: category }, { auth, eventBus });
+      break;
+  }
+
+  const result = await donePromise;
+  const createdCount = result.createdCount ?? 0;
+  if (!options.quiet) process.stderr.write(`✓ ${createdCount} annotations created\n`);
+  return { motivation, resourceId: rawResourceId, createdCount };
+}
+
+// =====================================================================
 // IMPLEMENTATION
 // =====================================================================
 
@@ -190,6 +293,22 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
   const environment = options.environment!;
 
   const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+
+  // ── Detect mode ────────────────────────────────────────────────────
+  if (options.detect) {
+    const result = await runDetect(client, token, options);
+    process.stdout.write(JSON.stringify(result));
+    if (!options.quiet) process.stdout.write('\n');
+    return {
+      command: 'mark',
+      environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      summary: { succeeded: result.createdCount, failed: 0, total: result.createdCount, warnings: 0 },
+      executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
+      results: [{ entity: result.resourceId, platform: 'posix', success: true, metadata: { createdCount: result.createdCount, motivation: result.motivation }, duration: Date.now() - startTime }],
+    };
+  }
 
   const rawResourceId = options.resourceIdArr[0];
   const resourceId = toResourceId(rawResourceId);
@@ -227,15 +346,29 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
 
 export const markCmd = new CommandBuilder()
   .name('mark')
-  .description('Create a W3C annotation on a resource')
+  .description(
+    'Create a W3C annotation on a resource. ' +
+    'Manual mode (default): create a single explicitly-specified annotation. ' +
+    'Detect mode (--detect): AI-assisted bulk annotation via SSE stream. ' +
+    'Outputs JSON { motivation, resourceId, createdCount } in detect mode.'
+  )
   .requiresEnvironment(true)
   .requiresServices(true)
   .examples(
+    // Manual mode
     'semiont mark <resourceId> --motivation highlighting --quote "some text"',
     'semiont mark <resourceId> --motivation highlighting --quote "some text" --fetch-content',
     'semiont mark <resourceId> --motivation commenting --quote "some text" --body-text "my comment"',
     'semiont mark <resourceId> --motivation linking --quote "some text" --link <targetResourceId>',
     'semiont mark <resourceId> --motivation tagging --quote "Einstein" --body-text "Person"',
+    // Detect mode
+    'semiont mark <resourceId> --detect --motivation highlighting',
+    'semiont mark <resourceId> --detect --motivation highlighting --instructions "Focus on key claims" --density 8',
+    'semiont mark <resourceId> --detect --motivation assessing --tone analytical --density 4',
+    'semiont mark <resourceId> --detect --motivation commenting --tone scholarly',
+    'semiont mark <resourceId> --detect --motivation linking --entity-type Location --entity-type Person',
+    'semiont mark <resourceId> --detect --motivation linking --entity-type Location --include-descriptive',
+    'semiont mark <resourceId> --detect --motivation tagging --schema-id <schemaId> --category Biology --category Chemistry',
   )
   .args({
     ...withBaseArgs({
@@ -243,62 +376,101 @@ export const markCmd = new CommandBuilder()
         type: 'string',
         description: `Annotation motivation: ${MOTIVATIONS.join(', ')}`,
       },
+      // ── Mode switch ───────────────────────────────────────────────────
+      '--detect': {
+        type: 'boolean',
+        description: 'Enable AI-assisted bulk annotation mode (detect mode)',
+        default: false,
+      },
+      // ── Manual mode options ───────────────────────────────────────────
       '--quote': {
         type: 'string',
-        description: 'TextQuoteSelector: exact text to select',
+        description: 'Manual: TextQuoteSelector exact text to select',
       },
       '--prefix': {
         type: 'string',
-        description: 'TextQuoteSelector: context before the quote (auto-derived with --fetch-content)',
+        description: 'Manual: TextQuoteSelector context before the quote (auto-derived with --fetch-content)',
       },
       '--suffix': {
         type: 'string',
-        description: 'TextQuoteSelector: context after the quote (auto-derived with --fetch-content)',
+        description: 'Manual: TextQuoteSelector context after the quote (auto-derived with --fetch-content)',
       },
       '--start': {
         type: 'string',
-        description: 'TextPositionSelector: start character offset',
+        description: 'Manual: TextPositionSelector start character offset',
       },
       '--end': {
         type: 'string',
-        description: 'TextPositionSelector: end character offset',
+        description: 'Manual: TextPositionSelector end character offset',
       },
       '--fetch-content': {
         type: 'boolean',
-        description: 'Fetch resource text to auto-complete dual selector (derives missing quote or position, auto-derives prefix/suffix)',
+        description: 'Manual: fetch resource text to auto-complete dual selector',
         default: false,
       },
       '--svg': {
         type: 'string',
-        description: 'SvgSelector: SVG markup defining a region (for images)',
+        description: 'Manual: SvgSelector SVG markup defining a region (for images)',
       },
       '--fragment': {
         type: 'string',
-        description: 'FragmentSelector: media fragment value (e.g. "page=1&viewrect=100,200,50,30")',
+        description: 'Manual: FragmentSelector media fragment value',
       },
       '--fragment-conforms-to': {
         type: 'string',
-        description: 'FragmentSelector: conformance URI',
+        description: 'Manual: FragmentSelector conformance URI',
       },
       '--body-text': {
         type: 'string',
-        description: 'TextualBody: text content of the annotation body',
+        description: 'Manual: TextualBody text content',
       },
       '--body-format': {
         type: 'string',
-        description: 'TextualBody: MIME type (default: text/plain)',
+        description: 'Manual: TextualBody MIME type (default: text/plain)',
       },
       '--body-language': {
         type: 'string',
-        description: 'TextualBody: BCP 47 language tag',
+        description: 'Manual: TextualBody BCP 47 language tag',
       },
       '--body-purpose': {
         type: 'string',
-        description: 'TextualBody: purpose (defaults to motivation)',
+        description: 'Manual: TextualBody purpose (defaults to motivation)',
       },
       '--link': {
         type: 'array',
-        description: 'SpecificResource body: target resourceId to link to (repeatable)',
+        description: 'Manual: SpecificResource body target resourceId to link to (repeatable)',
+      },
+      // ── Detect mode: shared ───────────────────────────────────────────
+      '--instructions': {
+        type: 'string',
+        description: 'Detect: free-text instructions for the AI (highlighting, assessing, commenting)',
+      },
+      '--density': {
+        type: 'string',
+        description: 'Detect: annotations per 2000 words (highlighting: 1–15; assessing: 1–10; commenting: 2–12)',
+      },
+      '--tone': {
+        type: 'string',
+        description: 'Detect: tone for assessing (analytical|critical|balanced|constructive) or commenting (scholarly|explanatory|conversational|technical)',
+      },
+      // ── Detect mode: linking ──────────────────────────────────────────
+      '--entity-type': {
+        type: 'array',
+        description: 'Detect linking: entity type to detect (repeatable; at least one required)',
+      },
+      '--include-descriptive': {
+        type: 'boolean',
+        description: 'Detect linking: also detect descriptive/prose references',
+        default: false,
+      },
+      // ── Detect mode: tagging ──────────────────────────────────────────
+      '--schema-id': {
+        type: 'string',
+        description: 'Detect tagging: tag schema ID (required)',
+      },
+      '--category': {
+        type: 'array',
+        description: 'Detect tagging: category within the schema (repeatable; at least one required)',
       },
     }, {
       '-m': '--motivation',
