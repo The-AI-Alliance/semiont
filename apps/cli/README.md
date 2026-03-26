@@ -11,7 +11,7 @@ The Semiont CLI provides four categories of commands:
 | **Credential** | `login` | Writes a cached token |
 | **Knowledge Work** | `browse`, `gather`, `mark`, `match`, `bind`, `listen`, `yield`, `beckon` | Reads the cached token (`--bus`) |
 | **Knowledge Base** | `init`, `backup`, `restore`, `verify`, `export`, `import` | None / `--environment` |
-| **Infrastructure** | `local`, `provision`, `start`, `stop`, `check`, `update`, `publish`, `mv`, `useradd`, `clean`, `watch` | `--environment` |
+| **Infrastructure** | `local`, `provision`, `start`, `stop`, `check`, `mv`, `useradd`, `clean`, `watch` | `--environment` |
 
 ---
 

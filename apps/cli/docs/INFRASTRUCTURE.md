@@ -100,30 +100,6 @@ AI application configuration:
 
 ---
 
-## Deployment
-
-`publish` and `update` are intentionally separate:
-
-**Publish** — builds and pushes artifacts, does NOT deploy:
-```bash
-semiont publish --service frontend -e production
-```
-- Builds application and Docker images
-- Pushes to registries (ECR, Docker Hub, etc.)
-- Creates new task definitions / deployment manifests
-
-**Update** — deploys what `publish` prepared:
-```bash
-semiont update --service frontend -e production
-```
-- Detects newer versions created by `publish`
-- Deploys to running services
-- Reports success/failure
-
-For mutable tags (`:latest`), `update` can force redeployment even without version changes. For immutable tags (git hashes), `update` only deploys if a newer version exists.
-
----
-
 ## Administration
 
 ```bash
@@ -136,6 +112,19 @@ The `local` command is a shorthand for the full first-run sequence:
 ```bash
 semiont local   # equivalent to: init → provision → start → useradd
 ```
+
+---
+
+## AWS ECS Deployment
+
+For teams deploying Semiont services to AWS ECS Fargate, the CLI includes built-in handlers for `publish` and `update`:
+
+```bash
+semiont publish --service frontend -e production   # build → ECR push → new task definition
+semiont update --service frontend -e production    # deploy new task definition to ECS
+```
+
+`publish` builds locally, pushes to ECR, and registers a new task definition revision. `update` detects the new revision and issues a rolling deployment, with optional `--wait` progress monitoring and CloudWatch log fetch on failure. Most teams will prefer to wire these steps into their own CI/CD pipelines directly.
 
 ---
 
