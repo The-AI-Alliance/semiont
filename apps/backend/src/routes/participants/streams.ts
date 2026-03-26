@@ -7,18 +7,13 @@
  */
 
 import { Subject } from 'rxjs';
+import type { EventMap } from '@semiont/core';
 
-export interface BeckonSignal {
-  resourceId: string;
-  annotationId?: string;
-  message?: string;
-}
+const streams = new Map<string, Subject<EventMap['beckon:focus']>>();
 
-const streams = new Map<string, Subject<BeckonSignal>>();
-
-export function getOrCreateStream(participantId: string): Subject<BeckonSignal> {
+export function getOrCreateStream(participantId: string): Subject<EventMap['beckon:focus']> {
   if (!streams.has(participantId)) {
-    streams.set(participantId, new Subject<BeckonSignal>());
+    streams.set(participantId, new Subject<EventMap['beckon:focus']>());
   }
   return streams.get(participantId)!;
 }

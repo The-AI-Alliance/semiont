@@ -582,7 +582,7 @@ export type EventMap = {
   // Manages which annotation has user's attention (hover/click/focus)
 
   'beckon:hover': { annotationId: string | null };
-  'beckon:focus': { annotationId: string | null };
+  'beckon:focus': { annotationId?: string; resourceId?: string };
   'beckon:sparkle': { annotationId: string };
 
   // ========================================================================

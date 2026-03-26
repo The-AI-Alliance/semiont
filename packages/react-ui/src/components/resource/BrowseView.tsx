@@ -196,8 +196,8 @@ export const BrowseView = memo(function BrowseView({
     scrollToAnnotation(annotationId);
   }, [scrollToAnnotation]);
 
-  const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId: string | null }) => {
-    scrollToAnnotation(annotationId, true);
+  const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId?: string | null }) => {
+    scrollToAnnotation(annotationId ?? null, true);
   }, [scrollToAnnotation]);
 
   useEventSubscriptions({

@@ -30,7 +30,6 @@ export function registerBeckon(router: ParticipantsRouterType) {
       getOrCreateStream(participantId).next({
         resourceId: request.resourceId,
         ...(request.annotationId ? { annotationId: request.annotationId } : {}),
-        ...(request.message ? { message: request.message } : {}),
       });
 
       return c.json({
