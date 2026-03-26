@@ -13,7 +13,7 @@ import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } 
 import type { components } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
 
@@ -21,7 +21,7 @@ import { createAuthenticatedClient } from '../api-client-factory.js';
 // SCHEMA
 // =====================================================================
 
-export const GatherOptionsSchema = BaseOptionsSchema.extend({
+export const GatherOptionsSchema = ApiOptionsSchema.extend({
   args: z.array(z.string()).min(2, 'Usage: semiont gather resource <resourceId> | gather annotation <resourceId> <annotationId>'),
   // resource options
   depth: z.coerce.number().int().min(1).max(3).default(2),
@@ -75,7 +75,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
   const [subcommand, rawResourceId, rawAnnotationId] = options.args;
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   let result: unknown;
 
@@ -146,7 +146,7 @@ export const gatherCmd = new CommandBuilder()
     'semiont gather annotation <resourceId> <annotationId> | jq \'.context.sourceContext.selected\'',
   )
   .args({
-    ...withBaseArgs({
+    ...withApiArgs({
       '--depth': {
         type: 'string',
         description: 'Graph traversal depth: 1–3 (default: 2)',

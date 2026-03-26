@@ -22,7 +22,7 @@ import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } 
 import type { GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
@@ -50,7 +50,7 @@ function guessFormat(filePath: string): string {
 // SCHEMA
 // =====================================================================
 
-export const YieldOptionsSchema = BaseOptionsSchema.extend({
+export const YieldOptionsSchema = ApiOptionsSchema.extend({
   // Mode flags
   upload: z.array(z.string()).default([]),
   delegate: z.boolean().default(false),
@@ -182,7 +182,7 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
   const projectRoot = findProjectRoot();
   const environment = options.environment!;
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   // ── Delegate mode ──────────────────────────────────────────────────
   if (options.delegate) {
@@ -272,7 +272,7 @@ export const yieldCmd = new CommandBuilder()
     'NEW_ID=$(semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md --quiet | jq -r \'.resourceId\') && semiont bind <resourceId> <annotationId> "$NEW_ID"',
   )
   .args({
-    ...withBaseArgs({
+    ...withApiArgs({
       '--upload': {
         type: 'array',
         description: 'Upload mode: one or more local file paths to register as resources (repeatable)',

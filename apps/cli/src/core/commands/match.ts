@@ -17,7 +17,7 @@ import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } 
 import type { components, GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
 import type { SemiontApiClient } from '@semiont/api-client';
@@ -32,7 +32,7 @@ type ScoredResult = components['schemas']['ResourceDescriptor'] & {
 // SCHEMA
 // =====================================================================
 
-export const MatchOptionsSchema = BaseOptionsSchema.extend({
+export const MatchOptionsSchema = ApiOptionsSchema.extend({
   args: z.array(z.string()).min(2, 'Usage: semiont match <resourceId> <annotationId>').max(2),
   contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
   userHint: z.string().optional(),
@@ -114,7 +114,7 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   // Step 1: gather context
   let context = await gatherContext(client, resourceId, annotationId, options.contextWindow, token);
@@ -172,7 +172,7 @@ export const matchCmd = new CommandBuilder()
     'semiont match <resourceId> <annotationId> | jq -r \'.[0]["@id"]\' | xargs -I{} semiont mark <resourceId> --motivation linking --link {}',
   )
   .args({
-    ...withBaseArgs({
+    ...withApiArgs({
       '--context-window': {
         type: 'string',
         description: 'Characters of context around annotation: 100–5000 (default: 1000)',

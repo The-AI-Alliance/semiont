@@ -67,23 +67,35 @@ function isTokenValid(cache: TokenCache): boolean {
  * Create an authenticated SemiontApiClient for the given project and environment.
  * Caches the token in the XDG state directory and re-authenticates when stale.
  */
+export interface ClientOverrides {
+  bus?: string;
+  user?: string;
+  password?: string;
+}
+
 export async function createAuthenticatedClient(
   projectRoot: string,
   environment: string,
+  overrides?: ClientOverrides,
 ): Promise<AuthenticatedClient> {
   const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
-  const rawBaseUrl = envConfig.services?.backend?.publicURL;
+  const rawBaseUrl =
+    overrides?.bus
+    ?? process.env.SEMIONT_BUS
+    ?? envConfig.services?.backend?.publicURL;
   if (!rawBaseUrl) {
     throw new Error(
-      `services.backend.publicURL is not set for environment '${environment}' in ~/.semiontconfig`
+      `Backend URL not configured. Use --bus, set $SEMIONT_BUS, or add services.backend.publicURL for environment '${environment}' in ~/.semiontconfig`
     );
   }
 
   const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBaseUrl) });
 
   // Resolve email
-  const emailStr = process.env.SEMIONT_USER
+  const emailStr =
+    overrides?.user
+    ?? process.env.SEMIONT_USER
     ?? (envConfig as any).auth?.email
     ?? null;
 
@@ -105,7 +117,9 @@ export async function createAuthenticatedClient(
   }
 
   // Need to re-authenticate — require password
-  const passwordStr = process.env.SEMIONT_PASSWORD
+  const passwordStr =
+    overrides?.password
+    ?? process.env.SEMIONT_PASSWORD
     ?? (envConfig as any).auth?.password
     ?? null;
 

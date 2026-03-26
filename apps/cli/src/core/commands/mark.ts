@@ -24,7 +24,7 @@ import { z } from 'zod';
 import { resourceId as toResourceId, EventBus, type EntityType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
@@ -44,7 +44,7 @@ const MOTIVATIONS = ['highlighting', 'commenting', 'tagging', 'assessing', 'link
 /** Characters of surrounding context to include in prefix/suffix */
 const CONTEXT_WINDOW = 32;
 
-export const MarkOptionsSchema = BaseOptionsSchema.extend({
+export const MarkOptionsSchema = ApiOptionsSchema.extend({
   resourceIdArr: z.array(z.string()).min(1, 'resourceId is required').max(1, 'Only one resourceId allowed'),
   motivation: z.enum(MOTIVATIONS),
 
@@ -292,7 +292,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
   const projectRoot = findProjectRoot();
   const environment = options.environment!;
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   // ── Delegate mode ────────────────────────────────────────────────────
   if (options.delegate) {
@@ -371,7 +371,7 @@ export const markCmd = new CommandBuilder()
     'semiont mark <resourceId> --delegate --motivation tagging --schema-id <schemaId> --category Biology --category Chemistry',
   )
   .args({
-    ...withBaseArgs({
+    ...withApiArgs({
       '--motivation': {
         type: 'string',
         description: `Annotation motivation: ${MOTIVATIONS.join(', ')}`,

@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { resourceId as toResourceId, EventBus } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
 
@@ -22,7 +22,7 @@ import { createAuthenticatedClient } from '../api-client-factory.js';
 // SCHEMA
 // =====================================================================
 
-export const ListenOptionsSchema = BaseOptionsSchema.extend({
+export const ListenOptionsSchema = ApiOptionsSchema.extend({
   args: z.array(z.string()).default([]),
 }).superRefine((val, ctx) => {
   const sub = val.args[0];
@@ -45,7 +45,7 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
   const projectRoot = findProjectRoot();
   const environment = options.environment!;
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   const [subcommand, rawResourceId] = options.args;
   const isResourceScoped = subcommand === 'resource';
@@ -111,7 +111,7 @@ export const listenCmd = new CommandBuilder()
     'semiont listen | grep entitytype',
   )
   .args({
-    ...withBaseArgs({}, {}),
+    ...withApiArgs({}, {}),
     restAs: 'args',
     aliases: {},
   })

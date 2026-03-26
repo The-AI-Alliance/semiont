@@ -25,6 +25,16 @@ export const BaseOptionsSchema = z.object({
 });
 
 /**
+ * Extended schema for commands that call the API client.
+ * Adds connection overrides that take highest priority over env vars and ~/.semiontconfig.
+ */
+export const ApiOptionsSchema = BaseOptionsSchema.extend({
+  bus: z.string().optional(),
+  user: z.string().optional(),
+  password: z.string().optional(),
+});
+
+/**
  * Type helper to extract the inferred type from a Zod schema
  * This is re-exported for convenience
  */
@@ -86,6 +96,30 @@ export const BASE_ARGS: Record<string, ArgDefinition> = {
 };
 
 /**
+ * Argument definitions for API-client commands (extends BASE_ARGS)
+ */
+export const API_ARGS: Record<string, ArgDefinition> = {
+  '--bus': {
+    type: 'string',
+    description:
+      'Backend URL (e.g. http://localhost:4000). ' +
+      'Fallback order: $SEMIONT_BUS → services.backend.publicURL in ~/.semiontconfig',
+  },
+  '--user': {
+    type: 'string',
+    description:
+      'Login email. ' +
+      'Fallback order: $SEMIONT_USER → [environments.<env>.auth] email in ~/.semiontconfig',
+  },
+  '--password': {
+    type: 'string',
+    description:
+      'Login password. ' +
+      'Fallback order: $SEMIONT_PASSWORD → [environments.<env>.auth] password in ~/.semiontconfig',
+  },
+};
+
+/**
  * Common aliases for base arguments
  */
 export const BASE_ALIASES: Record<string, string> = {
@@ -93,6 +127,10 @@ export const BASE_ALIASES: Record<string, string> = {
   '-v': '--verbose',
   '-q': '--quiet',
   '-o': '--output',
+};
+
+export const API_ALIASES: Record<string, string> = {
+  '-b': '--bus',
 };
 
 /**
@@ -106,6 +144,22 @@ export function withBaseArgs(
   return {
     args: { ...BASE_ARGS, ...commandArgs },
     aliases: { ...BASE_ALIASES, ...commandAliases },
+    ...(positional && { positional }),
+  };
+}
+
+/**
+ * Helper for commands that call the API client.
+ * Includes base args plus --bus / --user / --password connection overrides.
+ */
+export function withApiArgs(
+  commandArgs: Record<string, ArgDefinition> = {},
+  commandAliases: Record<string, string> = {},
+  positional?: string[]
+) {
+  return {
+    args: { ...BASE_ARGS, ...API_ARGS, ...commandArgs },
+    aliases: { ...BASE_ALIASES, ...API_ALIASES, ...commandAliases },
     ...(positional && { positional }),
   };
 }

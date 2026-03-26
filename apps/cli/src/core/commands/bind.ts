@@ -16,7 +16,7 @@ import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } 
 import type { components } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
@@ -27,7 +27,7 @@ type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRe
 // SCHEMA
 // =====================================================================
 
-export const BindOptionsSchema = BaseOptionsSchema.extend({
+export const BindOptionsSchema = ApiOptionsSchema.extend({
   args: z.array(z.string()).min(3, 'Usage: semiont bind <resourceId> <annotationId> <targetResourceId>').max(3),
 });
 
@@ -61,7 +61,7 @@ export async function runBind(options: BindOptions): Promise<CommandResults> {
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   const request: BindAnnotationStreamRequest = {
     resourceId: rawResourceId,
@@ -107,7 +107,7 @@ export const bindCmd = new CommandBuilder()
     'TARGET=$(semiont match <resourceId> <annotationId> --quiet | jq -r \'.[0]["@id"]\') && semiont bind <resourceId> <annotationId> "$TARGET"',
   )
   .args({
-    ...withBaseArgs({}, {}),
+    ...withApiArgs({}, {}),
     restAs: 'args',
     aliases: {},
   })

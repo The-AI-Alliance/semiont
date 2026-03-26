@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
 
@@ -26,7 +26,7 @@ import { createAuthenticatedClient } from '../api-client-factory.js';
 // SCHEMA
 // =====================================================================
 
-export const BrowseOptionsSchema = BaseOptionsSchema.extend({
+export const BrowseOptionsSchema = ApiOptionsSchema.extend({
   args: z.array(z.string()).min(1, 'Subcommand required: resources | resource | annotation | references | events | history | entity-types'),
   // browse resources options
   search: z.string().optional(),
@@ -69,7 +69,7 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   const projectRoot = findProjectRoot();
   const environment = options.environment!;
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment);
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   const [subcommand, rawResourceId, rawAnnotationId] = options.args;
 
@@ -190,7 +190,7 @@ export const browseCmd = new CommandBuilder()
     'semiont browse entity-types | jq \'.[].tag\'',
   )
   .args({
-    ...withBaseArgs({
+    ...withApiArgs({
       '--search': {
         type: 'string',
         description: 'Filter resources by name or content (browse resources only)',
