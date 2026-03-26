@@ -2,18 +2,10 @@
   "type": "string",
   "enum": [
     "assessing",
-    "bookmarking",
-    "classifying",
     "commenting",
-    "describing",
-    "editing",
     "highlighting",
-    "identifying",
     "linking",
-    "moderating",
-    "questioning",
-    "replying",
     "tagging"
   ],
-  "description": "W3C Web Annotation motivation vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation"
+  "description": "Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation"
 }

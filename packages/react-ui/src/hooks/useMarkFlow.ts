@@ -111,14 +111,6 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
       assessing: 'annotations',
       tagging: 'annotations',
       linking: 'annotations',
-      bookmarking: 'annotations',
-      classifying: 'annotations',
-      describing: 'annotations',
-      editing: 'annotations',
-      identifying: 'annotations',
-      moderating: 'annotations',
-      questioning: 'annotations',
-      replying: 'annotations',
     };
 
     // Emit event to open the appropriate panel
