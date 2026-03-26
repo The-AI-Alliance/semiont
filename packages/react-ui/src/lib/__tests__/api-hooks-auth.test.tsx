@@ -133,7 +133,7 @@ describe('API Hooks Authentication', () => {
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.getResource).toHaveBeenCalledWith(
+      expect(mockClient.browseResource).toHaveBeenCalledWith(
         'resource-1',
         { auth: 'test-token' }
       );
@@ -367,14 +367,20 @@ describe('API Hooks Authentication', () => {
       const { result } = renderHook(() => useAnnotations(), { wrapper });
       const mutation = renderHook(() => result.current.create.useMutation(), { wrapper });
 
+      const markData = {
+        motivation: 'highlighting' as const,
+        target: { source: 'resource-1', selector: { type: 'TextQuoteSelector' as const, exact: 'hello' } },
+        body: [{ type: 'TextualBody' as const, value: 'test' }],
+      };
+
       await mutation.result.current.mutateAsync({
         resourceId: 'resource-1' as any,
-        data: { body: [] },
+        data: markData,
       });
 
       expect(mockClient.markAnnotation).toHaveBeenCalledWith(
         'resource-1',
-        { body: [] },
+        markData,
         { auth: 'test-token' }
       );
     });
