@@ -89,6 +89,7 @@ import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
 import { globalEventsRouter } from './routes/global-events-stream';
 import { createJobsRouter } from './routes/jobs/index';
+import { participantsRouter } from './routes/participants/index';
 import { authMiddleware } from './middleware/auth';
 
 // Import for static OpenAPI spec
@@ -153,6 +154,7 @@ app.route('/', entityTypesRouter);
 app.route('/', globalEventsRouter);
 const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
 app.route('/', jobsRouter);
+app.route('/', participantsRouter);
 
 // API Resourceation root - redirect to appropriate format
 app.get('/api', (c) => {

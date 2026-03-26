@@ -152,6 +152,12 @@
     },
     "/api/jobs/{id}": {
       "$ref": "paths/api_jobs_{id}.json"
+    },
+    "/api/participants/{id}/attention": {
+      "$ref": "paths/api_participants_{id}_attention.json"
+    },
+    "/api/participants/me/attention-stream": {
+      "$ref": "paths/api_participants_me_attention-stream.json"
     }
   },
   "components": {
@@ -206,6 +212,12 @@
       },
       "BodyType": {
         "$ref": "components/schemas/BodyType.json"
+      },
+      "BeckonRequest": {
+        "$ref": "components/schemas/BeckonRequest.json"
+      },
+      "BeckonResponse": {
+        "$ref": "components/schemas/BeckonResponse.json"
       },
       "BulkAddEntityTypesRequest": {
         "$ref": "components/schemas/BulkAddEntityTypesRequest.json"

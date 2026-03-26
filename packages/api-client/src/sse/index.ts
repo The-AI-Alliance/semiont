@@ -802,4 +802,46 @@ export class SSEClient {
 
     return stream;
   }
+
+  /**
+   * Subscribe to participant attention stream (long-lived stream)
+   *
+   * Opens a participant-scoped SSE connection to receive cross-participant
+   * beckon signals. Signals are delivered as 'beckon:focus' events routed
+   * to the EventBus — the existing scroll/highlight machinery handles them.
+   *
+   * Signals are ephemeral — delivered if connected, dropped if not.
+   *
+   * @param options - Request options (auth token, eventBus)
+   * @returns SSE stream controller
+   */
+  attentionStream(
+    options: SSERequestOptions & { onConnected?: () => void }
+  ): SSEStream {
+    const url = `${this.baseUrl}/api/participants/me/attention-stream`;
+
+    const stream = createSSEStream(
+      url,
+      {
+        method: 'GET',
+        headers: this.getHeaders(options.auth)
+      },
+      {
+        progressEvents: ['*'],
+        completeEvent: null,
+        errorEvent: null,
+        eventBus: options.eventBus
+      },
+      this.logger
+    );
+
+    if (options.onConnected) {
+      const sub = options.eventBus.get(SSE_STREAM_CONNECTED as any).subscribe(() => {
+        options.onConnected!();
+        sub.unsubscribe();
+      });
+    }
+
+    return stream;
+  }
 }

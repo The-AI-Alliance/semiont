@@ -46,8 +46,13 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import type { SSEStream } from '@semiont/api-client';
+import { accessToken } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
+import { useApiClient } from '../contexts/ApiClientContext';
+import { useAuthToken } from '../contexts/AuthTokenContext';
+import type { StreamStatus } from './useResourceEvents';
 
 // ─── useBeckonFlow ─────────────────────────────────────────────────────────
 
@@ -185,4 +190,74 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
   }, []);
 
   return { onMouseEnter, onMouseLeave };
+}
+
+// ─── useAttentionStream ───────────────────────────────────────────────────────
+
+/**
+ * Opens a participant-scoped SSE connection to receive cross-participant
+ * beckon signals. Each incoming signal is emitted as beckon:focus on the
+ * EventBus — the existing scroll/highlight machinery handles it automatically.
+ *
+ * Signals are ephemeral: delivered if connected, silently dropped if not.
+ *
+ * @example
+ * ```tsx
+ * // In your layout (render-nothing connector):
+ * useAttentionStream();
+ * ```
+ */
+export function useAttentionStream(): { status: StreamStatus } {
+  const client = useApiClient();
+  const token = useAuthToken();
+  const eventBus = useEventBus();
+  const [status, setStatus] = useState<StreamStatus>('disconnected');
+  const streamRef = useRef<SSEStream | null>(null);
+  const connectingRef = useRef(false);
+
+  const connect = useCallback(async () => {
+    if (connectingRef.current || streamRef.current) return;
+    connectingRef.current = true;
+
+    if (!client) {
+      setStatus('error');
+      connectingRef.current = false;
+      return;
+    }
+
+    setStatus('connecting');
+
+    try {
+      const stream = client.sse.attentionStream({
+        ...(token ? { auth: accessToken(token) } : {}),
+        eventBus,
+      });
+      streamRef.current = stream;
+      setStatus('connected');
+      connectingRef.current = false;
+    } catch (error) {
+      console.error('[AttentionStream] Failed to connect:', error);
+      setStatus('error');
+      connectingRef.current = false;
+    }
+  }, [client, token, eventBus]);
+
+  const disconnect = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
+    }
+    setStatus('disconnected');
+    connectingRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    if (client) {
+      connect();
+    }
+    return () => disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client]);
+
+  return { status };
 }

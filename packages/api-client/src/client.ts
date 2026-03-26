@@ -611,6 +611,22 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
+  // PARTICIPANTS
+  // ============================================================================
+
+  async beckonAttention(
+    participantId: string,
+    data: RequestContent<paths['/api/participants/{id}/attention']['post']>,
+    options?: RequestOptions
+  ): Promise<ResponseContent<paths['/api/participants/{id}/attention']['post']>> {
+    return this.http.post(`${this.baseUrl}/api/participants/${participantId}/attention`, {
+      json: data,
+      ...options,
+      auth: options?.auth
+    } as any).json();
+  }
+
+  // ============================================================================
   // ADMIN
   // ============================================================================
 

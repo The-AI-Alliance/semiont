@@ -14,24 +14,21 @@
  * distinguish between them. The same call that notifies a human reviewer also wakes
  * a waiting agent process polling its attention queue.
  *
- * See CLI-BECKON.md for full design and backend prerequisites.
- *
- * NOTE: This command requires a backend attention endpoint
- * (POST /participants/{id}/attention) that is not yet implemented.
- * The command is registered and validates its arguments but will
- * fail at runtime until the backend endpoint exists.
+ * See CLI-BECKON.md for full design.
  */
 
 import { z } from 'zod';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
+import { findProjectRoot } from '../config-loader.js';
+import { createAuthenticatedClient } from '../api-client-factory.js';
 
 // =====================================================================
 // SCHEMA
 // =====================================================================
 
-export const BeckonOptionsSchema = BaseOptionsSchema.extend({
+export const BeckonOptionsSchema = ApiOptionsSchema.extend({
   participantArr: z.array(z.string()).min(1, 'participantId is required').max(1, 'Only one participant per beckon'),
   resource: z.string({ required_error: '--resource <resourceId> is required' }),
   annotation: z.string().optional(),
@@ -44,13 +41,42 @@ export type BeckonOptions = z.output<typeof BeckonOptionsSchema>;
 // IMPLEMENTATION
 // =====================================================================
 
-export async function runBeckon(_options: BeckonOptions): Promise<CommandResults> {
-  // Backend prerequisite not yet implemented.
-  // See CLI-BECKON.md — requires POST /participants/{id}/attention endpoint.
-  throw new Error(
-    'semiont beckon is not yet implemented: the backend attention endpoint ' +
-    '(POST /participants/{id}/attention) does not exist yet. See CLI-BECKON.md.'
+export async function runBeckon(options: BeckonOptions): Promise<CommandResults> {
+  const startTime = Date.now();
+  const projectRoot = findProjectRoot();
+  const environment = options.environment!;
+
+  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
+
+  const [participantId] = options.participantArr;
+
+  const result = await client.beckonAttention(
+    participantId,
+    {
+      resourceId: options.resource,
+      ...(options.annotation ? { annotationId: options.annotation } : {}),
+      ...(options.message ? { message: options.message } : {}),
+    },
+    { auth: token }
   );
+
+  if (!options.quiet) {
+    const target = options.annotation
+      ? `${options.resource} (${options.annotation})`
+      : options.resource;
+    process.stderr.write(`Beckoned ${participantId} → ${target}\n`);
+  }
+  process.stdout.write(JSON.stringify(result) + '\n');
+
+  return {
+    command: 'beckon',
+    environment,
+    timestamp: new Date(),
+    duration: Date.now() - startTime,
+    summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
+    executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
+    results: [{ entity: participantId, platform: 'posix', success: true, duration: Date.now() - startTime }],
+  };
 }
 
 // =====================================================================
@@ -62,8 +88,7 @@ export const beckonCmd = new CommandBuilder()
   .description(
     'Direct a participant\'s attention to a resource or annotation. ' +
     'Produces no persistent state — attention signal only. ' +
-    'The participant may be a human username or an agent identifier. ' +
-    'NOTE: requires a backend attention endpoint not yet implemented (see CLI-BECKON.md).'
+    'The participant may be a human username or an agent identifier.'
   )
   .requiresEnvironment(true)
   .requiresServices(true)
@@ -74,7 +99,7 @@ export const beckonCmd = new CommandBuilder()
     'semiont beckon my-review-agent --resource <resourceId> --annotation <annotationId>',
   )
   .args({
-    ...withBaseArgs({
+    ...withApiArgs({
       '--resource': {
         type: 'string',
         description: 'Resource to direct attention at (required)',

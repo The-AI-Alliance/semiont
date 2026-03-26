@@ -1,0 +1,24 @@
+{
+  "get": {
+    "summary": "Participant Attention Stream",
+    "description": "Open a persistent SSE connection to receive beckon signals directed at the authenticated participant. Signals are ephemeral — delivered if connected, dropped if not. No queue, no replay.",
+    "tags": ["Participants"],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "SSE stream of beckon:focus events",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

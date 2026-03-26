@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "participant": {
+      "type": "string",
+      "description": "Username or agent identifier that was beckoned"
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "Resource the attention was directed at"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation the attention was directed at (if provided)"
+    }
+  },
+  "required": ["participant", "resourceId"]
+}
