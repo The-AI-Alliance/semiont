@@ -164,7 +164,7 @@ These commands manage service lifecycle and deployment. They require `--environm
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--environment <env>` | `-e` | Target environment. Fallback: `defaults.environment` in `~/.semiontconfig` |
+| `--environment <env>` | `-e` | Target environment. Fallback: `$SEMIONT_ENV` → `defaults.environment` in `~/.semiontconfig` |
 
 For full details see [Infrastructure Commands](./docs/INFRASTRUCTURE.md).
 

@@ -38,8 +38,9 @@ apiKey = "${ANTHROPIC_API_KEY}"
 ### Environment resolution order
 
 1. `--environment` flag (highest priority)
-2. `defaults.environment` in `~/.semiontconfig`
-3. Error if neither is set
+2. `$SEMIONT_ENV` environment variable
+3. `defaults.environment` in `~/.semiontconfig`
+4. Error if none of the above is set
 
 See [Managing Environments](./ADDING_ENVIRONMENTS.md) for the full schema.
 
