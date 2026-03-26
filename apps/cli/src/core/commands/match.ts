@@ -72,15 +72,33 @@ async function gatherContext(
   contextWindow: number,
   token: AccessToken,
 ): Promise<GatheredContext> {
-  const response = await client.gatherAnnotation(resourceId, annotationId, {
-    contextWindow,
-    auth: token,
+  const eventBus = new EventBus();
+  const contextPromise = new Promise<GatheredContext>((resolve, reject) => {
+    const doneSub = eventBus.get('gather:annotation-finished').subscribe((event) => {
+      if (event.annotationId !== annotationId) return;
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      const context = (event.response as any).context as GatheredContext | undefined;
+      if (!context) {
+        reject(new Error('No context returned from gatherAnnotation'));
+      } else {
+        resolve(context);
+      }
+    });
+    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
+      if (event.annotationId !== annotationId) return;
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      reject(event.error ?? new Error('Gather annotation failed'));
+    });
   });
-  const context = (response as any).context as GatheredContext | undefined;
-  if (!context) {
-    throw new Error('No context returned from gatherAnnotation');
-  }
-  return context;
+  client.sse.gatherAnnotation(
+    resourceId,
+    annotationId,
+    { contextWindow },
+    { auth: token, eventBus },
+  );
+  return contextPromise;
 }
 
 // =====================================================================

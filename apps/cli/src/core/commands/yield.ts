@@ -108,6 +108,28 @@ function waitForYieldFinished(eventBus: EventBus): Promise<{ resourceId?: string
   });
 }
 
+function waitForGatherAnnotationFinished(eventBus: EventBus, annotationId: string): Promise<GatheredContext> {
+  return new Promise((resolve, reject) => {
+    const doneSub = eventBus.get('gather:annotation-finished').subscribe((event) => {
+      if (event.annotationId !== annotationId) return;
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      const context = (event.response as any).context as GatheredContext | undefined;
+      if (!context) {
+        reject(new Error('No context returned from gatherAnnotation — cannot generate'));
+      } else {
+        resolve(context);
+      }
+    });
+    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
+      if (event.annotationId !== annotationId) return;
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      reject(event.error ?? new Error('Gather annotation failed'));
+    });
+  });
+}
+
 async function runDelegate(
   client: SemiontApiClient,
   token: AccessToken,
@@ -118,14 +140,15 @@ async function runDelegate(
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
-  const response = await client.gatherAnnotation(resourceId, annotationId, {
-    contextWindow: options.contextWindow,
-    auth: token,
-  });
-  const context = (response as any).context as GatheredContext | undefined;
-  if (!context) {
-    throw new Error('No context returned from gatherAnnotation — cannot generate');
-  }
+  const gatherEventBus = new EventBus();
+  const gatherPromise = waitForGatherAnnotationFinished(gatherEventBus, rawAnnotationId);
+  client.sse.gatherAnnotation(
+    resourceId,
+    annotationId,
+    { contextWindow: options.contextWindow },
+    { auth: token, eventBus: gatherEventBus },
+  );
+  const context = await gatherPromise;
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
