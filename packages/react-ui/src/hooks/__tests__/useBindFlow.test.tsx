@@ -18,10 +18,6 @@ import { annotationId, resourceId } from '@semiont/core';
 import { useBindFlow } from '../useBindFlow';
 
 // Mock the toast hook to track calls
-const mockShowSuccess = vi.fn();
-const mockShowError = vi.fn();
-const mockShowInfo = vi.fn();
-
 vi.mock('../../components/Toast', () => ({
   useToast: () => ({
     showSuccess: mockShowSuccess,
@@ -32,15 +28,22 @@ vi.mock('../../components/Toast', () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Mock API client
-const mockBindAnnotation = vi.fn();
+const { mockBindAnnotation, mockShowSuccess, mockShowError, mockShowInfo } = vi.hoisted(() => {
+  return {
+    mockBindAnnotation: vi.fn(),
+    mockShowSuccess: vi.fn(),
+    mockShowError: vi.fn(),
+    mockShowInfo: vi.fn(),
+  };
+});
 
+// Mock API client — useBindFlow calls client.sse.bindAnnotation (SSEClient)
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
-      bindAnnotation: mockBindAnnotation,
+      sse: { bindAnnotation: mockBindAnnotation },
     }),
   };
 });
@@ -80,6 +83,12 @@ describe('useBindFlow', () => {
     mockShowError.mockClear();
     mockShowInfo.mockClear();
     mockBindAnnotation.mockClear();
+
+    // Default: emit bind:finished on success
+    mockBindAnnotation.mockImplementation((_rId: any, annId: any, _req: any, opts: any) => {
+      queueMicrotask(() => opts.eventBus.get('bind:finished').next({ annotationId: annId }));
+      return { close: vi.fn() };
+    });
   });
 
   afterEach(() => {
@@ -89,8 +98,6 @@ describe('useBindFlow', () => {
   // ─── Body update operations ─────────────────────────────────────────
 
   it('handles body update with add operation', async () => {
-    mockBindAnnotation.mockResolvedValue(undefined);
-
     const { getEventBus } = renderBindFlow();
 
     const newBodyItem = {
@@ -117,8 +124,6 @@ describe('useBindFlow', () => {
   });
 
   it('handles body update with remove operation', async () => {
-    mockBindAnnotation.mockResolvedValue(undefined);
-
     const { getEventBus } = renderBindFlow();
 
     const oldBodyItem = {
@@ -133,7 +138,7 @@ describe('useBindFlow', () => {
         operations: [
           {
             op: 'remove',
-            oldItem: oldBodyItem,
+            item: oldBodyItem,
           },
         ],
       });
@@ -145,8 +150,6 @@ describe('useBindFlow', () => {
   });
 
   it('handles body update with replace operation', async () => {
-    mockBindAnnotation.mockResolvedValue(undefined);
-
     const { getEventBus } = renderBindFlow();
 
     act(() => {
@@ -156,8 +159,8 @@ describe('useBindFlow', () => {
         operations: [
           {
             op: 'replace',
-            oldItem: { type: 'SpecificResource', source: 'resource:123' },
-            newItem: { type: 'SpecificResource', source: 'resource:789' },
+            oldItem: { type: 'SpecificResource' as const, source: 'resource:123' },
+            newItem: { type: 'SpecificResource' as const, source: 'resource:789' },
           },
         ],
       });
@@ -169,8 +172,6 @@ describe('useBindFlow', () => {
   });
 
   it('emits bind:body-updated on successful update', async () => {
-    mockBindAnnotation.mockResolvedValue(undefined);
-
     const { getEventBus } = renderBindFlow();
 
     const bodyUpdatedSpy = vi.fn();
@@ -183,7 +184,7 @@ describe('useBindFlow', () => {
         operations: [
           {
             op: 'add',
-            item: { type: 'SpecificResource', source: 'resource:789' },
+            item: { type: 'SpecificResource' as const, source: 'resource:789' },
           },
         ],
       });
@@ -198,7 +199,11 @@ describe('useBindFlow', () => {
 
   it('emits bind:body-update-failed on API error', async () => {
     const testError = new Error('Network error');
-    mockBindAnnotation.mockRejectedValue(testError);
+
+    mockBindAnnotation.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
+      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: testError }));
+      return { close: vi.fn() };
+    });
 
     const { getEventBus } = renderBindFlow();
 
@@ -212,7 +217,7 @@ describe('useBindFlow', () => {
         operations: [
           {
             op: 'add',
-            item: { type: 'SpecificResource', source: 'resource:789' },
+            item: { type: 'SpecificResource' as const, source: 'resource:789' },
           },
         ],
       });
@@ -227,7 +232,11 @@ describe('useBindFlow', () => {
 
   it('shows error toast on body update failure', async () => {
     const testError = new Error('Failed to link reference');
-    mockBindAnnotation.mockRejectedValue(testError);
+
+    mockBindAnnotation.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
+      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: testError }));
+      return { close: vi.fn() };
+    });
 
     const { getEventBus } = renderBindFlow();
 
@@ -238,7 +247,7 @@ describe('useBindFlow', () => {
         operations: [
           {
             op: 'add',
-            item: { type: 'SpecificResource', source: 'resource:789' },
+            item: { type: 'SpecificResource' as const, source: 'resource:789' },
           },
         ],
       });
