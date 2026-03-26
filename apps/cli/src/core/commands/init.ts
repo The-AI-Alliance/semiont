@@ -269,7 +269,7 @@ async function init(
         console.log(`${colors.yellow}ℹ --no-git: git init will be skipped${colors.reset}`);
         console.log(`${colors.yellow}ℹ --no-git: git.sync will be set to false in .semiont/config${colors.reset}`);
         console.log(`${colors.yellow}ℹ --no-git: .semiont/config will NOT be staged (git add skipped)${colors.reset}`);
-        console.log(`${colors.yellow}ℹ --no-git: semiont yield/mv/archive will not stage files in the git index${colors.reset}`);
+        console.log(`${colors.yellow}ℹ --no-git: semiont yield/mv will not stage files in the git index${colors.reset}`);
       }
 
       // Write .semiont/config with project identity and site skeleton
