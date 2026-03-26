@@ -65,7 +65,7 @@ describe('EventBusClient', () => {
   // Browse Flow — Resources
   // ========================================================================
 
-  describe('getResource', () => {
+  describe('browseResource', () => {
     test('should return resource on success', async () => {
       const rId = resourceId('test-123');
       const mockResponse: components['schemas']['GetResourceResponse'] = {
@@ -103,7 +103,7 @@ describe('EventBusClient', () => {
     });
   });
 
-  describe('listResources', () => {
+  describe('browseResources', () => {
     test('should return resources list with options', async () => {
       const mockResponse: components['schemas']['ListResourcesResponse'] = {
         resources: [],

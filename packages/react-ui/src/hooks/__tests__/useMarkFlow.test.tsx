@@ -32,7 +32,7 @@ vi.mock('../../components/Toast', () => ({
 }));
 
 // Mock API client
-const mockCreateAnnotation = vi.fn();
+const mockMarkAnnotation = vi.fn();
 const mockDeleteAnnotation = vi.fn();
 
 vi.mock('../../contexts/ApiClientContext', async () => {
@@ -40,14 +40,14 @@ vi.mock('../../contexts/ApiClientContext', async () => {
   return {
     ...actual,
     useApiClient: () => ({
-      createAnnotation: mockCreateAnnotation,
+      markAnnotation: mockMarkAnnotation,
       deleteAnnotation: mockDeleteAnnotation,
       sse: {
-        annotateReferences: vi.fn(),
-        annotateTags: vi.fn(),
-        annotateHighlights: vi.fn(),
-        annotateAssessments: vi.fn(),
-        annotateComments: vi.fn(),
+        markReferences: vi.fn(),
+        markTags: vi.fn(),
+        markHighlights: vi.fn(),
+        markAssessments: vi.fn(),
+        markComments: vi.fn(),
       },
     }),
   };
@@ -90,7 +90,7 @@ describe('useMarkFlow', () => {
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();
-    mockCreateAnnotation.mockClear();
+    mockMarkAnnotation.mockClear();
     mockDeleteAnnotation.mockClear();
     vi.useFakeTimers();
   });

@@ -113,7 +113,7 @@ describe('API Hooks Authentication', () => {
   );
 
   describe('useResources queries', () => {
-    it('should pass auth token to listResources', async () => {
+    it('should pass auth token to browseResources', async () => {
       const { result } = renderHook(() => useResources(), { wrapper });
       const query = renderHook(() => result.current.list.useQuery(), { wrapper });
 
@@ -388,14 +388,14 @@ describe('API Hooks Authentication', () => {
       const query1 = renderHook(() => useResources().list.useQuery(), { wrapper });
       await waitFor(() => expect(query1.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.listResources).toHaveBeenLastCalledWith(
+      expect(mockClient.browseResources).toHaveBeenLastCalledWith(
         undefined,
         undefined,
         undefined,
         { auth: 'test-token' }
       );
 
-      mockClient.listResources.mockClear();
+      mockClient.browseResources.mockClear();
 
       // Rerender with new token
       const wrapperWithNewToken = ({ children }: { children: React.ReactNode }) => (
@@ -412,7 +412,7 @@ describe('API Hooks Authentication', () => {
       await waitFor(() => expect(query2.result.current.isSuccess).toBe(true));
 
       // Should use new token
-      expect(mockClient.listResources).toHaveBeenLastCalledWith(
+      expect(mockClient.browseResources).toHaveBeenLastCalledWith(
         undefined,
         undefined,
         undefined,

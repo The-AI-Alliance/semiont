@@ -50,10 +50,10 @@ describe('Detection Progress Dismissal Bug', () => {
       close: vi.fn(),
     };
 
-    vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue(mockStream);
-    vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue(mockStream);
-    vi.spyOn(SSEClient.prototype, 'annotateComments').mockReturnValue(mockStream);
-    vi.spyOn(SSEClient.prototype, 'annotateAssessments').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'markReferences').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'markComments').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'markAssessments').mockReturnValue(mockStream);
   });
 
   afterEach(() => {

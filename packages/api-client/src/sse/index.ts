@@ -110,7 +110,7 @@ export interface SSERequestOptions {
  *   baseUrl: 'http://localhost:4000'
  * });
  *
- * const stream = sseClient.annotateReferences(
+ * const stream = sseClient.markReferences(
  *   'http://localhost:4000/resources/doc-123',
  *   { entityTypes: ['Person', 'Organization'] },
  *   { auth: 'your-token' }
@@ -158,7 +158,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateReferences(
+   * const stream = sseClient.markReferences(
    *   'http://localhost:4000/resources/doc-123',
    *   { entityTypes: ['Person', 'Organization'] },
    *   { auth: 'your-token' }
@@ -219,7 +219,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.yieldResourceFromAnnotation(
+   * const stream = sseClient.yieldResource(
    *   'http://localhost:4000/resources/doc-123',
    *   'http://localhost:4000/annotations/ann-456',
    *   { language: 'es', title: 'Spanish Summary' },
@@ -281,7 +281,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateHighlights(
+   * const stream = sseClient.markHighlights(
    *   'http://localhost:4000/resources/doc-123',
    *   { instructions: 'Focus on key technical points' },
    *   { auth: 'your-token' }
@@ -341,7 +341,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateAssessments(
+   * const stream = sseClient.markAssessments(
    *   'http://localhost:4000/resources/doc-123',
    *   { instructions: 'Evaluate claims for accuracy' },
    *   { auth: 'your-token' }
@@ -403,7 +403,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateComments(
+   * const stream = sseClient.markComments(
    *   'http://localhost:4000/resources/doc-123',
    *   {
    *     instructions: 'Focus on technical terminology',
@@ -467,7 +467,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateTags(
+   * const stream = sseClient.markTags(
    *   'http://localhost:4000/resources/doc-123',
    *   {
    *     schemaId: 'legal-irac',

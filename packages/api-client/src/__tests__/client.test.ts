@@ -100,7 +100,7 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
   });
 
-  describe('listResources - filter by archived', () => {
+  describe('browseResources - filter by archived', () => {
     test('should list only active resources', async () => {
       const mockResponse = {
         resources: [

@@ -34,7 +34,7 @@ describe('useContextGatherFlow', () => {
   beforeEach(() => {
     eventBus = new EventBus();
     mockClient = {
-      getAnnotationLLMContext: vi.fn(),
+      gatherAnnotation: vi.fn(),
     } as unknown as vi.Mocked<SemiontApiClient>;
 
     // Clear all mocks before each test
@@ -70,7 +70,7 @@ describe('useContextGatherFlow', () => {
   });
 
   it('fetches context from API with correct parameters', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
+    mockClient.gatherAnnotation.mockResolvedValue({
       context: mockContext,
     });
 
@@ -89,7 +89,7 @@ describe('useContextGatherFlow', () => {
     });
 
     await waitFor(() => {
-      expect(mockClient.getAnnotationLLMContext).toHaveBeenCalledWith(
+      expect(mockClient.gatherAnnotation).toHaveBeenCalledWith(
         testResourceId,
         testAnnotationId,
         expect.objectContaining({
@@ -101,7 +101,7 @@ describe('useContextGatherFlow', () => {
   });
 
   it('emits gather:complete on success', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
+    mockClient.gatherAnnotation.mockResolvedValue({
       context: mockContext,
     });
 
@@ -133,7 +133,7 @@ describe('useContextGatherFlow', () => {
 
   it('emits gather:failed on error', async () => {
     const testError = new Error('API request failed');
-    mockClient.getAnnotationLLMContext.mockRejectedValue(testError);
+    mockClient.gatherAnnotation.mockRejectedValue(testError);
 
     renderHook(
       () => useContextGatherFlow(eventBus, {
@@ -162,7 +162,7 @@ describe('useContextGatherFlow', () => {
   });
 
   it('handles URI extraction correctly', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
+    mockClient.gatherAnnotation.mockResolvedValue({
       context: mockContext,
     });
 
@@ -181,7 +181,7 @@ describe('useContextGatherFlow', () => {
     });
 
     await waitFor(() => {
-      expect(mockClient.getAnnotationLLMContext).toHaveBeenCalledWith(
+      expect(mockClient.gatherAnnotation).toHaveBeenCalledWith(
         testResourceId,
         testAnnotationId, // Extracted from URI
         expect.any(Object)
@@ -197,7 +197,7 @@ describe('useContextGatherFlow', () => {
     });
 
     // First request resolves immediately
-    mockClient.getAnnotationLLMContext.mockResolvedValueOnce({
+    mockClient.gatherAnnotation.mockResolvedValueOnce({
       context: mockContext,
     });
 
@@ -222,7 +222,7 @@ describe('useContextGatherFlow', () => {
     });
 
     // Second request - use deferred promise so we can check state before it completes
-    mockClient.getAnnotationLLMContext.mockReturnValueOnce(secondRequestPromise as any);
+    mockClient.gatherAnnotation.mockReturnValueOnce(secondRequestPromise as any);
 
     const newAnnotationId = annotationId('anno-789');
 
@@ -252,7 +252,7 @@ describe('useContextGatherFlow', () => {
   });
 
   it('stores annotation URI for tracking', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
+    mockClient.gatherAnnotation.mockResolvedValue({
       context: mockContext,
     });
 
@@ -291,7 +291,7 @@ describe('useContextGatherFlow', () => {
       resolvePromise = resolve;
     });
 
-    mockClient.getAnnotationLLMContext.mockReturnValue(delayedPromise as any);
+    mockClient.gatherAnnotation.mockReturnValue(delayedPromise as any);
 
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
@@ -326,7 +326,7 @@ describe('useContextGatherFlow', () => {
 
   it('handles error state correctly', async () => {
     const testError = new Error('Network error');
-    mockClient.getAnnotationLLMContext.mockRejectedValue(testError);
+    mockClient.gatherAnnotation.mockRejectedValue(testError);
 
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
@@ -351,7 +351,7 @@ describe('useContextGatherFlow', () => {
   });
 
   it('handles null context response', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
+    mockClient.gatherAnnotation.mockResolvedValue({
       context: null,
     });
 

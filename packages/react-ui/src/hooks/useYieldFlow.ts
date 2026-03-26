@@ -51,7 +51,7 @@ export interface YieldFlowState {
  * @param resourceId - Resource ID for generation
  * @param clearNewAnnotationId - Clear animation callback
  * @emits yield:request - Start document generation
- * @subscribes yield:request - Triggers SSE call to yieldResourceFromAnnotation
+ * @subscribes yield:request - Triggers SSE call to yieldResource
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
  * @subscribes yield:progress - SSE progress chunks
  * @subscribes yield:finished - Generation completed successfully
