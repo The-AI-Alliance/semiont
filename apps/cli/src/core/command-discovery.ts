@@ -36,6 +36,7 @@ import { cleanCommand } from './commands/clean.js';
 import { mvCmd } from './commands/mv.js';
 import { yieldCmd } from './commands/yield.js';
 import { markCmd } from './commands/mark.js';
+import { gatherCmd } from './commands/gather.js';
 
 /**
  * Cache of loaded command definitions
@@ -66,6 +67,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'mv': mvCmd,
   'yield': yieldCmd,
   'mark': markCmd,
+  'gather': gatherCmd,
 };
 
 /**
