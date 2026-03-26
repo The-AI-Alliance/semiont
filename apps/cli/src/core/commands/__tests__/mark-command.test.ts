@@ -279,7 +279,6 @@ describe('runMark', () => {
 
   describe('delegate mode', () => {
     it('calls markHighlights for highlighting motivation', async () => {
-      const { EventBus } = await import('@semiont/core');
       // Intercept markHighlights and emit the finish event on the eventBus
       mockSse.markHighlights.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
