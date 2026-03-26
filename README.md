@@ -23,6 +23,15 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 
 **[Run Semiont locally](docs/LOCAL-SEMIONT.md)** using published npm packages — no need to clone this repository. Install the CLI, initialize a project, provision services, and start annotating.
 
+## Semiont Knowledge Bases
+
+Ready-to-run knowledge base repositories you can load directly into Semiont:
+
+- **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — Public domain literature from Project Gutenberg
+- **[synthetic_family](https://github.com/pingel-org/synthetic_family)** — A synthetic family dataset for testing and exploration
+
+More coming soon.
+
 ## Why Semiont
 
 **Eliminate Cold Starts** — Import a set of documents and the six flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
@@ -43,14 +52,6 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 - **[Gather](docs/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
 - **[Browse](docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
 - **[Beckon](docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
-
-## 🧪 Try Semiont
-
-**[semiont-workflows](https://github.com/The-AI-Alliance/semiont-workflows)** is a peer repository with a complete working Semiont environment: real datasets (Supreme Court opinions, scientific papers, case law), a four-phase processing pipeline (download → load → annotate → validate), and an interactive terminal UI. It is the fastest way to see Semiont running on realistic data.
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-workflows)
-
-[→ Visit semiont-workflows](https://github.com/The-AI-Alliance/semiont-workflows)
 
 ## 📦 Published Artifacts
 
