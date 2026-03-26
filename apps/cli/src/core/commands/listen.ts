@@ -53,9 +53,8 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
   const eventBus = new EventBus();
   let eventCount = 0;
 
-  // Print every event that arrives on the bus as NDJSON
-  // '*' is not a real event key — we subscribe to the catch-all make-meaning:event channel
-  eventBus.get('make-meaning:event' as any).subscribe((event: unknown) => {
+  // Print every domain event as NDJSON
+  eventBus.get('make-meaning:event').subscribe((event) => {
     eventCount++;
     process.stdout.write(JSON.stringify(event) + '\n');
   });
