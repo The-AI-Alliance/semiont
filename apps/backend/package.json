@@ -1,6 +1,6 @@
 {
   "name": "semiont-backend",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -32,10 +32,10 @@
     "@hono/swagger-ui": "^0.6.1",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
-    "@semiont/core": "^0.4.3",
-    "@semiont/event-sourcing": "^0.4.3",
-    "@semiont/jobs": "^0.4.3",
-    "@semiont/make-meaning": "^0.4.3",
+    "@semiont/core": "^0.4.4",
+    "@semiont/event-sourcing": "^0.4.4",
+    "@semiont/jobs": "^0.4.4",
+    "@semiont/make-meaning": "^0.4.4",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "argon2": "^0.44.0",

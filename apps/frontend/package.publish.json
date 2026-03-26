@@ -1,6 +1,6 @@
 {
   "name": "@semiont/frontend",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Semiont frontend server - pre-built Next.js standalone output",
   "bin": {
     "semiont-frontend": "standalone/apps/frontend/server.js"
