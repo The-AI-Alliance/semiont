@@ -10,32 +10,25 @@ import { ListenOptionsSchema, runListen, type ListenOptions } from '../listen.js
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { mockStream, mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+const { mockStream, mockSse, mockLoadCachedClient } = vi.hoisted(() => {
   const mockStream = { close: vi.fn() };
   const mockSse = {
     globalEvents: vi.fn(),
     resourceEvents: vi.fn(),
   };
-  const mockCreateAuthenticatedClient = vi.fn();
-  return { mockStream, mockSse, mockCreateAuthenticatedClient };
+  const mockLoadCachedClient = vi.fn();
+  return { mockStream, mockSse, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: mockCreateAuthenticatedClient,
-}));
-
-vi.mock('../../config-loader.js', () => ({
-  findProjectRoot: vi.fn(() => '/test/project/root'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    services: { backend: { publicURL: 'http://localhost:4000' } },
-  })),
+  resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
+  loadCachedClient: mockLoadCachedClient,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeOptions(overrides: Partial<ListenOptions> = {}): ListenOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -44,8 +37,6 @@ function makeOptions(overrides: Partial<ListenOptions> = {}): ListenOptions {
     preflight: false,
     args: [],
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
@@ -54,22 +45,22 @@ function makeOptions(overrides: Partial<ListenOptions> = {}): ListenOptions {
 
 describe('ListenOptionsSchema', () => {
   it('accepts no args (global listen)', () => {
-    const r = ListenOptionsSchema.safeParse({ environment: 'test', args: [] });
+    const r = ListenOptionsSchema.safeParse({ args: [] });
     expect(r.success).toBe(true);
   });
 
   it('accepts "resource <id>"', () => {
-    const r = ListenOptionsSchema.safeParse({ environment: 'test', args: ['resource', 'doc-1'] });
+    const r = ListenOptionsSchema.safeParse({ args: ['resource', 'doc-1'] });
     expect(r.success).toBe(true);
   });
 
   it('rejects unknown subcommand', () => {
-    const r = ListenOptionsSchema.safeParse({ environment: 'test', args: ['events'] });
+    const r = ListenOptionsSchema.safeParse({ args: ['unknown'] });
     expect(r.success).toBe(false);
   });
 
   it('rejects "resource" without resourceId', () => {
-    const r = ListenOptionsSchema.safeParse({ environment: 'test', args: ['resource'] });
+    const r = ListenOptionsSchema.safeParse({ args: ['resource'] });
     expect(r.success).toBe(false);
   });
 });
@@ -79,14 +70,12 @@ describe('ListenOptionsSchema', () => {
 describe('runListen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
     mockSse.globalEvents.mockReturnValue(mockStream);
     mockSse.resourceEvents.mockReturnValue(mockStream);
   });
 
   it('opens globalEvents for no-args listen and resolves on SIGINT', async () => {
-
-
     // Emit SIGINT after a tick to unblock the command
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
 
@@ -97,8 +86,6 @@ describe('runListen', () => {
   });
 
   it('opens resourceEvents for "resource <id>" and resolves on SIGINT', async () => {
-
-
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
 
     const result = await runListen(makeOptions({ args: ['resource', 'urn:semiont:resource:doc-1'] }));
@@ -108,14 +95,12 @@ describe('runListen', () => {
   });
 
   it('sets entity=global for global listen', async () => {
-
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
     const result = await runListen(makeOptions());
     expect(result.results[0]?.entity).toBe('global');
   });
 
   it('sets entity=resourceId for resource-scoped listen', async () => {
-
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
     const result = await runListen(makeOptions({ args: ['resource', 'urn:semiont:resource:doc-1'] }));
     expect(result.results[0]?.entity).toBe('urn:semiont:resource:doc-1');

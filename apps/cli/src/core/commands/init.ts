@@ -29,7 +29,7 @@ import { SemiontProject } from '@semiont/core/node';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { BaseOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { checkGitAvailable } from '../handlers/preflight-utils.js';
 
 
@@ -45,7 +45,6 @@ export const InitOptionsSchema = BaseOptionsSchema.extend({
   environments: z.array(z.string()).default(['local', 'test', 'staging', 'production']),
 }).transform((data) => ({
   ...data,
-  environment: data.environment || '_init_', // Dummy value - init doesn't use environment
   output: data.output === 'table' ? 'summary' : data.output, // Init doesn't support table output
 }));
 
@@ -351,7 +350,7 @@ export const initCommand = new CommandBuilder()
   .name('init')
   .description('Initialize a new Semiont project')
   .schema(InitOptionsSchema) // Schema types are compatible but TS can't infer it
-  .args(withBaseArgs({
+  .args(withOpsArgs({
     '--name': {
       type: 'string',
       description: 'Project name',

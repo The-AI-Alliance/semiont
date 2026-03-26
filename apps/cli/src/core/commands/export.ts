@@ -20,7 +20,7 @@ import { exportLinkedData } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
@@ -38,7 +38,7 @@ function createCliLogger(verbose: boolean): Logger {
 // SCHEMA
 // =====================================================================
 
-export const ExportOptionsSchema = BaseOptionsSchema.extend({
+export const ExportOptionsSchema = OpsOptionsSchema.extend({
   out: z.string().min(1, 'Output path is required'),
   includeArchived: z.boolean().optional().default(false),
 });

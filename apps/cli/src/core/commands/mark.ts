@@ -26,8 +26,8 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 import { printSuccess } from '../io/cli-logger.js';
-import { findProjectRoot } from '../config-loader.js';
-import { createAuthenticatedClient } from '../api-client-factory.js';
+
+import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
 import type { SemiontApiClient } from '@semiont/api-client';
 import type { AccessToken } from '@semiont/core';
@@ -289,10 +289,10 @@ async function runDelegate(
 
 export async function runMark(options: MarkOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  const projectRoot = findProjectRoot();
-  const environment = options.environment!;
+  
 
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
+  const rawBusUrl = resolveBusUrl(options.bus);
+  const { client, token } = loadCachedClient(rawBusUrl);
 
   // ── Delegate mode ────────────────────────────────────────────────────
   if (options.delegate) {
@@ -301,7 +301,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
     if (!options.quiet) process.stdout.write('\n');
     return {
       command: 'mark',
-      environment,
+      environment: rawBusUrl,
       timestamp: new Date(),
       duration: Date.now() - startTime,
       summary: { succeeded: result.createdCount, failed: 0, total: result.createdCount, warnings: 0 },
@@ -331,7 +331,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
 
   return {
     command: 'mark',
-    environment,
+    environment: rawBusUrl,
     timestamp: new Date(),
     duration: Date.now() - startTime,
     summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },

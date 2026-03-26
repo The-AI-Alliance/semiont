@@ -37,7 +37,7 @@ import * as path from 'path';
 import { createRequire } from 'module';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
@@ -78,7 +78,7 @@ function loadPrismaClient(projectRoot: string): import('@prisma/client').PrismaC
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-export const UseraddOptionsSchema = BaseOptionsSchema.extend({
+export const UseraddOptionsSchema = OpsOptionsSchema.extend({
   email: z.string().email().min(1, 'Email is required'),
   name: z.string().optional(),
   password: z.string().optional(),

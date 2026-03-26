@@ -10,18 +10,19 @@ import { YieldOptionsSchema, runYield, type YieldOptions } from '../yield.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { mockYieldResource, mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+const { mockYieldResource, mockSse, mockLoadCachedClient } = vi.hoisted(() => {
   const mockYieldResource = vi.fn();
   const mockSse = {
     gatherAnnotation: vi.fn(),
     yieldResource: vi.fn(),
   };
-  const mockCreateAuthenticatedClient = vi.fn();
-  return { mockYieldResource, mockSse, mockCreateAuthenticatedClient };
+  const mockLoadCachedClient = vi.fn();
+  return { mockYieldResource, mockSse, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: mockCreateAuthenticatedClient,
+  resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
+  loadCachedClient: mockLoadCachedClient,
 }));
 
 vi.mock('../../config-loader.js', () => ({
@@ -46,7 +47,6 @@ vi.mock('fs', async () => {
 
 function makeUploadOptions(overrides: Partial<YieldOptions> = {}): YieldOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -66,8 +66,6 @@ function makeUploadOptions(overrides: Partial<YieldOptions> = {}): YieldOptions 
     maxTokens: undefined,
     contextWindow: 1000,
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
@@ -88,7 +86,6 @@ function makeDelegateOptions(overrides: Partial<YieldOptions> = {}): YieldOption
 describe('YieldOptionsSchema', () => {
   it('accepts upload mode with one file', () => {
     const r = YieldOptionsSchema.safeParse({
-      environment: 'test',
       upload: ['docs/overview.md'],
     });
     expect(r.success).toBe(true);
@@ -101,7 +98,6 @@ describe('YieldOptionsSchema', () => {
 
   it('rejects when both upload and delegate are given', () => {
     const r = YieldOptionsSchema.safeParse({
-      environment: 'test',
       upload: ['docs/a.md'],
       delegate: true,
       resource: 'doc-1',
@@ -113,7 +109,6 @@ describe('YieldOptionsSchema', () => {
 
   it('rejects --name with multiple upload files', () => {
     const r = YieldOptionsSchema.safeParse({
-      environment: 'test',
       upload: ['a.md', 'b.md'],
       name: 'My Name',
     });
@@ -122,7 +117,6 @@ describe('YieldOptionsSchema', () => {
 
   it('rejects delegate without --resource', () => {
     const r = YieldOptionsSchema.safeParse({
-      environment: 'test',
       delegate: true,
       annotation: 'ann-1',
       storageUri: 'file://out.md',
@@ -132,7 +126,6 @@ describe('YieldOptionsSchema', () => {
 
   it('rejects delegate without --annotation', () => {
     const r = YieldOptionsSchema.safeParse({
-      environment: 'test',
       delegate: true,
       resource: 'doc-1',
       storageUri: 'file://out.md',
@@ -142,7 +135,6 @@ describe('YieldOptionsSchema', () => {
 
   it('rejects delegate without --storage-uri', () => {
     const r = YieldOptionsSchema.safeParse({
-      environment: 'test',
       delegate: true,
       resource: 'doc-1',
       annotation: 'ann-1',
@@ -152,7 +144,6 @@ describe('YieldOptionsSchema', () => {
 
   it('rejects temperature > 1', () => {
     const r = YieldOptionsSchema.safeParse({
-      environment: 'test',
       delegate: true,
       resource: 'doc-1',
       annotation: 'ann-1',
@@ -169,7 +160,7 @@ describe('runYield', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockYieldResource.mockResolvedValue({ resourceId: 'urn:semiont:resource:new-1' });
-    mockCreateAuthenticatedClient.mockResolvedValue({
+    mockLoadCachedClient.mockReturnValue({
       client: { yieldResource: mockYieldResource, sse: mockSse },
       token: 'mock-token',
     });

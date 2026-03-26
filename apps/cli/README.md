@@ -4,7 +4,14 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
 [![License](https://img.shields.io/npm/l/@semiont/cli.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The Semiont CLI provides two related capabilities: **knowledge-base operations** (annotating resources, gathering context, streaming events) and **infrastructure management** (service lifecycle, deployment, backup/restore).
+The Semiont CLI provides four categories of commands:
+
+| Category | Commands | Auth model |
+|----------|----------|------------|
+| **Credential** | `login` | Writes a cached token |
+| **Knowledge Work** | `browse`, `gather`, `mark`, `match`, `bind`, `listen`, `yield`, `beckon` | Reads the cached token (`--bus`) |
+| **Knowledge Base** | `init`, `backup`, `restore`, `verify`, `export`, `import` | None / `--environment` |
+| **Infrastructure** | `local`, `provision`, `start`, `stop`, `check`, `update`, `publish`, `mv`, `useradd`, `clean`, `watch` | `--environment` |
 
 ---
 
@@ -29,225 +36,158 @@ All commands support:
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--environment <env>` | `-e` | Target environment (required for most commands). Fallback: `defaults.environment` in `~/.semiontconfig` |
 | `--dry-run` | | Preview changes without applying |
 | `--verbose` | `-v` | Show detailed output |
 | `--quiet` | `-q` | Suppress progress output |
 | `--output <format>` | `-o` | `summary` \| `table` \| `json` \| `yaml` |
 
-### Connection Options (API commands only)
+---
 
-Commands that call the Semiont API (`browse`, `gather`, `mark`, `yield`, `bind`, `match`, `listen`) also accept:
+## Quick Start
+
+```bash
+# 1. Log in (once — token cached for 24 hours)
+semiont login --bus http://localhost:4000 --user alice@example.com
+
+# 2. Browse the knowledge base
+semiont browse resources
+
+# 3. Gather LLM context for a resource
+semiont gather resource <resourceId>
+
+# 4. Create an annotation
+semiont mark <resourceId> --motivation highlighting --quote "key phrase"
+```
+
+---
+
+## Command Categories
+
+### Credential — `login`
+
+Authenticates against a Semiont backend and caches a token. Run this once before using any API command.
+
+```bash
+semiont login --bus http://localhost:4000 --user alice@example.com
+semiont login --bus https://api.acme.com   # prompts for password interactively
+semiont login --refresh --bus https://api.acme.com
+```
+
+Token is cached at `$XDG_STATE_HOME/semiont/auth/<bus-slug>.json` and is valid for 24 hours. Multiple backends can be logged into simultaneously.
+
+See [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md) for the full credential resolution order.
+
+---
+
+### Knowledge Work Commands
+
+These commands call the Semiont backend. They require a cached token from `semiont login`.
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--bus <url>` | `-b` | Backend URL. Fallback: `$SEMIONT_BUS` → `services.backend.publicURL` in `~/.semiontconfig` |
-| `--user <email>` | | Login email. Fallback: `$SEMIONT_USER` → `[environments.<env>.auth] email` in `~/.semiontconfig` |
-| `--password <pw>` | | Login password. Fallback: `$SEMIONT_PASSWORD` → `[environments.<env>.auth] password` in `~/.semiontconfig` |
+| `--bus <url>` | `-b` | Backend URL. Fallback: `$SEMIONT_BUS` |
 
----
+For full details see [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md).
 
-## Knowledge Base Operations
-
-These commands interact with the Semiont backend API. They require a running backend service.
-
-### browse — Inspect the knowledge base
-
-Human-readable traversal of resources, annotations, references, and events. Output goes to stdout as JSON; progress labels go to stderr.
+**browse** — inspect resources, annotations, references, events
 
 ```bash
-# List resources
-semiont browse resources -e local
-semiont browse resources -e local --search "Paris"
-semiont browse resources -e local --entity-type Location --limit 20
-
-# Inspect a resource
-semiont browse resource <resourceId> -e local
-semiont browse resource <resourceId> -e local --annotations
-semiont browse resource <resourceId> -e local --references
-
-# Inspect an annotation
-semiont browse annotation <resourceId> <annotationId> -e local
-
-# See what resources link to this one
-semiont browse references <resourceId> -e local
-
-# Event log and annotation audit trail
-semiont browse events <resourceId> -e local
-semiont browse history <resourceId> <annotationId> -e local
-
-# Available entity types
-semiont browse entity-types -e local
-
-# Composable with jq
-semiont browse resources -e local | jq '.[][\"@id\"]'
-semiont browse entity-types -e local | jq '.[].tag'
+semiont browse resources
+semiont browse resource <resourceId> --annotations
+semiont browse annotation <resourceId> <annotationId>
+semiont browse entity-types
 ```
 
-### gather — Fetch LLM-optimised context
-
-Fetches a resource or annotation and returns structured context suitable for LLM pipelines (JSON to stdout).
+**gather** — fetch LLM-optimised context
 
 ```bash
-semiont gather <resourceId> -e local
-semiont gather <resourceId> --annotation <annotationId> -e local
+semiont gather resource <resourceId>
+semiont gather annotation <resourceId> <annotationId>
 ```
 
-Use `gather` (not `browse`) when feeding context into AI pipelines.
-
-### mark — Create an annotation
-
-Creates a W3C annotation on a resource. Operates in manual mode by default or AI-assisted delegate mode with `--delegate`.
+**mark** — create W3C annotations (manual or AI-delegate)
 
 ```bash
-# Manual annotation
-semiont mark <resourceId> --motivation tagging --body '{"value":"important"}' -e local
-
-# AI-assisted: gather context and let the model draft the annotation
-semiont mark <resourceId> --delegate -e local
+semiont mark <resourceId> --motivation highlighting --quote "key phrase"
+semiont mark <resourceId> --motivation linking --delegate --entity-type Person
 ```
 
-### yield — Upload or generate a resource
-
-Uploads a local file as a new resource, or generates a new resource from gathered context.
+**match / bind** — find and resolve linking annotations
 
 ```bash
-# Upload a file
-semiont yield --upload ./paper.pdf -e local
-
-# AI-generated resource from gathered context
-semiont yield --delegate <resourceId> -e local
+semiont match <resourceId> <annotationId>
+semiont bind <resourceId> <annotationId> <targetResourceId>
 ```
 
-### bind — Resolve a linking annotation
-
-Resolves a linking annotation to a target resource.
+**listen** — stream domain events as NDJSON
 
 ```bash
-semiont bind <resourceId> <annotationId> --target <targetResourceId> -e local
+semiont listen
+semiont listen resource <resourceId>
 ```
 
-### match — Find binding candidates
-
-Searches for candidate resources to bind to a linking annotation.
+**yield** — upload or AI-generate a resource
 
 ```bash
-semiont match <resourceId> <annotationId> -e local
+semiont yield --upload ./paper.pdf
+semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://out.md
 ```
 
-### listen — Stream domain events
-
-Opens a persistent SSE connection and prints domain events as NDJSON (one event per line). Runs until Ctrl-C or the server closes the connection.
+**beckon** — direct a participant's attention
 
 ```bash
-# All system events
-semiont listen -e local
-
-# Events for a specific resource
-semiont listen resource <resourceId> -e local
-
-# Composable
-semiont listen -e local | jq .type
-semiont listen resource <resourceId> -e local | grep annotation
-```
-
-### beckon — Direct attention *(backend endpoint pending)*
-
-Directs a participant's attention to a resource or annotation.
-
-```bash
-semiont beckon <resourceId> -e local
+semiont beckon <resourceId>
 ```
 
 ---
 
-## Infrastructure Management
+### Knowledge Base Commands
+
+These commands manage the knowledge base itself. `init` needs no flags; the others take `--environment`.
+
+For full details see [Knowledge Base Commands](./docs/KNOWLEDGE-BASE.md).
+
+```bash
+semiont init
+semiont backup -e production --out backup.tar.gz
+semiont restore -e production --file backup.tar.gz
+semiont verify --file backup.tar.gz
+semiont export -e local --out export.json
+semiont import -e local --file export.json
+```
+
+---
+
+### Infrastructure Commands
+
+These commands manage service lifecycle and deployment. They require `--environment` (or a default set in `~/.semiontconfig`).
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--environment <env>` | `-e` | Target environment. Fallback: `defaults.environment` in `~/.semiontconfig` |
 
 For full details see [Infrastructure Commands](./docs/INFRASTRUCTURE.md).
 
-### Service lifecycle
-
 ```bash
-semiont init -e local                     # Initialize a new project
-semiont provision -e local                # Provision infrastructure resources
-semiont start -e local                    # Start all services
-semiont start -e local --service backend  # Start one service
-semiont check -e local                    # Health check
-semiont stop -e local                     # Stop all services
-semiont watch -e local                    # Live web dashboard (port 3333)
-```
+# Service lifecycle
+semiont provision -e local
+semiont start -e local
+semiont check -e local
+semiont stop -e local
+semiont watch -e local
 
-Available service names: `frontend`, `backend`, `database`, `graph`, `event-store`, `projection`, `filesystem`, `inference`, `mcp`.
-
-Platforms: `posix` (local OS), `container` (Docker/Podman), `aws`, `external`, `mock`.
-
-### Deployment
-
-```bash
-# Build and push artifacts (does NOT deploy)
-semiont publish --service frontend -e production
-
-# Deploy what publish prepared
-semiont update --service frontend -e production
-```
-
-### Backup, restore, and verify
-
-```bash
-semiont backup -e production --out backup.tar.gz
-semiont restore -e production --file backup.tar.gz
-semiont verify --file backup.tar.gz          # no environment needed
-```
-
-The archive contains `.semiont/manifest.jsonl`, per-resource event streams, and content blobs. `restore` replays events through EventBus + Stower so materialized views rebuild naturally.
-
-### Other commands
-
-```bash
-semiont local start / stop / status       # Local dev environment
+# Administration
 semiont useradd -e local --email user@example.com
-semiont export -e local --out export.json
-semiont import -e local --file export.json
 semiont clean -e local
 ```
 
 ---
 
-## Environment Configuration
-
-Environments are configured in `~/.semiontconfig`:
-
-```toml
-[defaults]
-environment = "local"
-
-[environments.local.services.backend]
-publicURL = "http://localhost:4000"
-
-[environments.local.auth]
-email = "you@example.com"
-password = "secret"
-
-[environments.local.database]
-host = "localhost"
-port = 5432
-name = "semiont_local"
-user = "postgres"
-password = "${POSTGRES_PASSWORD}"
-
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-apiKey = "${ANTHROPIC_API_KEY}"
-```
-
-See [Managing Environments](./docs/ADDING_ENVIRONMENTS.md) for the full schema.
-
----
-
 ## Further Reading
 
-- [Infrastructure Commands](./docs/INFRASTRUCTURE.md) — service lifecycle, deployment, backup/restore, MCP
+- [Knowledge Work Commands](./docs/KNOWLEDGE-WORK.md) — login, browse, gather, mark, match, bind, listen, yield, beckon
+- [Knowledge Base Commands](./docs/KNOWLEDGE-BASE.md) — init, backup, restore, verify, export, import
+- [Infrastructure Commands](./docs/INFRASTRUCTURE.md) — service lifecycle, deployment, administration
 - [Architecture Overview](./docs/ARCHITECTURE.md)
 - [Managing Environments](./docs/ADDING_ENVIRONMENTS.md)
 - [Adding Commands](./docs/ADDING_COMMANDS.md)

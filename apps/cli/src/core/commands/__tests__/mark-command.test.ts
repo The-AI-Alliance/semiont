@@ -10,7 +10,7 @@ import { MarkOptionsSchema, runMark, type MarkOptions } from '../mark.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { mockMarkAnnotation, mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+const { mockMarkAnnotation, mockSse, mockLoadCachedClient } = vi.hoisted(() => {
   const mockMarkAnnotation = vi.fn();
   const mockSse = {
     markHighlights: vi.fn(),
@@ -19,26 +19,19 @@ const { mockMarkAnnotation, mockSse, mockCreateAuthenticatedClient } = vi.hoiste
     markReferences: vi.fn(),
     markTags: vi.fn(),
   };
-  const mockCreateAuthenticatedClient = vi.fn();
-  return { mockMarkAnnotation, mockSse, mockCreateAuthenticatedClient };
+  const mockLoadCachedClient = vi.fn();
+  return { mockMarkAnnotation, mockSse, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: mockCreateAuthenticatedClient,
-}));
-
-vi.mock('../../config-loader.js', () => ({
-  findProjectRoot: vi.fn(() => '/test/project/root'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    services: { backend: { publicURL: 'http://localhost:4000' } },
-  })),
+  resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
+  loadCachedClient: mockLoadCachedClient,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeManualOptions(overrides: Partial<MarkOptions> = {}): MarkOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -70,8 +63,6 @@ function makeManualOptions(overrides: Partial<MarkOptions> = {}): MarkOptions {
     schemaId: undefined,
     category: [],
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
@@ -89,7 +80,6 @@ function makeDelegateOptions(overrides: Partial<MarkOptions> = {}): MarkOptions 
 describe('MarkOptionsSchema', () => {
   it('accepts valid manual highlighting', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'highlighting',
       delegate: false,
@@ -99,7 +89,6 @@ describe('MarkOptionsSchema', () => {
 
   it('rejects missing motivation', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
     });
     expect(r.success).toBe(false);
@@ -107,7 +96,6 @@ describe('MarkOptionsSchema', () => {
 
   it('rejects invalid motivation', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'bookmarking',
     });
@@ -116,7 +104,6 @@ describe('MarkOptionsSchema', () => {
 
   it('rejects --quote with --delegate', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'highlighting',
       delegate: true,
@@ -127,7 +114,6 @@ describe('MarkOptionsSchema', () => {
 
   it('rejects delegate --motivation linking without --entity-type', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'linking',
       delegate: true,
@@ -137,7 +123,6 @@ describe('MarkOptionsSchema', () => {
 
   it('accepts delegate --motivation linking with --entity-type', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'linking',
       delegate: true,
@@ -148,7 +133,6 @@ describe('MarkOptionsSchema', () => {
 
   it('rejects delegate --motivation tagging without --schema-id', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'tagging',
       delegate: true,
@@ -159,7 +143,6 @@ describe('MarkOptionsSchema', () => {
 
   it('rejects delegate --motivation tagging without --category', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'tagging',
       delegate: true,
@@ -170,7 +153,6 @@ describe('MarkOptionsSchema', () => {
 
   it('accepts delegate --motivation tagging with schema-id and category', () => {
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'tagging',
       delegate: true,
@@ -185,7 +167,6 @@ describe('MarkOptionsSchema', () => {
     // but start + svg is also runtime-only. Schema only validates the zod rules.
     // Selector mutual-exclusivity is in runMark, not schema — this is expected.
     const r = MarkOptionsSchema.safeParse({
-      environment: 'test',
       resourceIdArr: ['doc-1'],
       motivation: 'highlighting',
       quote: 'text',
@@ -201,7 +182,7 @@ describe('runMark', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMarkAnnotation.mockResolvedValue({ annotationId: 'urn:semiont:annotation:new-1' });
-    mockCreateAuthenticatedClient.mockResolvedValue({
+    mockLoadCachedClient.mockReturnValue({
       client: { markAnnotation: mockMarkAnnotation, sse: mockSse },
       token: 'mock-token',
     });

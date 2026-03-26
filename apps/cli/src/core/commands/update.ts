@@ -25,7 +25,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -34,7 +34,7 @@ import { HandlerResult } from '../handlers/types.js';
 // SCHEMA DEFINITIONS
 // =====================================================================
 
-const UpdateOptionsSchema = BaseOptionsSchema.extend({
+const UpdateOptionsSchema = OpsOptionsSchema.extend({
   service: z.string().optional(),
   force: z.boolean().default(false),
   wait: z.boolean().default(false),

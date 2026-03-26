@@ -21,7 +21,6 @@ vi.mock('readline', () => ({
 // Helper to create complete InitOptions with defaults
 function createInitOptions(partial: Partial<InitOptions> = {}): InitOptions {
   return {
-    environment: 'none',
     verbose: false,
     dryRun: false,
     quiet: false,

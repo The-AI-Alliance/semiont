@@ -21,14 +21,14 @@ import { execFileSync } from 'child_process';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { ensureGlobalConfig } from './init.js';
 
 // =====================================================================
 // SCHEMA
 // =====================================================================
 
-const LocalOptionsSchema = BaseOptionsSchema.extend({
+const LocalOptionsSchema = OpsOptionsSchema.extend({
   directory: z.string().optional(),
   yes: z.boolean().default(false),
 }).transform((data) => ({
@@ -378,7 +378,7 @@ export const localCommand = new CommandBuilder()
   .name('local')
   .description('Set up and start Semiont locally (init + provision + start + useradd)')
   .schema(LocalOptionsSchema)
-  .args(withBaseArgs({
+  .args(withOpsArgs({
     '--directory': {
       type: 'string',
       description: 'Project directory (default: cwd)',

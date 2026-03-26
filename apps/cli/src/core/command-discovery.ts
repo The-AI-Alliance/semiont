@@ -42,6 +42,7 @@ import { bindCmd } from './commands/bind.js';
 import { beckonCmd } from './commands/beckon.js';
 import { browseCmd } from './commands/browse.js';
 import { listenCmd } from './commands/listen.js';
+import { loginCmd } from './commands/login.js';
 
 /**
  * Cache of loaded command definitions
@@ -78,6 +79,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'beckon': beckonCmd,
   'browse': browseCmd,
   'listen': listenCmd,
+  'login': loginCmd,
 };
 
 /**

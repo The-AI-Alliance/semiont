@@ -16,7 +16,7 @@ import type { StoredEvent } from '@semiont/core';
 import { isBackupManifest, validateManifestVersion, BACKUP_FORMAT } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema } from '../base-options-schema.js';
 import { printInfo, printSuccess, printWarning, printError } from '../io/cli-logger.js';
 
 // Inline tar reader import — we need readTarGz from make-meaning's exchange internals,
@@ -70,7 +70,7 @@ async function readTarGzEntries(input: Readable): Promise<Map<string, Buffer>> {
 // SCHEMA
 // =====================================================================
 
-export const VerifyOptionsSchema = BaseOptionsSchema.extend({
+export const VerifyOptionsSchema = OpsOptionsSchema.extend({
   file: z.string().min(1, 'File path is required'),
 });
 

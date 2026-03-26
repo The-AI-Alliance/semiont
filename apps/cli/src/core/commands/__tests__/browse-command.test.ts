@@ -2,7 +2,7 @@
  * Browse Command Tests
  *
  * Tests schema validation and subcommand routing.
- * Mocks createAuthenticatedClient to avoid network I/O.
+ * Mocks loadCachedClient to avoid network I/O.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -10,7 +10,7 @@ import { BrowseOptionsSchema, runBrowse, type BrowseOptions } from '../browse.js
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { mockClient, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+const { mockClient, mockLoadCachedClient } = vi.hoisted(() => {
   const mockClient = {
     browseResources: vi.fn(),
     browseResource: vi.fn(),
@@ -21,26 +21,19 @@ const { mockClient, mockCreateAuthenticatedClient } = vi.hoisted(() => {
     getAnnotationHistory: vi.fn(),
     listEntityTypes: vi.fn(),
   };
-  const mockCreateAuthenticatedClient = vi.fn();
-  return { mockClient, mockCreateAuthenticatedClient };
+  const mockLoadCachedClient = vi.fn();
+  return { mockClient, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: mockCreateAuthenticatedClient,
-}));
-
-vi.mock('../../config-loader.js', () => ({
-  findProjectRoot: vi.fn(() => '/test/project/root'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    services: { backend: { publicURL: 'http://localhost:4000' } },
-  })),
+  resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
+  loadCachedClient: mockLoadCachedClient,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeOptions(overrides: Partial<BrowseOptions> = {}): BrowseOptions {
   return {
-    environment: 'test',
     verbose: false,
     dryRun: false,
     quiet: true,
@@ -54,8 +47,6 @@ function makeOptions(overrides: Partial<BrowseOptions> = {}): BrowseOptions {
     annotations: false,
     references: false,
     bus: undefined,
-    user: undefined,
-    password: undefined,
     ...overrides,
   };
 }
@@ -64,52 +55,52 @@ function makeOptions(overrides: Partial<BrowseOptions> = {}): BrowseOptions {
 
 describe('BrowseOptionsSchema', () => {
   it('accepts "resources" subcommand', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['resources'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['resources'] });
     expect(r.success).toBe(true);
   });
 
   it('rejects unknown subcommand', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['foobar'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['unknown'] });
     expect(r.success).toBe(false);
   });
 
   it('rejects "resource" without resourceId', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['resource'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['resource'] });
     expect(r.success).toBe(false);
   });
 
   it('accepts "resource <id>"', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['resource', 'doc-1'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['resource', 'doc-1'] });
     expect(r.success).toBe(true);
   });
 
   it('rejects "annotation" without both ids', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['annotation', 'doc-1'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['annotation', 'doc-1'] });
     expect(r.success).toBe(false);
   });
 
   it('accepts "annotation <resourceId> <annotationId>"', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['annotation', 'doc-1', 'ann-1'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['annotation', 'doc-1', 'ann-1'] });
     expect(r.success).toBe(true);
   });
 
   it('rejects "references" without resourceId', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['references'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['references'] });
     expect(r.success).toBe(false);
   });
 
   it('rejects "events" without resourceId', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['events'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['events'] });
     expect(r.success).toBe(false);
   });
 
   it('rejects "history" without annotationId', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['history', 'doc-1'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['history', 'doc-1'] });
     expect(r.success).toBe(false);
   });
 
   it('accepts "entity-types"', () => {
-    const r = BrowseOptionsSchema.safeParse({ environment: 'test', args: ['entity-types'] });
+    const r = BrowseOptionsSchema.safeParse({ args: ['entity-types'] });
     expect(r.success).toBe(true);
   });
 });
@@ -119,7 +110,7 @@ describe('BrowseOptionsSchema', () => {
 describe('runBrowse', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateAuthenticatedClient.mockResolvedValue({ client: mockClient, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ client: mockClient, token: 'mock-token' });
     mockClient.browseResources.mockResolvedValue({ resources: [], total: 0 });
     mockClient.browseResource.mockResolvedValue({ name: 'Doc 1', '@id': 'doc-1' });
     mockClient.browseAnnotations.mockResolvedValue({ annotations: [] });

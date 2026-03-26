@@ -14,8 +14,8 @@ import type { components } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
-import { findProjectRoot } from '../config-loader.js';
-import { createAuthenticatedClient } from '../api-client-factory.js';
+
+import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 
 // =====================================================================
 // SCHEMA
@@ -70,12 +70,10 @@ function waitForGatherAnnotationFinished(eventBus: EventBus): Promise<components
 
 export async function runGather(options: GatherOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  const projectRoot = findProjectRoot();
-  const environment = options.environment!;
+  const rawBusUrl = resolveBusUrl(options.bus);
+  const { client, token } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId, rawAnnotationId] = options.args;
-
-  const { client, token } = await createAuthenticatedClient(projectRoot, environment, { bus: options.bus, user: options.user, password: options.password });
 
   let result: unknown;
 
@@ -118,7 +116,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
   return {
     command: 'gather',
-    environment,
+    environment: rawBusUrl,
     timestamp: new Date(),
     duration: Date.now() - startTime,
     summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
