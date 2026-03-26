@@ -21,7 +21,7 @@ import { useBindFlow } from '../../../hooks/useBindFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, SSEClient } from '@semiont/api-client';
 import { resourceId, accessToken, annotationId } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
