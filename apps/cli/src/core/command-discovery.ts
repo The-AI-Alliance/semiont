@@ -40,6 +40,7 @@ import { gatherCmd } from './commands/gather.js';
 import { matchCmd } from './commands/match.js';
 import { bindCmd } from './commands/bind.js';
 import { beckonCmd } from './commands/beckon.js';
+import { browseCmd } from './commands/browse.js';
 
 /**
  * Cache of loaded command definitions
@@ -74,6 +75,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'match': matchCmd,
   'bind': bindCmd,
   'beckon': beckonCmd,
+  'browse': browseCmd,
 };
 
 /**
