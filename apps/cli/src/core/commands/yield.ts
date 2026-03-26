@@ -159,8 +159,8 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
         // New file — emit yield:create (CLI path: no content, file already on disk)
         const name = options.name ?? path.basename(filePath, path.extname(filePath));
         const created = await new Promise<string>((resolve, reject) => {
-          const sub = eventBus.get('yield:created').subscribe(e => { sub.unsubscribe(); resolve(e.resourceId); });
-          eventBus.get('yield:create-failed').subscribe(e => reject(e.error));
+          const okSub = eventBus.get('yield:created').subscribe(e => { okSub.unsubscribe(); failSub.unsubscribe(); resolve(e.resourceId); });
+          const failSub = eventBus.get('yield:create-failed').subscribe(e => { okSub.unsubscribe(); failSub.unsubscribe(); reject(e.error); });
           eventBus.get('yield:create').next({ name, storageUri, contentChecksum, format, userId, noGit: options.noGit });
         });
 
@@ -179,8 +179,8 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
 
         // Content changed — emit yield:update (file already on disk)
         const updated = await new Promise<void>((resolve, reject) => {
-          const sub = eventBus.get('yield:updated').subscribe(() => { sub.unsubscribe(); resolve(); });
-          eventBus.get('yield:update-failed').subscribe(e => reject(e.error));
+          const okSub = eventBus.get('yield:updated').subscribe(() => { okSub.unsubscribe(); failSub.unsubscribe(); resolve(); });
+          const failSub = eventBus.get('yield:update-failed').subscribe(e => { okSub.unsubscribe(); failSub.unsubscribe(); reject(e.error); });
           eventBus.get('yield:update').next({
             resourceId: toResourceId(existingResourceId!),
             storageUri,
