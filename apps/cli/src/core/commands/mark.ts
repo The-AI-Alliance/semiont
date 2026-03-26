@@ -13,11 +13,11 @@
  *   semiont mark <resourceId> --motivation highlighting --quote "some text" --fetch-content
  *   semiont mark <resourceId> --motivation highlighting --start 10 --end 25 --fetch-content
  *
- * DETECT mode — ask the backend to auto-annotate a resource using AI:
- *   semiont mark <resourceId> --detect --motivation highlighting
- *   semiont mark <resourceId> --detect --motivation assessing --tone analytical --density 4
- *   semiont mark <resourceId> --detect --motivation linking --entity-type Location --entity-type Person
- *   semiont mark <resourceId> --detect --motivation tagging --schema-id <id> --category Biology
+ * DELEGATE mode — ask the backend to auto-annotate a resource using AI:
+ *   semiont mark <resourceId> --delegate --motivation highlighting
+ *   semiont mark <resourceId> --delegate --motivation assessing --tone analytical --density 4
+ *   semiont mark <resourceId> --delegate --motivation linking --entity-type Location --entity-type Person
+ *   semiont mark <resourceId> --delegate --motivation tagging --schema-id <id> --category Biology
  */
 
 import { z } from 'zod';
@@ -49,7 +49,7 @@ export const MarkOptionsSchema = BaseOptionsSchema.extend({
   motivation: z.enum(MOTIVATIONS),
 
   // ── Mode switch ──────────────────────────────────────────────────────
-  detect: z.boolean().default(false),
+  delegate: z.boolean().default(false),
 
   // ── Manual mode ──────────────────────────────────────────────────────
   // TextQuoteSelector
@@ -73,34 +73,34 @@ export const MarkOptionsSchema = BaseOptionsSchema.extend({
   bodyPurpose: z.string().optional(),
   link: z.array(z.string()).optional(),
 
-  // ── Detect mode: shared ──────────────────────────────────────────────
+  // ── Delegate mode: shared ──────────────────────────────────────────────
   instructions: z.string().optional(),
   density: z.coerce.number().int().optional(),
   tone: z.string().optional(),
 
-  // ── Detect mode: linking ─────────────────────────────────────────────
+  // ── Delegate mode: linking ─────────────────────────────────────────────
   entityType: z.array(z.string()).default([]),
   includeDescriptive: z.boolean().default(false),
 
-  // ── Detect mode: tagging ─────────────────────────────────────────────
+  // ── Delegate mode: tagging ─────────────────────────────────────────────
   schemaId: z.string().optional(),
   category: z.array(z.string()).default([]),
 
 }).superRefine((val, ctx) => {
-  if (val.detect) {
+  if (val.delegate) {
     const manualFlags = ['quote', 'start', 'end', 'svg', 'fragment', 'fetchContent', 'bodyText', 'link'] as const;
     for (const f of manualFlags) {
       const v = val[f];
       if (v !== undefined && v !== false && !(Array.isArray(v) && v.length === 0)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `--${f.replace(/([A-Z])/g, '-$1').toLowerCase()} cannot be used with --detect` });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `--${f.replace(/([A-Z])/g, '-$1').toLowerCase()} cannot be used with --delegate` });
       }
     }
     if (val.motivation === 'linking' && val.entityType.length === 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--entity-type is required for --detect --motivation linking' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--entity-type is required for --delegate --motivation linking' });
     }
     if (val.motivation === 'tagging') {
-      if (!val.schemaId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--schema-id is required for --detect --motivation tagging' });
-      if (val.category.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--category is required for --detect --motivation tagging' });
+      if (!val.schemaId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--schema-id is required for --delegate --motivation tagging' });
+      if (val.category.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--category is required for --delegate --motivation tagging' });
     }
   }
 });
@@ -222,7 +222,7 @@ function buildBody(options: MarkOptions): CreateAnnotationRequest['body'] {
 }
 
 // =====================================================================
-// DETECT MODE
+// DELEGATE MODE
 // =====================================================================
 
 function waitForAssistFinished(eventBus: EventBus): Promise<{ motivation?: string; resourceId?: string; createdCount?: number }> {
@@ -244,7 +244,7 @@ function waitForAssistFinished(eventBus: EventBus): Promise<{ motivation?: strin
   });
 }
 
-async function runDetect(
+async function runDelegate(
   client: SemiontApiClient,
   token: AccessToken,
   options: MarkOptions,
@@ -294,9 +294,9 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
 
   const { client, token } = await createAuthenticatedClient(projectRoot, environment);
 
-  // ── Detect mode ────────────────────────────────────────────────────
-  if (options.detect) {
-    const result = await runDetect(client, token, options);
+  // ── Delegate mode ────────────────────────────────────────────────────
+  if (options.delegate) {
+    const result = await runDelegate(client, token, options);
     process.stdout.write(JSON.stringify(result));
     if (!options.quiet) process.stdout.write('\n');
     return {
@@ -349,8 +349,8 @@ export const markCmd = new CommandBuilder()
   .description(
     'Create a W3C annotation on a resource. ' +
     'Manual mode (default): create a single explicitly-specified annotation. ' +
-    'Detect mode (--detect): AI-assisted bulk annotation via SSE stream. ' +
-    'Outputs JSON { motivation, resourceId, createdCount } in detect mode.'
+    'Delegate mode (--delegate): AI-assisted bulk annotation via SSE stream. ' +
+    'Outputs JSON { motivation, resourceId, createdCount } in delegate mode.'
   )
   .requiresEnvironment(true)
   .requiresServices(true)
@@ -362,13 +362,13 @@ export const markCmd = new CommandBuilder()
     'semiont mark <resourceId> --motivation linking --quote "some text" --link <targetResourceId>',
     'semiont mark <resourceId> --motivation tagging --quote "Einstein" --body-text "Person"',
     // Detect mode
-    'semiont mark <resourceId> --detect --motivation highlighting',
-    'semiont mark <resourceId> --detect --motivation highlighting --instructions "Focus on key claims" --density 8',
-    'semiont mark <resourceId> --detect --motivation assessing --tone analytical --density 4',
-    'semiont mark <resourceId> --detect --motivation commenting --tone scholarly',
-    'semiont mark <resourceId> --detect --motivation linking --entity-type Location --entity-type Person',
-    'semiont mark <resourceId> --detect --motivation linking --entity-type Location --include-descriptive',
-    'semiont mark <resourceId> --detect --motivation tagging --schema-id <schemaId> --category Biology --category Chemistry',
+    'semiont mark <resourceId> --delegate --motivation highlighting',
+    'semiont mark <resourceId> --delegate --motivation highlighting --instructions "Focus on key claims" --density 8',
+    'semiont mark <resourceId> --delegate --motivation assessing --tone analytical --density 4',
+    'semiont mark <resourceId> --delegate --motivation commenting --tone scholarly',
+    'semiont mark <resourceId> --delegate --motivation linking --entity-type Location --entity-type Person',
+    'semiont mark <resourceId> --delegate --motivation linking --entity-type Location --include-descriptive',
+    'semiont mark <resourceId> --delegate --motivation tagging --schema-id <schemaId> --category Biology --category Chemistry',
   )
   .args({
     ...withBaseArgs({
@@ -377,9 +377,9 @@ export const markCmd = new CommandBuilder()
         description: `Annotation motivation: ${MOTIVATIONS.join(', ')}`,
       },
       // ── Mode switch ───────────────────────────────────────────────────
-      '--detect': {
+      '--delegate': {
         type: 'boolean',
-        description: 'Enable AI-assisted bulk annotation mode (detect mode)',
+        description: 'Delegate annotation work to AI (request mode); incompatible with manual selector flags',
         default: false,
       },
       // ── Manual mode options ───────────────────────────────────────────
@@ -440,37 +440,37 @@ export const markCmd = new CommandBuilder()
         type: 'array',
         description: 'Manual: SpecificResource body target resourceId to link to (repeatable)',
       },
-      // ── Detect mode: shared ───────────────────────────────────────────
+      // ── Delegate mode: shared ───────────────────────────────────────────
       '--instructions': {
         type: 'string',
-        description: 'Detect: free-text instructions for the AI (highlighting, assessing, commenting)',
+        description: 'Delegate: free-text instructions for the AI (highlighting, assessing, commenting)',
       },
       '--density': {
         type: 'string',
-        description: 'Detect: annotations per 2000 words (highlighting: 1–15; assessing: 1–10; commenting: 2–12)',
+        description: 'Delegate: annotations per 2000 words (highlighting: 1–15; assessing: 1–10; commenting: 2–12)',
       },
       '--tone': {
         type: 'string',
-        description: 'Detect: tone for assessing (analytical|critical|balanced|constructive) or commenting (scholarly|explanatory|conversational|technical)',
+        description: 'Delegate: tone for assessing (analytical|critical|balanced|constructive) or commenting (scholarly|explanatory|conversational|technical)',
       },
-      // ── Detect mode: linking ──────────────────────────────────────────
+      // ── Delegate mode: linking ──────────────────────────────────────────
       '--entity-type': {
         type: 'array',
-        description: 'Detect linking: entity type to detect (repeatable; at least one required)',
+        description: 'Delegate linking: entity type to detect (repeatable; at least one required)',
       },
       '--include-descriptive': {
         type: 'boolean',
-        description: 'Detect linking: also detect descriptive/prose references',
+        description: 'Delegate linking: also detect descriptive/prose references',
         default: false,
       },
-      // ── Detect mode: tagging ──────────────────────────────────────────
+      // ── Delegate mode: tagging ──────────────────────────────────────────
       '--schema-id': {
         type: 'string',
-        description: 'Detect tagging: tag schema ID (required)',
+        description: 'Delegate tagging: tag schema ID (required)',
       },
       '--category': {
         type: 'array',
-        description: 'Detect tagging: category within the schema (repeatable; at least one required)',
+        description: 'Delegate tagging: category within the schema (repeatable; at least one required)',
       },
     }, {
       '-m': '--motivation',

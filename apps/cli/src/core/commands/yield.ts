@@ -7,12 +7,12 @@
  *   semiont yield --upload docs/overview.md [--name "Title"]
  *   semiont yield --upload docs/a.md --upload docs/b.md
  *
- * GENERATE mode — generate a new resource from an annotation's gathered context:
- *   semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md
- *   semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md \
+ * DELEGATE mode — generate a new resource from an annotation's gathered context:
+ *   semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md
+ *   semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md \
  *     --title "Paris" --prompt "Write a brief encyclopedia entry" --language en
  *
- * Exactly one of --upload or --generate must be present.
+ * Exactly one of --upload or --delegate must be present.
  */
 
 import * as path from 'path';
@@ -53,14 +53,14 @@ function guessFormat(filePath: string): string {
 export const YieldOptionsSchema = BaseOptionsSchema.extend({
   // Mode flags
   upload: z.array(z.string()).default([]),
-  generate: z.boolean().default(false),
+  delegate: z.boolean().default(false),
   // Upload mode options
   name: z.string().optional(),
-  // Generate mode required
+  // Delegate mode required
   resource: z.string().optional(),
   annotation: z.string().optional(),
   storageUri: z.string().optional(),
-  // Generate mode optional
+  // Delegate mode optional
   title: z.string().optional(),
   prompt: z.string().optional(),
   language: z.string().optional(),
@@ -69,28 +69,28 @@ export const YieldOptionsSchema = BaseOptionsSchema.extend({
   contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
 }).superRefine((val, ctx) => {
   const hasUpload = val.upload.length > 0;
-  const hasGenerate = val.generate;
+  const hasDelegate = val.delegate;
 
-  if (!hasUpload && !hasGenerate) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'One of --upload <file> or --generate is required' });
+  if (!hasUpload && !hasDelegate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'One of --upload <file> or --delegate is required' });
   }
-  if (hasUpload && hasGenerate) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--upload and --generate are mutually exclusive' });
+  if (hasUpload && hasDelegate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--upload and --delegate are mutually exclusive' });
   }
   if (hasUpload && val.name && val.upload.length > 1) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--name can only be used when uploading a single file' });
   }
-  if (hasGenerate) {
-    if (!val.resource) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--resource <resourceId> is required with --generate' });
-    if (!val.annotation) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--annotation <annotationId> is required with --generate' });
-    if (!val.storageUri) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--storage-uri is required with --generate' });
+  if (hasDelegate) {
+    if (!val.resource) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--resource <resourceId> is required with --delegate' });
+    if (!val.annotation) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--annotation <annotationId> is required with --delegate' });
+    if (!val.storageUri) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--storage-uri is required with --delegate' });
   }
 });
 
 export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 
 // =====================================================================
-// GENERATE MODE HELPERS
+// DELEGATE MODE HELPERS
 // =====================================================================
 
 function waitForYieldFinished(eventBus: EventBus): Promise<{ resourceId?: string; resourceName?: string }> {
@@ -108,7 +108,7 @@ function waitForYieldFinished(eventBus: EventBus): Promise<{ resourceId?: string
   });
 }
 
-async function runGenerate(
+async function runDelegate(
   client: SemiontApiClient,
   token: AccessToken,
   options: YieldOptions,
@@ -161,9 +161,9 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
 
   const { client, token } = await createAuthenticatedClient(projectRoot, environment);
 
-  // ── Generate mode ──────────────────────────────────────────────────
-  if (options.generate) {
-    const { resourceId, resourceName } = await runGenerate(client, token, options);
+  // ── Delegate mode ──────────────────────────────────────────────────
+  if (options.delegate) {
+    const { resourceId, resourceName } = await runDelegate(client, token, options);
     const label = resourceName ?? resourceId ?? options.storageUri!;
     if (!options.quiet) printSuccess(`Yielded: ${options.storageUri} → ${resourceId ?? '(pending)'}`);
     process.stdout.write(JSON.stringify({ resourceId, resourceName, storageUri: options.storageUri }));
@@ -234,8 +234,8 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
 export const yieldCmd = new CommandBuilder()
   .name('yield')
   .description(
-    'Upload a local file as a resource (--upload), or generate a new resource from an annotation\'s gathered context (--generate). ' +
-    'Generate mode outputs JSON { resourceId, resourceName, storageUri } to stdout.'
+    'Upload a local file as a resource (--upload), or generate a new resource from an annotation\'s gathered context (--delegate). ' +
+    'Delegate mode outputs JSON { resourceId, resourceName, storageUri } to stdout.'
   )
   .requiresEnvironment(true)
   .requiresServices(true)
@@ -243,10 +243,10 @@ export const yieldCmd = new CommandBuilder()
     'semiont yield --upload docs/overview.md',
     'semiont yield --upload docs/overview.md --name "Overview Document"',
     'semiont yield --upload docs/a.md --upload docs/b.md --upload docs/c.md',
-    'semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md',
-    'semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --title "Paris" --language en',
-    'semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --prompt "Write a brief encyclopedia entry" --temperature 0.3',
-    'NEW_ID=$(semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md --quiet | jq -r \'.resourceId\') && semiont bind <resourceId> <annotationId> "$NEW_ID"',
+    'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md',
+    'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --title "Paris" --language en',
+    'semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --prompt "Write a brief encyclopedia entry" --temperature 0.3',
+    'NEW_ID=$(semiont yield --delegate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md --quiet | jq -r \'.resourceId\') && semiont bind <resourceId> <annotationId> "$NEW_ID"',
   )
   .args({
     ...withBaseArgs({
@@ -254,9 +254,9 @@ export const yieldCmd = new CommandBuilder()
         type: 'array',
         description: 'Upload mode: one or more local file paths to register as resources (repeatable)',
       },
-      '--generate': {
+      '--delegate': {
         type: 'boolean',
-        description: 'Generate mode: generate a new resource from an annotation\'s gathered context',
+        description: 'Delegate mode: generate a new resource from an annotation\'s gathered context',
         default: false,
       },
       '--name': {
@@ -265,39 +265,39 @@ export const yieldCmd = new CommandBuilder()
       },
       '--resource': {
         type: 'string',
-        description: 'Generate mode: source resourceId',
+        description: 'Delegate mode: source resourceId',
       },
       '--annotation': {
         type: 'string',
-        description: 'Generate mode: source annotationId',
+        description: 'Delegate mode: source annotationId',
       },
       '--storage-uri': {
         type: 'string',
-        description: 'Generate mode: file://-relative URI where the generated resource will be saved',
+        description: 'Delegate mode: file://-relative URI where the generated resource will be saved',
       },
       '--title': {
         type: 'string',
-        description: 'Generate mode: custom title for the generated resource',
+        description: 'Delegate mode: custom title for the generated resource',
       },
       '--prompt': {
         type: 'string',
-        description: 'Generate mode: custom prompt to guide content generation',
+        description: 'Delegate mode: custom prompt to guide content generation',
       },
       '--language': {
         type: 'string',
-        description: 'Generate mode: BCP 47 language tag for generated content (e.g. en, fr, ja)',
+        description: 'Delegate mode: BCP 47 language tag for generated content (e.g. en, fr, ja)',
       },
       '--temperature': {
         type: 'string',
-        description: 'Generate mode: inference temperature 0.0–1.0 (0 = focused, 1 = creative)',
+        description: 'Delegate mode: inference temperature 0.0–1.0 (0 = focused, 1 = creative)',
       },
       '--max-tokens': {
         type: 'string',
-        description: 'Generate mode: maximum tokens to generate (100–4000)',
+        description: 'Delegate mode: maximum tokens to generate (100–4000)',
       },
       '--context-window': {
         type: 'string',
-        description: 'Generate mode: characters of annotation context to gather (100–5000, default: 1000)',
+        description: 'Delegate mode: characters of annotation context to gather (100–5000, default: 1000)',
       },
     }, {
       '-n': '--name',
