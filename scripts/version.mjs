@@ -29,6 +29,7 @@ const PACKAGE_PATHS = {
   '@semiont/jobs': 'packages/jobs/package.json',
   '@semiont/make-meaning': 'packages/make-meaning/package.json',
   '@semiont/react-ui': 'packages/react-ui/package.json',
+  '@semiont/mcp-server': 'packages/mcp-server/package.json',
   '@semiont/cli': 'apps/cli/package.json',
   'semiont-backend': 'apps/backend/package.json',
   'semiont-frontend': 'apps/frontend/package.json',
