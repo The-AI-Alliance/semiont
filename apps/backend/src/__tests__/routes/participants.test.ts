@@ -127,7 +127,7 @@ describe('Participant Routes', () => {
       });
 
       expect(response.status).toBe(202);
-      const body = await response.json();
+      const body = await response.json() as any;
       expect(body.participant).toBe(testUser.id);
       expect(body.resourceId).toBeDefined();
     });
@@ -146,7 +146,7 @@ describe('Participant Routes', () => {
       });
 
       expect(response.status).toBe(202);
-      const body = await response.json();
+      const body = await response.json() as any;
       expect(body.annotationId).toBe('urn:semiont:annotation:ann-1');
     });
 
@@ -161,7 +161,7 @@ describe('Participant Routes', () => {
       });
 
       expect(response.status).toBe(202);
-      const body = await response.json();
+      const body = await response.json() as any;
       expect(body.annotationId).toBeUndefined();
     });
 
