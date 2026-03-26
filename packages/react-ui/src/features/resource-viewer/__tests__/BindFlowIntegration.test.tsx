@@ -21,7 +21,7 @@ import { useBindFlow } from '../../../hooks/useBindFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient, SSEClient } from '@semiont/api-client';
+import { SSEClient } from '@semiont/api-client';
 import { resourceId, accessToken, annotationId } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -44,8 +44,11 @@ describe('Bind Flow - Body Update Integration', () => {
     vi.clearAllMocks();
     resetEventBusForTesting();
 
-    bindAnnotationSpy = vi.fn().mockResolvedValue({ success: true });
-    vi.spyOn(SemiontApiClient.prototype, 'bindAnnotation').mockImplementation(bindAnnotationSpy);
+    bindAnnotationSpy = vi.fn().mockImplementation((_rId: any, annId: any, _req: any, opts: any) => {
+      queueMicrotask(() => opts.eventBus.get('bind:finished').next({ annotationId: annId }));
+      return { close: vi.fn() };
+    });
+    vi.spyOn(SSEClient.prototype, 'bindAnnotation').mockImplementation(bindAnnotationSpy as any);
   });
 
   afterEach(() => {
@@ -86,7 +89,7 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-body-1'),
       resourceId: resourceId('linked-resource-id'),
-      operations: [{ op: 'add', item: { id: 'linked-resource-id' } }],
+      operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'linked-resource-id' } }],
     }); });
 
     await waitFor(() => {
@@ -100,7 +103,7 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-auth'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'replace', newItem: { id: 'resource-id' } }],
+      operations: [{ op: 'replace', newItem: { type: 'SpecificResource' as const, source: 'resource-id' } }],
     }); });
 
     await waitFor(() => {
@@ -121,7 +124,7 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-success'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'add', item: { id: 'resource-id' } }],
+      operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'resource-id' } }],
     }); });
 
     await waitFor(() => {
@@ -136,7 +139,10 @@ describe('Bind Flow - Body Update Integration', () => {
   });
 
   it('bind:update-body emits bind:body-update-failed on API error', async () => {
-    bindAnnotationSpy.mockRejectedValue(new Error('Update failed'));
+    bindAnnotationSpy.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
+      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: new Error('Update failed') }));
+      return { close: vi.fn() };
+    });
 
     const { getEventBus } = renderBindFlow();
     const bodyUpdateFailedSpy = vi.fn();
@@ -146,7 +152,7 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-fail'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'remove', item: { id: 'old-id' } }],
+      operations: [{ op: 'remove', item: { type: 'SpecificResource' as const, source: 'old-id' } }],
     }); });
 
     await waitFor(() => {
@@ -166,7 +172,7 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-dedup'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'add', item: { id: 'resource-id' } }],
+      operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'resource-id' } }],
     }); });
 
     await waitFor(() => {
