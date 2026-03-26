@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "contextWindow": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 5000,
+      "description": "Characters of surrounding text context (default: 1000)"
+    }
+  }
+}

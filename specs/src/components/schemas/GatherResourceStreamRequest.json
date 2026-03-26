@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "properties": {
+    "depth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3,
+      "description": "Graph traversal depth (default: 2)"
+    },
+    "maxResources": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Maximum related resources to include (default: 10)"
+    },
+    "includeContent": {
+      "type": "boolean",
+      "description": "Include full resource content (default: true)"
+    },
+    "includeSummary": {
+      "type": "boolean",
+      "description": "Include AI-generated summary (default: false)"
+    }
+  }
+}

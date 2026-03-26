@@ -96,8 +96,17 @@
     "/resources/{id}/llm-context": {
       "$ref": "paths/resources_{id}_llm-context.json"
     },
+    "/resources/{id}/gather-resource-stream": {
+      "$ref": "paths/resources_{id}_gather-resource-stream.json"
+    },
     "/resources/{resourceId}/annotations/{annotationId}/llm-context": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_llm-context.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/gather-annotation-stream": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_gather-annotation-stream.json"
+    },
+    "/resources/{resourceId}/annotations/{annotationId}/bind-stream": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_bind-stream.json"
     },
     "/resources/{id}/referenced-by": {
       "$ref": "paths/resources_{id}_referenced-by.json"
@@ -248,6 +257,15 @@
       },
       "AnnotateReferencesStreamRequest": {
         "$ref": "components/schemas/AnnotateReferencesStreamRequest.json"
+      },
+      "GatherResourceStreamRequest": {
+        "$ref": "components/schemas/GatherResourceStreamRequest.json"
+      },
+      "GatherAnnotationStreamRequest": {
+        "$ref": "components/schemas/GatherAnnotationStreamRequest.json"
+      },
+      "BindAnnotationStreamRequest": {
+        "$ref": "components/schemas/BindAnnotationStreamRequest.json"
       },
       "AnnotateHighlightsStreamRequest": {
         "$ref": "components/schemas/AnnotateHighlightsStreamRequest.json"

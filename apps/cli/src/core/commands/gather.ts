@@ -1,7 +1,7 @@
 /**
  * Gather Command
  *
- * Fetches LLM-optimized context for a resource or annotation via SemiontApiClient.
+ * Fetches LLM-optimized context for a resource or annotation via SSE stream.
  *
  * Usage:
  *   semiont gather resource <resourceId> [options]
@@ -9,7 +9,8 @@
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
+import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } from '@semiont/core';
+import type { components } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
@@ -37,6 +38,36 @@ export type GatherOptions = z.output<typeof GatherOptionsSchema>;
 // IMPLEMENTATION
 // =====================================================================
 
+function waitForGatherResourceFinished(eventBus: EventBus): Promise<components['schemas']['ResourceLLMContextResponse']> {
+  return new Promise((resolve, reject) => {
+    const doneSub = eventBus.get('gather:finished').subscribe((event) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      resolve(event.context);
+    });
+    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      reject(event.error ?? new Error('Gather resource failed'));
+    });
+  });
+}
+
+function waitForGatherAnnotationFinished(eventBus: EventBus): Promise<components['schemas']['AnnotationLLMContextResponse']> {
+  return new Promise((resolve, reject) => {
+    const doneSub = eventBus.get('gather:annotation-finished').subscribe((event) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      resolve(event.response);
+    });
+    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      reject(event.error ?? new Error('Gather annotation failed'));
+    });
+  });
+}
+
 export async function runGather(options: GatherOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const projectRoot = findProjectRoot();
@@ -50,23 +81,34 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
   if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    result = await client.gatherResource(id, {
-      depth: options.depth,
-      maxResources: options.maxResources,
-      includeContent: !options.noContent,
-      includeSummary: options.summary,
-      auth: token,
-    });
+    const eventBus = new EventBus();
+    const donePromise = waitForGatherResourceFinished(eventBus);
+    client.sse.gatherResource(
+      id,
+      {
+        depth: options.depth,
+        maxResources: options.maxResources,
+        includeContent: !options.noContent,
+        includeSummary: options.summary,
+      },
+      { auth: token, eventBus },
+    );
+    result = await donePromise;
   } else if (subcommand === 'annotation') {
     if (!rawAnnotationId) {
       throw new Error('Usage: semiont gather annotation <resourceId> <annotationId>');
     }
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    result = await client.gatherAnnotation(resourceId, annotationId, {
-      contextWindow: options.contextWindow,
-      auth: token,
-    });
+    const eventBus = new EventBus();
+    const donePromise = waitForGatherAnnotationFinished(eventBus);
+    client.sse.gatherAnnotation(
+      resourceId,
+      annotationId,
+      { contextWindow: options.contextWindow },
+      { auth: token, eventBus },
+    );
+    result = await donePromise;
   } else {
     throw new Error(`Unknown subcommand: ${subcommand}. Use 'resource' or 'annotation'.`);
   }

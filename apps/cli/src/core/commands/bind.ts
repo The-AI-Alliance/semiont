@@ -5,15 +5,14 @@
  * body item pointing to the chosen target resource.
  *
  * This is the final step of the gather → match → bind pipeline.
- * Calls PUT /resources/{resourceId}/annotations/{annotationId}/body
- * through SemiontApiClient.
+ * Streams completion via SSE through client.sse.bindAnnotation().
  *
  * Usage:
  *   semiont bind <resourceId> <annotationId> <targetResourceId>
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
+import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -22,7 +21,7 @@ import { printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
 
-type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
+type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRequest'];
 
 // =====================================================================
 // SCHEMA
@@ -38,6 +37,21 @@ export type BindOptions = z.output<typeof BindOptionsSchema>;
 // IMPLEMENTATION
 // =====================================================================
 
+function waitForBindFinished(eventBus: EventBus): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const doneSub = eventBus.get('bind:finished').subscribe(() => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      resolve();
+    });
+    const failSub = eventBus.get('bind:failed').subscribe((event: any) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      reject(event.error ?? new Error('Bind failed'));
+    });
+  });
+}
+
 export async function runBind(options: BindOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const projectRoot = findProjectRoot();
@@ -49,7 +63,7 @@ export async function runBind(options: BindOptions): Promise<CommandResults> {
 
   const { client, token } = await createAuthenticatedClient(projectRoot, environment);
 
-  const request: UpdateAnnotationBodyRequest = {
+  const request: BindAnnotationStreamRequest = {
     resourceId: rawResourceId,
     operations: [{
       op: 'add',
@@ -61,7 +75,10 @@ export async function runBind(options: BindOptions): Promise<CommandResults> {
     }],
   };
 
-  await client.bindAnnotation(resourceId, annotationId, request, { auth: token });
+  const eventBus = new EventBus();
+  const donePromise = waitForBindFinished(eventBus);
+  client.sse.bindAnnotation(resourceId, annotationId, request, { auth: token, eventBus });
+  await donePromise;
 
   if (!options.quiet) printSuccess(`Bound: ${rawAnnotationId} → ${targetResourceId}`);
 
