@@ -38,6 +38,7 @@ import { yieldCmd } from './commands/yield.js';
 import { markCmd } from './commands/mark.js';
 import { gatherCmd } from './commands/gather.js';
 import { matchCmd } from './commands/match.js';
+import { bindCmd } from './commands/bind.js';
 
 /**
  * Cache of loaded command definitions
@@ -70,6 +71,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'mark': markCmd,
   'gather': gatherCmd,
   'match': matchCmd,
+  'bind': bindCmd,
 };
 
 /**
