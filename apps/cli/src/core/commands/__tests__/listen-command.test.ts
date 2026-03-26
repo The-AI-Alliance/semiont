@@ -10,17 +10,18 @@ import { ListenOptionsSchema, type ListenOptions } from '../listen.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockStream = { close: vi.fn() };
-const mockSse = {
-  globalEvents: vi.fn(),
-  resourceEvents: vi.fn(),
-};
+const { mockStream, mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+  const mockStream = { close: vi.fn() };
+  const mockSse = {
+    globalEvents: vi.fn(),
+    resourceEvents: vi.fn(),
+  };
+  const mockCreateAuthenticatedClient = vi.fn();
+  return { mockStream, mockSse, mockCreateAuthenticatedClient };
+});
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: vi.fn().mockResolvedValue({
-    client: { sse: mockSse },
-    token: 'mock-token',
-  }),
+  createAuthenticatedClient: mockCreateAuthenticatedClient,
 }));
 
 vi.mock('../../config-loader.js', () => ({
@@ -78,6 +79,7 @@ describe('ListenOptionsSchema', () => {
 describe('runListen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
     mockSse.globalEvents.mockReturnValue(mockStream);
     mockSse.resourceEvents.mockReturnValue(mockStream);
   });

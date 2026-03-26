@@ -10,23 +10,21 @@ import { MarkOptionsSchema, type MarkOptions } from '../mark.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockMarkAnnotation = vi.fn();
-const mockSse = {
-  markHighlights: vi.fn(),
-  markAssessments: vi.fn(),
-  markComments: vi.fn(),
-  markReferences: vi.fn(),
-  markTags: vi.fn(),
-};
+const { mockMarkAnnotation, mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+  const mockMarkAnnotation = vi.fn();
+  const mockSse = {
+    markHighlights: vi.fn(),
+    markAssessments: vi.fn(),
+    markComments: vi.fn(),
+    markReferences: vi.fn(),
+    markTags: vi.fn(),
+  };
+  const mockCreateAuthenticatedClient = vi.fn();
+  return { mockMarkAnnotation, mockSse, mockCreateAuthenticatedClient };
+});
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: vi.fn().mockResolvedValue({
-    client: {
-      markAnnotation: mockMarkAnnotation,
-      sse: mockSse,
-    },
-    token: 'mock-token',
-  }),
+  createAuthenticatedClient: mockCreateAuthenticatedClient,
 }));
 
 vi.mock('../../config-loader.js', () => ({
@@ -203,6 +201,10 @@ describe('runMark', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMarkAnnotation.mockResolvedValue({ annotationId: 'urn:semiont:annotation:new-1' });
+    mockCreateAuthenticatedClient.mockResolvedValue({
+      client: { markAnnotation: mockMarkAnnotation, sse: mockSse },
+      token: 'mock-token',
+    });
     // SSE mocks do NOT resolve — delegate tests fire-and-forget then manually emit events
   });
 

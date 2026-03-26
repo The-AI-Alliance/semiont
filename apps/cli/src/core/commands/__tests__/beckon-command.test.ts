@@ -10,13 +10,14 @@ import { BeckonOptionsSchema, type BeckonOptions } from '../beckon.js';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockBeckonAttention = vi.fn();
+const { mockBeckonAttention, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+  const mockBeckonAttention = vi.fn();
+  const mockCreateAuthenticatedClient = vi.fn();
+  return { mockBeckonAttention, mockCreateAuthenticatedClient };
+});
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: vi.fn().mockResolvedValue({
-    client: { beckonAttention: mockBeckonAttention },
-    token: 'mock-token',
-  }),
+  createAuthenticatedClient: mockCreateAuthenticatedClient,
 }));
 
 vi.mock('../../config-loader.js', () => ({
@@ -112,8 +113,12 @@ describe('BeckonOptionsSchema', () => {
 
 describe('runBeckon', () => {
   beforeEach(() => {
-    mockBeckonAttention.mockResolvedValue({ participant: 'alice', resourceId: 'urn:semiont:resource:doc-1' });
     vi.clearAllMocks();
+    mockBeckonAttention.mockResolvedValue({ participant: 'alice', resourceId: 'urn:semiont:resource:doc-1' });
+    mockCreateAuthenticatedClient.mockResolvedValue({
+      client: { beckonAttention: mockBeckonAttention },
+      token: 'mock-token',
+    });
   });
 
   it('returns a CommandResults with command=beckon', async () => {

@@ -10,22 +10,23 @@ import { BrowseOptionsSchema, type BrowseOptions } from '../browse.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockClient = {
-  browseResources: vi.fn(),
-  browseResource: vi.fn(),
-  browseAnnotations: vi.fn(),
-  browseReferences: vi.fn(),
-  browseAnnotation: vi.fn(),
-  getResourceEvents: vi.fn(),
-  getAnnotationHistory: vi.fn(),
-  listEntityTypes: vi.fn(),
-};
+const { mockClient, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+  const mockClient = {
+    browseResources: vi.fn(),
+    browseResource: vi.fn(),
+    browseAnnotations: vi.fn(),
+    browseReferences: vi.fn(),
+    browseAnnotation: vi.fn(),
+    getResourceEvents: vi.fn(),
+    getAnnotationHistory: vi.fn(),
+    listEntityTypes: vi.fn(),
+  };
+  const mockCreateAuthenticatedClient = vi.fn();
+  return { mockClient, mockCreateAuthenticatedClient };
+});
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: vi.fn().mockResolvedValue({
-    client: mockClient,
-    token: 'mock-token',
-  }),
+  createAuthenticatedClient: mockCreateAuthenticatedClient,
 }));
 
 vi.mock('../../config-loader.js', () => ({
@@ -118,6 +119,7 @@ describe('BrowseOptionsSchema', () => {
 describe('runBrowse', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateAuthenticatedClient.mockResolvedValue({ client: mockClient, token: 'mock-token' });
     mockClient.browseResources.mockResolvedValue({ resources: [], total: 0 });
     mockClient.browseResource.mockResolvedValue({ name: 'Doc 1', '@id': 'doc-1' });
     mockClient.browseAnnotations.mockResolvedValue({ annotations: [] });

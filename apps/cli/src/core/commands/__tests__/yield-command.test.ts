@@ -10,20 +10,18 @@ import { YieldOptionsSchema, type YieldOptions } from '../yield.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockYieldResource = vi.fn();
-const mockSse = {
-  gatherAnnotation: vi.fn(),
-  yieldResource: vi.fn(),
-};
+const { mockYieldResource, mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+  const mockYieldResource = vi.fn();
+  const mockSse = {
+    gatherAnnotation: vi.fn(),
+    yieldResource: vi.fn(),
+  };
+  const mockCreateAuthenticatedClient = vi.fn();
+  return { mockYieldResource, mockSse, mockCreateAuthenticatedClient };
+});
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: vi.fn().mockResolvedValue({
-    client: {
-      yieldResource: mockYieldResource,
-      sse: mockSse,
-    },
-    token: 'mock-token',
-  }),
+  createAuthenticatedClient: mockCreateAuthenticatedClient,
 }));
 
 vi.mock('../../config-loader.js', () => ({
@@ -171,6 +169,10 @@ describe('runYield', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockYieldResource.mockResolvedValue({ resourceId: 'urn:semiont:resource:new-1' });
+    mockCreateAuthenticatedClient.mockResolvedValue({
+      client: { yieldResource: mockYieldResource, sse: mockSse },
+      token: 'mock-token',
+    });
   });
 
   describe('upload mode', () => {

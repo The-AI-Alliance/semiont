@@ -22,18 +22,19 @@ import {
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockSse = {
-  gatherResource: vi.fn(),
-  gatherAnnotation: vi.fn(),
-  bindAnnotation: vi.fn(),
-  bindSearch: vi.fn(),
-};
+const { mockSse, mockCreateAuthenticatedClient } = vi.hoisted(() => {
+  const mockSse = {
+    gatherResource: vi.fn(),
+    gatherAnnotation: vi.fn(),
+    bindAnnotation: vi.fn(),
+    bindSearch: vi.fn(),
+  };
+  const mockCreateAuthenticatedClient = vi.fn();
+  return { mockSse, mockCreateAuthenticatedClient };
+});
 
 vi.mock('../../api-client-factory.js', () => ({
-  createAuthenticatedClient: vi.fn().mockResolvedValue({
-    client: { sse: mockSse },
-    token: 'mock-token',
-  }),
+  createAuthenticatedClient: mockCreateAuthenticatedClient,
 }));
 
 vi.mock('../../config-loader.js', () => ({
@@ -159,6 +160,7 @@ describe('runGather', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
     mockSse.gatherResource.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => eventBus.get('gather:finished').next({ context: mockContext }));
     });
@@ -230,6 +232,7 @@ describe('BindOptionsSchema', () => {
 describe('runBind', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
     mockSse.bindAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => eventBus.get('bind:finished').next({}));
     });
@@ -310,6 +313,7 @@ describe('runMatch', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateAuthenticatedClient.mockResolvedValue({ client: { sse: mockSse }, token: 'mock-token' });
     // gatherAnnotation resolves with context
     mockSse.gatherAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => {
