@@ -15,8 +15,8 @@
  * const eventBus = new EventBus();
  * const client = new EventBusClient(eventBus);
  *
- * const resources = await client.listResources({ limit: 10 });
- * const resource = await client.getResource(resourceId('doc-123'));
+ * const resources = await client.browseResources({ limit: 10 });
+ * const resource = await client.browseResource(resourceId('doc-123'));
  * ```
  */
 
@@ -78,7 +78,7 @@ export class EventBusClient {
   // Browse Flow — Resource reads
   // ========================================================================
 
-  async getResource(
+  async browseResource(
     resourceId: ResourceId,
   ): Promise<components['schemas']['GetResourceResponse']> {
     return eventBusRequest(
@@ -91,7 +91,7 @@ export class EventBusClient {
     );
   }
 
-  async listResources(options?: {
+  async browseResources(options?: {
     search?: string;
     archived?: boolean;
     entityType?: string;
@@ -280,7 +280,7 @@ export class EventBusClient {
   // Gather Flow — LLM context
   // ========================================================================
 
-  async getAnnotationLLMContext(
+  async gatherAnnotation(
     annotationId: AnnotationId,
     resourceId: ResourceId,
     options?: {
@@ -318,7 +318,7 @@ export class EventBusClient {
     return result.response;
   }
 
-  async getResourceLLMContext(
+  async gatherResource(
     resourceId: ResourceId,
     options: {
       depth: number;

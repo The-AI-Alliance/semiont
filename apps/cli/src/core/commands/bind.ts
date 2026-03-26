@@ -61,7 +61,7 @@ export async function runBind(options: BindOptions): Promise<CommandResults> {
     }],
   };
 
-  await client.updateAnnotationBody(resourceId, annotationId, request, { auth: token });
+  await client.bindAnnotation(resourceId, annotationId, request, { auth: token });
 
   if (!options.quiet) printSuccess(`Bound: ${rawAnnotationId} → ${targetResourceId}`);
 

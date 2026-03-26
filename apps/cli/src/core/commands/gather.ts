@@ -50,7 +50,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
   if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    result = await client.getResourceLLMContext(id, {
+    result = await client.gatherResource(id, {
       depth: options.depth,
       maxResources: options.maxResources,
       includeContent: !options.noContent,
@@ -63,7 +63,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
     }
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    result = await client.getAnnotationLLMContext(resourceId, annotationId, {
+    result = await client.gatherAnnotation(resourceId, annotationId, {
       contextWindow: options.contextWindow,
       auth: token,
     });

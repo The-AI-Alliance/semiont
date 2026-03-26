@@ -67,7 +67,7 @@ export function useContextGatherFlow(
       try {
         const { client, resourceId } = configRef.current;
 
-        const response = await client.getAnnotationLLMContext(
+        const response = await client.gatherAnnotation(
           resourceId,
           event.annotationId,
           { contextWindow: 2000, auth: toAccessToken(tokenRef.current) }

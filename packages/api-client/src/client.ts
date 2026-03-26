@@ -264,7 +264,7 @@ export class SemiontApiClient {
    * @param data.sourceResourceId - Optional source resource ID
    * @param options - Request options including auth
    */
-  async createResource(data: {
+  async yieldResource(data: {
     name: string;
     file: File | Buffer;
     format: string;
@@ -317,7 +317,7 @@ export class SemiontApiClient {
     } as any).json();
   }
 
-  async getResource(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
+  async browseResource(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${id}`, {
       ...options,
       auth: options?.auth
@@ -419,7 +419,7 @@ export class SemiontApiClient {
     return { stream: response.body, contentType };
   }
 
-  async listResources(
+  async browseResources(
     limit?: number,
     archived?: boolean,
     query?: SearchQuery,
@@ -456,17 +456,7 @@ export class SemiontApiClient {
     } as any).json();
   }
 
-  async getResourceAnnotations(
-    id: ResourceId,
-    options?: RequestOptions
-  ): Promise<ResponseContent<paths['/resources/{id}/annotations']['get']>> {
-    return this.http.get(`${this.baseUrl}/resources/${id}/annotations`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
-  }
-
-  async getAnnotationLLMContext(
+  async gatherAnnotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options?: { contextWindow?: number; auth?: AccessToken }
@@ -484,7 +474,7 @@ export class SemiontApiClient {
     ).json();
   }
 
-  async getResourceReferencedBy(id: ResourceId, options?: RequestOptions): Promise<{ referencedBy: any[] }> {
+  async browseReferences(id: ResourceId, options?: RequestOptions): Promise<{ referencedBy: any[] }> {
     return this.http.get(`${this.baseUrl}/resources/${id}/referenced-by`, {
       ...options,
       auth: options?.auth
@@ -520,7 +510,7 @@ export class SemiontApiClient {
   // ANNOTATIONS
   // ============================================================================
 
-  async createAnnotation(
+  async markAnnotation(
     id: ResourceId,
     data: RequestContent<paths['/resources/{id}/annotations']['post']>,
     options?: RequestOptions
@@ -539,14 +529,14 @@ export class SemiontApiClient {
     } as any).json();
   }
 
-  async getResourceAnnotation(resourceId: ResourceId, annotationId: AnnotationId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>> {
+  async browseAnnotation(resourceId: ResourceId, annotationId: AnnotationId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
-  async listAnnotations(
+  async browseAnnotations(
     id: ResourceId,
     motivation?: Motivation,
     options?: RequestOptions
@@ -568,7 +558,7 @@ export class SemiontApiClient {
     } as any);
   }
 
-  async updateAnnotationBody(
+  async bindAnnotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
     data: RequestContent<paths['/resources/{resourceId}/annotations/{annotationId}/body']['put']>,
@@ -860,7 +850,7 @@ export class SemiontApiClient {
   // LLM CONTEXT
   // ============================================================================
 
-  async getResourceLLMContext(
+  async gatherResource(
     id: ResourceId,
     options?: {
       depth?: number;

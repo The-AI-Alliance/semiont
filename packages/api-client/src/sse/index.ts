@@ -181,7 +181,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateReferences(
+  markReferences(
     resourceId: ResourceId,
     request: AnnotateReferencesStreamRequest,
     options: SSERequestOptions
@@ -243,7 +243,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  yieldResourceFromAnnotation(
+  yieldResource(
     resourceId: ResourceId,
     annotationId: AnnotationId,
     request: YieldResourceStreamRequest,
@@ -304,7 +304,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateHighlights(
+  markHighlights(
     resourceId: ResourceId,
     request: AnnotateHighlightsStreamRequest = {},
     options: SSERequestOptions
@@ -364,7 +364,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateAssessments(
+  markAssessments(
     resourceId: ResourceId,
     request: AnnotateAssessmentsStreamRequest = {},
     options: SSERequestOptions
@@ -428,7 +428,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateComments(
+  markComments(
     resourceId: ResourceId,
     request: AnnotateCommentsStreamRequest = {},
     options: SSERequestOptions
@@ -493,7 +493,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateTags(
+  markTags(
     resourceId: ResourceId,
     request: AnnotateTagsStreamRequest,
     options: SSERequestOptions

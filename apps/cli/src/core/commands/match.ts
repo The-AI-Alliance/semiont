@@ -5,7 +5,7 @@
  * flow as the "Search" button in the Gather Context modal.
  *
  * Two-step process:
- *   1. getAnnotationLLMContext → GatheredContext
+ *   1. gatherAnnotation → GatheredContext
  *   2. sse.bindSearch (SSE stream) → scored ResourceDescriptor[]
  *
  * Usage:
@@ -72,13 +72,13 @@ async function gatherContext(
   contextWindow: number,
   token: AccessToken,
 ): Promise<GatheredContext> {
-  const response = await client.getAnnotationLLMContext(resourceId, annotationId, {
+  const response = await client.gatherAnnotation(resourceId, annotationId, {
     contextWindow,
     auth: token,
   });
   const context = (response as any).context as GatheredContext | undefined;
   if (!context) {
-    throw new Error('No context returned from getAnnotationLLMContext');
+    throw new Error('No context returned from gatherAnnotation');
   }
   return context;
 }

@@ -2,10 +2,10 @@
  * Layer 3: Feature Integration Test - Bind Flow (body update)
  *
  * Tests the write side of useBindFlow:
- * - bind:update-body → calls updateAnnotationBody API
+ * - bind:update-body → calls bindAnnotation API
  * - bind:update-body → emits bind:body-updated on success
  * - bind:update-body → emits bind:body-update-failed on error
- * - auth token passed to updateAnnotationBody
+ * - auth token passed to bindAnnotation
  *
  * The wizard modal (ReferenceWizardModal) handles modal state, context
  * gathering, search configuration, and result display. This test covers
@@ -35,7 +35,7 @@ vi.mock('../../../components/Toast', () => ({
 }));
 
 describe('Bind Flow - Body Update Integration', () => {
-  let updateAnnotationBodySpy: ReturnType<typeof vi.fn>;
+  let bindAnnotationSpy: ReturnType<typeof vi.fn>;
   const testId = resourceId('test-resource');
   const testToken = 'test-resolution-token';
   const testBaseUrl = 'http://localhost:4000';
@@ -44,8 +44,8 @@ describe('Bind Flow - Body Update Integration', () => {
     vi.clearAllMocks();
     resetEventBusForTesting();
 
-    updateAnnotationBodySpy = vi.fn().mockResolvedValue({ success: true });
-    vi.spyOn(SemiontApiClient.prototype, 'updateAnnotationBody').mockImplementation(updateAnnotationBodySpy);
+    bindAnnotationSpy = vi.fn().mockResolvedValue({ success: true });
+    vi.spyOn(SemiontApiClient.prototype, 'bindAnnotation').mockImplementation(bindAnnotationSpy);
   });
 
   afterEach(() => {
@@ -80,7 +80,7 @@ describe('Bind Flow - Body Update Integration', () => {
 
   // ─── bind:update-body ──────────────────────────────────────────────────
 
-  it('bind:update-body calls updateAnnotationBody API', async () => {
+  it('bind:update-body calls bindAnnotation API', async () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
@@ -90,7 +90,7 @@ describe('Bind Flow - Body Update Integration', () => {
     }); });
 
     await waitFor(() => {
-      expect(updateAnnotationBodySpy).toHaveBeenCalledTimes(1);
+      expect(bindAnnotationSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -104,10 +104,10 @@ describe('Bind Flow - Body Update Integration', () => {
     }); });
 
     await waitFor(() => {
-      expect(updateAnnotationBodySpy).toHaveBeenCalled();
+      expect(bindAnnotationSpy).toHaveBeenCalled();
     });
 
-    const callArgs = updateAnnotationBodySpy.mock.calls[0];
+    const callArgs = bindAnnotationSpy.mock.calls[0];
     expect(callArgs[3]).toHaveProperty('auth');
     expect(callArgs[3].auth).toBe(accessToken(testToken));
   });
@@ -136,7 +136,7 @@ describe('Bind Flow - Body Update Integration', () => {
   });
 
   it('bind:update-body emits bind:body-update-failed on API error', async () => {
-    updateAnnotationBodySpy.mockRejectedValue(new Error('Update failed'));
+    bindAnnotationSpy.mockRejectedValue(new Error('Update failed'));
 
     const { getEventBus } = renderBindFlow();
     const bodyUpdateFailedSpy = vi.fn();
@@ -170,7 +170,7 @@ describe('Bind Flow - Body Update Integration', () => {
     }); });
 
     await waitFor(() => {
-      expect(updateAnnotationBodySpy).toHaveBeenCalledTimes(1);
+      expect(bindAnnotationSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

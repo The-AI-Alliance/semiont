@@ -118,13 +118,13 @@ async function runDelegate(
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
-  const response = await client.getAnnotationLLMContext(resourceId, annotationId, {
+  const response = await client.gatherAnnotation(resourceId, annotationId, {
     contextWindow: options.contextWindow,
     auth: token,
   });
   const context = (response as any).context as GatheredContext | undefined;
   if (!context) {
-    throw new Error('No context returned from getAnnotationLLMContext — cannot generate');
+    throw new Error('No context returned from gatherAnnotation — cannot generate');
   }
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
@@ -132,7 +132,7 @@ async function runDelegate(
   const eventBus = new EventBus();
   const donePromise = waitForYieldFinished(eventBus);
 
-  client.sse.yieldResourceFromAnnotation(
+  client.sse.yieldResource(
     resourceId,
     annotationId,
     {
@@ -206,7 +206,7 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
     const name = options.name ?? path.basename(filePath, path.extname(filePath));
     const format = guessFormat(filePath);
 
-    const { resourceId } = await client.createResource(
+    const { resourceId } = await client.yieldResource(
       { name, file: content, format, storageUri },
       { auth: token },
     );

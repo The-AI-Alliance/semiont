@@ -83,7 +83,7 @@ describe('EventBusClient', () => {
         });
       });
 
-      const result = await client.getResource(rId);
+      const result = await client.browseResource(rId);
       expect(result).toEqual(mockResponse);
     });
 
@@ -99,7 +99,7 @@ describe('EventBusClient', () => {
         });
       });
 
-      await expect(client.getResource(rId)).rejects.toThrow('Resource not found');
+      await expect(client.browseResource(rId)).rejects.toThrow('Resource not found');
     });
   });
 
@@ -123,7 +123,7 @@ describe('EventBusClient', () => {
         });
       });
 
-      const result = await client.listResources({ limit: 10, archived: false });
+      const result = await client.browseResources({ limit: 10, archived: false });
       expect(result).toEqual(mockResponse);
     });
 
@@ -144,7 +144,7 @@ describe('EventBusClient', () => {
         });
       });
 
-      const result = await client.listResources();
+      const result = await client.browseResources();
       expect(result).toEqual(mockResponse);
     });
   });
@@ -487,7 +487,7 @@ describe('EventBusClient', () => {
   // Gather Flow — LLM context
   // ========================================================================
 
-  describe('getAnnotationLLMContext', () => {
+  describe('gatherAnnotation', () => {
     test('should return annotation LLM context', async () => {
       const mockResponse: components['schemas']['AnnotationLLMContextResponse'] = {
         annotation: mockAnnotation(),
@@ -507,7 +507,7 @@ describe('EventBusClient', () => {
         });
       });
 
-      const result = await client.getAnnotationLLMContext(
+      const result = await client.gatherAnnotation(
         annotationId('ann-1'),
         resourceId('res-1'),
         { contextWindow: 500 },
@@ -527,12 +527,12 @@ describe('EventBusClient', () => {
       });
 
       await expect(
-        client.getAnnotationLLMContext(annotationId('ann-1'), resourceId('res-1')),
+        client.gatherAnnotation(annotationId('ann-1'), resourceId('res-1')),
       ).rejects.toThrow('Context assembly failed');
     });
   });
 
-  describe('getResourceLLMContext', () => {
+  describe('gatherResource', () => {
     test('should return resource LLM context', async () => {
       const mockContext: components['schemas']['ResourceLLMContextResponse'] = {
         mainResource: mockResource({ name: 'Main' }),
@@ -553,7 +553,7 @@ describe('EventBusClient', () => {
         });
       });
 
-      const result = await client.getResourceLLMContext(
+      const result = await client.gatherResource(
         resourceId('res-1'),
         { depth: 2, maxResources: 10, includeContent: true, includeSummary: false },
       );
@@ -572,7 +572,7 @@ describe('EventBusClient', () => {
       });
 
       await expect(
-        client.getResourceLLMContext(resourceId('res-1'), { depth: 1, maxResources: 5, includeContent: true, includeSummary: false }),
+        client.gatherResource(resourceId('res-1'), { depth: 1, maxResources: 5, includeContent: true, includeSummary: false }),
       ).rejects.toThrow('Graph traversal failed');
     });
   });
@@ -584,7 +584,7 @@ describe('EventBusClient', () => {
   describe('timeout', () => {
     test('should timeout if no response', async () => {
       const fastClient = new EventBusClient(eventBus, 50);
-      await expect(fastClient.getResource(resourceId('timeout-test'))).rejects.toThrow();
+      await expect(fastClient.browseResource(resourceId('timeout-test'))).rejects.toThrow();
     });
   });
 });

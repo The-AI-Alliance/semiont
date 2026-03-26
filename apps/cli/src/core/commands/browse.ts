@@ -71,7 +71,7 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   let label: string;
 
   if (subcommand === 'resources') {
-    const data = await client.listResources(
+    const data = await client.browseResources(
       options.limit,
       undefined,
       options.search as any,
@@ -83,15 +83,15 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
 
   } else if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    const resourceData = await client.getResource(id, { auth: token });
+    const resourceData = await client.browseResource(id, { auth: token });
 
     if (options.annotations || options.references) {
-      const annotationsData = await client.listAnnotations(id, undefined, { auth: token });
+      const annotationsData = await client.browseAnnotations(id, undefined, { auth: token });
       const annotations = (annotationsData as any)?.annotations ?? annotationsData ?? [];
 
       let referencedBy: unknown[] = [];
       if (options.references) {
-        const refData = await client.getResourceReferencedBy(id, { auth: token });
+        const refData = await client.browseReferences(id, { auth: token });
         referencedBy = refData.referencedBy ?? [];
       }
 
@@ -108,13 +108,13 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   } else if (subcommand === 'annotation') {
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    result = await client.getResourceAnnotation(resourceId, annotationId, { auth: token });
+    result = await client.browseAnnotation(resourceId, annotationId, { auth: token });
     label = `${rawAnnotationId}: annotation on ${rawResourceId}`;
 
   } else {
     // subcommand === 'references'
     const id = toResourceId(rawResourceId);
-    const data = await client.getResourceReferencedBy(id, { auth: token });
+    const data = await client.browseReferences(id, { auth: token });
     result = data.referencedBy ?? [];
     const count = Array.isArray(result) ? result.length : 0;
     label = `${count} resource${count !== 1 ? 's' : ''} reference ${rawResourceId}`;

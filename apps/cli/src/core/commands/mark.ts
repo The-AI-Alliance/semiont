@@ -261,19 +261,19 @@ async function runDelegate(
 
   switch (motivation) {
     case 'highlighting':
-      client.sse.annotateHighlights(resourceId, { instructions, density }, { auth, eventBus });
+      client.sse.markHighlights(resourceId, { instructions, density }, { auth, eventBus });
       break;
     case 'assessing':
-      client.sse.annotateAssessments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
+      client.sse.markAssessments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
       break;
     case 'commenting':
-      client.sse.annotateComments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
+      client.sse.markComments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
       break;
     case 'linking':
-      client.sse.annotateReferences(resourceId, { entityTypes: entityType as EntityType[], includeDescriptiveReferences: includeDescriptive }, { auth, eventBus });
+      client.sse.markReferences(resourceId, { entityTypes: entityType as EntityType[], includeDescriptiveReferences: includeDescriptive }, { auth, eventBus });
       break;
     case 'tagging':
-      client.sse.annotateTags(resourceId, { schemaId: schemaId!, categories: category }, { auth, eventBus });
+      client.sse.markTags(resourceId, { schemaId: schemaId!, categories: category }, { auth, eventBus });
       break;
   }
 
@@ -325,7 +325,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
     body,
   };
 
-  const { annotationId } = await client.createAnnotation(resourceId, request, { auth: token });
+  const { annotationId } = await client.markAnnotation(resourceId, request, { auth: token });
 
   if (!options.quiet) printSuccess(`Marked: ${rawResourceId} → ${annotationId}`);
 

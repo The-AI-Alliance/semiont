@@ -50,7 +50,7 @@ export function useResources() {
       useQuery: (options?: { limit?: number; archived?: boolean; query?: string }) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.all(options?.limit, options?.archived),
-          queryFn: () => client!.listResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined, { auth: toAccessToken(token) }),
+          queryFn: () => client!.browseResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined, { auth: toAccessToken(token) }),
           enabled: !!client,
         }),
     },
@@ -59,7 +59,7 @@ export function useResources() {
       useQuery: (id: ResourceId, options?: Omit<UseQueryOptions, 'queryKey' | 'queryFn'>) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.detail(id),
-          queryFn: () => client!.getResource(id, { auth: toAccessToken(token) }),
+          queryFn: () => client!.browseResource(id, { auth: toAccessToken(token) }),
           enabled: !!client && !!id,
           ...options,
         }),
@@ -78,7 +78,7 @@ export function useResources() {
       useQuery: (id: ResourceId) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.annotations(id),
-          queryFn: () => client!.getResourceAnnotations(id, { auth: toAccessToken(token) }),
+          queryFn: () => client!.browseAnnotations(id, undefined, { auth: toAccessToken(token) }),
           enabled: !!client && !!id,
         }),
     },
@@ -87,7 +87,7 @@ export function useResources() {
       useQuery: (id: ResourceId) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.referencedBy(id),
-          queryFn: () => client!.getResourceReferencedBy(id, { auth: toAccessToken(token) }),
+          queryFn: () => client!.browseReferences(id, { auth: toAccessToken(token) }),
           enabled: !!client && !!id,
         }),
     },
@@ -111,7 +111,7 @@ export function useResources() {
       useQuery: (query: string, limit: number) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.search(query, limit),
-          queryFn: () => client!.listResources(limit, undefined, searchQuery(query), { auth: toAccessToken(token) }),
+          queryFn: () => client!.browseResources(limit, undefined, searchQuery(query), { auth: toAccessToken(token) }),
           enabled: !!client && !!query,
         }),
     },
@@ -120,11 +120,11 @@ export function useResources() {
       useMutation: () => {
         const token = useAuthToken();
         return useMutation({
-          mutationFn: (data: Parameters<SemiontApiClient['createResource']>[0]) => {
+          mutationFn: (data: Parameters<SemiontApiClient['yieldResource']>[0]) => {
             if (!client) {
               throw new Error('Not authenticated - please sign in to create resources');
             }
-            return client.createResource(data, { auth: toAccessToken(token) });
+            return client.yieldResource(data, { auth: toAccessToken(token) });
           },
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['documents'] });
@@ -207,11 +207,11 @@ export function useAnnotations() {
         }),
     },
 
-    getResourceAnnotation: {
+    browseAnnotation: {
       useQuery: (resourceId: ResourceId, annotationId: AnnotationId) =>
         useQuery({
           queryKey: ['annotations', resourceId, annotationId],
-          queryFn: () => client!.getResourceAnnotation(resourceId, annotationId, { auth: toAccessToken(token) }),
+          queryFn: () => client!.browseAnnotation(resourceId, annotationId, { auth: toAccessToken(token) }),
           enabled: !!client && !!resourceId && !!annotationId,
         }),
     },
@@ -234,10 +234,10 @@ export function useAnnotations() {
             data,
           }: {
             resourceId: ResourceId;
-            data: Parameters<SemiontApiClient['createAnnotation']>[1];
+            data: Parameters<SemiontApiClient['markAnnotation']>[1];
           }) => {
             if (!client) throw new Error('Not authenticated');
-            return client.createAnnotation(resourceId, data, { auth: toAccessToken(token) });
+            return client.markAnnotation(resourceId, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(variables.resourceId) });
@@ -289,10 +289,10 @@ export function useAnnotations() {
           }: {
             resourceId: ResourceId;
             annotationId: AnnotationId;
-            data: Parameters<SemiontApiClient['updateAnnotationBody']>[2];
+            data: Parameters<SemiontApiClient['bindAnnotation']>[2];
           }) => {
             if (!client) throw new Error('Not authenticated');
-            return client.updateAnnotationBody(resourceId, annotationId, data, { auth: toAccessToken(token) });
+            return client.bindAnnotation(resourceId, annotationId, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationId] });
@@ -321,7 +321,7 @@ export function useAnnotations() {
       useQuery: (resourceId: ResourceId, annotationId: AnnotationId, options?: { contextWindow?: number }) =>
         useQuery({
           queryKey: QUERY_KEYS.annotations.llmContext(resourceId, annotationId),
-          queryFn: () => client!.getAnnotationLLMContext(resourceId, annotationId, { ...options, auth: toAccessToken(token) }),
+          queryFn: () => client!.gatherAnnotation(resourceId, annotationId, { ...options, auth: toAccessToken(token) }),
           enabled: !!client && !!resourceId && !!annotationId,
           staleTime: 5 * 60 * 1000, // 5 minutes - context doesn't change often
         }),

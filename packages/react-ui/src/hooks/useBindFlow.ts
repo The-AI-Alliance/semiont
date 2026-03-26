@@ -51,7 +51,7 @@ export function useBindFlow(rUri: ResourceId): void {
      */
     const handleAnnotationUpdateBody = async (event: EventMap['bind:update-body']) => {
       try {
-        await clientRef.current.updateAnnotationBody(rUriRef.current, event.annotationId, {
+        await clientRef.current.bindAnnotation(rUriRef.current, event.annotationId, {
           resourceId: event.resourceId,
           operations: event.operations as any,
         }, { auth: toAccessToken(tokenRef.current) });

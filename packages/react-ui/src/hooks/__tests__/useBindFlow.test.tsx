@@ -33,14 +33,14 @@ vi.mock('../../components/Toast', () => ({
 }));
 
 // Mock API client
-const mockUpdateAnnotationBody = vi.fn();
+const mockBindAnnotation = vi.fn();
 
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
-      updateAnnotationBody: mockUpdateAnnotationBody,
+      bindAnnotation: mockBindAnnotation,
     }),
   };
 });
@@ -79,7 +79,7 @@ describe('useBindFlow', () => {
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();
-    mockUpdateAnnotationBody.mockClear();
+    mockBindAnnotation.mockClear();
   });
 
   afterEach(() => {
@@ -89,7 +89,7 @@ describe('useBindFlow', () => {
   // ─── Body update operations ─────────────────────────────────────────
 
   it('handles body update with add operation', async () => {
-    mockUpdateAnnotationBody.mockResolvedValue(undefined);
+    mockBindAnnotation.mockResolvedValue(undefined);
 
     const { getEventBus } = renderBindFlow();
 
@@ -112,12 +112,12 @@ describe('useBindFlow', () => {
     });
 
     await waitFor(() => {
-      expect(mockUpdateAnnotationBody).toHaveBeenCalled();
+      expect(mockBindAnnotation).toHaveBeenCalled();
     });
   });
 
   it('handles body update with remove operation', async () => {
-    mockUpdateAnnotationBody.mockResolvedValue(undefined);
+    mockBindAnnotation.mockResolvedValue(undefined);
 
     const { getEventBus } = renderBindFlow();
 
@@ -140,12 +140,12 @@ describe('useBindFlow', () => {
     });
 
     await waitFor(() => {
-      expect(mockUpdateAnnotationBody).toHaveBeenCalled();
+      expect(mockBindAnnotation).toHaveBeenCalled();
     });
   });
 
   it('handles body update with replace operation', async () => {
-    mockUpdateAnnotationBody.mockResolvedValue(undefined);
+    mockBindAnnotation.mockResolvedValue(undefined);
 
     const { getEventBus } = renderBindFlow();
 
@@ -164,12 +164,12 @@ describe('useBindFlow', () => {
     });
 
     await waitFor(() => {
-      expect(mockUpdateAnnotationBody).toHaveBeenCalled();
+      expect(mockBindAnnotation).toHaveBeenCalled();
     });
   });
 
   it('emits bind:body-updated on successful update', async () => {
-    mockUpdateAnnotationBody.mockResolvedValue(undefined);
+    mockBindAnnotation.mockResolvedValue(undefined);
 
     const { getEventBus } = renderBindFlow();
 
@@ -198,7 +198,7 @@ describe('useBindFlow', () => {
 
   it('emits bind:body-update-failed on API error', async () => {
     const testError = new Error('Network error');
-    mockUpdateAnnotationBody.mockRejectedValue(testError);
+    mockBindAnnotation.mockRejectedValue(testError);
 
     const { getEventBus } = renderBindFlow();
 
@@ -227,7 +227,7 @@ describe('useBindFlow', () => {
 
   it('shows error toast on body update failure', async () => {
     const testError = new Error('Failed to link reference');
-    mockUpdateAnnotationBody.mockRejectedValue(testError);
+    mockBindAnnotation.mockRejectedValue(testError);
 
     const { getEventBus } = renderBindFlow();
 

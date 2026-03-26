@@ -155,7 +155,7 @@ export function useYieldFlow(
 
         const sseOptions = { auth: toAccessToken(tokenRef.current), eventBus };
 
-        clientRef.current.sse.yieldResourceFromAnnotation(
+        clientRef.current.sse.yieldResource(
           event.resourceId,
           event.annotationId,
           event.options,
