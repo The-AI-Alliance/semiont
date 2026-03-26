@@ -89,8 +89,7 @@
     "jsdom": "^28.0.0",
     "postcss-import": "^16.1.1",
     "tsup": "^8.0.1",
-    "typescript": "^5.6.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.6.3"
   },
   "publishConfig": {
     "access": "public"
@@ -104,7 +103,6 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
-    "@semiont/core": "*",
-    "@vitest/ui": "4.0.18"
+    "@semiont/core": "*"
   }
 }

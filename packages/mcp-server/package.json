@@ -13,14 +13,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
-    "@semiont/api-client": "*",
-    "@vitest/ui": "4.0.18"
+    "@semiont/api-client": "*"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@vitest/coverage-v8": "^4.1.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.3.3"
   }
 }

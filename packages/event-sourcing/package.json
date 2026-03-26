@@ -51,13 +51,11 @@
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.6.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.6.3"
   },
   "dependencies": {
     "@semiont/api-client": "*",
     "@semiont/core": "*",
-    "@vitest/ui": "4.0.18",
     "nanoid": "^5.1.7",
     "uuid": "^10.0.0"
   }
