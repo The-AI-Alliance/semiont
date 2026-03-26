@@ -48,13 +48,19 @@ See [Managing Environments](./ADDING_ENVIRONMENTS.md) for the full schema.
 
 ## Service Lifecycle
 
+All lifecycle commands operate on the active environment, resolved in order from: `--environment` flag → `$SEMIONT_ENV` → `defaults.environment` in `~/.semiontconfig`. After `semiont init`, the default is `local`. You can override per-invocation with `-e <env>`:
+
 ```bash
-semiont provision -e local                # Provision infrastructure resources
-semiont start -e local                    # Start all services
-semiont start -e local --service backend  # Start one service
-semiont check -e local                    # Health check all services
-semiont stop -e local                     # Stop all services
-semiont watch -e local                    # Live web dashboard (port 3333)
+semiont provision                         # Provision infrastructure resources
+semiont start                             # Start all services
+semiont start --service backend           # Start one service
+semiont check                             # Health check all services
+semiont stop                              # Stop all services
+semiont watch                             # Live web dashboard (port 3333)
+
+# Override environment explicitly:
+semiont start -e production
+semiont check -e staging
 ```
 
 `--dry-run` is supported on all commands and shows what would happen without making changes.
@@ -80,8 +86,8 @@ Platforms are configured per-service in `~/.semiontconfig`:
 The `mcp` service exposes Semiont APIs to AI assistants via the Model Context Protocol.
 
 ```bash
-semiont provision --service mcp -e production   # OAuth setup (once)
-semiont start --service mcp -e production
+semiont provision --service mcp   # OAuth setup (once)
+semiont start --service mcp
 ```
 
 AI application configuration:
@@ -104,8 +110,8 @@ AI application configuration:
 ## Administration
 
 ```bash
-semiont useradd -e local --email user@example.com   # Create or update a user
-semiont clean -e local                               # Remove generated/cached files and Docker volumes
+semiont useradd --email user@example.com   # Create or update a user
+semiont clean                              # Remove generated/cached files and Docker volumes
 ```
 
 The `local` command is a shorthand for the full first-run sequence:
