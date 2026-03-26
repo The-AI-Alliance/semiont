@@ -103,13 +103,13 @@ function renderDetectionFlow(testUri: string) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('Annotation creation clears pendingAnnotation', () => {
-  let createAnnotationSpy: ReturnType<typeof vi.spyOn>;
+  let markAnnotationSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     resetEventBusForTesting();
-    createAnnotationSpy = vi
-      .spyOn(SemiontApiClient.prototype, 'createAnnotation')
+    markAnnotationSpy = vi
+      .spyOn(SemiontApiClient.prototype, 'markAnnotation')
       .mockResolvedValue({ annotationId: MOCK_ANNOTATION.id } as any);
   });
 
@@ -143,7 +143,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
       expect(screen.getByTestId('pending-motivation')).toHaveTextContent('none');
     });
 
-    expect(createAnnotationSpy).toHaveBeenCalledTimes(1);
+    expect(markAnnotationSpy).toHaveBeenCalledTimes(1);
   });
 
   it('clears pendingAnnotation after creating an assessment (assessing)', async () => {
@@ -272,7 +272,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
   });
 
   it('does NOT clear pendingAnnotation if API call fails', async () => {
-    createAnnotationSpy.mockRejectedValueOnce(new Error('Network error'));
+    markAnnotationSpy.mockRejectedValueOnce(new Error('Network error'));
 
     const { emit } = renderDetectionFlow(TEST_URI);
 
@@ -319,6 +319,6 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     // API should NOT have been called on cancel
-    expect(createAnnotationSpy).not.toHaveBeenCalled();
+    expect(markAnnotationSpy).not.toHaveBeenCalled();
   });
 });

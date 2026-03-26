@@ -64,7 +64,7 @@ describe('Generation Flow - Feature Integration', () => {
     mockStream = createMockGenerationStream();
 
     // Spy on SSEClient prototype method
-    generateResourceSpy = vi.spyOn(SSEClient.prototype, 'yieldResourceFromAnnotation').mockReturnValue(mockStream as any);
+    generateResourceSpy = vi.spyOn(SSEClient.prototype, 'yieldResource').mockReturnValue(mockStream as any);
 
     // Mock callbacks
     mockShowSuccess = vi.fn();
@@ -76,7 +76,7 @@ describe('Generation Flow - Feature Integration', () => {
     vi.restoreAllMocks();
   });
 
-  it('should call yieldResourceFromAnnotation exactly ONCE when generation starts', async () => {
+  it('should call yieldResource exactly ONCE when generation starts', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
 

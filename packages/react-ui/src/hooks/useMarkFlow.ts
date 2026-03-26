@@ -111,14 +111,6 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
       assessing: 'annotations',
       tagging: 'annotations',
       linking: 'annotations',
-      bookmarking: 'annotations',
-      classifying: 'annotations',
-      describing: 'annotations',
-      editing: 'annotations',
-      identifying: 'annotations',
-      moderating: 'annotations',
-      questioning: 'annotations',
-      replying: 'annotations',
     };
 
     // Emit event to open the appropriate panel
@@ -262,7 +254,7 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
       if (!currentClient || !currentRUri) return;
 
       try {
-        const result = await currentClient.createAnnotation(currentRUri, {
+        const result = await currentClient.markAnnotation(currentRUri, {
           motivation: event.motivation,
           target: {
             source: currentRUri,
@@ -336,33 +328,33 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
           if (!schemaId || !categories || categories.length === 0) {
             throw new Error('Tag assist requires schemaId and categories');
           }
-          currentClient.sse.annotateTags(currentRUri, { schemaId, categories }, sseOptions);
+          currentClient.sse.markTags(currentRUri, { schemaId, categories }, sseOptions);
           // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
             throw new Error('Reference assist requires entityTypes');
           }
-          currentClient.sse.annotateReferences(currentRUri, {
+          currentClient.sse.markReferences(currentRUri, {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, sseOptions);
           // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'highlighting') {
-          currentClient.sse.annotateHighlights(currentRUri, {
+          currentClient.sse.markHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, sseOptions);
           // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'assessing') {
-          currentClient.sse.annotateAssessments(currentRUri, {
+          currentClient.sse.markAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, sseOptions);
           // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'commenting') {
-          currentClient.sse.annotateComments(currentRUri, {
+          currentClient.sse.markComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,

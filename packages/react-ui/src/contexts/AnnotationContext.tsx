@@ -26,7 +26,7 @@ export interface AnnotationProviderProps {
  *   const deleteMutation = annotations.delete.useMutation();
  *
  *   return {
- *     createAnnotation: async (params) => {
+ *     markAnnotation: async (params) => {
  *       const result = await createMutation.mutateAsync({
  *         rUri: params.rUri,
  *         data: { motivation: params.motivation, target: { source: params.rUri, selector: params.selector }, body: params.body }

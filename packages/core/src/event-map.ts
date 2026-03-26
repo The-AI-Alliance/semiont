@@ -363,6 +363,8 @@ export type EventMap = {
   };
   'bind:body-updated': { annotationId: AnnotationId };
   'bind:body-update-failed': { error: Error };
+  'bind:finished': { annotationId: AnnotationId };
+  'bind:failed': { error: Error };
   'bind:search-results': {
     referenceId: string;
     results: Array<components['schemas']['ResourceDescriptor'] & {
@@ -419,6 +421,17 @@ export type EventMap = {
     error: Error;
   };
 
+  // Annotation-level gather SSE events (streaming transport)
+  'gather:annotation-progress': {
+    message?: string;
+    percentage?: number;
+  };
+  'gather:annotation-finished': {
+    correlationId?: string;
+    annotationId: AnnotationId;
+    response: components['schemas']['AnnotationLLMContextResponse'];
+  };
+
   // Resource-level context (for LLM context endpoint)
   'gather:resource-requested': {
     correlationId?: string;
@@ -439,6 +452,17 @@ export type EventMap = {
     correlationId?: string;
     resourceId: ResourceId;
     error: Error;
+  };
+
+  // Resource-level gather SSE events (streaming transport)
+  'gather:progress': {
+    message?: string;
+    percentage?: number;
+  };
+  'gather:finished': {
+    correlationId?: string;
+    resourceId: ResourceId;
+    context: components['schemas']['ResourceLLMContextResponse'];
   };
 
   // ========================================================================
@@ -558,7 +582,7 @@ export type EventMap = {
   // Manages which annotation has user's attention (hover/click/focus)
 
   'beckon:hover': { annotationId: string | null };
-  'beckon:focus': { annotationId: string | null };
+  'beckon:focus': { annotationId?: string; resourceId?: string };
   'beckon:sparkle': { annotationId: string };
 
   // ========================================================================

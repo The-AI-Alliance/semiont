@@ -54,8 +54,8 @@ const createMockSSEStream = () => {
 
 describe('Detection Flow - Feature Integration', () => {
   let mockStream: ReturnType<typeof createMockSSEStream>;
-  let annotateReferencesSpy: any;
-  let annotateHighlightsSpy: any;
+  let markReferencesSpy: any;
+  let markHighlightsSpy: any;
   let detectCommentsSpy: any;
 
   beforeEach(() => {
@@ -66,10 +66,10 @@ describe('Detection Flow - Feature Integration', () => {
     mockStream = createMockSSEStream();
 
     // Spy on SSEClient prototype methods
-    annotateReferencesSpy = vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue(mockStream as any);
-    annotateHighlightsSpy = vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue(mockStream as any);
-    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'annotateComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'annotateAssessments').mockReturnValue(mockStream as any);
+    markReferencesSpy = vi.spyOn(SSEClient.prototype, 'markReferences').mockReturnValue(mockStream as any);
+    markHighlightsSpy = vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue(mockStream as any);
+    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'markComments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'markAssessments').mockReturnValue(mockStream as any);
   });
 
   afterEach(() => {
@@ -93,11 +93,11 @@ describe('Detection Flow - Feature Integration', () => {
     // CRITICAL ASSERTION: API called exactly once (not twice!)
     // This would FAIL if useBindFlow was called in multiple places
     await waitFor(() => {
-      expect(annotateReferencesSpy).toHaveBeenCalledTimes(1);
+      expect(markReferencesSpy).toHaveBeenCalledTimes(1);
     });
 
     // Verify correct parameters (eventBus is passed but we don't need to verify its exact value)
-    expect(annotateReferencesSpy).toHaveBeenCalledWith(
+    expect(markReferencesSpy).toHaveBeenCalledWith(
       testId,
       {
         entityTypes: ['Person', 'Organization'],
@@ -122,7 +122,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for stream to be created
     await waitFor(() => {
-      expect(annotateReferencesSpy).toHaveBeenCalled();
+      expect(markReferencesSpy).toHaveBeenCalled();
     });
 
     // Simulate SSE progress event being emitted to EventBus (how SSE actually works now)
@@ -156,7 +156,7 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     await waitFor(() => {
-      expect(annotateHighlightsSpy).toHaveBeenCalledTimes(1);
+      expect(markHighlightsSpy).toHaveBeenCalledTimes(1);
     });
 
     // First progress update via EventBus
@@ -291,8 +291,8 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     await waitFor(() => {
-      expect(annotateHighlightsSpy).toHaveBeenCalledTimes(1);
-      expect(annotateHighlightsSpy).toHaveBeenCalledWith(testId, {
+      expect(markHighlightsSpy).toHaveBeenCalledTimes(1);
+      expect(markHighlightsSpy).toHaveBeenCalledWith(testId, {
         instructions: 'Find important text',
       }, expect.objectContaining({ auth: undefined }));
     });
@@ -337,11 +337,11 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for operation to complete
     await waitFor(() => {
-      expect(annotateReferencesSpy).toHaveBeenCalled();
+      expect(markReferencesSpy).toHaveBeenCalled();
     });
 
     // VERIFY: API called exactly once, even though multiple listeners exist
-    expect(annotateReferencesSpy).toHaveBeenCalledTimes(1);
+    expect(markReferencesSpy).toHaveBeenCalledTimes(1);
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);

@@ -2,10 +2,10 @@
  * Layer 3: Feature Integration Test - Bind Flow (body update)
  *
  * Tests the write side of useBindFlow:
- * - bind:update-body → calls updateAnnotationBody API
+ * - bind:update-body → calls bindAnnotation API
  * - bind:update-body → emits bind:body-updated on success
  * - bind:update-body → emits bind:body-update-failed on error
- * - auth token passed to updateAnnotationBody
+ * - auth token passed to bindAnnotation
  *
  * The wizard modal (ReferenceWizardModal) handles modal state, context
  * gathering, search configuration, and result display. This test covers
@@ -21,7 +21,7 @@ import { useBindFlow } from '../../../hooks/useBindFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SSEClient } from '@semiont/api-client';
 import { resourceId, accessToken, annotationId } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -35,7 +35,7 @@ vi.mock('../../../components/Toast', () => ({
 }));
 
 describe('Bind Flow - Body Update Integration', () => {
-  let updateAnnotationBodySpy: ReturnType<typeof vi.fn>;
+  let bindAnnotationSpy: ReturnType<typeof vi.fn>;
   const testId = resourceId('test-resource');
   const testToken = 'test-resolution-token';
   const testBaseUrl = 'http://localhost:4000';
@@ -44,8 +44,11 @@ describe('Bind Flow - Body Update Integration', () => {
     vi.clearAllMocks();
     resetEventBusForTesting();
 
-    updateAnnotationBodySpy = vi.fn().mockResolvedValue({ success: true });
-    vi.spyOn(SemiontApiClient.prototype, 'updateAnnotationBody').mockImplementation(updateAnnotationBodySpy);
+    bindAnnotationSpy = vi.fn().mockImplementation((_rId: any, annId: any, _req: any, opts: any) => {
+      queueMicrotask(() => opts.eventBus.get('bind:finished').next({ annotationId: annId }));
+      return { close: vi.fn() };
+    });
+    vi.spyOn(SSEClient.prototype, 'bindAnnotation').mockImplementation(bindAnnotationSpy as any);
   });
 
   afterEach(() => {
@@ -80,17 +83,17 @@ describe('Bind Flow - Body Update Integration', () => {
 
   // ─── bind:update-body ──────────────────────────────────────────────────
 
-  it('bind:update-body calls updateAnnotationBody API', async () => {
+  it('bind:update-body calls bindAnnotation API', async () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-body-1'),
       resourceId: resourceId('linked-resource-id'),
-      operations: [{ op: 'add', item: { id: 'linked-resource-id' } }],
+      operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'linked-resource-id' } }],
     }); });
 
     await waitFor(() => {
-      expect(updateAnnotationBodySpy).toHaveBeenCalledTimes(1);
+      expect(bindAnnotationSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -100,14 +103,14 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-auth'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'replace', newItem: { id: 'resource-id' } }],
+      operations: [{ op: 'replace', newItem: { type: 'SpecificResource' as const, source: 'resource-id' } }],
     }); });
 
     await waitFor(() => {
-      expect(updateAnnotationBodySpy).toHaveBeenCalled();
+      expect(bindAnnotationSpy).toHaveBeenCalled();
     });
 
-    const callArgs = updateAnnotationBodySpy.mock.calls[0];
+    const callArgs = bindAnnotationSpy.mock.calls[0];
     expect(callArgs[3]).toHaveProperty('auth');
     expect(callArgs[3].auth).toBe(accessToken(testToken));
   });
@@ -121,7 +124,7 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-success'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'add', item: { id: 'resource-id' } }],
+      operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'resource-id' } }],
     }); });
 
     await waitFor(() => {
@@ -136,7 +139,10 @@ describe('Bind Flow - Body Update Integration', () => {
   });
 
   it('bind:update-body emits bind:body-update-failed on API error', async () => {
-    updateAnnotationBodySpy.mockRejectedValue(new Error('Update failed'));
+    bindAnnotationSpy.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
+      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: new Error('Update failed') }));
+      return { close: vi.fn() };
+    });
 
     const { getEventBus } = renderBindFlow();
     const bodyUpdateFailedSpy = vi.fn();
@@ -146,7 +152,7 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-fail'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'remove', item: { id: 'old-id' } }],
+      operations: [{ op: 'remove', item: { type: 'SpecificResource' as const, source: 'old-id' } }],
     }); });
 
     await waitFor(() => {
@@ -166,11 +172,11 @@ describe('Bind Flow - Body Update Integration', () => {
     act(() => { getEventBus().get('bind:update-body').next({
       annotationId: annotationId('ann-dedup'),
       resourceId: resourceId('resource-id'),
-      operations: [{ op: 'add', item: { id: 'resource-id' } }],
+      operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'resource-id' } }],
     }); });
 
     await waitFor(() => {
-      expect(updateAnnotationBodySpy).toHaveBeenCalledTimes(1);
+      expect(bindAnnotationSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -33,7 +33,7 @@ export interface DeleteAnnotationParams {
  *   const deleteMutation = useAnnotations().delete.useMutation();
  *
  *   return {
- *     createAnnotation: async (params) => {
+ *     markAnnotation: async (params) => {
  *       const result = await createMutation.mutateAsync({...});
  *       return result.annotation;
  *     },
@@ -50,7 +50,7 @@ export interface AnnotationManager {
    * @param params - Creation parameters (rUri, motivation, selector, body)
    * @returns Promise resolving to the created annotation, or undefined if creation fails
    */
-  createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
+  markAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
 
   /**
    * Delete an annotation

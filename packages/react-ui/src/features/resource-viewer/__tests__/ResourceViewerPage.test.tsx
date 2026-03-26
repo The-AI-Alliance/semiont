@@ -91,7 +91,7 @@ useDebouncedCallback: (fn: any) => fn,
     useResourceAnnotations: () => ({
       clearNewAnnotationId: vi.fn(),
       newAnnotationIds: new Set(),
-      createAnnotation: vi.fn(),
+      markAnnotation: vi.fn(),
       deleteAnnotation: vi.fn(),
       triggerSparkleAnimation: vi.fn(),
     }),
@@ -111,7 +111,7 @@ vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   useResourceAnnotations: () => ({
     clearNewAnnotationId: vi.fn(),
     newAnnotationIds: new Set(),
-    createAnnotation: vi.fn(),
+    markAnnotation: vi.fn(),
     deleteAnnotation: vi.fn(),
     triggerSparkleAnimation: vi.fn(),
   }),

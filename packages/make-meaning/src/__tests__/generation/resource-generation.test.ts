@@ -18,7 +18,7 @@ const testAnnotation: GatheredContext['annotation'] = {
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
   id: 'test-annotation',
-  motivation: 'describing',
+  motivation: 'commenting',
   target: { source: 'test-resource' },
   body: [],
 };

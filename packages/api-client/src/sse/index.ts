@@ -70,6 +70,22 @@ export interface AnnotateTagsStreamRequest {
 }
 
 /**
+ * Request body for resource gather stream
+ */
+export type GatherResourceStreamRequest = components['schemas']['GatherResourceStreamRequest'];
+
+/**
+ * Request body for annotation gather stream
+ */
+export type GatherAnnotationStreamRequest = components['schemas']['GatherAnnotationStreamRequest'];
+
+/**
+ * Request body for bind annotation stream
+ * Uses generated type from OpenAPI schema
+ */
+export type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRequest'];
+
+/**
  * Request body for bind search stream
  */
 export interface BindSearchStreamRequest {
@@ -110,7 +126,7 @@ export interface SSERequestOptions {
  *   baseUrl: 'http://localhost:4000'
  * });
  *
- * const stream = sseClient.annotateReferences(
+ * const stream = sseClient.markReferences(
  *   'http://localhost:4000/resources/doc-123',
  *   { entityTypes: ['Person', 'Organization'] },
  *   { auth: 'your-token' }
@@ -158,7 +174,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateReferences(
+   * const stream = sseClient.markReferences(
    *   'http://localhost:4000/resources/doc-123',
    *   { entityTypes: ['Person', 'Organization'] },
    *   { auth: 'your-token' }
@@ -181,7 +197,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateReferences(
+  markReferences(
     resourceId: ResourceId,
     request: AnnotateReferencesStreamRequest,
     options: SSERequestOptions
@@ -219,7 +235,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.yieldResourceFromAnnotation(
+   * const stream = sseClient.yieldResource(
    *   'http://localhost:4000/resources/doc-123',
    *   'http://localhost:4000/annotations/ann-456',
    *   { language: 'es', title: 'Spanish Summary' },
@@ -243,7 +259,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  yieldResourceFromAnnotation(
+  yieldResource(
     resourceId: ResourceId,
     annotationId: AnnotationId,
     request: YieldResourceStreamRequest,
@@ -281,7 +297,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateHighlights(
+   * const stream = sseClient.markHighlights(
    *   'http://localhost:4000/resources/doc-123',
    *   { instructions: 'Focus on key technical points' },
    *   { auth: 'your-token' }
@@ -304,7 +320,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateHighlights(
+  markHighlights(
     resourceId: ResourceId,
     request: AnnotateHighlightsStreamRequest = {},
     options: SSERequestOptions
@@ -341,7 +357,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateAssessments(
+   * const stream = sseClient.markAssessments(
    *   'http://localhost:4000/resources/doc-123',
    *   { instructions: 'Evaluate claims for accuracy' },
    *   { auth: 'your-token' }
@@ -364,7 +380,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateAssessments(
+  markAssessments(
     resourceId: ResourceId,
     request: AnnotateAssessmentsStreamRequest = {},
     options: SSERequestOptions
@@ -403,7 +419,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateComments(
+   * const stream = sseClient.markComments(
    *   'http://localhost:4000/resources/doc-123',
    *   {
    *     instructions: 'Focus on technical terminology',
@@ -428,7 +444,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateComments(
+  markComments(
     resourceId: ResourceId,
     request: AnnotateCommentsStreamRequest = {},
     options: SSERequestOptions
@@ -467,7 +483,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.annotateTags(
+   * const stream = sseClient.markTags(
    *   'http://localhost:4000/resources/doc-123',
    *   {
    *     schemaId: 'legal-irac',
@@ -493,7 +509,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  annotateTags(
+  markTags(
     resourceId: ResourceId,
     request: AnnotateTagsStreamRequest,
     options: SSERequestOptions
@@ -511,6 +527,115 @@ export class SSEClient {
         progressEvents: ['mark:progress'],
         completeEvent: 'mark:assist-finished',
         errorEvent: 'mark:assist-failed',
+        eventBus: options.eventBus,
+        eventPrefix: undefined
+      },
+      this.logger
+    );
+  }
+
+  /**
+   * Gather LLM context for a resource (streaming)
+   *
+   * Streams resource LLM context gathering progress via Server-Sent Events.
+   *
+   * @param resourceId - Resource URI or ID
+   * @param request - Gather configuration (depth, maxResources, includeContent, includeSummary)
+   * @param options - Request options (auth token, eventBus)
+   * @returns SSE stream controller with progress/complete/error callbacks
+   */
+  gatherResource(
+    resourceId: ResourceId,
+    request: GatherResourceStreamRequest,
+    options: SSERequestOptions
+  ): SSEStream {
+    const url = `${this.baseUrl}/resources/${resourceId}/gather-resource-stream`;
+
+    return createSSEStream(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(options.auth),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: ['gather:progress'],
+        completeEvent: 'gather:finished',
+        errorEvent: 'gather:failed',
+        eventBus: options.eventBus,
+        eventPrefix: undefined
+      },
+      this.logger
+    );
+  }
+
+  /**
+   * Gather LLM context for an annotation (streaming)
+   *
+   * Streams annotation LLM context gathering progress via Server-Sent Events.
+   *
+   * @param resourceId - Resource URI or ID
+   * @param annotationId - Annotation URI or ID
+   * @param request - Gather configuration (contextWindow)
+   * @param options - Request options (auth token, eventBus)
+   * @returns SSE stream controller with progress/complete/error callbacks
+   */
+  gatherAnnotation(
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
+    request: GatherAnnotationStreamRequest,
+    options: SSERequestOptions
+  ): SSEStream {
+    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/gather-annotation-stream`;
+
+    return createSSEStream(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(options.auth),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: ['gather:annotation-progress'],
+        completeEvent: 'gather:annotation-finished',
+        errorEvent: 'gather:failed',
+        eventBus: options.eventBus,
+        eventPrefix: undefined
+      },
+      this.logger
+    );
+  }
+
+  /**
+   * Bind annotation body (streaming)
+   *
+   * Applies annotation body operations and streams completion via Server-Sent Events.
+   *
+   * @param resourceId - Resource URI or ID
+   * @param annotationId - Annotation URI or ID
+   * @param request - Bind operations (resourceId + operations array)
+   * @param options - Request options (auth token, eventBus)
+   * @returns SSE stream controller with complete/error callbacks
+   */
+  bindAnnotation(
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
+    request: BindAnnotationStreamRequest,
+    options: SSERequestOptions
+  ): SSEStream {
+    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/bind-stream`;
+
+    return createSSEStream(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(options.auth),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: [],
+        completeEvent: 'bind:finished',
+        errorEvent: 'bind:failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -652,6 +777,48 @@ export class SSEClient {
     options: SSERequestOptions & { onConnected?: () => void }
   ): SSEStream {
     const url = `${this.baseUrl}/api/events/stream`;
+
+    const stream = createSSEStream(
+      url,
+      {
+        method: 'GET',
+        headers: this.getHeaders(options.auth)
+      },
+      {
+        progressEvents: ['*'],
+        completeEvent: null,
+        errorEvent: null,
+        eventBus: options.eventBus
+      },
+      this.logger
+    );
+
+    if (options.onConnected) {
+      const sub = options.eventBus.get(SSE_STREAM_CONNECTED as any).subscribe(() => {
+        options.onConnected!();
+        sub.unsubscribe();
+      });
+    }
+
+    return stream;
+  }
+
+  /**
+   * Subscribe to participant attention stream (long-lived stream)
+   *
+   * Opens a participant-scoped SSE connection to receive cross-participant
+   * beckon signals. Signals are delivered as 'beckon:focus' events routed
+   * to the EventBus — the existing scroll/highlight machinery handles them.
+   *
+   * Signals are ephemeral — delivered if connected, dropped if not.
+   *
+   * @param options - Request options (auth token, eventBus)
+   * @returns SSE stream controller
+   */
+  attentionStream(
+    options: SSERequestOptions & { onConnected?: () => void }
+  ): SSEStream {
+    const url = `${this.baseUrl}/api/participants/me/attention-stream`;
 
     const stream = createSSEStream(
       url,

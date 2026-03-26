@@ -19,7 +19,7 @@ interface ResourceAnnotationsContextType {
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
 
   // Generic annotation creation (supports both text and image annotations)
-  createAnnotation: (
+  markAnnotation: (
     rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
@@ -44,10 +44,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const annotations = useAnnotations();
 
   // Set up mutation hooks
-  const createAnnotationMutation = annotations.create.useMutation();
+  const markAnnotationMutation = annotations.create.useMutation();
 
   // Generic annotation creation function (supports both text and image annotations)
-  const createAnnotation = useCallback(async (
+  const markAnnotation = useCallback(async (
     rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
@@ -63,7 +63,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         body,
       };
 
-      const result = await createAnnotationMutation.mutateAsync({
+      const result = await markAnnotationMutation.mutateAsync({
         resourceId: rUri,
         data: createData
       });
@@ -91,7 +91,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       announce('Failed to create annotation', 'assertive');
       throw err;
     }
-  }, [createAnnotationMutation, announce]);
+  }, [markAnnotationMutation, announce]);
 
   const clearNewAnnotationId = useCallback((id: AnnotationId) => {
     setNewAnnotationIds(prev => {
@@ -117,11 +117,11 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const contextValue = useMemo(
     () => ({
       newAnnotationIds,
-      createAnnotation,
+      markAnnotation,
       clearNewAnnotationId,
       triggerSparkleAnimation,
     }),
-    [newAnnotationIds, createAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
+    [newAnnotationIds, markAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
   );
 
   return (

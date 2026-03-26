@@ -46,21 +46,32 @@ export function useBindFlow(rUri: ResourceId): void {
 
   useEffect(() => {
     /**
-     * Handle annotation body updates
+     * Handle annotation body updates via SSE
      * Emitted by: ReferenceWizardModal (linking) and ReferenceEntry (unlinking)
      */
-    const handleAnnotationUpdateBody = async (event: EventMap['bind:update-body']) => {
-      try {
-        await clientRef.current.updateAnnotationBody(rUriRef.current, event.annotationId, {
-          resourceId: event.resourceId,
-          operations: event.operations as any,
-        }, { auth: toAccessToken(tokenRef.current) });
+    const handleAnnotationUpdateBody = (event: EventMap['bind:update-body']) => {
+      const annotationId = event.annotationId;
 
-        eventBus.get('bind:body-updated').next({ annotationId: event.annotationId });
-      } catch (error) {
-        console.error('Failed to update annotation body:', error);
-        eventBus.get('bind:body-update-failed').next({ error: error as Error });
-      }
+      const finishedSub = eventBus.get('bind:finished').subscribe((finishedEvent) => {
+        if (finishedEvent.annotationId !== annotationId) return;
+        finishedSub.unsubscribe();
+        failedSub.unsubscribe();
+        eventBus.get('bind:body-updated').next({ annotationId });
+      });
+
+      const failedSub = eventBus.get('bind:failed').subscribe((failedEvent: any) => {
+        finishedSub.unsubscribe();
+        failedSub.unsubscribe();
+        console.error('Failed to update annotation body:', failedEvent.error);
+        eventBus.get('bind:body-update-failed').next({ error: failedEvent.error ?? new Error('Bind failed') });
+      });
+
+      clientRef.current.sse.bindAnnotation(
+        rUriRef.current,
+        annotationId,
+        { resourceId: event.resourceId, operations: event.operations as any },
+        { auth: toAccessToken(tokenRef.current), eventBus },
+      );
     };
 
     /**

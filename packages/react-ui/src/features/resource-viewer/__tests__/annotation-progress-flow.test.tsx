@@ -158,10 +158,10 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     mockStream = new MockSSEStream(eventBus);
 
     // Spy on SSEClient prototype methods to inject mock stream
-    vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'annotateAssessments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'annotateComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'markAssessments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'markComments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'markReferences').mockReturnValue(mockStream as any);
 
     mockAnnotations = [];
   });

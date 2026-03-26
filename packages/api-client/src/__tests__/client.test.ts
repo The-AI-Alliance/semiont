@@ -100,7 +100,7 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
   });
 
-  describe('listResources - filter by archived', () => {
+  describe('browseResources - filter by archived', () => {
     test('should list only active resources', async () => {
       const mockResponse = {
         resources: [
@@ -114,7 +114,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.listResources(10, false);
+      const result = await client.browseResources(10, false);
 
       expect(result.resources).toHaveLength(2);
       expect(result.resources.every(r => !r.archived)).toBe(true);
@@ -138,7 +138,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.listResources(10, true);
+      const result = await client.browseResources(10, true);
 
       expect(result.resources).toHaveLength(1);
       expect(result.resources.every(r => r.archived)).toBe(true);
@@ -240,7 +240,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getResourceLLMContext(testResourceId);
+      const result = await client.gatherResource(testResourceId);
 
       expect(result.mainResource.name).toBe('Test Resource');
       expect(mockKy.get).toHaveBeenCalledWith(
@@ -267,7 +267,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getResourceLLMContext(testResourceId, {
+      const result = await client.gatherResource(testResourceId, {
         depth: 3,
         maxResources: 15,
         includeContent: true,
@@ -311,7 +311,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getAnnotationLLMContext(testResourceId, testAnnotationId);
+      const result = await client.gatherAnnotation(testResourceId, testAnnotationId);
 
       expect(result.annotation.id).toBe('ann-123');
       expect(mockKy.get).toHaveBeenCalledWith(
@@ -350,7 +350,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getAnnotationLLMContext(testResourceId, testAnnotationId, {
+      const result = await client.gatherAnnotation(testResourceId, testAnnotationId, {
         contextWindow: 500,
       });
 

@@ -14,7 +14,7 @@ The Beckon flow directs user focus to specific annotations or regions of interes
 
 The Beckon flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the frontend event bus.
 
-Beckoning is purely a frontend concern. It produces no backend events and no persistent state. It coordinates visual focus across the UI — highlighting, sparkle animations, and scroll-to-annotation — while the [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
+Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a frontend concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the CLI or another agent) goes through a lightweight backend endpoint and a participant-scoped SSE stream, but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
 
 ## Using the API Client
 
@@ -69,7 +69,27 @@ Click events relay through `beckon:focus` to scroll the document view:
 3. `useBeckonFlow` relays as `beckon:focus`
 4. BrowseView subscribes to `beckon:focus` and scrolls the document to the annotation's position
 
+## Cross-Participant Beckoning
+
+`semiont beckon <participantId> --resource <resourceId>` from the CLI (or from another
+agent) delivers the same `beckon:focus` signal to a named participant via a backend
+endpoint and a participant-scoped SSE stream:
+
+1. CLI posts to `POST /api/participants/{id}/attention`
+2. Backend pushes the signal to `GET /api/participants/me/attention-stream` if the
+   participant is connected
+3. Frontend `useAttentionStream` (in `useBeckonFlow.ts`) receives it and emits
+   `beckon:focus` on the local EventBus — the same path as an in-browser click relay
+4. The existing scroll-and-highlight behaviour fires, exactly as if the participant had
+   hovered themselves
+
+If the participant is not connected, the signal is dropped. No queue, no retry — same
+ephemeral semantics as all other beckon events.
+
+
 ## Implementation
 
 - **Hook**: [packages/react-ui/src/hooks/useBeckonFlow.ts](../../packages/react-ui/src/hooks/useBeckonFlow.ts)
 - **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `ATTENTION FLOW` section
+- **CLI command**: [apps/cli/src/core/commands/beckon.ts](../../apps/cli/src/core/commands/beckon.ts)
+- **Backend route**: [apps/backend/src/routes/participants/](../../apps/backend/src/routes/participants/)

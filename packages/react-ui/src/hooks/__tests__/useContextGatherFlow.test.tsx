@@ -5,211 +5,156 @@
  * - Event subscription to gather:requested
  * - API calls with correct parameters
  * - Success/failure event emission
- * - URI extraction and tracking
  * - State management
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
-import { renderHook, waitFor, act } from '@testing-library/react';
-import { EventBus, annotationId, resourceId, type GatheredContext } from '@semiont/core';
-import { SemiontApiClient } from '@semiont/api-client';
-import { useContextGatherFlow } from '../useContextGatherFlow';
+import { render, waitFor, act } from '@testing-library/react';
+import { EventBus, annotationId, resourceId } from '@semiont/core';
+import { SSEClient } from '@semiont/api-client';
+import { useContextGatherFlow, type ContextGatherFlowState } from '../useContextGatherFlow';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
+import { ApiClientProvider, useApiClient } from '../../contexts/ApiClientContext';
 
+// Mock Toast to avoid provider errors
+vi.mock('../../components/Toast', () => ({
+  useToast: () => ({ showSuccess: vi.fn(), showError: vi.fn(), showInfo: vi.fn(), showWarning: vi.fn() }),
+}));
 
 describe('useContextGatherFlow', () => {
   let eventBus: EventBus;
-  let mockClient: vi.Mocked<SemiontApiClient>;
+  let gatherAnnotationSpy: ReturnType<typeof vi.fn>;
   const testToken = 'test-token-123';
   const testResourceId = resourceId('resource-123');
   const testAnnotationId = annotationId('anno-456');
+  const testBaseUrl = 'http://localhost:4000';
 
-  const mockContext: GatheredContext = {
-    beforeText: 'This is text before the selection.',
-    selectedText: 'Selected entity reference',
-    afterText: 'This is text after the selection.',
+  const mockAnnotationContext = {
+    annotation: {},
+    sourceResource: {},
+    sourceContext: { before: 'before', selected: 'selected', after: 'after' },
   };
 
   beforeEach(() => {
     eventBus = new EventBus();
-    mockClient = {
-      getAnnotationLLMContext: vi.fn(),
-    } as unknown as vi.Mocked<SemiontApiClient>;
 
-    // Clear all mocks before each test
-    vi.clearAllMocks();
+    gatherAnnotationSpy = vi.fn().mockImplementation(
+      (_rid: any, aid: any, _req: any, opts: any) => {
+        queueMicrotask(() =>
+          opts.eventBus.get('gather:annotation-finished').next({
+            annotationId: aid,
+            response: { context: mockAnnotationContext },
+          })
+        );
+      }
+    );
+    vi.spyOn(SSEClient.prototype, 'gatherAnnotation').mockImplementation(gatherAnnotationSpy as any);
   });
 
   afterEach(() => {
     eventBus.destroy();
+    vi.restoreAllMocks();
   });
 
-  const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <AuthTokenProvider token={testToken}>{children}</AuthTokenProvider>
-  );
+  // ─── Render helper ───────────────────────────────────────────────────────────
 
-  it('subscribes to gather:requested event', () => {
-    const { result } = renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
-        resourceId: testResourceId,
-      }),
-      { wrapper }
+  function renderFlow() {
+    let state: ContextGatherFlowState | null = null;
+
+    function TestComponent() {
+      const client = useApiClient();
+      state = useContextGatherFlow(eventBus, { client, resourceId: testResourceId });
+      return null;
+    }
+
+    render(
+      <AuthTokenProvider token={testToken}>
+        <ApiClientProvider baseUrl={testBaseUrl}>
+          <TestComponent />
+        </ApiClientProvider>
+      </AuthTokenProvider>
     );
 
-    // Initial state
-    expect(result.current.gatherLoading).toBe(false);
-    expect(result.current.gatherContext).toBe(null);
-    expect(result.current.gatherError).toBe(null);
-    expect(result.current.gatherAnnotationId).toBe(null);
+    return { getState: () => state! };
+  }
 
-    // Verify subscription exists by checking if event can be triggered
-    const gatherRequestedChannel = eventBus.get('gather:requested');
-    expect(gatherRequestedChannel).toBeDefined();
+  // ─── Tests ───────────────────────────────────────────────────────────────────
+
+  it('initial state is idle', () => {
+    const { getState } = renderFlow();
+    expect(getState().gatherLoading).toBe(false);
+    expect(getState().gatherContext).toBe(null);
+    expect(getState().gatherError).toBe(null);
+    expect(getState().gatherAnnotationId).toBe(null);
   });
 
-  it('fetches context from API with correct parameters', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
-      context: mockContext,
-    });
+  it('calls gatherAnnotation API on gather:requested', async () => {
+    renderFlow();
 
-    renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
+    act(() => {
+      eventBus.get('gather:requested').next({
+        annotationId: testAnnotationId,
         resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Trigger gather:requested event
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
+      });
     });
 
     await waitFor(() => {
-      expect(mockClient.getAnnotationLLMContext).toHaveBeenCalledWith(
+      expect(gatherAnnotationSpy).toHaveBeenCalledWith(
         testResourceId,
         testAnnotationId,
-        expect.objectContaining({
-          contextWindow: 2000,
-          auth: testToken, // accessToken returns branded string, not object
-        })
+        expect.objectContaining({ contextWindow: expect.any(Number) }),
+        expect.objectContaining({ eventBus })
       );
     });
   });
 
   it('emits gather:complete on success', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
-      context: mockContext,
-    });
+    renderFlow();
 
-    renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
-        resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Subscribe to gather:complete event
     const completeSpy = vi.fn();
     eventBus.get('gather:complete').subscribe(completeSpy);
 
-    // Trigger gather:requested
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
+    act(() => {
+      eventBus.get('gather:requested').next({
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
+      });
     });
 
     await waitFor(() => {
       expect(completeSpy).toHaveBeenCalledWith({
         annotationId: testAnnotationId,
-        response: { context: mockContext },
+        response: { context: mockAnnotationContext },
       });
     });
   });
 
-  it('emits gather:failed on error', async () => {
-    const testError = new Error('API request failed');
-    mockClient.getAnnotationLLMContext.mockRejectedValue(testError);
+  it('stores gatherAnnotationId after request', async () => {
+    const { getState } = renderFlow();
 
-    renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
-        resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Subscribe to gather:failed event
-    const failedSpy = vi.fn();
-    eventBus.get('gather:failed').subscribe(failedSpy);
-
-    // Trigger gather:requested
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
-    });
-
-    await waitFor(() => {
-      expect(failedSpy).toHaveBeenCalledWith({
+    act(() => {
+      eventBus.get('gather:requested').next({
         annotationId: testAnnotationId,
-        error: testError,
-      });
-    });
-  });
-
-  it('handles URI extraction correctly', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
-      context: mockContext,
-    });
-
-    renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
         resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Test with full URI
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
+      });
     });
 
     await waitFor(() => {
-      expect(mockClient.getAnnotationLLMContext).toHaveBeenCalledWith(
-        testResourceId,
-        testAnnotationId, // Extracted from URI
-        expect.any(Object)
+      expect(getState().gatherAnnotationId).toBe(testAnnotationId);
+    });
+  });
+
+  it('sets error state on gather:failed', async () => {
+    const testError = new Error('Gather failed');
+    gatherAnnotationSpy.mockImplementation((_rid: any, aid: any, _req: any, opts: any) => {
+      queueMicrotask(() =>
+        opts.eventBus.get('gather:failed').next({ annotationId: aid, error: testError })
       );
     });
-  });
 
-  it('clears previous state on new request', async () => {
-    // Use a deferred promise to control when the API resolves
-    let resolveSecondRequest: ((value: any) => void) | null = null;
-    const secondRequestPromise = new Promise((resolve) => {
-      resolveSecondRequest = resolve;
-    });
+    const { getState } = renderFlow();
 
-    // First request resolves immediately
-    mockClient.getAnnotationLLMContext.mockResolvedValueOnce({
-      context: mockContext,
-    });
-
-    const { result } = renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
-        resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // First request
     act(() => {
       eventBus.get('gather:requested').next({
         annotationId: testAnnotationId,
@@ -218,170 +163,37 @@ describe('useContextGatherFlow', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.gatherContext).toEqual(mockContext);
+      expect(getState().gatherError).toBe(testError);
+      expect(getState().gatherLoading).toBe(false);
     });
+  });
 
-    // Second request - use deferred promise so we can check state before it completes
-    mockClient.getAnnotationLLMContext.mockReturnValueOnce(secondRequestPromise as any);
+  it('clears state on new request before resolving', async () => {
+    const { getState } = renderFlow();
 
-    const newAnnotationId = annotationId('anno-789');
-
+    // First request completes
     act(() => {
       eventBus.get('gather:requested').next({
-        annotationId: newAnnotationId,
+        annotationId: testAnnotationId,
         resourceId: testResourceId,
       });
     });
 
-    // Wait for state to be cleared (should happen immediately in event handler)
-    await waitFor(() => {
-      expect(result.current.gatherContext).toBe(null);
-      expect(result.current.gatherError).toBe(null);
-      expect(result.current.gatherLoading).toBe(true);
-    });
+    await waitFor(() => expect(getState().gatherContext).not.toBe(null));
 
-    // Now resolve the second request
+    // Second request — spy doesn't emit, stays loading
+    gatherAnnotationSpy.mockImplementation(() => {});
+
     act(() => {
-      resolveSecondRequest!({ context: mockContext });
-    });
-
-    // Wait for new context to load
-    await waitFor(() => {
-      expect(result.current.gatherContext).toEqual(mockContext);
-    });
-  });
-
-  it('stores annotation URI for tracking', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
-      context: mockContext,
-    });
-
-    const { result } = renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
+      eventBus.get('gather:requested').next({
+        annotationId: annotationId('anno-789'),
         resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Initial state - no annotation URI
-    expect(result.current.gatherAnnotationId).toBe(null);
-
-    // Trigger gather
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
-    });
-
-    // Annotation URI should be stored immediately
-    await waitFor(() => {
-      expect(result.current.gatherAnnotationId).toBe(testAnnotationId);
-    });
-
-    // Annotation URI should persist after completion
-    await waitFor(() => {
-      expect(result.current.gatherContext).toEqual(mockContext);
-      expect(result.current.gatherAnnotationId).toBe(testAnnotationId);
-    });
-  });
-
-  it('updates loading state correctly during request lifecycle', async () => {
-    let resolvePromise: (value: any) => void;
-    const delayedPromise = new Promise((resolve) => {
-      resolvePromise = resolve;
-    });
-
-    mockClient.getAnnotationLLMContext.mockReturnValue(delayedPromise as any);
-
-    const { result } = renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
-        resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Initial state - not loading
-    expect(result.current.gatherLoading).toBe(false);
-
-    // Trigger gather
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
-    });
-
-    // Should be loading
-    await waitFor(() => {
-      expect(result.current.gatherLoading).toBe(true);
-    });
-
-    // Resolve the API call
-    resolvePromise!({ context: mockContext });
-
-    // Should stop loading
-    await waitFor(() => {
-      expect(result.current.gatherLoading).toBe(false);
-    });
-  });
-
-  it('handles error state correctly', async () => {
-    const testError = new Error('Network error');
-    mockClient.getAnnotationLLMContext.mockRejectedValue(testError);
-
-    const { result } = renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
-        resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Trigger gather
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
-    });
-
-    // Wait for error to be set
-    await waitFor(() => {
-      expect(result.current.gatherError).toEqual(testError);
-      expect(result.current.gatherLoading).toBe(false);
-      expect(result.current.gatherContext).toBe(null);
-    });
-  });
-
-  it('handles null context response', async () => {
-    mockClient.getAnnotationLLMContext.mockResolvedValue({
-      context: null,
-    });
-
-    const { result } = renderHook(
-      () => useContextGatherFlow(eventBus, {
-        client: mockClient,
-        resourceId: testResourceId,
-      }),
-      { wrapper }
-    );
-
-    // Subscribe to events
-    const completeSpy = vi.fn();
-    eventBus.get('gather:complete').subscribe(completeSpy);
-
-    // Trigger gather
-    eventBus.get('gather:requested').next({
-      annotationId: testAnnotationId,
-      resourceId: testResourceId,
+      });
     });
 
     await waitFor(() => {
-      expect(result.current.gatherContext).toBe(null);
-      expect(result.current.gatherLoading).toBe(false);
-    });
-
-    // Should still emit gather:complete with the full response (context is null inside)
-    expect(completeSpy).toHaveBeenCalledWith({
-      annotationId: testAnnotationId,
-      response: { context: null },
+      expect(getState().gatherContext).toBe(null);
+      expect(getState().gatherLoading).toBe(true);
     });
   });
 });

@@ -12,7 +12,7 @@ export async function handleCreateResource(client: SemiontApiClient, auth: Acces
   const blob = new Blob([content], { type: format });
   const file = new File([blob], args?.name + '.txt', { type: format });
 
-  const data = await client.createResource({
+  const data = await client.yieldResource({
     name: args?.name,
     file: file,
     format: format,
@@ -29,7 +29,7 @@ export async function handleCreateResource(client: SemiontApiClient, auth: Acces
 }
 
 export async function handleGetResource(client: SemiontApiClient, auth: AccessToken, id: string) {
-  const data = await client.getResource(resourceId(id), { auth });
+  const data = await client.browseResource(resourceId(id), { auth });
 
   return {
     content: [{
@@ -40,7 +40,7 @@ export async function handleGetResource(client: SemiontApiClient, auth: AccessTo
 }
 
 export async function handleListResources(client: SemiontApiClient, auth: AccessToken, args: any) {
-  const data = await client.listResources(
+  const data = await client.browseResources(
     args?.limit,
     args?.archived ?? false,
     undefined, // query parameter
@@ -98,7 +98,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
     });
 
     // Start detection - events auto-emit to EventBus
-    client.sse.annotateReferences(rUri, { entityTypes: mappedEntityTypes }, { auth, eventBus });
+    client.sse.markReferences(rUri, { entityTypes: mappedEntityTypes }, { auth, eventBus });
   });
 }
 
@@ -114,7 +114,7 @@ export async function handleCreateAnnotation(client: SemiontApiClient, auth: Acc
   }));
 
   const rUri = resourceId(args?.resourceId);
-  const data = await client.createAnnotation(rUri, {
+  const data = await client.markAnnotation(rUri, {
     motivation: 'highlighting',
     target: {
       source: args?.resourceId,
@@ -154,7 +154,7 @@ export async function handleSaveAnnotation(_client: SemiontApiClient, _auth: Acc
 }
 
 export async function handleResolveAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
-  await client.updateAnnotationBody(
+  await client.bindAnnotation(
     resourceId(args?.sourceResourceId),
     annotationId(args?.selectionId),
     {
@@ -184,7 +184,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   const aId = annotationId(args?.annotationId);
 
   // Fetch context before generation
-  const contextData = await client.getAnnotationLLMContext(rId, aId, { contextWindow: 2000, auth });
+  const contextData = await client.gatherAnnotation(rId, aId, { contextWindow: 2000, auth });
 
   if (!contextData?.context) {
     throw new Error('Failed to fetch generation context');
@@ -231,7 +231,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
     });
 
     // Start generation - events auto-emit to EventBus
-    client.sse.yieldResourceFromAnnotation(rId, aId, request, { auth, eventBus });
+    client.sse.yieldResource(rId, aId, request, { auth, eventBus });
   });
 }
 
@@ -281,7 +281,7 @@ export async function handleGetResourceAnnotations(_client: SemiontApiClient, _a
 }
 
 export async function handleGetResourceHighlights(client: SemiontApiClient, auth: AccessToken, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(resourceId(args?.resourceId as string), { auth });
+  const data = await client.browseAnnotations(resourceId(args?.resourceId as string), undefined, { auth });
   const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
 
   return {
@@ -300,7 +300,7 @@ export async function handleGetResourceHighlights(client: SemiontApiClient, auth
 }
 
 export async function handleGetResourceReferences(client: SemiontApiClient, auth: AccessToken, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(resourceId(args?.resourceId as string), { auth });
+  const data = await client.browseAnnotations(resourceId(args?.resourceId as string), undefined, { auth });
   const references = data.annotations.filter(a => a.motivation === 'linking');
 
   return {

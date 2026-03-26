@@ -45,25 +45,25 @@ describe('API Hooks Authentication', () => {
     // Create mock client with all methods
     mockClient = {
       // Resources
-      listResources: vi.fn().mockResolvedValue({ resources: [] }),
-      getResource: vi.fn().mockResolvedValue({ resource: {} }),
+      browseResources: vi.fn().mockResolvedValue({ resources: [] }),
+      browseResource: vi.fn().mockResolvedValue({ resource: {} }),
       getResourceEvents: vi.fn().mockResolvedValue({ events: [] }),
-      getResourceAnnotations: vi.fn().mockResolvedValue({ annotations: [] }),
-      getResourceReferencedBy: vi.fn().mockResolvedValue({ references: [] }),
+      browseAnnotations: vi.fn().mockResolvedValue({ annotations: [] }),
+      browseReferences: vi.fn().mockResolvedValue({ references: [] }),
       getResourceByToken: vi.fn().mockResolvedValue({ resource: {} }),
-      createResource: vi.fn().mockResolvedValue({ resourceId: 'test-id' }),
+      yieldResource: vi.fn().mockResolvedValue({ resourceId: 'test-id' }),
       updateResource: vi.fn().mockResolvedValue(undefined),
       generateCloneToken: vi.fn().mockResolvedValue({ token: 'clone-token' }),
       createResourceFromToken: vi.fn().mockResolvedValue({ resourceId: 'test-id' }),
 
       // Annotations
       getAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),
-      getResourceAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),
+      browseAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),
       getAnnotationHistory: vi.fn().mockResolvedValue({ history: [] }),
-      getAnnotationLLMContext: vi.fn().mockResolvedValue({ context: {} }),
-      createAnnotation: vi.fn().mockResolvedValue({ annotationId: 'test-id' }),
+      gatherAnnotation: vi.fn().mockResolvedValue({ context: {} }),
+      markAnnotation: vi.fn().mockResolvedValue({ annotationId: 'test-id' }),
       deleteAnnotation: vi.fn().mockResolvedValue(undefined),
-      updateAnnotationBody: vi.fn().mockResolvedValue(undefined),
+      bindAnnotation: vi.fn().mockResolvedValue(undefined),
 
       // Entity Types
       listEntityTypes: vi.fn().mockResolvedValue({ entityTypes: [] }),
@@ -113,13 +113,13 @@ describe('API Hooks Authentication', () => {
   );
 
   describe('useResources queries', () => {
-    it('should pass auth token to listResources', async () => {
+    it('should pass auth token to browseResources', async () => {
       const { result } = renderHook(() => useResources(), { wrapper });
       const query = renderHook(() => result.current.list.useQuery(), { wrapper });
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.listResources).toHaveBeenCalledWith(
+      expect(mockClient.browseResources).toHaveBeenCalledWith(
         undefined,
         undefined,
         undefined,
@@ -133,7 +133,7 @@ describe('API Hooks Authentication', () => {
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.getResource).toHaveBeenCalledWith(
+      expect(mockClient.browseResource).toHaveBeenCalledWith(
         'resource-1',
         { auth: 'test-token' }
       );
@@ -151,25 +151,26 @@ describe('API Hooks Authentication', () => {
       );
     });
 
-    it('should pass auth token to getResourceAnnotations', async () => {
+    it('should pass auth token to browseAnnotations', async () => {
       const { result } = renderHook(() => useResources(), { wrapper });
       const query = renderHook(() => result.current.annotations.useQuery('resource-1' as any), { wrapper });
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.getResourceAnnotations).toHaveBeenCalledWith(
+      expect(mockClient.browseAnnotations).toHaveBeenCalledWith(
         'resource-1',
+        undefined,
         { auth: 'test-token' }
       );
     });
 
-    it('should pass auth token to getResourceReferencedBy', async () => {
+    it('should pass auth token to browseReferences', async () => {
       const { result } = renderHook(() => useResources(), { wrapper });
       const query = renderHook(() => result.current.referencedBy.useQuery('resource-1' as any), { wrapper });
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.getResourceReferencedBy).toHaveBeenCalledWith(
+      expect(mockClient.browseReferences).toHaveBeenCalledWith(
         'resource-1',
         { auth: 'test-token' }
       );
@@ -193,7 +194,7 @@ describe('API Hooks Authentication', () => {
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.listResources).toHaveBeenCalledWith(
+      expect(mockClient.browseResources).toHaveBeenCalledWith(
         10,
         undefined,
         'test',
@@ -215,13 +216,13 @@ describe('API Hooks Authentication', () => {
       );
     });
 
-    it('should pass auth token to getResourceAnnotation', async () => {
+    it('should pass auth token to browseAnnotation', async () => {
       const { result } = renderHook(() => useAnnotations(), { wrapper });
-      const query = renderHook(() => result.current.getResourceAnnotation.useQuery('resource-1' as any, 'annotation-1' as any), { wrapper });
+      const query = renderHook(() => result.current.browseAnnotation.useQuery('resource-1' as any, 'annotation-1' as any), { wrapper });
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.getResourceAnnotation).toHaveBeenCalledWith(
+      expect(mockClient.browseAnnotation).toHaveBeenCalledWith(
         'resource-1',
         'annotation-1',
         { auth: 'test-token' }
@@ -241,7 +242,7 @@ describe('API Hooks Authentication', () => {
       );
     });
 
-    it('should pass auth token to getAnnotationLLMContext', async () => {
+    it('should pass auth token to gatherAnnotation', async () => {
       const { result } = renderHook(() => useAnnotations(), { wrapper });
       const query = renderHook(
         () => result.current.llmContext.useQuery('resource-1' as any, 'annotation-1'),
@@ -250,7 +251,7 @@ describe('API Hooks Authentication', () => {
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.getAnnotationLLMContext).toHaveBeenCalledWith(
+      expect(mockClient.gatherAnnotation).toHaveBeenCalledWith(
         'resource-1',
         'annotation-1',
         { auth: 'test-token' }
@@ -344,7 +345,7 @@ describe('API Hooks Authentication', () => {
   });
 
   describe('Mutations also pass auth tokens', () => {
-    it('should pass auth token to createResource', async () => {
+    it('should pass auth token to yieldResource', async () => {
       const { result } = renderHook(() => useResources(), { wrapper });
       const mutation = renderHook(() => result.current.create.useMutation(), { wrapper });
 
@@ -356,24 +357,30 @@ describe('API Hooks Authentication', () => {
         creationMethod: 'ui',
       });
 
-      expect(mockClient.createResource).toHaveBeenCalledWith(
+      expect(mockClient.yieldResource).toHaveBeenCalledWith(
         expect.any(Object),
         { auth: 'test-token' }
       );
     });
 
-    it('should pass auth token to createAnnotation', async () => {
+    it('should pass auth token to markAnnotation', async () => {
       const { result } = renderHook(() => useAnnotations(), { wrapper });
       const mutation = renderHook(() => result.current.create.useMutation(), { wrapper });
 
+      const markData = {
+        motivation: 'highlighting' as const,
+        target: { source: 'resource-1', selector: { type: 'TextQuoteSelector' as const, exact: 'hello' } },
+        body: [{ type: 'TextualBody' as const, value: 'test' }],
+      };
+
       await mutation.result.current.mutateAsync({
         resourceId: 'resource-1' as any,
-        data: { body: [] },
+        data: markData,
       });
 
-      expect(mockClient.createAnnotation).toHaveBeenCalledWith(
+      expect(mockClient.markAnnotation).toHaveBeenCalledWith(
         'resource-1',
-        { body: [] },
+        markData,
         { auth: 'test-token' }
       );
     });
@@ -387,14 +394,14 @@ describe('API Hooks Authentication', () => {
       const query1 = renderHook(() => useResources().list.useQuery(), { wrapper });
       await waitFor(() => expect(query1.result.current.isSuccess).toBe(true));
 
-      expect(mockClient.listResources).toHaveBeenLastCalledWith(
+      expect(mockClient.browseResources).toHaveBeenLastCalledWith(
         undefined,
         undefined,
         undefined,
         { auth: 'test-token' }
       );
 
-      mockClient.listResources.mockClear();
+      mockClient.browseResources.mockClear();
 
       // Rerender with new token
       const wrapperWithNewToken = ({ children }: { children: React.ReactNode }) => (
@@ -411,7 +418,7 @@ describe('API Hooks Authentication', () => {
       await waitFor(() => expect(query2.result.current.isSuccess).toBe(true));
 
       // Should use new token
-      expect(mockClient.listResources).toHaveBeenLastCalledWith(
+      expect(mockClient.browseResources).toHaveBeenLastCalledWith(
         undefined,
         undefined,
         undefined,

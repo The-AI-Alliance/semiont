@@ -58,39 +58,46 @@ export function useContextGatherFlow(
   useEffect(() => { tokenRef.current = token; });
 
   useEffect(() => {
-    const handleGatherRequested = async (event: EventMap['gather:requested']) => {
+    const handleGatherRequested = (event: EventMap['gather:requested']) => {
       setCorrelationLoading(true);
       setCorrelationError(null);
       setCorrelationContext(null);
       setCorrelationAnnotationId(event.annotationId);
 
-      try {
-        const { client, resourceId } = configRef.current;
+      const { client, resourceId } = configRef.current;
+      const contextWindow = event.options?.contextWindow ?? 2000;
 
-        const response = await client.getAnnotationLLMContext(
-          resourceId,
-          event.annotationId,
-          { contextWindow: 2000, auth: toAccessToken(tokenRef.current) }
-        );
+      // Subscribe to result events before starting the stream
+      const finishedSub = eventBus.get('gather:annotation-finished').subscribe((finishedEvent) => {
+        if (finishedEvent.annotationId !== event.annotationId) return;
+        finishedSub.unsubscribe();
+        failedSub.unsubscribe();
 
-        const context = response.context ?? null;
+        const context = finishedEvent.response.context ?? null;
         setCorrelationContext(context);
         setCorrelationLoading(false);
 
         eventBus.get('gather:complete').next({
-          annotationId: event.annotationId,
-          response,
+          annotationId: finishedEvent.annotationId,
+          response: finishedEvent.response,
         });
-      } catch (error) {
-        const err = error as Error;
-        setCorrelationError(err);
-        setCorrelationLoading(false);
+      });
 
-        eventBus.get('gather:failed').next({
-          annotationId: event.annotationId,
-          error: err,
-        });
-      }
+      const failedSub = eventBus.get('gather:failed').subscribe((failedEvent) => {
+        if (failedEvent.annotationId !== event.annotationId) return;
+        finishedSub.unsubscribe();
+        failedSub.unsubscribe();
+
+        setCorrelationError(failedEvent.error);
+        setCorrelationLoading(false);
+      });
+
+      client.sse.gatherAnnotation(
+        resourceId,
+        event.annotationId,
+        { contextWindow },
+        { auth: toAccessToken(tokenRef.current), eventBus },
+      );
     };
 
     const subscription = eventBus.get('gather:requested').subscribe(handleGatherRequested);

@@ -91,7 +91,6 @@
     "postcss": "^8",
     "tailwindcss": "^4.2.1",
     "typescript": "^5",
-    "vitest": "^4.0.18",
     "webpack-bundle-analyzer": "^5.2.0"
   },
   "msw": {
