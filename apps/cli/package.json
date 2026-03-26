@@ -70,7 +70,6 @@
     "@semiont/event-sourcing": "^0.4.3",
     "@semiont/graph": "^0.4.3",
     "@semiont/make-meaning": "^0.4.3",
-    "@vitest/ui": "4.0.18",
     "arg": "^5.0.2",
     "argon2": "^0.44.0",
     "express": "^5.2.1",
@@ -89,8 +88,7 @@
     "@types/react": "^19.2.14",
     "@vitest/coverage-v8": "^4.1.0",
     "chalk": "^5.3.0",
-    "typescript": "^5.9.2",
-    "vitest": "^4.0.18"
+    "typescript": "^5.9.2"
   },
   "overrides": {
     "esbuild": "0.27.2"
