@@ -37,8 +37,8 @@ interface TokenCache {
   email: string;
 }
 
-/** Re-authenticate after 1 hour */
-const TOKEN_CACHE_TTL_MS = 3_600_000;
+/** Re-authenticate after 24 hours */
+const TOKEN_CACHE_TTL_MS = 86_400_000;
 
 function tokenCachePath(project: SemiontProject): string {
   return path.join(project.stateDir, 'auth-token.json');
