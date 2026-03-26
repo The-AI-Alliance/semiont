@@ -22,7 +22,7 @@ import { Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { BaseOptionsSchema } from '../base-options-schema.js';
+import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { checkGitAvailable } from '../handlers/preflight-utils.js';
@@ -219,7 +219,7 @@ export const yieldCmd = new CommandBuilder()
     'semiont yield docs/new.md --name "Overview Document"',
   )
   .args({
-    args: {
+    ...withBaseArgs({
       '--name': {
         type: 'string',
         description: 'Resource name (only valid for a single new file)',
@@ -229,10 +229,9 @@ export const yieldCmd = new CommandBuilder()
         description: 'Skip git add even when gitSync is configured',
         default: false,
       },
-    },
-    aliases: {
+    }, {
       '-n': '--name',
-    },
+    }),
     restAs: 'files',
   })
   .schema(YieldOptionsSchema)
