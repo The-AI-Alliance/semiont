@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { YieldOptionsSchema, type YieldOptions } from '../yield.js';
+import { YieldOptionsSchema, runYield, type YieldOptions } from '../yield.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -177,43 +177,37 @@ describe('runYield', () => {
 
   describe('upload mode', () => {
     it('returns CommandResults with command=yield', async () => {
-      const { runYield } = await import('../yield.js');
-      const result = await runYield(makeUploadOptions());
+const result = await runYield(makeUploadOptions());
       expect(result.command).toBe('yield');
       expect(result.summary.succeeded).toBe(1);
     });
 
     it('calls client.yieldResource for each file', async () => {
-      const { runYield } = await import('../yield.js');
-      await runYield(makeUploadOptions({ upload: ['/test/project/root/a.md', '/test/project/root/b.md'] }));
+await runYield(makeUploadOptions({ upload: ['/test/project/root/a.md', '/test/project/root/b.md'] }));
       expect(mockYieldResource).toHaveBeenCalledTimes(2);
     });
 
     it('uses provided --name for single file', async () => {
-      const { runYield } = await import('../yield.js');
-      await runYield(makeUploadOptions({ name: 'My Overview' }));
+await runYield(makeUploadOptions({ name: 'My Overview' }));
       const [req] = mockYieldResource.mock.calls[0];
       expect(req.name).toBe('My Overview');
     });
 
     it('uses basename as name when --name not provided', async () => {
-      const { runYield } = await import('../yield.js');
-      await runYield(makeUploadOptions({ upload: ['/test/project/root/docs/overview.md'] }));
+await runYield(makeUploadOptions({ upload: ['/test/project/root/docs/overview.md'] }));
       const [req] = mockYieldResource.mock.calls[0];
       expect(req.name).toBe('overview');
     });
 
     it('records resourceId in result metadata', async () => {
-      const { runYield } = await import('../yield.js');
-      const result = await runYield(makeUploadOptions());
+const result = await runYield(makeUploadOptions());
       expect(result.results[0]?.metadata?.resourceId).toBe('urn:semiont:resource:new-1');
     });
 
     it('counts failed for missing file', async () => {
       const { promises: fs } = await import('fs');
       vi.mocked(fs.readFile).mockRejectedValueOnce(new Error('ENOENT'));
-      const { runYield } = await import('../yield.js');
-      const result = await runYield(makeUploadOptions());
+const result = await runYield(makeUploadOptions());
       expect(result.summary.failed).toBe(1);
       expect(result.summary.succeeded).toBe(0);
     });
@@ -243,22 +237,19 @@ describe('runYield', () => {
     });
 
     it('returns CommandResults with command=yield', async () => {
-      const { runYield } = await import('../yield.js');
-      const result = await runYield(makeDelegateOptions());
+const result = await runYield(makeDelegateOptions());
       expect(result.command).toBe('yield');
       expect(result.summary.succeeded).toBe(1);
     });
 
     it('calls gatherAnnotation then yieldResource', async () => {
-      const { runYield } = await import('../yield.js');
-      await runYield(makeDelegateOptions());
+await runYield(makeDelegateOptions());
       expect(mockSse.gatherAnnotation).toHaveBeenCalledOnce();
       expect(mockSse.yieldResource).toHaveBeenCalledOnce();
     });
 
     it('records storageUri in result metadata', async () => {
-      const { runYield } = await import('../yield.js');
-      const result = await runYield(makeDelegateOptions());
+const result = await runYield(makeDelegateOptions());
       expect(result.results[0]?.metadata?.storageUri).toBe('file://generated/output.md');
     });
 
@@ -267,8 +258,7 @@ describe('runYield', () => {
       mockSse.yieldResource.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => eventBus.get('yield:failed').next({ error: new Error('Generation failed') }));
       });
-      const { runYield } = await import('../yield.js');
-      await expect(runYield(makeDelegateOptions())).rejects.toThrow('Generation failed');
+await expect(runYield(makeDelegateOptions())).rejects.toThrow('Generation failed');
     });
   });
 });

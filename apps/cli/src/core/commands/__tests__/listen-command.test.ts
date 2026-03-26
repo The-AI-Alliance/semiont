@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ListenOptionsSchema, type ListenOptions } from '../listen.js';
+import { ListenOptionsSchema, runListen, type ListenOptions } from '../listen.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -85,7 +85,7 @@ describe('runListen', () => {
   });
 
   it('opens globalEvents for no-args listen and resolves on SIGINT', async () => {
-    const { runListen } = await import('../listen.js');
+
 
     // Emit SIGINT after a tick to unblock the command
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
@@ -97,7 +97,7 @@ describe('runListen', () => {
   });
 
   it('opens resourceEvents for "resource <id>" and resolves on SIGINT', async () => {
-    const { runListen } = await import('../listen.js');
+
 
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
 
@@ -108,14 +108,14 @@ describe('runListen', () => {
   });
 
   it('sets entity=global for global listen', async () => {
-    const { runListen } = await import('../listen.js');
+
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
     const result = await runListen(makeOptions());
     expect(result.results[0]?.entity).toBe('global');
   });
 
   it('sets entity=resourceId for resource-scoped listen', async () => {
-    const { runListen } = await import('../listen.js');
+
     setImmediate(() => process.emit('SIGINT', 'SIGINT'));
     const result = await runListen(makeOptions({ args: ['resource', 'urn:semiont:resource:doc-1'] }));
     expect(result.results[0]?.entity).toBe('urn:semiont:resource:doc-1');

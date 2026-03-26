@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MarkOptionsSchema, type MarkOptions } from '../mark.js';
+import { MarkOptionsSchema, runMark, type MarkOptions } from '../mark.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -209,8 +209,7 @@ describe('runMark', () => {
   });
 
   it('returns CommandResults with command=mark for manual mode', async () => {
-    const { runMark } = await import('../mark.js');
-    const result = await runMark(makeManualOptions());
+const result = await runMark(makeManualOptions());
     expect(result.command).toBe('mark');
     expect(result.summary.succeeded).toBe(1);
     expect(result.results[0]?.entity).toBe('urn:semiont:resource:doc-1');
@@ -218,8 +217,7 @@ describe('runMark', () => {
   });
 
   it('calls markAnnotation with motivation in manual mode', async () => {
-    const { runMark } = await import('../mark.js');
-    await runMark(makeManualOptions({ motivation: 'commenting', bodyText: 'nice' }));
+await runMark(makeManualOptions({ motivation: 'commenting', bodyText: 'nice' }));
     expect(mockMarkAnnotation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ motivation: 'commenting' }),
@@ -228,50 +226,43 @@ describe('runMark', () => {
   });
 
   it('builds TextQuoteSelector from --quote', async () => {
-    const { runMark } = await import('../mark.js');
-    await runMark(makeManualOptions({ quote: 'important phrase' }));
+await runMark(makeManualOptions({ quote: 'important phrase' }));
     const [, req] = mockMarkAnnotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'TextQuoteSelector', exact: 'important phrase' });
   });
 
   it('builds TextPositionSelector from --start/--end', async () => {
-    const { runMark } = await import('../mark.js');
-    await runMark(makeManualOptions({ quote: undefined, start: 10, end: 25 }));
+await runMark(makeManualOptions({ quote: undefined, start: 10, end: 25 }));
     const [, req] = mockMarkAnnotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'TextPositionSelector', start: 10, end: 25 });
   });
 
   it('builds SvgSelector from --svg', async () => {
-    const { runMark } = await import('../mark.js');
-    await runMark(makeManualOptions({ quote: undefined, svg: '<circle r="5"/>' }));
+await runMark(makeManualOptions({ quote: undefined, svg: '<circle r="5"/>' }));
     const [, req] = mockMarkAnnotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'SvgSelector', value: '<circle r="5"/>' });
   });
 
   it('builds FragmentSelector from --fragment', async () => {
-    const { runMark } = await import('../mark.js');
-    await runMark(makeManualOptions({ quote: undefined, fragment: 't=10,20' }));
+await runMark(makeManualOptions({ quote: undefined, fragment: 't=10,20' }));
     const [, req] = mockMarkAnnotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'FragmentSelector', value: 't=10,20' });
   });
 
   it('throws when multiple selector types are combined', async () => {
-    const { runMark } = await import('../mark.js');
-    await expect(
+await expect(
       runMark(makeManualOptions({ quote: 'text', svg: '<circle/>' }))
     ).rejects.toThrow();
   });
 
   it('includes TextualBody when --body-text provided', async () => {
-    const { runMark } = await import('../mark.js');
-    await runMark(makeManualOptions({ bodyText: 'my comment' }));
+await runMark(makeManualOptions({ bodyText: 'my comment' }));
     const [, req] = mockMarkAnnotation.mock.calls[0];
     expect(JSON.stringify(req.body)).toContain('my comment');
   });
 
   it('includes SpecificResource body when --link provided', async () => {
-    const { runMark } = await import('../mark.js');
-    await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
+await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
     const [, req] = mockMarkAnnotation.mock.calls[0];
     const body = Array.isArray(req.body) ? req.body : [req.body];
     expect(body.some((b: any) => b.type === 'SpecificResource')).toBe(true);
@@ -286,8 +277,7 @@ describe('runMark', () => {
         });
       });
 
-      const { runMark } = await import('../mark.js');
-      const result = await runMark(makeDelegateOptions({ motivation: 'highlighting' }));
+    const result = await runMark(makeDelegateOptions({ motivation: 'highlighting' }));
       expect(mockSse.markHighlights).toHaveBeenCalledOnce();
       expect(result.command).toBe('mark');
       expect(result.results[0]?.metadata?.motivation).toBe('highlighting');
@@ -300,8 +290,7 @@ describe('runMark', () => {
         });
       });
 
-      const { runMark } = await import('../mark.js');
-      const result = await runMark(makeDelegateOptions({ motivation: 'linking', entityType: ['Person'] }));
+    const result = await runMark(makeDelegateOptions({ motivation: 'linking', entityType: ['Person'] }));
       expect(mockSse.markReferences).toHaveBeenCalledOnce();
       expect(result.results[0]?.metadata?.motivation).toBe('linking');
     });
@@ -313,8 +302,7 @@ describe('runMark', () => {
         });
       });
 
-      const { runMark } = await import('../mark.js');
-      await expect(runMark(makeDelegateOptions({ motivation: 'highlighting' }))).rejects.toThrow('AI service down');
+    await expect(runMark(makeDelegateOptions({ motivation: 'highlighting' }))).rejects.toThrow('AI service down');
     });
   });
 });

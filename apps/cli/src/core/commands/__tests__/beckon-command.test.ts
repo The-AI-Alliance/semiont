@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BeckonOptionsSchema, type BeckonOptions } from '../beckon.js';
+import { BeckonOptionsSchema, runBeckon, type BeckonOptions } from '../beckon.js';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -122,7 +122,6 @@ describe('runBeckon', () => {
   });
 
   it('returns a CommandResults with command=beckon', async () => {
-    const { runBeckon } = await import('../beckon.js');
     const result = await runBeckon(makeOptions());
     expect(result.command).toBe('beckon');
     expect(result.environment).toBe('test');
@@ -132,7 +131,6 @@ describe('runBeckon', () => {
   });
 
   it('calls beckonAttention with resourceId only when no annotation', async () => {
-    const { runBeckon } = await import('../beckon.js');
     await runBeckon(makeOptions());
     expect(mockBeckonAttention).toHaveBeenCalledWith(
       'alice',
@@ -144,14 +142,12 @@ describe('runBeckon', () => {
   });
 
   it('includes annotationId when provided', async () => {
-    const { runBeckon } = await import('../beckon.js');
     await runBeckon(makeOptions({ annotation: 'urn:semiont:annotation:ann-1' }));
     const [, body] = mockBeckonAttention.mock.calls[0];
     expect(body.annotationId).toBe('urn:semiont:annotation:ann-1');
   });
 
   it('returns entity=participantId in results', async () => {
-    const { runBeckon } = await import('../beckon.js');
     const result = await runBeckon(makeOptions());
     expect(result.results[0]?.entity).toBe('alice');
     expect(result.results[0]?.success).toBe(true);

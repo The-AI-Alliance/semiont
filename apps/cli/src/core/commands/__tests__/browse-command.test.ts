@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BrowseOptionsSchema, type BrowseOptions } from '../browse.js';
+import { BrowseOptionsSchema, runBrowse, type BrowseOptions } from '../browse.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -131,64 +131,54 @@ describe('runBrowse', () => {
   });
 
   it('routes "resources" subcommand', async () => {
-    const { runBrowse } = await import('../browse.js');
-    const result = await runBrowse(makeOptions({ args: ['resources'] }));
+const result = await runBrowse(makeOptions({ args: ['resources'] }));
     expect(result.command).toBe('browse');
     expect(mockClient.browseResources).toHaveBeenCalledOnce();
   });
 
   it('routes "resource <id>" subcommand', async () => {
-    const { runBrowse } = await import('../browse.js');
-    const result = await runBrowse(makeOptions({ args: ['resource', 'doc-1'] }));
+const result = await runBrowse(makeOptions({ args: ['resource', 'doc-1'] }));
     expect(result.command).toBe('browse');
     expect(mockClient.browseResource).toHaveBeenCalledOnce();
   });
 
   it('includes annotations when --annotations flag set', async () => {
-    const { runBrowse } = await import('../browse.js');
-    await runBrowse(makeOptions({ args: ['resource', 'doc-1'], annotations: true }));
+await runBrowse(makeOptions({ args: ['resource', 'doc-1'], annotations: true }));
     expect(mockClient.browseAnnotations).toHaveBeenCalledOnce();
   });
 
   it('includes references when --references flag set', async () => {
-    const { runBrowse } = await import('../browse.js');
-    await runBrowse(makeOptions({ args: ['resource', 'doc-1'], references: true }));
+await runBrowse(makeOptions({ args: ['resource', 'doc-1'], references: true }));
     expect(mockClient.browseReferences).toHaveBeenCalledOnce();
   });
 
   it('routes "annotation" subcommand', async () => {
-    const { runBrowse } = await import('../browse.js');
-    await runBrowse(makeOptions({ args: ['annotation', 'doc-1', 'ann-1'] }));
+await runBrowse(makeOptions({ args: ['annotation', 'doc-1', 'ann-1'] }));
     expect(mockClient.browseAnnotation).toHaveBeenCalledOnce();
   });
 
   it('routes "references" subcommand', async () => {
-    const { runBrowse } = await import('../browse.js');
-    await runBrowse(makeOptions({ args: ['references', 'doc-1'] }));
+await runBrowse(makeOptions({ args: ['references', 'doc-1'] }));
     expect(mockClient.browseReferences).toHaveBeenCalledOnce();
   });
 
   it('routes "events" subcommand', async () => {
-    const { runBrowse } = await import('../browse.js');
-    await runBrowse(makeOptions({ args: ['events', 'doc-1'] }));
+await runBrowse(makeOptions({ args: ['events', 'doc-1'] }));
     expect(mockClient.getResourceEvents).toHaveBeenCalledOnce();
   });
 
   it('routes "history" subcommand', async () => {
-    const { runBrowse } = await import('../browse.js');
-    await runBrowse(makeOptions({ args: ['history', 'doc-1', 'ann-1'] }));
+await runBrowse(makeOptions({ args: ['history', 'doc-1', 'ann-1'] }));
     expect(mockClient.getAnnotationHistory).toHaveBeenCalledOnce();
   });
 
   it('routes "entity-types" subcommand', async () => {
-    const { runBrowse } = await import('../browse.js');
-    await runBrowse(makeOptions({ args: ['entity-types'] }));
+await runBrowse(makeOptions({ args: ['entity-types'] }));
     expect(mockClient.listEntityTypes).toHaveBeenCalledOnce();
   });
 
   it('returns CommandResults with command=browse', async () => {
-    const { runBrowse } = await import('../browse.js');
-    const result = await runBrowse(makeOptions());
+const result = await runBrowse(makeOptions());
     expect(result.command).toBe('browse');
     expect(result.summary.succeeded).toBe(1);
     expect(result.summary.failed).toBe(0);
