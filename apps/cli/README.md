@@ -61,29 +61,33 @@ npm link                    # Install globally
 
 ## Common Options
 
-All commands support these common options:
+All commands support these options:
 
-- **Environment** (required): `--environment <env>` or via `SEMIONT_ENV` - Target environment
-- **Service Selection**: `-s, --service <service>` - Target specific service(s) (default: "all")
-- **Safety**: `--dry-run` - Preview changes without applying (comprehensive support)
-- **Output**: `-v, --verbose` - Show detailed output and debug information
-- **Help**: `-h, --help` - Show help for the command
+- **`-e, --environment <env>`** — Target environment (required for most commands). Fallback: `defaults.environment` in `~/.semiontconfig`
+- **`--dry-run`** — Preview changes without applying
+- **`-v, --verbose`** — Show detailed output
+- **`-q, --quiet`** — Suppress progress output
+- **`-o, --output <format>`** — Output format: `summary` | `table` | `json` | `yaml`
 
-### Environment Configuration (Required)
+### Connection Options (API commands only)
 
-Every command requires an environment to be specified:
+Commands that call the Semiont API (`browse`, `gather`, `mark`, `yield`, `bind`, `match`, `listen`) also support:
+
+- **`-b, --bus <url>`** — Backend URL (e.g. `http://localhost:4000`). Fallback: `$SEMIONT_BUS` → `services.backend.publicURL` in `~/.semiontconfig`
+- **`--user <email>`** — Login email. Fallback: `$SEMIONT_USER` → `[environments.<env>.auth] email` in `~/.semiontconfig`
+- **`--password <password>`** — Login password. Fallback: `$SEMIONT_PASSWORD` → `[environments.<env>.auth] password` in `~/.semiontconfig`
+
+### Environment Configuration
+
+Most commands require an environment:
 
 ```bash
 # Via command-line flag (highest priority)
-semiont start backend --environment production
+semiont start --environment production
 
-# Via environment variable
-export SEMIONT_ENV=staging
-semiont start backend
-
-# Error if neither is provided
-semiont start backend
-# Error: Environment is required. Specify --environment flag or set SEMIONT_ENV
+# Via default in ~/.semiontconfig
+[defaults]
+environment = "local"
 ```
 
 ### Dry-Run Support
@@ -296,32 +300,51 @@ For detailed instructions on adding new commands, see the [Adding Commands Guide
 
 ### Available Commands
 
-**Service Management**
-- `start` - Start services
-- `stop` - Stop services  
-- `restart` - Restart services
-- `check` - Health check services
-- `watch` - Monitor services with live dashboard
+**Infrastructure Management**
+- `init` — Initialize a new Semiont project
+- `start` — Start services
+- `stop` — Stop services
+- `check` — Health check services
+- `watch` — Monitor services with live web dashboard (port 3333)
+- `provision` — Provision infrastructure resources
+- `publish` — Build and publish artifacts (does not deploy)
+- `update` — Deploy new versions to running services
+- `local` — Manage the local development environment
+- `clean` — Remove generated or cached files
+- `useradd` — Add a user to the system
+- `export` — Export knowledge base data
+- `import` — Import knowledge base data
 
-**Infrastructure & Configuration**
-- `provision` - Provision infrastructure resources (auto-installs `@semiont/backend` and `@semiont/frontend` from npm when `SEMIONT_REPO` is not set)
-- `configure` - Manage configuration and secrets
-- `backup` - Create service backups
-- `restore` - Restore from backups
+**Knowledge Base Backup / Restore**
+- `backup` — Create a lossless backup of the knowledge base
+- `restore` — Restore from a backup archive
+- `verify` — Verify a backup archive's integrity without restoring
 
-**Knowledge Base Backup/Restore**
-- `backup` - Create a lossless backup of the knowledge base
-- `restore` - Restore a knowledge base from a backup archive
-- `verify` - Verify a backup archive's integrity without restoring
+**Knowledge Base — Read**
+- `browse` — Human-readable traversal of the knowledge base. Subcommands:
+  - `resources` — List resources (supports `--search`, `--entity-type`, `--limit`)
+  - `resource <resourceId>` — Inspect a resource (supports `--annotations`, `--references`)
+  - `annotation <resourceId> <annotationId>` — Inspect an annotation
+  - `references <resourceId>` — List resources that link to this one
+  - `events <resourceId>` — Historical event log for a resource
+  - `history <resourceId> <annotationId>` — Audit trail for an annotation
+  - `entity-types` — List available entity types
+- `gather` — Fetch LLM-optimised context for a resource or annotation (JSON to stdout)
+- `match` — Search for binding candidates for a linking annotation
 
-**Development & Deployment**
-- `publish` - Build and publish artifacts (creates new versions, does not deploy)
-- `update` - Deploy new versions to running services (deploys what publish created)
-- `test` - Run test suites
-- `exec` - Execute commands in service context
-- `init` - Initialize new Semiont project
+**Knowledge Base — Write**
+- `mark` — Create a W3C annotation on a resource. Manual mode (default) or AI-assisted delegate mode (`--delegate`)
+- `bind` — Resolve a linking annotation to a target resource
+- `yield` — Upload a local file as a resource (`--upload`) or generate a new resource from gathered context (`--delegate`)
+- `mv` — Move (rename) a tracked resource file and record the move in the event log
 
-Each command automatically detects the platform for each service and executes the appropriate implementation. See the documentation links above for detailed guides on extending the CLI.
+**Real-time Streaming**
+- `listen` — Open a persistent SSE connection and stream domain events as NDJSON:
+  - `semiont listen` — Global system events
+  - `semiont listen resource <resourceId>` — Events scoped to one resource
+
+**Attention / Collaboration**
+- `beckon` — Direct a participant's attention to a resource or annotation *(backend endpoint pending)*
 
 ### Publish and Update Workflow
 
