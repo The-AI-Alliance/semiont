@@ -1,23 +1,33 @@
 /**
  * Yield Command
  *
- * Registers one or more files as semiont resources via the live backend.
- * Calls POST /resources (multipart) through SemiontApiClient.
+ * Two modes, selected by a required mode flag:
  *
- * Usage:
- *   semiont yield docs/overview.md
- *   semiont yield docs/overview.md --name "Overview Document"
+ * UPLOAD mode — register a local file as a semiont resource:
+ *   semiont yield --upload docs/overview.md [--name "Title"]
+ *   semiont yield --upload docs/a.md --upload docs/b.md
+ *
+ * GENERATE mode — generate a new resource from an annotation's gathered context:
+ *   semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md
+ *   semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md \
+ *     --title "Paris" --prompt "Write a brief encyclopedia entry" --language en
+ *
+ * Exactly one of --upload or --generate must be present.
  */
 
 import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
+import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } from '@semiont/core';
+import type { GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { createAuthenticatedClient } from '../api-client-factory.js';
+import type { SemiontApiClient } from '@semiont/api-client';
+import type { AccessToken } from '@semiont/core';
 
 function guessFormat(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -41,11 +51,104 @@ function guessFormat(filePath: string): string {
 // =====================================================================
 
 export const YieldOptionsSchema = BaseOptionsSchema.extend({
-  files: z.array(z.string()).min(1, 'At least one file path is required'),
+  // Mode flags
+  upload: z.array(z.string()).default([]),
+  generate: z.boolean().default(false),
+  // Upload mode options
   name: z.string().optional(),
+  // Generate mode required
+  resource: z.string().optional(),
+  annotation: z.string().optional(),
+  storageUri: z.string().optional(),
+  // Generate mode optional
+  title: z.string().optional(),
+  prompt: z.string().optional(),
+  language: z.string().optional(),
+  temperature: z.coerce.number().min(0).max(1).optional(),
+  maxTokens: z.coerce.number().int().min(100).max(4000).optional(),
+  contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
+}).superRefine((val, ctx) => {
+  const hasUpload = val.upload.length > 0;
+  const hasGenerate = val.generate;
+
+  if (!hasUpload && !hasGenerate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'One of --upload <file> or --generate is required' });
+  }
+  if (hasUpload && hasGenerate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--upload and --generate are mutually exclusive' });
+  }
+  if (hasUpload && val.name && val.upload.length > 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--name can only be used when uploading a single file' });
+  }
+  if (hasGenerate) {
+    if (!val.resource) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--resource <resourceId> is required with --generate' });
+    if (!val.annotation) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--annotation <annotationId> is required with --generate' });
+    if (!val.storageUri) ctx.addIssue({ code: z.ZodIssueCode.custom, message: '--storage-uri is required with --generate' });
+  }
 });
 
 export type YieldOptions = z.output<typeof YieldOptionsSchema>;
+
+// =====================================================================
+// GENERATE MODE HELPERS
+// =====================================================================
+
+function waitForYieldFinished(eventBus: EventBus): Promise<{ resourceId?: string; resourceName?: string }> {
+  return new Promise((resolve, reject) => {
+    const doneSub = eventBus.get('yield:finished').subscribe((event) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      resolve({ resourceId: event.resourceId, resourceName: event.resourceName });
+    });
+    const failSub = eventBus.get('yield:failed').subscribe((event: any) => {
+      doneSub.unsubscribe();
+      failSub.unsubscribe();
+      reject(event.error ?? new Error('Generation failed'));
+    });
+  });
+}
+
+async function runGenerate(
+  client: SemiontApiClient,
+  token: AccessToken,
+  options: YieldOptions,
+): Promise<{ resourceId?: string; resourceName?: string }> {
+  const rawResourceId = options.resource!;
+  const rawAnnotationId = options.annotation!;
+  const resourceId = toResourceId(rawResourceId);
+  const annotationId = toAnnotationId(rawAnnotationId);
+
+  const response = await client.getAnnotationLLMContext(resourceId, annotationId, {
+    contextWindow: options.contextWindow,
+    auth: token,
+  });
+  const context = (response as any).context as GatheredContext | undefined;
+  if (!context) {
+    throw new Error('No context returned from getAnnotationLLMContext — cannot generate');
+  }
+
+  if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
+
+  const eventBus = new EventBus();
+  const donePromise = waitForYieldFinished(eventBus);
+
+  client.sse.yieldResourceFromAnnotation(
+    resourceId,
+    annotationId,
+    {
+      context,
+      storageUri: options.storageUri!,
+      ...(options.title && { title: options.title }),
+      ...(options.prompt && { prompt: options.prompt }),
+      ...(options.language && { language: options.language }),
+      ...(options.temperature !== undefined && { temperature: options.temperature }),
+      ...(options.maxTokens !== undefined && { maxTokens: options.maxTokens }),
+    },
+    { auth: token, eventBus },
+  );
+
+  return await donePromise;
+}
 
 // =====================================================================
 // IMPLEMENTATION
@@ -56,17 +159,32 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
   const projectRoot = findProjectRoot();
   const environment = options.environment!;
 
-  if (options.name && options.files.length > 1) {
-    throw new Error('--name can only be used when yielding a single file');
-  }
-
   const { client, token } = await createAuthenticatedClient(projectRoot, environment);
 
+  // ── Generate mode ──────────────────────────────────────────────────
+  if (options.generate) {
+    const { resourceId, resourceName } = await runGenerate(client, token, options);
+    const label = resourceName ?? resourceId ?? options.storageUri!;
+    if (!options.quiet) printSuccess(`Yielded: ${options.storageUri} → ${resourceId ?? '(pending)'}`);
+    process.stdout.write(JSON.stringify({ resourceId, resourceName, storageUri: options.storageUri }));
+    if (!options.quiet) process.stdout.write('\n');
+    return {
+      command: 'yield',
+      environment,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
+      executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
+      results: [{ entity: label, platform: 'posix', success: true, metadata: { resourceId, storageUri: options.storageUri }, duration: Date.now() - startTime }],
+    };
+  }
+
+  // ── Upload mode ────────────────────────────────────────────────────
   let succeeded = 0;
   let failed = 0;
   const results: CommandResults['results'] = [];
 
-  for (const filePath of options.files) {
+  for (const filePath of options.upload) {
     const absPath = path.isAbsolute(filePath)
       ? filePath
       : path.resolve(projectRoot, filePath);
@@ -98,13 +216,12 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
     succeeded++;
   }
 
-  const duration = Date.now() - startTime;
   return {
     command: 'yield',
     environment,
     timestamp: new Date(),
-    duration,
-    summary: { succeeded, failed, total: options.files.length, warnings: 0 },
+    duration: Date.now() - startTime,
+    summary: { succeeded, failed, total: options.upload.length, warnings: 0 },
     executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
     results,
   };
@@ -116,23 +233,76 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
 
 export const yieldCmd = new CommandBuilder()
   .name('yield')
-  .description('Register files as semiont resources via the live backend')
+  .description(
+    'Upload a local file as a resource (--upload), or generate a new resource from an annotation\'s gathered context (--generate). ' +
+    'Generate mode outputs JSON { resourceId, resourceName, storageUri } to stdout.'
+  )
   .requiresEnvironment(true)
   .requiresServices(true)
   .examples(
-    'semiont yield docs/overview.md',
-    'semiont yield docs/new.md --name "Overview Document"',
+    'semiont yield --upload docs/overview.md',
+    'semiont yield --upload docs/overview.md --name "Overview Document"',
+    'semiont yield --upload docs/a.md --upload docs/b.md --upload docs/c.md',
+    'semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md',
+    'semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --title "Paris" --language en',
+    'semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/paris.md --prompt "Write a brief encyclopedia entry" --temperature 0.3',
+    'NEW_ID=$(semiont yield --generate --resource <resourceId> --annotation <annotationId> --storage-uri file://generated/loc.md --quiet | jq -r \'.resourceId\') && semiont bind <resourceId> <annotationId> "$NEW_ID"',
   )
   .args({
     ...withBaseArgs({
+      '--upload': {
+        type: 'array',
+        description: 'Upload mode: one or more local file paths to register as resources (repeatable)',
+      },
+      '--generate': {
+        type: 'boolean',
+        description: 'Generate mode: generate a new resource from an annotation\'s gathered context',
+        default: false,
+      },
       '--name': {
         type: 'string',
-        description: 'Resource name (only valid for a single file)',
+        description: 'Upload mode: resource name (single file only)',
+      },
+      '--resource': {
+        type: 'string',
+        description: 'Generate mode: source resourceId',
+      },
+      '--annotation': {
+        type: 'string',
+        description: 'Generate mode: source annotationId',
+      },
+      '--storage-uri': {
+        type: 'string',
+        description: 'Generate mode: file://-relative URI where the generated resource will be saved',
+      },
+      '--title': {
+        type: 'string',
+        description: 'Generate mode: custom title for the generated resource',
+      },
+      '--prompt': {
+        type: 'string',
+        description: 'Generate mode: custom prompt to guide content generation',
+      },
+      '--language': {
+        type: 'string',
+        description: 'Generate mode: BCP 47 language tag for generated content (e.g. en, fr, ja)',
+      },
+      '--temperature': {
+        type: 'string',
+        description: 'Generate mode: inference temperature 0.0–1.0 (0 = focused, 1 = creative)',
+      },
+      '--max-tokens': {
+        type: 'string',
+        description: 'Generate mode: maximum tokens to generate (100–4000)',
+      },
+      '--context-window': {
+        type: 'string',
+        description: 'Generate mode: characters of annotation context to gather (100–5000, default: 1000)',
       },
     }, {
       '-n': '--name',
     }),
-    restAs: 'files',
+    aliases: {},
   })
   .schema(YieldOptionsSchema)
   .handler(runYield)
