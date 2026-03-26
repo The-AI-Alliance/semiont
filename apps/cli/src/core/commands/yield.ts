@@ -168,9 +168,16 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
         results.push({ entity: filePath, platform: 'posix', success: true, metadata: { resourceId: created, storageUri }, duration: Date.now() - fileStart });
         succeeded++;
       } else {
-        // Already tracked — check for content change
-        // Get current checksum from view (read resource view)
-        // Emit yield:update (no content — file already changed on disk)
+        // Already tracked — skip if content unchanged
+        const view = await kb.views.get(toResourceId(existingResourceId!));
+        if (view?.resource.currentChecksum === contentChecksum) {
+          if (!options.quiet) printSuccess(`Unchanged: ${filePath} (${existingResourceId})`);
+          results.push({ entity: filePath, platform: 'posix', success: true, metadata: { resourceId: existingResourceId, storageUri, unchanged: true }, duration: Date.now() - fileStart });
+          succeeded++;
+          continue;
+        }
+
+        // Content changed — emit yield:update (file already on disk)
         const updated = await new Promise<void>((resolve, reject) => {
           const sub = eventBus.get('yield:updated').subscribe(() => { sub.unsubscribe(); resolve(); });
           eventBus.get('yield:update-failed').subscribe(e => reject(e.error));
