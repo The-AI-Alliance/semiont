@@ -12,7 +12,7 @@ The pipeline has five steps:
 
 1. **Mark** — detect entity references via SSE streaming (`client.sse.detectAnnotations`)
 2. **Gather** — fetch LLM context for each unresolved reference (`client.getAnnotationLLMContext`)
-3. **Match** — search the KB for candidates (`client.listResources` with search, plus scoring)
+3. **Match** — search the KB via the Matcher (`client.sse.bindSearch`) using full gathered context
 4. **Bind** — link the annotation to the best match (`client.updateAnnotationBody`)
 5. **Generate** — if no confident match exists, generate a new resource and bind to it (`client.sse.generateResourceFromAnnotation`)
 
@@ -21,7 +21,7 @@ Steps 3–5 run per annotation in a loop. The threshold between "bind to existin
 ## Setup
 
 ```typescript
-import { SemiontApiClient, resourceId, annotationId, entityType } from '@semiont/api-client';
+import { SemiontApiClient, resourceId, annotationId, entityType, BindSearchStreamRequest } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
 
 const client = new SemiontApiClient({
@@ -61,8 +61,6 @@ eventBus.destroy();
 ## Step 2 — List unresolved references
 
 ```typescript
-import { isReference, getEntityTypes } from '@semiont/api-client';
-
 const { annotations } = await client.getResourceAnnotations(rId);
 
 const unresolved = annotations.filter(ann =>
@@ -75,8 +73,10 @@ console.log(`Found ${unresolved.length} unresolved references`);
 
 ## Step 3 — Gather context and match
 
+The Match step uses `client.sse.bindSearch`, which routes through the server-side Matcher actor. The Matcher scores candidates using entity type overlap (Jaccard + IDF weighting), graph neighborhood connections, bidirectionality, citation weight, name match quality, recency, and optional LLM semantic scoring. Pass the full `GatheredContext` from step 2 so the Matcher has all signals available.
+
 ```typescript
-const MATCH_THRESHOLD = 0.75;
+const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 
 for (const ann of unresolved) {
   const annId = annotationId(ann.id);
@@ -87,26 +87,29 @@ for (const ann of unresolved) {
   });
 
   const selectedText = context.sourceContext?.selected ?? '';
-  const entityTypes = getEntityTypes(ann);
 
-  // Search KB for candidates by name
-  const { resources } = await client.listResources(20, false, selectedText);
+  // Match via the Matcher actor — full composite scoring
+  const searchBus = new EventBus();
+  const referenceId = ann.id;
 
-  // Simple scoring: exact/prefix name match + entity type overlap
-  const scored = resources.map(r => {
-    const name = r.name?.toLowerCase() ?? '';
-    const query = selectedText.toLowerCase();
-    let score = 0;
-    if (name === query) score += 0.5;
-    else if (name.startsWith(query)) score += 0.3;
-    else if (name.includes(query)) score += 0.15;
-    const rTypes = r.entityTypes ?? [];
-    const overlap = entityTypes.filter(t => rTypes.includes(t)).length;
-    score += overlap * 0.1;
-    return { resource: r, score };
-  }).sort((a, b) => b.score - a.score);
+  const results = await new Promise<any[]>((resolve, reject) => {
+    searchBus.get('bind:search-results').subscribe(e => resolve(e.results));
+    searchBus.get('bind:search-failed').subscribe(({ error }) => reject(error));
 
-  const top = scored[0];
+    client.sse.bindSearch(rId, {
+      referenceId,
+      context,
+      limit: 10,
+      useSemanticScoring: true,
+    }, {
+      auth: client.accessToken,
+      eventBus: searchBus,
+    });
+  });
+
+  searchBus.destroy();
+
+  const top = results[0];
 
   if (top && top.score >= MATCH_THRESHOLD) {
     // Step 4 — Bind to existing resource
@@ -115,12 +118,12 @@ for (const ann of unresolved) {
         op: 'add',
         item: {
           type: 'SpecificResource',
-          source: top.resource['@id'],
+          source: top['@id'],
           purpose: 'linking',
         },
       }],
     });
-    console.log(`Bound "${selectedText}" → ${top.resource.name} (score ${top.score.toFixed(2)})`);
+    console.log(`Bound "${selectedText}" → ${top.name} (score ${top.score})`);
   } else {
     // Step 5 — Generate a new resource
     await generateAndBind(client, rId, annId, selectedText);
@@ -175,10 +178,10 @@ async function generateAndBind(
 ## Complete script skeleton
 
 ```typescript
-import { SemiontApiClient, resourceId, annotationId, entityType, getEntityTypes } from '@semiont/api-client';
+import { SemiontApiClient, resourceId, annotationId, entityType } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
 
-const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 0.75);
+const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location').split(',').map(t => entityType(t.trim()));
 
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
@@ -216,30 +219,32 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
     const { context } = await client.getAnnotationLLMContext(rId, annId, { contextWindow: 2000 });
     const selectedText = context.sourceContext?.selected ?? '';
 
-    const { resources } = await client.listResources(20, false, selectedText);
-    const top = resources
-      .map(r => ({ r, score: scoreCandidate(r, selectedText, getEntityTypes(ann)) }))
-      .sort((a, b) => b.score - a.score)[0];
+    const searchBus = new EventBus();
+    const results = await new Promise<any[]>((resolve, reject) => {
+      searchBus.get('bind:search-results').subscribe(e => resolve(e.results));
+      searchBus.get('bind:search-failed').subscribe(({ error }) => reject(error));
+      client.sse.bindSearch(rId, {
+        referenceId: ann.id,
+        context,
+        limit: 10,
+        useSemanticScoring: true,
+      }, { auth: client.accessToken, eventBus: searchBus });
+    });
+    searchBus.destroy();
+
+    const top = results[0];
 
     if (top && top.score >= MATCH_THRESHOLD) {
       await client.updateAnnotationBody(rId, annId, {
-        operations: [{ op: 'add', item: { type: 'SpecificResource', source: top.r['@id'], purpose: 'linking' } }],
+        operations: [{ op: 'add', item: { type: 'SpecificResource', source: top['@id'], purpose: 'linking' } }],
       });
-      console.log(`Bound "${selectedText}" → ${top.r.name}`);
+      console.log(`Bound "${selectedText}" → ${top.name} (score ${top.score})`);
     } else {
       await generateAndBind(client, rId, annId, selectedText);
     }
   }
 
   console.log('Pipeline complete.');
-}
-
-function scoreCandidate(resource: any, query: string, entityTypes: string[]): number {
-  const name = resource.name?.toLowerCase() ?? '';
-  const q = query.toLowerCase();
-  let score = name === q ? 0.5 : name.startsWith(q) ? 0.3 : name.includes(q) ? 0.15 : 0;
-  score += (resource.entityTypes ?? []).filter((t: string) => entityTypes.includes(t)).length * 0.1;
-  return score;
 }
 
 const target = process.argv[2];
@@ -251,8 +256,8 @@ runWikiPipeline(target).catch(e => { console.error(e); process.exit(1); });
 
 - **Find the resource ID first** if the user gives a name: `client.listResources(10, false, '<name>')` then pick from results.
 - **Entity types are a key parameter.** Ask which types to detect (Location, Person, Organization, Concept, etc.) or run once per type.
-- **The threshold is the main tuning knob.** Higher (e.g. 0.9) generates more new resources; lower (e.g. 0.6) binds more to existing ones. Default 0.75 is a good starting point.
-- **The scoring in this skill is intentionally simple** (name match + entity type overlap). For production use, supplement with `client.getAnnotationLLMContext` graph neighborhood signals or semantic scoring.
+- **The threshold is in Matcher score units, not 0–1.** The Matcher returns composite scores (name match alone can be 25 pts, entity type overlap up to ~35 pts, etc.). A threshold of 30 is selective; 15 is permissive. Set to 0 to always bind to the top result if one exists.
+- **`useSemanticScoring: true`** enables LLM batch-scoring of the top 20 candidates — adds up to 25 pts and improves precision significantly. Set to `false` if inference cost is a concern.
 - **Generated resources should be reviewed.** They are AI-generated stubs, not finished articles.
 - **Check results** with `client.getResourceAnnotations(rId)` after the pipeline — filter for `motivation === 'linking'` and check which now have a `SpecificResource` body item.
 - **To run on multiple resources**, loop over `client.listResources()` results and call `runWikiPipeline` per resource.

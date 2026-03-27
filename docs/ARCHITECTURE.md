@@ -6,7 +6,7 @@ Semiont transforms unstructured text into a queryable knowledge graph using W3C 
 
 Every meaningful action in Semiont is an event on the bus. The actors fall into three categories:
 
-1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent (mark, browse, yield, bind, gather, beckon).
+1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent (mark, browse, yield, match, bind, gather, beckon).
 2. **The knowledge base** — a passive actor that listens to events and materializes durable state. It has no intelligence; it simply records what the intelligent actors decide.
 3. **Content streams** — external sources that yield new resources into the system (uploads, web fetches, API ingestion).
 
@@ -120,7 +120,7 @@ The four primary actors are the interfaces to the Knowledge Base:
 - **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
 - **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores
 - **Matcher** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources
-- **Browser** (filesystem reads) — subscribes to `browse:directory-requested` events and merges live filesystem state with KB metadata from materialized views; the only actor that touches the filesystem
+- **Browser** (directory reads) — subscribes to `browse:directory-requested` events and reads resource content from the content store, merging it with KB metadata from materialized views
 
 All four are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
@@ -141,8 +141,8 @@ graph TB
 
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record"]
-            EVENTLOG["Event Log<br/>(immutable append-only)"]
-            CONTENT["Content Store<br/>(SHA-256 addressed, deduplicated)"]
+            EVENTLOG["Event Log<br/>(SHA-256 addressed, immutable append-only)"]
+            CONTENT["Content Store<br/>(git-tracked project directory)"]
         end
         VIEWS["Materialized Views<br/>(fast single-doc queries)"]
         GRAPH["Graph<br/>(eventually consistent)"]
@@ -163,24 +163,21 @@ graph TB
     MATCHER -->|search| VECTORS
 
     BROWSER -->|query| VIEWS
-    BROWSER -->|"read filesystem"| FS[("Filesystem")]
+    BROWSER -->|read| CONTENT
 
     STOWER -->|"mark, yield, job"| BUS
     GATHERER -->|"gather, browse"| BUS
-    MATCHER -->|"bind"| BUS
-    BROWSER -->|"browse:directory"| BUS
+    BROWSER -->|"browse"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef planned fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
-    classDef fs fill:#7a8fa6,stroke:#4a6070,stroke-width:2px,color:#fff
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
     class VECTORS planned
     class STOWER,GATHERER,MATCHER,BROWSER worker
-    class FS fs
 ```
 
 | Store | Purpose | Access Pattern |
@@ -205,7 +202,7 @@ The Matcher is the read actor for entity resolution. When an Analyst or Linker A
 
 ### Browser
 
-The Browser is the filesystem read actor. When a client emits a `browse:directory-requested` event (e.g. from the CLI or the UI file navigator), the Browser reads the requested directory from the filesystem via `fs.readdir`, performs a prefix scan of the materialized views for any tracked resources under that path, and merges the two. Each entry in the result is either a bare filesystem entry (`tracked: false`) or an enriched one carrying KB metadata (resource ID, entity types, annotation count, creator). The Browser is the only actor in the Knowledge System that performs filesystem I/O, keeping that concern out of the Gatherer and Stower. It enforces a path confinement invariant: all resolved paths must remain within `project.root`.
+The Browser is the directory read actor. When a client emits a `browse:directory-requested` event (e.g. from the CLI or the UI file navigator), the Browser performs a prefix scan of the materialized views for tracked resources under the requested path and reads their content from the content store, then merges the result with any untracked entries. Each entry in the result is either a bare entry (`tracked: false`) or an enriched one carrying KB metadata (resource ID, entity types, annotation count, creator). It enforces a path confinement invariant: all resolved paths must remain within `project.root`.
 
 ### Feeder and Content Streams
 
@@ -219,13 +216,14 @@ Content sources:
 
 ## Flows as Verbs
 
-The six flows are verbs that actors perform. Each flow is a conversation between one or more intelligent actors and the knowledge base, mediated by the event bus:
+The seven flows are verbs that actors perform. Each flow is a conversation between one or more intelligent actors and the knowledge base, mediated by the event bus:
 
 | Flow | Verb | Who does it | What happens |
 |------|------|-------------|-------------|
 | **[Mark](flows/MARK.md)** | Annotate | Analyst, Author, Marker Agent | Create W3C annotations on resources |
 | **[Browse](flows/BROWSE.md)** | Navigate | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
 | **[Beckon](flows/BECKON.md)** | Focus | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
+| **[Match](flows/MATCHER.md)** | Search | Analyst, Linker Agent, Matcher | Retrieve and rank candidate resources for an entity reference |
 | **[Bind](flows/BIND.md)** | Link | Analyst, Linker Agent, Matcher | Resolve references to concrete resources |
 | **[Gather](flows/GATHER.md)** | Contextualize | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
 | **[Yield](flows/YIELD.md)** | Create | Author, Generator Agent, Content Streams | Produce new resources in the knowledge base |

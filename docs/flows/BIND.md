@@ -73,7 +73,7 @@ await client.updateAnnotationBody(resourceId, annotationId, {
 
 ### Link to Existing Resource (Wizard)
 
-The Bind path uses the Reference Resolution Wizard (see [WIZARDS.md](./WIZARDS.md)). The wizard gathers context, then lets the user configure and execute a context-driven search.
+The Bind path runs through a multi-step wizard (`ReferenceWizardModal`). A single 🕸️🧙 button on any unresolved reference opens it. The wizard first displays the gathered context (passage, entity types, graph neighborhood), then offers three resolution strategies: **Bind** (search for an existing resource via the Matcher), **Generate** (AI-create a new resource via the Yield flow), or **Compose** (navigate to the compose page with context pre-loaded). Choosing Bind advances to a search configuration step — max results (1/5/10/20) and a semantic scoring toggle — before running the Matcher search.
 
 ```
 User clicks 🕸️🧙 wizard button on unresolved reference
