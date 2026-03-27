@@ -5,7 +5,6 @@
  */
 
 import * as fs from 'fs';
-import * as http from 'http';
 import { check } from '../commands/check.js';
 import { CommandResult } from '../command-result.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
@@ -286,7 +285,7 @@ export class DashboardDataSource {
     } catch { /* not a semiont project dir */ }
 
     // Graph: re-use status from services[] if graph service was checked
-    // (set by caller via getDashboardData — actors below are from backend API)
+    // (set by caller via getDashboardData)
 
     // Enrich Gatherer and Matcher with their configured inference provider/model
     for (const name of ['gatherer', 'matcher'] as const) {
@@ -294,22 +293,6 @@ export class DashboardDataSource {
       if (infer?.type)  result.actors[name].provider = infer.type;
       if (infer?.model) result.actors[name].model    = infer.model;
     }
-
-    // Actor runtime status from backend health API
-    const backendPort = this.envConfig
-      ? (this.envConfig as any)?.services?.backend?.port ?? 4000
-      : 4000;
-    try {
-      const health = await this.fetchBackendHealth(backendPort);
-      if (health?.actors) {
-        // Merge runtime state into existing (preserving model/provider already set)
-        for (const name of ['gatherer', 'matcher', 'stower', 'browser'] as const) {
-          if (health.actors[name]) {
-            result.actors[name] = { ...result.actors[name], ...health.actors[name] };
-          }
-        }
-      }
-    } catch { /* backend not running — leave as unknown */ }
 
     return result;
   }
@@ -386,20 +369,6 @@ export class DashboardDataSource {
         failedCount: 0,
       }));
     }
-  }
-
-  private fetchBackendHealth(port: number): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const req = http.get(`http://localhost:${port}/api/health`, { timeout: 2000 }, (res) => {
-        let body = '';
-        res.on('data', (chunk) => { body += chunk; });
-        res.on('end', () => {
-          try { resolve(JSON.parse(body)); } catch { reject(new Error('Invalid JSON')); }
-        });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
-    });
   }
 
   private getHostname(serviceName: string): string | undefined {
