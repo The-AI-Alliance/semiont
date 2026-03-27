@@ -20,7 +20,14 @@
     "archive": "Archivia",
     "archiveDescription": "Sposta questa risorsa nello stato archiviato",
     "unarchive": "Ripristina",
-    "unarchiveDescription": "Ripristina questa risorsa allo stato attivo"
+    "unarchiveDescription": "Ripristina questa risorsa allo stato attivo",
+    "provenance": "Provenienza",
+    "createdAt": "Creato",
+    "modifiedAt": "Modificato",
+    "creationMethod": "Metodo di creazione",
+    "attributedTo": "Attribuito a",
+    "derivedFrom": "Derivato da",
+    "generatedBy": "Generato da"
   },
   "CollaborationPanel": {
     "title": "Collaborazione",

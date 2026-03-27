@@ -20,7 +20,14 @@
     "archive": "Archivovat",
     "archiveDescription": "Přesunout tento zdroj do archivovaného stavu",
     "unarchive": "Obnovit z archivu",
-    "unarchiveDescription": "Obnovit tento zdroj do aktivního stavu"
+    "unarchiveDescription": "Obnovit tento zdroj do aktivního stavu",
+    "provenance": "Původ",
+    "createdAt": "Vytvořeno",
+    "modifiedAt": "Upraveno",
+    "creationMethod": "Způsob vytvoření",
+    "attributedTo": "Připsáno",
+    "derivedFrom": "Odvozeno z",
+    "generatedBy": "Vygenerováno pomocí"
   },
   "CollaborationPanel": {
     "title": "Spolupráce",

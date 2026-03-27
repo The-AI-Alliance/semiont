@@ -20,7 +20,14 @@
     "archive": "Lưu trữ",
     "archiveDescription": "Chuyển tài nguyên này sang trạng thái lưu trữ",
     "unarchive": "Hủy lưu trữ",
-    "unarchiveDescription": "Khôi phục tài nguyên này về trạng thái hoạt động"
+    "unarchiveDescription": "Khôi phục tài nguyên này về trạng thái hoạt động",
+    "provenance": "Xuất xứ",
+    "createdAt": "Ngày tạo",
+    "modifiedAt": "Ngày sửa đổi",
+    "creationMethod": "Cách tạo",
+    "attributedTo": "Được gán cho",
+    "derivedFrom": "Bắt nguồn từ",
+    "generatedBy": "Được tạo bởi"
   },
   "CollaborationPanel": {
     "title": "Cộng tác",

@@ -20,7 +20,14 @@
     "archive": "সংরক্ষণাগারভুক্ত করুন",
     "archiveDescription": "এই সম্পদটিকে সংরক্ষণাগারভুক্ত অবস্থায় স্থানান্তর করুন",
     "unarchive": "সংরক্ষণাগার থেকে পুনরুদ্ধার করুন",
-    "unarchiveDescription": "এই সম্পদটিকে সক্রিয় অবস্থায় পুনরুদ্ধার করুন"
+    "unarchiveDescription": "এই সম্পদটিকে সক্রিয় অবস্থায় পুনরুদ্ধার করুন",
+    "provenance": "উৎস ও উদ্ভব",
+    "createdAt": "তৈরির তারিখ",
+    "modifiedAt": "পরিবর্তনের তারিখ",
+    "creationMethod": "তৈরির পদ্ধতি",
+    "attributedTo": "সম্পাদককৃত",
+    "derivedFrom": "থেকে উৎপন্ন",
+    "generatedBy": "তৈরিকারক"
   },
   "CollaborationPanel": {
     "title": "সহযোগিতা",

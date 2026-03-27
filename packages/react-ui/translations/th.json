@@ -20,7 +20,14 @@
     "archive": "จัดเก็บ",
     "archiveDescription": "ย้ายทรัพยากรนี้ไปยังสถานะจัดเก็บ",
     "unarchive": "ยกเลิกการจัดเก็บ",
-    "unarchiveDescription": "กู้คืนทรัพยากรนี้ไปยังสถานะใช้งาน"
+    "unarchiveDescription": "กู้คืนทรัพยากรนี้ไปยังสถานะใช้งาน",
+    "provenance": "ที่มา",
+    "createdAt": "วันที่สร้าง",
+    "modifiedAt": "วันที่แก้ไข",
+    "creationMethod": "วิธีการสร้าง",
+    "attributedTo": "อ้างอิงถึง",
+    "derivedFrom": "ได้มาจาก",
+    "generatedBy": "สร้างโดย"
   },
   "CollaborationPanel": {
     "title": "การทำงานร่วมกัน",

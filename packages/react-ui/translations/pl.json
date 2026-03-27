@@ -20,7 +20,14 @@
     "archive": "Archiwizuj",
     "archiveDescription": "Przenieś ten zasób do statusu zarchiwizowanego",
     "unarchive": "Przywróć z archiwum",
-    "unarchiveDescription": "Przywróć ten zasób do statusu aktywnego"
+    "unarchiveDescription": "Przywróć ten zasób do statusu aktywnego",
+    "provenance": "Pochodzenie",
+    "createdAt": "Utworzono",
+    "modifiedAt": "Zmodyfikowano",
+    "creationMethod": "Sposób utworzenia",
+    "attributedTo": "Przypisano do",
+    "derivedFrom": "Pochodzi z",
+    "generatedBy": "Wygenerowano przez"
   },
   "CollaborationPanel": {
     "title": "Współpraca",

@@ -20,7 +20,14 @@
     "archive": "보관",
     "archiveDescription": "이 리소스를 보관 상태로 이동합니다",
     "unarchive": "보관 해제",
-    "unarchiveDescription": "이 리소스를 활성 상태로 복원합니다"
+    "unarchiveDescription": "이 리소스를 활성 상태로 복원합니다",
+    "provenance": "출처",
+    "createdAt": "생성일",
+    "modifiedAt": "수정일",
+    "creationMethod": "생성 방법",
+    "attributedTo": "귀속 대상",
+    "derivedFrom": "파생 출처",
+    "generatedBy": "생성 도구"
   },
   "CollaborationPanel": {
     "title": "협업",

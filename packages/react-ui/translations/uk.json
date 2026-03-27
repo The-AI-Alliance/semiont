@@ -20,7 +20,14 @@
     "archive": "Архівувати",
     "archiveDescription": "Перемістити цей ресурс до архіву",
     "unarchive": "Розархівувати",
-    "unarchiveDescription": "Відновити цей ресурс до активного стану"
+    "unarchiveDescription": "Відновити цей ресурс до активного стану",
+    "provenance": "Походження",
+    "createdAt": "Створено",
+    "modifiedAt": "Змінено",
+    "creationMethod": "Спосіб створення",
+    "attributedTo": "Авторство",
+    "derivedFrom": "Походить від",
+    "generatedBy": "Створено за допомогою"
   },
   "CollaborationPanel": {
     "title": "Співпраця",

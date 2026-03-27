@@ -20,7 +20,14 @@
     "archive": "Αρχειοθέτηση",
     "archiveDescription": "Μεταφορά αυτού του πόρου σε κατάσταση αρχειοθέτησης",
     "unarchive": "Αναίρεση Αρχειοθέτησης",
-    "unarchiveDescription": "Επαναφορά αυτού του πόρου σε ενεργή κατάσταση"
+    "unarchiveDescription": "Επαναφορά αυτού του πόρου σε ενεργή κατάσταση",
+    "provenance": "Προέλευση",
+    "createdAt": "Δημιουργήθηκε",
+    "modifiedAt": "Τροποποιήθηκε",
+    "creationMethod": "Μέθοδος δημιουργίας",
+    "attributedTo": "Αποδίδεται σε",
+    "derivedFrom": "Παράγεται από",
+    "generatedBy": "Δημιουργήθηκε από"
   },
   "CollaborationPanel": {
     "title": "Συνεργασία",

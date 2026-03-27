@@ -20,7 +20,14 @@
     "archive": "Archiver",
     "archiveDescription": "Déplacer cette ressource vers le statut archivé",
     "unarchive": "Désarchiver",
-    "unarchiveDescription": "Restaurer cette ressource au statut actif"
+    "unarchiveDescription": "Restaurer cette ressource au statut actif",
+    "provenance": "Provenance",
+    "createdAt": "Créé le",
+    "modifiedAt": "Modifié le",
+    "creationMethod": "Mode de création",
+    "attributedTo": "Attribué à",
+    "derivedFrom": "Dérivé de",
+    "generatedBy": "Généré par"
   },
   "CollaborationPanel": {
     "title": "Collaboration",
