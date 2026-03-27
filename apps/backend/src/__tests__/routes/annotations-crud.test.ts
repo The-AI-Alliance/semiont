@@ -19,7 +19,9 @@ import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
-import type { MakeMeaningService } from '@semiont/make-meaning';
+import type { MakeMeaningService, KnowledgeBase } from '@semiont/make-meaning';
+import type { JobQueue } from '@semiont/jobs';
+import { makeMeaningMock, stubKnowledgeSystem } from '../helpers/make-meaning-mock';
 
 type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
@@ -133,14 +135,10 @@ vi.mock('@semiont/make-meaning', () => ({
         },
       });
     });
-    return {
-      jobQueue: { createJob: vi.fn() },
-      workers: {},
-      knowledgeSystem: {
-        kb: { content: { get: vi.fn(), store: vi.fn() }, views: {}, graph: {}, eventStore: mockEventStore, graphConsumer: {} },
-        stop: async () => {},
-      },
-    } as unknown as MakeMeaningService;
+    return makeMeaningMock({
+      jobQueue: { createJob: vi.fn() } as unknown as JobQueue,
+      knowledgeSystem: stubKnowledgeSystem({ eventStore: mockEventStore as unknown as KnowledgeBase['eventStore'] }),
+    });
   })
 }));
 

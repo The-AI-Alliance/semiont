@@ -17,6 +17,7 @@ import type { EnvironmentConfig, EventBus, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { User } from '@prisma/client';
 import type { MakeMeaningService, KnowledgeBase, LLMContextOptions } from '@semiont/make-meaning';
+import { makeMeaningMock, stubKnowledgeSystem } from '../helpers/make-meaning-mock';
 import type { InferenceClient } from '@semiont/inference';
 
 type Variables = {
@@ -91,31 +92,24 @@ const setupMocks = () => {
           response: { referencedBy: [] },
         });
       });
-      return {
-        jobQueue: { createJob: vi.fn() },
-        workers: {},
-        knowledgeSystem: {
-          kb: {
-            content: { get: vi.fn(), store: vi.fn() },
-            views: {},
-            graph: {
-              getResourceReferencedBy: vi.fn().mockResolvedValue([]),
-              getResource: vi.fn().mockImplementation(async (uri: string) => {
-                if (uri.includes('test-resource')) {
-                  return { '@id': 'urn:semiont:resource:test-resource', name: 'Test Resource' };
-                }
-                return null;
-              }),
-              getAnnotations: vi.fn().mockResolvedValue([]),
-              getResourceConnections: vi.fn().mockResolvedValue([]),
-              listAnnotations: vi.fn().mockResolvedValue([]),
-            },
-            eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
-            graphConsumer: {},
-          },
-          stop: async () => {},
-        },
-      } as unknown as MakeMeaningService;
+      return makeMeaningMock({
+        knowledgeSystem: stubKnowledgeSystem({
+          content: { get: vi.fn(), store: vi.fn() } as unknown as KnowledgeBase['content'],
+          graph: {
+            getResourceReferencedBy: vi.fn().mockResolvedValue([]),
+            getResource: vi.fn().mockImplementation(async (uri: string) => {
+              if (uri.includes('test-resource')) {
+                return { '@id': 'urn:semiont:resource:test-resource', name: 'Test Resource' };
+              }
+              return null;
+            }),
+            getAnnotations: vi.fn().mockResolvedValue([]),
+            getResourceConnections: vi.fn().mockResolvedValue([]),
+            listAnnotations: vi.fn().mockResolvedValue([]),
+          } as unknown as KnowledgeBase['graph'],
+          eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) } as unknown as KnowledgeBase['eventStore'],
+        }),
+      });
     })
   }));
 

@@ -14,6 +14,7 @@ import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { MakeMeaningService } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
+import { makeMeaningMock } from './helpers/make-meaning-mock';
 
 type Variables = {
   user: User;
@@ -35,11 +36,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal() as any;
   return {
     ...actual,
-    startMakeMeaning: vi.fn().mockResolvedValue({
-      jobQueue: {},
-      workers: [],
-      knowledgeSystem: { kb: { content: {}, views: {}, graph: {}, eventStore: {}, graphConsumer: {} }, stop: async () => {} },
-    })
+    startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock())
   };
 });
 

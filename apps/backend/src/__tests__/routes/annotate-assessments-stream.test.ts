@@ -13,6 +13,8 @@ import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { MakeMeaningService } from '@semiont/make-meaning';
+import type { JobQueue } from '@semiont/jobs';
+import { makeMeaningMock } from '../helpers/make-meaning-mock';
 
 type Variables = {
   user: User;
@@ -51,11 +53,7 @@ vi.mock('@semiont/make-meaning', () => ({
     }),
     getAllAnnotations: vi.fn().mockResolvedValue([])
   },
-  startMakeMeaning: vi.fn().mockResolvedValue({
-    jobQueue: mockJobQueue,
-    workers: {},
-    knowledgeSystem: { kb: { content: {}, views: {}, graph: {}, eventStore: {}, graphConsumer: {} }, stop: async () => {} },
-  } as unknown as MakeMeaningService)
+  startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock({ jobQueue: mockJobQueue as unknown as JobQueue }))
 }));
 
 // Mock database

@@ -19,7 +19,8 @@ import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { components } from '@semiont/core';
-import type { MakeMeaningService } from '@semiont/make-meaning';
+import type { MakeMeaningService, KnowledgeBase } from '@semiont/make-meaning';
+import { makeMeaningMock, stubKnowledgeSystem } from '../helpers/make-meaning-mock';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 
@@ -109,14 +110,12 @@ vi.mock('@semiont/make-meaning', () => ({
         },
       });
     });
-    return {
-      jobQueue: { createJob: vi.fn() },
-      workers: {},
-      knowledgeSystem: {
-        kb: { content: mockRepStore, views: {}, graph: {}, eventStore: mockEventStore, graphConsumer: {} },
-        stop: async () => {},
-      },
-    } as unknown as MakeMeaningService;
+    return makeMeaningMock({
+      knowledgeSystem: stubKnowledgeSystem({
+        content: mockRepStore as unknown as KnowledgeBase['content'],
+        eventStore: mockEventStore as unknown as KnowledgeBase['eventStore'],
+      }),
+    });
   })
 }));
 
