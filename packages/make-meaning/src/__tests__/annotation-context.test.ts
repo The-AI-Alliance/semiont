@@ -539,6 +539,8 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
       const mockInferenceClient = {
+        type: 'mock' as const,
+        modelId: 'mock-model',
         generateText: vi.fn().mockResolvedValue('This passage about a fox relates to the Animals topic in the knowledge base.'),
         generateTextWithMetadata: vi.fn(),
       };
@@ -594,6 +596,8 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
       const mockInferenceClient = {
+        type: 'mock' as const,
+        modelId: 'mock-model',
         generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
         generateTextWithMetadata: vi.fn(),
       };
