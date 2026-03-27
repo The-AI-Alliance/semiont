@@ -140,9 +140,9 @@ graph TB
     STOWER -->|store| CONTENT
 
     subgraph kb ["Knowledge Base"]
-        subgraph sor ["System of Record"]
+        subgraph sor ["System of Record (git-tracked project)"]
             EVENTLOG["Event Log<br/>(SHA-256 addressed, immutable append-only)"]
-            CONTENT["Content Store<br/>(git-tracked project directory)"]
+            CONTENT["Content Store<br/>(files in directories)"]
         end
         VIEWS["Materialized Views<br/>(fast single-doc queries)"]
         GRAPH["Graph<br/>(eventually consistent)"]
