@@ -13,6 +13,7 @@ This package implements the actor model from [ARCHITECTURE.md](../../docs/ARCHIT
 - **Stower** (write) — the single write gateway to the Knowledge Base
 - **Gatherer** (read) — handles all browse reads, context assembly (passage + graph neighborhood + optional inference summary), and entity type listing
 - **Matcher** (search/link) — context-driven search with multi-source retrieval, composite structural scoring, optional LLM semantic scoring, and graph queries
+- **Browser** (filesystem reads) — merges live filesystem directory listings with KB metadata for tracked resources
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
@@ -42,7 +43,7 @@ const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
 // Access components
 const { knowledgeSystem, jobQueue } = makeMeaning;
-const { kb, stower, gatherer, matcher, cloneTokenManager } = knowledgeSystem;
+const { kb, stower, gatherer, matcher, browser, cloneTokenManager } = knowledgeSystem;
 
 // Graceful shutdown
 await makeMeaning.stop();
@@ -54,6 +55,7 @@ This single call initializes:
   - **Stower** — subscribes to write commands on EventBus
   - **Gatherer** — subscribes to browse reads, gather context, and entity type listing on EventBus
   - **Matcher** — subscribes to search and referenced-by queries on EventBus
+  - **Browser** — subscribes to directory browse requests, merging filesystem + KB metadata
   - **CloneTokenManager** — subscribes to clone token operations on EventBus
 - **JobQueue** — background job processing queue + job status subscription
 - **6 annotation workers** — poll job queue for async AI tasks
