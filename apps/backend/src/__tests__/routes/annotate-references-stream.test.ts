@@ -11,13 +11,14 @@ import { email } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 // Mock entire @semiont/make-meaning with simple mocks
@@ -52,9 +53,9 @@ vi.mock('@semiont/make-meaning', () => ({
   },
   startMakeMeaning: vi.fn().mockResolvedValue({
     jobQueue: mockJobQueue,
-    workers: [],
-    graphConsumer: {}
-  })
+    workers: {},
+    knowledgeSystem: { kb: { content: {}, views: {}, graph: {}, eventStore: {}, graphConsumer: {} }, stop: async () => {} },
+  } as unknown as MakeMeaningService)
 }));
 
 // Mock database

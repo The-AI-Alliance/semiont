@@ -14,13 +14,14 @@ import { userId, email } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, EventBus, EventMap } from '@semiont/core';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 vi.mock('@semiont/make-meaning', () => ({
@@ -33,9 +34,9 @@ vi.mock('@semiont/make-meaning', () => ({
   },
   startMakeMeaning: vi.fn().mockResolvedValue({
     jobQueue: { createJob: vi.fn() },
-    workers: [],
-    graphConsumer: {},
-  }),
+    workers: {},
+    knowledgeSystem: { kb: { content: {}, views: {}, graph: {}, eventStore: {}, graphConsumer: {} }, stop: async () => {} },
+  } as unknown as MakeMeaningService),
 }));
 
 vi.mock('../../db', () => ({
@@ -193,7 +194,7 @@ describe('Participant Routes', () => {
         '../../routes/participants/attention-channels'
       );
       const channel = getOrCreateChannel(testUser.id);
-      const received: any[] = [];
+      const received: Array<EventMap['beckon:focus']> = [];
       const sub = channel.subscribe((s) => received.push(s));
 
       await app.request(`/api/participants/${testUser.id}/attention`, {
@@ -206,7 +207,7 @@ describe('Participant Routes', () => {
       });
 
       expect(received).toHaveLength(1);
-      expect(received[0].resourceId).toBe('urn:semiont:resource:doc-1');
+      expect(received[0]!.resourceId).toBe('urn:semiont:resource:doc-1');
 
       sub.unsubscribe();
       removeChannel(testUser.id);

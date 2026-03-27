@@ -11,14 +11,15 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 interface HealthResponse {
@@ -37,7 +38,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
     startMakeMeaning: vi.fn().mockResolvedValue({
       jobQueue: {},
       workers: [],
-      graphConsumer: {}
+      knowledgeSystem: { kb: { content: {}, views: {}, graph: {}, eventStore: {}, graphConsumer: {} }, stop: async () => {} },
     })
   };
 });

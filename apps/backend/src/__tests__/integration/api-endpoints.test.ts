@@ -8,15 +8,16 @@ import { email, accessToken } from '@semiont/core';
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '../../utils/config';
 import { JWTService } from '../../auth/jwt';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors
@@ -92,7 +93,7 @@ interface LogoutResponse {
 interface ErrorResponse {
   error: string;
   code?: string;
-  details?: any;
+  details?: unknown;
 }
 
 // Local test interfaces (removed unused ApiDocResponse)

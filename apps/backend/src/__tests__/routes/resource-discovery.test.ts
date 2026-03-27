@@ -12,9 +12,19 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { userId } from '@semiont/core';
 import { email } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { Hono } from 'hono';
+import type { EnvironmentConfig, EventBus, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { User } from '@prisma/client';
+import type { MakeMeaningService, KnowledgeBase, LLMContextOptions } from '@semiont/make-meaning';
+import type { InferenceClient } from '@semiont/inference';
+
+type Variables = {
+  user: User;
+  config: EnvironmentConfig;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
+};
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
@@ -41,7 +51,7 @@ const setupMocks = () => {
       })
     },
     LLMContext: {
-      getResourceContext: vi.fn().mockImplementation(async (resId: any) => {
+      getResourceContext: vi.fn().mockImplementation(async (resId: ResourceId) => {
         // Throw error for non-existent resources
         if (!resId.includes('test-resource')) {
           throw new Error('Resource not found');
@@ -58,48 +68,54 @@ const setupMocks = () => {
         };
       })
     },
-    startMakeMeaning: vi.fn().mockImplementation(async (_project: any, _config: any, eventBus: any) => {
+    startMakeMeaning: vi.fn().mockImplementation(async (_project: unknown, _config: unknown, eventBus: EventBus) => {
       // Bridge gather events — routes emit requests, Gatherer would handle them
       const { LLMContext: MockLLMContext } = await import('@semiont/make-meaning');
-      eventBus.get('gather:resource-requested').subscribe(async (event: any) => {
+      eventBus.get('gather:resource-requested').subscribe(async (event: { correlationId?: string; resourceId: ResourceId; options: LLMContextOptions }) => {
         try {
           const context = await MockLLMContext.getResourceContext(
             event.resourceId,
             event.options,
-            {} as any,
-            {} as any,
+            {} as unknown as KnowledgeBase,
+            {} as unknown as InferenceClient,
           );
           eventBus.get('gather:resource-complete').next({ resourceId: event.resourceId, context });
-        } catch (error: any) {
-          eventBus.get('gather:resource-failed').next({ resourceId: event.resourceId, error });
+        } catch (error: unknown) {
+          eventBus.get('gather:resource-failed').next({ resourceId: event.resourceId, error: error as Error });
         }
       });
       // Bridge referenced-by events
-      eventBus.get('bind:referenced-by-requested').subscribe((e: any) => {
+      eventBus.get('bind:referenced-by-requested').subscribe((e: { correlationId: string; resourceId: ResourceId; motivation?: string }) => {
         eventBus.get('bind:referenced-by-result').next({
           correlationId: e.correlationId,
           response: { referencedBy: [] },
         });
       });
       return {
-        eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
-        graphDb: {
-          getResourceReferencedBy: vi.fn().mockResolvedValue([]),
-          getResource: vi.fn().mockImplementation(async (uri: string) => {
-            if (uri.includes('test-resource')) {
-              return { '@id': 'urn:semiont:resource:test-resource', name: 'Test Resource' };
-            }
-            return null;
-          }),
-          getAnnotations: vi.fn().mockResolvedValue([]),
-          getResourceConnections: vi.fn().mockResolvedValue([]),
-          listAnnotations: vi.fn().mockResolvedValue([]),
-        },
-        kb: { content: { get: vi.fn(), store: vi.fn() }, views: {}, graph: {}, eventStore: {} },
         jobQueue: { createJob: vi.fn() },
-        workers: [],
-        graphConsumer: {},
-      };
+        workers: {},
+        knowledgeSystem: {
+          kb: {
+            content: { get: vi.fn(), store: vi.fn() },
+            views: {},
+            graph: {
+              getResourceReferencedBy: vi.fn().mockResolvedValue([]),
+              getResource: vi.fn().mockImplementation(async (uri: string) => {
+                if (uri.includes('test-resource')) {
+                  return { '@id': 'urn:semiont:resource:test-resource', name: 'Test Resource' };
+                }
+                return null;
+              }),
+              getAnnotations: vi.fn().mockResolvedValue([]),
+              getResourceConnections: vi.fn().mockResolvedValue([]),
+              listAnnotations: vi.fn().mockResolvedValue([]),
+            },
+            eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
+            graphConsumer: {},
+          },
+          stop: async () => {},
+        },
+      } as unknown as MakeMeaningService;
     })
   }));
 
@@ -117,7 +133,7 @@ const setupMocks = () => {
 setupMocks();
 
 describe('Resource Discovery HTTP Contract', () => {
-  let app: any; // Use any to avoid Hono type complexity in tests
+  let app: Hono<{ Variables: Variables }>;
   let authToken: string;
   const testUser = {
     id: 'test-user-id',

@@ -17,16 +17,17 @@ import { email } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 // Mock @semiont/make-meaning
@@ -95,24 +96,27 @@ vi.mock('@semiont/make-meaning', () => ({
       }
     })
   },
-  startMakeMeaning: vi.fn().mockImplementation(async (_project: any, _config: any, eventBus: any) => {
+  startMakeMeaning: vi.fn().mockImplementation(async (_project: unknown, _config: unknown, eventBus: EventBus) => {
     // Subscribe mock Gatherer to browse events so eventBusRequest gets responses
-    eventBus.get('browse:resources-requested').subscribe((e: any) => {
+    eventBus.get('browse:resources-requested').subscribe((e: { correlationId: string }) => {
       eventBus.get('browse:resources-result').next({
         correlationId: e.correlationId,
         response: {
           resources: [],
           total: 0,
+          offset: 0,
+          limit: 100,
         },
       });
     });
     return {
-      eventStore: mockEventStore,
-      kb: { content: mockRepStore, views: {}, graph: {}, eventStore: mockEventStore },
       jobQueue: { createJob: vi.fn() },
-      workers: [],
-      graphConsumer: {},
-    };
+      workers: {},
+      knowledgeSystem: {
+        kb: { content: mockRepStore, views: {}, graph: {}, eventStore: mockEventStore, graphConsumer: {} },
+        stop: async () => {},
+      },
+    } as unknown as MakeMeaningService;
   })
 }));
 

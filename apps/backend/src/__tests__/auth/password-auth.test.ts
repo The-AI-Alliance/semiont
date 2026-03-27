@@ -13,7 +13,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
     startMakeMeaning: vi.fn().mockResolvedValue({
       jobQueue: {},
       workers: [],
-      graphConsumer: {}
+      knowledgeSystem: { kb: { content: {}, views: {}, graph: {}, eventStore: {}, graphConsumer: {} }, stop: async () => {} },
     })
   };
 });
