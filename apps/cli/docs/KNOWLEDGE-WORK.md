@@ -81,13 +81,13 @@ semiont browse resources | jq '.[]["@id"]'
 semiont browse entity-types | jq '.[].tag'
 ```
 
-Use `gather` (not `browse`) when feeding context into AI pipelines.
+Use `gather` (not `browse`) when feeding context into automated pipelines.
 
 ---
 
-## gather — Fetch LLM-optimised context
+## gather — Fetch context for downstream workers
 
-Fetches a resource or annotation and returns structured context designed for LLM pipelines. Streams completion via SSE; result is JSON on stdout.
+Fetches a resource or annotation and returns structured context optimised for downstream processing — AI pipelines, custom workers, or tooling. Streams completion via SSE; result is JSON on stdout.
 
 ```bash
 semiont gather resource <resourceId>
@@ -107,7 +107,7 @@ semiont gather annotation <resourceId> <annotationId>
 
 ## mark — Create an annotation
 
-Creates a W3C annotation on a resource. Manual mode lets you specify the selector and body; delegate mode asks an AI model to draft the annotation.
+Creates a W3C annotation on a resource. Manual mode lets you specify the selector and body directly; delegate mode hands the work to a configured worker (currently an AI model, though any worker can be wired in).
 
 ### Manual mode
 
@@ -129,23 +129,23 @@ semiont mark <resourceId> --motivation commenting --quote "phrase" --body-text "
 semiont mark <resourceId> --motivation linking --quote "Paris" --link <targetResourceId>
 ```
 
-### Delegate mode (AI-assisted)
+### Delegate mode
 
 ```bash
-# Let AI find highlights
+# Delegate highlight detection
 semiont mark <resourceId> --delegate --motivation highlighting
 
-# Let AI find entity references
+# Delegate entity reference detection
 semiont mark <resourceId> --delegate --motivation linking --entity-type Person
 
-# Let AI apply taxonomy tags
+# Delegate taxonomy tagging
 semiont mark <resourceId> --delegate --motivation tagging --schema-id science --category Biology
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--motivation <m>` | Required. One of: `highlighting`, `commenting`, `linking`, `tagging`, `assessing`, `describing` |
-| `--delegate` | AI-assisted mode; mutually exclusive with `--quote` |
+| `--delegate` | Delegate to a configured worker; mutually exclusive with `--quote` |
 | `--quote <text>` | TextQuoteSelector |
 | `--start <n>` / `--end <n>` | TextPositionSelector |
 | `--svg <value>` | SvgSelector |
@@ -220,7 +220,7 @@ semiont yield --upload ./paper.pdf --name "My Paper"
 semiont yield --upload ./a.md --upload ./b.md   # multiple files
 ```
 
-**Delegate mode** — use an AI model to generate a new resource from annotation context:
+**Delegate mode** — delegate resource generation from annotation context to a configured worker:
 
 ```bash
 semiont yield --delegate \
@@ -233,7 +233,7 @@ semiont yield --delegate \
 |------|-------------|
 | `--upload <path>` | File to upload (repeatable) |
 | `--name <name>` | Resource name (upload mode, single file only) |
-| `--delegate` | AI-generation mode; mutually exclusive with `--upload` |
+| `--delegate` | Delegate to a configured worker; mutually exclusive with `--upload` |
 | `--resource <id>` | Source resource for delegate mode |
 | `--annotation <id>` | Source annotation for delegate mode |
 | `--storage-uri <uri>` | Where to store the generated output |
