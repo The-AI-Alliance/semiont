@@ -126,7 +126,7 @@ All four are reactive actors: they subscribe to the EventBus via RxJS pipelines 
 
 ```mermaid
 ---
-title: Knowledge System
+title: Knowledge System (per project)
 ---
 graph TB
     BUS["Event Bus"]
