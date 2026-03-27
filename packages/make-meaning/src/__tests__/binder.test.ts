@@ -53,6 +53,7 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
     views: {} as any,
     content: {} as any,
     projectionsDir: '',
+      graphConsumer: {} as any,
     graph: {
       searchResources: overrides.searchResources ?? vi.fn().mockResolvedValue([]),
       getResourceReferencedBy: overrides.getResourceReferencedBy ?? vi.fn().mockResolvedValue([]),

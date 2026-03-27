@@ -95,7 +95,7 @@ describe('Scripting Example: Create Resource', () => {
     expect(result).toBeDefined();
 
     // Verify via event store
-    const events = await makeMeaning.eventStore.log.getEvents(result);
+    const events = await makeMeaning.knowledgeSystem.kb.eventStore.log.getEvents(result);
     const createdEvent = events.find(e => e.event.type === 'resource.created');
     expect(createdEvent).toBeDefined();
     expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.name).toBe('Test Document');
@@ -107,7 +107,7 @@ describe('Scripting Example: Create Resource', () => {
       : undefined;
     expect(storageUri).toBeDefined();
 
-    const storedRep = await makeMeaning.kb.content.retrieve(storageUri!);
+    const storedRep = await makeMeaning.knowledgeSystem.kb.content.retrieve(storageUri!);
     expect(storedRep).toBeDefined();
     expect(storedRep.toString()).toBe('Hello, world!');
   });

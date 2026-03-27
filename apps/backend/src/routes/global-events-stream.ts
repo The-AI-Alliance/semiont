@@ -37,7 +37,7 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
 
   logger.info('Client connecting to global events stream');
 
-  const { eventStore } = c.get('makeMeaning');
+  const { knowledgeSystem: { kb: { eventStore } } } = c.get('makeMeaning');
 
   return streamSSE(c, async (stream) => {
     // Send initial connection message

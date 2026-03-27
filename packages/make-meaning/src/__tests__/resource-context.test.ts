@@ -41,6 +41,7 @@ describe('ResourceContext', () => {
       content: mockRepStore,
       graph: {} as any,
       projectionsDir: '',
+      graphConsumer: {} as any,
     };
   });
 

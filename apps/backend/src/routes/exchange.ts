@@ -92,8 +92,8 @@ exchangeRouter.post('/api/admin/exchange/backup', async (c) => {
     try {
       await exportBackup(
         {
-          eventStore: mm.kb.eventStore,
-          content: mm.kb.content,
+          eventStore: mm.knowledgeSystem.kb.eventStore,
+          content: mm.knowledgeSystem.kb.content,
           sourceUrl,
         },
         nodeWritable,
@@ -209,8 +209,8 @@ exchangeRouter.post('/api/moderate/exchange/export', async (c) => {
     try {
       await exportLinkedData(
         {
-          views: mm.kb.views,
-          content: mm.kb.content,
+          views: mm.knowledgeSystem.kb.views,
+          content: mm.knowledgeSystem.kb.content,
           sourceUrl,
           entityTypes,
           includeArchived,

@@ -77,6 +77,7 @@ describe('AnnotationContext', () => {
       content: new WorkingTreeStore(project, mockLogger),
       graph: mockGraphDb,
       projectionsDir: project.projectionsDir,
+      graphConsumer: {} as any,
     };
   });
 

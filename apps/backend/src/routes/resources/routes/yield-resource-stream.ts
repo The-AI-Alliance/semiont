@@ -77,7 +77,7 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
       }
 
       const eventBus = c.get('eventBus');
-      const { kb } = c.get('makeMeaning');
+      const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
       logger.info('Starting resource generation', { language: body.language });
 

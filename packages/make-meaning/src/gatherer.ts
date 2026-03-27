@@ -27,7 +27,7 @@
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
-import type { EventMap, Logger, components } from '@semiont/core';
+import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId, resourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { EventQuery } from '@semiont/event-sourcing';
@@ -460,6 +460,18 @@ export class Gatherer {
         error: error instanceof Error ? error : new Error(String(error)),
       });
     }
+  }
+
+  async generateAnnotationSummary(
+    annotationId: AnnotationId,
+    resourceId: ResourceId,
+  ): Promise<components['schemas']['ContextualSummaryResponse']> {
+    return AnnotationContext.generateAnnotationSummary(
+      annotationId,
+      resourceId,
+      this.kb,
+      this.inferenceClient,
+    );
   }
 
   async stop(): Promise<void> {

@@ -78,7 +78,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
       }
 
       const eventBus = c.get('eventBus');
-      const { kb } = c.get('makeMeaning');
+      const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
       // Validate resource exists using view storage
       const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);

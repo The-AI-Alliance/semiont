@@ -71,7 +71,7 @@ describe('AnnotationOperations', () => {
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     const { WorkingTreeStore } = await import('@semiont/content');
     const repStore = new WorkingTreeStore(project, mockLogger);
-    kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir };
+    kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir, graphConsumer: {} as any };
 
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();

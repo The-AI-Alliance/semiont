@@ -4,14 +4,13 @@
  * Consolidates all meaning-making infrastructure:
  * - Job queue initialization
  * - Worker instantiation and startup
- * - Graph consumer (event-to-graph synchronization)
  *
  * Provides a clean interface similar to createEventStore():
  *   const makeMeaning = await startMakeMeaning(config);
  */
 
 import { JobQueue } from '@semiont/jobs';
-import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
+import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, type ResourceId } from '@semiont/core';
 import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
@@ -22,8 +21,8 @@ export type { MakeMeaningConfig } from './config';
 import { Readable } from 'stream';
 import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
-import { createInferenceClient, type InferenceClient } from '@semiont/inference';
-import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
+import { createInferenceClient } from '@semiont/inference';
+import { getGraphDatabase } from '@semiont/graph';
 import {
   ReferenceAnnotationWorker,
   GenerationWorker,
@@ -33,34 +32,25 @@ import {
   TagAnnotationWorker,
   type ContentFetcher,
 } from '@semiont/jobs';
-import { GraphDBConsumer } from './graph/consumer';
-import { bootstrapEntityTypes } from './bootstrap/entity-types';
-import { createKnowledgeBase, type KnowledgeBase } from './knowledge-base';
+import { createKnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
 import { Stower } from './stower';
 import { CloneTokenManager } from './clone-token-manager';
+import { bootstrapEntityTypes } from './bootstrap/entity-types';
+import type { KnowledgeSystem } from './knowledge-system';
 
 export interface MakeMeaningService {
-  kb: KnowledgeBase;
+  knowledgeSystem: KnowledgeSystem;
   jobQueue: JobQueue;
-  eventStore: EventStore;
-  graphDb: GraphDatabase;
-  /** Inference client for the Gatherer actor — use for context-assembly operations */
-  gathererInferenceClient: InferenceClient;
   workers: {
-    detection: ReferenceAnnotationWorker;
+    detection:  ReferenceAnnotationWorker;
     generation: GenerationWorker;
-    highlight: HighlightAnnotationWorker;
+    highlight:  HighlightAnnotationWorker;
     assessment: AssessmentAnnotationWorker;
-    comment: CommentAnnotationWorker;
-    tag: TagAnnotationWorker;
+    comment:    CommentAnnotationWorker;
+    tag:        TagAnnotationWorker;
   };
-  graphConsumer: GraphDBConsumer;
-  stower: Stower;
-  gatherer: Gatherer;
-  matcher: Matcher;
-  cloneTokenManager: CloneTokenManager;
   stop: () => Promise<void>;
 }
 
@@ -157,24 +147,19 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
   // 6. Create graph database connection
   const graphDb = await getGraphDatabase(graphConfig);
 
-  // 7. Create Knowledge Base (groups event store, views, content store, graph)
-  const kb = createKnowledgeBase(eventStore, project, graphDb, logger);
+  // 7. Create Knowledge Base (event store, views, content store, graph, graph consumer)
+  const kb = await createKnowledgeBase(eventStore, project, graphDb, logger);
 
-  // 8. Start graph consumer
-  const graphConsumerLogger = logger.child({ component: 'graph-consumer' });
-  const graphConsumer = new GraphDBConsumer(eventStore, graphDb, graphConsumerLogger);
-  await graphConsumer.initialize();
-
-  // 9. Start Stower actor (write gateway — must start before Gatherer/Matcher)
+  // 8. Start Stower actor (write gateway — must start before Gatherer/Matcher)
   const stowerLogger = logger.child({ component: 'stower' });
   const stower = new Stower(kb, eventBus, stowerLogger);
   await stower.initialize();
 
-  // 9b. Bootstrap entity types (requires Stower to be running, emits via EventBus)
+  // 8b. Bootstrap entity types (requires Stower to be running, emits via EventBus)
   const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
   await bootstrapEntityTypes(eventBus, project, bootstrapLogger);
 
-  // 10. Start Gatherer actor
+  // 9. Start Gatherer actor
   const gathererLogger = logger.child({ component: 'gatherer' });
   const gatherer = new Gatherer(kb, eventBus, gathererInferenceClient, gathererLogger, project);
   await gatherer.initialize();
@@ -184,12 +169,15 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
   const matcher = new Matcher(kb, eventBus, matcherLogger, matcherInferenceClient);
   await matcher.initialize();
 
-  // 10b. Start CloneTokenManager actor
+  // 11. Start CloneTokenManager actor
   const cloneTokenLogger = logger.child({ component: 'clone-token-manager' });
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, cloneTokenLogger);
   await cloneTokenManager.initialize();
 
-  // 11. Create ContentFetcher backed by KB views + content store
+  // 12. Assemble KnowledgeSystem
+  const knowledgeSystem: KnowledgeSystem = { kb, stower, gatherer, matcher, cloneTokenManager };
+
+  // 13. Create ContentFetcher backed by KB views + content store
   const contentFetcher: ContentFetcher = async (resourceId: ResourceId): Promise<Readable | null> => {
     const view = await kb.views.get(resourceId);
     if (!view?.resource.storageUri) return null;
@@ -198,7 +186,7 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
     return Readable.from([buffer]);
   };
 
-  // 12. Create child loggers for workers
+  // 14. Create child loggers for workers
   const detectionLogger = logger.child({ component: 'reference-detection-worker' });
   const generationLogger = logger.child({ component: 'generation-worker' });
   const highlightLogger = logger.child({ component: 'highlight-detection-worker' });
@@ -206,17 +194,17 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
   const commentLogger = logger.child({ component: 'comment-detection-worker' });
   const tagLogger = logger.child({ component: 'tag-detection-worker' });
 
-  // 13. Instantiate workers with per-worker inference clients
+  // 15. Instantiate workers with per-worker inference clients
   const workers = {
-    detection: new ReferenceAnnotationWorker(jobQueue, detectionInferenceClient, detectionGenerator, eventBus, contentFetcher, detectionLogger),
+    detection:  new ReferenceAnnotationWorker(jobQueue, detectionInferenceClient, detectionGenerator, eventBus, contentFetcher, detectionLogger),
     generation: new GenerationWorker(jobQueue, generationInferenceClient, eventBus, generationLogger),
-    highlight: new HighlightAnnotationWorker(jobQueue, highlightInferenceClient, highlightGenerator, eventBus, contentFetcher, highlightLogger),
+    highlight:  new HighlightAnnotationWorker(jobQueue, highlightInferenceClient, highlightGenerator, eventBus, contentFetcher, highlightLogger),
     assessment: new AssessmentAnnotationWorker(jobQueue, assessmentInferenceClient, assessmentGenerator, eventBus, contentFetcher, assessmentLogger),
-    comment: new CommentAnnotationWorker(jobQueue, commentInferenceClient, commentGenerator, eventBus, contentFetcher, commentLogger),
-    tag: new TagAnnotationWorker(jobQueue, tagInferenceClient, tagGenerator, eventBus, contentFetcher, tagLogger),
+    comment:    new CommentAnnotationWorker(jobQueue, commentInferenceClient, commentGenerator, eventBus, contentFetcher, commentLogger),
+    tag:        new TagAnnotationWorker(jobQueue, tagInferenceClient, tagGenerator, eventBus, contentFetcher, tagLogger),
   };
 
-  // 11. Start all workers (non-blocking)
+  // 16. Start all workers (non-blocking)
   workers.detection.start().catch((error: unknown) => {
     detectionLogger.error('Worker stopped unexpectedly', { error });
   });
@@ -237,17 +225,9 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
   });
 
   return {
-    kb,
+    knowledgeSystem,
     jobQueue,
-    eventStore,
-    graphDb,
-    gathererInferenceClient,
     workers,
-    graphConsumer,
-    stower,
-    gatherer,
-    matcher,
-    cloneTokenManager,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
       await Promise.all([
@@ -263,7 +243,7 @@ export async function startMakeMeaning(project: SemiontProject, config: MakeMean
       jobStatusSubscription.unsubscribe();
       await cloneTokenManager.stop();
       await stower.stop();
-      await graphConsumer.stop();
+      await kb.graphConsumer.stop();
       await graphDb.disconnect();
       logger.info('Make-Meaning service stopped');
     },

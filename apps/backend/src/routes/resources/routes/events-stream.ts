@@ -46,7 +46,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
     logger.info('Client connecting to resource events stream', { resourceId: rId });
 
     // Verify resource exists in event store (Event Store - source of truth)
-    const { eventStore } = c.get('makeMeaning');
+    const { knowledgeSystem: { kb: { eventStore } } } = c.get('makeMeaning');
     const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(rId);
     if (events.length === 0) {

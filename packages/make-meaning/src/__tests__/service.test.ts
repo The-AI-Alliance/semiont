@@ -4,12 +4,7 @@
  * Tests the service initialization and lifecycle:
  * - Configuration validation
  * - Job queue initialization
- * - EventStore creation
- * - Entity types bootstrapping
- * - RepresentationStore creation
- * - InferenceClient creation
- * - GraphDB connection
- * - GraphDBConsumer initialization
+ * - KnowledgeSystem creation
  * - Worker instantiation and startup
  * - Service handle return
  * - Cleanup and stop
@@ -87,35 +82,39 @@ describe('Make-Meaning Service', () => {
 
     it('should create event store', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.eventStore).toBeDefined();
-      expect(typeof service.eventStore.appendEvent).toBe('function');
-      expect(service.eventStore.log).toBeDefined();
-      expect(service.eventStore.bus).toBeDefined();
-      expect(service.eventStore.views).toBeDefined();
+      expect(kb.eventStore).toBeDefined();
+      expect(typeof kb.eventStore.appendEvent).toBe('function');
+      expect(kb.eventStore.log).toBeDefined();
+      expect(kb.eventStore.bus).toBeDefined();
+      expect(kb.eventStore.views).toBeDefined();
     });
 
     it('should create knowledge base with content store', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.kb).toBeDefined();
-      expect(service.kb.content).toBeDefined();
-      expect(typeof service.kb.content.store).toBe('function');
-      expect(typeof service.kb.content.retrieve).toBe('function');
+      expect(kb).toBeDefined();
+      expect(kb.content).toBeDefined();
+      expect(typeof kb.content.store).toBe('function');
+      expect(typeof kb.content.retrieve).toBe('function');
     });
 
     it('should connect to graph database', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.graphDb).toBeDefined();
-      expect(typeof service.graphDb.disconnect).toBe('function');
+      expect(kb.graph).toBeDefined();
+      expect(typeof kb.graph.disconnect).toBe('function');
     });
 
     it('should initialize graph consumer', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      expect(service.graphConsumer).toBeDefined();
-      expect(typeof service.graphConsumer.stop).toBe('function');
+      expect(kb.graphConsumer).toBeDefined();
+      expect(typeof kb.graphConsumer.stop).toBe('function');
     });
 
     it('should instantiate all workers', async () => {
@@ -184,8 +183,9 @@ describe('Make-Meaning Service', () => {
 
     it('should stop graph consumer on service stop', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      const consumerStopSpy = vi.spyOn(service.graphConsumer, 'stop');
+      const consumerStopSpy = vi.spyOn(kb.graphConsumer, 'stop');
 
       await service.stop();
 
@@ -196,8 +196,9 @@ describe('Make-Meaning Service', () => {
 
     it('should disconnect graph database on service stop', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
-      const dbDisconnectSpy = vi.spyOn(service.graphDb, 'disconnect');
+      const dbDisconnectSpy = vi.spyOn(kb.graph, 'disconnect');
 
       await service.stop();
 
@@ -211,12 +212,13 @@ describe('Make-Meaning Service', () => {
     it('should complete initialization without errors', async () => {
       // Service initialization includes bootstrap step
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
 
       // If we got here, bootstrap completed successfully
       expect(service).toBeDefined();
-      expect(service.eventStore).toBeDefined();
-      expect(service.graphDb).toBeDefined();
-      expect(service.graphConsumer).toBeDefined();
+      expect(kb.eventStore).toBeDefined();
+      expect(kb.graph).toBeDefined();
+      expect(kb.graphConsumer).toBeDefined();
     });
 
     it('should allow multiple service instances with different directories', async () => {
