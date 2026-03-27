@@ -25,12 +25,19 @@ graph TD
 
     BUS["E V E N T &ensp; B U S"]
 
-    BUS -->|"write commands"| STOWER["Stower"]
-    BUS -->|"gather"| GATHERER["Gatherer"]
-    BUS -->|"bind"| MATCHER["Matcher"]
-    STOWER -->|"write"| KB["Knowledge Base"]
-    GATHERER -->|"query"| KB
-    MATCHER -->|"query"| KB
+    subgraph ks ["Knowledge System"]
+        STOWER["Stower"]
+        GATHERER["Gatherer"]
+        MATCHER["Matcher"]
+        KB["Knowledge Base"]
+        STOWER -->|"write"| KB
+        GATHERER -->|"query"| KB
+        MATCHER -->|"query"| KB
+    end
+
+    BUS -->|"write commands"| STOWER
+    BUS -->|"gather"| GATHERER
+    BUS -->|"bind"| MATCHER
 
     SOURCES["Content Sources"] --> FEEDER["Feeder"]
     FEEDER -->|"yield"| BUS
@@ -99,11 +106,13 @@ graph TB
 
 AI actors connect via the backend API (REST + JWT) or MCP protocol. They emit the same events as human actors. The knowledge base cannot distinguish a human-created annotation from an AI-created one — both are W3C annotations with a `creator` field that identifies the agent.
 
-### Knowledge Base
+### Knowledge System
 
-The knowledge base is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide.
+The **Knowledge System** binds the Knowledge Base to the three actors that provide disciplined access to it. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
 
-The knowledge base has exactly three actor interfaces. No other code touches KB stores directly:
+The knowledge base itself is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide.
+
+The three actors are the only interfaces to the Knowledge Base:
 
 - **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
 - **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores
@@ -112,6 +121,9 @@ The knowledge base has exactly three actor interfaces. No other code touches KB 
 All three are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 ```mermaid
+---
+title: Knowledge System
+---
 graph TB
     BUS["Event Bus"]
 
