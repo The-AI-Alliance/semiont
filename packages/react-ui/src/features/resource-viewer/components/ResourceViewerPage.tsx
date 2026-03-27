@@ -643,6 +643,12 @@ export function ResourceViewerPage({
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
                 isArchived={resource.archived ?? false}
+                dateCreated={resource.dateCreated}
+                dateModified={resource.dateModified}
+                creationMethod={resource.creationMethod}
+                wasAttributedTo={resource.wasAttributedTo}
+                wasDerivedFrom={resource.wasDerivedFrom}
+                generator={resource.generator as components['schemas']['Agent'] | components['schemas']['Agent'][] | undefined}
               />
             )}
 
