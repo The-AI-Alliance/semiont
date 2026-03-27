@@ -224,13 +224,17 @@ export class DashboardDataSource {
   }
 
   private emptyMakeMeaningStatus(): MakeMeaningStatus {
-    const unknown = { state: 'unknown' as const };
     return {
       eventLog: { path: '' },
       contentStore: { path: '' },
       graph: { status: 'unknown' },
       materializedViews: { path: '' },
-      actors: { gatherer: unknown, matcher: unknown, stower: unknown, browser: unknown }
+      actors: {
+        gatherer: { state: 'unknown' },
+        matcher:  { state: 'unknown' },
+        stower:   { state: 'unknown' },
+        browser:  { state: 'unknown' },
+      }
     };
   }
 
@@ -287,11 +291,13 @@ export class DashboardDataSource {
     // Graph: re-use status from services[] if graph service was checked
     // (set by caller via getDashboardData)
 
-    // Enrich Gatherer and Matcher with their configured inference provider/model
-    for (const name of ['gatherer', 'matcher'] as const) {
-      const infer = this.envConfig?.actors?.[name]?.inference;
-      if (infer?.type)  result.actors[name].provider = infer.type;
-      if (infer?.model) result.actors[name].model    = infer.model;
+    // Enrich actors with their configured inference provider/model
+    for (const [name, actor] of Object.entries(this.envConfig?.actors ?? {})) {
+      if (name in result.actors && actor.inference) {
+        const a = result.actors[name as keyof typeof result.actors];
+        if (actor.inference.type)  a.provider = actor.inference.type;
+        if (actor.inference.model) a.model    = actor.inference.model;
+      }
     }
 
     return result;
@@ -308,14 +314,9 @@ export class DashboardDataSource {
       const jobsDir = project.jobsDir;
 
       // Scan all status directories once, grouping by job type
-      const counts: Record<WorkerStatus['type'], {
-        pending: number; running: number; complete: number; failed: number;
-        lastProcessed: Date | undefined;
-      }> = {} as any;
-
-      for (const t of types) {
-        counts[t] = { pending: 0, running: 0, complete: 0, failed: 0, lastProcessed: undefined };
-      }
+      const counts = Object.fromEntries(
+        types.map(t => [t, { pending: 0, running: 0, complete: 0, failed: 0, lastProcessed: undefined as Date | undefined }])
+      ) as Record<WorkerStatus['type'], { pending: number; running: number; complete: number; failed: number; lastProcessed: Date | undefined }>;
 
       const statusDirs: Array<{ dir: string; bucket: 'pending' | 'running' | 'complete' | 'failed' }> = [
         { dir: `${jobsDir}/pending`,  bucket: 'pending'  },
@@ -373,7 +374,8 @@ export class DashboardDataSource {
 
   private getHostname(serviceName: string): string | undefined {
     if (!this.envConfig) return undefined;
-    const svc = (this.envConfig.services as any)?.[serviceName];
+    const services = this.envConfig.services as Record<string, { port?: number; publicURL?: string } | undefined>;
+    const svc = services[serviceName];
     if (svc?.port) return `localhost:${svc.port}`;
     if (svc?.publicURL) return svc.publicURL;
     return undefined;
@@ -406,8 +408,8 @@ export class DashboardDataSource {
 
   private getEvidence(checkResult: CommandResult): string[] {
     const ev: string[] = [];
-    const d = checkResult.extensions?.health?.details as any;
-    const meta = checkResult.metadata as any;
+    const d = checkResult.extensions?.health?.details;
+    const meta = checkResult.metadata;
 
     if (!d && !meta) return ev;
 
@@ -415,11 +417,11 @@ export class DashboardDataSource {
     if (meta?.serviceType === 'inference') {
       if (d?.endpoint)      ev.push(d.endpoint);
       if (d?.model)         ev.push(d.model);
-      if (d?.responseTime)  ev.push(d.responseTime);
+      if (d?.responseTime)  ev.push(String(d.responseTime));
       if (d?.responsePreview) ev.push(`"${String(d.responsePreview).slice(0, 20)}"`);
       // Ollama: show model availability
       if (d?.modelAvailability) {
-        for (const [m, avail] of Object.entries(d.modelAvailability as Record<string, boolean>)) {
+        for (const [m, avail] of Object.entries(d.modelAvailability)) {
           ev.push(`${m} ${avail ? '✓' : '✗'}`);
         }
       }
@@ -429,7 +431,7 @@ export class DashboardDataSource {
     // Generic connection/protocol evidence (works for neo4j bolt, gremlin ws, etc.)
     if (d?.address)          ev.push(`connected ${d.address}`);
     if (d?.protocolVersion)  ev.push(`protocol v${d.protocolVersion}`);
-    if (meta?.agent)         ev.push(String(meta.agent).slice(0, 40));
+    if (meta?.agent)         ev.push(meta.agent.slice(0, 40));
 
     // HTTP evidence — explicit endpoint with status code
     if (d?.endpoint) {
@@ -456,8 +458,8 @@ export class DashboardDataSource {
     const containerResourceId = resources && isPlatformResources(resources, 'container')
       ? resources.data.containerId : undefined;
     const containerId = meta?.healthCheck?.containerId ?? containerResourceId;
-    if (containerId) ev.push(`container ${String(containerId).slice(0, 12)}`);
-    if (meta?.healthCheck?.uptime) ev.push(String(meta.healthCheck.uptime));
+    if (containerId) ev.push(`container ${containerId.slice(0, 12)}`);
+    if (meta?.healthCheck?.uptime) ev.push(meta.healthCheck.uptime);
 
     // Proxy routing evidence
     if (meta?.healthCheck) {
@@ -468,7 +470,7 @@ export class DashboardDataSource {
     }
 
     // AWS task evidence
-    if (meta?.taskArn) ev.push(`task ${String(meta.taskArn).split('/').pop()?.slice(0, 8)}`);
+    if (meta?.taskArn) ev.push(`task ${meta.taskArn.split('/').pop()?.slice(0, 8)}`);
 
     return ev;
   }
@@ -513,8 +515,8 @@ export class DashboardDataSource {
     
     // Fallback: proxy check puts containerId in metadata.healthCheck, not in resources
     if (parts.length === 0) {
-      const containerId = (checkResult.metadata as any)?.healthCheck?.containerId;
-      if (containerId) parts.push(`Container: ${String(containerId).slice(0, 12)}`);
+      const containerId = checkResult.metadata?.healthCheck?.containerId;
+      if (containerId) parts.push(`Container: ${containerId.slice(0, 12)}`);
     }
 
     return parts.join(', ') || checkResult.extensions?.status || 'unknown';
