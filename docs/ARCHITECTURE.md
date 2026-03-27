@@ -108,11 +108,11 @@ AI actors connect via the backend API (REST + JWT) or MCP protocol. They emit th
 
 ### Knowledge System
 
-The **Knowledge System** binds the Knowledge Base to the three actors that provide disciplined access to it. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
+The **Knowledge System** binds the Knowledge Base to its actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
 
 The knowledge base itself is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide.
 
-The three actors are the only interfaces to the Knowledge Base:
+The three primary actors are the interfaces to the Knowledge Base:
 
 - **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
 - **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores
