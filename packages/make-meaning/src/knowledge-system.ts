@@ -25,4 +25,14 @@ export interface KnowledgeSystem {
   gatherer:          Gatherer;
   matcher:           Matcher;
   cloneTokenManager: CloneTokenManager;
+  stop:              () => Promise<void>;
+}
+
+export async function stopKnowledgeSystem(ks: KnowledgeSystem): Promise<void> {
+  await ks.gatherer.stop();
+  await ks.matcher.stop();
+  await ks.cloneTokenManager.stop();
+  await ks.stower.stop();
+  await ks.kb.graphConsumer.stop();
+  await ks.kb.graph.disconnect();
 }

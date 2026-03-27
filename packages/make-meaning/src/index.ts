@@ -7,6 +7,7 @@ export type { MakeMeaningService, MakeMeaningConfig } from './service';
 
 // Knowledge System
 export type { KnowledgeSystem } from './knowledge-system';
+export { stopKnowledgeSystem } from './knowledge-system';
 
 // Bootstrap
 export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
