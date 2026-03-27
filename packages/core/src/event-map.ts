@@ -265,6 +265,7 @@ export type EventMap = {
       instructions?: string;
       tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive';
       density?: number;
+      language?: string;
       entityTypes?: string[];
       includeDescriptiveReferences?: boolean;
       schemaId?: string;

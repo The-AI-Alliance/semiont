@@ -193,7 +193,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
     let created = 0;
     for (const assessment of assessments) {
       try {
-        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata, assessment);
+        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata, assessment, job.params.language);
         created++;
       } catch (error) {
         this.logger?.error('Failed to create assessment', { error });
@@ -222,7 +222,8 @@ export class AssessmentAnnotationWorker extends JobWorker {
   private async createAssessmentAnnotation(
     resourceId: ResourceId,
     metadata: import('../types').JobMetadata,
-    assessment: AssessmentMatch
+    assessment: AssessmentMatch,
+    language?: string
   ): Promise<void> {
     const annotationIdVal = generateAnnotationId();
 
@@ -263,7 +264,8 @@ export class AssessmentAnnotationWorker extends JobWorker {
       'body': {
         type: 'TextualBody' as const,
         value: assessment.assessment,
-        format: 'text/plain'
+        format: 'text/plain',
+        language: language || 'en'
       }
     };
 

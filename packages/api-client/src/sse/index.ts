@@ -49,6 +49,8 @@ export interface AnnotateAssessmentsStreamRequest {
   tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
   /** Desired number of assessments per 2000 words (1-10) */
   density?: number;
+  /** BCP 47 language tag for generated text (e.g. 'en', 'fr') */
+  language?: string;
 }
 
 /**
@@ -59,6 +61,8 @@ export interface AnnotateCommentsStreamRequest {
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
   /** Desired number of comments per 2000 words (2-12) */
   density?: number;
+  /** BCP 47 language tag for generated text (e.g. 'en', 'fr') */
+  language?: string;
 }
 
 /**

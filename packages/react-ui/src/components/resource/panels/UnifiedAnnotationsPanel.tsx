@@ -70,6 +70,9 @@ interface UnifiedAnnotationsPanelProps {
   // Hover coordination (for bidirectional hover highlighting)
   hoveredAnnotationId?: string | null;
 
+  // Locale for AI-generated text language
+  locale?: string;
+
   // Routing
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -238,6 +241,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             isAssisting,
             progress,
             annotateMode: props.annotateMode,
+            locale: props.locale,
             scrollToAnnotationId: props.scrollToAnnotationId,
             onScrollCompleted: props.onScrollCompleted,
             hoveredAnnotationId: props.hoveredAnnotationId

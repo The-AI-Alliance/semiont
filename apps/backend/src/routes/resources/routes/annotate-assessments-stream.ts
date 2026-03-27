@@ -58,7 +58,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as AnnotateAssessmentsStreamRequest;
-      const { instructions, tone, density } = body;
+      const { instructions, tone, density, language } = body;
       // Validate density if provided
       if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 10)) {
         throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 10.' });
@@ -104,7 +104,8 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
           resourceId: resourceId(id),
           instructions,
           tone,
-          density
+          density,
+          language
         }
       };
 

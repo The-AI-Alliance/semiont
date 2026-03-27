@@ -613,6 +613,7 @@ export function ResourceViewerPage({
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri}
+                locale={locale}
                 scrollToAnnotationId={scrollToAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onScrollCompleted={onScrollCompleted}
