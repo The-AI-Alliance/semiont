@@ -24,6 +24,7 @@ export { Gatherer } from './gatherer';
 export { Matcher } from './matcher';
 export { Stower } from './stower';
 export type { CreateResourceResult } from './stower';
+export { Browser } from './browser';
 export { CloneTokenManager } from './clone-token-manager';
 
 // Exchange (import/export)

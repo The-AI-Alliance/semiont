@@ -20,6 +20,7 @@ const { mockClient, mockLoadCachedClient } = vi.hoisted(() => {
     getResourceEvents: vi.fn(),
     getAnnotationHistory: vi.fn(),
     listEntityTypes: vi.fn(),
+    browseFiles: vi.fn(),
   };
   const mockLoadCachedClient = vi.fn();
   return { mockClient, mockLoadCachedClient };
@@ -46,6 +47,7 @@ function makeOptions(overrides: Partial<BrowseOptions> = {}): BrowseOptions {
     limit: 50,
     annotations: false,
     references: false,
+    sort: undefined,
     bus: undefined,
     ...overrides,
   };
@@ -103,6 +105,28 @@ describe('BrowseOptionsSchema', () => {
     const r = BrowseOptionsSchema.safeParse({ args: ['entity-types'] });
     expect(r.success).toBe(true);
   });
+
+  it('accepts "files" without a path', () => {
+    const r = BrowseOptionsSchema.safeParse({ args: ['files'] });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts "files <path>"', () => {
+    const r = BrowseOptionsSchema.safeParse({ args: ['files', 'docs'] });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts "files" with valid sort values', () => {
+    for (const sort of ['name', 'mtime', 'annotationCount']) {
+      const r = BrowseOptionsSchema.safeParse({ args: ['files'], sort });
+      expect(r.success).toBe(true);
+    }
+  });
+
+  it('rejects "files" with invalid sort value', () => {
+    const r = BrowseOptionsSchema.safeParse({ args: ['files'], sort: 'invalid' });
+    expect(r.success).toBe(false);
+  });
 });
 
 // ── runBrowse tests ───────────────────────────────────────────────────────────
@@ -119,6 +143,7 @@ describe('runBrowse', () => {
     mockClient.getResourceEvents.mockResolvedValue({ events: [] });
     mockClient.getAnnotationHistory.mockResolvedValue({ events: [] });
     mockClient.listEntityTypes.mockResolvedValue({ entityTypes: [] });
+    mockClient.browseFiles.mockResolvedValue({ path: '', entries: [] });
   });
 
   it('routes "resources" subcommand', async () => {
@@ -173,5 +198,28 @@ const result = await runBrowse(makeOptions());
     expect(result.command).toBe('browse');
     expect(result.summary.succeeded).toBe(1);
     expect(result.summary.failed).toBe(0);
+  });
+
+  // ── files subcommand ───────────────────────────────────────────────────────
+
+  it('routes "files" subcommand without path', async () => {
+    await runBrowse(makeOptions({ args: ['files'] }));
+    expect(mockClient.browseFiles).toHaveBeenCalledOnce();
+    expect(mockClient.browseFiles).toHaveBeenCalledWith(undefined, undefined, { auth: 'mock-token' });
+  });
+
+  it('routes "files <path>" subcommand with path argument', async () => {
+    await runBrowse(makeOptions({ args: ['files', 'docs'] }));
+    expect(mockClient.browseFiles).toHaveBeenCalledWith('docs', undefined, { auth: 'mock-token' });
+  });
+
+  it('passes sort option to browseFiles', async () => {
+    await runBrowse(makeOptions({ args: ['files', 'docs'], sort: 'mtime' }));
+    expect(mockClient.browseFiles).toHaveBeenCalledWith('docs', 'mtime', { auth: 'mock-token' });
+  });
+
+  it('passes annotationCount sort to browseFiles', async () => {
+    await runBrowse(makeOptions({ args: ['files'], sort: 'annotationCount' }));
+    expect(mockClient.browseFiles).toHaveBeenCalledWith(undefined, 'annotationCount', { auth: 'mock-token' });
   });
 });

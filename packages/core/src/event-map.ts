@@ -576,6 +576,25 @@ export type EventMap = {
     error: Error;
   };
 
+  // Knowledge base filesystem reads (Browser handles these)
+  'browse:directory-requested': {
+    correlationId: string;
+    path:          string;
+    sort?:         'name' | 'mtime' | 'annotationCount';
+  };
+  'browse:directory-result': {
+    correlationId: string;
+    response: {
+      path:    string;
+      entries: components['schemas']['DirectoryEntry'][];
+    };
+  };
+  'browse:directory-failed': {
+    correlationId: string;
+    path:          string;
+    error:         Error;
+  };
+
   // ========================================================================
   // BECKON FLOW
   // ========================================================================

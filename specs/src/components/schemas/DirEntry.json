@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "required": ["type", "name", "path", "mtime"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["dir"]
+    },
+    "name": {
+      "type": "string",
+      "description": "Entry name (basename)"
+    },
+    "path": {
+      "type": "string",
+      "description": "Path relative to project root"
+    },
+    "mtime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last modified time (ISO 8601)"
+    }
+  },
+  "additionalProperties": false
+}

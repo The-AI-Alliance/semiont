@@ -27,7 +27,7 @@ import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 // =====================================================================
 
 export const BrowseOptionsSchema = ApiOptionsSchema.extend({
-  args: z.array(z.string()).min(1, 'Subcommand required: resources | resource | annotation | references | events | history | entity-types'),
+  args: z.array(z.string()).min(1, 'Subcommand required: resources | resource | annotation | references | events | history | entity-types | files'),
   // browse resources options
   search: z.string().optional(),
   entityType: z.array(z.string()).default([]),
@@ -35,9 +35,11 @@ export const BrowseOptionsSchema = ApiOptionsSchema.extend({
   // browse resource options
   annotations: z.boolean().default(false),
   references: z.boolean().default(false),
+  // browse files options
+  sort: z.enum(['name', 'mtime', 'annotationCount']).optional(),
 }).superRefine((val, ctx) => {
   const sub = val.args[0];
-  const valid = ['resources', 'resource', 'annotation', 'references', 'events', 'history', 'entity-types'];
+  const valid = ['resources', 'resource', 'annotation', 'references', 'events', 'history', 'entity-types', 'files'];
   if (!valid.includes(sub)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown subcommand '${sub}'. Valid: ${valid.join(', ')}` });
   }
@@ -135,6 +137,13 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
     result = await client.getAnnotationHistory(resourceId, annotationId, { auth: token });
     label = `history for annotation ${rawAnnotationId} on ${rawResourceId}`;
 
+  } else if (subcommand === 'files') {
+    const dirPath = options.args[1];
+    const data = await client.browseFiles(dirPath, options.sort, { auth: token });
+    result = data;
+    const entries = (data as any)?.entries ?? [];
+    label = `${entries.length} entr${entries.length !== 1 ? 'ies' : 'y'} in ${dirPath ?? '/'}`;
+
   } else {
     // subcommand === 'entity-types'
     result = await client.listEntityTypes({ auth: token });
@@ -165,7 +174,8 @@ export const browseCmd = new CommandBuilder()
   .description(
     'Human-readable traversal of the knowledge base. ' +
     'Subcommands: resources (list), resource <id> (inspect), annotation <resourceId> <annotationId> (inspect), references <id> (who links here), ' +
-    'events <resourceId> (historical event log), history <resourceId> <annotationId> (annotation audit trail), entity-types (available entity type catalogue). ' +
+    'events <resourceId> (historical event log), history <resourceId> <annotationId> (annotation audit trail), entity-types (available entity type catalogue), ' +
+    'files [<path>] (list project directory merged with KB metadata). ' +
     'Outputs JSON to stdout; progress label to stderr. ' +
     'For LLM pipeline consumption use `semiont gather` instead.'
   )
@@ -186,6 +196,10 @@ export const browseCmd = new CommandBuilder()
     'semiont browse resources --search "Paris" | jq \'.[]["@id"]\'',
     'semiont browse references <resourceId> | jq \'.[].name\'',
     'semiont browse entity-types | jq \'.[].tag\'',
+    'semiont browse files',
+    'semiont browse files docs',
+    'semiont browse files --sort mtime',
+    'semiont browse files docs --sort annotationCount',
   )
   .args({
     ...withApiArgs({
@@ -210,6 +224,10 @@ export const browseCmd = new CommandBuilder()
         type: 'boolean',
         description: 'Include resolved reference targets (browse resource only)',
         default: false,
+      },
+      '--sort': {
+        type: 'string',
+        description: 'Sort order for directory entries: name | mtime | annotationCount (browse files only)',
       },
     }, {}),
     restAs: 'args',

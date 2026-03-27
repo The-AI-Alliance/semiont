@@ -905,4 +905,19 @@ export class SemiontApiClient {
     }
     return this.http.get(`${this.baseUrl}/api/status`).json();
   }
+
+  async browseFiles(
+    dirPath?: string,
+    sort?: 'name' | 'mtime' | 'annotationCount',
+    options?: RequestOptions,
+  ): Promise<ResponseContent<paths['/api/browse/files']['get']>> {
+    const searchParams = new URLSearchParams();
+    if (dirPath) searchParams.append('path', dirPath);
+    if (sort)    searchParams.append('sort', sort);
+    return this.http.get(`${this.baseUrl}/api/browse/files`, {
+      searchParams,
+      ...options,
+      auth: options?.auth,
+    } as any).json();
+  }
 }

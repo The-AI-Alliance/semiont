@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "required": ["type", "name", "path", "size", "mtime", "tracked"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["file"]
+    },
+    "name": {
+      "type": "string",
+      "description": "Entry name (basename)"
+    },
+    "path": {
+      "type": "string",
+      "description": "Path relative to project root"
+    },
+    "size": {
+      "type": "integer",
+      "description": "File size in bytes"
+    },
+    "mtime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last modified time (ISO 8601)"
+    },
+    "tracked": {
+      "type": "boolean",
+      "description": "True if this file is a tracked resource in the Knowledge Base"
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "Resource ID (only when tracked is true)"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Entity types assigned to this resource (only when tracked is true)"
+    },
+    "annotationCount": {
+      "type": "integer",
+      "description": "Number of annotations on this resource (only when tracked is true)"
+    },
+    "creator": {
+      "type": "string",
+      "description": "DID of the user who created the resource (only when tracked is true)"
+    }
+  },
+  "additionalProperties": false
+}
