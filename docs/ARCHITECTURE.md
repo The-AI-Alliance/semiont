@@ -29,15 +29,18 @@ graph TD
         STOWER["Stower"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
+        BROWSER["Browser"]
         KB["Knowledge Base"]
         STOWER -->|"write"| KB
         GATHERER -->|"query"| KB
         MATCHER -->|"query"| KB
+        BROWSER -->|"query"| KB
     end
 
     BUS -->|"write commands"| STOWER
     BUS -->|"gather"| GATHERER
     BUS -->|"bind"| MATCHER
+    BUS -->|"browse"| BROWSER
 
     SOURCES["Content Sources"] --> FEEDER["Feeder"]
     FEEDER -->|"yield"| BUS
@@ -54,7 +57,7 @@ graph TD
     class BUS bus
     class KB kb
     class SOURCES stream
-    class FEEDER,STOWER,GATHERER,MATCHER worker
+    class FEEDER,STOWER,GATHERER,MATCHER,BROWSER worker
 ```
 
 ## Actors
@@ -112,13 +115,14 @@ The **Knowledge System** binds the Knowledge Base to its actors. Nothing outside
 
 The knowledge base itself is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide.
 
-The three primary actors are the interfaces to the Knowledge Base:
+The four primary actors are the interfaces to the Knowledge Base:
 
 - **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
 - **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores
 - **Matcher** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources
+- **Browser** (filesystem reads) — subscribes to `browse:directory-requested` events and merges live filesystem state with KB metadata from materialized views; the only actor that touches the filesystem
 
-All three are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All four are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 ```mermaid
 ---
@@ -130,6 +134,7 @@ graph TB
     BUS -->|"mark, yield, job"| STOWER["Stower"]
     BUS -->|"gather, browse"| GATHERER["Gatherer"]
     BUS -->|"bind"| MATCHER["Matcher"]
+    BUS -->|"browse"| BROWSER["Browser"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
@@ -157,25 +162,31 @@ graph TB
     MATCHER -->|traverse| GRAPH
     MATCHER -->|search| VECTORS
 
+    BROWSER -->|query| VIEWS
+    BROWSER -->|"read filesystem"| FS[("Filesystem")]
+
     STOWER -->|"mark, yield, job"| BUS
     GATHERER -->|"gather, browse"| BUS
     MATCHER -->|"bind"| BUS
+    BROWSER -->|"browse:directory"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef planned fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+    classDef fs fill:#7a8fa6,stroke:#4a6070,stroke-width:2px,color:#fff
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
     class VECTORS planned
-    class STOWER,GATHERER,MATCHER worker
+    class STOWER,GATHERER,MATCHER,BROWSER worker
+    class FS fs
 ```
 
 | Store | Purpose | Access Pattern |
 |-------|---------|---------------|
 | **Event Log** | Immutable append-only log of all domain events; system of record, committed to version control | Stower appends; Gatherer/Matcher read |
-| **Materialized Views** | Denormalized projections for fast reads | Gatherer/Matcher query by resource URI |
+| **Materialized Views** | Denormalized projections for fast reads | Gatherer/Matcher/Browser query by resource URI |
 | **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Stower writes; Gatherer reads by SHA-256 checksum |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Gatherer/Matcher traverse and search |
 | **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Gatherer/Matcher search |
@@ -191,6 +202,10 @@ The Gatherer is the read actor for context assembly. When a Generator Agent or L
 ### Matcher
 
 The Matcher is the read actor for entity resolution. When an Analyst or Linker Agent emits a **bind** event, the Matcher receives it from the bus, searches the KB stores (materialized views, graph, vectors) for matching resources, and resolves references — linking a mention to its referent. The Matcher does not need the content store directly; it works with metadata, relationships, and embeddings to find the right target. It emits search results back onto the bus.
+
+### Browser
+
+The Browser is the filesystem read actor. When a client emits a `browse:directory-requested` event (e.g. from the CLI or the UI file navigator), the Browser reads the requested directory from the filesystem via `fs.readdir`, performs a prefix scan of the materialized views for any tracked resources under that path, and merges the two. Each entry in the result is either a bare filesystem entry (`tracked: false`) or an enriched one carrying KB metadata (resource ID, entity types, annotation count, creator). The Browser is the only actor in the Knowledge System that performs filesystem I/O, keeping that concern out of the Gatherer and Stower. It enforces a path confinement invariant: all resolved paths must remain within `project.root`.
 
 ### Feeder and Content Streams
 
@@ -243,7 +258,7 @@ Domain Layer:
 AI Layer:
   @semiont/inference      - LLM integration (Anthropic, OpenAI, local)
   @semiont/jobs           - Job queue and annotation workers
-  @semiont/make-meaning   - Stower, Gatherer, Matcher — the KB actor implementations
+  @semiont/make-meaning   - Stower, Gatherer, Matcher, Browser — the KB actor implementations
 
 UI Layer:
   @semiont/react-ui       - React components, hooks, and context providers
