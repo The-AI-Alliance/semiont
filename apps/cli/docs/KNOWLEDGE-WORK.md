@@ -76,10 +76,79 @@ semiont browse history <resourceId> <annotationId>
 # Available entity types
 semiont browse entity-types
 
+# List project files (merges filesystem with KB metadata)
+semiont browse files
+semiont browse files docs
+semiont browse files docs --sort mtime
+
 # Composable with jq
 semiont browse resources | jq '.[]["@id"]'
 semiont browse entity-types | jq '.[].tag'
+semiont browse files | jq '.entries[] | select(.tracked) | .name'
 ```
+
+### browse files
+
+Lists the contents of a directory within the project, merging live filesystem entries with Knowledge Base metadata. Each entry shows whether the file is tracked (has a KB resource) and, if so, its resource ID, entity types, annotation count, creator, and file size/mtime.
+
+```bash
+# List project root
+semiont browse files
+
+# List a subdirectory
+semiont browse files docs
+semiont browse files papers/2025
+
+# Sort options
+semiont browse files --sort name            # alphabetical (default)
+semiont browse files --sort mtime           # newest first
+semiont browse files --sort annotationCount # most annotated first
+
+# Combine path and sort
+semiont browse files docs --sort mtime
+```
+
+Dotfiles and the `.semiont` directory are excluded from results. Paths that escape the project root (e.g. `../`, `/etc`) are rejected with an error.
+
+**Output shape:**
+
+```json
+{
+  "path": "docs",
+  "entries": [
+    {
+      "type": "dir",
+      "name": "archive",
+      "path": "docs/archive",
+      "mtime": "2026-01-10T12:00:00Z"
+    },
+    {
+      "type": "file",
+      "name": "intro.md",
+      "path": "docs/intro.md",
+      "size": 4096,
+      "mtime": "2026-03-15T09:30:00Z",
+      "tracked": true,
+      "resourceId": "res:abc123",
+      "entityTypes": ["Article"],
+      "annotationCount": 3,
+      "creator": "did:user:alice"
+    },
+    {
+      "type": "file",
+      "name": "scratch.md",
+      "path": "docs/scratch.md",
+      "size": 512,
+      "mtime": "2026-03-20T14:00:00Z",
+      "tracked": false
+    }
+  ]
+}
+```
+
+| Flag | Description |
+|------|-------------|
+| `--sort <order>` | Sort order: `name` (default), `mtime` (newest first), `annotationCount` (most annotated first) |
 
 Use `gather` (not `browse`) when feeding context into automated pipelines.
 
