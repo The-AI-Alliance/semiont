@@ -139,6 +139,7 @@ export type EventMap = {
     isDraft?: boolean;
     generatedFrom?: string;
     generationPrompt?: string;
+    generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
     noGit?: boolean;            // Skip git operations even when gitSync is configured
   };
   'yield:created': {
@@ -264,6 +265,7 @@ export type EventMap = {
       instructions?: string;
       tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive';
       density?: number;
+      language?: string;
       entityTypes?: string[];
       includeDescriptiveReferences?: boolean;
       schemaId?: string;

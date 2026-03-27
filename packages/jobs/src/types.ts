@@ -90,6 +90,7 @@ export interface AssessmentDetectionParams {
   instructions?: string;
   tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
   density?: number;
+  language?: string;
 }
 
 /**
@@ -100,6 +101,7 @@ export interface CommentDetectionParams {
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
   density?: number;
+  language?: string;
 }
 
 /**

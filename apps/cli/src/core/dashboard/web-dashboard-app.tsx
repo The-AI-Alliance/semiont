@@ -20,6 +20,7 @@ const DEFAULT_MAKE_MEANING: MakeMeaningStatus = {
     gatherer: { state: 'unknown' },
     matcher:  { state: 'unknown' },
     stower:   { state: 'unknown' },
+    browser:  { state: 'unknown' },
   },
 };
 
@@ -99,7 +100,7 @@ const UpdateTime: React.FC<{ time: Date | null; label: string }> = ({ time, labe
 export const WebDashboardApp: React.FC<{
   environment: string;
   refreshInterval: number;
-}> = ({ environment, refreshInterval }) => {
+}> = ({ environment }) => {
   const [activeTab, setActiveTab] = useState<TabId>('make-meaning');
 
   const [services,   setServices]   = useState<ServiceStatus[]>([]);
@@ -150,8 +151,6 @@ export const WebDashboardApp: React.FC<{
     return () => socket.disconnect();
   }, []);
 
-  void refreshInterval;
-
   if (!ready) {
     return (
       <div className="dashboard-container">
@@ -176,15 +175,15 @@ export const WebDashboardApp: React.FC<{
   const webServices = services.filter(s => !MAKE_MEANING_SERVICES.has(s.name.toLowerCase()) && !s.name.toLowerCase().startsWith('inference.'));
   const webHealthy = webServices.filter(s => s.status === 'healthy').length;
 
-  // Make Meaning healthy count (mirrors section-make-meaning countHealthy)
   const mmHealthy = [
-    mm.eventLog.path,
-    mm.contentStore.path,
+    mm.eventLog.eventCount !== undefined,
+    mm.contentStore.fileCount !== undefined,
     mm.graph.status === 'healthy',
-    mm.materializedViews.path,
+    mm.materializedViews.fileCount !== undefined,
     mm.actors.gatherer.state !== 'error' && mm.actors.gatherer.state !== 'unknown',
     mm.actors.matcher.state  !== 'error' && mm.actors.matcher.state  !== 'unknown',
     mm.actors.stower.state   !== 'error' && mm.actors.stower.state   !== 'unknown',
+    mm.actors.browser.state  !== 'error' && mm.actors.browser.state  !== 'unknown',
   ].filter(Boolean).length;
 
   const wkHealthy = workers.filter(w => w.state !== 'error').length;
@@ -208,7 +207,7 @@ export const WebDashboardApp: React.FC<{
         <TabBar
           active={activeTab} onChange={setActiveTab}
           webHealthy={webHealthy} webTotal={webServices.length}
-          mmHealthy={mmHealthy} mmTotal={7}
+          mmHealthy={mmHealthy} mmTotal={8}
           wkHealthy={wkHealthy} wkTotal={workers.length}
         />
 

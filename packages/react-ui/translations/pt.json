@@ -20,7 +20,14 @@
     "archive": "Arquivar",
     "archiveDescription": "Mover este recurso para o status de arquivado",
     "unarchive": "Desarquivar",
-    "unarchiveDescription": "Restaurar este recurso para o status ativo"
+    "unarchiveDescription": "Restaurar este recurso para o status ativo",
+    "provenance": "Procedência",
+    "createdAt": "Criado",
+    "modifiedAt": "Modificado",
+    "creationMethod": "Como foi criado",
+    "attributedTo": "Atribuído a",
+    "derivedFrom": "Derivado de",
+    "generatedBy": "Gerado por"
   },
   "CollaborationPanel": {
     "title": "Colaboracao",

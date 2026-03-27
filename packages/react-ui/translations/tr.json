@@ -20,7 +20,14 @@
     "archive": "Arşivle",
     "archiveDescription": "Bu kaynağı arşivlenmiş durumuna taşı",
     "unarchive": "Arşivden Çıkar",
-    "unarchiveDescription": "Bu kaynağı aktif durumuna geri yükle"
+    "unarchiveDescription": "Bu kaynağı aktif durumuna geri yükle",
+    "provenance": "Köken",
+    "createdAt": "Oluşturulma",
+    "modifiedAt": "Değiştirilme",
+    "creationMethod": "Oluşturma yöntemi",
+    "attributedTo": "Atfedilen",
+    "derivedFrom": "Kaynağı",
+    "generatedBy": "Oluşturan"
   },
   "CollaborationPanel": {
     "title": "İşbirliği",

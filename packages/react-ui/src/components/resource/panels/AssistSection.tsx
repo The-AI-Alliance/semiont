@@ -9,6 +9,7 @@ import './AssistSection.css';
 interface AssistSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';
   isAssisting: boolean;
+  locale?: string;
   progress?: {
     status: string;
     percentage?: number;
@@ -34,6 +35,7 @@ interface AssistSectionProps {
 export function AssistSection({
   annotationType,
   isAssisting,
+  locale,
   progress,
 }: AssistSectionProps) {
 
@@ -77,13 +79,14 @@ export function AssistSection({
         instructions: instructions.trim() || undefined,
         tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
         density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
+        language: (annotationType === 'comment' || annotationType === 'assessment') ? locale : undefined,
       },
     });
 
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across assists
-  }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
+  }, [annotationType, instructions, tone, useDensity, density, locale]); // eventBus is stable singleton - never in deps
 
   const handleDismissProgress = useCallback(() => {
     eventBus.get('mark:progress-dismiss').next(undefined);

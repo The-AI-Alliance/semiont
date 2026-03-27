@@ -7,7 +7,12 @@
     },
     "tone": {
       "type": "string",
-      "enum": ["analytical", "critical", "balanced", "constructive"],
+      "enum": [
+        "analytical",
+        "critical",
+        "balanced",
+        "constructive"
+      ],
       "description": "Optional tone/style for generated assessments"
     },
     "density": {
@@ -15,6 +20,10 @@
       "minimum": 1,
       "maximum": 10,
       "description": "Optional density: desired number of assessments per 2000 words of text (1-10)"
+    },
+    "language": {
+      "type": "string",
+      "description": "BCP 47 language tag for the generated assessment text (e.g. \"en\", \"fr\", \"de\")"
     }
   }
 }

@@ -20,7 +20,14 @@
     "archive": "Arkiver",
     "archiveDescription": "Flytt denne ressursen til arkivert status",
     "unarchive": "Gjenopprett",
-    "unarchiveDescription": "Gjenopprett denne ressursen til aktiv status"
+    "unarchiveDescription": "Gjenopprett denne ressursen til aktiv status",
+    "provenance": "Opprinnelse",
+    "createdAt": "Opprettet",
+    "modifiedAt": "Endret",
+    "creationMethod": "Opprettelsesmetode",
+    "attributedTo": "Tilskrevet",
+    "derivedFrom": "Avledet fra",
+    "generatedBy": "Generert av"
   },
   "CollaborationPanel": {
     "title": "Samarbeid",

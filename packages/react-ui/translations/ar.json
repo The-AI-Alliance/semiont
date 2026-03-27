@@ -20,7 +20,14 @@
     "archive": "أرشفة",
     "archiveDescription": "نقل هذا المورد إلى حالة الأرشيف",
     "unarchive": "إلغاء الأرشفة",
-    "unarchiveDescription": "استعادة هذا المورد إلى الحالة النشطة"
+    "unarchiveDescription": "استعادة هذا المورد إلى الحالة النشطة",
+    "provenance": "المصدر والسلسلة",
+    "createdAt": "تاريخ الإنشاء",
+    "modifiedAt": "تاريخ التعديل",
+    "creationMethod": "طريقة الإنشاء",
+    "attributedTo": "منسوب إلى",
+    "derivedFrom": "مشتق من",
+    "generatedBy": "أُنشئ بواسطة"
   },
   "CollaborationPanel": {
     "title": "التعاون",

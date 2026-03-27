@@ -20,7 +20,14 @@
     "archive": "Arkiver",
     "archiveDescription": "Flyt denne ressource til arkiveret status",
     "unarchive": "Gendan fra arkiv",
-    "unarchiveDescription": "Gendan denne ressource til aktiv status"
+    "unarchiveDescription": "Gendan denne ressource til aktiv status",
+    "provenance": "Oprindelse",
+    "createdAt": "Oprettet",
+    "modifiedAt": "Ændret",
+    "creationMethod": "Oprettelsesmetode",
+    "attributedTo": "Tilskrevet",
+    "derivedFrom": "Afledt af",
+    "generatedBy": "Genereret af"
   },
   "CollaborationPanel": {
     "title": "Samarbejde",

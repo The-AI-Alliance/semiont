@@ -58,7 +58,7 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
     async (c) => {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as AnnotateCommentsStreamRequest;
-      const { instructions, tone, density } = body;
+      const { instructions, tone, density, language } = body;
       // Validate density if provided
       if (density !== undefined && (typeof density !== 'number' || density < 2 || density > 12)) {
         throw new HTTPException(400, { message: 'Invalid density. Must be a number between 2 and 12.' });
@@ -104,7 +104,8 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
           resourceId: resourceId(id),
           instructions,
           tone,
-          density
+          density,
+          language
         }
       };
 

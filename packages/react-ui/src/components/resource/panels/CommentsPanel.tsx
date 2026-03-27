@@ -47,6 +47,7 @@ interface CommentsPanelProps {
     percentage?: number;
     message?: string;
   } | null;
+  locale?: string;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
@@ -65,6 +66,7 @@ export function CommentsPanel({
   annotateMode = true,
   isAssisting = false,
   progress,
+  locale,
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
@@ -252,6 +254,7 @@ export function CommentsPanel({
           <AssistSection
             annotationType="comment"
             isAssisting={isAssisting}
+            locale={locale}
             progress={progress}
           />
         )}

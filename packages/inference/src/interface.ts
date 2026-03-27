@@ -6,6 +6,12 @@ export interface InferenceResponse {
 }
 
 export interface InferenceClient {
+  /** Provider type identifier (e.g. 'anthropic', 'ollama') */
+  readonly type: string;
+
+  /** Model identifier used for generation (e.g. 'claude-opus-4-6', 'llama3') */
+  readonly modelId: string;
+
   /**
    * Generate text from a prompt (simple interface)
    * @param prompt - The input prompt

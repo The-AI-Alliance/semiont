@@ -581,6 +581,8 @@ describe('Matcher', () => {
       });
 
       const mockInference = {
+        type: 'mock' as const,
+        modelId: 'mock-model',
         generateText: vi.fn().mockResolvedValue('1. 0.9\n2. 0.2'),
         generateTextWithMetadata: vi.fn(),
       };
@@ -623,6 +625,8 @@ describe('Matcher', () => {
       });
 
       const mockInference = {
+        type: 'mock' as const,
+        modelId: 'mock-model',
         generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
         generateTextWithMetadata: vi.fn(),
       };
@@ -679,7 +683,7 @@ describe('Matcher', () => {
     });
 
     describe('inference response parsing edge cases', () => {
-      let mockInference: { generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn> };
+      let mockInference: { type: string; modelId: string; generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn> };
 
       beforeEach(async () => {
         await matcher.stop();
@@ -697,6 +701,8 @@ describe('Matcher', () => {
         });
 
         mockInference = {
+          type: 'mock',
+          modelId: 'mock-model',
           generateText: vi.fn(),
           generateTextWithMetadata: vi.fn(),
         };

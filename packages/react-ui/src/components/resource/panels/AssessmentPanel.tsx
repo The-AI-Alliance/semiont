@@ -46,6 +46,7 @@ interface AssessmentPanelProps {
     percentage?: number;
     message?: string;
   } | null;
+  locale?: string;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -64,6 +65,7 @@ export function AssessmentPanel({
   pendingAnnotation,
   isAssisting = false,
   progress,
+  locale,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -236,6 +238,7 @@ export function AssessmentPanel({
           <AssistSection
             annotationType="assessment"
             isAssisting={isAssisting}
+            locale={locale}
             progress={progress}
           />
         )}

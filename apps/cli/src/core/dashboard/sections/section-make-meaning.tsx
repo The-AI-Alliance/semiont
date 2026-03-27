@@ -93,7 +93,7 @@ export const SectionMakeMeaning: React.FC<Props> = ({ makeMeaning: mm, inference
       </MmGroup>
 
       <MmGroup title="Actors">
-        {(['gatherer', 'matcher', 'stower'] as const).map(name => {
+        {(['gatherer', 'matcher', 'stower', 'browser'] as const).map(name => {
           const actor = mm.actors[name];
           return (
             <MmRow

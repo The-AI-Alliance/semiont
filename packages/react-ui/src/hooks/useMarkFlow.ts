@@ -298,6 +298,7 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
         instructions?: string;
         tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive';
         density?: number;
+        language?: string;
         entityTypes?: string[];
         includeDescriptiveReferences?: boolean;
         schemaId?: string;
@@ -351,6 +352,7 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
+            language: event.options.language,
           }, sseOptions);
           // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'commenting') {
@@ -358,6 +360,7 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
+            language: event.options.language,
           }, sseOptions);
           // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         }

@@ -20,7 +20,14 @@
     "archive": "संग्रहित करें",
     "archiveDescription": "इस संसाधन को संग्रहित स्थिति में ले जाएं",
     "unarchive": "असंग्रहित करें",
-    "unarchiveDescription": "इस संसाधन को सक्रिय स्थिति में पुनर्स्थापित करें"
+    "unarchiveDescription": "इस संसाधन को सक्रिय स्थिति में पुनर्स्थापित करें",
+    "provenance": "उत्पत्ति",
+    "createdAt": "बनाया गया",
+    "modifiedAt": "संशोधित",
+    "creationMethod": "निर्माण विधि",
+    "attributedTo": "श्रेय दिया गया",
+    "derivedFrom": "से व्युत्पन्न",
+    "generatedBy": "द्वारा उत्पन्न"
   },
   "CollaborationPanel": {
     "title": "सहयोग",

@@ -20,7 +20,14 @@
     "archive": "Arkivera",
     "archiveDescription": "Flytta denna resurs till arkiverad status",
     "unarchive": "Återställ",
-    "unarchiveDescription": "Återställ denna resurs till aktiv status"
+    "unarchiveDescription": "Återställ denna resurs till aktiv status",
+    "provenance": "Ursprung",
+    "createdAt": "Skapad",
+    "modifiedAt": "Ändrad",
+    "creationMethod": "Skapandesätt",
+    "attributedTo": "Tillskriven",
+    "derivedFrom": "Härledd från",
+    "generatedBy": "Genererad av"
   },
   "CollaborationPanel": {
     "title": "Samarbete",

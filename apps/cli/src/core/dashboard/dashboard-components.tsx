@@ -78,6 +78,7 @@ export interface MakeMeaningStatus {
     gatherer: ActorStatus;
     matcher: ActorStatus;
     stower: ActorStatus;
+    browser: ActorStatus;
   };
 }
 

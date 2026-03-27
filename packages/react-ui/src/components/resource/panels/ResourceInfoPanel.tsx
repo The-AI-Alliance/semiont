@@ -3,7 +3,10 @@
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import './ResourceInfoPanel.css';
+
+type Agent = components['schemas']['Agent'];
 
 interface Props {
   documentEntityTypes: string[];
@@ -11,6 +14,12 @@ interface Props {
   primaryMediaType?: string | undefined;
   primaryByteSize?: number | undefined;
   isArchived?: boolean;
+  dateCreated?: string | undefined;
+  dateModified?: string | undefined;
+  creationMethod?: string | undefined;
+  wasAttributedTo?: Agent | Agent[] | undefined;
+  wasDerivedFrom?: string | string[] | undefined;
+  generator?: Agent | Agent[] | undefined;
 }
 
 /**
@@ -26,6 +35,12 @@ export function ResourceInfoPanel({
   primaryMediaType,
   primaryByteSize,
   isArchived = false,
+  dateCreated,
+  dateModified,
+  creationMethod,
+  wasAttributedTo,
+  wasDerivedFrom,
+  generator,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
   const eventBus = useEventBus();
@@ -69,6 +84,65 @@ export function ResourceInfoPanel({
                 <span className="semiont-resource-info-panel__label">{t('byteSize')}</span>
                 <span className="semiont-resource-info-panel__value">
                   {primaryByteSize.toLocaleString()} bytes
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Provenance Section */}
+      {(dateCreated || dateModified || creationMethod || wasAttributedTo || wasDerivedFrom || generator) && (
+        <div className="semiont-resource-info-panel__section">
+          <h3 className="semiont-resource-info-panel__heading">{t('provenance')}</h3>
+          <div className="semiont-resource-info-panel__field-group">
+            {dateCreated && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('createdAt')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {new Date(dateCreated).toLocaleString()}
+                </span>
+              </div>
+            )}
+            {dateModified && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('modifiedAt')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {new Date(dateModified).toLocaleString()}
+                </span>
+              </div>
+            )}
+            {creationMethod && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('creationMethod')}</span>
+                <span className="semiont-resource-info-panel__value">{creationMethod}</span>
+              </div>
+            )}
+            {wasAttributedTo && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('attributedTo')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {(Array.isArray(wasAttributedTo) ? wasAttributedTo : [wasAttributedTo])
+                    .map(a => a.name)
+                    .join(', ')}
+                </span>
+              </div>
+            )}
+            {wasDerivedFrom && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('derivedFrom')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {(Array.isArray(wasDerivedFrom) ? wasDerivedFrom : [wasDerivedFrom]).join(', ')}
+                </span>
+              </div>
+            )}
+            {generator && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('generatedBy')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {(Array.isArray(generator) ? generator : [generator])
+                    .map(a => a.name)
+                    .join(', ')}
                 </span>
               </div>
             )}

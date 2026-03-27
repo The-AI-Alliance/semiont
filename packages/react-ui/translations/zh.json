@@ -20,7 +20,14 @@
     "archive": "归档",
     "archiveDescription": "将此资源移至已归档状态",
     "unarchive": "取消归档",
-    "unarchiveDescription": "将此资源恢复为活跃状态"
+    "unarchiveDescription": "将此资源恢复为活跃状态",
+    "provenance": "来源",
+    "createdAt": "创建时间",
+    "modifiedAt": "修改时间",
+    "creationMethod": "创建方式",
+    "attributedTo": "归属于",
+    "derivedFrom": "派生自",
+    "generatedBy": "由…生成"
   },
   "CollaborationPanel": {
     "title": "协作",

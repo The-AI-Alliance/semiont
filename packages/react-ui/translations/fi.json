@@ -20,7 +20,14 @@
     "archive": "Arkistoi",
     "archiveDescription": "Siirrä tämä resurssi arkistoiduksi",
     "unarchive": "Palauta arkistosta",
-    "unarchiveDescription": "Palauta tämä resurssi aktiiviseksi"
+    "unarchiveDescription": "Palauta tämä resurssi aktiiviseksi",
+    "provenance": "Alkuperä",
+    "createdAt": "Luotu",
+    "modifiedAt": "Muokattu",
+    "creationMethod": "Luontitapa",
+    "attributedTo": "Tekijä",
+    "derivedFrom": "Johdettu",
+    "generatedBy": "Luonut"
   },
   "CollaborationPanel": {
     "title": "Yhteistyö",

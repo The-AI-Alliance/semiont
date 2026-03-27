@@ -173,6 +173,20 @@
         }
       ]
     },
+    "generator": {
+      "description": "Software agent that produced or processed this resource (W3C Web Annotation model)",
+      "oneOf": [
+        {
+          "$ref": "./Agent.json"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./Agent.json"
+          }
+        }
+      ]
+    },
     "conformsTo": {
       "description": "Profile/shape URI this resource description conforms to.",
       "oneOf": [

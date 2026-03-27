@@ -20,7 +20,14 @@
     "archive": "بایگانی",
     "archiveDescription": "انتقال این منبع به وضعیت بایگانی",
     "unarchive": "بازیابی از بایگانی",
-    "unarchiveDescription": "بازگرداندن این منبع به وضعیت فعال"
+    "unarchiveDescription": "بازگرداندن این منبع به وضعیت فعال",
+    "provenance": "منشأ",
+    "createdAt": "ایجاد شده",
+    "modifiedAt": "ویرایش شده",
+    "creationMethod": "روش ایجاد",
+    "attributedTo": "منتسب به",
+    "derivedFrom": "مشتق از",
+    "generatedBy": "تولیدشده توسط"
   },
   "CollaborationPanel": {
     "title": "همکاری",

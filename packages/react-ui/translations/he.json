@@ -20,7 +20,14 @@
     "archive": "ארכיון",
     "archiveDescription": "העברת משאב זה למצב ארכיון",
     "unarchive": "שחזור מארכיון",
-    "unarchiveDescription": "שחזור משאב זה למצב פעיל"
+    "unarchiveDescription": "שחזור משאב זה למצב פעיל",
+    "provenance": "מקור",
+    "createdAt": "נוצר",
+    "modifiedAt": "עודכן",
+    "creationMethod": "אופן יצירה",
+    "attributedTo": "מיוחס ל",
+    "derivedFrom": "נגזר מ",
+    "generatedBy": "נוצר על ידי"
   },
   "CollaborationPanel": {
     "title": "שיתוף פעולה",

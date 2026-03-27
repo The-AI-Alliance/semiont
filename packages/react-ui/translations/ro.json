@@ -20,7 +20,14 @@
     "archive": "Arhivare",
     "archiveDescription": "Mută această resursă în starea arhivată",
     "unarchive": "Dezarhivare",
-    "unarchiveDescription": "Restabilește această resursă la starea activă"
+    "unarchiveDescription": "Restabilește această resursă la starea activă",
+    "provenance": "Proveniență",
+    "createdAt": "Creat",
+    "modifiedAt": "Modificat",
+    "creationMethod": "Metodă de creare",
+    "attributedTo": "Atribuit",
+    "derivedFrom": "Derivat din",
+    "generatedBy": "Generat de"
   },
   "CollaborationPanel": {
     "title": "Colaborare",

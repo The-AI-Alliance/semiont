@@ -11,13 +11,14 @@ interface OllamaGenerateResponse {
 }
 
 export class OllamaInferenceClient implements InferenceClient {
+  readonly type = 'ollama' as const;
+  readonly modelId: string;
   private baseURL: string;
-  private model: string;
   private logger?: Logger;
 
   constructor(model: string, baseURL?: string, logger?: Logger) {
     this.baseURL = (baseURL || 'http://localhost:11434').replace(/\/+$/, '');
-    this.model = model;
+    this.modelId = model;
     this.logger = logger;
   }
 
@@ -28,7 +29,7 @@ export class OllamaInferenceClient implements InferenceClient {
 
   async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with Ollama', {
-      model: this.model,
+      model: this.modelId,
       promptLength: prompt.length,
       maxTokens,
       temperature
@@ -40,7 +41,7 @@ export class OllamaInferenceClient implements InferenceClient {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: this.model,
+        model: this.modelId,
         prompt,
         stream: false,
         options: {
@@ -53,7 +54,7 @@ export class OllamaInferenceClient implements InferenceClient {
     if (!res.ok) {
       const body = await res.text();
       this.logger?.error('Ollama API error', {
-        model: this.model,
+        model: this.modelId,
         status: res.status,
         body,
       });
@@ -63,14 +64,14 @@ export class OllamaInferenceClient implements InferenceClient {
     const data = await res.json() as OllamaGenerateResponse;
 
     if (!data.response) {
-      this.logger?.error('Empty response from Ollama', { model: this.model });
+      this.logger?.error('Empty response from Ollama', { model: this.modelId });
       throw new Error('Empty response from Ollama');
     }
 
     const stopReason = mapStopReason(data.done_reason);
 
     this.logger?.info('Text generation completed', {
-      model: this.model,
+      model: this.modelId,
       textLength: data.response.length,
       stopReason,
     });

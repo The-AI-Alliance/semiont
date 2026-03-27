@@ -25,7 +25,7 @@ graph TD
 
     BUS["E V E N T &ensp; B U S"]
 
-    subgraph ks ["Knowledge System"]
+    subgraph ks ["Knowledge System (per project)"]
         STOWER["Stower"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
@@ -126,22 +126,22 @@ All four are reactive actors: they subscribe to the EventBus via RxJS pipelines 
 
 ```mermaid
 ---
-title: Knowledge System
+title: Knowledge System (per project)
 ---
 graph TB
     BUS["Event Bus"]
 
-    BUS -->|"mark, yield, job"| STOWER["Stower"]
-    BUS -->|"gather, browse"| GATHERER["Gatherer"]
-    BUS -->|"bind"| MATCHER["Matcher"]
+    BUS -->|"mark, yield"| STOWER["Stower"]
+    BUS -->|"gather"| GATHERER["Gatherer"]
+    BUS -->|"match"| MATCHER["Matcher"]
     BUS -->|"browse"| BROWSER["Browser"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
 
     subgraph kb ["Knowledge Base"]
-        subgraph sor ["System of Record (git-tracked project)"]
-            EVENTLOG["Event Log<br/>(SHA-256 addressed, immutable append-only)"]
+        subgraph sor ["System of Record (git-tracked)"]
+            EVENTLOG["Event Log<br/>(append-only)"]
             CONTENT["Content Store<br/>(files in directories)"]
         end
         VIEWS["Materialized Views<br/>(fast single-doc queries)"]
@@ -164,10 +164,6 @@ graph TB
 
     BROWSER -->|query| VIEWS
     BROWSER -->|read| CONTENT
-
-    STOWER -->|"mark, yield, job"| BUS
-    GATHERER -->|"gather, browse"| BUS
-    BROWSER -->|"browse"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff

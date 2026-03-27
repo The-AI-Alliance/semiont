@@ -13,6 +13,95 @@ import { PlatformResources } from '../platforms/platform-resources.js';
 /**
  * Generic command result with command-specific extensions
  */
+export interface CommandMetadata {
+  // Service classification
+  serviceType?: string;
+  agent?: string;
+  port?: number;
+
+  // Execution state
+  skipped?: boolean;
+  reason?: string;
+  preflight?: boolean;
+  checks?: unknown;
+  stateVerified?: boolean;
+  stateMismatch?: boolean;
+  errorType?: string;
+  errorStack?: string;
+
+  // AWS identifiers
+  awsRegion?: string;
+  ecsServiceName?: string;
+  ecsClusterName?: string;
+  rdsInstanceId?: string;
+  efsFileSystemId?: string;
+  cloudFormationStackName?: string;
+  logGroupName?: string;
+  loadBalancerDns?: string;
+  albArn?: string;
+  wafWebAclId?: string;
+  taskArn?: string;
+
+  // Container/proxy health check
+  healthCheck?: {
+    containerId?: string;
+    uptime?: string;
+    frontendRouting?: boolean;
+    backendRouting?: boolean;
+    adminHealthy?: boolean;
+  };
+}
+
+export interface HealthDetails {
+  // Connection evidence
+  address?: string;
+  protocolVersion?: string;
+
+  // HTTP evidence
+  endpoint?: string;
+  statusCode?: number;
+  status?: number | string;
+  port?: number;
+  health?: unknown;
+
+  // Generic error/message fields
+  error?: string;
+  message?: string;
+  contentType?: string | null;
+  connections?: number;
+  activeQueries?: number;
+
+  // Inference evidence
+  model?: string;
+  responseTime?: number | string;
+  responsePreview?: string;
+  modelAvailability?: Record<string, boolean>;
+
+  // Process evidence
+  pid?: number;
+  process?: { memory?: string };
+
+  // ECS evidence
+  revision?: number;
+  desiredCount?: number;
+  runningCount?: number;
+  pendingCount?: number;
+  taskDefinition?: string;
+  deploymentStatus?: string;
+
+  // EFS evidence
+  storageUsedBytes?: number;
+  storageUsedStandard?: number;
+  storageUsedIA?: number;
+  provisionedThroughputInMibps?: number;
+  numberOfMountTargets?: number;
+
+  // CPU/memory/uptime metrics
+  cpu?: number;
+  memory?: number;
+  uptime?: number;
+}
+
 export interface CommandResult {
   // Core fields present in all results
   entity: ServiceName;
@@ -20,8 +109,8 @@ export interface CommandResult {
   success: boolean;
   timestamp: Date;
   error?: string;
-  metadata?: Record<string, any>;
-  
+  metadata?: CommandMetadata;
+
   // Command-specific extensions
   extensions?: CommandExtensions;
 }
@@ -64,7 +153,7 @@ export interface CommandExtensions {
   status?: 'running' | 'stopped' | 'unknown';
   health?: {
     healthy: boolean;
-    details: Record<string, any>;
+    details: HealthDetails;
   };
   logs?: {
     recent: string[];
@@ -74,7 +163,7 @@ export interface CommandExtensions {
   
   // provision command extensions
   provisionedResources?: string[];
-  stackOutputs?: Record<string, any>;
+  stackOutputs?: Record<string, string>;
   
   // stop command extensions
   stoppedAt?: Date;

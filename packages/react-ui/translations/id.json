@@ -20,7 +20,14 @@
     "archive": "Arsipkan",
     "archiveDescription": "Pindahkan sumber daya ini ke status diarsipkan",
     "unarchive": "Batalkan Arsip",
-    "unarchiveDescription": "Pulihkan sumber daya ini ke status aktif"
+    "unarchiveDescription": "Pulihkan sumber daya ini ke status aktif",
+    "provenance": "Asal-usul",
+    "createdAt": "Dibuat",
+    "modifiedAt": "Diubah",
+    "creationMethod": "Cara pembuatan",
+    "attributedTo": "Dikaitkan dengan",
+    "derivedFrom": "Diturunkan dari",
+    "generatedBy": "Dibuat oleh"
   },
   "CollaborationPanel": {
     "title": "Kolaborasi",

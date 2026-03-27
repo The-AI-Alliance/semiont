@@ -20,7 +20,14 @@
     "archive": "Archiveren",
     "archiveDescription": "Verplaats deze bron naar gearchiveerde status",
     "unarchive": "Dearchiveren",
-    "unarchiveDescription": "Herstel deze bron naar actieve status"
+    "unarchiveDescription": "Herstel deze bron naar actieve status",
+    "provenance": "Herkomst",
+    "createdAt": "Aangemaakt",
+    "modifiedAt": "Gewijzigd",
+    "creationMethod": "Aanmaakmethode",
+    "attributedTo": "Toegeschreven aan",
+    "derivedFrom": "Afgeleid van",
+    "generatedBy": "Gegenereerd door"
   },
   "CollaborationPanel": {
     "title": "Samenwerking",

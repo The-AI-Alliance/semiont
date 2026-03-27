@@ -193,7 +193,7 @@ export class CommentAnnotationWorker extends JobWorker {
     let created = 0;
     for (const comment of comments) {
       try {
-        await this.createCommentAnnotation(job.params.resourceId, job.metadata, comment);
+        await this.createCommentAnnotation(job.params.resourceId, job.metadata, comment, job.params.language);
         created++;
       } catch (error) {
         this.logger?.error('Failed to create comment', { error });
@@ -222,7 +222,8 @@ export class CommentAnnotationWorker extends JobWorker {
   private async createCommentAnnotation(
     resourceId: ResourceId,
     metadata: import('../types').JobMetadata,
-    comment: CommentMatch
+    comment: CommentMatch,
+    language?: string
   ): Promise<void> {
     const annotationIdVal = generateAnnotationId();
 
@@ -265,7 +266,7 @@ export class CommentAnnotationWorker extends JobWorker {
           value: comment.comment,
           purpose: 'commenting' as const,
           format: 'text/plain',
-          language: 'en'
+          language: language || 'en'
         }
       ]
     };
