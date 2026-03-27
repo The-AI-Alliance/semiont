@@ -29,29 +29,32 @@ npm install @semiont/make-meaning
 
 ```typescript
 import { startMakeMeaning } from '@semiont/make-meaning';
+import { SemiontProject } from '@semiont/core/node';
 import { EventBus } from '@semiont/core';
-import type { EnvironmentConfig, Logger } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 
 // EventBus is created outside make-meaning — it is not encapsulated by this package
 const eventBus = new EventBus();
+const project = new SemiontProject('/path/to/project');
 
 // Start all infrastructure
-const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
 // Access components
-const { kb, jobQueue, stower, gatherer, matcher, cloneTokenManager } = makeMeaning;
+const { knowledgeSystem, jobQueue } = makeMeaning;
+const { kb, stower, gatherer, matcher, cloneTokenManager } = knowledgeSystem;
 
 // Graceful shutdown
 await makeMeaning.stop();
 ```
 
 This single call initializes:
-- **KnowledgeBase** — groups EventStore, ViewStorage, RepresentationStore, GraphDatabase
-- **Stower** — subscribes to write commands on EventBus
-- **Gatherer** — subscribes to browse reads, gather context, and entity type listing on EventBus
-- **Matcher** — subscribes to search and referenced-by queries on EventBus
-- **CloneTokenManager** — subscribes to clone token operations on EventBus
-- **GraphDBConsumer** — event-to-graph synchronization (RxJS burst-buffered pipeline)
+- **KnowledgeSystem** — groups the Knowledge Base and its four actors
+  - **KnowledgeBase** — groups EventStore, ViewStorage, ContentStore, GraphDatabase, and GraphDBConsumer
+  - **Stower** — subscribes to write commands on EventBus
+  - **Gatherer** — subscribes to browse reads, gather context, and entity type listing on EventBus
+  - **Matcher** — subscribes to search and referenced-by queries on EventBus
+  - **CloneTokenManager** — subscribes to clone token operations on EventBus
 - **JobQueue** — background job processing queue + job status subscription
 - **6 annotation workers** — poll job queue for async AI tasks
 
@@ -109,15 +112,22 @@ graph TB
     Workers["Job Workers"] -->|commands| BUS
     EBC["EventBusClient"] -->|commands| BUS
 
-    BUS -->|"yield:create, mark:create,<br/>mark:delete, job:*"| STOWER["Stower<br/>(write)"]
-    BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER["Gatherer<br/>(read)"]
-    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER["Matcher<br/>(search/link)"]
-    BUS -->|"yield:clone-*"| CTM["CloneTokenManager<br/>(clone)"]
+    subgraph ks ["Knowledge System"]
+        STOWER["Stower<br/>(write)"]
+        GATHERER["Gatherer<br/>(read)"]
+        MATCHER["Matcher<br/>(search/link)"]
+        CTM["CloneTokenManager<br/>(clone)"]
+        KB["Knowledge Base"]
+        STOWER -->|persist| KB
+        GATHERER -->|query| KB
+        MATCHER -->|query| KB
+        CTM -->|query| KB
+    end
 
-    STOWER -->|persist| KB["Knowledge Base"]
-    GATHERER -->|query| KB
-    MATCHER -->|query| KB
-    CTM -->|query| KB
+    BUS -->|"yield:create, mark:create,<br/>mark:delete, job:*"| STOWER
+    BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER
+    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER
+    BUS -->|"yield:clone-*"| CTM
 
     STOWER -->|"yield:created, mark:created"| BUS
     GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
@@ -135,22 +145,25 @@ graph TB
     class Routes,Workers,EBC caller
 ```
 
-### Knowledge Base
+### Knowledge System and Knowledge Base
 
-The Knowledge Base is an inert store — it has no intelligence, no goals, no decisions. It groups four subsystems:
+The **Knowledge System** binds the Knowledge Base to its four actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
+
+The **Knowledge Base** is an inert store — it has no intelligence, no goals, no decisions. It groups five subsystems:
 
 | Store | Implementation | Purpose |
 |-------|---------------|---------|
 | **Event Log** | `EventStore` | Immutable append-only log of all domain events |
 | **Materialized Views** | `ViewStorage` | Denormalized projections for fast reads |
-| **Content Store** | `RepresentationStore` | Content-addressed binary storage (SHA-256) |
+| **Content Store** | `WorkingTreeStore` | Content-addressed binary storage (SHA-256) |
 | **Graph** | `GraphDatabase` | Eventually consistent relationship projection |
+| **Graph Consumer** | `GraphDBConsumer` | Event-to-graph synchronization pipeline |
 
 ```typescript
 import { createKnowledgeBase } from '@semiont/make-meaning';
 
-const kb = createKnowledgeBase(eventStore, basePath, projectRoot, graphDb, logger);
-// kb.eventStore, kb.views, kb.content, kb.graph
+const kb = await createKnowledgeBase(eventStore, project, graphDb, logger);
+// kb.eventStore, kb.views, kb.content, kb.graph, kb.graphConsumer
 ```
 
 ### EventBus Ownership
@@ -169,13 +182,18 @@ The EventBus is created by the backend (or script) and passed into `startMakeMea
 
 ### Service (Primary)
 
-- `startMakeMeaning(config, eventBus, logger)` — Initialize all infrastructure
-- `MakeMeaningService` — Type for service return value
+- `startMakeMeaning(project, config, eventBus, logger)` — Initialize all infrastructure
+- `MakeMeaningService` — Type for service return value (`knowledgeSystem`, `jobQueue`, `workers`, `stop`)
+
+### Knowledge System
+
+- `KnowledgeSystem` — Interface grouping the Knowledge Base and its four actors
+- `stopKnowledgeSystem(ks)` — Ordered teardown of the Knowledge System
 
 ### Knowledge Base
 
-- `createKnowledgeBase(...)` — Factory function
-- `KnowledgeBase` — Interface grouping the four KB stores
+- `createKnowledgeBase(eventStore, project, graphDb, logger)` — Async factory function
+- `KnowledgeBase` — Interface grouping the five KB stores (including `graphConsumer`)
 
 ### Actors
 
@@ -200,10 +218,6 @@ The EventBus is created by the backend (or script) and passed into `startMakeMea
 
 - `generateResourceSummary` — Resource summarization
 - `generateReferenceSuggestions` — Smart suggestion generation
-
-### Graph
-
-- `GraphDBConsumer` — Event-to-graph synchronization
 
 ## Dependencies
 

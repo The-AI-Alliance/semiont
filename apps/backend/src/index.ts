@@ -261,7 +261,7 @@ if (config.env?.NODE_ENV !== 'test') {
 
     // Pre-load entity types from graph database for performance
     try {
-      const entityTypes = await makeMeaning.graphDb.getEntityTypes();
+      const entityTypes = await makeMeaning.knowledgeSystem.kb.graph.getEntityTypes();
       logger.info('Loaded entity types from graph database', {
         count: entityTypes.length
       });

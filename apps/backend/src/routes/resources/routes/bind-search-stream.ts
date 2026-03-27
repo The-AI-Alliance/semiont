@@ -45,7 +45,7 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
     }
 
     const eventBus = c.get('eventBus');
-    const { kb } = c.get('makeMeaning');
+    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
     // Validate resource exists
     const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);

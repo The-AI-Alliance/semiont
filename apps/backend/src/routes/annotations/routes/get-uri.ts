@@ -35,7 +35,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
   router.get('/annotations/:id', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
-    const { kb } = c.get('makeMeaning');
+    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
     const resourceIdParam = query.resourceId;
 
     if (!resourceIdParam) {

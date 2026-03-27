@@ -14,11 +14,14 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { userId } from '@semiont/core';
 import { email } from '@semiont/core';
-import type { components } from '@semiont/core';
+import type { components, EventBus } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
+import type { MakeMeaningService, KnowledgeBase } from '@semiont/make-meaning';
+import type { JobQueue } from '@semiont/jobs';
+import { makeMeaningMock, stubKnowledgeSystem } from '../helpers/make-meaning-mock';
 
 type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
@@ -26,8 +29,8 @@ type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 // Mock @semiont/make-meaning
@@ -95,9 +98,9 @@ vi.mock('@semiont/make-meaning', () => ({
       }]
     })
   },
-  startMakeMeaning: vi.fn().mockImplementation(async (_project: any, _config: any, eventBus: any) => {
+  startMakeMeaning: vi.fn().mockImplementation(async (_project: unknown, _config: unknown, eventBus: EventBus) => {
     // Subscribe mock Gatherer to browse events so eventBusRequest gets responses
-    eventBus.get('browse:annotations-requested').subscribe((e: any) => {
+    eventBus.get('browse:annotations-requested').subscribe((e: { correlationId: string }) => {
       eventBus.get('browse:annotations-result').next({
         correlationId: e.correlationId,
         response: {
@@ -113,7 +116,7 @@ vi.mock('@semiont/make-meaning', () => ({
         },
       });
     });
-    eventBus.get('browse:annotation-requested').subscribe((e: any) => {
+    eventBus.get('browse:annotation-requested').subscribe((e: { correlationId: string }) => {
       eventBus.get('browse:annotation-result').next({
         correlationId: e.correlationId,
         response: {
@@ -127,17 +130,15 @@ vi.mock('@semiont/make-meaning', () => ({
             created: new Date().toISOString(),
             modified: new Date().toISOString()
           },
+          resource: null,
+          resolvedResource: null,
         },
       });
     });
-    return {
-      eventStore: mockEventStore,
-      eventBus,
-      kb: { content: { get: vi.fn(), store: vi.fn() }, views: {}, graph: {}, eventStore: {} },
-      jobQueue: { createJob: vi.fn() },
-      workers: [],
-      graphConsumer: {}
-    };
+    return makeMeaningMock({
+      jobQueue: { createJob: vi.fn() } as unknown as JobQueue,
+      knowledgeSystem: stubKnowledgeSystem({ eventStore: mockEventStore as unknown as KnowledgeBase['eventStore'] }),
+    });
   })
 }));
 

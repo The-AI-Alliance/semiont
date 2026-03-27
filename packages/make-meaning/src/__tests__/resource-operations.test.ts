@@ -39,7 +39,7 @@ describe('ResourceOperations', () => {
     eventBus = new EventBus();
     testEventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const kb = createKnowledgeBase(testEventStore, project, graphDb, mockLogger);
+    const kb = await createKnowledgeBase(testEventStore, project, graphDb, mockLogger);
 
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();

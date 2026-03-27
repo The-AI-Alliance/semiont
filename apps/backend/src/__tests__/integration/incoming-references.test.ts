@@ -9,19 +9,21 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { userId, type EnvironmentConfig } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 import { loadEnvironmentConfig } from '../../utils/config';
 import { email } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 let app: Hono<{ Variables: Variables }>;

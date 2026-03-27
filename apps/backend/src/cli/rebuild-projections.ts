@@ -38,7 +38,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
 
   // Start make-meaning to get eventStore
   const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
-  const { eventStore } = makeMeaning;
+  const { knowledgeSystem: { kb: { eventStore } } } = makeMeaning;
   const query = new EventQuery(eventStore.log.storage);
   const validator = new EventValidator();
 

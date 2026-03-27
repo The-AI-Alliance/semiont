@@ -7,14 +7,16 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
+import { makeMeaningMock } from './helpers/make-meaning-mock';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 type ErrorResponse = {
@@ -25,14 +27,10 @@ type ErrorResponse = {
 
 // Mock make-meaning service to avoid graph initialization at import time
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
-    startMakeMeaning: vi.fn().mockResolvedValue({
-      jobQueue: {},
-      workers: [],
-      graphConsumer: {}
-    })
+    startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock())
   };
 });
 

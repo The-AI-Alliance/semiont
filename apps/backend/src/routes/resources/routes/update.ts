@@ -23,7 +23,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const body = c.get('validatedBody') as UpdateResourceRequest;
       const user = c.get('user');
       const eventBus = c.get('eventBus');
-      const { kb } = c.get('makeMeaning');
+      const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
       // Check resource exists using view storage
       const doc = await ResourceContext.getResourceMetadata(resourceId(id), kb);

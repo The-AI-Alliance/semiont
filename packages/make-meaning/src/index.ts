@@ -5,6 +5,10 @@
 export { startMakeMeaning } from './service';
 export type { MakeMeaningService, MakeMeaningConfig } from './service';
 
+// Knowledge System
+export type { KnowledgeSystem } from './knowledge-system';
+export { stopKnowledgeSystem } from './knowledge-system';
+
 // Bootstrap
 export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
 
@@ -21,9 +25,6 @@ export { Matcher } from './matcher';
 export { Stower } from './stower';
 export type { CreateResourceResult } from './stower';
 export { CloneTokenManager } from './clone-token-manager';
-
-// Graph Consumer
-export { GraphDBConsumer } from './graph/consumer';
 
 // Exchange (import/export)
 export * from './exchange';

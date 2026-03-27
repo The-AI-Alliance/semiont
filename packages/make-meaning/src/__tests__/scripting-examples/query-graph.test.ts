@@ -111,7 +111,7 @@ describe('Scripting Example: Query Graph Database', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query graph directly via GraphDatabase interface
-    const resource = await makeMeaning.graphDb.getResource(rId);
+    const resource = await makeMeaning.knowledgeSystem.kb.graph.getResource(rId);
 
     console.log(`Found resource: ${resource?.name || 'null'}`);
 
@@ -160,7 +160,7 @@ describe('Scripting Example: Query Graph Database', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query annotations using GraphDatabase interface
-    const annotations = await makeMeaning.graphDb.getResourceAnnotations(rId);
+    const annotations = await makeMeaning.knowledgeSystem.kb.graph.getResourceAnnotations(rId);
 
     console.log(`Found ${annotations.length} annotations`);
 
@@ -199,7 +199,7 @@ describe('Scripting Example: Query Graph Database', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query resources using GraphDatabase interface
-    const allResources = await makeMeaning.graphDb.listResources({});
+    const allResources = await makeMeaning.knowledgeSystem.kb.graph.listResources({});
 
     console.log(`Total resources in graph: ${allResources.total}`);
 
@@ -256,8 +256,8 @@ describe('Scripting Example: Query Graph Database', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query graph statistics using GraphDatabase interface
-    const stats = await makeMeaning.graphDb.getStats();
-    const annotations = await makeMeaning.graphDb.getResourceAnnotations(rId);
+    const stats = await makeMeaning.knowledgeSystem.kb.graph.getStats();
+    const annotations = await makeMeaning.knowledgeSystem.kb.graph.getResourceAnnotations(rId);
 
     console.log('Graph statistics:');
     console.log(`  Total Resources: ${stats.resourceCount}`);
@@ -289,7 +289,7 @@ describe('Scripting Example: Query Graph Database', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Search for resources using GraphDatabase interface
-    const searchResults = await makeMeaning.graphDb.searchResources('Custom', 10);
+    const searchResults = await makeMeaning.knowledgeSystem.kb.graph.searchResources('Custom', 10);
 
     console.log('Search results:');
     searchResults.forEach(resource => {

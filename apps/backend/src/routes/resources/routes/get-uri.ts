@@ -37,7 +37,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // If requesting raw representation (text/plain, text/markdown, images, etc.)
     // Binary content stays direct — excluded from EventBus by design
     if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
-      const { kb } = c.get('makeMeaning');
+      const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
       let resource: any;
       try {

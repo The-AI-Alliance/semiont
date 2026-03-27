@@ -29,7 +29,7 @@ export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
 operationsRouter.get('/api/annotations/:id/context', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const { kb } = c.get('makeMeaning');
+  const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;
@@ -86,7 +86,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const { kb, gathererInferenceClient: inferenceClient } = c.get('makeMeaning');
+  const { knowledgeSystem: { gatherer } } = c.get('makeMeaning');
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;
@@ -94,13 +94,10 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
-  // Delegate to service for annotation summary generation
   try {
-    const response = await AnnotationContext.generateAnnotationSummary(
+    const response = await gatherer.generateAnnotationSummary(
       annotationId(id),
       makeResourceId(resourceId),
-      kb,
-      inferenceClient
     );
 
     return c.json(response);

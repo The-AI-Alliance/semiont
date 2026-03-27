@@ -11,27 +11,25 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { MakeMeaningService } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
+import { makeMeaningMock } from './helpers/make-meaning-mock';
 
 // Mock make-meaning service to avoid graph initialization at import time
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
-    startMakeMeaning: vi.fn().mockResolvedValue({
-      jobQueue: {},
-      workers: [],
-      graphConsumer: {}
-    })
+    startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock())
   };
 });
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
-  eventBus: any;
-  makeMeaning: any;
+  eventBus: EventBus;
+  makeMeaning: MakeMeaningService;
 };
 
 // Meta-routes that serve the API documentation itself (self-referential, not in spec)
@@ -147,7 +145,7 @@ describe('Route Authentication Coverage', () => {
       // Get all registered routes from the Hono app
       const routes = app.routes;
 
-      const failures: Array<{ method: string; path: string; status: number; body?: any }> = [];
+      const failures: Array<{ method: string; path: string; status: number; body?: unknown }> = [];
       const tested: Array<{ method: string; path: string }> = [];
       const skipped: Array<{ method: string; path: string; reason: string }> = [];
 

@@ -47,7 +47,7 @@ describe('Entity Types Bootstrap', () => {
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    kb = createKnowledgeBase(eventStore, project, graphDb, mockLogger);
+    kb = await createKnowledgeBase(eventStore, project, graphDb, mockLogger);
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
   });
@@ -183,7 +183,7 @@ describe('Entity Types Bootstrap', () => {
       const altEventBus = new EventBus();
       const altEventStore = createEventStore(altProject, altEventBus, mockLogger);
       const altGraphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const altKb = createKnowledgeBase(altEventStore, altProject, altGraphDb, mockLogger);
+      const altKb = await createKnowledgeBase(altEventStore, altProject, altGraphDb, mockLogger);
       const altStower = new Stower(altKb, altEventBus, mockLogger);
       await altStower.initialize();
 
