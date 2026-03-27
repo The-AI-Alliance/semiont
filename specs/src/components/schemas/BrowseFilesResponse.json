@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "required": ["path", "entries"],
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "The directory path that was listed, relative to project root"
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "./DirectoryEntry.json" }
+    }
+  },
+  "additionalProperties": false
+}

@@ -37,6 +37,7 @@ export function stubKnowledgeSystem(kbOverrides: Partial<KnowledgeBase> = {}): K
     stower:            {} as KnowledgeSystem['stower'],
     gatherer:          {} as KnowledgeSystem['gatherer'],
     matcher:           {} as KnowledgeSystem['matcher'],
+    browser:           { stop: vi.fn().mockResolvedValue(undefined) } as unknown as KnowledgeSystem['browser'],
     cloneTokenManager: {} as KnowledgeSystem['cloneTokenManager'],
     stop:              vi.fn().mockResolvedValue(undefined),
   };

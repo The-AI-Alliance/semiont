@@ -158,6 +158,9 @@
     },
     "/api/participants/me/attention-stream": {
       "$ref": "paths/api_participants_me_attention-stream.json"
+    },
+    "/api/browse/files": {
+      "$ref": "paths/api_browse_files.json"
     }
   },
   "components": {
@@ -200,6 +203,18 @@
       },
       "AuthResponse": {
         "$ref": "components/schemas/AuthResponse.json"
+      },
+      "BrowseFilesResponse": {
+        "$ref": "components/schemas/BrowseFilesResponse.json"
+      },
+      "DirectoryEntry": {
+        "$ref": "components/schemas/DirectoryEntry.json"
+      },
+      "FileEntry": {
+        "$ref": "components/schemas/FileEntry.json"
+      },
+      "DirEntry": {
+        "$ref": "components/schemas/DirEntry.json"
       },
       "BodyOperationAdd": {
         "$ref": "components/schemas/BodyOperationAdd.json"

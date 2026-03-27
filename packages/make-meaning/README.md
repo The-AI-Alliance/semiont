@@ -49,7 +49,7 @@ await makeMeaning.stop();
 ```
 
 This single call initializes:
-- **KnowledgeSystem** — groups the Knowledge Base and its four actors
+- **KnowledgeSystem** — groups the Knowledge Base and its actors
   - **KnowledgeBase** — groups EventStore, ViewStorage, ContentStore, GraphDatabase, and GraphDBConsumer
   - **Stower** — subscribes to write commands on EventBus
   - **Gatherer** — subscribes to browse reads, gather context, and entity type listing on EventBus
@@ -104,7 +104,7 @@ const result = await firstValueFrom(
 
 ### Actor Model
 
-All meaningful actions flow through the EventBus. The three KB actors are reactive — they subscribe via RxJS pipelines in `initialize()` and communicate results by emitting on the bus.
+All meaningful actions flow through the EventBus. The KB actors are reactive — they subscribe via RxJS pipelines in `initialize()` and communicate results by emitting on the bus.
 
 ```mermaid
 graph TB
@@ -147,7 +147,7 @@ graph TB
 
 ### Knowledge System and Knowledge Base
 
-The **Knowledge System** binds the Knowledge Base to its four actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
+The **Knowledge System** binds the Knowledge Base to its actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
 
 The **Knowledge Base** is an inert store — it has no intelligence, no goals, no decisions. It groups five subsystems:
 
@@ -187,7 +187,7 @@ The EventBus is created by the backend (or script) and passed into `startMakeMea
 
 ### Knowledge System
 
-- `KnowledgeSystem` — Interface grouping the Knowledge Base and its four actors
+- `KnowledgeSystem` — Interface grouping the Knowledge Base and its actors
 - `stopKnowledgeSystem(ks)` — Ordered teardown of the Knowledge System
 
 ### Knowledge Base

@@ -8,6 +8,7 @@
  * - stower:            write actor — weaves new knowledge in
  * - gatherer:          read actor — traces threads to build context
  * - matcher:           search actor — finds related threads
+ * - browser:           filesystem actor — lists project directories
  * - cloneTokenManager: token actor — manages resource clone tokens
  *
  * EventBus, JobQueue, and workers are peers to KnowledgeSystem, not members.
@@ -17,6 +18,7 @@ import type { KnowledgeBase }     from './knowledge-base.js';
 import type { Stower }            from './stower.js';
 import type { Gatherer }          from './gatherer.js';
 import type { Matcher }           from './matcher.js';
+import type { Browser }           from './browser.js';
 import type { CloneTokenManager } from './clone-token-manager.js';
 
 export interface KnowledgeSystem {
@@ -24,6 +26,7 @@ export interface KnowledgeSystem {
   stower:            Stower;
   gatherer:          Gatherer;
   matcher:           Matcher;
+  browser:           Browser;
   cloneTokenManager: CloneTokenManager;
   stop:              () => Promise<void>;
 }
@@ -31,6 +34,7 @@ export interface KnowledgeSystem {
 export async function stopKnowledgeSystem(ks: KnowledgeSystem): Promise<void> {
   await ks.gatherer.stop();
   await ks.matcher.stop();
+  await ks.browser.stop();
   await ks.cloneTokenManager.stop();
   await ks.stower.stop();
   await ks.kb.graphConsumer.stop();

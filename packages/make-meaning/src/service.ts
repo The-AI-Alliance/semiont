@@ -29,6 +29,7 @@ import { createKnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
 import { Stower } from './stower';
+import { Browser } from './browser';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
@@ -131,10 +132,13 @@ async function createKnowledgeSystemFromConfig(
   );
   await matcher.initialize();
 
+  const browser = new Browser(kb.views, eventBus, project, logger.child({ component: 'browser' }));
+  await browser.initialize();
+
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));
   await cloneTokenManager.initialize();
 
-  const ks: KnowledgeSystem = { kb, stower, gatherer, matcher, cloneTokenManager, stop: () => stopKnowledgeSystem(ks) };
+  const ks: KnowledgeSystem = { kb, stower, gatherer, matcher, browser, cloneTokenManager, stop: () => stopKnowledgeSystem(ks) };
   return ks;
 }
 
