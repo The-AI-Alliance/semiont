@@ -47,6 +47,7 @@ export interface ResourceCreatedEvent extends BaseEvent {
     isDraft?: boolean;           // Draft status for generated resources
     generatedFrom?: string;      // Annotation/Reference ID that triggered generation
     generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Resource)
+    generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];  // Software agent that produced this resource
   };
 }
 

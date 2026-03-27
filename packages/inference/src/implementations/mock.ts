@@ -3,6 +3,8 @@
 import { InferenceClient, InferenceResponse } from '../interface.js';
 
 export class MockInferenceClient implements InferenceClient {
+  readonly type = 'mock' as const;
+  readonly modelId = 'mock-model' as const;
   private responses: string[] = [];
   private responseIndex: number = 0;
   private stopReasons: string[] = [];

@@ -159,6 +159,7 @@ export class GenerationWorker extends JobWorker {
       isDraft: true,
       generatedFrom: job.params.referenceId,
       storageUri: job.params.storageUri,
+      generator: { name: `${this.inferenceClient.type}/${this.inferenceClient.modelId}` },
     };
 
     const result$ = race(
