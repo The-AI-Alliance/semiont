@@ -231,7 +231,7 @@ export class DashboardDataSource {
       contentStore: { path: '' },
       graph: { status: 'unknown' },
       materializedViews: { path: '' },
-      actors: { gatherer: unknown, matcher: unknown, stower: unknown }
+      actors: { gatherer: unknown, matcher: unknown, stower: unknown, browser: unknown }
     };
   }
 
@@ -288,18 +288,11 @@ export class DashboardDataSource {
     // Graph: re-use status from services[] if graph service was checked
     // (set by caller via getDashboardData — actors below are from backend API)
 
-    // Enrich actors with model/provider from envConfig (static config, always available)
-    for (const name of ['gatherer', 'matcher', 'stower'] as const) {
-      const actorCfg = (this.envConfig?.actors as any)?.[name];
-      const inferCfg = actorCfg?.inference;
-      if (inferCfg?.model) result.actors[name].model = inferCfg.model;
-      if (inferCfg?.type) result.actors[name].provider = inferCfg.type;
-      else if (!inferCfg?.type && this.envConfig?.inference) {
-        // Infer provider from top-level inference config
-        const inf = this.envConfig.inference as any;
-        if (inf?.ollama) result.actors[name].provider = 'ollama';
-        else if (inf?.anthropic) result.actors[name].provider = 'anthropic';
-      }
+    // Enrich Gatherer and Matcher with their configured inference provider/model
+    for (const name of ['gatherer', 'matcher'] as const) {
+      const infer = this.envConfig?.actors?.[name]?.inference;
+      if (infer?.type)  result.actors[name].provider = infer.type;
+      if (infer?.model) result.actors[name].model    = infer.model;
     }
 
     // Actor runtime status from backend health API
@@ -310,7 +303,7 @@ export class DashboardDataSource {
       const health = await this.fetchBackendHealth(backendPort);
       if (health?.actors) {
         // Merge runtime state into existing (preserving model/provider already set)
-        for (const name of ['gatherer', 'matcher', 'stower'] as const) {
+        for (const name of ['gatherer', 'matcher', 'stower', 'browser'] as const) {
           if (health.actors[name]) {
             result.actors[name] = { ...result.actors[name], ...health.actors[name] };
           }

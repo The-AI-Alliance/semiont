@@ -20,6 +20,7 @@ const DEFAULT_MAKE_MEANING: MakeMeaningStatus = {
     gatherer: { state: 'unknown' },
     matcher:  { state: 'unknown' },
     stower:   { state: 'unknown' },
+    browser:  { state: 'unknown' },
   },
 };
 
@@ -185,6 +186,7 @@ export const WebDashboardApp: React.FC<{
     mm.actors.gatherer.state !== 'error' && mm.actors.gatherer.state !== 'unknown',
     mm.actors.matcher.state  !== 'error' && mm.actors.matcher.state  !== 'unknown',
     mm.actors.stower.state   !== 'error' && mm.actors.stower.state   !== 'unknown',
+    mm.actors.browser.state  !== 'error' && mm.actors.browser.state  !== 'unknown',
   ].filter(Boolean).length;
 
   const wkHealthy = workers.filter(w => w.state !== 'error').length;
@@ -208,7 +210,7 @@ export const WebDashboardApp: React.FC<{
         <TabBar
           active={activeTab} onChange={setActiveTab}
           webHealthy={webHealthy} webTotal={webServices.length}
-          mmHealthy={mmHealthy} mmTotal={7}
+          mmHealthy={mmHealthy} mmTotal={8}
           wkHealthy={wkHealthy} wkTotal={workers.length}
         />
 
