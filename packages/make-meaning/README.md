@@ -118,22 +118,26 @@ graph TB
         STOWER["Stower<br/>(write)"]
         GATHERER["Gatherer<br/>(read)"]
         MATCHER["Matcher<br/>(search/link)"]
+        BROWSER["Browser<br/>(filesystem)"]
         CTM["CloneTokenManager<br/>(clone)"]
         KB["Knowledge Base"]
         STOWER -->|persist| KB
         GATHERER -->|query| KB
         MATCHER -->|query| KB
+        BROWSER -->|query| KB
         CTM -->|query| KB
     end
 
     BUS -->|"yield:create, mark:create,<br/>mark:delete, job:*"| STOWER
     BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER
     BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER
+    BUS -->|"browse:directory-*"| BROWSER
     BUS -->|"yield:clone-*"| CTM
 
     STOWER -->|"yield:created, mark:created"| BUS
     GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
     MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
+    BROWSER -->|"browse:directory-result"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -142,7 +146,7 @@ graph TB
     classDef caller fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
 
     class BUS bus
-    class STOWER,GATHERER,MATCHER,CTM actor
+    class STOWER,GATHERER,MATCHER,BROWSER,CTM actor
     class KB kb
     class Routes,Workers,EBC caller
 ```
@@ -202,6 +206,7 @@ The EventBus is created by the backend (or script) and passed into `startMakeMea
 - `Stower` — Write gateway actor
 - `Gatherer` — Read actor (browse reads, context assembly, entity type listing)
 - `Matcher` — Search/link actor (context-driven search, entity resolution, referenced-by queries)
+- `Browser` — Filesystem read actor (directory listings merged with KB metadata)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
 
 ### Operations
