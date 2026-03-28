@@ -77,7 +77,7 @@ describe('GenerationWorker - Event Emission', () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new GenerationWorker(jobQueue, mockInferenceClient, eventBus, mockLogger);
+    worker = new GenerationWorker(jobQueue, mockInferenceClient, { '@type': 'SoftwareAgent', name: 'Test Generator' }, eventBus, mockLogger);
     mockInferenceClient.setResponses(['# Test Title\n\nTest content']);
 
     // Simulate yield handler: when worker emits yield:create, respond with yield:created

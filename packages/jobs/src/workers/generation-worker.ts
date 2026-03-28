@@ -24,13 +24,17 @@ import {
 } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
+import type { components } from '@semiont/core';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
+
+type Agent = components['schemas']['Agent'];
 
 export class GenerationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private inferenceClient: InferenceClient,
+    private generator: Agent,
     private eventBus: EventBus,
     logger: Logger
   ) {
@@ -159,7 +163,7 @@ export class GenerationWorker extends JobWorker {
       isDraft: true,
       generatedFrom: { resourceId: job.params.sourceResourceId, annotationId: job.params.referenceId },
       storageUri: job.params.storageUri,
-      generator: { name: `${this.inferenceClient.type}/${this.inferenceClient.modelId}` },
+      generator: this.generator,
     };
 
     const result$ = race(
