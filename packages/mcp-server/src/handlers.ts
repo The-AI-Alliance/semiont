@@ -183,8 +183,21 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
 
-  // Fetch context before generation
-  const contextData = await client.gatherAnnotation(rId, aId, { contextWindow: 2000, auth });
+  // Fetch context before generation via SSE
+  const contextData = await new Promise<any>((resolveCtx, rejectCtx) => {
+    const gatherBus = new EventBus();
+    gatherBus.get('gather:annotation-finished').subscribe((e: any) => {
+      if (e.annotationId !== aId) return;
+      gatherBus.destroy();
+      resolveCtx(e.response);
+    });
+    gatherBus.get('gather:failed').subscribe((e: any) => {
+      if (e.annotationId !== aId) return;
+      gatherBus.destroy();
+      rejectCtx(e.error ?? new Error('gather failed'));
+    });
+    client.sse.gatherAnnotation(rId, aId, { contextWindow: 2000 }, { auth, eventBus: gatherBus });
+  });
 
   if (!contextData?.context) {
     throw new Error('Failed to fetch generation context');
