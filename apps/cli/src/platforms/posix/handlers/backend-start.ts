@@ -142,10 +142,34 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   appLogStream.write(startupMessage);
   errorLogStream.write(startupMessage);
   
-  // Run migrations before starting (database must be running at this point)
+  // Wait for database to accept connections before running migrations
   const packageDir = path.dirname(path.dirname(entryPoint));
   const prismaSchemaPath = path.join(packageDir, 'prisma', 'schema.prisma');
   if (fs.existsSync(prismaSchemaPath)) {
+    if (!service.quiet) {
+      printInfo('Waiting for database to be ready...');
+    }
+    const maxWaitMs = 30_000;
+    const pollMs = 500;
+    const deadline = Date.now() + maxWaitMs;
+    let dbReady = false;
+    while (Date.now() < deadline) {
+      try {
+        execFileSync('pg_isready', ['-h', dbHost, '-p', String(dbPort), '-q'], { stdio: 'ignore', timeout: 2000 });
+        dbReady = true;
+        break;
+      } catch {
+        await new Promise(r => setTimeout(r, pollMs));
+      }
+    }
+    if (!dbReady) {
+      return {
+        success: false,
+        error: `Database did not become ready within ${maxWaitMs / 1000}s at ${dbHost}:${dbPort}`,
+        metadata: { serviceType: 'backend' }
+      };
+    }
+
     if (!service.quiet) {
       printInfo('Running database migrations...');
     }

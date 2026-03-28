@@ -29,21 +29,36 @@ export type StartOptions = z.output<typeof StartOptionsSchema>;
 // COMMAND DESCRIPTOR
 // =====================================================================
 
+// Services must start in this order to satisfy dependencies.
+// database before backend (migrations), graph before backend (graph db connection).
+// Services not listed here start after all listed services, in their original order.
+const START_ORDER = ['database', 'graph', 'inference', 'backend', 'frontend', 'proxy'];
+
 const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor({
   name: 'start',
-  
+
+  preExecute: async (services) => {
+    return [...services].sort((a, b) => {
+      const ai = START_ORDER.indexOf(a.name);
+      const bi = START_ORDER.indexOf(b.name);
+      const aRank = ai === -1 ? START_ORDER.length : ai;
+      const bRank = bi === -1 ? START_ORDER.length : bi;
+      return aRank - bRank;
+    });
+  },
+
   buildServiceConfig: (_options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,
   }),
-  
+
   extractHandlerOptions: (options) => ({
     service: options.service,
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
   }),
-  
+
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
     // Type guard for start-specific results
     const startResult = handlerResult as any; // StartHandlerResult
