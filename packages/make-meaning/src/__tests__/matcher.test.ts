@@ -40,6 +40,13 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
+const noopInference = {
+  type: 'noop',
+  modelId: 'noop',
+  generateText: vi.fn().mockResolvedValue(''),
+  generateTextWithMetadata: vi.fn().mockResolvedValue({ text: '', usage: {} }),
+} as unknown as InferenceClient;
+
 interface MockGraphOverrides {
   searchResources?: ReturnType<typeof vi.fn>;
   getResourceReferencedBy?: ReturnType<typeof vi.fn>;
@@ -97,7 +104,7 @@ describe('Matcher', () => {
     eventBus = new EventBus();
     mockSearchFn = vi.fn();
     kb = createMockKb({ searchResources: mockSearchFn });
-    matcher = new Matcher(kb, eventBus, mockLogger);
+    matcher = new Matcher(kb, eventBus, mockLogger, noopInference);
     await matcher.initialize();
   });
 
@@ -189,7 +196,7 @@ describe('Matcher', () => {
         getResourceReferencedBy: mockReferencedBy,
         getResource: mockGetResource,
       });
-      matcher = new Matcher(kb, eventBus, mockLogger);
+      matcher = new Matcher(kb, eventBus, mockLogger, noopInference);
       await matcher.initialize();
     });
 
@@ -381,7 +388,7 @@ describe('Matcher', () => {
         listResources: mockListResources,
         getResource: mockGetResource,
       });
-      matcher = new Matcher(kb, eventBus, mockLogger);
+      matcher = new Matcher(kb, eventBus, mockLogger, noopInference);
       await matcher.initialize();
     });
 

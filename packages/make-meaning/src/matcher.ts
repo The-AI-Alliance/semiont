@@ -1,22 +1,14 @@
 /**
  * Matcher Actor
  *
- * Bridge between the event bus and the knowledge base for entity resolution.
- * Subscribes to bind search events and referenced-by queries, queries KB stores
- * (graph, views), and emits results back to the bus.
- *
- * From ARCHITECTURE.md:
- * "When an Analyst or Linker Agent emits a bind event, the Matcher receives it
- * from the bus, searches the KB stores for matching resources, and resolves
- * references — linking a mention to its referent."
+ * Candidate search for the bind flow. Subscribes to match:search-requested,
+ * queries the KB graph for matching resources, scores them, and emits results.
  *
  * Handles:
- * - match:search-requested — search for binding candidates
+ * - match:search-requested — multi-source retrieval + composite scoring
  *
- * The Matcher handles only the read side (searching for candidates).
- * The write side (annotation.body.updated) stays in the route where
- * userId is available from auth context. That domain event still flows
- * through the bus via EventStore auto-publish.
+ * The write side (annotation.body.updated) stays in the route where userId
+ * is available from auth context.
  */
 
 import { Subscription, from } from 'rxjs';
@@ -37,7 +29,7 @@ export class Matcher {
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     logger: Logger,
-    private inferenceClient?: InferenceClient,
+    private inferenceClient: InferenceClient,
   ) {
     this.logger = logger;
   }
@@ -248,7 +240,7 @@ export class Matcher {
     });
 
     // Inference-based semantic scoring (when available, enabled, and there are candidates)
-    if (this.inferenceClient && scored.length > 0 && useSemanticScoring !== false) {
+    if (scored.length > 0 && useSemanticScoring !== false) {
       try {
         const inferenceScores = await this.inferenceSemanticScore(
           searchTerm,
@@ -298,8 +290,6 @@ export class Matcher {
     context: GatheredContext,
     candidates: Array<ResourceDescriptor & { score: number }>,
   ): Promise<Map<string, number>> {
-    if (!this.inferenceClient) return new Map();
-
     const passage = [context.sourceContext?.selected, context.userHint]
       .filter(Boolean).join(' — ') || searchTerm;
     const entityTypes = context.metadata?.entityTypes ?? [];
