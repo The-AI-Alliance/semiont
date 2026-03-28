@@ -160,9 +160,9 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
       
       if (!service.quiet) {
         if (destroy) {
-          printSuccess(`✅ ${stackName} destroyed`);
+          printSuccess(`${stackName} destroyed`);
         } else {
-          printSuccess(`✅ ${stackName} provisioned`);
+          printSuccess(`${stackName} provisioned`);
         }
       }
       

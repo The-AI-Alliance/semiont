@@ -93,7 +93,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   };
 
   if (!service.quiet) {
-    printSuccess(`✅ Frontend service ${service.name} provisioned successfully`);
+    printSuccess(`Frontend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Frontend details:');
     printInfo(`  Server script: ${serverScript}`);

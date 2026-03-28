@@ -130,7 +130,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   };
 
   if (!service.quiet) {
-    printSuccess(`✅ Backend service ${service.name} provisioned successfully`);
+    printSuccess(`Backend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Backend details:');
     printInfo(`  Entry point: ${entryPoint}`);

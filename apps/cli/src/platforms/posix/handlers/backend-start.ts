@@ -266,7 +266,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     const endpoint = `http://localhost:${port}`;
     
     if (!service.quiet) {
-      printSuccess(`✅ Backend service ${service.name} started successfully`);
+      printSuccess(`Backend service ${service.name} started successfully`);
       printInfo('');
       printInfo('Backend details:');
       printInfo(`  PID: ${proc.pid}`);

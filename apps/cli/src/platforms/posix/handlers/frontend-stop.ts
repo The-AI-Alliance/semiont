@@ -59,7 +59,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
         await killProcessGroupAndRelated(pid, 'frontend', service.verbose);
         
         if (!service.quiet) {
-          printSuccess(`✅ Frontend service ${service.name} stopped successfully`);
+          printSuccess(`Frontend service ${service.name} stopped successfully`);
         }
         
         return {
@@ -160,7 +160,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
     }
     
     if (!service.quiet) {
-      printSuccess(`✅ Frontend service ${service.name} stopped successfully`);
+      printSuccess(`Frontend service ${service.name} stopped successfully`);
       printInfo(`  App log: ${appLogPath}`);
       printInfo(`  Error log: ${errorLogPath}`);
     }
