@@ -46,15 +46,9 @@ export interface ReferenceWizardModalProps {
     configureGenerationTitle: string;
     configureSearchTitle: string;
     searchResultsTitle: string;
-    annotationLabel: string;
-    sourceResourceLabel: string;
-    motivationLabel: string;
     sourceContextLabel: string;
-    entityTypesLabel: string;
-    graphContextLabel: string;
     connectionsLabel: string;
     citedByLabel: string;
-    siblingTypesLabel: string;
     userHintLabel: string;
     userHintPlaceholder: string;
     loadingContext: string;
@@ -64,6 +58,7 @@ export interface ReferenceWizardModalProps {
     searching: string;
     generate: string;
     compose: string;
+    resolutionStrategyLabel: string;
     back: string;
     link: string;
     score: string;
@@ -235,14 +230,9 @@ export function ReferenceWizardModal({
                     onCompose={handleCompose}
                     translations={{
                       title: t.gatherTitle,
-                      annotationLabel: t.annotationLabel,
-                      sourceResourceLabel: t.sourceResourceLabel,
-                      motivationLabel: t.motivationLabel,
                       sourceContextLabel: t.sourceContextLabel,
-                      graphContextLabel: t.graphContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
-                      siblingTypesLabel: t.siblingTypesLabel,
                       userHintLabel: t.userHintLabel,
                       userHintPlaceholder: t.userHintPlaceholder,
                       loadingContext: t.loadingContext,
@@ -250,6 +240,7 @@ export function ReferenceWizardModal({
                       search: t.search,
                       generate: t.generate,
                       compose: t.compose,
+                      resolutionStrategyLabel: t.resolutionStrategyLabel,
                     }}
                   />
                 )}
@@ -312,14 +303,9 @@ export function ReferenceWizardModal({
                       back: t.back,
                       cancel: t.cancel,
                       score: t.score,
-                      annotationLabel: t.annotationLabel,
-                      sourceResourceLabel: t.sourceResourceLabel,
-                      motivationLabel: t.motivationLabel,
                       sourceContextLabel: t.sourceContextLabel,
-                      graphContextLabel: t.graphContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
-                      siblingTypesLabel: t.siblingTypesLabel,
                       userHintLabel: t.userHintLabel,
                       userHintPlaceholder: t.userHintPlaceholder,
                     }}

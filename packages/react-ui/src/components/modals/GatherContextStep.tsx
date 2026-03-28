@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GatheredContext } from '@semiont/core';
 import { ContextSummary } from './ContextSummary';
 import type { ContextSummaryTranslations } from './ContextSummary';
@@ -21,6 +21,7 @@ export interface GatherContextStepProps {
     search: string;
     generate: string;
     compose: string;
+    resolutionStrategyLabel: string;
   } & ContextSummaryTranslations;
 }
 
@@ -38,6 +39,14 @@ export function GatherContextStep({
   const [sourceExpanded, setSourceExpanded] = useState(false);
   const contextReady = !contextLoading && !contextError && !!context;
   const sourceContext = context?.sourceContext;
+  const highlightRef = useRef<HTMLSpanElement>(null);
+
+  // Scroll the highlighted term into view when context loads
+  useEffect(() => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
+  }, [context]);
 
   return (
     <div className="semiont-gather__outer">
@@ -63,57 +72,36 @@ export function GatherContextStep({
           {/* Full-width source context strip */}
           {sourceContext && (
             <div className="semiont-gather__source-strip">
-              <label className="semiont-form__label" style={{ marginBottom: '0.375rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.375rem' }}>
-                <span>{t.sourceContextLabel}</span>
-                {context.sourceResource?.name && (
-                  <span style={{ fontWeight: 400, color: 'var(--semiont-text-primary)' }}>
-                    — {context.sourceResource.name}
-                  </span>
-                )}
-                {sourceContext.selected && (
-                  <span style={{
-                    fontWeight: 600,
-                    color: 'var(--semiont-color-primary-700)',
-                    backgroundColor: 'var(--semiont-color-primary-100)',
-                    padding: '0.125rem 0.375rem',
-                    borderRadius: '0.25rem',
-                    fontFamily: 'monospace',
-                    fontSize: 'var(--semiont-text-sm)',
-                  }}>
-                    "{sourceContext.selected}"
-                  </span>
-                )}
-                {(context.metadata?.entityTypes ?? []).map(et => (
-                  <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem', fontWeight: 400 }}>
-                    {et}
-                  </span>
-                ))}
-                {context.annotation?.motivation && (
-                  <span className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem', fontWeight: 400 }}>
-                    {context.annotation.motivation}
-                  </span>
-                )}
+              <label className="semiont-form__label" style={{ marginBottom: '0.375rem' }}>
+                {t.sourceContextLabel}{context.sourceResource?.name ? ` "${context.sourceResource.name}"` : ''}
               </label>
-              <div style={{
-                padding: '0.75rem',
-                backgroundColor: 'var(--semiont-bg-secondary)',
-                borderRadius: 'var(--semiont-radius-md)',
-                border: '1px solid var(--semiont-border-primary)',
-              }}>
-                <div className={`semiont-gather__source-context${sourceExpanded ? ' semiont-gather__source-context--expanded' : ''}`}>
+              <div className={`semiont-gather__source-box${sourceExpanded ? ' semiont-gather__source-box--expanded' : ''}`}>
+                <div className="semiont-gather__source-context">
                   <div style={{ fontSize: 'var(--semiont-text-sm)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
                     {sourceContext.before && <span>{sourceContext.before}</span>}
-                    <span style={{
-                      backgroundColor: 'var(--semiont-color-primary-100)',
-                      padding: '0 0.25rem',
-                      fontWeight: 600,
-                      color: 'var(--semiont-color-primary-900)',
-                    }}>
+                    <span
+                      ref={highlightRef}
+                      style={{
+                        backgroundColor: 'var(--semiont-color-primary-100)',
+                        padding: '0 0.25rem',
+                        fontWeight: 600,
+                        color: 'var(--semiont-color-primary-900)',
+                      }}
+                    >
                       {sourceContext.selected}
                     </span>
+                    {(context.metadata?.entityTypes ?? []).map(et => (
+                      <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
+                        {et}
+                      </span>
+                    ))}
+                    {context.annotation?.motivation && (
+                      <span className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
+                        {context.annotation.motivation}
+                      </span>
+                    )}
                     {sourceContext.after && <span>{sourceContext.after}</span>}
                   </div>
-                  {!sourceExpanded && <div className="semiont-gather__source-context-fade" />}
                 </div>
                 <button
                   type="button"
@@ -133,7 +121,7 @@ export function GatherContextStep({
               <ContextSummary context={context} translations={t} />
             </div>
 
-            {/* Right: hint + actions */}
+            {/* Right: hint textarea */}
             <div className="semiont-gather__right">
               <div className="semiont-form__field">
                 <label className="semiont-form__label">
@@ -143,38 +131,41 @@ export function GatherContextStep({
                   value={userHint}
                   onChange={(e) => onUserHintChange(e.target.value)}
                   placeholder={t.userHintPlaceholder}
-                  className="semiont-search-modal__search-input"
-                  rows={4}
+                  className="semiont-search-modal__search-input semiont-gather__hint-textarea"
                   style={{ resize: 'vertical', fontFamily: 'inherit' }}
                 />
               </div>
+            </div>
+          </div>
 
-              <div className="semiont-gather__actions">
-                <button
-                  type="button"
-                  onClick={onBind}
-                  disabled={!contextReady}
-                  className="semiont-button--primary semiont-button--flex"
-                >
-                  🔍 {t.search}…
-                </button>
-                <button
-                  type="button"
-                  onClick={onGenerate}
-                  disabled={!contextReady}
-                  className="semiont-button--primary semiont-button--flex"
-                >
-                  ✨ {t.generate}…
-                </button>
-                <button
-                  type="button"
-                  onClick={onCompose}
-                  disabled={!contextReady}
-                  className="semiont-button--secondary semiont-button--flex"
-                >
-                  ✍️ {t.compose}
-                </button>
-              </div>
+          {/* Full-width footer: resolution strategy */}
+          <div className="semiont-gather__footer">
+            <div className="semiont-gather__footer-label">{t.resolutionStrategyLabel}</div>
+            <div className="semiont-gather__actions">
+              <button
+                type="button"
+                onClick={onBind}
+                disabled={!contextReady}
+                className="semiont-button--primary semiont-button--flex"
+              >
+                🔍 {t.search}…
+              </button>
+              <button
+                type="button"
+                onClick={onGenerate}
+                disabled={!contextReady}
+                className="semiont-button--primary semiont-button--flex"
+              >
+                ✨ {t.generate}…
+              </button>
+              <button
+                type="button"
+                onClick={onCompose}
+                disabled={!contextReady}
+                className="semiont-button--secondary semiont-button--flex"
+              >
+                ✍️ {t.compose}
+              </button>
             </div>
           </div>
         </>
