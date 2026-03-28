@@ -78,7 +78,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
           );
 
           subscriptions.push(
-            eventBus.get('gather:annotation-finished').subscribe(async (event) => {
+            eventBus.get('gather:complete').subscribe(async (event) => {
               if (event.annotationId !== annotationIdParam) return;
               if (isStreamClosed) return;
               try {
