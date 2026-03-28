@@ -9,7 +9,7 @@
 
 import type { ResourcesRouterType } from '../shared';
 import type { BodyOperation } from '@semiont/core';
-import { resourceId, annotationId, userId } from '@semiont/core';
+import { resourceId, annotationId, userId, userToDid } from '@semiont/core';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 
@@ -27,7 +27,7 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       eventBus.get('mark:update-body').next({
         annotationId: annotationId(annotationIdParam),
         resourceId: resourceId(resourceIdParam),
-        userId: userId(user.id),
+        userId: userId(userToDid(user)),
         operations: request.operations as BodyOperation[],
       });
 

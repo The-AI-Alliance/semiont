@@ -24,7 +24,7 @@ import type { JobQueue, PendingJob, GenerationParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '@semiont/api-client';
 import { jobId, entityType } from '@semiont/core';
-import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import { userId, userToDid, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getLogger } from '../../../logger';
@@ -118,7 +118,7 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
         metadata: {
           id: jobId(`job-${nanoid()}`),
           type: 'generation',
-          userId: userId(user.id),
+          userId: userId(userToDid(user)),
           userName: user.name || user.email,
           userEmail: user.email,
           userDomain: user.domain,

@@ -11,7 +11,7 @@ import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { userId, type EventBus } from '@semiont/core';
+import { userId, userToDid, type EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { eventBusRequest } from '../utils/event-bus-request';
 
@@ -54,7 +54,7 @@ entityTypesRouter.post('/api/entity-types',
 
     const body = c.get('validatedBody') as AddEntityTypeRequest;
     const eventBus = c.get('eventBus');
-    eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(user.id) });
+    eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(userToDid(user)) });
 
     return c.body(null, 202);
   }
@@ -76,7 +76,7 @@ entityTypesRouter.post('/api/entity-types/bulk',
     const eventBus = c.get('eventBus');
 
     for (const tag of body.tags) {
-      eventBus.get('mark:add-entity-type').next({ tag, userId: userId(user.id) });
+      eventBus.get('mark:add-entity-type').next({ tag, userId: userId(userToDid(user)) });
     }
 
     return c.body(null, 202);
