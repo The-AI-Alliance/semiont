@@ -2,14 +2,17 @@
 # Routes traffic between frontend (Next.js) and backend (Hono API)
 #
 # Routing rules (order matters - first match wins):
-# 1. /api/auth/*      → frontend (NextAuth)
-# 2. /api/cookies/*   → frontend (cookie consent/export)
-# 3. /api/resources/* → frontend (authenticated proxy for images/files)
-# 4. /resources/*     → backend (main API)
-# 5. /annotations/*   → backend (main API)
-# 6. /admin/*         → backend (main API)
-# 7. /api/*           → backend (OpenAPI docs, spec)
-# 8. /*               → frontend (Next.js pages)
+# 1. /api/auth/*           → frontend (NextAuth)
+# 2. /api/cookies/*        → frontend (cookie consent/export)
+# 3. /api/resources/*      → frontend (authenticated proxy for images/files)
+# 4. /resources/*          → backend (main API, SSE-safe: no timeout, no buffering)
+# 5. /annotations/*        → backend (main API)
+# 6. /admin/*              → backend (main API)
+# 7. /api/events/stream    → backend (SSE-safe: no timeout, no buffering)
+# 8. /api/participants/*   → backend (SSE-safe: no timeout, no buffering)
+# 9. /api/*                → backend (OpenAPI docs, spec)
+# 10. /_next/*             → frontend (Next.js static assets)
+# 11. /*                   → frontend (Next.js pages)
 
 static_resources:
   listeners:
@@ -121,7 +124,29 @@ static_resources:
                   cluster: backend
                   timeout: 30s
 
-              # Backend OpenAPI documentation routes
+              # Backend SSE routes under /api/ (must come before generic /api/ catch-all)
+              - match:
+                  prefix: "/api/events/stream"
+                route:
+                  cluster: backend
+                  timeout: 0s
+                  idle_timeout: 3600s
+                typed_per_filter_config:
+                  envoy.filters.http.buffer:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+                    disabled: true
+              - match:
+                  prefix: "/api/participants/"
+                route:
+                  cluster: backend
+                  timeout: 0s
+                  idle_timeout: 3600s
+                typed_per_filter_config:
+                  envoy.filters.http.buffer:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+                    disabled: true
+
+              # Backend OpenAPI documentation and other /api/ routes
               - match:
                   prefix: "/api/"
                 route:
@@ -129,13 +154,11 @@ static_resources:
                   timeout: 30s
 
               # Next.js static assets (must come before catch-all)
-              # Preserve Content-Type headers from Next.js
               - match:
                   prefix: "/_next/"
                 route:
                   cluster: frontend
                   timeout: 30s
-                  auto_host_rewrite: true
 
               # Everything else goes to frontend (Next.js pages)
               - match:
