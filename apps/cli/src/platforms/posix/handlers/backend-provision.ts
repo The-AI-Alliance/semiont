@@ -10,6 +10,10 @@ import { SemiontProject } from '@semiont/core/node';
 import { checkCommandAvailable, checkEnvVarsInConfig, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
+// Injected by esbuild at build time via __SEMIONT_VERSION__ define
+declare const __SEMIONT_VERSION__: string;
+const SEMIONT_VERSION: string = __SEMIONT_VERSION__;
+
 /**
  * Provision handler for backend services on POSIX systems
  *
@@ -21,26 +25,25 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   const projectRoot = service.projectRoot;
 
-  // Install @semiont/backend npm package if not already available
-  if (!resolveBackendNpmPackage(projectRoot)) {
+  // Install (or update) @semiont/backend to the version matching the CLI
+  const packageSpec = `@semiont/backend@${SEMIONT_VERSION}`;
+  if (!service.quiet) {
+    printInfo(`Installing ${packageSpec}...`);
+  }
+  try {
+    execFileSync('npm', ['install', packageSpec, '--prefix', projectRoot], {
+      cwd: projectRoot,
+      stdio: service.verbose ? 'inherit' : 'pipe'
+    });
     if (!service.quiet) {
-      printInfo('Installing @semiont/backend...');
+      printSuccess(`Installed ${packageSpec}`);
     }
-    try {
-      execFileSync('npm', ['install', '@semiont/backend', '--prefix', projectRoot], {
-        cwd: projectRoot,
-        stdio: service.verbose ? 'inherit' : 'pipe'
-      });
-      if (!service.quiet) {
-        printSuccess('Installed @semiont/backend');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to install @semiont/backend: ${error}`,
-        metadata: { serviceType: 'backend' }
-      };
-    }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to install ${packageSpec}: ${error}`,
+      metadata: { serviceType: 'backend' }
+    };
   }
 
   const npmDir = resolveBackendNpmPackage(projectRoot);

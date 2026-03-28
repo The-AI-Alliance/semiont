@@ -185,7 +185,9 @@ await Promise.all(scriptFiles.map(async (name) => {
       ],
       define: {
         // Disable ink devtools in production bundles
-        'process.env.NODE_ENV': '"production"'
+        'process.env.NODE_ENV': '"production"',
+        // Inline Semiont version at build time
+        '__SEMIONT_VERSION__': JSON.stringify(version)
       },
       banner: {
         js: '#!/usr/bin/env node\n'
