@@ -416,11 +416,11 @@ export function ResourceViewerPage({
   }, []);
 
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
-    if (routes.resource) {
-      const path = routes.resource.replace('[resourceId]', encodeURIComponent(resourceId));
+    if (routes.resourceDetail) {
+      const path = routes.resourceDetail(resourceId);
       eventBus.get('browse:router-push').next({ path, reason: 'reference-link' });
     }
-  }, [routes.resource]); // eventBus is stable singleton - never in deps
+  }, [routes.resourceDetail]); // eventBus is stable singleton - never in deps
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
