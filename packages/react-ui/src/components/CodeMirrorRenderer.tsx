@@ -44,7 +44,7 @@ interface Props {
   showLineNumbers?: boolean; // If true, show line numbers
   enableWidgets?: boolean; // If true, show inline widgets (reference previews, entity badges)
   eventBus?: EventBus;
-  getTargetDocumentName?: (documentId: string) => string | undefined;
+  getTargetResourceName?: (resourceId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
   hoverDelayMs: number; // Hover delay in milliseconds for accessibility
 }
@@ -62,7 +62,7 @@ interface WidgetUpdate {
   content: string;
   segments: TextSegment[];
   generatingReferenceId?: string | null | undefined;
-  getTargetDocumentName?: (documentId: string) => string | undefined;
+  getTargetResourceName?: (resourceId: string) => string | undefined;
 }
 
 const updateWidgetsEffect = StateEffect.define<WidgetUpdate>();
@@ -116,10 +116,10 @@ function buildWidgetDecorations(
   _content: string,
   segments: TextSegment[],
   generatingReferenceId: string | null | undefined,
-  getTargetDocumentName?: (documentId: string) => string | undefined
+  getTargetResourceName?: (resourceId: string) => string | undefined
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const widgetMetas = computeWidgetDecorations(segments, generatingReferenceId, getTargetDocumentName);
+  const widgetMetas = computeWidgetDecorations(segments, generatingReferenceId, getTargetResourceName);
 
   // We still need the full annotation objects for ReferenceResolutionWidget
   const annotationsByEnd = new Map<number, TextSegment>();
@@ -158,7 +158,7 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
           effect.value.content,
           effect.value.segments,
           effect.value.generatingReferenceId,
-          effect.value.getTargetDocumentName
+          effect.value.getTargetResourceName
         );
       }
     }
@@ -180,7 +180,7 @@ export function CodeMirrorRenderer({
   showLineNumbers = false,
   enableWidgets = false,
   eventBus,
-  getTargetDocumentName,
+  getTargetResourceName,
   generatingReferenceId,
   hoverDelayMs
 }: Props) {
@@ -197,7 +197,7 @@ export function CodeMirrorRenderer({
   const segmentsByIdRef = useRef(new Map<string, TextSegment>());
   const lineNumbersCompartment = useRef(new Compartment());
   const eventBusRef = useRef(eventBus);
-  const getTargetDocumentNameRef = useRef(getTargetDocumentName);
+  const getTargetResourceNameRef = useRef(getTargetResourceName);
 
   // Update refs when they change
   segmentsRef.current = segments;
@@ -207,7 +207,7 @@ export function CodeMirrorRenderer({
   }
   segmentsByIdRef.current = segmentsById;
   eventBusRef.current = eventBus;
-  getTargetDocumentNameRef.current = getTargetDocumentName;
+  getTargetResourceNameRef.current = getTargetResourceName;
 
   // Initialize CodeMirror view once
   useEffect(() => {
@@ -421,7 +421,7 @@ export function CodeMirrorRenderer({
         content,
         segments: convertedSegments,
         generatingReferenceId,
-        getTargetDocumentName: getTargetDocumentNameRef.current
+        getTargetResourceName: getTargetResourceNameRef.current
       })
     });
   }, [content, convertedSegments, enableWidgets, generatingReferenceId]);

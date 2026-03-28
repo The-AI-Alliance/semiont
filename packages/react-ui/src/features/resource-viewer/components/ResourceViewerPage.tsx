@@ -415,9 +415,9 @@ export function ResourceViewerPage({
     // Error notification is handled by useYieldFlow
   }, []);
 
-  const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
+  const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resource) {
-      const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
+      const path = routes.resource.replace('[resourceId]', encodeURIComponent(resourceId));
       eventBus.get('browse:router-push').next({ path, reason: 'reference-link' });
     }
   }, [routes.resource]); // eventBus is stable singleton - never in deps

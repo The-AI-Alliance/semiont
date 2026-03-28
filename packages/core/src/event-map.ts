@@ -137,7 +137,7 @@ export type EventMap = {
     entityTypes?: string[];
     creationMethod?: CreationMethod;
     isDraft?: boolean;
-    generatedFrom?: string;
+    generatedFrom?: { resourceId: string; annotationId: string };
     generationPrompt?: string;
     generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
     noGit?: boolean;            // Skip git operations even when gitSync is configured
@@ -487,7 +487,7 @@ export type EventMap = {
   'browse:link-clicked': { href: string; label?: string };
   'browse:router-push': { path: string; reason?: string };
   'browse:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
-  'browse:reference-navigate': { documentId: string };
+  'browse:reference-navigate': { resourceId: string };
   'browse:entity-type-clicked': { entityType: string };
 
   // Knowledge base reads (Gatherer handles these)

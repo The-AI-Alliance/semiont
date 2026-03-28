@@ -374,10 +374,10 @@ export function ResourceViewer({
     scrollToAnnotationId
   };
 
-  // Define getTargetDocumentName callback OUTSIDE the conditional
+  // Define getTargetResourceName callback OUTSIDE the conditional
   // IMPORTANT: This must be defined before the return statement to avoid hook ordering violations
-  const getTargetDocumentName = useCallback((documentId: string) => {
-    const referencedResource = references.find((a: Annotation) => getBodySource(a.body) === documentId);
+  const getTargetResourceName = useCallback((resourceId: string) => {
+    const referencedResource = references.find((a: Annotation) => getBodySource(a.body) === resourceId);
     return referencedResource ? getExactText(getTargetSelector(referencedResource.target)) : undefined;
   }, [references]);
 
@@ -397,7 +397,7 @@ export function ResourceViewer({
             if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
           }}
           enableWidgets={true}
-          getTargetDocumentName={getTargetDocumentName}
+          getTargetResourceName={getTargetResourceName}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           showLineNumbers={showLineNumbers}
           hoverDelayMs={hoverDelayMs}

@@ -157,7 +157,7 @@ export class GenerationWorker extends JobWorker {
       language: job.params.language,
       creationMethod: CREATION_METHODS.GENERATED,
       isDraft: true,
-      generatedFrom: job.params.referenceId,
+      generatedFrom: { resourceId: job.params.sourceResourceId, annotationId: job.params.referenceId },
       storageUri: job.params.storageUri,
       generator: { name: `${this.inferenceClient.type}/${this.inferenceClient.modelId}` },
     };
