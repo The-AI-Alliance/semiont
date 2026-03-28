@@ -62,6 +62,8 @@ function makeViews(views: Array<{ storageUri: string; resourceId: string; entity
 
 const defaultStat = { size: 1024, mtime: new Date('2026-01-01T00:00:00Z') };
 
+const mockKb = { graph: {}, views: {} } as any;
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe('Browser actor', () => {
@@ -74,6 +76,7 @@ describe('Browser actor', () => {
 
     browser = new Browser(
       makeViews([]) as any,
+      mockKb,
       eventBus,
       { root: PROJECT_ROOT } as any,
       mockLogger,
@@ -199,6 +202,7 @@ describe('Browser actor', () => {
     const fileUri = `file://${PROJECT_ROOT}/intro.md`;
     browser = new Browser(
       makeViews([{ storageUri: fileUri, resourceId: 'res:abc', entityTypes: ['Article'] }]) as any,
+      mockKb,
       eventBus,
       { root: PROJECT_ROOT } as any,
       mockLogger,

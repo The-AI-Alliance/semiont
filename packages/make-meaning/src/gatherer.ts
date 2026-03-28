@@ -17,7 +17,6 @@
  * - browse:annotation-requested — single annotation with resolved resource
  * - browse:events-requested — resource event history
  * - browse:annotation-history-requested — annotation event history
- * - mark:entity-types-requested — list entity types
  *
  * RxJS pipeline follows the GraphDBConsumer pattern:
  * - groupBy(resourceUri) for per-resource isolation (gather events)
@@ -26,7 +25,6 @@
 
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId, resourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
@@ -37,7 +35,6 @@ import type { KnowledgeBase } from './knowledge-base';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { LLMContext } from './llm-context';
-import { readEntityTypesProjection } from './views/entity-types-reader';
 
 type Annotation = components['schemas']['Annotation'];
 type StoredEvent = { event: any; metadata: any };
@@ -51,7 +48,6 @@ export class Gatherer {
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
     logger: Logger,
-    private project?: SemiontProject,
   ) {
     this.logger = logger;
   }
@@ -106,10 +102,6 @@ export class Gatherer {
       mergeMap((event) => from(this.handleBrowseAnnotationHistory(event))),
     );
 
-    const markEntityTypes$ = this.eventBus.get('mark:entity-types-requested').pipe(
-      mergeMap((event) => from(this.handleEntityTypes(event))),
-    );
-
     this.subscriptions.push(
       annotationGather$.subscribe({ error: errorHandler }),
       resourceGather$.subscribe({ error: errorHandler }),
@@ -119,7 +111,6 @@ export class Gatherer {
       browseAnnotation$.subscribe({ error: errorHandler }),
       browseEvents$.subscribe({ error: errorHandler }),
       browseAnnotationHistory$.subscribe({ error: errorHandler }),
-      markEntityTypes$.subscribe({ error: errorHandler }),
     );
   }
 
@@ -432,30 +423,6 @@ export class Gatherer {
     } catch (error) {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
       this.eventBus.get('browse:annotation-history-failed').next({
-        correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
-      });
-    }
-  }
-
-  // ========================================================================
-  // Mark handlers (entity type reads)
-  // ========================================================================
-
-  private async handleEntityTypes(event: EventMap['mark:entity-types-requested']): Promise<void> {
-    try {
-      if (!this.project) {
-        throw new Error('SemiontProject required for entity type reads');
-      }
-      const entityTypes = await readEntityTypesProjection(this.project);
-
-      this.eventBus.get('mark:entity-types-result').next({
-        correlationId: event.correlationId,
-        response: { entityTypes },
-      });
-    } catch (error) {
-      this.logger.error('Entity types read failed', { error });
-      this.eventBus.get('mark:entity-types-failed').next({
         correlationId: event.correlationId,
         error: error instanceof Error ? error : new Error(String(error)),
       });

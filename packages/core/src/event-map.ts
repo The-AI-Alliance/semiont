@@ -308,19 +308,6 @@ export type EventMap = {
   'mark:entity-type-added': { tag: string };
   'mark:entity-type-add-failed': { error: Error };
 
-  // Entity type listing (Gatherer handles this read)
-  'mark:entity-types-requested': {
-    correlationId: string;
-  };
-  'mark:entity-types-result': {
-    correlationId: string;
-    response: components['schemas']['GetEntityTypesResponse'];
-  };
-  'mark:entity-types-failed': {
-    correlationId: string;
-    error: Error;
-  };
-
   // Resource management
   // Command/Event pairs: UI emits command → Backend confirms with domain event
 
@@ -581,6 +568,19 @@ export type EventMap = {
     response: components['schemas']['GetReferencedByResponse'];
   };
   'browse:referenced-by-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  // Knowledge base entity type listing (Browser handles this read)
+  'browse:entity-types-requested': {
+    correlationId: string;
+  };
+  'browse:entity-types-result': {
+    correlationId: string;
+    response: components['schemas']['GetEntityTypesResponse'];
+  };
+  'browse:entity-types-failed': {
     correlationId: string;
     error: Error;
   };

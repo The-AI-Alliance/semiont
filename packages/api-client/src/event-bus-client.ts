@@ -200,10 +200,10 @@ export class EventBusClient {
   async listEntityTypes(): Promise<components['schemas']['GetEntityTypesResponse']> {
     return eventBusRequest(
       this.eventBus,
-      'mark:entity-types-requested',
+      'browse:entity-types-requested',
       { correlationId: crypto.randomUUID() },
-      'mark:entity-types-result',
-      'mark:entity-types-failed',
+      'browse:entity-types-result',
+      'browse:entity-types-failed',
       this.timeoutMs,
     );
   }

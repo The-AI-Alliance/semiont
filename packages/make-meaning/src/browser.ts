@@ -7,6 +7,7 @@
  * Handles:
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
  * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
+ * - browse:entity-types-requested — list entity types from the project projection
  */
 
 import { promises as fs, type Dirent } from 'fs';
@@ -19,6 +20,7 @@ import { EventBus, resourceId } from '@semiont/core';
 import { getExactText, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
+import { readEntityTypesProjection } from './views/entity-types-reader';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -52,9 +54,14 @@ export class Browser {
       mergeMap((event) => from(this.handleReferencedBy(event))),
     );
 
+    const entityTypes$ = this.eventBus.get('browse:entity-types-requested').pipe(
+      mergeMap((event) => from(this.handleEntityTypes(event))),
+    );
+
     this.subscriptions.push(
       browseDirectory$.subscribe({ error: errorHandler }),
       referencedBy$.subscribe({ error: errorHandler }),
+      entityTypes$.subscribe({ error: errorHandler }),
     );
   }
 
@@ -215,6 +222,22 @@ export class Browser {
     } catch (error) {
       this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:referenced-by-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleEntityTypes(event: EventMap['browse:entity-types-requested']): Promise<void> {
+    try {
+      const entityTypes = await readEntityTypesProjection(this.project);
+      this.eventBus.get('browse:entity-types-result').next({
+        correlationId: event.correlationId,
+        response: { entityTypes },
+      });
+    } catch (error) {
+      this.logger.error('Entity types read failed', { error });
+      this.eventBus.get('browse:entity-types-failed').next({
         correlationId: event.correlationId,
         error: error instanceof Error ? error : new Error(String(error)),
       });

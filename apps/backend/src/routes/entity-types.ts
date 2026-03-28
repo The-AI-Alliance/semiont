@@ -1,7 +1,7 @@
 /**
  * Entity Types Routes
  *
- * GET emits mark:entity-types-requested on the EventBus, awaits the Gatherer's response.
+ * GET emits browse:entity-types-requested on the EventBus, awaits the Gatherer's response.
  * POST/bulk POST emit events and return 202 Accepted.
  * The frontend refreshes entity types via query invalidation.
  */
@@ -32,10 +32,10 @@ entityTypesRouter.get('/api/entity-types', async (c) => {
 
   const response = await eventBusRequest(
     eventBus,
-    'mark:entity-types-requested',
+    'browse:entity-types-requested',
     { correlationId },
-    'mark:entity-types-result',
-    'mark:entity-types-failed',
+    'browse:entity-types-result',
+    'browse:entity-types-failed',
   );
   return c.json(response, 200);
 });

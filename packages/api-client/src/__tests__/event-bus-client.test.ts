@@ -347,9 +347,9 @@ describe('EventBusClient', () => {
         entityTypes: ['Person', 'Organization'],
       };
 
-      eventBus.get('mark:entity-types-requested').subscribe((e) => {
+      eventBus.get('browse:entity-types-requested').subscribe((e) => {
         respondAsync(() => {
-          eventBus.get('mark:entity-types-result').next({
+          eventBus.get('browse:entity-types-result').next({
             correlationId: e.correlationId,
             response: mockResponse,
           });

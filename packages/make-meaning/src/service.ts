@@ -121,7 +121,6 @@ async function createKnowledgeSystemFromConfig(
     kb, eventBus,
     createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
     logger.child({ component: 'gatherer' }),
-    project,
   );
   await gatherer.initialize();
 
