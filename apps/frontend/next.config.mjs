@@ -2,6 +2,11 @@
 
 import nextIntl from 'next-intl/plugin';
 import bundleAnalyzer from '@next/bundle-analyzer';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// Monorepo root — two levels up from apps/frontend/
+const monorepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const withNextIntl = nextIntl('./src/i18n.ts');
 
@@ -78,6 +83,9 @@ const securityHeaders = [
 const baseConfig = {
   // Enable standalone output for container deployment
   output: 'standalone',
+  // Anchor standalone tree to monorepo root so the output path is always
+  // .next/standalone/apps/frontend/ regardless of absolute checkout path.
+  outputFileTracingRoot: monorepoRoot,
 
   // Security headers
   async headers() {
