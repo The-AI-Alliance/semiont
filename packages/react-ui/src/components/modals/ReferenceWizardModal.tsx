@@ -120,9 +120,10 @@ export function ReferenceWizardModal({
     if (!isOpen) return;
 
     const subscription = eventBus.get('match:search-results').subscribe((event) => {
-      if (annotationId && event.referenceId === annotationId) {
+      const e = event as { referenceId: string; results: ScoredResult[] };
+      if (annotationId && e.referenceId === annotationId) {
         setIsSearching(false);
-        setWizardStep({ step: 'search-results', results: event.results as ScoredResult[] });
+        setWizardStep({ step: 'search-results', results: e.results });
       }
     });
 
@@ -208,7 +209,7 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}`}>
+              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather' : ''}`}>
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -229,7 +230,6 @@ export function ReferenceWizardModal({
                     contextError={contextError}
                     userHint={userHint}
                     onUserHintChange={setUserHint}
-                    onCancel={onClose}
                     onBind={handleBind}
                     onGenerate={handleGenerate}
                     onCompose={handleCompose}
@@ -239,7 +239,6 @@ export function ReferenceWizardModal({
                       sourceResourceLabel: t.sourceResourceLabel,
                       motivationLabel: t.motivationLabel,
                       sourceContextLabel: t.sourceContextLabel,
-                      entityTypesLabel: t.entityTypesLabel,
                       graphContextLabel: t.graphContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
@@ -248,7 +247,6 @@ export function ReferenceWizardModal({
                       userHintPlaceholder: t.userHintPlaceholder,
                       loadingContext: t.loadingContext,
                       failedContext: t.failedContext,
-                      cancel: t.cancel,
                       search: t.search,
                       generate: t.generate,
                       compose: t.compose,
@@ -318,7 +316,6 @@ export function ReferenceWizardModal({
                       sourceResourceLabel: t.sourceResourceLabel,
                       motivationLabel: t.motivationLabel,
                       sourceContextLabel: t.sourceContextLabel,
-                      entityTypesLabel: t.entityTypesLabel,
                       graphContextLabel: t.graphContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,

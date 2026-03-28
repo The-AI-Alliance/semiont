@@ -467,6 +467,189 @@
   max-width: 1100px;
 }
 
+/* Gather-context step: wider modal */
+.semiont-search-modal__panel--gather {
+  max-width: min(90vw, 820px);
+  max-height: min(90vh, 680px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Outer flex column: source strip + two-column body */
+.semiont-gather__outer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+/* Loading state */
+.semiont-gather__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex: 1;
+  padding: 2rem 0;
+}
+
+.semiont-gather__loading-text {
+  font-size: 1.125rem;
+  color: var(--semiont-text-secondary);
+  font-weight: 500;
+}
+
+[data-theme="dark"] .semiont-gather__loading-text {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-gather__loading-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background-color: var(--semiont-color-primary-500);
+  animation: semiont-gather-pulse 1.2s ease-in-out infinite;
+}
+
+[data-theme="dark"] .semiont-gather__loading-dot {
+  background-color: var(--semiont-color-primary-400);
+}
+
+.semiont-gather__loading-dot:nth-child(1) { animation-delay: 0s; }
+.semiont-gather__loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.semiont-gather__loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes semiont-gather-pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
+
+/* Full-width source context strip */
+.semiont-gather__source-strip {
+  flex-shrink: 0;
+  padding-top: 0.25rem;
+}
+
+/* Two-column body below the strip */
+.semiont-gather__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.semiont-gather__left {
+  flex: 0 0 55%;
+  overflow-y: auto;
+  padding-right: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-right: 1px solid var(--semiont-border-primary);
+}
+
+[data-theme="dark"] .semiont-gather__left {
+  border-right-color: var(--semiont-border-primary);
+}
+
+.semiont-gather__right {
+  flex: 0 0 45%;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+}
+
+.semiont-gather__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+/* Source context collapsible */
+.semiont-gather__source-context {
+  max-height: 6rem;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+  position: relative;
+}
+
+.semiont-gather__source-context--expanded {
+  max-height: 16rem;
+}
+
+.semiont-gather__source-context-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1.5rem;
+  background: linear-gradient(transparent, var(--semiont-bg-secondary));
+  pointer-events: none;
+}
+
+.semiont-gather__source-context--expanded .semiont-gather__source-context-fade {
+  visibility: hidden;
+}
+
+.semiont-gather__expand-btn {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-color-primary-600);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.125rem 0;
+  margin-top: 0.25rem;
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .semiont-gather__expand-btn {
+  color: var(--semiont-color-primary-400);
+}
+
+/* Narrow screens: stack vertically */
+@media (max-width: 640px) {
+  .semiont-search-modal__panel--gather {
+    max-width: 100%;
+    max-height: 100dvh;
+  }
+
+  .semiont-gather__outer {
+    overflow-y: auto;
+  }
+
+  .semiont-gather__body {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .semiont-gather__left {
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid var(--semiont-border-primary);
+    padding-right: 0;
+    padding-bottom: 0.75rem;
+  }
+
+  .semiont-gather__right {
+    flex: none;
+    padding-left: 0;
+    padding-top: 0.75rem;
+  }
+
+  .semiont-gather__actions {
+    flex-flow: row wrap;
+    margin-top: 0;
+  }
+}
+
 /* Two-pane layout for search results + context */
 .semiont-search-results__two-pane {
   display: flex;
