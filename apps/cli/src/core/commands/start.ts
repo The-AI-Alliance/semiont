@@ -32,7 +32,7 @@ export type StartOptions = z.output<typeof StartOptionsSchema>;
 // Services must start in this order to satisfy dependencies.
 // database before backend (migrations), graph before backend (graph db connection).
 // Services not listed here start after all listed services, in their original order.
-const START_ORDER = ['database', 'graph', 'inference', 'backend', 'frontend', 'proxy'];
+export const START_ORDER = ['database', 'graph', 'inference', 'backend', 'frontend', 'proxy'];
 
 const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor({
   name: 'start',

@@ -4,7 +4,7 @@ import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
-import { isPortInUse } from '../../../core/io/network-utils.js';
+import { isPortInUse, isHostReachable } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { resolveBackendNpmPackage } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
@@ -154,13 +154,11 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     const deadline = Date.now() + maxWaitMs;
     let dbReady = false;
     while (Date.now() < deadline) {
-      try {
-        execFileSync('pg_isready', ['-h', dbHost, '-p', String(dbPort), '-q'], { stdio: 'ignore', timeout: 2000 });
+      if (await isHostReachable(dbHost, dbPort, 1000)) {
         dbReady = true;
         break;
-      } catch {
-        await new Promise(r => setTimeout(r, pollMs));
       }
+      await new Promise(r => setTimeout(r, pollMs));
     }
     if (!dbReady) {
       return {
