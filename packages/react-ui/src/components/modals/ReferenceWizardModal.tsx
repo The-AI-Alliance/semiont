@@ -119,7 +119,7 @@ export function ReferenceWizardModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    const subscription = eventBus.get('bind:search-results').subscribe((event) => {
+    const subscription = eventBus.get('match:search-results').subscribe((event) => {
       if (annotationId && event.referenceId === annotationId) {
         setIsSearching(false);
         setWizardStep({ step: 'search-results', results: event.results as ScoredResult[] });
@@ -152,7 +152,7 @@ export function ReferenceWizardModal({
     if (!annotationId || !context) return;
     setIsSearching(true);
     const contextWithHint = userHint ? { ...context, userHint } : context;
-    eventBus.get('bind:search-requested').next({
+    eventBus.get('match:search-requested').next({
       referenceId: annotationId,
       context: contextWithHint,
       limit: config.limit,

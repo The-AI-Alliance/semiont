@@ -10,6 +10,7 @@
  * the downstream API calls after the wizard emits bind:update-body.
  *
  * @subscribes bind:update-body - Update annotation body via API
+ * @subscribes match:search-requested - Bridge to backend Matcher via SSE; results emit as match:search-results
  * @emits bind:body-updated - Annotation body successfully updated
  * @emits bind:body-update-failed - Annotation body update failed
  */

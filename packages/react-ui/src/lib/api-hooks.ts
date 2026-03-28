@@ -316,16 +316,6 @@ export function useAnnotations() {
         });
       },
     },
-
-    llmContext: {
-      useQuery: (resourceId: ResourceId, annotationId: AnnotationId, options?: { contextWindow?: number }) =>
-        useQuery({
-          queryKey: QUERY_KEYS.annotations.llmContext(resourceId, annotationId),
-          queryFn: () => client!.gatherAnnotation(resourceId, annotationId, { ...options, auth: toAccessToken(token) }),
-          enabled: !!client && !!resourceId && !!annotationId,
-          staleTime: 5 * 60 * 1000, // 5 minutes - context doesn't change often
-        }),
-    },
   };
 }
 
