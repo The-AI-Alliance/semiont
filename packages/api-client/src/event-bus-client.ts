@@ -185,10 +185,10 @@ export class EventBusClient {
   ): Promise<components['schemas']['GetReferencedByResponse']> {
     return eventBusRequest(
       this.eventBus,
-      'bind:referenced-by-requested',
+      'browse:referenced-by-requested',
       { correlationId: crypto.randomUUID(), resourceId, motivation },
-      'bind:referenced-by-result',
-      'bind:referenced-by-failed',
+      'browse:referenced-by-result',
+      'browse:referenced-by-failed',
       this.timeoutMs,
     );
   }
@@ -366,11 +366,11 @@ export class EventBusClient {
     const referenceId = correlationId; // reuse as referenceId
 
     const result$ = merge(
-      this.eventBus.get('bind:search-results').pipe(
+      this.eventBus.get('match:search-results').pipe(
         filter((e) => e.correlationId === correlationId),
         map((e) => ({ ok: true as const, results: e.results })),
       ),
-      this.eventBus.get('bind:search-failed').pipe(
+      this.eventBus.get('match:search-failed').pipe(
         filter((e) => e.correlationId === correlationId),
         map((e) => ({ ok: false as const, error: e.error })),
       ),
@@ -378,7 +378,7 @@ export class EventBusClient {
 
     const resultPromise = firstValueFrom(result$);
 
-    this.eventBus.get('bind:search-requested').next({
+    this.eventBus.get('match:search-requested').next({
       correlationId,
       referenceId,
       context: {

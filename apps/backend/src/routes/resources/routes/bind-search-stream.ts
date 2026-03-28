@@ -1,11 +1,11 @@
 /**
  * Bind Search Stream Route
  *
- * SSE bridge: emits bind:search-requested on the backend EventBus,
- * streams bind:search-results / bind:search-failed back to the client.
+ * SSE bridge: emits match:search-requested on the backend EventBus,
+ * streams match:search-results / match:search-failed back to the client.
  *
  * The frontend SSE client auto-emits these events on the browser EventBus,
- * where the ReferenceWizardModal subscribes to bind:search-results.
+ * where the ReferenceWizardModal subscribes to match:search-results.
  */
 
 import { streamSSE } from 'hono/streaming';
@@ -80,7 +80,7 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
       try {
         // Subscribe to search results (filter by correlationId)
         subscriptions.push(
-          eventBus.get('bind:search-results').subscribe(async (event) => {
+          eventBus.get('match:search-results').subscribe(async (event) => {
             if (event.correlationId !== correlationId) return;
             if (isStreamClosed) return;
             logger.info('Bind search completed', {
@@ -93,7 +93,7 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
                   referenceId: event.referenceId,
                   results: event.results,
                 }),
-                event: 'bind:search-results',
+                event: 'match:search-results',
                 id: String(Date.now()),
               });
             } catch (error) {
@@ -105,7 +105,7 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
 
         // Subscribe to search failure
         subscriptions.push(
-          eventBus.get('bind:search-failed').subscribe(async (event) => {
+          eventBus.get('match:search-failed').subscribe(async (event) => {
             if (event.correlationId !== correlationId) return;
             if (isStreamClosed) return;
             logger.error('Bind search failed', { referenceId, error: event.error });
@@ -115,7 +115,7 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
                   referenceId: event.referenceId,
                   error: event.error.message,
                 }),
-                event: 'bind:search-failed',
+                event: 'match:search-failed',
                 id: String(Date.now()),
               });
             } catch (error) {
@@ -126,7 +126,7 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
         );
 
         // Emit the search request on the backend EventBus
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           correlationId,
           referenceId,
           context,
@@ -146,7 +146,7 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
               referenceId,
               error: error instanceof Error ? error.message : 'Search failed',
             }),
-            event: 'bind:search-failed',
+            event: 'match:search-failed',
             id: String(Date.now()),
           });
         } catch (sseError) {

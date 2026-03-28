@@ -1,7 +1,7 @@
 /**
  * Referenced By Route
  *
- * Thin HTTP wrapper: emits bind:referenced-by-requested on the EventBus,
+ * Thin HTTP wrapper: emits browse:referenced-by-requested on the EventBus,
  * awaits the Matcher's response.
  */
 
@@ -20,10 +20,10 @@ export function registerGetReferencedBy(router: ResourcesRouterType) {
     try {
       const response = await eventBusRequest(
         eventBus,
-        'bind:referenced-by-requested',
+        'browse:referenced-by-requested',
         { correlationId, resourceId: resourceId(id), motivation },
-        'bind:referenced-by-result',
-        'bind:referenced-by-failed',
+        'browse:referenced-by-result',
+        'browse:referenced-by-failed',
       );
       return c.json(response);
     } catch (error) {

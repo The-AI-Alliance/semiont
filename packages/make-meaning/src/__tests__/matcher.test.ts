@@ -2,8 +2,8 @@
  * Matcher Actor Tests
  *
  * Tests the Matcher's RxJS pipeline:
- * - Search request handling (bind:search-requested → bind:search-results/bind:search-failed)
- * - Referenced-by handling (bind:referenced-by-requested → bind:referenced-by-result/bind:referenced-by-failed)
+ * - Search request handling (match:search-requested → match:search-results/match:search-failed)
+ * - Referenced-by handling (browse:referenced-by-requested → browse:referenced-by-result/browse:referenced-by-failed)
  * - Error handling
  * - Lifecycle (stop)
  */
@@ -107,16 +107,16 @@ describe('Matcher', () => {
   });
 
   describe('search handling', () => {
-    it('should emit bind:search-results on success', async () => {
+    it('should emit match:search-results on success', async () => {
       const mockResults = [
         { '@id': 'r1', name: 'Resource 1' },
         { '@id': 'r2', name: 'Resource 2' },
       ];
       mockSearchFn.mockResolvedValue(mockResults);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-1',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'test query' } },
       });
@@ -138,12 +138,12 @@ describe('Matcher', () => {
       expect(mockSearchFn).toHaveBeenCalledWith('test query');
     });
 
-    it('should emit bind:search-failed on error', async () => {
+    it('should emit match:search-failed on error', async () => {
       mockSearchFn.mockRejectedValue(new Error('Graph connection failed'));
 
-      const resultPromise = eventBus.get('bind:search-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-2',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'failing query' } },
       });
@@ -156,9 +156,9 @@ describe('Matcher', () => {
     it('should handle empty search results', async () => {
       mockSearchFn.mockResolvedValue([]);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-3',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'nonexistent' } },
       });
@@ -204,9 +204,9 @@ describe('Matcher', () => {
         return Promise.resolve(null);
       });
 
-      const resultPromise = eventBus.get('bind:referenced-by-result').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-result').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-1',
         resourceId: TARGET_RESOURCE_ID,
       });
@@ -234,9 +234,9 @@ describe('Matcher', () => {
     it('should pass motivation filter to graph query', async () => {
       mockReferencedBy.mockResolvedValue([]);
 
-      const resultPromise = eventBus.get('bind:referenced-by-result').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-result').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-2',
         resourceId: TARGET_RESOURCE_ID,
         motivation: 'linking',
@@ -249,9 +249,9 @@ describe('Matcher', () => {
     it('should handle empty referenced-by results', async () => {
       mockReferencedBy.mockResolvedValue([]);
 
-      const resultPromise = eventBus.get('bind:referenced-by-result').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-result').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-3',
         resourceId: TARGET_RESOURCE_ID,
       });
@@ -269,9 +269,9 @@ describe('Matcher', () => {
       mockReferencedBy.mockResolvedValue([anno1, anno2]);
       mockGetResource.mockResolvedValue({ '@id': DOC_A_URI, name: 'Prometheus Bound' });
 
-      const resultPromise = eventBus.get('bind:referenced-by-result').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-result').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-4',
         resourceId: TARGET_RESOURCE_ID,
       });
@@ -287,9 +287,9 @@ describe('Matcher', () => {
       mockReferencedBy.mockResolvedValue([anno]);
       mockGetResource.mockResolvedValue(null);
 
-      const resultPromise = eventBus.get('bind:referenced-by-result').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-result').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-5',
         resourceId: TARGET_RESOURCE_ID,
       });
@@ -311,9 +311,9 @@ describe('Matcher', () => {
       mockReferencedBy.mockResolvedValue([anno]);
       mockGetResource.mockResolvedValue({ '@id': DOC_A_URI, name: 'Prometheus Bound' });
 
-      const resultPromise = eventBus.get('bind:referenced-by-result').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-result').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-6',
         resourceId: TARGET_RESOURCE_ID,
       });
@@ -328,9 +328,9 @@ describe('Matcher', () => {
     it('should emit referenced-by-failed on graph error', async () => {
       mockReferencedBy.mockRejectedValue(new Error('Graph unavailable'));
 
-      const resultPromise = eventBus.get('bind:referenced-by-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-failed').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-7',
         resourceId: TARGET_RESOURCE_ID,
       });
@@ -345,9 +345,9 @@ describe('Matcher', () => {
       mockReferencedBy.mockResolvedValue([anno]);
       mockGetResource.mockRejectedValue(new Error('Resource lookup failed'));
 
-      const resultPromise = eventBus.get('bind:referenced-by-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('browse:referenced-by-failed').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:referenced-by-requested').next({
+      eventBus.get('browse:referenced-by-requested').next({
         correlationId: 'corr-8',
         resourceId: TARGET_RESOURCE_ID,
       });
@@ -397,9 +397,9 @@ describe('Matcher', () => {
     it('should search with minimal context (sourceContext only)', async () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-no-ctx',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'Alpha' } },
       });
@@ -414,9 +414,9 @@ describe('Matcher', () => {
     it('should score exact name match higher than contains match', async () => {
       mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-name',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
@@ -442,9 +442,9 @@ describe('Matcher', () => {
       const resWithoutTypes = { ...RES_B };
       mockSearchFn2.mockResolvedValue([resWithTypes, resWithoutTypes]);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-et',
         context: makeContext({
           sourceContext: { before: '', selected: 'nonmatching', after: '' }, // no name match — isolate entity type signal
@@ -470,9 +470,9 @@ describe('Matcher', () => {
       // RES_B is also a bidirectional connection
       mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-bidir',
         context: makeContext({
           sourceContext: { before: '', selected: 'test', after: '' },
@@ -500,9 +500,9 @@ describe('Matcher', () => {
         return Promise.resolve(null);
       });
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-neighbor',
         context: makeContext({
           sourceContext: { before: '', selected: 'something', after: '' },
@@ -526,9 +526,9 @@ describe('Matcher', () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
       mockListResources.mockResolvedValue({ resources: [RES_A], total: 1 });
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-multi',
         context: makeContext({
           sourceContext: { before: '', selected: 'Alpha', after: '' },
@@ -550,9 +550,9 @@ describe('Matcher', () => {
       const resGamma = { ...RES_C, name: 'Alphaville' }; // prefix match for "Alpha"
       mockSearchFn2.mockResolvedValue([RES_A, RES_B, resGamma]);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-sort',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
@@ -589,9 +589,9 @@ describe('Matcher', () => {
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
       await matcher.initialize();
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-inference',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
@@ -633,9 +633,9 @@ describe('Matcher', () => {
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
       await matcher.initialize();
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-inference-fail',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
@@ -653,9 +653,9 @@ describe('Matcher', () => {
       // Use the default matcher (no inference client)
       mockSearchFn2.mockResolvedValue([RES_A]);
 
-      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-no-inference',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
@@ -670,9 +670,9 @@ describe('Matcher', () => {
     it('should emit search-failed when context search throws', async () => {
       mockSearchFn2.mockRejectedValue(new Error('DB down'));
 
-      const resultPromise = eventBus.get('bind:search-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-fail',
         context: makeContext({ sourceContext: { before: '', selected: 'anything', after: '' } }),
       });
@@ -714,9 +714,9 @@ describe('Matcher', () => {
         // Score > 1 should be ignored, score < 0 should be ignored
         mockInference.generateText.mockResolvedValue('1. 1.5\n2. -0.3\n3. 0.7');
 
-        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           referenceId: 'ref-range',
           context: makeContext(),
         });
@@ -738,9 +738,9 @@ describe('Matcher', () => {
           'Here are my scores:\n1. 0.8\nThis is not a score line\n2. invalid\n3. 0.5'
         );
 
-        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           referenceId: 'ref-malformed',
           context: makeContext(),
         });
@@ -758,9 +758,9 @@ describe('Matcher', () => {
       it('should handle empty inference response', async () => {
         mockInference.generateText.mockResolvedValue('');
 
-        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           referenceId: 'ref-empty',
           context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
         });
@@ -776,9 +776,9 @@ describe('Matcher', () => {
         // Index 5 doesn't exist (only 3 candidates)
         mockInference.generateText.mockResolvedValue('1. 0.8\n5. 0.9\n3. 0.6');
 
-        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           referenceId: 'ref-oob',
           context: makeContext(),
         });
@@ -794,9 +794,9 @@ describe('Matcher', () => {
       it('should not add semantic match reason when score is exactly 0.5', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.5\n2. 0.51\n3. 0.49');
 
-        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           referenceId: 'ref-threshold',
           context: makeContext(),
         });
@@ -817,10 +817,10 @@ describe('Matcher', () => {
       it('should include inferredRelationshipSummary in semantic scoring prompt', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.8\n2. 0.3\n3. 0.5');
 
-        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         const summary = 'This passage discusses Greek mythology figures.';
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           referenceId: 'ref-summary',
           context: makeContext({
             sourceContext: { before: '', selected: 'Zeus', after: '' },
@@ -843,9 +843,9 @@ describe('Matcher', () => {
       it('should pass passage text and entity types to semantic scoring prompt', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.5');
 
-        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('bind:search-requested').next({
+        eventBus.get('match:search-requested').next({
           referenceId: 'ref-passage',
           context: makeContext({
             sourceContext: { before: 'In the beginning,', selected: 'Zeus ruled the heavens', after: 'and the earth.' },
@@ -871,7 +871,7 @@ describe('Matcher', () => {
     it('should not process events after stop', async () => {
       await matcher.stop();
 
-      eventBus.get('bind:search-requested').next({
+      eventBus.get('match:search-requested').next({
         referenceId: 'ref-4',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'after stop' } },
       });

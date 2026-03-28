@@ -269,10 +269,10 @@ describe('EventBusClient', () => {
         referencedBy: [],
       };
 
-      eventBus.get('bind:referenced-by-requested').subscribe((e) => {
+      eventBus.get('browse:referenced-by-requested').subscribe((e) => {
         expect(e.resourceId).toBe(rId);
         respondAsync(() => {
-          eventBus.get('bind:referenced-by-result').next({
+          eventBus.get('browse:referenced-by-result').next({
             correlationId: e.correlationId,
             response: mockResponse,
           });
@@ -286,10 +286,10 @@ describe('EventBusClient', () => {
     test('should pass motivation filter', async () => {
       const rId = resourceId('doc-1');
 
-      eventBus.get('bind:referenced-by-requested').subscribe((e) => {
+      eventBus.get('browse:referenced-by-requested').subscribe((e) => {
         expect(e.motivation).toBe('linking');
         respondAsync(() => {
-          eventBus.get('bind:referenced-by-result').next({
+          eventBus.get('browse:referenced-by-result').next({
             correlationId: e.correlationId,
             response: { referencedBy: [] },
           });
@@ -307,10 +307,10 @@ describe('EventBusClient', () => {
         mockResource({ name: 'Doc 2' }),
       ];
 
-      eventBus.get('bind:search-requested').subscribe((e) => {
+      eventBus.get('match:search-requested').subscribe((e) => {
         expect(e.context.sourceContext?.selected).toBe('quantum');
         respondAsync(() => {
-          eventBus.get('bind:search-results').next({
+          eventBus.get('match:search-results').next({
             correlationId: e.correlationId,
             referenceId: e.referenceId,
             results: mockResults,
@@ -323,9 +323,9 @@ describe('EventBusClient', () => {
     });
 
     test('should throw on search failure', async () => {
-      eventBus.get('bind:search-requested').subscribe((e) => {
+      eventBus.get('match:search-requested').subscribe((e) => {
         respondAsync(() => {
-          eventBus.get('bind:search-failed').next({
+          eventBus.get('match:search-failed').next({
             referenceId: e.referenceId,
             correlationId: e.correlationId,
             error: new Error('Search unavailable'),

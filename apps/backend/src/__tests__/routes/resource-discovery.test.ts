@@ -86,8 +86,8 @@ const setupMocks = () => {
         }
       });
       // Bridge referenced-by events
-      eventBus.get('bind:referenced-by-requested').subscribe((e: { correlationId: string; resourceId: ResourceId; motivation?: string }) => {
-        eventBus.get('bind:referenced-by-result').next({
+      eventBus.get('browse:referenced-by-requested').subscribe((e: { correlationId: string; resourceId: ResourceId; motivation?: string }) => {
+        eventBus.get('browse:referenced-by-result').next({
           correlationId: e.correlationId,
           response: { referencedBy: [] },
         });

@@ -48,14 +48,14 @@ export type MatchOptions = z.output<typeof MatchOptionsSchema>;
 
 function waitForSearchResults(eventBus: EventBus, referenceId: string): Promise<ScoredResult[]> {
   return new Promise((resolve, reject) => {
-    const resultSub = eventBus.get('bind:search-results').subscribe((event) => {
+    const resultSub = eventBus.get('match:search-results').subscribe((event) => {
       if (event.referenceId === referenceId) {
         resultSub.unsubscribe();
         errorSub.unsubscribe();
         resolve(event.results as ScoredResult[]);
       }
     });
-    const errorSub = eventBus.get('bind:search-failed').subscribe((event) => {
+    const errorSub = eventBus.get('match:search-failed').subscribe((event) => {
       if (event.referenceId === referenceId) {
         resultSub.unsubscribe();
         errorSub.unsubscribe();

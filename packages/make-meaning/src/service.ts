@@ -132,7 +132,7 @@ async function createKnowledgeSystemFromConfig(
   );
   await matcher.initialize();
 
-  const browser = new Browser(kb.views, eventBus, project, logger.child({ component: 'browser' }));
+  const browser = new Browser(kb.views, kb, eventBus, project, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));

@@ -650,8 +650,8 @@ export class SSEClient {
   /**
    * Search for binding candidates (streaming)
    *
-   * Bridges bind:search-requested to the backend Matcher actor via SSE.
-   * Results emit as bind:search-results on the browser EventBus.
+   * Bridges match:search-requested to the backend Matcher actor via SSE.
+   * Results emit as match:search-results on the browser EventBus.
    *
    * @param resourceId - Resource the annotation belongs to
    * @param request - Search configuration (referenceId, context, limit)
@@ -674,8 +674,8 @@ export class SSEClient {
       },
       {
         progressEvents: [],
-        completeEvent: 'bind:search-results',
-        errorEvent: 'bind:search-failed',
+        completeEvent: 'match:search-results',
+        errorEvent: 'match:search-failed',
         eventBus: options.eventBus,
       },
       this.logger

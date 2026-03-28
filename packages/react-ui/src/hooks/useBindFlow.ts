@@ -78,9 +78,9 @@ export function useBindFlow(rUri: ResourceId): void {
      * Handle bind search requests
      * Emitted by: ReferenceWizardModal (search button)
      * Bridges to backend Matcher actor via SSE stream.
-     * Results auto-emit as bind:search-results on the browser EventBus.
+     * Results auto-emit as match:search-results on the browser EventBus.
      */
-    const handleSearchRequested = (event: EventMap['bind:search-requested']) => {
+    const handleSearchRequested = (event: EventMap['match:search-requested']) => {
       clientRef.current.sse.bindSearch(rUriRef.current, {
         referenceId: event.referenceId,
         context: event.context,
@@ -90,7 +90,7 @@ export function useBindFlow(rUri: ResourceId): void {
     };
 
     const updateSub = eventBus.get('bind:update-body').subscribe(handleAnnotationUpdateBody);
-    const searchSub = eventBus.get('bind:search-requested').subscribe(handleSearchRequested);
+    const searchSub = eventBus.get('match:search-requested').subscribe(handleSearchRequested);
     return () => {
       updateSub.unsubscribe();
       searchSub.unsubscribe();

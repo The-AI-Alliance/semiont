@@ -1,14 +1,12 @@
 /**
  * Browser Actor
  *
- * Filesystem-shaped reads for the Knowledge System.
+ * Filesystem-shaped reads and KB graph reads for the Knowledge System.
  * Merges live filesystem state with KB metadata for tracked resources.
  *
  * Handles:
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
- *
- * The Browser owns all filesystem I/O in the Knowledge System. This keeps the
- * Gatherer focused on semantic context assembly and free of fs dependencies.
+ * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
  */
 
 import { promises as fs, type Dirent } from 'fs';
@@ -17,8 +15,10 @@ import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId } from '@semiont/core';
+import { getExactText, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { ViewStorage } from '@semiont/event-sourcing';
+import type { KnowledgeBase } from './knowledge-base';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -30,6 +30,7 @@ export class Browser {
 
   constructor(
     private views: ViewStorage,
+    private kb: KnowledgeBase,
     private eventBus: EventBus,
     private project: SemiontProject,
     logger: Logger,
@@ -47,8 +48,13 @@ export class Browser {
       mergeMap((event) => from(this.handleBrowseDirectory(event))),
     );
 
+    const referencedBy$ = this.eventBus.get('browse:referenced-by-requested').pipe(
+      mergeMap((event) => from(this.handleReferencedBy(event))),
+    );
+
     this.subscriptions.push(
       browseDirectory$.subscribe({ error: errorHandler }),
+      referencedBy$.subscribe({ error: errorHandler }),
     );
   }
 
@@ -163,6 +169,56 @@ export class Browser {
       correlationId,
       response: { path: reqPath, entries },
     });
+  }
+
+  private async handleReferencedBy(
+    event: EventMap['browse:referenced-by-requested'],
+  ): Promise<void> {
+    try {
+      this.logger.debug('Looking for annotations referencing resource', {
+        resourceId: event.resourceId,
+        motivation: event.motivation || 'all',
+      });
+
+      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
+
+      const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
+      const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
+
+      for (let i = 0; i < sourceIds.length; i++) {
+        if (resources[i] === null) {
+          this.logger.warn('Referenced resource not found in graph', { resourceId: sourceIds[i] });
+        }
+      }
+      const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
+
+      const referencedBy = references.map(ref => {
+        const targetSource = getTargetSource(ref.target);
+        const targetSelector = getTargetSelector(ref.target);
+        const doc = docMap.get(targetSource);
+        return {
+          id: ref.id,
+          resourceName: doc?.name || 'Untitled Resource',
+          target: {
+            source: targetSource,
+            selector: {
+              exact: targetSelector ? getExactText(targetSelector) : '',
+            },
+          },
+        };
+      });
+
+      this.eventBus.get('browse:referenced-by-result').next({
+        correlationId: event.correlationId,
+        response: { referencedBy },
+      });
+    } catch (error) {
+      this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error });
+      this.eventBus.get('browse:referenced-by-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
   }
 
   async stop(): Promise<void> {
