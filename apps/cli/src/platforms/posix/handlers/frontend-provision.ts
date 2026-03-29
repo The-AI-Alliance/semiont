@@ -1,13 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { resolveFrontendNpmPackage } from './frontend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 // Injected by esbuild at build time via __SEMIONT_VERSION__ define
@@ -20,7 +19,7 @@ const SEMIONT_VERSION: string = __SEMIONT_VERSION__;
  * Sets up the frontend runtime directory structure and prepares the build.
  */
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service, options } = context;
+  const { service } = context;
 
   const projectRoot = service.projectRoot;
 
@@ -69,15 +68,6 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   if (!service.quiet) {
     printInfo(`Created runtime directories in: ${project.frontendLogsDir}`);
-  }
-
-  let nextAuthSecret = options.rotateSecret ? undefined : readSecret('JWT_SECRET');
-  if (!nextAuthSecret) {
-    nextAuthSecret = crypto.randomBytes(32).toString('base64');
-    writeSecret('JWT_SECRET', nextAuthSecret);
-    printInfo(options.rotateSecret ? 'Generated new JWT_SECRET (--rotate-secret)' : 'Generated new JWT_SECRET');
-  } else {
-    printInfo('Using existing JWT_SECRET from secrets file');
   }
 
   // npm package: pre-built, skip install/build steps

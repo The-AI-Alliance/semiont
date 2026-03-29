@@ -182,7 +182,7 @@ export const provisionCommand = new CommandBuilder()
       },
       '--rotate-secret': {
         type: 'boolean',
-        description: 'Force generation of a new shared secret for frontend/backend (JWT_SECRET / NEXTAUTH_SECRET). Has no effect on other services. Warns if the peer service will be left out of sync.',
+        description: 'Force generation of a new JWT_SECRET. Has no effect on other services. Warns if the peer service will be left out of sync.',
         default: false,
       },
     },
