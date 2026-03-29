@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "আমরা আপনার অভিজ্ঞতা উন্নত করতে, ব্যবহার বিশ্লেষণ করতে এবং ব্যক্তিগতকৃত বিষয়বস্তু প্রদান করতে কুকি এবং অনুরূপ প্রযুক্তি ব্যবহার করি।",
     "cookieCategoriesTitle": "কুকি বিভাগসমূহ",
     "necessaryCookiesTitle": "অত্যাবশ্যকীয় কুকি",
-    "necessaryCookies": "যাচাইকরণ এবং নিরাপত্তা বৈশিষ্ট্য সহ ওয়েবসাইটের কার্যকারিতার জন্য অপরিহার্য।\n\nউদাহরণ: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "যাচাইকরণ এবং নিরাপত্তা বৈশিষ্ট্য সহ ওয়েবসাইটের কার্যকারিতার জন্য অপরিহার্য।\n\nউদাহরণ: semiont-token",
     "analyticsCookiesTitle": "বিশ্লেষণ কুকি",
     "analyticsCookies": "ব্যবহারকারীর অভিজ্ঞতা উন্নত করতে দর্শকরা কীভাবে আমাদের ওয়েবসাইটের সাথে মিথস্ক্রিয়া করে তা বুঝতে সাহায্য করে।\n\nউদাহরণ: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "বিপণন কুকি",

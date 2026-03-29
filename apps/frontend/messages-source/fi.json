@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Käytämme evästeitä ja vastaavia teknologioita parantaaksemme kokemustasi, analysoidaksemme käyttöä ja tarjotaksemme yksilöllistä sisältöä.",
     "cookieCategoriesTitle": "Evästekategoriat",
     "necessaryCookiesTitle": "Välttämättömät evästeet",
-    "necessaryCookies": "Välttämättömiä verkkosivuston toiminnalle, mukaan lukien todennus- ja turvaominaisuudet.\n\nEsimerkkejä: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Välttämättömiä verkkosivuston toiminnalle, mukaan lukien todennus- ja turvaominaisuudet.\n\nEsimerkkejä: semiont-token",
     "analyticsCookiesTitle": "Analytiikkaevästeet",
     "analyticsCookies": "Auttavat meitä ymmärtämään, miten vierailijat käyttävät verkkosivustoamme käyttökokemuksen parantamiseksi.\n\nEsimerkkejä: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Markkinointievästeet",

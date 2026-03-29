@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Kami menggunakan kuki dan teknologi serupa untuk meningkatkan pengalaman anda, menganalisis penggunaan dan menyediakan kandungan yang diperibadikan.",
     "cookieCategoriesTitle": "Kategori Kuki",
     "necessaryCookiesTitle": "Kuki yang Sangat Diperlukan",
-    "necessaryCookies": "Penting untuk fungsi laman web, termasuk ciri pengesahan dan keselamatan.\n\nContoh: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Penting untuk fungsi laman web, termasuk ciri pengesahan dan keselamatan.\n\nContoh: semiont-token",
     "analyticsCookiesTitle": "Kuki Analitik",
     "analyticsCookies": "Membantu kami memahami cara pelawat berinteraksi dengan laman web kami untuk meningkatkan pengalaman pengguna.\n\nContoh: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Kuki Pemasaran",

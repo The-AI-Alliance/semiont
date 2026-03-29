@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Utilizăm cookie-uri și tehnologii similare pentru a vă îmbunătăți experiența, a analiza utilizarea și a furniza conținut personalizat.",
     "cookieCategoriesTitle": "Categorii de cookie-uri",
     "necessaryCookiesTitle": "Cookie-uri strict necesare",
-    "necessaryCookies": "Esențiale pentru funcționalitatea site-ului web, inclusiv funcțiile de autentificare și securitate.\n\nExemple: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Esențiale pentru funcționalitatea site-ului web, inclusiv funcțiile de autentificare și securitate.\n\nExemple: semiont-token",
     "analyticsCookiesTitle": "Cookie-uri de analiză",
     "analyticsCookies": "Ne ajută să înțelegem cum interacționează vizitatorii cu site-ul nostru web pentru a îmbunătăți experiența utilizatorului.\n\nExemple: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Cookie-uri de marketing",

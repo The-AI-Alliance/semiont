@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "私たちは、エクスペリエンスの向上、利用状況の分析、パーソナライズされたコンテンツの提供のために、Cookieおよび類似技術を使用しています。",
     "cookieCategoriesTitle": "Cookieカテゴリ",
     "necessaryCookiesTitle": "必須Cookie",
-    "necessaryCookies": "認証やセキュリティ機能を含む、ウェブサイトの機能に不可欠です。\n\n例: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "認証やセキュリティ機能を含む、ウェブサイトの機能に不可欠です。\n\n例: semiont-token",
     "analyticsCookiesTitle": "分析Cookie",
     "analyticsCookies": "訪問者がウェブサイトとどのように対話しているかを理解し、ユーザーエクスペリエンスを改善するのに役立ちます。\n\n例: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "マーケティングCookie",

@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Deneyiminizi geliştirmek, kullanımı analiz etmek ve kişiselleştirilmiş içerik sunmak için çerezler ve benzer teknolojiler kullanıyoruz.",
     "cookieCategoriesTitle": "Çerez Kategorileri",
     "necessaryCookiesTitle": "Zorunlu Çerezler",
-    "necessaryCookies": "Kimlik doğrulama ve güvenlik özellikleri dahil olmak üzere web sitesi işlevselliği için gereklidir.\n\nÖrnekler: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Kimlik doğrulama ve güvenlik özellikleri dahil olmak üzere web sitesi işlevselliği için gereklidir.\n\nÖrnekler: semiont-token",
     "analyticsCookiesTitle": "Analitik Çerezler",
     "analyticsCookies": "Kullanıcı deneyimini iyileştirmek için ziyaretçilerin web sitemizle nasıl etkileşimde bulunduğunu anlamamıza yardımcı olur.\n\nÖrnekler: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Pazarlama Çerezleri",

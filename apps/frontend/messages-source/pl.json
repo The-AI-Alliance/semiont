@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Używamy plików cookie i podobnych technologii w celu ulepszenia Twojego doświadczenia, analizy użytkowania i dostarczania spersonalizowanych treści.",
     "cookieCategoriesTitle": "Kategorie plików cookie",
     "necessaryCookiesTitle": "Niezbędne pliki cookie",
-    "necessaryCookies": "Niezbędne do funkcjonowania strony internetowej, w tym uwierzytelniania i funkcji bezpieczeństwa.\n\nPrzykłady: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Niezbędne do funkcjonowania strony internetowej, w tym uwierzytelniania i funkcji bezpieczeństwa.\n\nPrzykłady: semiont-token",
     "analyticsCookiesTitle": "Analityczne pliki cookie",
     "analyticsCookies": "Pomagają nam zrozumieć, w jaki sposób odwiedzający korzystają z naszej strony internetowej, aby poprawić doświadczenie użytkownika.\n\nPrzykłady: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Marketingowe pliki cookie",

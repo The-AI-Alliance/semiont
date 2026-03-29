@@ -19,7 +19,7 @@ vi.mock('@/lib/cookies', () => ({
       name: 'Strictly Necessary',
       description: 'These cookies are essential for the website to function properly.',
       required: true,
-      cookies: ['next-auth.session-token', 'consent-preferences']
+      cookies: ['semiont-token', 'consent-preferences']
     },
     {
       id: 'analytics',

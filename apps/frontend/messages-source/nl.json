@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Wij gebruiken cookies en vergelijkbare technologieën om je ervaring te verbeteren, gebruik te analyseren en gepersonaliseerde inhoud te bieden.",
     "cookieCategoriesTitle": "Cookiecategorieën",
     "necessaryCookiesTitle": "Strikt noodzakelijke cookies",
-    "necessaryCookies": "Essentieel voor websitefunctionaliteit, inclusief authenticatie- en beveiligingsfuncties.\n\nVoorbeelden: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Essentieel voor websitefunctionaliteit, inclusief authenticatie- en beveiligingsfuncties.\n\nVoorbeelden: semiont-token",
     "analyticsCookiesTitle": "Analytische cookies",
     "analyticsCookies": "Helpen ons te begrijpen hoe bezoekers met onze website omgaan om de gebruikerservaring te verbeteren.\n\nVoorbeelden: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Marketingcookies",
