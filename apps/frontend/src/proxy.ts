@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 import createMiddleware from 'next-intl/middleware';
 import { routing } from './i18n/routing';
 
 const handleI18nRouting = createMiddleware(routing);
+
+/**
+ * Parse and decode a JWT payload without verifying the signature.
+ * Verification happens on the backend — here we only need the claims for routing.
+ */
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3 || !parts[1]) return null;
+    return JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -16,52 +29,20 @@ export async function proxy(request: NextRequest) {
   const localeMatch = pathname.match(/^\/([a-z]{2})(\/|$)/);
   const pathWithoutLocale = localeMatch ? pathname.slice(3) : pathname;
 
+  // Read the backend-issued JWT cookie
+  const token = request.cookies.get('semiont-token')?.value;
+  const payload = token ? parseJwtPayload(token) : null;
+
   // Apply auth middleware to admin routes
   if (pathWithoutLocale.startsWith('/admin')) {
-    try {
-      const secret = process.env.NEXTAUTH_SECRET;
-      if (!secret) {
-        console.error('NEXTAUTH_SECRET is not set');
-        return NextResponse.rewrite(new URL('/404', request.url));
-      }
-
-      const token = await getToken({
-        req: request,
-        secret
-      });
-
-      // Check if user is authenticated and is an admin
-      if (!token || !(token as any).backendUser?.isAdmin) {
-        // Return 404 instead of 401/403 to hide the existence of admin routes
-        return NextResponse.rewrite(new URL('/404', request.url));
-      }
-    } catch (error) {
-      console.error('Proxy auth error:', error);
+    if (!payload || !(payload as any).isAdmin) {
       return NextResponse.rewrite(new URL('/404', request.url));
     }
   }
 
   // Apply auth middleware to moderate routes
   if (pathWithoutLocale.startsWith('/moderate')) {
-    try {
-      const secret = process.env.NEXTAUTH_SECRET;
-      if (!secret) {
-        console.error('NEXTAUTH_SECRET is not set');
-        return NextResponse.rewrite(new URL('/404', request.url));
-      }
-
-      const token = await getToken({
-        req: request,
-        secret
-      });
-
-      // Check if user is authenticated and is a moderator or admin
-      if (!token || (!(token as any).backendUser?.isModerator && !(token as any).backendUser?.isAdmin)) {
-        // Return 404 instead of 401/403 to hide the existence of moderate routes
-        return NextResponse.rewrite(new URL('/404', request.url));
-      }
-    } catch (error) {
-      console.error('Proxy auth error:', error);
+    if (!payload || (!(payload as any).isModerator && !(payload as any).isAdmin)) {
       return NextResponse.rewrite(new URL('/404', request.url));
     }
   }

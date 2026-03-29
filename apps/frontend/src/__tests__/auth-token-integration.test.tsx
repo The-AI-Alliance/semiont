@@ -5,61 +5,34 @@
  */
 
 import { renderHook } from '@testing-library/react';
-import { SessionProvider, useSession } from 'next-auth/react';
+import React from 'react';
 import { AuthTokenProvider, useAuthToken as useAuthTokenFromContext } from '@semiont/react-ui';
 import { vi } from 'vitest';
 
-// Mock next-auth
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn(),
-  SessionProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
 describe('Auth Token Integration', () => {
-  it('should pass token from session through context', () => {
-    const mockSession = {
-      data: { backendToken: 'test-token' } as any,
-      status: 'authenticated' as const,
-      update: vi.fn(),
-    };
-
-    vi.mocked(useSession).mockReturnValue(mockSession);
-
+  it('should pass token from provider through context', () => {
     const { result } = renderHook(
       () => useAuthTokenFromContext(),
       {
         wrapper: ({ children }) => (
-          <SessionProvider>
-            <AuthTokenProvider token={mockSession.data.backendToken}>
-              {children}
-            </AuthTokenProvider>
-          </SessionProvider>
+          <AuthTokenProvider token="test-token">
+            {children}
+          </AuthTokenProvider>
         ),
       }
     );
 
-    // Token should be available from context
     expect(result.current).toBe('test-token');
   });
 
-  it('should handle null session', () => {
-    const mockSession = {
-      data: null,
-      status: 'unauthenticated' as const,
-      update: vi.fn(),
-    };
-
-    vi.mocked(useSession).mockReturnValue(mockSession);
-
+  it('should handle null token', () => {
     const { result } = renderHook(
       () => useAuthTokenFromContext(),
       {
         wrapper: ({ children }) => (
-          <SessionProvider>
-            <AuthTokenProvider token={null}>
-              {children}
-            </AuthTokenProvider>
-          </SessionProvider>
+          <AuthTokenProvider token={null}>
+            {children}
+          </AuthTokenProvider>
         ),
       }
     );

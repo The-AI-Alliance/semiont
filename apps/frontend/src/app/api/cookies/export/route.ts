@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
 // Mark this route as dynamic since it uses session data
 export const dynamic = 'force-dynamic';
@@ -22,19 +20,32 @@ export interface CookieExportData {
   dataRetentionPolicy: string;
 }
 
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3 || !parts[1]) return null;
+    return JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
+
 // GET - Export user's cookie data for GDPR compliance
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.backendUser) {
+    const tokenStr = request.cookies.get('semiont-token')?.value;
+    if (!tokenStr) {
+      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    }
+    const payload = parseJwtPayload(tokenStr);
+    if (!payload) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
 
     const exportData: CookieExportData = {
       user: {
-        id: session.backendUser.id,
-        email: session.backendUser.email
+        id: (payload.sub ?? payload.id ?? '') as string,
+        email: (payload.email ?? '') as string,
       },
       consent: {
         necessary: true,

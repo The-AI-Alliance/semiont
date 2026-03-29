@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SERVER_API_URL } from '@/lib/env';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
 import type { BaseUrl, AccessToken } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 
@@ -23,37 +21,31 @@ export async function GET(request: NextRequest) {
     /^http:\/\/\[::1\]:\d+\/.*$/,  // IPv6 localhost
   ];
 
-  // In production, only allow localhost callbacks
-  // In development, you might want to allow other patterns
   const isAllowedCallback = allowedCallbackPatterns.some(pattern => pattern.test(callback));
 
   if (!isAllowedCallback) {
     return NextResponse.json({ error: 'Invalid callback URL. Must be a localhost URL for CLI authentication.' }, { status: 400 });
   }
 
-  // Get the user's session
-  const session = await getServerSession(authOptions);
+  // Read the semiont-token cookie set by the backend
+  const token = request.cookies.get('semiont-token')?.value;
 
-  if (!session || !session.backendToken) {
-    // Not authenticated - redirect to sign in
-    const host = request.headers.get('host') || 'wiki.pingel.org';
-    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+  if (!token) {
+    const host = request.headers.get('host') || 'localhost:3000';
+    const protocol = request.headers.get('x-forwarded-proto') || 'http';
     const currentUrl = `${protocol}://${host}${request.nextUrl.pathname}${request.nextUrl.search}`;
-    const signInUrl = `${protocol}://${host}/api/auth/signin?callbackUrl=${encodeURIComponent(currentUrl)}`;
+    const signInUrl = `${protocol}://${host}/auth/signin?callbackUrl=${encodeURIComponent(currentUrl)}`;
     return NextResponse.redirect(signInUrl);
   }
 
   try {
-    // Create stateless api-client
     const client = new SemiontApiClient({
       baseUrl: SERVER_API_URL as BaseUrl,
     });
 
-    // Generate MCP refresh token using api-client with auth
-    const data = await client.generateMCPToken({ auth: session.backendToken as AccessToken });
+    const data = await client.generateMCPToken({ auth: token as AccessToken });
     const refreshToken = data.refresh_token;
 
-    // Redirect to CLI callback with token
     return NextResponse.redirect(`${callback}?token=${refreshToken}`);
   } catch (error) {
     console.error('MCP setup error:', error);

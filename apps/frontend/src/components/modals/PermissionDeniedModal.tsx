@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useRouter } from '@/i18n/routing';
-import { signIn, useSession } from 'next-auth/react';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { AUTH_EVENTS, onAuthEvent, type AuthEventDetail } from '@semiont/react-ui';
 
 export function PermissionDeniedModal() {
   const [showModal, setShowModal] = useState(false);
   const [deniedAction, setDeniedAction] = useState<string>('');
   const router = useRouter();
-  const { data: session } = useSession();
+  const { session } = useAuthContext();
 
   useEffect(() => {
     // Listen for 403 forbidden events
@@ -34,7 +34,7 @@ export function PermissionDeniedModal() {
 
   const handleSwitchAccount = () => {
     setShowModal(false);
-    signIn(undefined, { callbackUrl: window.location.pathname });
+    window.location.href = `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
   };
 
   return (

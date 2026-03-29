@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense, useContext } from 'react';
-import { signIn } from 'next-auth/react';
+import React, { useEffect, useState, Suspense, useContext, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
@@ -10,15 +9,26 @@ import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 import Link from 'next/link';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { SemiontApiClient } from '@semiont/api-client';
+import { googleCredential, email as makeEmail, baseUrl } from '@semiont/core';
+import { NEXT_PUBLIC_BACKEND_URL, NEXT_PUBLIC_GOOGLE_CLIENT_ID } from '@/lib/env';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: { client_id: string; callback: (response: { credential: string }) => void }) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 /**
  * SignInContent - Thin Next.js wrapper for SignInForm
- *
- * This component:
- * - Reads Next.js-specific hooks (useSearchParams, useTranslations)
- * - Manages error state from URL params
- * - Checks for credential provider availability
- * - Passes data as props to the pure SignInForm component
  */
 function SignInContent() {
   const t = useTranslations('AuthSignIn');
@@ -27,77 +37,55 @@ function SignInContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
+  const { setSession } = useAuthContext();
+  const apiClient = useMemo(() => new SemiontApiClient({ baseUrl: baseUrl(NEXT_PUBLIC_BACKEND_URL) }), []);
 
   const [error, setError] = useState<string | null>(null);
-  const [showCredentialsAuth, setShowCredentialsAuth] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading] = useState(false);
+  const googleScriptLoaded = useRef(false);
 
   const callbackUrl = searchParams?.get('callbackUrl') || '/know';
 
+  // Load Google Identity Services script once
   useEffect(() => {
-    // Check if credentials provider is available
-    fetch('/api/auth/providers')
-      .then((res) => res.json())
-      .then((providers) => {
-        if (providers.credentials) {
-          setShowCredentialsAuth(true);
-        }
-        setIsLoading(false);
-      })
-      .catch(() => {
-        // Even on error, show the form (fail open)
-        setShowCredentialsAuth(true);
-        setIsLoading(false);
-      });
-
-    // Parse error from URL
-    const errorParam = searchParams?.get('error');
-    if (errorParam) {
-      switch (errorParam) {
-        case 'Signin':
-          setError(t('errorAuthFailed'));
-          break;
-        case 'OAuthSignin':
-          setError(t('errorGoogleConnect'));
-          break;
-        case 'OAuthCallback':
-          setError(t('errorDomainNotAllowed'));
-          break;
-        case 'OAuthCreateAccount':
-          setError(t('errorCreateAccount'));
-          break;
-        default:
-          setError(t('errorGeneric'));
-      }
-    }
-  }, [searchParams, t]);
+    if (!NEXT_PUBLIC_GOOGLE_CLIENT_ID || googleScriptLoaded.current) return;
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+    googleScriptLoaded.current = true;
+  }, []);
 
   const handleGoogleSignIn = async () => {
-    try {
-      await signIn('google', { callbackUrl });
-    } catch (error) {
+    if (!NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
       setError(t('errorGoogleSignIn'));
+      return;
     }
+    setError(null);
+    window.google?.accounts.id.initialize({
+      client_id: NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+      callback: async ({ credential }) => {
+        try {
+          const response = await apiClient.authenticateGoogle(googleCredential(credential));
+          setSession({ token: response.token, user: response.user as any });
+          router.push(callbackUrl);
+        } catch {
+          setError(t('errorGoogleSignIn'));
+        }
+      },
+    });
+    window.google?.accounts.id.prompt();
   };
 
   const handleCredentialsSignIn = async (email: string, password: string) => {
+    setError(null);
     try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-        callbackUrl,
-      });
-
-      if (result?.error) {
-        setError(t('errorInvalidCredentials'));
-      } else if (result?.ok) {
-        // Use Next.js router for client-side navigation
-        // This preserves the React context and providers
-        router.push(callbackUrl);
-      }
-    } catch (error) {
-      setError(t('errorSignInFailed'));
+      const response = await apiClient.authenticatePassword(makeEmail(email), password);
+      setSession({ token: response.token, user: response.user as any });
+      router.push(callbackUrl);
+    } catch {
+      setError(t('errorInvalidCredentials'));
     }
   };
 
@@ -125,10 +113,10 @@ function SignInContent() {
   return (
     <div className="semiont-page-wrapper">
       <SignInForm
-        onGoogleSignIn={handleGoogleSignIn}
-        onCredentialsSignIn={showCredentialsAuth ? handleCredentialsSignIn : undefined}
+        onGoogleSignIn={NEXT_PUBLIC_GOOGLE_CLIENT_ID ? handleGoogleSignIn : undefined as any}
+        onCredentialsSignIn={handleCredentialsSignIn}
         error={error}
-        showCredentialsAuth={showCredentialsAuth}
+        showCredentialsAuth={true}
         isLoading={isLoading}
         Link={Link}
         translations={translations}

@@ -8,7 +8,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/hooks/useAuth';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
@@ -17,7 +18,8 @@ import { WelcomePage } from '@semiont/react-ui';
 
 export default function Welcome() {
   const t = useTranslations('AuthWelcome');
-  const { data: session, status } = useSession();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const { clearSession } = useAuthContext();
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
@@ -33,8 +35,8 @@ export default function Welcome() {
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
-    if (status === 'loading') return; // Still loading
-    if (status === 'unauthenticated') {
+    if (isLoading) return;
+    if (!isAuthenticated) {
       router.push('/auth/signin');
       return;
     }
@@ -45,18 +47,18 @@ export default function Welcome() {
       return;
     }
 
-    // If not a new user, redirect to main app (existing users don't need to accept terms again)
-    if (session && !session.isNewUser) {
+    // If terms already accepted, redirect to main app
+    if (isAuthenticated && userData !== undefined && userData?.termsAcceptedAt) {
       router.push('/');
       return;
     }
-  }, [status, session, router, userData]);
+  }, [isLoading, isAuthenticated, router, userData]);
 
   const handleTermsAcceptance = async (accepted: boolean) => {
     if (!accepted) {
-      // User declined terms - sign them out and redirect to home
-      const { signOut } = await import('next-auth/react');
-      await signOut({ callbackUrl: '/' });
+      // User declined terms - clear session and redirect to home
+      clearSession();
+      router.push('/');
       return;
     }
 
@@ -75,13 +77,14 @@ export default function Welcome() {
   };
 
   // Determine status
-  const pageStatus = status === 'loading' ? 'loading' : termsAccepted ? 'accepted' : 'form';
+  const pageStatus = isLoading ? 'loading' : termsAccepted ? 'accepted' : 'form';
+  const firstName = user?.name?.split(' ')[0] ?? '';
 
   return (
     <WelcomePage
-      userName={session?.user?.name?.split(' ')[0] ?? ''}
+      userName={firstName}
       termsAcceptedAt={userData?.termsAcceptedAt ?? null}
-      isNewUser={session?.isNewUser ?? false}
+      isNewUser={!userData?.termsAcceptedAt}
       status={pageStatus}
       isProcessing={acceptTermsMutation.isPending}
       onAccept={() => handleTermsAcceptance(true)}
@@ -90,7 +93,7 @@ export default function Welcome() {
         loading: t('loading'),
         welcomeTitle: t('welcomeTitle'),
         thanksForAccepting: t('thanksForAccepting'),
-        welcomeUser: t('welcomeUser', { firstName: session?.user?.name?.split(' ')[0] ?? '' }),
+        welcomeUser: t('welcomeUser', { firstName }),
         reviewTermsPrompt: t('reviewTermsPrompt'),
         termsSummaryTitle: t('termsSummaryTitle'),
         termsSummaryIntro: t('termsSummaryIntro'),

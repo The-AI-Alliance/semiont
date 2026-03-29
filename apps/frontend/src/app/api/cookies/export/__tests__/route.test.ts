@@ -3,37 +3,23 @@ import { NextRequest } from 'next/server';
 import { GET } from '../route';
 import type { CookieExportData } from '../route';
 
-// Use environment variables for URLs
-const getBackendUrl = () => process.env.SERVER_API_URL || 'http://localhost:3001';
 const getFrontendUrl = () => 'http://localhost:3000';
 
-
-// Mock next-auth
-const mockGetServerSession = vi.fn();
-vi.mock('next-auth', () => ({
-  getServerSession: () => mockGetServerSession()
-}));
-
-// Mock auth options
-vi.mock('@/lib/auth', () => ({
-  authOptions: {
-    providers: [],
-    pages: {
-      signIn: '/auth/signin',
-      error: '/auth/error'
-    },
-    callbacks: {},
-    session: { strategy: 'jwt' }
+const makeRequest = (withToken = true, jwtPayload?: object) => {
+  const req = new NextRequest(`${getFrontendUrl()}/api/cookies/export`);
+  if (withToken) {
+    // Build a minimal JWT with the given payload (base64url-encoded, not signed)
+    const payload = jwtPayload ?? { sub: 'user-123', email: 'test@example.com' };
+    const token = `header.${btoa(JSON.stringify(payload)).replace(/=/g, '')}.sig`;
+    Object.defineProperty(req, 'cookies', {
+      value: { get: (name: string) => name === 'semiont-token' ? { value: token } : undefined },
+      writable: false,
+    });
   }
-}));
+  return req;
+};
 
 describe('Cookies Export Route', () => {
-  const mockRequest = new NextRequest(`${getFrontendUrl()}/api/cookies/export`);
-  const mockBackendUser = {
-    id: 'user-123',
-    email: 'test@example.com'
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
@@ -45,61 +31,33 @@ describe('Cookies Export Route', () => {
   });
 
   describe('Authentication', () => {
-    it('should return 401 when no session exists', async () => {
-      mockGetServerSession.mockResolvedValue(null);
-
-      const response = await GET(mockRequest);
+    it('should return 401 when no token cookie exists', async () => {
+      const req = makeRequest(false);
+      const response = await GET(req);
       const data = await response.json();
 
       expect(response.status).toBe(401);
-      expect(data).toEqual({
-        success: false,
-        error: 'Not authenticated'
-      });
+      expect(data).toEqual({ success: false, error: 'Not authenticated' });
     });
 
-    it('should return 401 when session exists but no backendUser', async () => {
-      mockGetServerSession.mockResolvedValue({
-        user: { email: 'test@example.com' }
-        // No backendUser property
-      });
+    it('should return 200 when semiont-token cookie is present', async () => {
+      const req = makeRequest(true);
+      const response = await GET(req);
 
-      const response = await GET(mockRequest);
-      const data = await response.json();
-
-      expect(response.status).toBe(401);
-      expect(data).toEqual({
-        success: false,
-        error: 'Not authenticated'
-      });
-    });
-
-    it('should call getServerSession with auth options', async () => {
-      mockGetServerSession.mockResolvedValue({
-        backendUser: mockBackendUser
-      });
-
-      await GET(mockRequest);
-
-      expect(mockGetServerSession).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(200);
     });
   });
 
   describe('Successful Export', () => {
-    beforeEach(() => {
-      mockGetServerSession.mockResolvedValue({
-        backendUser: mockBackendUser
-      });
-    });
-
     it('should return cookie export data with correct structure', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       const expectedData: CookieExportData = {
         user: {
           id: 'user-123',
-          email: 'test@example.com'
+          email: 'test@example.com',
         },
         consent: {
           necessary: true,
@@ -107,37 +65,27 @@ describe('Cookies Export Route', () => {
           marketing: false,
           preferences: false,
           timestamp: '2023-12-01T10:00:00.000Z',
-          version: '1.0'
+          version: '1.0',
         },
         exportDate: '2023-12-01T10:00:00.000Z',
-        dataRetentionPolicy: 'Cookie consent data is retained for 2 years from last update or until explicitly withdrawn.'
+        dataRetentionPolicy: 'Cookie consent data is retained for 2 years from last update or until explicitly withdrawn.',
       };
 
       expect(response.status).toBe(200);
       expect(data).toEqual(expectedData);
     });
 
-    it('should include user data from backend session', async () => {
-      const customUser = {
-        id: 'custom-456',
-        email: 'custom@test.com'
-      };
-
-      mockGetServerSession.mockResolvedValue({
-        backendUser: customUser
-      });
-
-      const response = await GET(mockRequest);
+    it('should include user data parsed from JWT', async () => {
+      const req = makeRequest(true, { sub: 'custom-456', email: 'custom@test.com' });
+      const response = await GET(req);
       const data = await response.json();
 
-      expect(data.user).toEqual({
-        id: 'custom-456',
-        email: 'custom@test.com'
-      });
+      expect(data.user).toEqual({ id: 'custom-456', email: 'custom@test.com' });
     });
 
     it('should include consent data with proper defaults', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       expect(data.consent).toEqual({
@@ -146,19 +94,21 @@ describe('Cookies Export Route', () => {
         marketing: false,
         preferences: false,
         timestamp: '2023-12-01T10:00:00.000Z',
-        version: '1.0'
+        version: '1.0',
       });
     });
 
     it('should include current timestamp for export date', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       expect(data.exportDate).toBe('2023-12-01T10:00:00.000Z');
     });
 
     it('should include data retention policy', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       expect(data.dataRetentionPolicy).toBe(
@@ -168,20 +118,16 @@ describe('Cookies Export Route', () => {
   });
 
   describe('Response Headers', () => {
-    beforeEach(() => {
-      mockGetServerSession.mockResolvedValue({
-        backendUser: mockBackendUser
-      });
-    });
-
     it('should set correct Content-Type header', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
 
       expect(response.headers.get('Content-Type')).toBe('application/json');
     });
 
     it('should set Content-Disposition header for file download', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const contentDisposition = response.headers.get('Content-Disposition');
 
       expect(contentDisposition).toMatch(/^attachment; filename="cookie-data-export-\d+\.json"$/);
@@ -191,7 +137,8 @@ describe('Cookies Export Route', () => {
       const timestamp = Date.now();
       vi.spyOn(Date, 'now').mockReturnValue(timestamp);
 
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const contentDisposition = response.headers.get('Content-Disposition');
 
       expect(contentDisposition).toBe(`attachment; filename="cookie-data-export-${timestamp}.json"`);
@@ -199,32 +146,24 @@ describe('Cookies Export Route', () => {
   });
 
   describe('Response Format', () => {
-    beforeEach(() => {
-      mockGetServerSession.mockResolvedValue({
-        backendUser: mockBackendUser
-      });
-    });
-
     it('should return properly formatted JSON', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const responseText = await response.text();
 
-      // Should be formatted JSON with 2-space indentation
       expect(responseText).toContain('{\n  "user": {\n    "id": "user-123",');
       expect(() => JSON.parse(responseText)).not.toThrow();
     });
 
     it('should return valid JSON that matches the TypeScript interface', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
-      // Verify all required properties exist
       expect(data).toHaveProperty('user');
       expect(data).toHaveProperty('consent');
       expect(data).toHaveProperty('exportDate');
       expect(data).toHaveProperty('dataRetentionPolicy');
-
-      // Verify nested properties
       expect(data.user).toHaveProperty('id');
       expect(data.user).toHaveProperty('email');
       expect(data.consent).toHaveProperty('necessary');
@@ -236,51 +175,20 @@ describe('Cookies Export Route', () => {
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle getServerSession errors gracefully', async () => {
-      mockGetServerSession.mockRejectedValue(new Error('Session error'));
-
-      const response = await GET(mockRequest);
-      const data = await response.json();
-
-      expect(response.status).toBe(500);
-      expect(data).toEqual({
-        success: false,
-        error: 'Internal server error'
-      });
-    });
-
-    it('should log errors to console', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockGetServerSession.mockRejectedValue(new Error('Test error'));
-
-      await GET(mockRequest);
-
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to export cookie data:', expect.any(Error));
-      
-      consoleSpy.mockRestore();
-    });
-  });
-
   describe('GDPR Compliance', () => {
-    beforeEach(() => {
-      mockGetServerSession.mockResolvedValue({
-        backendUser: mockBackendUser
-      });
-    });
-
     it('should export data in machine-readable format', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
-      // Should be valid JSON object
       expect(typeof data).toBe('object');
       expect(data).not.toBeNull();
       expect(Array.isArray(data)).toBe(false);
     });
 
     it('should include all consent categories', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       const consentCategories = ['necessary', 'analytics', 'marketing', 'preferences'];
@@ -291,7 +199,8 @@ describe('Cookies Export Route', () => {
     });
 
     it('should include consent timestamp for audit trail', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       expect(data.consent.timestamp).toBe('2023-12-01T10:00:00.000Z');
@@ -299,7 +208,8 @@ describe('Cookies Export Route', () => {
     });
 
     it('should include consent version for policy changes', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       expect(data.consent.version).toBe('1.0');
@@ -307,7 +217,8 @@ describe('Cookies Export Route', () => {
     });
 
     it('should include clear data retention policy', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
       expect(data.dataRetentionPolicy).toContain('2 years');
@@ -316,14 +227,12 @@ describe('Cookies Export Route', () => {
     });
 
     it('should only export user-specific data', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
-      // Should only contain user data, not system-wide data
       expect(data.user.id).toBe('user-123');
       expect(data.user.email).toBe('test@example.com');
-      
-      // Should not contain sensitive system information
       expect(data).not.toHaveProperty('systemConfig');
       expect(data).not.toHaveProperty('internalId');
       expect(data).not.toHaveProperty('hashedPassword');
@@ -331,17 +240,11 @@ describe('Cookies Export Route', () => {
   });
 
   describe('Data Privacy', () => {
-    beforeEach(() => {
-      mockGetServerSession.mockResolvedValue({
-        backendUser: mockBackendUser
-      });
-    });
-
     it('should not expose sensitive session data', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
-      // Should not include session tokens or internal data
       expect(data).not.toHaveProperty('accessToken');
       expect(data).not.toHaveProperty('refreshToken');
       expect(data).not.toHaveProperty('sessionId');
@@ -349,7 +252,8 @@ describe('Cookies Export Route', () => {
     });
 
     it('should provide downloadable file format', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const contentDisposition = response.headers.get('Content-Disposition');
 
       expect(contentDisposition).toContain('attachment');
@@ -357,10 +261,10 @@ describe('Cookies Export Route', () => {
     });
 
     it('should format timestamps in ISO format', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data = await response.json();
 
-      // ISO format: YYYY-MM-DDTHH:mm:ss.sssZ
       const isoRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
       expect(data.exportDate).toMatch(isoRegex);
       expect(data.consent.timestamp).toMatch(isoRegex);
@@ -368,17 +272,11 @@ describe('Cookies Export Route', () => {
   });
 
   describe('TypeScript Interface Compliance', () => {
-    beforeEach(() => {
-      mockGetServerSession.mockResolvedValue({
-        backendUser: mockBackendUser
-      });
-    });
-
     it('should return data matching CookieExportData interface', async () => {
-      const response = await GET(mockRequest);
+      const req = makeRequest(true);
+      const response = await GET(req);
       const data: CookieExportData = await response.json();
 
-      // Should compile without TypeScript errors
       expect(data.user.id).toBe('user-123');
       expect(data.user.email).toBe('test@example.com');
       expect(data.consent.necessary).toBe(true);

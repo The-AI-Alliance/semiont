@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
 // Mark this route as dynamic since it uses session data
 export const dynamic = 'force-dynamic';
@@ -24,9 +22,8 @@ export interface CookieConsentResponse {
 // GET - Get current user's cookie consent preferences
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.backendUser) {
+    const token = request.cookies.get('semiont-token')?.value;
+    if (!token) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -55,9 +52,8 @@ export async function GET(request: NextRequest) {
 // POST - Update user's cookie consent preferences
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.backendUser) {
+    const token = request.cookies.get('semiont-token')?.value;
+    if (!token) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
 

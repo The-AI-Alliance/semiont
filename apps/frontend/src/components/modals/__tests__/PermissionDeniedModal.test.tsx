@@ -3,20 +3,16 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PermissionDeniedModal } from '../PermissionDeniedModal';
-import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from '@/i18n/routing';
 
-// Mock next-auth
-vi.mock('next-auth/react', () => ({
-  signIn: vi.fn(),
-  useSession: vi.fn(() => ({
-    data: {
-      user: {
-        email: 'test@example.com'
-      }
-    },
-    status: 'authenticated'
-  }))
+// Mock AuthContext
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuthContext: vi.fn(() => ({
+    session: { user: { email: 'test@example.com' }, token: 'test-token' },
+    isLoading: false,
+    setSession: vi.fn(),
+    clearSession: vi.fn(),
+  })),
 }));
 
 // Mock @/i18n/routing
@@ -161,10 +157,10 @@ describe('PermissionDeniedModal', () => {
       const switchAccountButton = screen.getByRole('button', { name: /switch account/i });
       fireEvent.click(switchAccountButton);
 
-      // Should call signIn with current path as callback
-      expect(signIn).toHaveBeenCalledWith(undefined, {
-        callbackUrl: window.location.pathname
-      });
+      // Should redirect to signin with current path as callback
+      expect(window.location.href).toBe(
+        `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`
+      );
     });
 
   });

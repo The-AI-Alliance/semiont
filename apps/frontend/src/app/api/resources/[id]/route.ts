@@ -8,8 +8,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { SERVER_API_URL } from '@/lib/env';
 import { resourceId, AccessToken, BaseUrl, ContentFormat } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
@@ -20,10 +18,8 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // Get user session for authentication
-  const session = await getServerSession(authOptions);
-
-  if (!session?.backendToken) {
+  const backendToken = request.cookies.get('semiont-token')?.value;
+  if (!backendToken) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
@@ -51,7 +47,7 @@ export async function GET(
     const rId = resourceId(id);
     const { stream, contentType } = await client.getResourceRepresentationStream(rId, {
       accept: acceptHeader as ContentFormat,
-      auth: session.backendToken as AccessToken,
+      auth: backendToken as AccessToken,
     });
 
     // Stream through to client - NextResponse accepts ReadableStream

@@ -112,6 +112,7 @@ export class SemiontApiClient {
     this.http = ky.create({
       timeout,
       retry,
+      credentials: 'include',
       hooks: {
         beforeRequest: [
           (request, options) => {

@@ -5,11 +5,15 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { UserPanel } from '../UserPanel';
 
-// Mock next-auth
-const mockSignOut = vi.fn();
-vi.mock('next-auth/react', () => ({
-  signOut: (...args: any[]) => mockSignOut(...args),
-  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' })),
+// Mock AuthContext
+const mockClearSession = vi.fn();
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuthContext: () => ({
+    session: null,
+    isLoading: false,
+    setSession: vi.fn(),
+    clearSession: mockClearSession,
+  }),
 }));
 
 // Mock next/image
@@ -40,10 +44,17 @@ vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Mock router
+const mockRouterPush = vi.fn();
+vi.mock('@/i18n/routing', () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
+
 // Mock react-ui hooks and utilities
 const mockUseSessionExpiry = vi.fn();
 const mockFormatTime = vi.fn();
 const mockSanitizeImageURL = vi.fn();
+const mockLogout = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
@@ -52,6 +63,7 @@ vi.mock('@semiont/react-ui', async () => {
     useSessionExpiry: () => mockUseSessionExpiry(),
     formatTime: (time: number) => mockFormatTime(time),
     sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),
+    useApiClient: () => ({ logout: mockLogout }),
   };
 });
 
@@ -358,7 +370,8 @@ describe('UserPanel Component', () => {
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
       await userEvent.click(signOutButton);
 
-      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+      expect(mockClearSession).toHaveBeenCalled();
+      expect(mockRouterPush).toHaveBeenCalledWith('/');
     });
 
     it('should handle rapid sign out clicks', async () => {
@@ -370,7 +383,7 @@ describe('UserPanel Component', () => {
       await userEvent.click(signOutButton);
 
       // Should be called each time (though the first call would have already started signout process)
-      expect(mockSignOut).toHaveBeenCalledTimes(2);
+      expect(mockClearSession).toHaveBeenCalledTimes(2);
     });
 
     it('should have proper styling for sign out button', () => {
@@ -554,8 +567,6 @@ describe('UserPanel Component', () => {
     });
 
     it('should call signOut when sign out button is clicked', async () => {
-      mockSignOut.mockResolvedValueOnce(undefined);
-
       render(<UserPanel />);
 
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
@@ -563,7 +574,8 @@ describe('UserPanel Component', () => {
       await userEvent.click(signOutButton);
 
       await waitFor(() => {
-        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+        expect(mockClearSession).toHaveBeenCalled();
+        expect(mockRouterPush).toHaveBeenCalledWith('/');
       });
     });
   });

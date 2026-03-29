@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useContext, Suspense } from 'react';
-import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { PageLayout, SignUpForm } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -26,12 +25,13 @@ function SignUpContent() {
   const tNav = useTranslations('Navigation');
   const tHome = useTranslations('Home');
   const searchParams = useSearchParams();
+  const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
 
   const callbackUrl = searchParams?.get('callbackUrl') || '/auth/welcome';
 
   const handleSignUp = async () => {
-    await signIn('google', { callbackUrl });
+    router.push(`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   };
 
   const translations = {

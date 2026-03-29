@@ -48,7 +48,7 @@ semiont check --service all --environment local
 semiont stop --service all --environment local
 
 # View logs
-semiont logs --service backend --environment local
+tail -f ~/.local/state/semiont/{project}/backend/app.log
 
 # Watch service status
 semiont watch --environment local
@@ -223,7 +223,7 @@ semiont rollback --environment production
 **Service won't start**
 ```bash
 # Check logs
-semiont logs --service backend --tail 100
+tail -100 ~/.local/state/semiont/{project}/backend/app.log
 
 # Check environment
 semiont config --environment local

@@ -7,7 +7,6 @@ import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
 
 export default function AboutPage() {
   const t = useTranslations('About');
@@ -48,13 +47,12 @@ export default function AboutPage() {
             >
               {t('signUp')}
             </Link>
-            <button
-              onClick={() => signIn(undefined, { callbackUrl: '/know' })}
+            <Link
+              href="/auth/signin?callbackUrl=/know"
               className={buttonStyles.primary.base}
-              type="button"
             >
               {t('signIn')}
-            </button>
+            </Link>
           </div>
 
           <article className="semiont-static-article">

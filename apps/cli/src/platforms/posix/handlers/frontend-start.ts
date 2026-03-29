@@ -8,7 +8,7 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { resolveFrontendNpmPackage } from './frontend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
-import { checkPortFree, checkCommandAvailable, checkConfigPort, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -83,9 +83,6 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     };
   }
 
-  const jwtSecret = readSecret('JWT_SECRET');
-  if (!jwtSecret) throw new Error(`JWT_SECRET not found in ${getSecretsFilePath()} — run: semiont provision`);
-
   const envConfig = service.environmentConfig;
   const backendService = envConfig.services['backend']!;
   const backendUrl = `http://127.0.0.1:${backendService.port!}`;
@@ -99,14 +96,12 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) as Record<string, string>,
     NODE_ENV: envConfig.env?.NODE_ENV ?? 'development',
     PORT: port.toString(),
-    NEXTAUTH_URL: frontendUrl,
     SERVER_API_URL: backendUrl,
     NEXT_PUBLIC_SITE_NAME: config.siteName,
     NEXT_PUBLIC_BASE_URL: frontendUrl,
     NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: oauthAllowedDomains.join(','),
     NEXT_PUBLIC_ALLOWED_ORIGINS: allowedOrigins.join(','),
     LOG_DIR: logsDir,
-    NEXTAUTH_SECRET: jwtSecret
   };
 
   // Debug: log NEXT_PUBLIC_* env vars
@@ -277,7 +272,6 @@ const preflightFrontendStart = async (context: PosixStartHandlerContext): Promis
   }
   checks.push(
     checkFileExists(project.frontendLogsDir, 'frontend logs dir (run: semiont provision)'),
-    checkJwtSecretExists(),
   );
   return preflightFromChecks(checks);
 };

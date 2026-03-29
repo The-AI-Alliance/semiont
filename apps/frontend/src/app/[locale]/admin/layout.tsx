@@ -2,13 +2,13 @@
 
 import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
-import { useSession } from 'next-auth/react';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
 import { LeftSidebar, Footer, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
+import { NEXT_PUBLIC_BACKEND_URL } from '@/lib/env';
 
 // Note: Authentication is handled by middleware.ts for all admin routes
 // This ensures centralized security and returns 404 for unauthorized users
@@ -22,16 +22,12 @@ export default function AdminLayout({
   const tNav = useTranslations('Navigation');
   const tHome = useTranslations('Home');
   const keyboardContext = useContext(KeyboardShortcutsContext);
-  const { isAuthenticated, isAdmin, isModerator } = useAuth();
-  const { data: session } = useSession();
-
-  // Extract auth token from session
-  const authToken = session?.backendToken || null;
+  const { isAuthenticated, isAdmin, isModerator, token: authToken } = useAuth();
 
   // Middleware has already verified admin access
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl="">
+      <ApiClientProvider baseUrl={NEXT_PUBLIC_BACKEND_URL}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
             <div className="flex flex-1">
               <LeftSidebar

@@ -11,7 +11,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/hooks/useAuth';
 import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
@@ -33,18 +33,18 @@ function ComposeResourceContent() {
   const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
+  const { isAuthenticated, isLoading: authLoading, token: authToken } = useAuth();
   const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');
 
   // Authentication guard - redirect to home if not authenticated
   useEffect(() => {
-    if (status === 'loading') return;
-    if (!session?.backendToken) {
+    if (authLoading) return;
+    if (!isAuthenticated) {
       router.push('/');
     }
-  }, [session, status, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   // Reference completion parameters
   const annotationUriParam = searchParams?.get('annotationUri');
@@ -157,7 +157,7 @@ function ComposeResourceContent() {
 
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, tokenFromUrl, cloneDataResponse, annotationUriParam, sourceDocumentId, nameFromUrl, entityTypesFromUrl, session?.backendToken]);
+  }, [mode, tokenFromUrl, cloneDataResponse, annotationUriParam, sourceDocumentId, nameFromUrl, entityTypesFromUrl, authToken]);
 
   // Handle save resource
   const handleSaveResource = async (params: SaveResourceParams) => {
@@ -240,16 +240,16 @@ function ComposeResourceContent() {
   };
 
   // Show loading state
-  if (status === 'loading' || isLoading) {
+  if (authLoading || isLoading) {
     return (
       <ComposeLoadingState
-        message={status === 'loading' ? 'Checking authentication...' : 'Loading cloned resource...'}
+        message={authLoading ? 'Checking authentication...' : 'Loading cloned resource...'}
       />
     );
   }
 
   // Don't render if not authenticated
-  if (!session?.backendToken) {
+  if (!isAuthenticated) {
     return null;
   }
 

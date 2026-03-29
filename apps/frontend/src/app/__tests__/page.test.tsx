@@ -21,6 +21,23 @@ vi.mock('@/components/UserMenu', () => ({
   UserMenu: () => <div data-testid="user-menu">User Menu</div>
 }));
 
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({
+    isAuthenticated: false,
+    isLoading: false,
+    token: null,
+    user: null,
+    backendUser: null,
+    isFullyAuthenticated: false,
+    hasValidBackendToken: false,
+    userDomain: undefined,
+    displayName: '',
+    avatarUrl: null,
+    isAdmin: false,
+    isModerator: false,
+  }),
+}));
+
 describe('Home Page', () => {
   it('should render the main structure', () => {
     render(<Home />);
