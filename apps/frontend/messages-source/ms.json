@@ -13,7 +13,7 @@
     "administer": "Pentadbiran"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Hak cipta terpelihara.",
+    "copyright": "© {{year}} Semiont. Hak cipta terpelihara.",
     "about": "Perihal",
     "privacyPolicy": "Dasar Privasi",
     "cookiePreferences": "Keutamaan Kuki",
@@ -94,7 +94,7 @@
     "contactAddress": "Alamat:",
     "updatesTitle": "Kemas Kini Dasar Ini",
     "updates": "Kami mungkin mengemas kini Dasar Privasi ini dari semasa ke semasa. Kami akan memberitahu anda tentang sebarang perubahan material dengan menyiarkan Dasar Privasi baharu di halaman ini dan mengemas kini tarikh kuat kuasa.",
-    "lastUpdated": "Kemas kini terakhir: {date}"
+    "lastUpdated": "Kemas kini terakhir: {{date}}"
   },
   "Terms": {
     "pageTitle": "Terma Perkhidmatan",
@@ -124,7 +124,7 @@
     "changes": "Kami mungkin mengemas kini terma ini secara berkala. Pengguna akan dimaklumkan tentang perubahan yang ketara, dan penggunaan platform yang berterusan merupakan penerimaan terma yang dikemas kini.",
     "contactTitle": "Hubungi",
     "contact": "Jika anda mempunyai pertanyaan mengenai terma ini atau perlu melaporkan pelanggaran, sila hubungi pasukan sokongan kami melalui platform atau di maklumat hubungan yang disediakan dalam Dasar Privasi kami.",
-    "lastUpdated": "Kemas kini terakhir: {date}",
+    "lastUpdated": "Kemas kini terakhir: {{date}}",
     "aup": "Dengan menggunakan Semiont, anda bersetuju untuk menggunakan platform kami secara bertanggungjawab dan menurut terma ini. Kami komited untuk mengekalkan persekitaran yang selamat, hormat dan produktif untuk semua pengguna."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Memuatkan...",
     "welcomeTitle": "Selamat Datang ke Semiont!",
     "thanksForAccepting": "Terima kasih kerana menerima terma kami. Mengalihkan anda ke aplikasi...",
-    "welcomeUser": "Selamat datang ke Semiont, {firstName}!",
+    "welcomeUser": "Selamat datang ke Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Sebelum anda boleh mula menggunakan Semiont, sila semak dan terima terma perkhidmatan kami",
     "termsSummaryTitle": "Ringkasan Terma Perkhidmatan",
     "termsSummaryIntro": "Dengan menggunakan Semiont, anda bersetuju untuk:",
@@ -246,9 +246,9 @@
     "archived": "Diarkibkan",
     "created": "Dicipta",
     "recentResources": "Sumber Terkini",
-    "searchResults": "Hasil Carian ({count})",
-    "resourcesTaggedWith": "Sumber yang ditandai dengan '{entityType}'",
-    "noResultsFound": "Tiada hasil ditemui untuk '{query}'. Menunjukkan sumber terkini sebaliknya.",
+    "searchResults": "Hasil Carian ({{count}})",
+    "resourcesTaggedWith": "Sumber yang ditandai dengan '{{entityType}}'",
+    "noResultsFound": "Tiada hasil ditemui untuk '{{query}}'. Menunjukkan sumber terkini sebaliknya.",
     "noResourcesAvailable": "Tiada sumber tersedia. Cipta dokumen pertama anda untuk bermula.",
     "composeFirstResource": "Karang Sumber Pertama",
     "loadingKnowledgeBase": "Memuatkan pangkalan pengetahuan..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Akaun",
     "user": "Pengguna",
-    "profileAlt": "Profil {name}",
+    "profileAlt": "Profil {{name}}",
     "session": "Sesi",
-    "expiresIn": "Tamat tempoh dalam: {time}",
+    "expiresIn": "Tamat tempoh dalam: {{time}}",
     "privileges": "Keistimewaan",
     "administrator": "🛡️ Pentadbir",
     "moderator": "⚖️ Penyederhana",
@@ -433,7 +433,7 @@
     "configManagementDescription": "Tetapan OAuth diurus melalui pemboleh ubah persekitaran. Untuk mengubah suai tetapan ini:",
     "configLocalDev": "Untuk pembangunan tempatan: Kemas kini fail .env anda",
     "configCloudDeploy": "Untuk penggunaan awan: Gunakan",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "untuk menerapkan perubahan daripada fail konfigurasi",
     "configAWS": "Untuk AWS: Tetapan disimpan dalam AWS Secrets Manager dan definisi tugas ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Keutamaan Kuki",
     "description": "Urus keutamaan kuki dan tetapan privasi anda. Perubahan akan berkuat kuasa serta-merta.",
     "currentSettings": "Tetapan Semasa",
-    "lastUpdated": "Kemas kini terakhir: {date}",
-    "version": "Versi: {version}",
+    "lastUpdated": "Kemas kini terakhir: {{date}}",
+    "version": "Versi: {{version}}",
     "cookieCategories": "Kategori Kuki",
     "required": "(Diperlukan)",
-    "viewCookies": "Lihat kuki ({count})",
+    "viewCookies": "Lihat kuki ({{count}})",
     "dataManagement": "Pengurusan Data",
     "exportMyData": "Eksport Data Saya",
     "deleteAllData": "Padam Semua Data",

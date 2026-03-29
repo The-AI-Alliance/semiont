@@ -13,7 +13,7 @@
     "administer": "প্রশাসন"
   },
   "Footer": {
-    "copyright": "© {year} Semiont। সর্বস্বত্ব সংরক্ষিত।",
+    "copyright": "© {{year}} Semiont। সর্বস্বত্ব সংরক্ষিত।",
     "about": "সম্পর্কে",
     "privacyPolicy": "গোপনীয়তা নীতি",
     "cookiePreferences": "কুকি পছন্দসমূহ",
@@ -94,7 +94,7 @@
     "contactAddress": "ঠিকানা:",
     "updatesTitle": "এই নীতির আপডেট",
     "updates": "আমরা সময়ে সময়ে এই গোপনীয়তা নীতি আপডেট করতে পারি। আমরা এই পৃষ্ঠায় নতুন গোপনীয়তা নীতি প্রকাশ করে এবং কার্যকর তারিখ আপডেট করে আপনাকে যেকোনো গুরুত্বপূর্ণ পরিবর্তন সম্পর্কে জানাব।",
-    "lastUpdated": "সর্বশেষ আপডেট: {date}"
+    "lastUpdated": "সর্বশেষ আপডেট: {{date}}"
   },
   "Terms": {
     "pageTitle": "সেবার শর্তাবলি",
@@ -124,7 +124,7 @@
     "changes": "আমরা সময়ে সময়ে এই শর্তাবলি আপডেট করতে পারি। গুরুত্বপূর্ণ পরিবর্তন সম্পর্কে ব্যবহারকারীদের জানানো হবে, এবং প্ল্যাটফর্মের অব্যাহত ব্যবহার আপডেট করা শর্তাবলির স্বীকৃতি বলে গণ্য হবে।",
     "contactTitle": "যোগাযোগ",
     "contact": "এই শর্তাবলি সম্পর্কে আপনার প্রশ্ন থাকলে বা লঙ্ঘন রিপোর্ট করতে চাইলে, অনুগ্রহ করে প্ল্যাটফর্মের মাধ্যমে বা আমাদের গোপনীয়তা নীতিতে প্রদত্ত যোগাযোগের তথ্যে আমাদের সহায়তা দলের সাথে যোগাযোগ করুন।",
-    "lastUpdated": "সর্বশেষ আপডেট: {date}",
+    "lastUpdated": "সর্বশেষ আপডেট: {{date}}",
     "aup": "Semiont ব্যবহার করে, আপনি এই শর্তাবলি অনুসারে দায়িত্বশীলভাবে আমাদের প্ল্যাটফর্ম ব্যবহার করতে সম্মত হচ্ছেন। আমরা সকল ব্যবহারকারীদের জন্য একটি নিরাপদ, সম্মানজনক এবং উৎপাদনশীল পরিবেশ বজায় রাখতে প্রতিশ্রুতিবদ্ধ।"
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "লোড হচ্ছে...",
     "welcomeTitle": "Semiont-এ স্বাগতম!",
     "thanksForAccepting": "আমাদের শর্তাবলি গ্রহণ করার জন্য ধন্যবাদ। আপনাকে অ্যাপে পুনর্নির্দেশ করা হচ্ছে...",
-    "welcomeUser": "Semiont-এ স্বাগতম, {firstName}!",
+    "welcomeUser": "Semiont-এ স্বাগতম, {{firstName}}!",
     "reviewTermsPrompt": "Semiont ব্যবহার শুরু করার আগে, অনুগ্রহ করে আমাদের সেবার শর্তাবলি পর্যালোচনা করুন এবং সম্মতি দিন",
     "termsSummaryTitle": "সেবার শর্তাবলির সারাংশ",
     "termsSummaryIntro": "Semiont ব্যবহার করে, আপনি সম্মত হচ্ছেন:",
@@ -246,9 +246,9 @@
     "archived": "সংরক্ষণাগারভুক্ত",
     "created": "তৈরি করা হয়েছে",
     "recentResources": "সাম্প্রতিক সম্পদসমূহ",
-    "searchResults": "অনুসন্ধান ফলাফল ({count})",
-    "resourcesTaggedWith": "'{entityType}' দিয়ে ট্যাগ করা সম্পদসমূহ",
-    "noResultsFound": "'{query}'-এর জন্য কোনো ফলাফল পাওয়া যায়নি। পরিবর্তে সাম্প্রতিক সম্পদ দেখানো হচ্ছে।",
+    "searchResults": "অনুসন্ধান ফলাফল ({{count}})",
+    "resourcesTaggedWith": "'{{entityType}}' দিয়ে ট্যাগ করা সম্পদসমূহ",
+    "noResultsFound": "'{{query}}'-এর জন্য কোনো ফলাফল পাওয়া যায়নি। পরিবর্তে সাম্প্রতিক সম্পদ দেখানো হচ্ছে।",
     "noResourcesAvailable": "কোনো সম্পদ উপলব্ধ নেই। শুরু করতে আপনার প্রথম নথি তৈরি করুন।",
     "composeFirstResource": "প্রথম সম্পদ রচনা করুন",
     "loadingKnowledgeBase": "জ্ঞানভাণ্ডার লোড হচ্ছে..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "অ্যাকাউন্ট",
     "user": "ব্যবহারকারী",
-    "profileAlt": "{name} প্রোফাইল",
+    "profileAlt": "{{name}} প্রোফাইল",
     "session": "সেশন",
-    "expiresIn": "মেয়াদ শেষ: {time}",
+    "expiresIn": "মেয়াদ শেষ: {{time}}",
     "privileges": "বিশেষাধিকার",
     "administrator": "🛡️ প্রশাসক",
     "moderator": "⚖️ পরিচালক",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth সেটিংস পরিবেশ চলকের মাধ্যমে পরিচালিত হয়। এই সেটিংস পরিবর্তন করতে:",
     "configLocalDev": "স্থানীয় উন্নয়নের জন্য: আপনার .env ফাইল আপডেট করুন",
     "configCloudDeploy": "ক্লাউড স্থাপনার জন্য: ব্যবহার করুন",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "কনফিগ ফাইল থেকে পরিবর্তন প্রয়োগ করতে",
     "configAWS": "AWS-এর জন্য: সেটিংস AWS Secrets Manager এবং ECS টাস্ক ডেফিনিশনে সংরক্ষিত আছে"
   },
@@ -510,11 +510,11 @@
     "title": "কুকি পছন্দসমূহ",
     "description": "আপনার কুকি পছন্দ এবং গোপনীয়তা সেটিংস পরিচালনা করুন। পরিবর্তনগুলি অবিলম্বে কার্যকর হবে।",
     "currentSettings": "বর্তমান সেটিংস",
-    "lastUpdated": "সর্বশেষ আপডেট: {date}",
-    "version": "সংস্করণ: {version}",
+    "lastUpdated": "সর্বশেষ আপডেট: {{date}}",
+    "version": "সংস্করণ: {{version}}",
     "cookieCategories": "কুকি বিভাগসমূহ",
     "required": "(আবশ্যক)",
-    "viewCookies": "কুকি দেখুন ({count})",
+    "viewCookies": "কুকি দেখুন ({{count}})",
     "dataManagement": "ডেটা ব্যবস্থাপনা",
     "exportMyData": "আমার ডেটা রপ্তানি করুন",
     "deleteAllData": "সমস্ত ডেটা মুছে ফেলুন",

@@ -13,7 +13,7 @@
     "administer": "प्रशासन"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. सर्वाधिकार सुरक्षित।",
+    "copyright": "© {{year}} Semiont. सर्वाधिकार सुरक्षित।",
     "about": "हमारे बारे में",
     "privacyPolicy": "गोपनीयता नीति",
     "cookiePreferences": "कुकी प्राथमिकताएं",
@@ -94,7 +94,7 @@
     "contactAddress": "पता:",
     "updatesTitle": "इस नीति में अपडेट",
     "updates": "हम समय-समय पर इस गोपनीयता नीति को अपडेट कर सकते हैं। हम इस पृष्ठ पर नई गोपनीयता नीति पोस्ट करके और प्रभावी तिथि को अपडेट करके किसी भी महत्वपूर्ण परिवर्तन की सूचना देंगे।",
-    "lastUpdated": "अंतिम अपडेट: {date}"
+    "lastUpdated": "अंतिम अपडेट: {{date}}"
   },
   "Terms": {
     "pageTitle": "सेवा की शर्तें",
@@ -124,7 +124,7 @@
     "changes": "हम समय-समय पर इन शर्तों को अपडेट कर सकते हैं। महत्वपूर्ण परिवर्तनों की सूचना उपयोगकर्ताओं को दी जाएगी, और प्लेटफॉर्म का निरंतर उपयोग अपडेट की गई शर्तों की स्वीकृति मानी जाएगी।",
     "contactTitle": "संपर्क",
     "contact": "यदि इन शर्तों के बारे में आपके कोई प्रश्न हैं या उल्लंघनों की रिपोर्ट करनी है, तो कृपया प्लेटफॉर्म के माध्यम से या हमारी गोपनीयता नीति में दी गई संपर्क जानकारी पर हमारी सहायता टीम से संपर्क करें।",
-    "lastUpdated": "अंतिम अपडेट: {date}",
+    "lastUpdated": "अंतिम अपडेट: {{date}}",
     "aup": "Semiont का उपयोग करके, आप हमारे प्लेटफॉर्म का जिम्मेदारी से और इन शर्तों के अनुसार उपयोग करने के लिए सहमत हैं। हम सभी उपयोगकर्ताओं के लिए एक सुरक्षित, सम्मानजनक और उत्पादक वातावरण बनाए रखने के लिए प्रतिबद्ध हैं।"
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "लोड हो रहा है...",
     "welcomeTitle": "Semiont में आपका स्वागत है!",
     "thanksForAccepting": "हमारी शर्तें स्वीकार करने के लिए धन्यवाद। आपको ऐप पर पुनर्निर्देशित किया जा रहा है...",
-    "welcomeUser": "Semiont में आपका स्वागत है, {firstName}!",
+    "welcomeUser": "Semiont में आपका स्वागत है, {{firstName}}!",
     "reviewTermsPrompt": "Semiont का उपयोग शुरू करने से पहले, कृपया हमारी सेवा की शर्तों की समीक्षा करें और उन्हें स्वीकार करें",
     "termsSummaryTitle": "सेवा की शर्तों का सारांश",
     "termsSummaryIntro": "Semiont का उपयोग करके, आप सहमत हैं:",
@@ -246,9 +246,9 @@
     "archived": "संग्रहीत",
     "created": "निर्मित",
     "recentResources": "हाल के संसाधन",
-    "searchResults": "खोज परिणाम ({count})",
-    "resourcesTaggedWith": "«{entityType}» के साथ टैग किए गए संसाधन",
-    "noResultsFound": "«{query}» के लिए कोई परिणाम नहीं मिला। इसके बजाय हाल के संसाधन दिखाए जा रहे हैं।",
+    "searchResults": "खोज परिणाम ({{count}})",
+    "resourcesTaggedWith": "«{{entityType}}» के साथ टैग किए गए संसाधन",
+    "noResultsFound": "«{{query}}» के लिए कोई परिणाम नहीं मिला। इसके बजाय हाल के संसाधन दिखाए जा रहे हैं।",
     "noResourcesAvailable": "कोई संसाधन उपलब्ध नहीं है। शुरू करने के लिए अपना पहला दस्तावेज़ बनाएं।",
     "composeFirstResource": "पहला संसाधन रचें",
     "loadingKnowledgeBase": "ज्ञान आधार लोड हो रहा है..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "खाता",
     "user": "उपयोगकर्ता",
-    "profileAlt": "{name} प्रोफ़ाइल",
+    "profileAlt": "{{name}} प्रोफ़ाइल",
     "session": "सत्र",
-    "expiresIn": "समाप्ति: {time}",
+    "expiresIn": "समाप्ति: {{time}}",
     "privileges": "विशेषाधिकार",
     "administrator": "🛡️ प्रशासक",
     "moderator": "⚖️ मॉडरेटर",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth सेटिंग्स एनवायरनमेंट वेरिएबल्स के माध्यम से प्रबंधित की जाती हैं। इन सेटिंग्स को संशोधित करने के लिए:",
     "configLocalDev": "स्थानीय विकास के लिए: अपनी .env फ़ाइलें अपडेट करें",
     "configCloudDeploy": "क्लाउड परिनियोजन के लिए: उपयोग करें",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "कॉन्फ़िग फ़ाइलों से परिवर्तन लागू करने के लिए",
     "configAWS": "AWS के लिए: सेटिंग्स AWS Secrets Manager और ECS टास्क डेफ़िनिशन में संग्रहीत हैं"
   },
@@ -510,11 +510,11 @@
     "title": "कुकी प्राथमिकताएं",
     "description": "अपनी कुकी प्राथमिकताएं और गोपनीयता सेटिंग्स प्रबंधित करें। परिवर्तन तुरंत प्रभावी होंगे।",
     "currentSettings": "वर्तमान सेटिंग्स",
-    "lastUpdated": "अंतिम अपडेट: {date}",
-    "version": "संस्करण: {version}",
+    "lastUpdated": "अंतिम अपडेट: {{date}}",
+    "version": "संस्करण: {{version}}",
     "cookieCategories": "कुकी श्रेणियां",
     "required": "(आवश्यक)",
-    "viewCookies": "कुकीज़ देखें ({count})",
+    "viewCookies": "कुकीज़ देखें ({{count}})",
     "dataManagement": "डेटा प्रबंधन",
     "exportMyData": "मेरा डेटा निर्यात करें",
     "deleteAllData": "सभी डेटा हटाएं",

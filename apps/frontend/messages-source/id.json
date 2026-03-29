@@ -13,7 +13,7 @@
     "administer": "Administrasi"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Hak cipta dilindungi undang-undang.",
+    "copyright": "© {{year}} Semiont. Hak cipta dilindungi undang-undang.",
     "about": "Tentang",
     "privacyPolicy": "Kebijakan Privasi",
     "cookiePreferences": "Preferensi Cookie",
@@ -94,7 +94,7 @@
     "contactAddress": "Alamat:",
     "updatesTitle": "Pembaruan Kebijakan Ini",
     "updates": "Kami dapat memperbarui Kebijakan Privasi ini dari waktu ke waktu. Kami akan memberi tahu Anda tentang perubahan material apa pun dengan memposting Kebijakan Privasi baru di halaman ini dan memperbarui tanggal efektif.",
-    "lastUpdated": "Terakhir diperbarui: {date}"
+    "lastUpdated": "Terakhir diperbarui: {{date}}"
   },
   "Terms": {
     "pageTitle": "Ketentuan Layanan",
@@ -124,7 +124,7 @@
     "changes": "Kami dapat memperbarui ketentuan ini secara berkala. Pengguna akan diberitahu tentang perubahan signifikan, dan penggunaan platform yang berkelanjutan merupakan penerimaan atas ketentuan yang diperbarui.",
     "contactTitle": "Kontak",
     "contact": "Jika Anda memiliki pertanyaan tentang ketentuan ini atau perlu melaporkan pelanggaran, silakan hubungi tim dukungan kami melalui platform atau di informasi kontak yang disediakan dalam Kebijakan Privasi kami.",
-    "lastUpdated": "Terakhir diperbarui: {date}",
+    "lastUpdated": "Terakhir diperbarui: {{date}}",
     "aup": "Dengan menggunakan Semiont, Anda setuju untuk menggunakan platform kami secara bertanggung jawab dan sesuai dengan ketentuan ini. Kami berkomitmen untuk memelihara lingkungan yang aman, saling menghormati, dan produktif bagi semua pengguna."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Memuat...",
     "welcomeTitle": "Selamat Datang di Semiont!",
     "thanksForAccepting": "Terima kasih telah menerima ketentuan kami. Mengarahkan Anda ke aplikasi...",
-    "welcomeUser": "Selamat datang di Semiont, {firstName}!",
+    "welcomeUser": "Selamat datang di Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Sebelum Anda dapat mulai menggunakan Semiont, silakan tinjau dan terima ketentuan layanan kami",
     "termsSummaryTitle": "Ringkasan Ketentuan Layanan",
     "termsSummaryIntro": "Dengan menggunakan Semiont, Anda setuju untuk:",
@@ -246,9 +246,9 @@
     "archived": "Diarsipkan",
     "created": "Dibuat",
     "recentResources": "Sumber Daya Terbaru",
-    "searchResults": "Hasil Pencarian ({count})",
-    "resourcesTaggedWith": "Sumber daya yang ditandai dengan '{entityType}'",
-    "noResultsFound": "Tidak ada hasil yang ditemukan untuk '{query}'. Menampilkan sumber daya terbaru sebagai gantinya.",
+    "searchResults": "Hasil Pencarian ({{count}})",
+    "resourcesTaggedWith": "Sumber daya yang ditandai dengan '{{entityType}}'",
+    "noResultsFound": "Tidak ada hasil yang ditemukan untuk '{{query}}'. Menampilkan sumber daya terbaru sebagai gantinya.",
     "noResourcesAvailable": "Tidak ada sumber daya yang tersedia. Buat dokumen pertama Anda untuk memulai.",
     "composeFirstResource": "Buat Sumber Daya Pertama",
     "loadingKnowledgeBase": "Memuat basis pengetahuan..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Akun",
     "user": "Pengguna",
-    "profileAlt": "Profil {name}",
+    "profileAlt": "Profil {{name}}",
     "session": "Sesi",
-    "expiresIn": "Berakhir dalam: {time}",
+    "expiresIn": "Berakhir dalam: {{time}}",
     "privileges": "Hak Istimewa",
     "administrator": "🛡️ Administrator",
     "moderator": "⚖️ Moderator",
@@ -433,7 +433,7 @@
     "configManagementDescription": "Pengaturan OAuth dikelola melalui variabel lingkungan. Untuk mengubah pengaturan ini:",
     "configLocalDev": "Untuk pengembangan lokal: Perbarui berkas .env Anda",
     "configCloudDeploy": "Untuk penerapan cloud: Gunakan",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "untuk menerapkan perubahan dari berkas konfigurasi",
     "configAWS": "Untuk AWS: Pengaturan disimpan di AWS Secrets Manager dan definisi tugas ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Preferensi Cookie",
     "description": "Kelola preferensi cookie dan pengaturan privasi Anda. Perubahan akan berlaku segera.",
     "currentSettings": "Pengaturan Saat Ini",
-    "lastUpdated": "Terakhir diperbarui: {date}",
-    "version": "Versi: {version}",
+    "lastUpdated": "Terakhir diperbarui: {{date}}",
+    "version": "Versi: {{version}}",
     "cookieCategories": "Kategori Cookie",
     "required": "(Wajib)",
-    "viewCookies": "Lihat cookie ({count})",
+    "viewCookies": "Lihat cookie ({{count}})",
     "dataManagement": "Manajemen Data",
     "exportMyData": "Ekspor Data Saya",
     "deleteAllData": "Hapus Semua Data",

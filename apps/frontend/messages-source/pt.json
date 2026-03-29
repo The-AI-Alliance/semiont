@@ -13,7 +13,7 @@
     "administer": "Administracao"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Todos os direitos reservados.",
+    "copyright": "© {{year}} Semiont. Todos os direitos reservados.",
     "about": "Sobre",
     "privacyPolicy": "Politica de Privacidade",
     "cookiePreferences": "Preferencias de Cookies",
@@ -94,7 +94,7 @@
     "contactAddress": "Endereco:",
     "updatesTitle": "Atualizacoes desta Politica",
     "updates": "Podemos atualizar esta Politica de Privacidade periodicamente. Notificaremos voce sobre quaisquer alteracoes significativas publicando a nova Politica de Privacidade nesta pagina e atualizando a data de vigencia.",
-    "lastUpdated": "Ultima atualizacao: {date}"
+    "lastUpdated": "Ultima atualizacao: {{date}}"
   },
   "Terms": {
     "pageTitle": "Termos de Servico",
@@ -124,7 +124,7 @@
     "changes": "Podemos atualizar estes termos periodicamente. Os usuarios serao notificados sobre alteracoes significativas, e o uso continuado da plataforma constitui aceitacao dos termos atualizados.",
     "contactTitle": "Contato",
     "contact": "Se voce tiver duvidas sobre estes termos ou precisar reportar violacoes, entre em contato com nossa equipe de suporte pela plataforma ou pelas informacoes de contato fornecidas em nossa Politica de Privacidade.",
-    "lastUpdated": "Ultima atualizacao: {date}",
+    "lastUpdated": "Ultima atualizacao: {{date}}",
     "aup": "Ao usar o Semiont, voce concorda em usar nossa plataforma de forma responsavel e de acordo com estes termos. Estamos comprometidos em manter um ambiente seguro, respeitoso e produtivo para todos os usuarios."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Carregando...",
     "welcomeTitle": "Bem-vindo ao Semiont!",
     "thanksForAccepting": "Obrigado por aceitar nossos termos. Redirecionando voce para o aplicativo...",
-    "welcomeUser": "Bem-vindo ao Semiont, {firstName}!",
+    "welcomeUser": "Bem-vindo ao Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Antes de comecar a usar o Semiont, por favor, revise e aceite nossos termos de servico",
     "termsSummaryTitle": "Resumo dos Termos de Servico",
     "termsSummaryIntro": "Ao usar o Semiont, voce concorda em:",
@@ -246,9 +246,9 @@
     "archived": "Arquivados",
     "created": "Criados",
     "recentResources": "Recursos Recentes",
-    "searchResults": "Resultados da Pesquisa ({count})",
-    "resourcesTaggedWith": "Recursos marcados com \"{entityType}\"",
-    "noResultsFound": "Nenhum resultado encontrado para \"{query}\". Mostrando recursos recentes.",
+    "searchResults": "Resultados da Pesquisa ({{count}})",
+    "resourcesTaggedWith": "Recursos marcados com \"{{entityType}}\"",
+    "noResultsFound": "Nenhum resultado encontrado para \"{{query}}\". Mostrando recursos recentes.",
     "noResourcesAvailable": "Nenhum recurso disponivel. Crie seu primeiro documento para comecar.",
     "composeFirstResource": "Compor Primeiro Recurso",
     "loadingKnowledgeBase": "Carregando base de conhecimento..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Conta",
     "user": "Usuario",
-    "profileAlt": "Perfil de {name}",
+    "profileAlt": "Perfil de {{name}}",
     "session": "Sessao",
-    "expiresIn": "Expira em: {time}",
+    "expiresIn": "Expira em: {{time}}",
     "privileges": "Privilegios",
     "administrator": "🛡️ Administrador",
     "moderator": "⚖️ Moderador",
@@ -433,7 +433,7 @@
     "configManagementDescription": "As configuracoes OAuth sao gerenciadas por meio de variaveis de ambiente. Para modificar essas configuracoes:",
     "configLocalDev": "Para desenvolvimento local: Atualize seus arquivos .env",
     "configCloudDeploy": "Para implantacoes na nuvem: Use",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "para aplicar alteracoes dos arquivos de configuracao",
     "configAWS": "Para AWS: As configuracoes sao armazenadas no AWS Secrets Manager e nas definicoes de tarefas ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Preferencias de Cookies",
     "description": "Gerencie suas preferencias de cookies e configuracoes de privacidade. As alteracoes entrarao em vigor imediatamente.",
     "currentSettings": "Configuracoes Atuais",
-    "lastUpdated": "Ultima atualizacao: {date}",
-    "version": "Versao: {version}",
+    "lastUpdated": "Ultima atualizacao: {{date}}",
+    "version": "Versao: {{version}}",
     "cookieCategories": "Categorias de Cookies",
     "required": "(Obrigatorio)",
-    "viewCookies": "Ver cookies ({count})",
+    "viewCookies": "Ver cookies ({{count}})",
     "dataManagement": "Gerenciamento de Dados",
     "exportMyData": "Exportar Meus Dados",
     "deleteAllData": "Excluir Todos os Dados",

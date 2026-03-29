@@ -13,7 +13,7 @@
     "administer": "ניהול מערכת"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. כל הזכויות שמורות.",
+    "copyright": "© {{year}} Semiont. כל הזכויות שמורות.",
     "about": "אודות",
     "privacyPolicy": "מדיניות פרטיות",
     "cookiePreferences": "העדפות עוגיות",
@@ -94,7 +94,7 @@
     "contactAddress": "כתובת:",
     "updatesTitle": "עדכונים למדיניות זו",
     "updates": "אנו עשויים לעדכן מדיניות פרטיות זו מעת לעת. נודיע לכם על שינויים מהותיים על ידי פרסום מדיניות הפרטיות החדשה בדף זה ועדכון תאריך התחילה.",
-    "lastUpdated": "עודכן לאחרונה: {date}"
+    "lastUpdated": "עודכן לאחרונה: {{date}}"
   },
   "Terms": {
     "pageTitle": "תנאי שימוש",
@@ -124,7 +124,7 @@
     "changes": "אנו עשויים לעדכן תנאים אלו מעת לעת. המשתמשים יקבלו הודעה על שינויים משמעותיים, והמשך השימוש בפלטפורמה מהווה קבלת התנאים המעודכנים.",
     "contactTitle": "יצירת קשר",
     "contact": "אם יש לכם שאלות אודות תנאים אלו או שאתם צריכים לדווח על הפרות, אנא פנו לצוות התמיכה שלנו דרך הפלטפורמה או בפרטי ההתקשרות המופיעים במדיניות הפרטיות שלנו.",
-    "lastUpdated": "עודכן לאחרונה: {date}",
+    "lastUpdated": "עודכן לאחרונה: {{date}}",
     "aup": "באמצעות שימוש ב-Semiont, אתם מסכימים להשתמש בפלטפורמה שלנו באחריות ובהתאם לתנאים אלו. אנו מחויבים לשמור על סביבה בטוחה, מכבדת ופרודוקטיבית לכל המשתמשים."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "טוען...",
     "welcomeTitle": "ברוכים הבאים ל-Semiont!",
     "thanksForAccepting": "תודה שקיבלתם את התנאים. מפנים אתכם לאפליקציה...",
-    "welcomeUser": "ברוכים הבאים ל-Semiont, {firstName}!",
+    "welcomeUser": "ברוכים הבאים ל-Semiont, {{firstName}}!",
     "reviewTermsPrompt": "לפני שתוכלו להתחיל להשתמש ב-Semiont, אנא עיינו בתנאי השימוש שלנו וקבלו אותם",
     "termsSummaryTitle": "סיכום תנאי השימוש",
     "termsSummaryIntro": "באמצעות שימוש ב-Semiont, אתם מסכימים ל:",
@@ -246,9 +246,9 @@
     "archived": "בארכיון",
     "created": "נוצרו",
     "recentResources": "משאבים אחרונים",
-    "searchResults": "תוצאות חיפוש ({count})",
-    "resourcesTaggedWith": "משאבים מתויגים עם «{entityType}»",
-    "noResultsFound": "לא נמצאו תוצאות עבור «{query}». מציג משאבים אחרונים במקום.",
+    "searchResults": "תוצאות חיפוש ({{count}})",
+    "resourcesTaggedWith": "משאבים מתויגים עם «{{entityType}}»",
+    "noResultsFound": "לא נמצאו תוצאות עבור «{{query}}». מציג משאבים אחרונים במקום.",
     "noResourcesAvailable": "אין משאבים זמינים. צרו את המסמך הראשון שלכם כדי להתחיל.",
     "composeFirstResource": "חיבור משאב ראשון",
     "loadingKnowledgeBase": "טוען מאגר ידע..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "חשבון",
     "user": "משתמש",
-    "profileAlt": "פרופיל {name}",
+    "profileAlt": "פרופיל {{name}}",
     "session": "סשן",
-    "expiresIn": "פג תוקף בעוד: {time}",
+    "expiresIn": "פג תוקף בעוד: {{time}}",
     "privileges": "הרשאות",
     "administrator": "🛡️ מנהל מערכת",
     "moderator": "⚖️ מנהל תוכן",
@@ -433,7 +433,7 @@
     "configManagementDescription": "הגדרות OAuth מנוהלות באמצעות משתני סביבה. כדי לשנות הגדרות אלו:",
     "configLocalDev": "לפיתוח מקומי: עדכנו את קבצי ה-.env שלכם",
     "configCloudDeploy": "לפריסה בענן: השתמשו ב-",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "להחלת שינויים מקבצי הגדרות",
     "configAWS": "עבור AWS: ההגדרות מאוחסנות ב-AWS Secrets Manager והגדרות משימות ECS"
   },
@@ -510,11 +510,11 @@
     "title": "העדפות עוגיות",
     "description": "נהלו את העדפות העוגיות והגדרות הפרטיות שלכם. השינויים ייכנסו לתוקף מיידית.",
     "currentSettings": "הגדרות נוכחיות",
-    "lastUpdated": "עודכן לאחרונה: {date}",
-    "version": "גרסה: {version}",
+    "lastUpdated": "עודכן לאחרונה: {{date}}",
+    "version": "גרסה: {{version}}",
     "cookieCategories": "קטגוריות עוגיות",
     "required": "(נדרש)",
-    "viewCookies": "צפייה בעוגיות ({count})",
+    "viewCookies": "צפייה בעוגיות ({{count}})",
     "dataManagement": "ניהול נתונים",
     "exportMyData": "ייצוא הנתונים שלי",
     "deleteAllData": "מחיקת כל הנתונים",

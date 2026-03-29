@@ -13,7 +13,7 @@
     "administer": "管理"
   },
   "Footer": {
-    "copyright": "© {year} Semiont。保留所有权利。",
+    "copyright": "© {{year}} Semiont。保留所有权利。",
     "about": "关于",
     "privacyPolicy": "隐私政策",
     "cookiePreferences": "Cookie 偏好设置",
@@ -94,7 +94,7 @@
     "contactAddress": "地址：",
     "updatesTitle": "政策更新",
     "updates": "我们可能会不时更新本隐私政策。我们将通过在此页面发布新隐私政策并更新生效日期来通知您任何重大变更。",
-    "lastUpdated": "最后更新：{date}"
+    "lastUpdated": "最后更新：{{date}}"
   },
   "Terms": {
     "pageTitle": "服务条款",
@@ -124,7 +124,7 @@
     "changes": "我们可能会定期更新这些条款。用户将收到重大变更的通知，继续使用本平台即表示接受更新的条款。",
     "contactTitle": "联系方式",
     "contact": "如果您对这些条款有疑问或需要举报违规行为，请通过平台或我们隐私政策中提供的联系信息与我们的支持团队联系。",
-    "lastUpdated": "最后更新：{date}",
+    "lastUpdated": "最后更新：{{date}}",
     "aup": "使用 Semiont 即表示您同意负责任地按照这些条款使用我们的平台。我们致力于为所有用户维护一个安全、尊重和高效的环境。"
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "加载中...",
     "welcomeTitle": "欢迎来到 Semiont！",
     "thanksForAccepting": "感谢您接受我们的条款。正在将您重定向到应用程序...",
-    "welcomeUser": "欢迎来到 Semiont，{firstName}！",
+    "welcomeUser": "欢迎来到 Semiont，{{firstName}}！",
     "reviewTermsPrompt": "在您开始使用 Semiont 之前，请查看并接受我们的服务条款",
     "termsSummaryTitle": "服务条款摘要",
     "termsSummaryIntro": "使用 Semiont 即表示您同意：",
@@ -246,9 +246,9 @@
     "archived": "已归档",
     "created": "已创建",
     "recentResources": "最近的资源",
-    "searchResults": "搜索结果（{count}）",
-    "resourcesTaggedWith": "标记为「{entityType}」的资源",
-    "noResultsFound": "未找到「{query}」的结果。改为显示最近的资源。",
+    "searchResults": "搜索结果（{{count}}）",
+    "resourcesTaggedWith": "标记为「{{entityType}}」的资源",
+    "noResultsFound": "未找到「{{query}}」的结果。改为显示最近的资源。",
     "noResourcesAvailable": "没有可用的资源。创建您的第一个文档以开始。",
     "composeFirstResource": "创建第一个资源",
     "loadingKnowledgeBase": "正在加载知识库..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "帐户",
     "user": "用户",
-    "profileAlt": "{name} 个人资料",
+    "profileAlt": "{{name}} 个人资料",
     "session": "会话",
-    "expiresIn": "过期时间：{time}",
+    "expiresIn": "过期时间：{{time}}",
     "privileges": "权限",
     "administrator": "🛡️ 管理员",
     "moderator": "⚖️ 审核员",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth 设置通过环境变量管理。要修改这些设置：",
     "configLocalDev": "本地开发：更新您的 .env 文件",
     "configCloudDeploy": "云部署：使用",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "从配置文件应用更改",
     "configAWS": "AWS：设置存储在 AWS Secrets Manager 和 ECS 任务定义中"
   },
@@ -510,11 +510,11 @@
     "title": "Cookie 偏好设置",
     "description": "管理您的 Cookie 偏好和隐私设置。更改将立即生效。",
     "currentSettings": "当前设置",
-    "lastUpdated": "最后更新：{date}",
-    "version": "版本：{version}",
+    "lastUpdated": "最后更新：{{date}}",
+    "version": "版本：{{version}}",
     "cookieCategories": "Cookie 类别",
     "required": "（必需）",
-    "viewCookies": "查看 Cookie（{count}）",
+    "viewCookies": "查看 Cookie（{{count}}）",
     "dataManagement": "数据管理",
     "exportMyData": "导出我的数据",
     "deleteAllData": "删除所有数据",

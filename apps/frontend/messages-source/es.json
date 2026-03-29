@@ -13,7 +13,7 @@
     "administer": "Administración"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Todos los derechos reservados.",
+    "copyright": "© {{year}} Semiont. Todos los derechos reservados.",
     "about": "Acerca de",
     "privacyPolicy": "Política de Privacidad",
     "cookiePreferences": "Preferencias de Cookies",
@@ -94,7 +94,7 @@
     "contactAddress": "Dirección:",
     "updatesTitle": "Actualizaciones de Esta Política",
     "updates": "Podemos actualizar esta Política de Privacidad de vez en cuando. Te notificaremos de cualquier cambio material publicando la nueva Política de Privacidad en esta página y actualizando la fecha de vigencia.",
-    "lastUpdated": "Última actualización: {date}"
+    "lastUpdated": "Última actualización: {{date}}"
   },
   "Terms": {
     "pageTitle": "Términos de Servicio",
@@ -124,7 +124,7 @@
     "changes": "Podemos actualizar estos términos periódicamente. Los usuarios serán notificados de cambios significativos, y el uso continuo de la plataforma constituye la aceptación de los términos actualizados.",
     "contactTitle": "Contacto",
     "contact": "Si tienes preguntas sobre estos términos o necesitas reportar violaciones, por favor contacta a nuestro equipo de soporte a través de la plataforma o en la información de contacto proporcionada en nuestra Política de Privacidad.",
-    "lastUpdated": "Última actualización: {date}",
+    "lastUpdated": "Última actualización: {{date}}",
     "aup": "Al usar Semiont, aceptas usar nuestra plataforma de manera responsable y de acuerdo con estos términos. Estamos comprometidos a mantener un entorno seguro, respetuoso y productivo para todos los usuarios."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Cargando...",
     "welcomeTitle": "¡Bienvenido a Semiont!",
     "thanksForAccepting": "Gracias por aceptar nuestros términos. Redirigiendo a la aplicación...",
-    "welcomeUser": "¡Bienvenido a Semiont, {firstName}!",
+    "welcomeUser": "¡Bienvenido a Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Antes de poder comenzar a usar Semiont, por favor revisa y acepta nuestros términos de servicio",
     "termsSummaryTitle": "Resumen de los Términos de Servicio",
     "termsSummaryIntro": "Al usar Semiont, aceptas:",
@@ -246,9 +246,9 @@
     "archived": "Archivado",
     "created": "Creado",
     "recentResources": "Recursos Recientes",
-    "searchResults": "Resultados de Búsqueda ({count})",
-    "resourcesTaggedWith": "Recursos etiquetados con \"{entityType}\"",
-    "noResultsFound": "No se encontraron resultados para \"{query}\". Mostrando recursos recientes en su lugar.",
+    "searchResults": "Resultados de Búsqueda ({{count}})",
+    "resourcesTaggedWith": "Recursos etiquetados con \"{{entityType}}\"",
+    "noResultsFound": "No se encontraron resultados para \"{{query}}\". Mostrando recursos recientes en su lugar.",
     "noResourcesAvailable": "No hay recursos disponibles. Crea tu primer documento para comenzar.",
     "composeFirstResource": "Redactar Primer Recurso",
     "loadingKnowledgeBase": "Cargando base de conocimiento..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Cuenta",
     "user": "Usuario",
-    "profileAlt": "perfil de {name}",
+    "profileAlt": "perfil de {{name}}",
     "session": "Sesión",
-    "expiresIn": "Expira en: {time}",
+    "expiresIn": "Expira en: {{time}}",
     "privileges": "Privilegios",
     "administrator": "🛡️ Administrador",
     "moderator": "⚖️ Moderador",
@@ -433,7 +433,7 @@
     "configManagementDescription": "La configuración OAuth se gestiona a través de variables de entorno. Para modificar estos ajustes:",
     "configLocalDev": "Para desarrollo local: Actualiza tus archivos .env",
     "configCloudDeploy": "Para despliegues en la nube: Usa",
-    "configCloudDeployCommand": "semiont update -e {entorno}",
+    "configCloudDeployCommand": "semiont update -e {{entorno}}",
     "configCloudDeployEnd": "para aplicar cambios desde archivos de configuración",
     "configAWS": "Para AWS: Los ajustes se almacenan en AWS Secrets Manager y definiciones de tareas ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Preferencias de Cookies",
     "description": "Administra tus preferencias de cookies y configuración de privacidad. Los cambios tendrán efecto inmediato.",
     "currentSettings": "Configuración Actual",
-    "lastUpdated": "Última actualización: {date}",
-    "version": "Versión: {version}",
+    "lastUpdated": "Última actualización: {{date}}",
+    "version": "Versión: {{version}}",
     "cookieCategories": "Categorías de Cookies",
     "required": "(Requerido)",
-    "viewCookies": "Ver cookies ({count})",
+    "viewCookies": "Ver cookies ({{count}})",
     "dataManagement": "Gestión de Datos",
     "exportMyData": "Exportar Mis Datos",
     "deleteAllData": "Eliminar Todos los Datos",

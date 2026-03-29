@@ -13,7 +13,7 @@
     "administer": "مدیریت"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. تمامی حقوق محفوظ است.",
+    "copyright": "© {{year}} Semiont. تمامی حقوق محفوظ است.",
     "about": "درباره ما",
     "privacyPolicy": "سیاست حفظ حریم خصوصی",
     "cookiePreferences": "تنظیمات کوکی",
@@ -94,7 +94,7 @@
     "contactAddress": "آدرس:",
     "updatesTitle": "به‌روزرسانی‌های این سیاست",
     "updates": "ما ممکن است این سیاست حفظ حریم خصوصی را هر از گاهی به‌روزرسانی کنیم. در صورت تغییرات اساسی، با انتشار سیاست حفظ حریم خصوصی جدید در این صفحه و به‌روزرسانی تاریخ اجرا، شما را مطلع خواهیم کرد.",
-    "lastUpdated": "آخرین به‌روزرسانی: {date}"
+    "lastUpdated": "آخرین به‌روزرسانی: {{date}}"
   },
   "Terms": {
     "pageTitle": "شرایط خدمات",
@@ -124,7 +124,7 @@
     "changes": "ما ممکن است این شرایط را به‌صورت دوره‌ای به‌روزرسانی کنیم. کاربران از تغییرات قابل توجه مطلع خواهند شد و ادامه استفاده از پلتفرم به منزله پذیرش شرایط به‌روزرسانی‌شده تلقی می‌شود.",
     "contactTitle": "تماس",
     "contact": "اگر سؤالی درباره این شرایط دارید یا نیاز به گزارش تخلفات دارید، لطفاً از طریق پلتفرم یا اطلاعات تماس ارائه‌شده در سیاست حفظ حریم خصوصی ما با تیم پشتیبانی تماس بگیرید.",
-    "lastUpdated": "آخرین به‌روزرسانی: {date}",
+    "lastUpdated": "آخرین به‌روزرسانی: {{date}}",
     "aup": "با استفاده از Semiont، شما موافقت می‌کنید که از پلتفرم ما به‌صورت مسئولانه و مطابق با این شرایط استفاده کنید. ما متعهد به حفظ محیطی امن، محترمانه و سازنده برای تمامی کاربران هستیم."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "در حال بارگذاری...",
     "welcomeTitle": "به Semiont خوش آمدید!",
     "thanksForAccepting": "از پذیرش شرایط ما سپاسگزاریم. در حال هدایت شما به برنامه...",
-    "welcomeUser": "به Semiont خوش آمدید، {firstName}!",
+    "welcomeUser": "به Semiont خوش آمدید، {{firstName}}!",
     "reviewTermsPrompt": "پیش از شروع استفاده از Semiont، لطفاً شرایط خدمات ما را بررسی و بپذیرید",
     "termsSummaryTitle": "خلاصه شرایط خدمات",
     "termsSummaryIntro": "با استفاده از Semiont، شما موافقت می‌کنید که:",
@@ -246,9 +246,9 @@
     "archived": "بایگانی‌شده",
     "created": "ایجادشده",
     "recentResources": "منابع اخیر",
-    "searchResults": "نتایج جستجو ({count})",
-    "resourcesTaggedWith": "منابع برچسب‌گذاری‌شده با «{entityType}»",
-    "noResultsFound": "نتیجه‌ای برای «{query}» یافت نشد. در عوض منابع اخیر نمایش داده می‌شوند.",
+    "searchResults": "نتایج جستجو ({{count}})",
+    "resourcesTaggedWith": "منابع برچسب‌گذاری‌شده با «{{entityType}}»",
+    "noResultsFound": "نتیجه‌ای برای «{{query}}» یافت نشد. در عوض منابع اخیر نمایش داده می‌شوند.",
     "noResourcesAvailable": "منبعی موجود نیست. اولین سند خود را ایجاد کنید تا شروع کنید.",
     "composeFirstResource": "ایجاد اولین منبع",
     "loadingKnowledgeBase": "در حال بارگذاری پایگاه دانش..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "حساب کاربری",
     "user": "کاربر",
-    "profileAlt": "نمایه {name}",
+    "profileAlt": "نمایه {{name}}",
     "session": "نشست",
-    "expiresIn": "انقضا در: {time}",
+    "expiresIn": "انقضا در: {{time}}",
     "privileges": "دسترسی‌ها",
     "administrator": "🛡️ مدیر",
     "moderator": "⚖️ ناظر",
@@ -433,7 +433,7 @@
     "configManagementDescription": "تنظیمات OAuth از طریق متغیرهای محیطی مدیریت می‌شوند. برای تغییر این تنظیمات:",
     "configLocalDev": "برای توسعه محلی: فایل‌های .env خود را به‌روزرسانی کنید",
     "configCloudDeploy": "برای استقرار ابری: از",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "برای اعمال تغییرات از فایل‌های پیکربندی استفاده کنید",
     "configAWS": "برای AWS: تنظیمات در AWS Secrets Manager و تعاریف وظایف ECS ذخیره می‌شوند"
   },
@@ -510,11 +510,11 @@
     "title": "تنظیمات کوکی",
     "description": "تنظیمات کوکی و حریم خصوصی خود را مدیریت کنید. تغییرات بلافاصله اعمال خواهند شد.",
     "currentSettings": "تنظیمات فعلی",
-    "lastUpdated": "آخرین به‌روزرسانی: {date}",
-    "version": "نسخه: {version}",
+    "lastUpdated": "آخرین به‌روزرسانی: {{date}}",
+    "version": "نسخه: {{version}}",
     "cookieCategories": "دسته‌بندی‌های کوکی",
     "required": "(الزامی)",
-    "viewCookies": "مشاهده کوکی‌ها ({count})",
+    "viewCookies": "مشاهده کوکی‌ها ({{count}})",
     "dataManagement": "مدیریت داده‌ها",
     "exportMyData": "خروجی داده‌های من",
     "deleteAllData": "حذف تمام داده‌ها",
