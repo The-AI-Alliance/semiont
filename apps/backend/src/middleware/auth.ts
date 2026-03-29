@@ -1,10 +1,12 @@
 import { Context, Next } from 'hono';
+import { getCookie } from 'hono/cookie';
 import { OAuthService } from '../auth/oauth';
 import { User } from '@prisma/client';
 import { accessToken } from '@semiont/core';
 
 interface Variables {
   user: User;
+  token: string;
 }
 
 export interface AuthContext extends Context {
@@ -14,24 +16,19 @@ export interface AuthContext extends Context {
 
 export const authMiddleware = async (c: Context, next: Next): Promise<Response | void> => {
   const logger = c.get('logger');
-  const authHeader = c.req.header('Authorization');
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    logger.warn('Authentication failed: Missing Authorization header', {
-      type: 'auth_failed',
-      reason: 'missing_header',
-      path: c.req.path,
-      method: c.req.method
-    });
-    return c.json({ error: 'Unauthorized' }, 401);
+  const authHeader = c.req.header('Authorization');
+  let tokenStr: string | undefined;
+  if (authHeader?.startsWith('Bearer ')) {
+    tokenStr = authHeader.substring(7).trim();
+  } else {
+    tokenStr = getCookie(c, 'semiont-token');
   }
 
-  const tokenStr = authHeader.substring(7).trim(); // Remove 'Bearer ' prefix and trim
-
   if (!tokenStr) {
-    logger.warn('Authentication failed: Empty token', {
+    logger.warn('Authentication failed: No token', {
       type: 'auth_failed',
-      reason: 'empty_token',
+      reason: 'missing_token',
       path: c.req.path,
       method: c.req.method
     });
@@ -41,8 +38,9 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
   try {
     const user = await OAuthService.getUserFromToken(accessToken(tokenStr));
 
-    // Add user to context
+    // Add user and token to context
     c.set('user', user);
+    c.set('token', tokenStr);
 
     logger.debug('Authentication successful', {
       type: 'auth_success',

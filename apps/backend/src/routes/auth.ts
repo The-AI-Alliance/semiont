@@ -9,6 +9,7 @@
  */
 
 import { Hono } from 'hono';
+import { setCookie, deleteCookie } from 'hono/cookie';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
@@ -36,7 +37,7 @@ type AcceptTermsResponse = components['schemas']['AcceptTermsResponse'];
 type MCPGenerateResponse = components['schemas']['MCPGenerateResponse'];
 
 // Create auth router with plain Hono
-export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown } }>();
+export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown; token: string } }>();
 
 /**
  * POST /api/tokens/password
@@ -133,6 +134,14 @@ authRouter.post('/api/tokens/password',
         data: { lastLogin: new Date() }
       });
 
+      setCookie(c, 'semiont-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60,
+      });
+
       const response: AuthResponse = {
         success: true,
         user: {
@@ -187,6 +196,14 @@ authRouter.post('/api/tokens/google',
 
       // Create or update user
       const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
+
+      setCookie(c, 'semiont-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60,
+      });
 
       const response: AuthResponse = {
         success: true,
@@ -302,6 +319,7 @@ authRouter.post('/api/tokens/refresh',
  */
 authRouter.get('/api/users/me', authMiddleware, async (c) => {
   const user = c.get('user');
+  const token = c.get('token');
 
   const response: UserResponse = {
     id: user.id,
@@ -315,6 +333,7 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
     termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
     lastLogin: user.lastLogin?.toISOString() || null,
     created: user.createdAt.toISOString(),
+    token,
   };
 
   return c.json(response, 200);
@@ -386,6 +405,7 @@ authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
  * This endpoint exists for consistency and future session management
  */
 authRouter.post('/api/users/logout', authMiddleware, async (c) => {
+  deleteCookie(c, 'semiont-token', { path: '/' });
   return c.json({
     success: true,
     message: 'Logged out successfully',
