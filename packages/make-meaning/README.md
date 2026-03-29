@@ -10,10 +10,10 @@
 
 This package implements the actor model from [ARCHITECTURE.md](../../docs/ARCHITECTURE.md). It owns the **Knowledge Base** and the actors that interface with it:
 
-- **Stower** (write) — the single write gateway to the Knowledge Base
-- **Gatherer** (read) — handles all browse reads, context assembly (passage + graph neighborhood + optional inference summary), and entity type listing
-- **Matcher** (search/link) — context-driven search with multi-source retrieval, composite structural scoring, optional LLM semantic scoring, and graph queries
-- **Browser** (filesystem reads) — merges live filesystem directory listings with KB metadata for tracked resources
+- **Stower** (write) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events
+- **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type listing, and directory browse (merging filesystem listings with KB metadata)
+- **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`)
+- **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
@@ -43,7 +43,7 @@ const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
 // Access components
 const { knowledgeSystem, jobQueue } = makeMeaning;
-const { kb, stower, gatherer, matcher, browser, cloneTokenManager } = knowledgeSystem;
+const { kb, stower, browser, gatherer, matcher, cloneTokenManager } = knowledgeSystem;
 
 // Graceful shutdown
 await makeMeaning.stop();
@@ -51,42 +51,21 @@ await makeMeaning.stop();
 
 This single call initializes:
 - **KnowledgeSystem** — groups the Knowledge Base and its actors
-  - **KnowledgeBase** — groups EventStore, ViewStorage, ContentStore, GraphDatabase, and GraphDBConsumer
+  - **KnowledgeBase** — groups EventStore, ViewStorage, WorkingTreeStore, GraphDatabase, and GraphDBConsumer
   - **Stower** — subscribes to write commands on EventBus
-  - **Gatherer** — subscribes to browse reads, gather context, and entity type listing on EventBus
-  - **Matcher** — subscribes to search and referenced-by queries on EventBus
-  - **Browser** — subscribes to directory browse requests, merging filesystem + KB metadata
+  - **Browser** — subscribes to all KB read queries and directory browse requests on EventBus
+  - **Gatherer** — subscribes to annotation and resource gather requests on EventBus
+  - **Matcher** — subscribes to candidate search requests on EventBus
   - **CloneTokenManager** — subscribes to clone token operations on EventBus
 - **JobQueue** — background job processing queue + job status subscription
 - **6 annotation workers** — poll job queue for async AI tasks
-
-### Create a Resource (via EventBus)
-
-```typescript
-import { ResourceOperations } from '@semiont/make-meaning';
-import { userId } from '@semiont/core';
-
-const result = await ResourceOperations.createResource(
-  {
-    name: 'My Document',
-    content: Buffer.from('Document content here'),
-    format: 'text/plain',
-    language: 'en',
-  },
-  userId('user-123'),
-  eventBus,
-  config.services.backend.publicURL,
-);
-```
-
-`ResourceOperations.createResource` emits `yield:create` on the EventBus. The Stower subscribes to this event, persists the resource to the EventStore and ContentStore, and emits `yield:created` back on the bus.
 
 ### Gather Context (via EventBus)
 
 ```typescript
 import { firstValueFrom, race, filter, timeout } from 'rxjs';
 
-// Emit gather request
+// Emit gather request for an annotation
 eventBus.get('gather:requested').next({
   annotationUri,
   resourceId,
@@ -116,29 +95,29 @@ graph TB
 
     subgraph ks ["Knowledge System"]
         STOWER["Stower<br/>(write)"]
-        GATHERER["Gatherer<br/>(read)"]
+        BROWSER["Browser<br/>(read)"]
+        GATHERER["Gatherer<br/>(context assembly)"]
         MATCHER["Matcher<br/>(search/link)"]
-        BROWSER["Browser<br/>(filesystem)"]
         CTM["CloneTokenManager<br/>(clone)"]
         KB["Knowledge Base"]
         STOWER -->|persist| KB
+        BROWSER -->|query| KB
         GATHERER -->|query| KB
         MATCHER -->|query| KB
-        BROWSER -->|query| KB
         CTM -->|query| KB
     end
 
-    BUS -->|"yield:create, mark:create,<br/>mark:delete, job:*"| STOWER
-    BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER
-    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER
-    BUS -->|"browse:directory-*"| BROWSER
-    BUS -->|"yield:clone-*"| CTM
+    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>mark:add-entity-type, mark:archive, mark:unarchive<br/>mark:update-entity-types, job:start, job:*"| STOWER
+    BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:directory-requested"| BROWSER
+    BUS -->|"gather:requested<br/>gather:resource-requested"| GATHERER
+    BUS -->|"match:search-requested"| MATCHER
+    BUS -->|"yield:clone-token-requested<br/>yield:clone-resource-requested<br/>yield:clone-create"| CTM
 
-    STOWER -->|"yield:created, mark:created"| BUS
-    GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
-    MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
-    BROWSER -->|"browse:directory-result"| BUS
-    CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result"| BUS
+    STOWER -->|"yield:created, yield:updated, yield:moved<br/>mark:created, mark:deleted, mark:body-updated<br/>mark:entity-type-added, ..."| BUS
+    BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:directory-result"| BUS
+    GATHERER -->|"gather:complete, gather:failed<br/>gather:resource-complete, gather:resource-failed"| BUS
+    MATCHER -->|"match:search-results, match:search-failed"| BUS
+    CTM -->|"yield:clone-token-generated<br/>yield:clone-resource-result<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef actor fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
@@ -146,7 +125,7 @@ graph TB
     classDef caller fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
 
     class BUS bus
-    class STOWER,GATHERER,MATCHER,BROWSER,CTM actor
+    class STOWER,BROWSER,GATHERER,MATCHER,CTM actor
     class KB kb
     class Routes,Workers,EBC caller
 ```
@@ -161,7 +140,7 @@ The **Knowledge Base** is an inert store — it has no intelligence, no goals, n
 |-------|---------------|---------|
 | **Event Log** | `EventStore` | Immutable append-only log of all domain events |
 | **Materialized Views** | `ViewStorage` | Denormalized projections for fast reads |
-| **Content Store** | `WorkingTreeStore` | Content-addressed binary storage (SHA-256) |
+| **Content Store** | `WorkingTreeStore` | Working-tree files addressed by URI |
 | **Graph** | `GraphDatabase` | Eventually consistent relationship projection |
 | **Graph Consumer** | `GraphDBConsumer` | Event-to-graph synchronization pipeline |
 
@@ -204,9 +183,9 @@ The EventBus is created by the backend (or script) and passed into `startMakeMea
 ### Actors
 
 - `Stower` — Write gateway actor
-- `Gatherer` — Read actor (browse reads, context assembly, entity type listing)
-- `Matcher` — Search/link actor (context-driven search, entity resolution, referenced-by queries)
-- `Browser` — Filesystem read actor (directory listings merged with KB metadata)
+- `Browser` — Read actor (all KB queries, directory listings merged with KB metadata)
+- `Gatherer` — Context assembly actor (annotation and resource gather flows)
+- `Matcher` — Search/link actor (context-driven candidate search with structural + semantic scoring)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
 
 ### Operations
