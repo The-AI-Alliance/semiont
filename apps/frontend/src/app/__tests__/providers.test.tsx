@@ -5,14 +5,16 @@ import { QueryClient } from '@tanstack/react-query';
 import { Providers } from '@/app/providers';
 import { APIError } from '@semiont/api-client';
 
-// Mock next-auth
-vi.mock('next-auth/react', () => ({
-  SessionProvider: ({ children }: { children: React.ReactNode }) =>
-    <div data-testid="session-provider">{children}</div>,
-  useSession: () => ({
-    status: 'authenticated',
-    data: { backendToken: 'mock-token' }
-  })
+// Mock AuthProvider
+vi.mock('@/contexts/AuthContext', () => ({
+  AuthProvider: ({ children }: { children: React.ReactNode }) =>
+    <div data-testid="auth-provider">{children}</div>,
+  useAuthContext: () => ({
+    session: { token: 'mock-token', user: { email: 'test@example.com' } },
+    isLoading: false,
+    setSession: vi.fn(),
+    clearSession: vi.fn(),
+  }),
 }));
 
 // Mock custom contexts
@@ -74,7 +76,7 @@ describe('Providers', () => {
     expect(screen.getByText('Test Content')).toBeInTheDocument();
   });
 
-  it('should wrap children with SessionProvider', () => {
+  it('should wrap children with AuthProvider', () => {
     const TestChild = () => <div data-testid="test-child">Test Content</div>;
     
     render(
@@ -83,7 +85,7 @@ describe('Providers', () => {
       </Providers>
     );
     
-    expect(screen.getByTestId('session-provider')).toBeInTheDocument();
+    expect(screen.getByTestId('auth-provider')).toBeInTheDocument();
     expect(screen.getByTestId('test-child')).toBeInTheDocument();
   });
 
@@ -192,7 +194,7 @@ describe('Providers', () => {
       </Providers>
     );
     
-    const sessionProvider = screen.getByTestId('session-provider');
+    const sessionProvider = screen.getByTestId('auth-provider');
     const queryProvider = screen.getByTestId('query-client-provider');
     const child = screen.getByTestId('nested-child');
     

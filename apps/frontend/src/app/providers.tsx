@@ -82,24 +82,21 @@ function createQueryClient() {
  *
  * Provider order matters - dependencies flow from outer to inner:
  *
- * 1. SessionProvider (NextAuth) - Authentication foundation
+ * 1. AuthProvider - JWT cookie authentication context
  * 2. AuthErrorBoundary - Error boundary for auth failures
- * 3. CustomSessionProvider - Session management and expiry tracking
- * 4. TranslationProvider - i18n translation management
- * 5. ApiClientProvider - API client configuration
- * 6. QueryClientProvider - React Query for data fetching
- * 7. ToastProvider - Toast notifications
- * 8. LiveRegionProvider - A11y live region announcements
- * 9. KeyboardShortcutsProvider - App-specific keyboard shortcuts
+ * 3. TranslationProvider - i18n translation management
+ * 4. ApiClientProvider - API client configuration
+ * 5. QueryClientProvider - React Query for data fetching
+ * 6. ToastProvider - Toast notifications
+ * 7. LiveRegionProvider - A11y live region announcements
+ * 8. KeyboardShortcutsProvider - App-specific keyboard shortcuts
  */
 
 /**
- * Inner providers that depend on SessionProvider being initialized
- * These hooks use next-auth's useSession internally, so they must be wrapped
+ * Inner providers that depend on AuthProvider being initialized
  */
 function InnerProviders({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
   // Manager hooks - these provide app-specific implementations to @semiont/react-ui contexts
-  // These are called INSIDE SessionProvider because they use useSession()
   const sessionManager = useSessionManager();
   const translationManager = useMergedTranslationManager(); // Use merged manager for both frontend and react-ui translations
 

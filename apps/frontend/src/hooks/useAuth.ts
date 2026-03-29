@@ -24,7 +24,7 @@ export function useAuth() {
       hasValidBackendToken: !!session?.token,
       isFullyAuthenticated: isAuthenticated,
 
-      userDomain: user?.domain ?? user?.email?.split('@')[1],
+      userDomain: user?.domain || user?.email?.split('@')[1],
       displayName: user?.name ?? user?.email?.split('@')[0] ?? 'User',
       avatarUrl: user?.image ?? null,
       isAdmin: user?.isAdmin ?? false,

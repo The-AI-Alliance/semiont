@@ -2,7 +2,7 @@
  * Frontend-specific test utilities
  *
  * Provides renderWithProviders that wraps components with ALL necessary providers
- * for testing, including both react-ui providers AND next-auth SessionProvider.
+ * for testing, including react-ui providers and the JWT auth context.
  */
 
 import React, { ReactElement } from 'react';
@@ -36,21 +36,7 @@ export interface FrontendTestOptions extends Omit<TestProvidersOptions, 'queryCl
 }
 
 /**
- * Render component with all providers including next-auth SessionProvider
- *
- * @example
- * ```tsx
- * import { renderWithProviders } from '@/test-utils';
- *
- * it('should render authenticated component', () => {
- *   renderWithProviders(<MyComponent />, {
- *     nextAuthSession: {
- *       user: { name: 'Test User', email: 'test@example.com' },
- *       backendToken: 'mock-token',
- *     },
- *   });
- * });
- * ```
+ * Render component with all providers
  */
 export function renderWithProviders(
   ui: ReactElement,

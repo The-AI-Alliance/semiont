@@ -26,20 +26,12 @@ vi.mock('next-intl', () => ({
   useLocale: () => 'en',
 }));
 
-// Mock next-auth
-vi.mock('next-auth/react', () => ({
-  useSession: () => ({
-    data: { backendToken: 'test-token', user: { email: 'test@example.com' } },
-    status: 'authenticated',
-  }),
-  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 // Mock routing
 vi.mock('@/i18n/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   routes: {},
   usePathname: () => '/test',
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 
 vi.mock('@/lib/routing', () => ({
@@ -55,6 +47,8 @@ vi.mock('@/hooks/useAuth', () => ({
     isModerator: true,
     isFullyAuthenticated: true,
     hasValidBackendToken: true,
+    token: 'test-token',
+    isLoading: false,
   }),
 }));
 
