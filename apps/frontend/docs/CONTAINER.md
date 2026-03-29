@@ -36,9 +36,7 @@ docker-compose up -d
 ```bash
 docker run -d \
   -p 3000:3000 \
-  -e SERVER_API_URL=http://backend:4000 \
-  -e NEXTAUTH_URL=https://app.example.com \
-  -e NEXTAUTH_SECRET=your-secret-min-32-chars \
+  -e NEXT_PUBLIC_BACKEND_URL=http://backend:4000 \
   --name semiont-frontend \
   ghcr.io/the-ai-alliance/semiont-frontend:dev
 ```
@@ -54,48 +52,27 @@ The Semiont frontend is designed to work with **path-based routing** (implementa
   - **Container platform**: Envoy proxy
   - **AWS platform**: Application Load Balancer (ALB, built on Envoy)
   - **POSIX platform**: TBD (likely nginx or similar)
-- **Server-side calls**: Use `SERVER_API_URL` for direct backend communication
+- **All API calls**: Browser makes direct requests to backend via routing layer
 
 This eliminates the need for build-time API URL configuration.
 
 ### Required Environment Variables
 
-#### Runtime Variables (Set When Starting Container)
+#### Environment Variables
 
-All variables are **runtime-only** (set via `-e` flag, not during build):
+All `NEXT_PUBLIC_*` variables are **build-time** (embedded in the JS bundle). Since the frontend is a static SPA, there are no runtime-only variables.
 
-- **`SERVER_API_URL`** - Backend API URL for server-side requests
-  - Example: `http://backend:4000` (Docker/K8s) or `https://api.example.com`
-  - Used by NextAuth for server-side authentication
+- **`NEXT_PUBLIC_BACKEND_URL`** - Backend API URL
+  - Example: `http://backend:4000` (internal) or `https://api.example.com`
   - **Required** for the application to function
 
-- **`NEXTAUTH_URL`** - Frontend URL for OAuth callbacks
-  - Example: `https://app.example.com`
-  - Must match OAuth provider configuration
-  - **Required**
+- **`NEXT_PUBLIC_SITE_NAME`** - Site name (default: `Semiont`) — Optional
 
-- **`NEXTAUTH_SECRET`** - Session encryption secret
-  - Must be 32+ characters
-  - **Security**: Never commit to git, use secrets management
-  - **Required**
+- **`NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS`** - Comma-separated allowed email domains — Optional
 
-#### Build-Time Variables (Embedded in JavaScript Bundle)
+- **`NEXT_PUBLIC_GOOGLE_CLIENT_ID`** - Google OAuth client ID — Optional
 
-These are set during `docker build` and cannot be changed after:
-
-- **`NEXT_PUBLIC_SITE_NAME`** - Site name
-  - Default: `Semiont`
-  - Optional
-
-- **`NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS`** - Comma-separated allowed email domains
-  - Example: `example.com,company.com`
-  - Optional
-
-#### Optional Runtime Variables
-
-- **`GOOGLE_CLIENT_ID`** - Google OAuth client ID
-- **`GOOGLE_CLIENT_SECRET`** - Google OAuth client secret
-- **`NODE_ENV`** - Node.js environment (`production`, `development`, `test`)
+- **`NEXT_PUBLIC_ENABLE_LOCAL_AUTH`** - Enable email/password sign-in — Optional
 
 ## Deployment Scenarios
 
@@ -118,15 +95,9 @@ services:
   frontend:
     image: ghcr.io/the-ai-alliance/semiont-frontend:dev
     environment:
-      # Server-side backend URL (internal Docker service name)
-      SERVER_API_URL: http://backend:4000
-
-      NEXTAUTH_URL: http://localhost
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-
-      # OAuth credentials
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # Build-time — embedded in JS bundle
+      NEXT_PUBLIC_BACKEND_URL: http://localhost
+      NEXT_PUBLIC_SITE_NAME: Semiont
     depends_on:
       - backend
 
@@ -154,30 +125,9 @@ spec:
         ports:
         - containerPort: 3000
         env:
-          # Server uses internal k8s service
-          - name: SERVER_API_URL
+          # Build-time — embedded in JS bundle during docker build
+          - name: NEXT_PUBLIC_BACKEND_URL
             value: http://semiont-backend-service:4000
-
-          - name: NEXTAUTH_URL
-            value: https://app.example.com
-
-          - name: NEXTAUTH_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: semiont-secrets
-                key: nextauth-secret
-
-          - name: GOOGLE_CLIENT_ID
-            valueFrom:
-              secretKeyRef:
-                name: oauth-secrets
-                key: google-client-id
-
-          - name: GOOGLE_CLIENT_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: oauth-secrets
-                key: google-client-secret
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -188,29 +138,6 @@ spec:
   - host: app.example.com
     http:
       paths:
-      # Frontend-specific API routes
-      - path: /api/auth
-        pathType: Prefix
-        backend:
-          service:
-            name: semiont-frontend-service
-            port:
-              number: 3000
-      - path: /api/cookies
-        pathType: Prefix
-        backend:
-          service:
-            name: semiont-frontend-service
-            port:
-              number: 3000
-      - path: /api/resources
-        pathType: Prefix
-        backend:
-          service:
-            name: semiont-frontend-service
-            port:
-              number: 3000
-
       # Backend API routes
       - path: /resources
         pathType: Prefix
@@ -245,10 +172,8 @@ The CDK stack automatically configures ALB routing rules. Frontend container onl
 ```typescript
 // In ECS task definition
 environment: {
-  // Internal ECS Service Connect DNS
-  SERVER_API_URL: 'http://backend:4000',
-  NEXTAUTH_URL: 'https://app.example.com',
-  // ... other vars from secrets
+  // Build-time vars embedded in bundle during docker build
+  NEXT_PUBLIC_BACKEND_URL: 'https://api.example.com',
 }
 ```
 
@@ -284,14 +209,11 @@ docker buildx build \
 
 | Variable | Type | Required | Example | Description |
 |----------|------|----------|---------|-------------|
-| `SERVER_API_URL` | Runtime | **Yes** | `http://backend:4000` | Backend API URL for server-side calls |
-| `NEXTAUTH_URL` | Runtime | **Yes** | `https://app.example.com` | Frontend URL for OAuth callbacks |
-| `NEXTAUTH_SECRET` | Runtime | **Yes** | `32+ char secret` | Session encryption key |
-| `NEXT_PUBLIC_SITE_NAME` | Build-time | No | `Semiont` | Site name (embedded in bundle) |
+| `NEXT_PUBLIC_BACKEND_URL` | Build-time | **Yes** | `http://backend:4000` | Backend API URL |
+| `NEXT_PUBLIC_SITE_NAME` | Build-time | No | `Semiont` | Site name |
 | `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` | Build-time | No | `example.com` | Allowed email domains |
-| `GOOGLE_CLIENT_ID` | Runtime | No | `xxx.apps.googleusercontent.com` | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Runtime | No | `GOCSPX-xxx` | Google OAuth client secret |
-| `NODE_ENV` | Runtime | No | `production` | Node environment |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Build-time | No | `xxx.apps.googleusercontent.com` | Google OAuth client ID |
+| `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` | Build-time | No | `true` | Enable email/password auth |
 
 ## Security Best Practices
 
@@ -300,51 +222,37 @@ docker buildx build \
 **Never include secrets in the Docker image:**
 
 ```bash
-# ❌ BAD - Secrets in image
+# ✅ Build-time public vars (safe to embed — no secrets)
 docker build \
-  --build-arg NEXTAUTH_SECRET=my-secret \
+  --build-arg NEXT_PUBLIC_BACKEND_URL=https://api.example.com \
+  --build-arg NEXT_PUBLIC_SITE_NAME="My Company" \
   -t semiont-frontend .
 
-# ✅ GOOD - Secrets at runtime
-docker run -e NEXTAUTH_SECRET=$SECRET semiont-frontend
+# Backend secrets (GOOGLE_CLIENT_SECRET, JWT signing key, etc.) stay in the backend container
 ```
 
 ### Secret Rotation
 
-When rotating secrets:
-
-1. Update secret in secrets manager
-2. Restart containers (no rebuild needed)
-3. Old sessions will be invalidated
-
-```bash
-# Update secret
-kubectl create secret generic semiont-secrets \
-  --from-literal=nextauth-secret=new-secret-32-chars \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-# Rolling restart
-kubectl rollout restart deployment semiont-frontend
-```
+The frontend contains no secrets. All sensitive credentials (OAuth client secrets, JWT signing keys) live in the backend container. Rotate them there.
 
 ## Troubleshooting
 
-### "SERVER_API_URL environment variable is required"
+### "`NEXT_PUBLIC_BACKEND_URL` not configured"
 
-**Problem**: Container fails to start
+**Problem**: API calls fail because no backend URL is embedded in the bundle
 
-**Solution**: Set `SERVER_API_URL` at **runtime**:
+**Solution**: Set `NEXT_PUBLIC_BACKEND_URL` at **build time**:
 
 ```bash
-docker run -e SERVER_API_URL=http://backend:4000 ...
+docker build --build-arg NEXT_PUBLIC_BACKEND_URL=http://backend:4000 ...
 ```
 
 ### "Authentication fails with ECONNREFUSED"
 
-**Problem**: Next.js server can't reach backend
+**Problem**: Browser cannot reach backend
 
 **Solutions**:
-1. Verify `SERVER_API_URL` points to accessible backend
+1. Verify backend is running and accessible
 2. In Docker Compose: Use service name (`http://backend:4000`)
 3. In K8s: Use service DNS (`http://semiont-backend-service:4000`)
 
@@ -353,17 +261,6 @@ docker run -e SERVER_API_URL=http://backend:4000 ...
 **Problem**: Routing not working
 
 **Solution**: Ensure routing layer is configured with correct path-based rules. For container platform, see `apps/cli/templates/envoy.yaml` for Envoy configuration reference.
-
-### "NextAuth callback fails"
-
-**Problem**: OAuth redirect doesn't match
-
-**Solution**: Ensure `NEXTAUTH_URL` matches OAuth provider configuration:
-
-```bash
-# Must match exactly
-NEXTAUTH_URL=https://app.example.com  # Without trailing slash
-```
 
 ## Health Checks
 
@@ -386,7 +283,7 @@ docker logs semiont-frontend
 # Follow logs in real-time
 docker logs -f semiont-frontend
 
-# Filter Next.js server logs
+# Filter frontend logs
 docker logs semiont-frontend 2>&1 | grep '\[Frontend'
 ```
 
