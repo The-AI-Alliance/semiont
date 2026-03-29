@@ -3,6 +3,38 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import AdminLayout from '../layout';
 
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    isAdmin: true,
+    isModerator: false,
+    token: 'mock-token',
+    session: null,
+    user: null,
+    backendUser: null,
+    isLoading: false,
+    hasValidBackendToken: true,
+    isFullyAuthenticated: true,
+    userDomain: 'example.com',
+    displayName: 'Admin User',
+    avatarUrl: null,
+  }),
+}));
+
+vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
+  KeyboardShortcutsContext: React.createContext(null),
+}));
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
+vi.mock('@/lib/routing', () => ({
+  Link: ({ children, href }: { children: React.ReactNode; href: string }) =>
+    React.createElement('a', { href }, children),
+  routes: {},
+}));
+
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
@@ -24,6 +56,7 @@ vi.mock('@/components/admin/AdminNavigation', () => ({
 
 vi.mock('@/lib/env', () => ({
   NEXT_PUBLIC_SITE_NAME: 'Test Site',
+  NEXT_PUBLIC_BACKEND_URL: 'http://localhost:4000',
 }));
 
 describe('AdminLayout', () => {
