@@ -68,7 +68,7 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.1.6",
-    "@tailwindcss/postcss": "^4.2.1",
+    "@tailwindcss/postcss": "^4.2.2",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
