@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Vi använder cookies och liknande teknologier för att förbättra din upplevelse, analysera användning och tillhandahålla personanpassat innehåll.",
     "cookieCategoriesTitle": "Cookiekategorier",
     "necessaryCookiesTitle": "Strikt nödvändiga cookies",
-    "necessaryCookies": "Nödvändiga för webbplatsens funktionalitet, inklusive autentisering och säkerhetsfunktioner.\n\nExempel: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Nödvändiga för webbplatsens funktionalitet, inklusive autentisering och säkerhetsfunktioner.\n\nExempel: semiont-token",
     "analyticsCookiesTitle": "Analyticscookies",
     "analyticsCookies": "Hjälper oss förstå hur besökare interagerar med vår webbplats för att förbättra användarupplevelsen.\n\nExempel: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Marknadsföringscookies",

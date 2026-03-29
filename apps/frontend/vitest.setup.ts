@@ -91,18 +91,6 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ locale: 'en' }),
 }));
 
-// NextAuth mocks
-vi.mock('next-auth', () => ({
-  getServerSession: vi.fn(),
-}));
-
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' })),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  SessionProvider: ({ children }: any) => children,
-}));
-
 // next-intl mock with actual English translations
 vi.mock('next-intl', async () => {
   const fs = await import('fs');

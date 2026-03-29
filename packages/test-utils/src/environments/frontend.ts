@@ -31,25 +31,6 @@ export class FrontendTestEnvironment {
   }
 
   /**
-   * Setup NextAuth mocks
-   */
-  static setupAuth() {
-    vi.mock('next-auth', () => ({
-      getServerSession: vi.fn(),
-    }));
-
-    vi.mock('next-auth/react', () => ({
-      useSession: vi.fn(() => ({
-        data: null,
-        status: 'unauthenticated',
-      })),
-      signIn: vi.fn(),
-      signOut: vi.fn(),
-      SessionProvider: ({ children }: any) => children,
-    }));
-  }
-
-  /**
    * Setup environment variables
    */
   static setupEnvironment() {

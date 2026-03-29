@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Kami menggunakan cookie dan teknologi serupa untuk meningkatkan pengalaman Anda, menganalisis penggunaan, dan menyediakan konten yang dipersonalisasi.",
     "cookieCategoriesTitle": "Kategori Cookie",
     "necessaryCookiesTitle": "Cookie yang Sangat Diperlukan",
-    "necessaryCookies": "Penting untuk fungsionalitas situs web, termasuk fitur autentikasi dan keamanan.\n\nContoh: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Penting untuk fungsionalitas situs web, termasuk fitur autentikasi dan keamanan.\n\nContoh: semiont-token",
     "analyticsCookiesTitle": "Cookie Analitik",
     "analyticsCookies": "Membantu kami memahami bagaimana pengunjung berinteraksi dengan situs web kami untuk meningkatkan pengalaman pengguna.\n\nContoh: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Cookie Pemasaran",

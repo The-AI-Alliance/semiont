@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Ми використовуємо файли cookie та подібні технології для покращення вашого досвіду, аналізу використання та надання персоналізованого контенту.",
     "cookieCategoriesTitle": "Категорії файлів cookie",
     "necessaryCookiesTitle": "Обов'язкові файли cookie",
-    "necessaryCookies": "Необхідні для функціонування вебсайту, включаючи автентифікацію та функції безпеки.\n\nПриклади: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Необхідні для функціонування вебсайту, включаючи автентифікацію та функції безпеки.\n\nПриклади: semiont-token",
     "analyticsCookiesTitle": "Аналітичні файли cookie",
     "analyticsCookies": "Допомагають нам зрозуміти, як відвідувачі взаємодіють з нашим вебсайтом, для покращення користувацького досвіду.\n\nПриклади: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Маркетингові файли cookie",

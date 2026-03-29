@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "אנו משתמשים בעוגיות וטכנולוגיות דומות כדי לשפר את החוויה שלכם, לנתח שימוש ולספק תוכן מותאם אישית.",
     "cookieCategoriesTitle": "קטגוריות עוגיות",
     "necessaryCookiesTitle": "עוגיות הכרחיות",
-    "necessaryCookies": "חיוניות לתפקוד האתר, כולל אימות ותכונות אבטחה.\n\nדוגמאות: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "חיוניות לתפקוד האתר, כולל אימות ותכונות אבטחה.\n\nדוגמאות: semiont-token",
     "analyticsCookiesTitle": "עוגיות אנליטיקה",
     "analyticsCookies": "עוזרות לנו להבין כיצד מבקרים מקיימים אינטראקציה עם האתר שלנו כדי לשפר את חוויית המשתמש.\n\nדוגמאות: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "עוגיות שיווק",

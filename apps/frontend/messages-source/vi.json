@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Chúng tôi sử dụng cookie và các công nghệ tương tự để nâng cao trải nghiệm của bạn, phân tích việc sử dụng và cung cấp nội dung được cá nhân hóa.",
     "cookieCategoriesTitle": "Danh mục cookie",
     "necessaryCookiesTitle": "Cookie thiết yếu",
-    "necessaryCookies": "Cần thiết cho chức năng trang web, bao gồm các tính năng xác thực và bảo mật.\n\nVí dụ: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Cần thiết cho chức năng trang web, bao gồm các tính năng xác thực và bảo mật.\n\nVí dụ: semiont-token",
     "analyticsCookiesTitle": "Cookie phân tích",
     "analyticsCookies": "Giúp chúng tôi hiểu cách khách truy cập tương tác với trang web để cải thiện trải nghiệm người dùng.\n\nVí dụ: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Cookie tiếp thị",

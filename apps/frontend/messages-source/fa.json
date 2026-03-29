@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "ما از کوکی‌ها و فناوری‌های مشابه برای بهبود تجربه شما، تحلیل استفاده و ارائه محتوای شخصی‌سازی‌شده استفاده می‌کنیم.",
     "cookieCategoriesTitle": "دسته‌بندی‌های کوکی",
     "necessaryCookiesTitle": "کوکی‌های ضروری",
-    "necessaryCookies": "ضروری برای عملکرد وب‌سایت، از جمله ویژگی‌های احراز هویت و امنیت.\n\nمثال‌ها: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "ضروری برای عملکرد وب‌سایت، از جمله ویژگی‌های احراز هویت و امنیت.\n\nمثال‌ها: semiont-token",
     "analyticsCookiesTitle": "کوکی‌های تحلیلی",
     "analyticsCookies": "به ما کمک می‌کنند بفهمیم بازدیدکنندگان چگونه با وب‌سایت ما تعامل دارند تا تجربه کاربری را بهبود دهیم.\n\nمثال‌ها: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "کوکی‌های بازاریابی",

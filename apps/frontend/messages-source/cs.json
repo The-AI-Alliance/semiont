@@ -70,7 +70,7 @@
     "cookiePolicyIntro": "Používáme cookies a podobné technologie ke zlepšení vašeho zážitku, analýze používání a poskytování personalizovaného obsahu.",
     "cookieCategoriesTitle": "Kategorie cookies",
     "necessaryCookiesTitle": "Nezbytně nutné cookies",
-    "necessaryCookies": "Nezbytné pro funkčnost webu, včetně ověřování a bezpečnostních funkcí.\n\nPříklady: next-auth.session-token, next-auth.csrf-token",
+    "necessaryCookies": "Nezbytné pro funkčnost webu, včetně ověřování a bezpečnostních funkcí.\n\nPříklady: semiont-token",
     "analyticsCookiesTitle": "Analytické cookies",
     "analyticsCookies": "Pomáhají nám pochopit, jak návštěvníci interagují s naším webem, abychom mohli zlepšit uživatelský zážitek.\n\nPříklady: _ga, _gid, lighthouse-*",
     "marketingCookiesTitle": "Marketingové cookies",
