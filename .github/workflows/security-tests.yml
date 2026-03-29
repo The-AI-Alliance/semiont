@@ -56,13 +56,9 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          SERVER_API_URL: http://localhost:4000
-          NEXT_PUBLIC_SITE_NAME: Semiont Test
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
-          NEXTAUTH_URL: http://localhost:3000
-          NEXTAUTH_SECRET: test-secret-for-ci-only
-          GOOGLE_CLIENT_ID: dummy-client-id-for-ci
-          GOOGLE_CLIENT_SECRET: dummy-client-secret-for-ci
+          SEMIONT_BACKEND_URL: http://localhost:4000
+          SEMIONT_SITE_NAME: Semiont Test
+          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Start application for security verification
         run: |
@@ -73,13 +69,9 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
           sleep 5
         env:
-          SERVER_API_URL: http://localhost:4000
-          NEXT_PUBLIC_SITE_NAME: Semiont Test
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
-          NEXTAUTH_URL: http://localhost:3000
-          NEXTAUTH_SECRET: test-secret-for-ci-only
-          GOOGLE_CLIENT_ID: dummy-client-id-for-ci
-          GOOGLE_CLIENT_SECRET: dummy-client-secret-for-ci
+          SEMIONT_BACKEND_URL: http://localhost:4000
+          SEMIONT_SITE_NAME: Semiont Test
+          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Verify no admin content leakage
         run: |
@@ -177,7 +169,7 @@ jobs:
             kill $APP_PID || true
           fi
           # Kill any remaining Node.js processes
-          pkill -f "next.*start" || true
+          pkill -f "node.*server.js" || true
 
       - name: Upload test coverage
         uses: codecov/codecov-action@v5

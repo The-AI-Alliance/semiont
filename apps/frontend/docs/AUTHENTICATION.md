@@ -102,11 +102,11 @@ OAuth is handled entirely by the backend:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_BACKEND_URL` | Yes | Backend API URL |
-| `NEXT_PUBLIC_SITE_NAME` | No | Site name (default: "Semiont") |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No | Google OAuth client ID (for sign-in button display) |
-| `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` | No | Comma-separated allowed email domains |
-| `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` | No | Enable email/password sign-in (default: false) |
+| `SEMIONT_BACKEND_URL` | Yes | Backend API URL |
+| `SEMIONT_SITE_NAME` | No | Site name (default: "Semiont") |
+| `SEMIONT_GOOGLE_CLIENT_ID` | No | Google OAuth client ID (for sign-in button display) |
+| `SEMIONT_OAUTH_ALLOWED_DOMAINS` | No | Comma-separated allowed email domains |
+| `SEMIONT_ENABLE_LOCAL_AUTH` | No | Enable email/password sign-in (default: false) |
 
 ## Related Documentation
 

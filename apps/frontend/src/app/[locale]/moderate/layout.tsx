@@ -7,7 +7,7 @@ import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
-import { NEXT_PUBLIC_BACKEND_URL } from '@/lib/env';
+import { SEMIONT_BACKEND_URL } from '@/lib/env';
 
 export default function ModerateLayout() {
   const { t } = useTranslation();
@@ -16,7 +16,7 @@ export default function ModerateLayout() {
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={NEXT_PUBLIC_BACKEND_URL}>
+      <ApiClientProvider baseUrl={SEMIONT_BACKEND_URL}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
           <div className="flex flex-1">
             <LeftSidebar

@@ -12,9 +12,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // Expose NEXT_PUBLIC_* env vars as VITE_* equivalents so existing env.ts works
-  // without renaming all variables. Vite only exposes VITE_* by default.
-  envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
+
+
+  envPrefix: ['VITE_', 'SEMIONT_'],
   build: {
     outDir: 'dist',
     sourcemap: true,

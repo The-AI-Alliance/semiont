@@ -164,9 +164,8 @@ vi.mock('@/i18n/routing', async () => {
 });
 
 // Environment variables
-process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
-process.env.SERVER_API_URL = 'http://localhost:3001';
-process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
+process.env.SEMIONT_SITE_NAME = 'Test Semiont';
+process.env.SEMIONT_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
 
 // Cleanup between tests
 afterEach(() => {

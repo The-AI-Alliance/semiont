@@ -52,8 +52,8 @@ vi.mock('@/components/admin/AdminNavigation', () => ({
 }));
 
 vi.mock('@/lib/env', () => ({
-  NEXT_PUBLIC_SITE_NAME: 'Test Site',
-  NEXT_PUBLIC_BACKEND_URL: 'http://localhost:4000',
+  SEMIONT_SITE_NAME: 'Test Site',
+  SEMIONT_BACKEND_URL: 'http://localhost:4000',
 }));
 
 /** Render AdminLayout (Outlet-based) with a child component via React Router. */

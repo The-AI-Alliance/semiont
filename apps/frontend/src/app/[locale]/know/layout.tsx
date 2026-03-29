@@ -10,7 +10,7 @@ import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
-import { NEXT_PUBLIC_BACKEND_URL } from '@/lib/env';
+import { SEMIONT_BACKEND_URL } from '@/lib/env';
 
 function GlobalEventsConnector() {
   useGlobalEvents();
@@ -48,7 +48,7 @@ export default function KnowledgeLayout() {
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={NEXT_PUBLIC_BACKEND_URL}>
+      <ApiClientProvider baseUrl={SEMIONT_BACKEND_URL}>
         <CacheProvider cacheManager={cacheManager}>
           <OpenResourcesProvider openResourcesManager={openResourcesManager}>
             <ResourceAnnotationsProvider>

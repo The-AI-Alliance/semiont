@@ -140,9 +140,8 @@ Image tagging strategy is controlled by `deployment.imageTagStrategy` in environ
       "url": "https://app.semiont.ai",
       "port": 3000,
       "env": {
-        "SERVER_API_URL": "http://backend-internal:4000",
-        "NEXTAUTH_URL": "https://app.semiont.ai",
-        "NEXTAUTH_SECRET": "{{secrets.NEXTAUTH_SECRET}}"
+        "SEMIONT_BACKEND_URL": "http://backend-internal:4000",
+        "SEMIONT_SITE_NAME": "Semiont"
       }
     }
   },
@@ -157,10 +156,7 @@ Image tagging strategy is controlled by `deployment.imageTagStrategy` in environ
 ### Required Environment Variables
 
 **Frontend-specific**:
-- `SERVER_API_URL` - Backend API URL for browser (embedded at build time)
-- `SERVER_API_URL` - Backend API URL for server-side calls (runtime, optional - not needed - Envoy handles routing)
-- `NEXTAUTH_URL` - Frontend URL (for OAuth callbacks)
-- `NEXTAUTH_SECRET` - Session encryption secret (32+ characters)
+- `SEMIONT_BACKEND_URL` - Backend API URL (embedded at build time; defaults to empty for relative-URL routing via Envoy)
 
 **Important**: See [Container Guide](./CONTAINER.md) for details on build-time vs runtime environment variables.
 
@@ -169,7 +165,7 @@ Image tagging strategy is controlled by `deployment.imageTagStrategy` in environ
 - `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
 
 **Optional**:
-- `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` - Google Analytics tracking ID
+
 - `SENTRY_DSN` - Sentry error tracking DSN
 
 ### Secrets Management
@@ -179,7 +175,6 @@ Sensitive values should use secrets references:
 ```json
 {
   "env": {
-    "NEXTAUTH_SECRET": "{{secrets.NEXTAUTH_SECRET}}",
     "GOOGLE_CLIENT_SECRET": "{{secrets.GOOGLE_CLIENT_SECRET}}"
   }
 }

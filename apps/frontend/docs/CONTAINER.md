@@ -36,7 +36,7 @@ docker-compose up -d
 ```bash
 docker run -d \
   -p 3000:3000 \
-  -e NEXT_PUBLIC_BACKEND_URL=http://backend:4000 \
+  -e SEMIONT_BACKEND_URL=http://backend:4000 \
   --name semiont-frontend \
   ghcr.io/the-ai-alliance/semiont-frontend:dev
 ```
@@ -60,19 +60,19 @@ This eliminates the need for build-time API URL configuration.
 
 #### Environment Variables
 
-All `NEXT_PUBLIC_*` variables are **build-time** (embedded in the JS bundle). Since the frontend is a static SPA, there are no runtime-only variables.
+All `SEMIONT_*` variables are **build-time** (embedded in the JS bundle). Since the frontend is a static SPA, there are no runtime-only variables.
 
-- **`NEXT_PUBLIC_BACKEND_URL`** - Backend API URL
+- **`SEMIONT_BACKEND_URL`** - Backend API URL
   - Example: `http://backend:4000` (internal) or `https://api.example.com`
   - **Required** for the application to function
 
-- **`NEXT_PUBLIC_SITE_NAME`** - Site name (default: `Semiont`) — Optional
+- **`SEMIONT_SITE_NAME`** - Site name (default: `Semiont`) — Optional
 
-- **`NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS`** - Comma-separated allowed email domains — Optional
+- **`SEMIONT_OAUTH_ALLOWED_DOMAINS`** - Comma-separated allowed email domains — Optional
 
-- **`NEXT_PUBLIC_GOOGLE_CLIENT_ID`** - Google OAuth client ID — Optional
+- **`SEMIONT_GOOGLE_CLIENT_ID`** - Google OAuth client ID — Optional
 
-- **`NEXT_PUBLIC_ENABLE_LOCAL_AUTH`** - Enable email/password sign-in — Optional
+- **`SEMIONT_ENABLE_LOCAL_AUTH`** - Enable email/password sign-in — Optional
 
 ## Deployment Scenarios
 
@@ -96,8 +96,8 @@ services:
     image: ghcr.io/the-ai-alliance/semiont-frontend:dev
     environment:
       # Build-time — embedded in JS bundle
-      NEXT_PUBLIC_BACKEND_URL: http://localhost
-      NEXT_PUBLIC_SITE_NAME: Semiont
+      SEMIONT_BACKEND_URL: http://localhost
+      SEMIONT_SITE_NAME: Semiont
     depends_on:
       - backend
 
@@ -126,7 +126,7 @@ spec:
         - containerPort: 3000
         env:
           # Build-time — embedded in JS bundle during docker build
-          - name: NEXT_PUBLIC_BACKEND_URL
+          - name: SEMIONT_BACKEND_URL
             value: http://semiont-backend-service:4000
 ---
 apiVersion: networking.k8s.io/v1
@@ -173,7 +173,7 @@ The CDK stack automatically configures ALB routing rules. Frontend container onl
 // In ECS task definition
 environment: {
   // Build-time vars embedded in bundle during docker build
-  NEXT_PUBLIC_BACKEND_URL: 'https://api.example.com',
+  SEMIONT_BACKEND_URL: 'https://api.example.com',
 }
 ```
 
@@ -186,8 +186,8 @@ ALB handles path-based routing (similar to Envoy configuration).
 ```bash
 # Build with custom site name and allowed domains
 docker build \
-  --build-arg NEXT_PUBLIC_SITE_NAME="My Company" \
-  --build-arg NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=mycompany.com \
+  --build-arg SEMIONT_SITE_NAME="My Company" \
+  --build-arg SEMIONT_OAUTH_ALLOWED_DOMAINS=mycompany.com \
   -t semiont-frontend:custom \
   -f apps/frontend/Dockerfile .
 ```
@@ -200,7 +200,7 @@ docker build \
 # Build for multiple architectures
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  --build-arg NEXT_PUBLIC_SITE_NAME="Semiont" \
+  --build-arg SEMIONT_SITE_NAME="Semiont" \
   -t semiont-frontend:multiarch \
   -f apps/frontend/Dockerfile .
 ```
@@ -209,11 +209,11 @@ docker buildx build \
 
 | Variable | Type | Required | Example | Description |
 |----------|------|----------|---------|-------------|
-| `NEXT_PUBLIC_BACKEND_URL` | Build-time | **Yes** | `http://backend:4000` | Backend API URL |
-| `NEXT_PUBLIC_SITE_NAME` | Build-time | No | `Semiont` | Site name |
-| `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` | Build-time | No | `example.com` | Allowed email domains |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Build-time | No | `xxx.apps.googleusercontent.com` | Google OAuth client ID |
-| `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` | Build-time | No | `true` | Enable email/password auth |
+| `SEMIONT_BACKEND_URL` | Build-time | **Yes** | `http://backend:4000` | Backend API URL |
+| `SEMIONT_SITE_NAME` | Build-time | No | `Semiont` | Site name |
+| `SEMIONT_OAUTH_ALLOWED_DOMAINS` | Build-time | No | `example.com` | Allowed email domains |
+| `SEMIONT_GOOGLE_CLIENT_ID` | Build-time | No | `xxx.apps.googleusercontent.com` | Google OAuth client ID |
+| `SEMIONT_ENABLE_LOCAL_AUTH` | Build-time | No | `true` | Enable email/password auth |
 
 ## Security Best Practices
 
@@ -224,8 +224,8 @@ docker buildx build \
 ```bash
 # ✅ Build-time public vars (safe to embed — no secrets)
 docker build \
-  --build-arg NEXT_PUBLIC_BACKEND_URL=https://api.example.com \
-  --build-arg NEXT_PUBLIC_SITE_NAME="My Company" \
+  --build-arg SEMIONT_BACKEND_URL=https://api.example.com \
+  --build-arg SEMIONT_SITE_NAME="My Company" \
   -t semiont-frontend .
 
 # Backend secrets (GOOGLE_CLIENT_SECRET, JWT signing key, etc.) stay in the backend container
@@ -237,14 +237,14 @@ The frontend contains no secrets. All sensitive credentials (OAuth client secret
 
 ## Troubleshooting
 
-### "`NEXT_PUBLIC_BACKEND_URL` not configured"
+### "`SEMIONT_BACKEND_URL` not configured"
 
 **Problem**: API calls fail because no backend URL is embedded in the bundle
 
-**Solution**: Set `NEXT_PUBLIC_BACKEND_URL` at **build time**:
+**Solution**: Set `SEMIONT_BACKEND_URL` at **build time**:
 
 ```bash
-docker build --build-arg NEXT_PUBLIC_BACKEND_URL=http://backend:4000 ...
+docker build --build-arg SEMIONT_BACKEND_URL=http://backend:4000 ...
 ```
 
 ### "Authentication fails with ECONNREFUSED"

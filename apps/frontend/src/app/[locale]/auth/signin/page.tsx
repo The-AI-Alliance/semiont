@@ -10,7 +10,7 @@ import { Link } from '@/i18n/routing';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { SemiontApiClient } from '@semiont/api-client';
 import { googleCredential, email as makeEmail, baseUrl } from '@semiont/core';
-import { NEXT_PUBLIC_BACKEND_URL, NEXT_PUBLIC_GOOGLE_CLIENT_ID } from '@/lib/env';
+import { SEMIONT_BACKEND_URL, SEMIONT_GOOGLE_CLIENT_ID } from '@/lib/env';
 
 declare global {
   interface Window {
@@ -34,7 +34,7 @@ export default function SignIn() {
   const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { setSession } = useAuthContext();
-  const apiClient = useMemo(() => new SemiontApiClient({ baseUrl: baseUrl(NEXT_PUBLIC_BACKEND_URL) }), []);
+  const apiClient = useMemo(() => new SemiontApiClient({ baseUrl: baseUrl(SEMIONT_BACKEND_URL) }), []);
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading] = useState(false);
@@ -43,7 +43,7 @@ export default function SignIn() {
   const callbackUrl = searchParams.get('callbackUrl') ?? '/know';
 
   useEffect(() => {
-    if (!NEXT_PUBLIC_GOOGLE_CLIENT_ID || googleScriptLoaded.current) return;
+    if (!SEMIONT_GOOGLE_CLIENT_ID || googleScriptLoaded.current) return;
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -53,13 +53,13 @@ export default function SignIn() {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    if (!NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+    if (!SEMIONT_GOOGLE_CLIENT_ID) {
       setError(t('errorGoogleSignIn'));
       return;
     }
     setError(null);
     window.google?.accounts.id.initialize({
-      client_id: NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+      client_id: SEMIONT_GOOGLE_CLIENT_ID,
       callback: async ({ credential }) => {
         try {
           const response = await apiClient.authenticateGoogle(googleCredential(credential));
@@ -108,7 +108,7 @@ export default function SignIn() {
   return (
     <div className="semiont-page-wrapper">
       <SignInForm
-        onGoogleSignIn={NEXT_PUBLIC_GOOGLE_CLIENT_ID ? handleGoogleSignIn : undefined as any}
+        onGoogleSignIn={SEMIONT_GOOGLE_CLIENT_ID ? handleGoogleSignIn : undefined as any}
         onCredentialsSignIn={handleCredentialsSignIn}
         error={error}
         showCredentialsAuth={true}
