@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { signIn } from 'next-auth/react';
 import { useSessionContext } from '@semiont/react-ui';
 import { AUTH_EVENTS, onAuthEvent } from '@semiont/react-ui';
 
@@ -29,7 +28,7 @@ export function SessionExpiredModal() {
   }, []);
 
   const handleSignIn = () => {
-    signIn(undefined, { callbackUrl: window.location.pathname });
+    window.location.href = `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
   };
 
   const handleClose = () => {

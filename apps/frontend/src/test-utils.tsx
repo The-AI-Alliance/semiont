@@ -8,7 +8,6 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SessionProvider } from 'next-auth/react';
 import {
   TranslationProvider,
   ApiClientProvider,
@@ -30,14 +29,6 @@ import type {
 } from '@semiont/react-ui';
 
 export interface FrontendTestOptions extends Omit<TestProvidersOptions, 'queryClient'> {
-  /**
-   * Mock next-auth session data
-   */
-  nextAuthSession?: any;
-  /**
-   * Mock next-auth session status (loading, authenticated, unauthenticated)
-   */
-  sessionStatus?: 'loading' | 'authenticated' | 'unauthenticated';
   /**
    * Optional QueryClient instance for testing
    */
@@ -66,7 +57,6 @@ export function renderWithProviders(
   options?: FrontendTestOptions & Omit<RenderOptions, 'wrapper'>
 ): RenderResult {
   const {
-    nextAuthSession = null,
     translationManager = defaultMocks.translationManager,
     apiBaseUrl = 'http://localhost:4000',
     sessionManager = defaultMocks.sessionManager,
@@ -90,9 +80,7 @@ export function renderWithProviders(
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <QueryClientProvider client={testQueryClient}>
                 <ToastProvider>
-                  <SessionProvider session={nextAuthSession}>
-                    {children}
-                  </SessionProvider>
+                  {children}
                 </ToastProvider>
               </QueryClientProvider>
             </OpenResourcesProvider>

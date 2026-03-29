@@ -1,23 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { Mock, MockedFunction } from 'vitest'
 import { NextRequest } from 'next/server'
+import type { RequestInit as NextRequestInit } from 'next/dist/server/web/spec-extension/request'
 import { GET, POST } from '../route'
-import { getServerSession } from 'next-auth'
 
-// Use environment variables for URLs
-const getBackendUrl = () => process.env.SERVER_API_URL || 'http://localhost:3001';
 const getFrontendUrl = () => 'http://localhost:3000';
 
-
-// Mock next-auth
-vi.mock('next-auth', () => ({
-  getServerSession: vi.fn(),
-}))
-
-// Mock authOptions
-vi.mock('@/lib/auth', () => ({
-  authOptions: {},
-}))
+// Helper to create a request optionally carrying the semiont-token cookie
+const makeRequest = (path: string, options?: NextRequestInit, withToken = true) => {
+  const req = new NextRequest(`${getFrontendUrl()}${path}`, options);
+  if (withToken) {
+    Object.defineProperty(req, 'cookies', {
+      value: { get: (name: string) => name === 'semiont-token' ? { value: 'test.jwt.token' } : undefined },
+      writable: false,
+    });
+  }
+  return req;
+};
 
 describe('/api/cookies/consent', () => {
   beforeEach(() => {
@@ -26,14 +24,7 @@ describe('/api/cookies/consent', () => {
 
   describe('GET /api/cookies/consent', () => {
     it('should return consent data for authenticated user', async () => {
-      (getServerSession as Mock).mockResolvedValue({
-        backendUser: {
-          id: 'user123',
-          email: 'test@example.com'
-        }
-      });
-
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`);
+      const request = makeRequest('/api/cookies/consent');
       const response = await GET(request);
       const data = await response.json();
 
@@ -50,54 +41,17 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should return 401 for unauthenticated user', async () => {
-      (getServerSession as Mock).mockResolvedValue(null);
-
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`);
+      const request = makeRequest('/api/cookies/consent', undefined, false);
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(401);
       expect(data.success).toBe(false);
       expect(data.error).toBe('Not authenticated');
-    });
-
-    it('should return 401 for user without backendUser', async () => {
-      (getServerSession as Mock).mockResolvedValue({
-        user: { email: 'test@example.com' }
-      });
-
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`);
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(401);
-      expect(data.success).toBe(false);
-      expect(data.error).toBe('Not authenticated');
-    });
-
-    it('should handle server errors gracefully', async () => {
-      (getServerSession as Mock).mockRejectedValue(new Error('Database error'));
-
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`);
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(500);
-      expect(data.success).toBe(false);
-      expect(data.error).toBe('Internal server error');
     });
   });
 
   describe('POST /api/cookies/consent', () => {
-    beforeEach(() => {
-      (getServerSession as Mock).mockResolvedValue({
-        backendUser: {
-          id: 'user123',
-          email: 'test@example.com'
-        }
-      });
-    });
-
     it('should update consent preferences', async () => {
       const consentData = {
         necessary: true,
@@ -106,12 +60,10 @@ describe('/api/cookies/consent', () => {
         preferences: true
       };
 
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
+      const request = makeRequest('/api/cookies/consent', {
         method: 'POST',
         body: JSON.stringify(consentData),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
 
       const response = await POST(request);
@@ -132,12 +84,10 @@ describe('/api/cookies/consent', () => {
         preferences: true
       };
 
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
+      const request = makeRequest('/api/cookies/consent', {
         method: 'POST',
         body: JSON.stringify(invalidData),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
 
       const response = await POST(request);
@@ -150,18 +100,16 @@ describe('/api/cookies/consent', () => {
 
     it('should reject request with necessary cookies disabled', async () => {
       const invalidData = {
-        necessary: false, // Cannot be false
+        necessary: false,
         analytics: true,
         marketing: false,
         preferences: true
       };
 
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
+      const request = makeRequest('/api/cookies/consent', {
         method: 'POST',
         body: JSON.stringify(invalidData),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
 
       const response = await POST(request);
@@ -173,20 +121,11 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should return 401 for unauthenticated user', async () => {
-      (getServerSession as Mock).mockResolvedValue(null);
-
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
+      const request = makeRequest('/api/cookies/consent', {
         method: 'POST',
-        body: JSON.stringify({
-          necessary: true,
-          analytics: true,
-          marketing: false,
-          preferences: true
-        }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+        body: JSON.stringify({ necessary: true, analytics: true, marketing: false, preferences: true }),
+        headers: { 'Content-Type': 'application/json' }
+      }, false);
 
       const response = await POST(request);
       const data = await response.json();
@@ -197,12 +136,10 @@ describe('/api/cookies/consent', () => {
     });
 
     it('should handle malformed JSON gracefully', async () => {
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
+      const request = makeRequest('/api/cookies/consent', {
         method: 'POST',
         body: 'invalid-json',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
 
       const response = await POST(request);
@@ -220,12 +157,10 @@ describe('/api/cookies/consent', () => {
         // Missing marketing and preferences
       };
 
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
+      const request = makeRequest('/api/cookies/consent', {
         method: 'POST',
         body: JSON.stringify(incompleteData),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
 
       const response = await POST(request);
@@ -234,30 +169,6 @@ describe('/api/cookies/consent', () => {
       expect(response.status).toBe(400);
       expect(data.success).toBe(false);
       expect(data.error).toBe('Invalid consent data');
-    });
-
-    it('should handle server errors during save', async () => {
-      (getServerSession as Mock).mockRejectedValue(new Error('Database error'));
-
-      const request = new NextRequest(`${getFrontendUrl()}/api/cookies/consent`, {
-        method: 'POST',
-        body: JSON.stringify({
-          necessary: true,
-          analytics: true,
-          marketing: false,
-          preferences: true
-        }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(500);
-      expect(data.success).toBe(false);
-      expect(data.error).toBe('Internal server error');
     });
   });
 });

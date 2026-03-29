@@ -5,17 +5,6 @@ import { SessionExpiredModal } from '../SessionExpiredModal';
 import { SessionProvider } from '@semiont/react-ui';
 import type { SessionManager } from '@semiont/react-ui';
 
-// Mock next-auth (must use factory function for hoisting)
-vi.mock('next-auth/react', () => ({
-  signIn: vi.fn(),
-  useSession: vi.fn(() => ({
-    data: null,
-    status: 'unauthenticated'
-  }))
-}));
-
-// Import the mocked signIn after the mock is set up
-import { signIn as mockSignIn } from 'next-auth/react';
 
 // Mock window.location
 const mockLocation = {

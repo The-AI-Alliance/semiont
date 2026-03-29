@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
-import { SessionProvider } from 'next-auth/react';
 import {
   ToastProvider,
   SessionProvider as CustomSessionProvider,
@@ -17,6 +16,7 @@ import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { APIError } from '@semiont/api-client';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
 
@@ -134,10 +134,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => createQueryClient());
 
   return (
-    <SessionProvider>
+    <AuthProvider>
       <InnerProviders queryClient={queryClient}>
         {children}
       </InnerProviders>
-    </SessionProvider>
+    </AuthProvider>
   );
 }

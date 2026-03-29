@@ -1,18 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { Mock, MockedFunction } from 'vitest'
-import type { Session } from 'next-auth';
+import type { MockedFunction } from 'vitest'
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { UserMenu } from '../UserMenu';
-
-// Mock next-auth/react
-vi.mock('next-auth/react', () => ({
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' }))
-}));
 
 // Mock Next.js components
 vi.mock('next/image', () => ({
@@ -64,201 +56,145 @@ vi.mock('@semiont/react-ui', async () => {
 });
 
 // Import mocked functions
-import { signIn, signOut } from 'next-auth/react';
 import { useDropdown, sanitizeImageURL } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
 
 // Type the mocked functions
-const mockSignIn = signIn as MockedFunction<typeof signIn>;
-const mockSignOut = signOut as MockedFunction<typeof signOut>;
 const mockUseAuth = useAuth as MockedFunction<typeof useAuth>;
 const mockUseDropdown = useDropdown as MockedFunction<typeof useDropdown>;
 const mockSanitizeImageURL = sanitizeImageURL as MockedFunction<typeof sanitizeImageURL>;
+
+import type { AuthSession } from '@/contexts/AuthContext';
+
+type MockAuthState = ReturnType<typeof useAuth>;
+
+const makeUser = (overrides: Partial<AuthSession['user']> = {}): AuthSession['user'] => ({
+  id: '1',
+  email: 'john@company.com',
+  name: 'John Doe',
+  image: 'https://example.com/avatar.jpg',
+  domain: 'company.com',
+  provider: 'google',
+  isAdmin: false,
+  isActive: true,
+  termsAcceptedAt: '2024-01-01',
+  lastLogin: null,
+  created: '2024-01-01',
+  token: 'valid-token',
+  ...overrides,
+});
+
+const makeSession = (userOverrides: Partial<AuthSession['user']> = {}): AuthSession => {
+  const user = makeUser(userOverrides);
+  return { token: user.token, user };
+};
+
+const auth = (state: MockAuthState): MockAuthState => state;
 
 // Test data fixtures
 const mockAuthStates = {
   loading: {
     session: null,
-    user: undefined,
-    backendUser: undefined,
+    user: null,
+    backendUser: null,
+    token: null,
     isLoading: true,
     isAuthenticated: false,
     hasValidBackendToken: false,
     userDomain: undefined,
     displayName: '',
-    avatarUrl: undefined,
+    avatarUrl: null,
     isAdmin: false,
     isModerator: false,
-    isFullyAuthenticated: false
+    isFullyAuthenticated: false,
   },
   unauthenticated: {
     session: null,
-    user: undefined,
-    backendUser: undefined,
+    user: null,
+    backendUser: null,
+    token: null,
     isLoading: false,
     isAuthenticated: false,
     hasValidBackendToken: false,
     userDomain: undefined,
     displayName: '',
-    avatarUrl: undefined,
-    isAdmin: false,
-    isModerator: false,
-    isFullyAuthenticated: false
-  },
-  authenticatedUser: {
-    session: {
-      user: {
-        name: 'John Doe',
-        email: 'john@company.com',
-        image: 'https://example.com/avatar.jpg'
-      },
-      backendUser: {
-        id: '1',
-        email: 'john@company.com',
-        name: 'John Doe',
-        domain: 'company.com',
-        isAdmin: false,
-        isModerator: false,
-        termsAcceptedAt: null
-      },
-      backendToken: 'valid-token',
-      expires: '2024-01-01'
-    },
-    user: {
-      name: 'John Doe',
-      email: 'john@company.com',
-      image: 'https://example.com/avatar.jpg'
-    },
-    backendUser: {
-      id: '1',
-      email: 'john@company.com',
-      name: 'John Doe',
-      domain: 'company.com',
-      isAdmin: false,
-      isModerator: false,
-      termsAcceptedAt: null
-    },
-    isLoading: false,
-    isAuthenticated: true,
-    hasValidBackendToken: true,
-    userDomain: 'company.com',
-    displayName: 'John Doe',
-    avatarUrl: 'https://example.com/avatar.jpg',
-    isAdmin: false,
-    isModerator: false,
-    isFullyAuthenticated: true
-  },
-  authenticatedAdmin: {
-    session: {
-      user: {
-        name: 'Admin User',
-        email: 'admin@company.com',
-        image: 'https://example.com/admin.jpg'
-      },
-      backendUser: {
-        id: '2',
-        email: 'admin@company.com',
-        name: 'Admin User',
-        domain: 'company.com',
-        isAdmin: true,
-        isModerator: false,
-        termsAcceptedAt: null
-      },
-      backendToken: 'valid-token',
-      expires: '2024-01-01'
-    },
-    user: {
-      name: 'Admin User',
-      email: 'admin@company.com',
-      image: 'https://example.com/admin.jpg'
-    },
-    backendUser: {
-      id: '2',
-      email: 'admin@company.com',
-      name: 'Admin User',
-      domain: 'company.com',
-      isAdmin: true,
-      isModerator: false,
-      termsAcceptedAt: null
-    },
-    isLoading: false,
-    isAuthenticated: true,
-    hasValidBackendToken: true,
-    userDomain: 'company.com',
-    displayName: 'Admin User',
-    avatarUrl: 'https://example.com/admin.jpg',
-    isAdmin: true,
-    isModerator: false,
-    isFullyAuthenticated: true
-  },
-  userWithoutAvatar: {
-    session: {
-      user: {
-        name: 'Jane Smith',
-        email: 'jane@example.org',
-        image: null
-      },
-      backendUser: {
-        id: '3',
-        email: 'jane@example.org',
-        name: 'Jane Smith',
-        domain: 'example.org',
-        isAdmin: false,
-        isModerator: false,
-        termsAcceptedAt: null
-      },
-      backendToken: 'valid-token',
-      expires: '2024-01-01'
-    },
-    user: {
-      name: 'Jane Smith',
-      email: 'jane@example.org',
-      image: null
-    },
-    backendUser: {
-      id: '3',
-      email: 'jane@example.org',
-      name: 'Jane Smith',
-      domain: 'example.org',
-      isAdmin: false,
-      isModerator: false,
-      termsAcceptedAt: null
-    },
-    isLoading: false,
-    isAuthenticated: true,
-    hasValidBackendToken: true,
-    userDomain: 'example.org',
-    displayName: 'Jane Smith',
     avatarUrl: null,
     isAdmin: false,
     isModerator: false,
-    isFullyAuthenticated: true
+    isFullyAuthenticated: false,
   },
-  userWithoutDomain: {
-    session: {
-      user: {
-        name: 'Bob Wilson',
-        email: 'bob@email.com',
-        image: 'https://example.com/bob.jpg'
-      },
-      expires: '2024-01-01'
-    } as any as Session,
-    user: {
-      name: 'Bob Wilson',
-      email: 'bob@email.com',
-      image: 'https://example.com/bob.jpg'
-    },
-    backendUser: undefined,
-    isLoading: false,
-    isAuthenticated: true,
-    hasValidBackendToken: false,
-    userDomain: undefined,
-    displayName: 'Bob Wilson',
-    avatarUrl: 'https://example.com/bob.jpg',
-    isAdmin: false,
-    isModerator: false,
-    isFullyAuthenticated: false
-  }
+  authenticatedUser: (() => {
+    const session = makeSession();
+    return {
+      session,
+      user: session.user,
+      backendUser: session.user,
+      token: session.token,
+      isLoading: false,
+      isAuthenticated: true,
+      hasValidBackendToken: true,
+      userDomain: 'company.com',
+      displayName: 'John Doe',
+      avatarUrl: 'https://example.com/avatar.jpg',
+      isAdmin: false,
+      isModerator: false,
+      isFullyAuthenticated: true,
+    };
+  })(),
+  authenticatedAdmin: (() => {
+    const session = makeSession({ id: '2', email: 'admin@company.com', name: 'Admin User', image: 'https://example.com/admin.jpg', isAdmin: true });
+    return {
+      session,
+      user: session.user,
+      backendUser: session.user,
+      token: session.token,
+      isLoading: false,
+      isAuthenticated: true,
+      hasValidBackendToken: true,
+      userDomain: 'company.com',
+      displayName: 'Admin User',
+      avatarUrl: 'https://example.com/admin.jpg',
+      isAdmin: true,
+      isModerator: false,
+      isFullyAuthenticated: true,
+    };
+  })(),
+  userWithoutAvatar: (() => {
+    const session = makeSession({ id: '3', email: 'jane@example.org', name: 'Jane Smith', image: null, domain: 'example.org' });
+    return {
+      session,
+      user: session.user,
+      backendUser: session.user,
+      token: session.token,
+      isLoading: false,
+      isAuthenticated: true,
+      hasValidBackendToken: true,
+      userDomain: 'example.org',
+      displayName: 'Jane Smith',
+      avatarUrl: null,
+      isAdmin: false,
+      isModerator: false,
+      isFullyAuthenticated: true,
+    };
+  })(),
+  userWithoutDomain: (() => {
+    const session = makeSession({ id: '4', email: 'bob@email.com', name: 'Bob Wilson', image: 'https://example.com/bob.jpg', domain: '' });
+    return {
+      session,
+      user: session.user,
+      backendUser: session.user,
+      token: session.token,
+      isLoading: false,
+      isAuthenticated: true,
+      hasValidBackendToken: true,
+      userDomain: 'email.com',
+      displayName: 'Bob Wilson',
+      avatarUrl: 'https://example.com/bob.jpg',
+      isAdmin: false,
+      isModerator: false,
+      isFullyAuthenticated: true,
+    };
+  })(),
 };
 
 const mockDropdownStates = {
@@ -352,10 +288,10 @@ describe('UserMenu Component', () => {
     });
 
     it('should handle user without display name gracefully', () => {
-      mockUseAuth.mockReturnValue({
+      mockUseAuth.mockReturnValue(auth({
         ...mockAuthStates.authenticatedUser,
         displayName: ''
-      });
+      }));
       mockUseDropdown.mockReturnValue(mockDropdownStates.closed);
       mockSanitizeImageURL.mockReturnValue('https://example.com/avatar.jpg');
 
@@ -438,10 +374,10 @@ describe('UserMenu Component', () => {
       fireEvent.error(profileImage);
 
       // Change avatar URL
-      mockUseAuth.mockReturnValue({
+      mockUseAuth.mockReturnValue(auth({
         ...mockAuthStates.authenticatedUser,
         avatarUrl: 'https://example.com/new-avatar.jpg'
-      });
+      }));
       mockSanitizeImageURL.mockReturnValue('https://example.com/new-avatar.jpg');
       
       rerender(<UserMenu />);
@@ -561,7 +497,6 @@ describe('UserMenu Component', () => {
       const profileButton = screen.getByRole('button', { name: /user menu/i });
       fireEvent.keyDown(profileButton, { key: 'Enter' });
 
-      expect(mockSignOut).not.toHaveBeenCalled();
       expect(mockDropdownStates.closed.close).not.toHaveBeenCalled();
     });
   });
@@ -657,10 +592,10 @@ describe('UserMenu Component', () => {
     });
 
     it('should handle missing displayName with fallback', () => {
-      mockUseAuth.mockReturnValue({
+      mockUseAuth.mockReturnValue(auth({
         ...mockAuthStates.authenticatedUser,
         displayName: ''
-      });
+      }));
       mockUseDropdown.mockReturnValue(mockDropdownStates.open);
 
       render(<UserMenu />);

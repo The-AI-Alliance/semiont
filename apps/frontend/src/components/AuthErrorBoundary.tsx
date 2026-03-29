@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { signIn } from 'next-auth/react';
 
 interface Props {
   children: React.ReactNode;
@@ -42,7 +41,7 @@ export class AuthErrorBoundary extends React.Component<Props, State> {
   };
 
   handleSignIn = () => {
-    signIn(undefined, { callbackUrl: window.location.pathname });
+    window.location.href = `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
   };
 
   override render() {

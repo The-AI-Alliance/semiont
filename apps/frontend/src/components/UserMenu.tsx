@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useRef, useCallback } from 'react';
-import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
 import { sanitizeImageURL, useDropdown, UserMenuSkeleton } from '@semiont/react-ui';

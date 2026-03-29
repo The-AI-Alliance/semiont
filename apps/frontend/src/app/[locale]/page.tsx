@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useContext } from "react";
-import { useSession } from "next-auth/react";
-import { signIn } from "next-auth/react";
+import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Footer, SemiontBranding, buttonStyles } from "@semiont/react-ui";
@@ -11,7 +10,8 @@ import { KeyboardShortcutsContext } from "@/contexts/KeyboardShortcutsContext";
 import { Link as RoutingLink, routes } from "@/lib/routing";
 
 export default function Home() {
-  const { data: session, status } = useSession();
+  const { isAuthenticated, isLoading } = useAuth();
+  const status = isLoading ? 'loading' : isAuthenticated ? 'authenticated' : 'unauthenticated';
   const t = useTranslations('Home');
   const tFooter = useTranslations('Footer');
   const keyboardContext = useContext(KeyboardShortcutsContext);
@@ -42,7 +42,7 @@ export default function Home() {
 
               {/* Action Buttons */}
               <div className="flex gap-4 justify-center items-center flex-wrap">
-                {session?.backendToken ? (
+                {isAuthenticated ? (
                   // Authenticated users see different actions
                   <>
                     <Link
@@ -73,13 +73,12 @@ export default function Home() {
                     >
                       {t('signUp')}
                     </Link>
-                    <button
-                      onClick={() => signIn(undefined, { callbackUrl: '/know' })}
+                    <Link
+                      href="/auth/signin?callbackUrl=/know"
                       className={buttonStyles.primary.base}
-                      type="button"
                     >
                       {t('signIn')}
-                    </button>
+                    </Link>
                   </>
                 )}</div>
             </div>

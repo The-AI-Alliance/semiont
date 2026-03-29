@@ -1,0 +1,63 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { SemiontApiClient } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { baseUrl } from '@semiont/core';
+import { NEXT_PUBLIC_BACKEND_URL } from '@/lib/env';
+
+type UserInfo = components['schemas']['UserResponse'];
+
+export interface AuthSession {
+  token: string;
+  user: UserInfo;
+}
+
+interface AuthContextValue {
+  session: AuthSession | null;
+  isLoading: boolean;
+  setSession: (session: AuthSession) => void;
+  clearSession: () => void;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSessionState] = useState<AuthSession | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const client = new SemiontApiClient({ baseUrl: baseUrl(NEXT_PUBLIC_BACKEND_URL) });
+    client.getMe()
+      .then((data) => {
+        setSessionState({ token: data.token, user: data });
+      })
+      .catch(() => {
+        setSessionState(null);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
+
+  const setSession = useCallback((s: AuthSession) => {
+    setSessionState(s);
+  }, []);
+
+  const clearSession = useCallback(() => {
+    setSessionState(null);
+  }, []);
+
+  const value = useMemo(
+    () => ({ session, isLoading, setSession, clearSession }),
+    [session, isLoading, setSession, clearSession]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuthContext(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuthContext must be used within AuthProvider');
+  return ctx;
+}

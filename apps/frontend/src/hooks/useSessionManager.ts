@@ -1,48 +1,43 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSession } from 'next-auth/react';
 import type { SessionManager } from '@semiont/react-ui';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
- * Hook that provides SessionManager implementation using next-auth
- * This is the app-level implementation that gets passed to SessionProvider as props
+ * Hook that provides SessionManager implementation using AuthContext
  */
 export function useSessionManager(): SessionManager {
-  const { data: session } = useSession();
+  const { token } = useAuth();
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
 
-  // Parse JWT token safely to extract expiration
   useEffect(() => {
-    if (session?.backendToken) {
+    if (token) {
       try {
-        const parts = session.backendToken.split('.');
+        const parts = token.split('.');
         if (parts.length === 3 && parts[1]) {
           const payload = JSON.parse(atob(parts[1]));
           if (payload.exp) {
             setExpiresAt(new Date(payload.exp * 1000));
           }
         }
-      } catch (error) {
-        console.error('Failed to parse token expiration:', error);
+      } catch {
         setExpiresAt(null);
       }
     } else {
       setExpiresAt(null);
     }
-  }, [session]);
+  }, [token]);
 
-  const value = useMemo(() => {
+  return useMemo(() => {
     const now = Date.now();
     const timeUntilExpiry = expiresAt ? expiresAt.getTime() - now : null;
 
     return {
-      isAuthenticated: !!session?.backendToken,
+      isAuthenticated: !!token,
       expiresAt,
       timeUntilExpiry,
-      isExpiringSoon: timeUntilExpiry !== null && timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0
+      isExpiringSoon: timeUntilExpiry !== null && timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0,
     };
-  }, [session, expiresAt]);
-
-  return value;
+  }, [token, expiresAt]);
 }

@@ -2,10 +2,13 @@
 // No validation at module load time - values are validated when actually used
 
 // API Configuration
-// SERVER_API_URL: Server-side API URL (runtime, used by Next.js server for auth, etc.)
+// SERVER_API_URL: Server-side API URL (runtime, used by Next.js server for MCP setup, etc.)
 // In Codespaces/Docker: Set to internal service name (e.g., http://backend:4000)
-// Client-side API calls use relative URLs - routing layer handles path-based routing
 export const SERVER_API_URL = process.env.SERVER_API_URL || '';
+
+// NEXT_PUBLIC_BACKEND_URL: Client-side backend URL used by the browser to call the API directly.
+// Defaults to '' (relative URLs) when running behind Envoy on the same origin.
+export const NEXT_PUBLIC_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
 
 // Site Configuration
 export const NEXT_PUBLIC_SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'Semiont';
