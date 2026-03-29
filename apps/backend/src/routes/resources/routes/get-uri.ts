@@ -19,6 +19,42 @@ import { getLogger } from '../../../logger';
 const getRouteLogger = () => getLogger().child({ component: 'get-resource-uri' });
 
 export function registerGetResourceUri(router: ResourcesRouterType) {
+  // /api/resources/:id — browser-friendly alias used by <img>, PDF.js, etc.
+  // Strips JSON-LD/JSON from Accept header so content negotiation always returns
+  // raw representations (browsers cannot read httpOnly cookies for auth headers,
+  // but the semiont-token cookie is sent automatically).
+  router.get('/api/resources/:id', async (c) => {
+    const { id } = c.req.param();
+    let acceptHeader = c.req.header('Accept') || '*/*';
+    acceptHeader = acceptHeader
+      .split(',')
+      .map(t => t.trim())
+      .filter(t => t !== 'application/ld+json' && t !== 'application/json')
+      .join(', ') || '*/*';
+    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+
+    let resource: any;
+    try {
+      resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
+    } catch {
+      throw new HTTPException(500, { message: 'Failed to retrieve resource' });
+    }
+    if (!resource) throw new HTTPException(404, { message: 'Resource not found' });
+    if (!resource.storageUri) throw new HTTPException(404, { message: 'Resource representation not found' });
+
+    const content = await kb.content.retrieve(resource.storageUri);
+    if (!content) throw new HTTPException(404, { message: 'Resource representation not found' });
+
+    const mediaType = getPrimaryMediaType(resource);
+    c.header('Cache-Control', 'public, max-age=31536000, immutable');
+    if (mediaType) c.header('Content-Type', mediaType);
+
+    if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
+      return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType! });
+    }
+    return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
+  });
+
   router.get('/resources/:id', async (c) => {
     const { id } = c.req.param();
 
