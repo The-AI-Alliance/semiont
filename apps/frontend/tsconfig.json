@@ -16,7 +16,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "incremental": true,
     // Enhanced strictness settings
     "exactOptionalPropertyTypes": true,
     "noFallthroughCasesInSwitch": true,
@@ -38,11 +37,7 @@
     // Import/module strictness
     "verbatimModuleSyntax": false,
     "allowSyntheticDefaultImports": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "types": ["vite/client"],
     "paths": {
       "@/*": [
         "./src/*"
@@ -51,14 +46,12 @@
     "target": "ES2017"
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "vite.config.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx"
   ],
   "exclude": [
     "node_modules",
-    ".next"
+    "dist"
   ]
 }

@@ -74,25 +74,31 @@ global.fetch = async (input, init) => {
   return originalFetch(input, init);
 };
 
-// Next.js navigation mock
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }),
-  useSearchParams: () => ({ get: vi.fn() }),
-  usePathname: () => '/',
-  redirect: vi.fn(),
-  notFound: vi.fn(),
-  useParams: () => ({ locale: 'en' }),
-}));
+// react-router-dom mock
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  const React = await import('react');
 
-// next-intl mock with actual English translations
-vi.mock('next-intl', async () => {
+  const MockLink = ({ children, to, href, ...props }: any) =>
+    React.createElement('a', { href: to ?? href, ...props },
+      typeof children === 'function' ? children({ isActive: false }) : children
+    );
+
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+    useLocation: () => ({ pathname: '/en', search: '', hash: '', state: null }),
+    useParams: () => ({ locale: 'en' }),
+    useSearchParams: () => [new URLSearchParams(), vi.fn()],
+    Link: MockLink,
+    Navigate: ({ to }: any) => React.createElement('div', { 'data-testid': 'navigate', 'data-to': to }),
+    BrowserRouter: ({ children }: any) => React.createElement(React.Fragment, null, children),
+    MemoryRouter: actual.MemoryRouter,
+  };
+});
+
+// react-i18next mock with actual English translations
+vi.mock('react-i18next', async () => {
   const fs = await import('fs');
   const path = await import('path');
   const { fileURLToPath } = await import('url');
@@ -101,57 +107,59 @@ vi.mock('next-intl', async () => {
   const translationsPath = path.join(__dirname, 'messages', 'en.json');
   const translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
 
-  const mockTranslations = (namespace: string) => {
-    return (key: string, params?: Record<string, unknown>) => {
-      const namespaceData = translations[namespace] || {};
-      let result: string = namespaceData[key] || key;
-      if (params) {
-        Object.entries(params).forEach(([paramKey, paramValue]) => {
-          result = result.replace(`{${paramKey}}`, String(paramValue));
-        });
-      }
-      return result;
-    };
+  const tFn = (key: string, params?: Record<string, unknown>) => {
+    // key format: "Namespace.subkey"
+    const dotIndex = key.indexOf('.');
+    if (dotIndex === -1) return key;
+    const namespace = key.slice(0, dotIndex);
+    const subkey = key.slice(dotIndex + 1);
+    const namespaceData = translations[namespace] || {};
+    let result: string = namespaceData[subkey] ?? key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        result = result.replace(`{{${k}}}`, String(v));
+      });
+    }
+    return result;
+  };
+
+  const i18nInstance = {
+    language: 'en',
+    changeLanguage: vi.fn().mockResolvedValue(undefined),
+    hasResourceBundle: vi.fn(() => true),
+    getResourceBundle: vi.fn(() => translations),
+    on: vi.fn(),
+    off: vi.fn(),
   };
 
   return {
-    useTranslations: vi.fn((namespace: string) => mockTranslations(namespace)),
-    useLocale: vi.fn(() => 'en'),
-    NextIntlClientProvider: ({ children }: any) => children,
-    useMessages: vi.fn(() => translations),
+    useTranslation: vi.fn(() => ({ t: tFn, i18n: i18nInstance })),
+    initReactI18next: { type: '3rdParty', init: vi.fn() },
+    I18nextProvider: ({ children }: any) => children,
+    Trans: ({ i18nKey }: any) => i18nKey,
   };
 });
 
-// next-intl/routing mock
-vi.mock('next-intl/routing', () => ({
-  defineRouting: vi.fn((config: unknown) => config),
-}));
-
-// next-intl/navigation mock
-vi.mock('next-intl/navigation', async () => {
+// @/i18n/routing mock
+vi.mock('@/i18n/routing', async () => {
   const React = await import('react');
 
-  const MockLink = ({ children, href, ...props }: any) =>
-    React.createElement('a', { href, ...props },
-      typeof children === 'function' ? children({ isActive: false }) : children
-    );
+  const MockLink = ({ children, to, href, ...props }: any) =>
+    React.createElement('a', { href: to ?? href, ...props }, children);
 
   return {
+    Link: MockLink,
     useRouter: () => ({
       push: vi.fn(),
       replace: vi.fn(),
-      prefetch: vi.fn(),
       back: vi.fn(),
       forward: vi.fn(),
+      prefetch: vi.fn(),
       refresh: vi.fn(),
     }),
     usePathname: () => '/',
+    useLocale: () => 'en',
     redirect: vi.fn(),
-    Link: MockLink,
-    createNavigation: vi.fn(() => {
-      const { usePathname, useRouter } = require('next/navigation');
-      return { Link: MockLink, redirect: vi.fn(), usePathname, useRouter };
-    }),
   };
 });
 
