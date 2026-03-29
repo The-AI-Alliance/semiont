@@ -16,18 +16,21 @@ export class FrontendTestEnvironment {
   };
 
   /**
-   * Setup Next.js navigation mocks
+   * Setup React Router navigation mocks.
+   * NOTE: The frontend's vitest.setup.ts already globally mocks react-router-dom
+   * and @/i18n/routing. Call this only when you need custom per-test overrides.
    */
   static setupNavigation() {
-    vi.mock('next/navigation', () => ({
-      useRouter: () => FrontendTestEnvironment.routerMock,
-      useSearchParams: () => ({
-        get: vi.fn(),
-      }),
-      usePathname: () => '/',
-      redirect: vi.fn(),
-      notFound: vi.fn(),
-    }));
+    vi.mock('react-router-dom', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('react-router-dom')>();
+      return {
+        ...actual,
+        useNavigate: () => FrontendTestEnvironment.routerMock.push,
+        useLocation: () => ({ pathname: '/', search: '', hash: '', state: null }),
+        useParams: () => ({}),
+        useSearchParams: () => [new URLSearchParams(), vi.fn()],
+      };
+    });
   }
 
   /**

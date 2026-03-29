@@ -6,7 +6,7 @@ import type { SimpleNavigationProps } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 
 // Mock @/i18n/routing — usePathname is a spy so tests can control the return value
-const mockUsePathname = vi.fn(() => '/admin');
+const mockUsePathname = vi.hoisted(() => vi.fn(() => '/admin'));
 vi.mock('@/i18n/routing', () => ({
   usePathname: mockUsePathname,
   Link: ({ children, to, href, ...props }: any) => <a href={to ?? href} {...props}>{children}</a>,
@@ -188,9 +188,9 @@ describe('AdminNavigation', () => {
 
       expect(exchangeItem).toEqual(
         expect.objectContaining({
-          name: 'Import / Export',
+          name: 'Backup & Restore',
           href: '/admin/exchange',
-          description: 'Back up and restore data',
+          description: 'Back up and restore your knowledge base',
         })
       );
       expect(exchangeItem.icon).toBeDefined();
@@ -206,7 +206,7 @@ describe('AdminNavigation', () => {
         expect.objectContaining({
           name: 'DevOps',
           href: '/admin/devops',
-          description: 'Development operations and tools',
+          description: 'System monitoring and management',
         })
       );
       expect(devopsItem.icon).toBeDefined();
