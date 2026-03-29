@@ -156,7 +156,7 @@ describe('Privacy Policy Page', () => {
     it('should render cookie examples', () => {
       render(<PrivacyPolicyPage />);
       
-      expect(screen.getByText(/next-auth\.session-token, next-auth\.csrf-token/i)).toBeInTheDocument();
+      expect(screen.getByText(/semiont-token/i)).toBeInTheDocument();
       expect(screen.getByText(/_ga, _gid, lighthouse-\*/i)).toBeInTheDocument();
       expect(screen.getByText(/_fbp, _fbc, fr/i)).toBeInTheDocument();
       expect(screen.getByText(/theme-preference, language-preference/i)).toBeInTheDocument();
