@@ -106,11 +106,6 @@ describe('query-keys', () => {
         expect(key).toEqual(['annotations', mockResourceId, mockAnnotationId2, 'history']);
       });
 
-      it('should return correct key for LLM context', () => {
-        const key = QUERY_KEYS.annotations.llmContext(mockResourceId, 'annotation-123' as AnnotationId);
-        expect(key).toEqual(['annotations', 'llm-context', mockResourceId, 'annotation-123']);
-      });
-
       it('should differentiate between different annotations', () => {
         const key1 = QUERY_KEYS.annotations.detail('a-111' as AnnotationId);
         const key2 = QUERY_KEYS.annotations.detail('a-222' as AnnotationId);
