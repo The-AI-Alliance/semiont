@@ -63,8 +63,8 @@ semiont provision --service backend
 semiont provision --service frontend
 
 # View logs
-semiont logs --service backend
-semiont logs --service frontend
+tail -f ~/.local/state/semiont/{project}/backend/app.log
+tail -f ~/.local/state/semiont/{project}/frontend/app.log
 ```
 
 ## Key file locations
@@ -100,5 +100,5 @@ password = "${NEO4J_PASSWORD}"
 - **`semiont check` is the diagnostic command.** If something isn't working after start, run it to see which services are unhealthy.
 - **Config lives in `~/.semiontconfig`.** If inference or DB isn't working, that's the first file to inspect.
 - **Re-provision after config changes** — `semiont provision` must be re-run for config changes to take effect; a restart alone is not enough.
-- **Logs are in `~/.local/state/semiont/{project}/`** — `semiont logs --service backend` is the fastest way to see errors.
+- **Logs are in `~/.local/state/semiont/{project}/`** — `tail -f ~/.local/state/semiont/{project}/backend/app.log` is the fastest way to see errors.
 - **The project directory is a git repo.** Resource files, `.semiont/config`, and `.semiont/events/` are committed. Secrets and generated configs are never in the repo.

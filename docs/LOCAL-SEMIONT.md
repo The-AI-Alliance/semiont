@@ -186,12 +186,12 @@ semiont provision --service backend
 
 ### View Logs
 
-```bash
-semiont logs --service backend
-semiont logs --service frontend
-```
+Log files are stored in `~/.local/state/semiont/{project}/`:
 
-Log files are stored in `~/.local/state/semiont/{project}/`.
+```bash
+tail -f ~/.local/state/semiont/{project}/backend/app.log
+tail -f ~/.local/state/semiont/{project}/frontend/app.log
+```
 
 ## Developer Mode
 
