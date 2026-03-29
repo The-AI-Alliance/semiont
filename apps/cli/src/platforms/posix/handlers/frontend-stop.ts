@@ -18,7 +18,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
 
   const projectRoot = service.projectRoot;
   const npmDir = resolveFrontendNpmPackage(projectRoot);
-  const serverScript = npmDir ? path.join(npmDir, '.next', 'standalone', 'apps', 'frontend', 'server.js') : null;
+  const serverScript = npmDir ? path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js') : null;
   const project = new SemiontProject(projectRoot);
   const pidFile = project.frontendPidFile;
   const appLogPath = project.frontendAppLogFile;
@@ -59,7 +59,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
         await killProcessGroupAndRelated(pid, 'frontend', service.verbose);
         
         if (!service.quiet) {
-          printSuccess(`✅ Frontend service ${service.name} stopped successfully`);
+          printSuccess(`Frontend service ${service.name} stopped successfully`);
         }
         
         return {
@@ -160,7 +160,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
     }
     
     if (!service.quiet) {
-      printSuccess(`✅ Frontend service ${service.name} stopped successfully`);
+      printSuccess(`Frontend service ${service.name} stopped successfully`);
       printInfo(`  App log: ${appLogPath}`);
       printInfo(`  Error log: ${errorLogPath}`);
     }

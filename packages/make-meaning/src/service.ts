@@ -121,7 +121,6 @@ async function createKnowledgeSystemFromConfig(
     kb, eventBus,
     createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
     logger.child({ component: 'gatherer' }),
-    project,
   );
   await gatherer.initialize();
 
@@ -132,7 +131,7 @@ async function createKnowledgeSystemFromConfig(
   );
   await matcher.initialize();
 
-  const browser = new Browser(kb.views, eventBus, project, logger.child({ component: 'browser' }));
+  const browser = new Browser(kb.views, kb, eventBus, project, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));
@@ -164,12 +163,10 @@ function createWorkers(
     return new ReferenceAnnotationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-reference-annotation' })), inferenceConfigToGenerator('Reference Worker', cfg), eventBus, contentFetcher, logger.child({ component: 'reference-detection-worker' }));
   })();
 
-  const generation = new GenerationWorker(
-    jobQueue,
-    createInferenceClient(resolveWorkerInference(config, 'generation'), logger.child({ component: 'inference-client-generation' })),
-    eventBus,
-    logger.child({ component: 'generation-worker' }),
-  );
+  const generation = (() => {
+    const cfg = resolveWorkerInference(config, 'generation');
+    return new GenerationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-generation' })), inferenceConfigToGenerator('Generation Worker', cfg), eventBus, logger.child({ component: 'generation-worker' }));
+  })();
 
   const highlight = (() => {
     const cfg = resolveWorkerInference(config, 'highlight-annotation');

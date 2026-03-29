@@ -1,7 +1,7 @@
 'use client';
 
 interface ResourceTagsInlineProps {
-  documentId: string;
+  resourceId: string;
   tags: string[];
   isEditing: boolean;
   onUpdate: (tags: string[]) => Promise<void>;

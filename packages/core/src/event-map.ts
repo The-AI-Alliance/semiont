@@ -77,13 +77,14 @@ export interface MarkProgress {
 /**
  * Unified event map for all application events
  *
- * Organized by workflow ("flows"):
+ * Organized by workflow ("flows") and actor sections:
  * 1. Yield Flow - Resource generation from references
  * 2. Mark Flow - Manual + AI-assisted annotation (all motivations)
  * 3. Bind Flow - Reference linking/resolution (search modal)
- * 4. Gather Flow - LLM context fetching from annotations
- * 5. Browse Flow - Panel, sidebar, and application routing
- * 6. Beckon Flow - Annotation hover/focus/sparkle coordination
+ * 4. Matcher Flow - Candidate search for bind/link operations
+ * 5. Gather Flow - LLM context fetching from annotations
+ * 6. Browse Flow - Panel, sidebar, and application routing
+ * 7. Beckon Flow - Annotation hover/focus/sparkle coordination
  *
  * Plus infrastructure events (domain events, SSE, resource operations, settings)
  */
@@ -137,7 +138,7 @@ export type EventMap = {
     entityTypes?: string[];
     creationMethod?: CreationMethod;
     isDraft?: boolean;
-    generatedFrom?: string;
+    generatedFrom?: { resourceId: string; annotationId: string };
     generationPrompt?: string;
     generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
     noGit?: boolean;            // Skip git operations even when gitSync is configured
@@ -307,19 +308,6 @@ export type EventMap = {
   'mark:entity-type-added': { tag: string };
   'mark:entity-type-add-failed': { error: Error };
 
-  // Entity type listing (Gatherer handles this read)
-  'mark:entity-types-requested': {
-    correlationId: string;
-  };
-  'mark:entity-types-result': {
-    correlationId: string;
-    response: components['schemas']['GetEntityTypesResponse'];
-  };
-  'mark:entity-types-failed': {
-    correlationId: string;
-    error: Error;
-  };
-
   // Resource management
   // Command/Event pairs: UI emits command → Backend confirms with domain event
 
@@ -345,13 +333,6 @@ export type EventMap = {
     defaultTitle: string;
     entityTypes: string[];
   };
-  'bind:search-requested': {
-    correlationId?: string;
-    referenceId: string;
-    context: GatheredContext;
-    limit?: number;
-    useSemanticScoring?: boolean;
-  };
   'bind:update-body': {
     annotationId: AnnotationId;
     resourceId: ResourceId;
@@ -367,7 +348,20 @@ export type EventMap = {
   'bind:body-update-failed': { error: Error };
   'bind:finished': { annotationId: AnnotationId };
   'bind:failed': { error: Error };
-  'bind:search-results': {
+
+  // ========================================================================
+  // MATCHER FLOW
+  // ========================================================================
+  // Knowledge base graph reads (Matcher actor handles these)
+
+  'match:search-requested': {
+    correlationId?: string;
+    referenceId: string;
+    context: GatheredContext;
+    limit?: number;
+    useSemanticScoring?: boolean;
+  };
+  'match:search-results': {
     referenceId: string;
     results: Array<components['schemas']['ResourceDescriptor'] & {
       score?: number;
@@ -375,25 +369,10 @@ export type EventMap = {
     }>;
     correlationId?: string;
   };
-  'bind:search-failed': {
+  'match:search-failed': {
     referenceId: string;
     error: Error;
     correlationId?: string;
-  };
-
-  // Knowledge base graph reads (Matcher handles these)
-  'bind:referenced-by-requested': {
-    correlationId: string;
-    resourceId: ResourceId;
-    motivation?: string;
-  };
-  'bind:referenced-by-result': {
-    correlationId: string;
-    response: components['schemas']['GetReferencedByResponse'];
-  };
-  'bind:referenced-by-failed': {
-    correlationId: string;
-    error: Error;
   };
 
   // ========================================================================
@@ -487,7 +466,7 @@ export type EventMap = {
   'browse:link-clicked': { href: string; label?: string };
   'browse:router-push': { path: string; reason?: string };
   'browse:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
-  'browse:reference-navigate': { documentId: string };
+  'browse:reference-navigate': { resourceId: string };
   'browse:entity-type-clicked': { entityType: string };
 
   // Knowledge base reads (Gatherer handles these)
@@ -574,6 +553,34 @@ export type EventMap = {
     response: components['schemas']['GetAnnotationHistoryResponse'];
   };
   'browse:annotation-history-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  // Knowledge base graph reads (Browser handles these)
+  'browse:referenced-by-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+    motivation?: string;
+  };
+  'browse:referenced-by-result': {
+    correlationId: string;
+    response: components['schemas']['GetReferencedByResponse'];
+  };
+  'browse:referenced-by-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  // Knowledge base entity type listing (Browser handles this read)
+  'browse:entity-types-requested': {
+    correlationId: string;
+  };
+  'browse:entity-types-result': {
+    correlationId: string;
+    response: components['schemas']['GetEntityTypesResponse'];
+  };
+  'browse:entity-types-failed': {
     correlationId: string;
     error: Error;
   };

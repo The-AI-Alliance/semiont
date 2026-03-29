@@ -92,7 +92,7 @@ async function stopJanusGraph(context: PosixStopHandlerContext): Promise<StopHan
       await fs.unlink(pidFile);
       
       if (!service.quiet) {
-        printSuccess(`✅ JanusGraph force stopped (PID: ${pid})`);
+        printSuccess(`JanusGraph force stopped (PID: ${pid})`);
       }
       
       return {
@@ -154,7 +154,7 @@ async function stopJanusGraph(context: PosixStopHandlerContext): Promise<StopHan
         await fs.unlink(pidFile);
         
         if (!service.quiet) {
-          printSuccess(`✅ JanusGraph stopped gracefully (PID: ${pid})`);
+          printSuccess(`JanusGraph stopped gracefully (PID: ${pid})`);
         }
         
         return {

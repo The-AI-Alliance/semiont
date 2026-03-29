@@ -37,7 +37,7 @@ interface Props {
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
   enableWidgets?: boolean;
-  getTargetDocumentName?: (documentId: string) => string | undefined;
+  getTargetResourceName?: (resourceId: string) => string | undefined;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
@@ -61,7 +61,7 @@ export function AnnotateView({
   uiState,
   onUIStateChange,
   enableWidgets = false,
-  getTargetDocumentName,
+  getTargetResourceName,
   generatingReferenceId,
   showLineNumbers = false,
   hoverDelayMs = 150,
@@ -220,7 +220,7 @@ export function AnnotateView({
             hoverDelayMs={hoverDelayMs}
             enableWidgets={enableWidgets}
             eventBus={eventBus}
-            {...(getTargetDocumentName && { getTargetDocumentName })}
+            {...(getTargetResourceName && { getTargetResourceName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           />
 

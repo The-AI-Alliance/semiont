@@ -13,8 +13,6 @@ import { registerAnnotateHighlightsStream } from './routes/annotate-highlights-s
 import { registerAnnotateAssessmentsStream } from './routes/annotate-assessments-stream';
 import { registerAnnotateCommentsStream } from './routes/annotate-comments-stream';
 import { registerAnnotateTagsStream } from './routes/annotate-tags-stream';
-import { registerGetResourceLLMContext } from './routes/llm-context';
-import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
 import { registerBindSearchStream } from './routes/bind-search-stream';
 import { registerTokenRoutes } from './routes/token';
@@ -28,6 +26,7 @@ import { registerGetAnnotation } from './routes/get-annotation';
 import { registerDeleteAnnotation } from './routes/delete-annotation';
 import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
 import { registerYieldResourceStream } from './routes/yield-resource-stream';
+import { registerGatherAnnotationStream } from './routes/gather-annotation-stream';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
 // Factory function to create resources router with JobQueue
@@ -51,8 +50,6 @@ registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /ap
   registerAnnotateAssessmentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-assessments-stream
   registerAnnotateCommentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments-stream
   registerAnnotateTagsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags-stream
-  registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
-  registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
   registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
   registerBindSearchStream(resourcesRouter);  // POST /resources/:id/bind-search-stream
 
@@ -62,6 +59,7 @@ registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /ap
   registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
   registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
   registerYieldResourceStream(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/yield-resource-stream
+  registerGatherAnnotationStream(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/gather-annotation-stream
   registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
   registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId
 

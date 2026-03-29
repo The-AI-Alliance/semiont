@@ -93,14 +93,8 @@
     "/resources/{id}/annotate-tags-stream": {
       "$ref": "paths/resources_{id}_annotate-tags-stream.json"
     },
-    "/resources/{id}/llm-context": {
-      "$ref": "paths/resources_{id}_llm-context.json"
-    },
     "/resources/{id}/gather-resource-stream": {
       "$ref": "paths/resources_{id}_gather-resource-stream.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}/llm-context": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_llm-context.json"
     },
     "/resources/{resourceId}/annotations/{annotationId}/gather-annotation-stream": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_gather-annotation-stream.json"

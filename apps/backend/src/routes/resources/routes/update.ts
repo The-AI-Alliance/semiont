@@ -11,7 +11,7 @@ import type { ResourcesRouterType } from '../shared';
 import { ResourceContext, ResourceOperations } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { userId, resourceId } from '@semiont/core';
+import { userId, userToDid, resourceId } from '@semiont/core';
 
 type UpdateResourceRequest = components['schemas']['UpdateResourceRequest'];
 
@@ -35,7 +35,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       await ResourceOperations.updateResource(
         {
           resourceId: resourceId(id),
-          userId: userId(user.id),
+          userId: userId(userToDid(user)),
           currentArchived: doc.archived,
           updatedArchived: body.archived,
           currentEntityTypes: doc.entityTypes,

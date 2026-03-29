@@ -288,7 +288,7 @@ describe('runMatch', () => {
     // bindSearch resolves with results
     mockSse.bindSearch.mockImplementationOnce((_rid: any, req: any, { eventBus }: any) => {
       queueMicrotask(() => {
-        eventBus.get('bind:search-results').next({
+        eventBus.get('match:search-results').next({
           referenceId: req.referenceId,
           results: mockResults,
         });

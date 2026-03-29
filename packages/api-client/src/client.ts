@@ -456,24 +456,6 @@ export class SemiontApiClient {
     } as any).json();
   }
 
-  async gatherAnnotation(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    options?: { contextWindow?: number; auth?: AccessToken }
-  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/llm-context']['get']>> {
-    const searchParams = new URLSearchParams();
-    if (options?.contextWindow) {
-      searchParams.append('contextWindow', options.contextWindow.toString());
-    }
-    return this.http.get(
-      `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/llm-context`,
-      {
-        searchParams,
-        auth: options?.auth
-      } as any
-    ).json();
-  }
-
   async browseReferences(id: ResourceId, options?: RequestOptions): Promise<{ referencedBy: any[] }> {
     return this.http.get(`${this.baseUrl}/resources/${id}/referenced-by`, {
       ...options,
@@ -860,32 +842,6 @@ export class SemiontApiClient {
       // Wait before next poll
       await new Promise(resolve => setTimeout(resolve, interval));
     }
-  }
-
-  // ============================================================================
-  // LLM CONTEXT
-  // ============================================================================
-
-  async gatherResource(
-    id: ResourceId,
-    options?: {
-      depth?: number;
-      maxResources?: number;
-      includeContent?: boolean;
-      includeSummary?: boolean;
-      auth?: AccessToken;
-    }
-  ): Promise<ResponseContent<paths['/resources/{id}/llm-context']['get']>> {
-    const searchParams = new URLSearchParams();
-    if (options?.depth !== undefined) searchParams.append('depth', options.depth.toString());
-    if (options?.maxResources !== undefined) searchParams.append('maxResources', options.maxResources.toString());
-    if (options?.includeContent !== undefined) searchParams.append('includeContent', options.includeContent.toString());
-    if (options?.includeSummary !== undefined) searchParams.append('includeSummary', options.includeSummary.toString());
-
-    return this.http.get(`${this.baseUrl}/resources/${id}/llm-context`, {
-      searchParams,
-      auth: options?.auth
-    } as any).json();
   }
 
   // ============================================================================

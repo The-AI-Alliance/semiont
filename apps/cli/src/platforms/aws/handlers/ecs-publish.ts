@@ -210,7 +210,7 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     }
     
     if (!service.quiet) {
-      printSuccess(`✅ ${service.name} published successfully`);
+      printSuccess(`${service.name} published successfully`);
       console.log(`   🏷️  Image tag: ${version}`);
       console.log(`   🔗 Image URI: ${imageUri}`);
     }

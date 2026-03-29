@@ -102,7 +102,7 @@ describe('handleWidgetClick', () => {
     expect(result).toEqual({
       handled: true,
       action: 'navigate',
-      documentId: 'doc-123',
+      resourceId: 'doc-123',
       annotationId: 'ann-1',
     });
   });
@@ -144,12 +144,12 @@ describe('dispatchWidgetClick', () => {
     const result: WidgetClickResult = {
       handled: true,
       action: 'navigate',
-      documentId: 'doc-1',
+      resourceId: 'doc-1',
       annotationId: 'ann-1',
     };
     dispatchWidgetClick(result, eventBus);
     expect(eventBus.get).toHaveBeenCalledWith('browse:reference-navigate');
-    expect(eventBus.subjects['browse:reference-navigate']!.next).toHaveBeenCalledWith({ documentId: 'doc-1' });
+    expect(eventBus.subjects['browse:reference-navigate']!.next).toHaveBeenCalledWith({ resourceId: 'doc-1' });
   });
 
   it('emits browse:click for browse-click action', () => {

@@ -45,7 +45,7 @@ export interface ResourceCreatedEvent extends BaseEvent {
     // First-class fields (promoted from metadata)
     language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
     isDraft?: boolean;           // Draft status for generated resources
-    generatedFrom?: string;      // Annotation/Reference ID that triggered generation
+    generatedFrom?: { resourceId: string; annotationId: string };  // Source resource and annotation that triggered generation
     generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Resource)
     generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];  // Software agent that produced this resource
   };

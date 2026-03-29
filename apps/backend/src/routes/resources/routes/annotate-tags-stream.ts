@@ -22,7 +22,7 @@ import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
-import { userId, resourceId, type ResourceId } from '@semiont/core';
+import { userId, userToDid, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getTagSchema } from '@semiont/ontology';
 import { getLogger } from '../../../logger';
@@ -109,7 +109,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
         metadata: {
           id: jobId(`job-${nanoid()}`),
           type: 'tag-annotation',
-          userId: userId(user.id),
+          userId: userId(userToDid(user)),
           userName: user.name || user.email,
           userEmail: user.email,
           userDomain: user.domain,

@@ -10,7 +10,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
-import { resourceId, userId, userToAgent } from '@semiont/core';
+import { resourceId, userId, userToDid, userToAgent } from '@semiont/core';
 import { assembleAnnotation } from '@semiont/core';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 
@@ -39,7 +39,7 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
       const eventBus = c.get('eventBus');
       eventBus.get('mark:create').next({
         annotation,
-        userId: userId(user.id),
+        userId: userId(userToDid(user)),
         resourceId: resourceId(id),
       });
 

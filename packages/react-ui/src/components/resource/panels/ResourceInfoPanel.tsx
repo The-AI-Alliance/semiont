@@ -132,7 +132,15 @@ export function ResourceInfoPanel({
               <div>
                 <span className="semiont-resource-info-panel__label">{t('derivedFrom')}</span>
                 <span className="semiont-resource-info-panel__value">
-                  {(Array.isArray(wasDerivedFrom) ? wasDerivedFrom : [wasDerivedFrom]).join(', ')}
+                  {(Array.isArray(wasDerivedFrom) ? wasDerivedFrom : [wasDerivedFrom]).map((id, i) => (
+                    <button
+                      key={id}
+                      className="semiont-resource-info-panel__link"
+                      onClick={() => eventBus.get('browse:reference-navigate').next({ resourceId: id })}
+                    >
+                      {i > 0 && ', '}{id}
+                    </button>
+                  ))}
                 </span>
               </div>
             )}

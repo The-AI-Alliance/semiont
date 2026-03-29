@@ -41,7 +41,7 @@ export function handleAnnotationClick(
 export interface WidgetClickResult {
   handled: boolean;
   action?: 'navigate' | 'browse-click';
-  documentId?: string;
+  resourceId?: string;
   annotationId?: string;
   motivation?: Motivation;
 }
@@ -66,7 +66,7 @@ export function handleWidgetClick(target: HTMLElement): WidgetClickResult {
     return {
       handled: true,
       action: 'navigate',
-      documentId: bodySource,
+      resourceId: bodySource,
       annotationId,
     };
   }
@@ -85,8 +85,8 @@ export function handleWidgetClick(target: HTMLElement): WidgetClickResult {
 export function dispatchWidgetClick(result: WidgetClickResult, eventBus: EventBus): void {
   if (!result.handled) return;
 
-  if (result.action === 'navigate' && result.documentId) {
-    eventBus.get('browse:reference-navigate').next({ documentId: result.documentId });
+  if (result.action === 'navigate' && result.resourceId) {
+    eventBus.get('browse:reference-navigate').next({ resourceId: result.resourceId });
   } else if (result.action === 'browse-click' && result.annotationId) {
     eventBus.get('browse:click').next({
       annotationId: result.annotationId,

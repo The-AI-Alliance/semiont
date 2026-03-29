@@ -1,30 +1,21 @@
 /**
  * Matcher Actor
  *
- * Bridge between the event bus and the knowledge base for entity resolution.
- * Subscribes to bind search events and referenced-by queries, queries KB stores
- * (graph, views), and emits results back to the bus.
- *
- * From ARCHITECTURE.md:
- * "When an Analyst or Linker Agent emits a bind event, the Matcher receives it
- * from the bus, searches the KB stores for matching resources, and resolves
- * references — linking a mention to its referent."
+ * Candidate search for the bind flow. Subscribes to match:search-requested,
+ * queries the KB graph for matching resources, scores them, and emits results.
  *
  * Handles:
- * - bind:search-requested — search for binding candidates
- * - bind:referenced-by-requested — find annotations that reference a resource
+ * - match:search-requested — multi-source retrieval + composite scoring
  *
- * The Matcher handles only the read side (searching for candidates).
- * The write side (annotation.body.updated) stays in the route where
- * userId is available from auth context. That domain event still flows
- * through the bus via EventStore auto-publish.
+ * The write side (annotation.body.updated) stays in the route where userId
+ * is available from auth context.
  */
 
 import { Subscription, from } from 'rxjs';
-import { concatMap, mergeMap } from 'rxjs/operators';
+import { concatMap } from 'rxjs/operators';
 import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
 import { type EventBus, resourceId } from '@semiont/core';
-import { getExactText, getResourceId, getResourceEntityTypes, getTargetSource, getTargetSelector } from '@semiont/api-client';
+import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
 import type { KnowledgeBase } from './knowledge-base';
 
@@ -38,7 +29,7 @@ export class Matcher {
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     logger: Logger,
-    private inferenceClient?: InferenceClient,
+    private inferenceClient: InferenceClient,
   ) {
     this.logger = logger;
   }
@@ -48,22 +39,16 @@ export class Matcher {
 
     const errorHandler = (err: unknown) => this.logger.error('Matcher pipeline error', { error: err });
 
-    const search$ = this.eventBus.get('bind:search-requested').pipe(
+    const search$ = this.eventBus.get('match:search-requested').pipe(
       concatMap((event) => from(this.handleSearch(event))),
-    );
-
-    // mergeMap: referenced-by queries are independent reads — safe to run concurrently
-    const referencedBy$ = this.eventBus.get('bind:referenced-by-requested').pipe(
-      mergeMap((event) => from(this.handleReferencedBy(event))),
     );
 
     this.subscriptions.push(
       search$.subscribe({ error: errorHandler }),
-      referencedBy$.subscribe({ error: errorHandler }),
     );
   }
 
-  private async handleSearch(event: EventMap['bind:search-requested']): Promise<void> {
+  private async handleSearch(event: EventMap['match:search-requested']): Promise<void> {
     try {
       const context = event.context;
       const selectedText = context.sourceContext?.selected ?? '';
@@ -85,7 +70,7 @@ export class Matcher {
 
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
-      this.eventBus.get('bind:search-results').next({
+      this.eventBus.get('match:search-results').next({
         referenceId: event.referenceId,
         results: limited,
         correlationId: event.correlationId,
@@ -95,7 +80,7 @@ export class Matcher {
         referenceId: event.referenceId,
         error,
       });
-      this.eventBus.get('bind:search-failed').next({
+      this.eventBus.get('match:search-failed').next({
         referenceId: event.referenceId,
         error: error instanceof Error ? error : new Error(String(error)),
         correlationId: event.correlationId,
@@ -255,7 +240,7 @@ export class Matcher {
     });
 
     // Inference-based semantic scoring (when available, enabled, and there are candidates)
-    if (this.inferenceClient && scored.length > 0 && useSemanticScoring !== false) {
+    if (scored.length > 0 && useSemanticScoring !== false) {
       try {
         const inferenceScores = await this.inferenceSemanticScore(
           searchTerm,
@@ -305,8 +290,6 @@ export class Matcher {
     context: GatheredContext,
     candidates: Array<ResourceDescriptor & { score: number }>,
   ): Promise<Map<string, number>> {
-    if (!this.inferenceClient) return new Map();
-
     const passage = [context.sourceContext?.selected, context.userHint]
       .filter(Boolean).join(' — ') || searchTerm;
     const entityTypes = context.metadata?.entityTypes ?? [];
@@ -378,60 +361,6 @@ No explanations.`;
     });
 
     return scores;
-  }
-
-  private async handleReferencedBy(event: EventMap['bind:referenced-by-requested']): Promise<void> {
-    try {
-      this.logger.debug('Looking for annotations referencing resource', {
-        resourceId: event.resourceId,
-        motivation: event.motivation || 'all',
-      });
-
-      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
-
-      // Get unique source resource IDs from annotation targets
-      const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
-
-      // Build resource map for lookup — warn about any that couldn't be found
-      for (let i = 0; i < sourceIds.length; i++) {
-        if (resources[i] === null) {
-          this.logger.warn('Referenced resource not found in graph', { resourceId: sourceIds[i] });
-        }
-      }
-      const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
-
-      // Transform into ReferencedBy structure
-      const referencedBy = references.map(ref => {
-        const targetSource = getTargetSource(ref.target);
-        const targetSelector = getTargetSelector(ref.target);
-        const doc = docMap.get(targetSource);
-        return {
-          id: ref.id,
-          resourceName: doc?.name || 'Untitled Resource',
-          target: {
-            source: targetSource,
-            selector: {
-              exact: targetSelector ? getExactText(targetSelector) : '',
-            },
-          },
-        };
-      });
-
-      this.eventBus.get('bind:referenced-by-result').next({
-        correlationId: event.correlationId,
-        response: { referencedBy },
-      });
-    } catch (error) {
-      this.logger.error('Referenced-by query failed', {
-        resourceId: event.resourceId,
-        error,
-      });
-      this.eventBus.get('bind:referenced-by-failed').next({
-        correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
-      });
-    }
   }
 
   async stop(): Promise<void> {

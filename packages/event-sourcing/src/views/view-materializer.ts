@@ -186,7 +186,7 @@ export class ViewMaterializer {
 
         // First-class fields
         resource.isDraft = event.payload.isDraft;
-        resource.wasDerivedFrom = event.payload.generatedFrom;
+        if (event.payload.generatedFrom) resource.wasDerivedFrom = event.payload.generatedFrom.resourceId;
         if (event.payload.generator) resource.generator = event.payload.generator;
 
         // Working-tree URI and current checksum

@@ -139,6 +139,7 @@ export class Stower {
           isDraft: event.isDraft ?? false,
           generatedFrom: event.generatedFrom,
           generationPrompt: event.generationPrompt,
+          generator: event.generator,
         },
       });
 

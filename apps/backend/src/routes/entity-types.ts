@@ -1,7 +1,7 @@
 /**
  * Entity Types Routes
  *
- * GET emits mark:entity-types-requested on the EventBus, awaits the Gatherer's response.
+ * GET emits browse:entity-types-requested on the EventBus, awaits the Gatherer's response.
  * POST/bulk POST emit events and return 202 Accepted.
  * The frontend refreshes entity types via query invalidation.
  */
@@ -11,7 +11,7 @@ import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { userId, type EventBus } from '@semiont/core';
+import { userId, userToDid, type EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { eventBusRequest } from '../utils/event-bus-request';
 
@@ -32,10 +32,10 @@ entityTypesRouter.get('/api/entity-types', async (c) => {
 
   const response = await eventBusRequest(
     eventBus,
-    'mark:entity-types-requested',
+    'browse:entity-types-requested',
     { correlationId },
-    'mark:entity-types-result',
-    'mark:entity-types-failed',
+    'browse:entity-types-result',
+    'browse:entity-types-failed',
   );
   return c.json(response, 200);
 });
@@ -54,7 +54,7 @@ entityTypesRouter.post('/api/entity-types',
 
     const body = c.get('validatedBody') as AddEntityTypeRequest;
     const eventBus = c.get('eventBus');
-    eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(user.id) });
+    eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(userToDid(user)) });
 
     return c.body(null, 202);
   }
@@ -76,7 +76,7 @@ entityTypesRouter.post('/api/entity-types/bulk',
     const eventBus = c.get('eventBus');
 
     for (const tag of body.tags) {
-      eventBus.get('mark:add-entity-type').next({ tag, userId: userId(user.id) });
+      eventBus.get('mark:add-entity-type').next({ tag, userId: userId(userToDid(user)) });
     }
 
     return c.body(null, 202);

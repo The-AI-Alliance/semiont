@@ -3,40 +3,40 @@ import { userToDid, userToAgent, didToAgent } from '../did-utils';
 
 describe('@semiont/core - did-utils', () => {
   describe('userToDid', () => {
-    it('should convert user to DID:WEB format', () => {
+    it('should convert user to DID:WEB format using email', () => {
       const user = {
-        id: 'alice123',
+        email: 'alice@example.com',
         domain: 'example.com',
       };
 
       const did = userToDid(user);
 
-      expect(did).toBe('did:web:example.com:users:alice123');
+      expect(did).toBe('did:web:example.com:users:alice%40example.com');
     });
 
     it('should handle different domains', () => {
       const user1 = {
-        id: 'bob456',
+        email: 'bob@semiont.app',
         domain: 'api.semiont.app',
       };
       const user2 = {
-        id: 'carol789',
+        email: 'carol@example.com',
         domain: 'localhost:3000',
       };
 
-      expect(userToDid(user1)).toBe('did:web:api.semiont.app:users:bob456');
-      expect(userToDid(user2)).toBe('did:web:localhost:3000:users:carol789');
+      expect(userToDid(user1)).toBe('did:web:api.semiont.app:users:bob%40semiont.app');
+      expect(userToDid(user2)).toBe('did:web:localhost:3000:users:carol%40example.com');
     });
 
-    it('should handle user IDs with special characters', () => {
+    it('should URI-encode the email', () => {
       const user = {
-        id: 'user-with-hyphens',
+        email: 'user+tag@example.org',
         domain: 'example.org',
       };
 
       const did = userToDid(user);
 
-      expect(did).toBe('did:web:example.org:users:user-with-hyphens');
+      expect(did).toBe('did:web:example.org:users:user%2Btag%40example.org');
     });
   });
 
@@ -53,7 +53,7 @@ describe('@semiont/core - did-utils', () => {
 
       expect(agent).toEqual({
         type: 'Person',
-        id: 'did:web:example.com:users:alice123',
+        id: 'did:web:example.com:users:alice%40example.com',
         name: 'Alice Smith',
       });
     });
@@ -70,7 +70,7 @@ describe('@semiont/core - did-utils', () => {
 
       expect(agent).toEqual({
         type: 'Person',
-        id: 'did:web:example.com:users:bob456',
+        id: 'did:web:example.com:users:bob%40example.com',
         name: 'bob@example.com',
       });
     });
@@ -103,35 +103,35 @@ describe('@semiont/core - did-utils', () => {
   });
 
   describe('didToAgent', () => {
-    it('should convert DID to minimal W3C Agent', () => {
-      const did = 'did:web:example.com:users:alice123';
+    it('should convert DID to W3C Agent decoding email', () => {
+      const did = 'did:web:example.com:users:alice%40example.com';
 
       const agent = didToAgent(did);
 
       expect(agent).toEqual({
         type: 'Person',
-        id: 'did:web:example.com:users:alice123',
-        name: 'alice123',
+        id: 'did:web:example.com:users:alice%40example.com',
+        name: 'alice@example.com',
       });
     });
 
-    it('should extract user ID from last part of DID', () => {
-      const did = 'did:web:api.semiont.app:users:bob456';
+    it('should decode URI-encoded email from last part of DID', () => {
+      const did = 'did:web:api.semiont.app:users:bob%40semiont.app';
 
       const agent = didToAgent(did);
 
-      expect(agent.name).toBe('bob456');
+      expect(agent.name).toBe('bob@semiont.app');
     });
 
     it('should handle DIDs with complex domains', () => {
-      const did = 'did:web:subdomain.example.com:8080:users:carol789';
+      const did = 'did:web:subdomain.example.com:8080:users:carol%40example.com';
 
       const agent = didToAgent(did);
 
       expect(agent).toEqual({
         type: 'Person',
-        id: 'did:web:subdomain.example.com:8080:users:carol789',
-        name: 'carol789',
+        id: 'did:web:subdomain.example.com:8080:users:carol%40example.com',
+        name: 'carol@example.com',
       });
     });
 
@@ -179,9 +179,10 @@ describe('@semiont/core - did-utils', () => {
       const agentFromDid = didToAgent(did);
       const agentFromUser = userToAgent(user);
 
-      // Both agents should have the same DID
+      // Both agents should have the same DID and decoded name
       expect(agentFromDid.id).toBe(agentFromUser.id);
       expect(agentFromDid.type).toBe(agentFromUser.type);
+      expect(agentFromDid.name).toBe('alice@example.com');
     });
   });
 });

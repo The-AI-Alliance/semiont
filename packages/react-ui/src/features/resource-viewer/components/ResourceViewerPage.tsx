@@ -415,12 +415,12 @@ export function ResourceViewerPage({
     // Error notification is handled by useYieldFlow
   }, []);
 
-  const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
-    if (routes.resource) {
-      const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
+  const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
+    if (routes.resourceDetail) {
+      const path = routes.resourceDetail(resourceId);
       eventBus.get('browse:router-push').next({ path, reason: 'reference-link' });
     }
-  }, [routes.resource]); // eventBus is stable singleton - never in deps
+  }, [routes.resourceDetail]); // eventBus is stable singleton - never in deps
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
@@ -697,15 +697,9 @@ export function ResourceViewerPage({
           configureGenerationTitle: tw('configureGenerationTitle'),
           configureSearchTitle: tw('configureSearchTitle'),
           searchResultsTitle: tw('searchResultsTitle'),
-          annotationLabel: tw('annotationLabel'),
-          sourceResourceLabel: tw('sourceResourceLabel'),
-          motivationLabel: tw('motivationLabel'),
           sourceContextLabel: tw('sourceContextLabel'),
-          entityTypesLabel: tw('entityTypesLabel'),
-          graphContextLabel: tw('graphContextLabel'),
           connectionsLabel: tw('connectionsLabel'),
           citedByLabel: tw('citedByLabel'),
-          siblingTypesLabel: tw('siblingTypesLabel'),
           userHintLabel: tw('userHintLabel'),
           userHintPlaceholder: tw('userHintPlaceholder'),
           loadingContext: tw('loadingContext'),
@@ -715,6 +709,7 @@ export function ResourceViewerPage({
           searching: tw('searching'),
           generate: tw('generate'),
           compose: tw('compose'),
+          resolutionStrategyLabel: tw('resolutionStrategyLabel'),
           back: tw('back'),
           link: tw('link'),
           score: tw('score'),

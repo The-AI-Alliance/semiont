@@ -211,7 +211,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     const endpoint = `http://localhost:${port}`;
 
     if (!service.quiet) {
-      printSuccess(`✅ Frontend service ${service.name} started successfully`);
+      printSuccess(`Frontend service ${service.name} started successfully`);
       printInfo('');
       printInfo('Frontend details:');
       printInfo(`  PID: ${proc.pid}`);

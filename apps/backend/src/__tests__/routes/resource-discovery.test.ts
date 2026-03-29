@@ -3,7 +3,6 @@
  *
  * Tests:
  * - GET /resources/:id/referenced-by
- * - POST /resources/:id/llm-context
  *
  * Focuses on HTTP contract - status codes, authentication, response validation.
  */
@@ -16,9 +15,8 @@ import type { Hono } from 'hono';
 import type { EnvironmentConfig, EventBus, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { User } from '@prisma/client';
-import type { MakeMeaningService, KnowledgeBase, LLMContextOptions } from '@semiont/make-meaning';
+import type { MakeMeaningService, KnowledgeBase } from '@semiont/make-meaning';
 import { makeMeaningMock, stubKnowledgeSystem } from '../helpers/make-meaning-mock';
-import type { InferenceClient } from '@semiont/inference';
 
 type Variables = {
   user: User;
@@ -32,62 +30,10 @@ type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 // Standard test setup
 const setupMocks = () => {
   vi.mock('@semiont/make-meaning', () => ({
-    ResourceContext: {
-      getResourceMetadata: vi.fn().mockResolvedValue({
-        '@id': 'urn:semiont:resource:test-resource',
-        name: 'Test Resource',
-      })
-    },
-    AnnotationContext: {
-      buildLLMContext: vi.fn().mockResolvedValue({
-        sourceContext: { content: 'test', annotations: [] },
-        targetContext: null
-      }),
-      getAnnotation: vi.fn().mockResolvedValue({
-        '@context': 'http://www.w3.org/ns/anno.jsonld',
-        id: 'http://localhost:4000/annotations/test-annotation',
-        type: 'Annotation',
-        body: [],
-        target: { source: 'urn:semiont:resource:test-resource' }
-      })
-    },
-    LLMContext: {
-      getResourceContext: vi.fn().mockImplementation(async (resId: ResourceId) => {
-        // Throw error for non-existent resources
-        if (!resId.includes('test-resource')) {
-          throw new Error('Resource not found');
-        }
-        return {
-          mainResource: {
-            '@id': 'urn:semiont:resource:test-resource',
-            name: 'Test Resource',
-            content: 'test content',
-            annotations: []
-          },
-          relatedResources: [],
-          graph: null
-        };
-      })
-    },
     startMakeMeaning: vi.fn().mockImplementation(async (_project: unknown, _config: unknown, eventBus: EventBus) => {
-      // Bridge gather events — routes emit requests, Gatherer would handle them
-      const { LLMContext: MockLLMContext } = await import('@semiont/make-meaning');
-      eventBus.get('gather:resource-requested').subscribe(async (event: { correlationId?: string; resourceId: ResourceId; options: LLMContextOptions }) => {
-        try {
-          const context = await MockLLMContext.getResourceContext(
-            event.resourceId,
-            event.options,
-            {} as unknown as KnowledgeBase,
-            {} as unknown as InferenceClient,
-          );
-          eventBus.get('gather:resource-complete').next({ resourceId: event.resourceId, context });
-        } catch (error: unknown) {
-          eventBus.get('gather:resource-failed').next({ resourceId: event.resourceId, error: error as Error });
-        }
-      });
       // Bridge referenced-by events
-      eventBus.get('bind:referenced-by-requested').subscribe((e: { correlationId: string; resourceId: ResourceId; motivation?: string }) => {
-        eventBus.get('bind:referenced-by-result').next({
+      (eventBus as any).get('browse:referenced-by-requested').subscribe((e: { correlationId: string; resourceId: ResourceId; motivation?: string }) => {
+        (eventBus as any).get('browse:referenced-by-result').next({
           correlationId: e.correlationId,
           response: { referencedBy: [] },
         });
@@ -210,38 +156,6 @@ describe('Resource Discovery HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-    });
-  });
-
-  describe('GET /resources/:id/llm-context', () => {
-    it('should return 200 with LLM context structure', async () => {
-      const response = await app.request('/resources/test-resource/llm-context', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        },
-      });
-
-      expect(response.status).toBe(200);
-      const data = await response.json();
-      expect(data).toHaveProperty('mainResource');
-    });
-
-    it('should return 404 for non-existent resource', async () => {
-      // The route will get 404 because LLMContextService.getResourceLLMContext throws "Resource not found"
-      // when graphDb.getResource returns null, which is the default mock behavior for non-test-resource IDs
-      const response = await app.request('/resources/nonexistent/llm-context', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        },
-      });
-
-      expect(response.status).toBe(404);
-    });
-
-    it('should return 401 without authentication', async () => {
-      const response = await app.request('/resources/test-resource/llm-context');
-
-      expect(response.status).toBe(401);
     });
   });
 });

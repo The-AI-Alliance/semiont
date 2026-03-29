@@ -40,7 +40,7 @@ describe('Annotation Interaction Transitions', () => {
       // When: User clicks on the reference text
       // Then: Should navigate to the referenced document
       //   - In both Browse mode and Annotate mode
-      //   - Router should push to /know/resource/{documentId}
+      //   - Router should push to /know/resource/{resourceId}
       expect(true).toBe(true); // Placeholder - implement actual test
     });
 

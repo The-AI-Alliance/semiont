@@ -7,7 +7,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { userId, type CreationMethod } from '@semiont/core';
+import { userId, userToDid, type CreationMethod } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
@@ -63,7 +63,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
         storageUri: storageUri || undefined,
       },
-      userId(user.id),
+      userId(userToDid(user)),
       eventBus,
     );
 

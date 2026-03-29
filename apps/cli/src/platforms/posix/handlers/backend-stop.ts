@@ -57,7 +57,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
         await killProcessGroupAndRelated(pid, 'backend', service.verbose);
         
         if (!service.quiet) {
-          printSuccess(`✅ Backend service ${service.name} stopped successfully`);
+          printSuccess(`Backend service ${service.name} stopped successfully`);
         }
         
         return {
@@ -158,7 +158,7 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
     }
     
     if (!service.quiet) {
-      printSuccess(`✅ Backend service ${service.name} stopped successfully`);
+      printSuccess(`Backend service ${service.name} stopped successfully`);
       printInfo(`  App log: ${appLogPath}`);
       printInfo(`  Error log: ${errorLogPath}`);
     }

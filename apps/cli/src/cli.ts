@@ -12,10 +12,9 @@ import { printError } from './core/io/cli-logger.js';
 import { getAvailableCommands } from './core/command-discovery.js';
 import { executeCommand as dynamicExecuteCommand, generateGlobalHelp } from './core/command-executor.js';
 
-// Get version from bundled package.json
-// @ts-ignore - TypeScript doesn't like importing JSON, but esbuild handles it fine
-const pkg = require('../package.json');
-const VERSION = pkg.version || '0.0.1';
+// Injected by esbuild at build time via __SEMIONT_VERSION__ define
+declare const __SEMIONT_VERSION__: string;
+const VERSION: string = __SEMIONT_VERSION__;
 
 // =====================================================================
 // HELPER FUNCTIONS

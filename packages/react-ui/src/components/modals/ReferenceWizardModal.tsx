@@ -46,15 +46,9 @@ export interface ReferenceWizardModalProps {
     configureGenerationTitle: string;
     configureSearchTitle: string;
     searchResultsTitle: string;
-    annotationLabel: string;
-    sourceResourceLabel: string;
-    motivationLabel: string;
     sourceContextLabel: string;
-    entityTypesLabel: string;
-    graphContextLabel: string;
     connectionsLabel: string;
     citedByLabel: string;
-    siblingTypesLabel: string;
     userHintLabel: string;
     userHintPlaceholder: string;
     loadingContext: string;
@@ -64,6 +58,7 @@ export interface ReferenceWizardModalProps {
     searching: string;
     generate: string;
     compose: string;
+    resolutionStrategyLabel: string;
     back: string;
     link: string;
     score: string;
@@ -119,10 +114,11 @@ export function ReferenceWizardModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    const subscription = eventBus.get('bind:search-results').subscribe((event) => {
-      if (annotationId && event.referenceId === annotationId) {
+    const subscription = eventBus.get('match:search-results').subscribe((event) => {
+      const e = event as { referenceId: string; results: ScoredResult[] };
+      if (annotationId && e.referenceId === annotationId) {
         setIsSearching(false);
-        setWizardStep({ step: 'search-results', results: event.results as ScoredResult[] });
+        setWizardStep({ step: 'search-results', results: e.results });
       }
     });
 
@@ -152,7 +148,7 @@ export function ReferenceWizardModal({
     if (!annotationId || !context) return;
     setIsSearching(true);
     const contextWithHint = userHint ? { ...context, userHint } : context;
-    eventBus.get('bind:search-requested').next({
+    eventBus.get('match:search-requested').next({
       referenceId: annotationId,
       context: contextWithHint,
       limit: config.limit,
@@ -208,7 +204,7 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}`}>
+              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather' : ''}`}>
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -229,29 +225,22 @@ export function ReferenceWizardModal({
                     contextError={contextError}
                     userHint={userHint}
                     onUserHintChange={setUserHint}
-                    onCancel={onClose}
                     onBind={handleBind}
                     onGenerate={handleGenerate}
                     onCompose={handleCompose}
                     translations={{
                       title: t.gatherTitle,
-                      annotationLabel: t.annotationLabel,
-                      sourceResourceLabel: t.sourceResourceLabel,
-                      motivationLabel: t.motivationLabel,
                       sourceContextLabel: t.sourceContextLabel,
-                      entityTypesLabel: t.entityTypesLabel,
-                      graphContextLabel: t.graphContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
-                      siblingTypesLabel: t.siblingTypesLabel,
                       userHintLabel: t.userHintLabel,
                       userHintPlaceholder: t.userHintPlaceholder,
                       loadingContext: t.loadingContext,
                       failedContext: t.failedContext,
-                      cancel: t.cancel,
                       search: t.search,
                       generate: t.generate,
                       compose: t.compose,
+                      resolutionStrategyLabel: t.resolutionStrategyLabel,
                     }}
                   />
                 )}
@@ -314,15 +303,9 @@ export function ReferenceWizardModal({
                       back: t.back,
                       cancel: t.cancel,
                       score: t.score,
-                      annotationLabel: t.annotationLabel,
-                      sourceResourceLabel: t.sourceResourceLabel,
-                      motivationLabel: t.motivationLabel,
                       sourceContextLabel: t.sourceContextLabel,
-                      entityTypesLabel: t.entityTypesLabel,
-                      graphContextLabel: t.graphContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
-                      siblingTypesLabel: t.siblingTypesLabel,
                       userHintLabel: t.userHintLabel,
                       userHintPlaceholder: t.userHintPlaceholder,
                     }}

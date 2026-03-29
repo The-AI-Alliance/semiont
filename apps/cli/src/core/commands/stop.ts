@@ -14,6 +14,7 @@ import { OpsOptionsSchema } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
+import { START_ORDER } from './start.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -33,7 +34,17 @@ export type StopOptions = z.output<typeof StopOptionsSchema>;
 
 const stopDescriptor: CommandDescriptor<StopOptions> = createCommandDescriptor({
   name: 'stop',
-  
+
+  preExecute: async (services) => {
+    return [...services].sort((a, b) => {
+      const ai = START_ORDER.indexOf(a.name);
+      const bi = START_ORDER.indexOf(b.name);
+      const aRank = ai === -1 ? START_ORDER.length : ai;
+      const bRank = bi === -1 ? START_ORDER.length : bi;
+      return bRank - aRank; // reverse of start order
+    });
+  },
+
   buildServiceConfig: (_options, serviceInfo) => ({
     ...serviceInfo.config,
     platform: serviceInfo.platform,

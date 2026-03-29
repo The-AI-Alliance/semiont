@@ -60,7 +60,6 @@ describe('API Hooks Authentication', () => {
       getAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),
       browseAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),
       getAnnotationHistory: vi.fn().mockResolvedValue({ history: [] }),
-      gatherAnnotation: vi.fn().mockResolvedValue({ context: {} }),
       markAnnotation: vi.fn().mockResolvedValue({ annotationId: 'test-id' }),
       deleteAnnotation: vi.fn().mockResolvedValue(undefined),
       bindAnnotation: vi.fn().mockResolvedValue(undefined),
@@ -242,21 +241,6 @@ describe('API Hooks Authentication', () => {
       );
     });
 
-    it('should pass auth token to gatherAnnotation', async () => {
-      const { result } = renderHook(() => useAnnotations(), { wrapper });
-      const query = renderHook(
-        () => result.current.llmContext.useQuery('resource-1' as any, 'annotation-1'),
-        { wrapper }
-      );
-
-      await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
-
-      expect(mockClient.gatherAnnotation).toHaveBeenCalledWith(
-        'resource-1',
-        'annotation-1',
-        { auth: 'test-token' }
-      );
-    });
   });
 
   describe('useEntityTypes queries', () => {

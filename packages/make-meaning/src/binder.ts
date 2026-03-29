@@ -11,8 +11,8 @@
  * references — linking a mention to its referent."
  *
  * Handles:
- * - bind:search-requested — search for binding candidates
- * - bind:referenced-by-requested — find annotations that reference a resource
+ * - match:search-requested — search for binding candidates
+ * - browse:referenced-by-requested — find annotations that reference a resource
  *
  * The Binder handles only the read side (searching for candidates).
  * The write side (annotation.body.updated) stays in the route where
@@ -48,12 +48,12 @@ export class Binder {
 
     const errorHandler = (err: unknown) => this.logger.error('Binder pipeline error', { error: err });
 
-    const search$ = this.eventBus.get('bind:search-requested').pipe(
+    const search$ = this.eventBus.get('match:search-requested').pipe(
       concatMap((event) => from(this.handleSearch(event))),
     );
 
     // mergeMap: referenced-by queries are independent reads — safe to run concurrently
-    const referencedBy$ = this.eventBus.get('bind:referenced-by-requested').pipe(
+    const referencedBy$ = this.eventBus.get('browse:referenced-by-requested').pipe(
       mergeMap((event) => from(this.handleReferencedBy(event))),
     );
 
@@ -63,7 +63,7 @@ export class Binder {
     );
   }
 
-  private async handleSearch(event: EventMap['bind:search-requested']): Promise<void> {
+  private async handleSearch(event: EventMap['match:search-requested']): Promise<void> {
     try {
       const context = event.context;
       const selectedText = context.sourceContext?.selected ?? '';
@@ -85,7 +85,7 @@ export class Binder {
 
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
-      this.eventBus.get('bind:search-results').next({
+      this.eventBus.get('match:search-results').next({
         referenceId: event.referenceId,
         results: limited,
         correlationId: event.correlationId,
@@ -95,7 +95,7 @@ export class Binder {
         referenceId: event.referenceId,
         error,
       });
-      this.eventBus.get('bind:search-failed').next({
+      this.eventBus.get('match:search-failed').next({
         referenceId: event.referenceId,
         error: error instanceof Error ? error : new Error(String(error)),
         correlationId: event.correlationId,
@@ -380,7 +380,7 @@ No explanations.`;
     return scores;
   }
 
-  private async handleReferencedBy(event: EventMap['bind:referenced-by-requested']): Promise<void> {
+  private async handleReferencedBy(event: EventMap['browse:referenced-by-requested']): Promise<void> {
     try {
       this.logger.debug('Looking for annotations referencing resource', {
         resourceId: event.resourceId,
@@ -418,7 +418,7 @@ No explanations.`;
         };
       });
 
-      this.eventBus.get('bind:referenced-by-result').next({
+      this.eventBus.get('browse:referenced-by-result').next({
         correlationId: event.correlationId,
         response: { referencedBy },
       });
@@ -427,7 +427,7 @@ No explanations.`;
         resourceId: event.resourceId,
         error,
       });
-      this.eventBus.get('bind:referenced-by-failed').next({
+      this.eventBus.get('browse:referenced-by-failed').next({
         correlationId: event.correlationId,
         error: error instanceof Error ? error : new Error(String(error)),
       });

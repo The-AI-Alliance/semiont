@@ -6,7 +6,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { resourceId as makeResourceId, userId } from '@semiont/core';
+import { resourceId as makeResourceId, userId, userToDid } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
@@ -70,7 +70,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
             token: body.token,
             name: body.name,
             content: body.content,
-            userId: userId(user.id),
+            userId: userId(userToDid(user)),
             archiveOriginal: body.archiveOriginal,
           },
           'yield:clone-created',

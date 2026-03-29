@@ -669,7 +669,7 @@ async function waitForECSDeployment(
       taskDetails.new.total > 0 && 
       taskDetails.old.running === 0) {
     printWarning(`⚠️  Deployment ${deploymentId} is functionally complete but old deployments still draining`);
-    printSuccess(`✅ ${serviceName} updated successfully - new tasks are healthy`);
+    printSuccess(`${serviceName} updated successfully - new tasks are healthy`);
     printInfo(`   Old deployments will finish draining in the background (up to 5 minutes)`);
     return;
   }

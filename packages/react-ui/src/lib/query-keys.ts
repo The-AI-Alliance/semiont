@@ -30,7 +30,6 @@ export const QUERY_KEYS = {
   annotations: {
     detail: (id: AnnotationId) => ['annotations', id] as const,
     history: (resourceId: ResourceId, annotationId: AnnotationId) => ['annotations', resourceId, annotationId, 'history'] as const,
-    llmContext: (resourceId: ResourceId, annotationId: AnnotationId) => ['annotations', 'llm-context', resourceId, annotationId] as const,
   },
 
   entityTypes: {

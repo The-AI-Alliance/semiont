@@ -7,7 +7,7 @@
  */
 
 import type { ResourcesRouterType } from '../shared';
-import { resourceId, annotationId, userId } from '@semiont/core';
+import { resourceId, annotationId, userId, userToDid } from '@semiont/core';
 
 export function registerDeleteAnnotation(router: ResourcesRouterType) {
   router.delete('/resources/:resourceId/annotations/:annotationId', async (c) => {
@@ -17,7 +17,7 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
 
     eventBus.get('mark:delete').next({
       annotationId: annotationId(annotationIdParam),
-      userId: userId(user.id),
+      userId: userId(userToDid(user)),
       resourceId: resourceId(resourceIdParam),
     });
 

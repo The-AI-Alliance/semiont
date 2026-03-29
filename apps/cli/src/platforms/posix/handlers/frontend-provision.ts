@@ -10,6 +10,10 @@ import type { FrontendServiceConfig } from '@semiont/core';
 import { checkCommandAvailable, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
+// Injected by esbuild at build time via __SEMIONT_VERSION__ define
+declare const __SEMIONT_VERSION__: string;
+const SEMIONT_VERSION: string = __SEMIONT_VERSION__;
+
 /**
  * Provision handler for frontend services on POSIX systems
  *
@@ -20,26 +24,26 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   const projectRoot = service.projectRoot;
 
-  // Install @semiont/frontend npm package if not already available
-  if (!resolveFrontendNpmPackage(projectRoot)) {
+  // Install (or update) @semiont/frontend to the version matching the CLI
+  const packageSpec = `@semiont/frontend@${SEMIONT_VERSION}`;
+
+  if (!service.quiet) {
+    printInfo(`Installing ${packageSpec}...`);
+  }
+  try {
+    execFileSync('npm', ['install', packageSpec, '--prefix', projectRoot], {
+      cwd: projectRoot,
+      stdio: service.verbose ? 'inherit' : 'pipe'
+    });
     if (!service.quiet) {
-      printInfo('Installing @semiont/frontend...');
+      printSuccess(`Installed ${packageSpec}`);
     }
-    try {
-      execFileSync('npm', ['install', '@semiont/frontend', '--prefix', projectRoot], {
-        cwd: projectRoot,
-        stdio: service.verbose ? 'inherit' : 'pipe'
-      });
-      if (!service.quiet) {
-        printSuccess('Installed @semiont/frontend');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to install @semiont/frontend: ${error}`,
-        metadata: { serviceType: 'frontend' }
-      };
-    }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to install ${packageSpec}: ${error}`,
+      metadata: { serviceType: 'frontend' }
+    };
   }
 
   const npmDir = resolveFrontendNpmPackage(projectRoot);
@@ -89,7 +93,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   };
 
   if (!service.quiet) {
-    printSuccess(`✅ Frontend service ${service.name} provisioned successfully`);
+    printSuccess(`Frontend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Frontend details:');
     printInfo(`  Server script: ${serverScript}`);

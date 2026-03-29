@@ -1,14 +1,19 @@
 /**
  * Browser Actor
  *
- * Filesystem-shaped reads for the Knowledge System.
+ * Filesystem-shaped reads and KB graph reads for the Knowledge System.
  * Merges live filesystem state with KB metadata for tracked resources.
  *
  * Handles:
+ * - browse:resource-requested — single resource metadata (materialized from events)
+ * - browse:resources-requested — list resources
+ * - browse:annotations-requested — all annotations for a resource
+ * - browse:annotation-requested — single annotation with resolved resource
+ * - browse:events-requested — resource event history
+ * - browse:annotation-history-requested — annotation event history
+ * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
+ * - browse:entity-types-requested — list entity types from the project projection
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
- *
- * The Browser owns all filesystem I/O in the Knowledge System. This keeps the
- * Gatherer focused on semantic context assembly and free of fs dependencies.
  */
 
 import { promises as fs, type Dirent } from 'fs';
@@ -17,12 +22,21 @@ import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId } from '@semiont/core';
+import { getExactText, getTargetSource, getTargetSelector, getResourceEntityTypes, getBodySource } from '@semiont/api-client';
+import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
+import { getEntityTypes } from '@semiont/ontology';
+import type { KnowledgeBase } from './knowledge-base';
+import { readEntityTypesProjection } from './views/entity-types-reader';
+import { AnnotationContext } from './annotation-context';
+import { ResourceContext } from './resource-context';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
 type DirEntry       = components['schemas']['DirEntry'];
+type Annotation     = components['schemas']['Annotation'];
+type StoredEvent    = { event: any; metadata: any };
 
 export class Browser {
   private subscriptions: Subscription[] = [];
@@ -30,6 +44,7 @@ export class Browser {
 
   constructor(
     private views: ViewStorage,
+    private kb: KnowledgeBase,
     private eventBus: EventBus,
     private project: SemiontProject,
     logger: Logger,
@@ -43,14 +58,343 @@ export class Browser {
     const errorHandler = (err: unknown) =>
       this.logger.error('Browser pipeline error', { error: err });
 
-    const browseDirectory$ = this.eventBus.get('browse:directory-requested').pipe(
-      mergeMap((event) => from(this.handleBrowseDirectory(event))),
-    );
+    const pipe = <K extends keyof EventMap>(
+      name: K,
+      handler: (event: EventMap[K]) => Promise<void>,
+    ) => this.eventBus.get(name).pipe(mergeMap((event) => from(handler(event))));
 
     this.subscriptions.push(
-      browseDirectory$.subscribe({ error: errorHandler }),
+      pipe('browse:resource-requested',          (e) => this.handleBrowseResource(e)).subscribe({ error: errorHandler }),
+      pipe('browse:resources-requested',         (e) => this.handleBrowseResources(e)).subscribe({ error: errorHandler }),
+      pipe('browse:annotations-requested',       (e) => this.handleBrowseAnnotations(e)).subscribe({ error: errorHandler }),
+      pipe('browse:annotation-requested',        (e) => this.handleBrowseAnnotation(e)).subscribe({ error: errorHandler }),
+      pipe('browse:events-requested',            (e) => this.handleBrowseEvents(e)).subscribe({ error: errorHandler }),
+      pipe('browse:annotation-history-requested',(e) => this.handleBrowseAnnotationHistory(e)).subscribe({ error: errorHandler }),
+      pipe('browse:referenced-by-requested',     (e) => this.handleReferencedBy(e)).subscribe({ error: errorHandler }),
+      pipe('browse:entity-types-requested',      (e) => this.handleEntityTypes(e)).subscribe({ error: errorHandler }),
+      pipe('browse:directory-requested',         (e) => this.handleBrowseDirectory(e)).subscribe({ error: errorHandler }),
     );
   }
+
+  // ========================================================================
+  // KB read handlers
+  // ========================================================================
+
+  private async handleBrowseResource(event: EventMap['browse:resource-requested']): Promise<void> {
+    try {
+      // Materialize from event store (matches get-uri.ts JSON-LD path)
+      const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
+      const events = await eventQuery.getResourceEvents(event.resourceId);
+      const stored = await this.kb.eventStore.views.materializer.materialize(events, event.resourceId);
+
+      if (!stored) {
+        this.eventBus.get('browse:resource-failed').next({
+          correlationId: event.correlationId,
+          error: new Error('Resource not found'),
+        });
+        return;
+      }
+
+      const annotations = stored.annotations.annotations;
+      const entityReferences = annotations.filter((a: Annotation) => {
+        if (a.motivation !== 'linking') return false;
+        return getEntityTypes({ body: a.body }).length > 0;
+      });
+
+      this.eventBus.get('browse:resource-result').next({
+        correlationId: event.correlationId,
+        response: {
+          resource: stored.resource,
+          annotations,
+          entityReferences,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse resource failed', { resourceId: event.resourceId, error });
+      this.eventBus.get('browse:resource-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleBrowseResources(event: EventMap['browse:resources-requested']): Promise<void> {
+    try {
+      let filteredDocs = await ResourceContext.listResources({
+        search: event.search,
+        archived: event.archived,
+      }, this.kb);
+
+      // Filter by entity type
+      if (event.entityType) {
+        filteredDocs = filteredDocs.filter((doc) => getResourceEntityTypes(doc).includes(event.entityType!));
+      }
+
+      // Paginate
+      const offset = event.offset ?? 0;
+      const limit = event.limit ?? 50;
+      const paginatedDocs = filteredDocs.slice(offset, offset + limit);
+
+      // Add content previews for search results
+      const formattedDocs = event.search
+        ? await ResourceContext.addContentPreviews(paginatedDocs, this.kb)
+        : paginatedDocs;
+
+      this.eventBus.get('browse:resources-result').next({
+        correlationId: event.correlationId,
+        response: {
+          resources: formattedDocs,
+          total: filteredDocs.length,
+          offset,
+          limit,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse resources failed', { error });
+      this.eventBus.get('browse:resources-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleBrowseAnnotations(event: EventMap['browse:annotations-requested']): Promise<void> {
+    try {
+      const annotations = await AnnotationContext.getAllAnnotations(event.resourceId, this.kb);
+
+      this.eventBus.get('browse:annotations-result').next({
+        correlationId: event.correlationId,
+        response: {
+          annotations,
+          total: annotations.length,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error });
+      this.eventBus.get('browse:annotations-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleBrowseAnnotation(event: EventMap['browse:annotation-requested']): Promise<void> {
+    try {
+      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
+
+      if (!annotation) {
+        this.eventBus.get('browse:annotation-failed').next({
+          correlationId: event.correlationId,
+          error: new Error('Annotation not found'),
+        });
+        return;
+      }
+
+      const resource = await ResourceContext.getResourceMetadata(event.resourceId, this.kb);
+
+      // Resolve linked resource if annotation body contains a link
+      let resolvedResource = null;
+      const bodySource = getBodySource(annotation.body);
+      if (bodySource) {
+        resolvedResource = await ResourceContext.getResourceMetadata(resourceId(bodySource), this.kb);
+      }
+
+      this.eventBus.get('browse:annotation-result').next({
+        correlationId: event.correlationId,
+        response: {
+          annotation,
+          resource,
+          resolvedResource,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
+      this.eventBus.get('browse:annotation-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleBrowseEvents(event: EventMap['browse:events-requested']): Promise<void> {
+    try {
+      const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
+      const filters: any = {
+        resourceId: event.resourceId,
+      };
+
+      if (event.type) {
+        filters.eventTypes = [event.type];
+      }
+      if (event.userId) {
+        filters.userId = event.userId;
+      }
+      if (event.limit) {
+        filters.limit = event.limit;
+      }
+
+      const storedEvents = await eventQuery.queryEvents(filters);
+
+      const events = storedEvents.map((stored: StoredEvent) => ({
+        event: {
+          id: stored.event.id,
+          type: stored.event.type,
+          timestamp: stored.event.timestamp,
+          userId: stored.event.userId,
+          resourceId: stored.event.resourceId,
+          payload: stored.event.payload,
+        },
+        metadata: {
+          sequenceNumber: stored.metadata.sequenceNumber,
+          prevEventHash: stored.metadata.prevEventHash,
+          checksum: stored.metadata.checksum,
+        },
+      }));
+
+      this.eventBus.get('browse:events-result').next({
+        correlationId: event.correlationId,
+        response: {
+          events,
+          total: events.length,
+          resourceId: event.resourceId,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse events failed', { resourceId: event.resourceId, error });
+      this.eventBus.get('browse:events-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleBrowseAnnotationHistory(event: EventMap['browse:annotation-history-requested']): Promise<void> {
+    try {
+      // Verify annotation exists
+      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
+      if (!annotation) {
+        this.eventBus.get('browse:annotation-history-failed').next({
+          correlationId: event.correlationId,
+          error: new Error('Annotation not found'),
+        });
+        return;
+      }
+
+      const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
+      const allEvents = await eventQuery.queryEvents({ resourceId: event.resourceId });
+
+      // Filter events related to this annotation
+      const annotationEvents = allEvents.filter((stored: StoredEvent) => {
+        const ev = stored.event;
+        if ('highlightId' in ev.payload && ev.payload.highlightId === event.annotationId) return true;
+        if ('referenceId' in ev.payload && ev.payload.referenceId === event.annotationId) return true;
+        return false;
+      });
+
+      const events = annotationEvents.map((stored: StoredEvent) => ({
+        id: stored.event.id,
+        type: stored.event.type,
+        timestamp: stored.event.timestamp,
+        userId: stored.event.userId,
+        resourceId: stored.event.resourceId,
+        payload: stored.event.payload,
+        metadata: {
+          sequenceNumber: stored.metadata.sequenceNumber,
+          prevEventHash: stored.metadata.prevEventHash,
+          checksum: stored.metadata.checksum,
+        },
+      }));
+
+      // Sort by sequence number
+      events.sort((a: any, b: any) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+
+      this.eventBus.get('browse:annotation-history-result').next({
+        correlationId: event.correlationId,
+        response: {
+          events,
+          total: events.length,
+          annotationId: event.annotationId,
+          resourceId: event.resourceId,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
+      this.eventBus.get('browse:annotation-history-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleReferencedBy(
+    event: EventMap['browse:referenced-by-requested'],
+  ): Promise<void> {
+    try {
+      this.logger.debug('Looking for annotations referencing resource', {
+        resourceId: event.resourceId,
+        motivation: event.motivation || 'all',
+      });
+
+      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
+
+      const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
+      const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
+
+      for (let i = 0; i < sourceIds.length; i++) {
+        if (resources[i] === null) {
+          this.logger.warn('Referenced resource not found in graph', { resourceId: sourceIds[i] });
+        }
+      }
+      const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
+
+      const referencedBy = references.map(ref => {
+        const targetSource = getTargetSource(ref.target);
+        const targetSelector = getTargetSelector(ref.target);
+        const doc = docMap.get(targetSource);
+        return {
+          id: ref.id,
+          resourceName: doc?.name || 'Untitled Resource',
+          target: {
+            source: targetSource,
+            selector: {
+              exact: targetSelector ? getExactText(targetSelector) : '',
+            },
+          },
+        };
+      });
+
+      this.eventBus.get('browse:referenced-by-result').next({
+        correlationId: event.correlationId,
+        response: { referencedBy },
+      });
+    } catch (error) {
+      this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error });
+      this.eventBus.get('browse:referenced-by-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  private async handleEntityTypes(event: EventMap['browse:entity-types-requested']): Promise<void> {
+    try {
+      const entityTypes = await readEntityTypesProjection(this.project);
+      this.eventBus.get('browse:entity-types-result').next({
+        correlationId: event.correlationId,
+        response: { entityTypes },
+      });
+    } catch (error) {
+      this.logger.error('Entity types read failed', { error });
+      this.eventBus.get('browse:entity-types-failed').next({
+        correlationId: event.correlationId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  // ========================================================================
+  // Filesystem read handler
+  // ========================================================================
 
   private async handleBrowseDirectory(
     event: EventMap['browse:directory-requested'],

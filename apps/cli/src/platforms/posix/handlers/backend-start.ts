@@ -4,7 +4,7 @@ import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
-import { isPortInUse } from '../../../core/io/network-utils.js';
+import { isPortInUse, isHostReachable } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { resolveBackendNpmPackage } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
@@ -142,10 +142,32 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   appLogStream.write(startupMessage);
   errorLogStream.write(startupMessage);
   
-  // Run migrations before starting (database must be running at this point)
+  // Wait for database to accept connections before running migrations
   const packageDir = path.dirname(path.dirname(entryPoint));
   const prismaSchemaPath = path.join(packageDir, 'prisma', 'schema.prisma');
   if (fs.existsSync(prismaSchemaPath)) {
+    if (!service.quiet) {
+      printInfo('Waiting for database to be ready...');
+    }
+    const maxWaitMs = 30_000;
+    const pollMs = 500;
+    const deadline = Date.now() + maxWaitMs;
+    let dbReady = false;
+    while (Date.now() < deadline) {
+      if (await isHostReachable(dbHost, dbPort, 1000)) {
+        dbReady = true;
+        break;
+      }
+      await new Promise(r => setTimeout(r, pollMs));
+    }
+    if (!dbReady) {
+      return {
+        success: false,
+        error: `Database did not become ready within ${maxWaitMs / 1000}s at ${dbHost}:${dbPort}`,
+        metadata: { serviceType: 'backend' }
+      };
+    }
+
     if (!service.quiet) {
       printInfo('Running database migrations...');
     }
@@ -244,7 +266,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     const endpoint = `http://localhost:${port}`;
     
     if (!service.quiet) {
-      printSuccess(`✅ Backend service ${service.name} started successfully`);
+      printSuccess(`Backend service ${service.name} started successfully`);
       printInfo('');
       printInfo('Backend details:');
       printInfo(`  PID: ${proc.pid}`);

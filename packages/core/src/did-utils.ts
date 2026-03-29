@@ -12,16 +12,17 @@ type Agent = components['schemas']['Agent'];
 /**
  * Convert a user object to a DID:WEB identifier
  *
- * Format: did:web:domain.com:users:userId
- * Example: did:web:example.com:users:abc123
+ * Format: did:web:domain.com:users:email%40domain.com
+ * Example: did:web:example.com:users:alice%40example.com
  *
+ * Email is used as the stable, human-readable identifier (URI-encoded).
  * This is used for W3C Web Annotation compliance and federation readiness.
  *
- * @param user - User object with id and domain
+ * @param user - User object with email and domain
  * @returns DID:WEB identifier string
  */
-export function userToDid(user: { id: string; domain: string }): string {
-  return `did:web:${user.domain}:users:${user.id}`;
+export function userToDid(user: { email: string; domain: string }): string {
+  return `did:web:${user.domain}:users:${encodeURIComponent(user.email)}`;
 }
 
 /**
@@ -57,13 +58,14 @@ export function userToAgent(user: {
  * @returns Minimal W3C Agent object
  */
 export function didToAgent(did: string): Agent {
-  // Extract user ID from DID format: did:web:domain.com:users:userId
+  // Extract email from DID format: did:web:domain.com:users:alice%40example.com
   const parts = did.split(':');
-  const userId = parts[parts.length - 1] || 'unknown';
+  const encoded = parts[parts.length - 1] || 'unknown';
+  const name = decodeURIComponent(encoded);
 
   return {
     type: 'Person' as const,
     id: did,
-    name: userId, // Use user ID as name since we don't have full user data
+    name,
   };
 }
