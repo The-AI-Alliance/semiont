@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import {
   getCookieConsent,
   setCookieConsent,
@@ -19,7 +19,8 @@ interface CookieBannerProps {
 }
 
 export function CookieBanner({ className = '' }: CookieBannerProps) {
-  const t = useTranslations('CookieBanner');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`CookieBanner.${k}`, p as any) as string;
   const [isVisible, setIsVisible] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

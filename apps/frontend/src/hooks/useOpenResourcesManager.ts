@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import type { OpenResource, OpenResourcesManager } from '@semiont/react-ui';

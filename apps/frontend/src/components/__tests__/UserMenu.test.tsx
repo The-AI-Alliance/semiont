@@ -6,34 +6,6 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { UserMenu } from '../UserMenu';
 
-// Mock Next.js components
-vi.mock('next/image', () => ({
-  default: ({ onError, alt, src, width, height, className, style, ...props }: any) => {
-    // Filter out Next.js specific props that shouldn't go to DOM
-    const { priority, unoptimized, blurDataURL, placeholder, loader, quality, fill, sizes, ...domProps } = props;
-    return (
-      <img 
-        src={src}
-        alt={alt}
-        width={width}
-        height={height}
-        className={className}
-        style={style}
-        onError={onError}
-        {...domProps}
-      data-testid="profile-image"
-    />
-    );
-  }
-}));
-
-vi.mock('next/link', () => ({
-  default: ({ children, href, onClick, ...props }: any) => (
-    <a href={href} onClick={onClick} {...props}>
-      {children}
-    </a>
-  )
-}));
 
 // Mock useAuth hook
 vi.mock('@/hooks/useAuth', () => ({

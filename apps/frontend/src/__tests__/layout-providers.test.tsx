@@ -13,6 +13,7 @@ import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import {
   useAuthToken,
   useApiClient,
@@ -20,18 +21,13 @@ import {
   EventBusProvider,
 } from '@semiont/react-ui';
 
-// Mock next-intl
-vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
-  useLocale: () => 'en',
-}));
-
 // Mock routing
 vi.mock('@/i18n/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   routes: {},
   usePathname: () => '/test',
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useLocale: () => 'en',
 }));
 
 vi.mock('@/lib/routing', () => ({
@@ -89,6 +85,21 @@ vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
   KeyboardShortcutsContext: React.createContext(null),
 }));
 
+/** Render a layout (which uses <Outlet />) with a test child component via React Router. */
+function renderLayout(Layout: React.ComponentType, child: React.ReactNode, wrapper?: React.ComponentType<{ children: React.ReactNode }>) {
+  const tree = (
+    <MemoryRouter initialEntries={['/en/test']}>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="*" element={<>{child}</>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>
+  );
+
+  return render(wrapper ? React.createElement(wrapper, null, tree) : tree);
+}
+
 describe('Layout Providers', () => {
   let queryClient: QueryClient;
 
@@ -106,17 +117,11 @@ describe('Layout Providers', () => {
       const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
 
       const TestComponent = () => {
-        // This should not throw if AuthTokenProvider is present
         const token = useAuthToken();
         return <div>Token: {token || 'null'}</div>;
       };
 
-      render(
-        <AdminLayout>
-          <TestComponent />
-        </AdminLayout>
-      );
-
+      renderLayout(AdminLayout, <TestComponent />);
       expect(screen.getByText(/Token:/)).toBeInTheDocument();
     });
 
@@ -124,23 +129,15 @@ describe('Layout Providers', () => {
       const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
 
       const TestComponent = () => {
-        // This should not throw if ApiClientProvider is present
         const client = useApiClient();
         return <div>Client: {client ? 'present' : 'null'}</div>;
       };
 
-      render(
-        <AdminLayout>
-          <TestComponent />
-        </AdminLayout>
-      );
-
+      renderLayout(AdminLayout, <TestComponent />);
       expect(screen.getByText('Client: present')).toBeInTheDocument();
     });
 
     it('should provide AuthTokenProvider and ApiClientProvider (EventBusProvider is global)', async () => {
-      // EventBusProvider lives in global providers.tsx, not in section layouts.
-      // Wrap with it here to simulate the global provider being present.
       const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
 
       const TestComponent = () => {
@@ -159,9 +156,13 @@ describe('Layout Providers', () => {
 
       render(
         <EventBusProvider>
-          <AdminLayout>
-            <TestComponent />
-          </AdminLayout>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<AdminLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
         </EventBusProvider>
       );
 
@@ -180,12 +181,7 @@ describe('Layout Providers', () => {
         return <div>Token: {token || 'null'}</div>;
       };
 
-      render(
-        <ModerateLayout>
-          <TestComponent />
-        </ModerateLayout>
-      );
-
+      renderLayout(ModerateLayout, <TestComponent />);
       expect(screen.getByText(/Token:/)).toBeInTheDocument();
     });
 
@@ -197,17 +193,11 @@ describe('Layout Providers', () => {
         return <div>Client: {client ? 'present' : 'null'}</div>;
       };
 
-      render(
-        <ModerateLayout>
-          <TestComponent />
-        </ModerateLayout>
-      );
-
+      renderLayout(ModerateLayout, <TestComponent />);
       expect(screen.getByText('Client: present')).toBeInTheDocument();
     });
 
     it('should work with EventBusProvider from global providers', async () => {
-      // EventBusProvider lives in global providers.tsx, not in section layouts.
       const { default: ModerateLayout } = await import('@/app/[locale]/moderate/layout');
 
       const TestComponent = () => {
@@ -217,9 +207,13 @@ describe('Layout Providers', () => {
 
       render(
         <EventBusProvider>
-          <ModerateLayout>
-            <TestComponent />
-          </ModerateLayout>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<ModerateLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
         </EventBusProvider>
       );
 
@@ -239,9 +233,13 @@ describe('Layout Providers', () => {
       render(
         <QueryClientProvider client={queryClient}>
           <EventBusProvider>
-            <KnowledgeLayout>
-              <TestComponent />
-            </KnowledgeLayout>
+            <MemoryRouter initialEntries={['/en/test']}>
+              <Routes>
+                <Route element={<KnowledgeLayout />}>
+                  <Route path="*" element={<TestComponent />} />
+                </Route>
+              </Routes>
+            </MemoryRouter>
           </EventBusProvider>
         </QueryClientProvider>
       );
@@ -260,9 +258,13 @@ describe('Layout Providers', () => {
       render(
         <QueryClientProvider client={queryClient}>
           <EventBusProvider>
-            <KnowledgeLayout>
-              <TestComponent />
-            </KnowledgeLayout>
+            <MemoryRouter initialEntries={['/en/test']}>
+              <Routes>
+                <Route element={<KnowledgeLayout />}>
+                  <Route path="*" element={<TestComponent />} />
+                </Route>
+              </Routes>
+            </MemoryRouter>
           </EventBusProvider>
         </QueryClientProvider>
       );
@@ -271,7 +273,6 @@ describe('Layout Providers', () => {
     });
 
     it('should work with EventBusProvider from global providers', async () => {
-      // EventBusProvider lives in global providers.tsx, not in section layouts.
       const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
 
       const TestComponent = () => {
@@ -282,9 +283,13 @@ describe('Layout Providers', () => {
       render(
         <QueryClientProvider client={queryClient}>
           <EventBusProvider>
-            <KnowledgeLayout>
-              <TestComponent />
-            </KnowledgeLayout>
+            <MemoryRouter initialEntries={['/en/test']}>
+              <Routes>
+                <Route element={<KnowledgeLayout />}>
+                  <Route path="*" element={<TestComponent />} />
+                </Route>
+              </Routes>
+            </MemoryRouter>
           </EventBusProvider>
         </QueryClientProvider>
       );
@@ -296,10 +301,6 @@ describe('Layout Providers', () => {
       const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
 
       const TestComponent = () => {
-        const token = useAuthToken();
-        const client = useApiClient();
-        const eventBus = useEventBus();
-
         return (
           <div>
             <div>All Providers: yes</div>
@@ -311,9 +312,13 @@ describe('Layout Providers', () => {
       render(
         <QueryClientProvider client={queryClient}>
           <EventBusProvider>
-            <KnowledgeLayout>
-              <TestComponent />
-            </KnowledgeLayout>
+            <MemoryRouter initialEntries={['/en/test']}>
+              <Routes>
+                <Route element={<KnowledgeLayout />}>
+                  <Route path="*" element={<TestComponent />} />
+                </Route>
+              </Routes>
+            </MemoryRouter>
           </EventBusProvider>
         </QueryClientProvider>
       );

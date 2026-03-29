@@ -1,86 +1,23 @@
-import React from 'react';
-import type { Metadata } from "next";
-import { Inter, Orbitron } from "next/font/google";
-import { NextIntlClientProvider } from 'next-intl';
-import { getMessages } from 'next-intl/server';
-import { notFound } from 'next/navigation';
-import "../globals.css";
-import "@/styles/animations.css";
-import { Providers } from "../providers";
-import { NEXT_PUBLIC_SITE_NAME, NEXT_PUBLIC_BASE_URL } from "@/lib/env";
-import { CookieBanner } from "@/components/CookieBanner";
-import { SkipLinks } from "@semiont/react-ui";
-import { ClientModals } from "@/components/ClientModals";
-import { routing } from "@/i18n/routing";
+import { Outlet } from 'react-router-dom';
+import { Providers } from '../providers';
+import { CookieBanner } from '@/components/CookieBanner';
+import { SkipLinks } from '@semiont/react-ui';
+import { ClientModals } from '@/components/ClientModals';
 
-const inter = Inter({ subsets: ["latin"] });
-const orbitron = Orbitron({
-  subsets: ["latin"],
-  variable: '--font-orbitron',
-});
-
-export const metadata: Metadata = {
-  metadataBase: new URL(NEXT_PUBLIC_BASE_URL),
-  title: `${NEXT_PUBLIC_SITE_NAME} - AI-Powered Research Environment`,
-  description: "A modern AI-powered research environment for collaborative knowledge work and analysis",
-  icons: {
-    icon: [
-      { url: '/favicon.ico' },
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' }
-    ],
-    apple: '/apple-touch-icon.png',
-    other: [
-      { rel: 'mask-icon', url: '/favicon.svg', color: '#00FFFF' }
-    ]
-  },
-  manifest: '/site.webmanifest',
-  openGraph: {
-    type: 'website',
-    siteName: NEXT_PUBLIC_SITE_NAME,
-    images: ['/android-chrome-512x512.png']
-  },
-  twitter: {
-    card: 'summary',
-    images: ['/android-chrome-512x512.png']
-  }
-};
-
-export function generateStaticParams() {
-  return routing.locales.map((locale) => ({ locale }));
-}
-
-export default async function LocaleLayout({
-  children,
-  params
-}: Readonly<{
-  children: React.ReactNode;
-  params: Promise<{ locale: string }>;
-}>) {
-  // Await params before accessing properties
-  const { locale } = await params;
-
-  // Validate locale
-  if (!routing.locales.includes(locale as any)) {
-    notFound();
-  }
-
-  // Load messages for the locale
-  const messages = await getMessages();
-
+/**
+ * Locale Layout — root layout for all /:locale/* routes.
+ *
+ * Replaces the Next.js App Router locale layout. Font loading now happens in
+ * globals.css via @fontsource imports. Metadata is in index.html.
+ * Auth guarding for admin/moderate happens in their respective layouts.
+ */
+export default function LocaleLayout() {
   return (
-    <html lang={locale} suppressHydrationWarning>
-      <body className={`${inter.className} ${orbitron.variable}`} suppressHydrationWarning>
-        <NextIntlClientProvider messages={messages}>
-          <Providers>
-            <SkipLinks />
-            <ClientModals />
-            {children}
-            <CookieBanner />
-          </Providers>
-        </NextIntlClientProvider>
-      </body>
-    </html>
+    <Providers>
+      <SkipLinks />
+      <ClientModals />
+      <Outlet />
+      <CookieBanner />
+    </Providers>
   );
 }

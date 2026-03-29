@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect, useMemo } from 'react';
 import type { SessionManager } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';

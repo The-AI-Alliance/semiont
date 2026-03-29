@@ -1,7 +1,5 @@
-'use client';
-
 import React, { useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
 import { SimpleNavigation, useEventSubscriptions } from '@semiont/react-ui';
@@ -22,8 +20,10 @@ interface AdminNavigationProps {
 }
 
 export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: AdminNavigationProps) {
-  const t = useTranslations('Administration');
-  const tSidebar = useTranslations('Sidebar');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Administration.${k}`, p as any) as string;
+  const { t: _tSidebar } = useTranslation();
+  const tSidebar = (k: string, p?: Record<string, unknown>) => _tSidebar(`Sidebar.${k}`, p as any) as string;
   const pathname = usePathname();
 
   // Handle sidebar toggle events

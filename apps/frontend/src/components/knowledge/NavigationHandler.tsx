@@ -1,5 +1,3 @@
-'use client';
-
 import { useCallback } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useEventSubscriptions } from '@semiont/react-ui';

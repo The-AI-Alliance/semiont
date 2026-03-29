@@ -1,7 +1,6 @@
-'use client';
-
-import React, { useContext } from 'react';
-import { useTranslations } from 'next-intl';
+import { useContext } from 'react';
+import { Outlet } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
 import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, useGlobalEvents, useAttentionStream } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -13,32 +12,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
 import { NEXT_PUBLIC_BACKEND_URL } from '@/lib/env';
 
-/** Connects to global SSE stream for system-level events (entity type changes, etc.) */
 function GlobalEventsConnector() {
   useGlobalEvents();
   return null;
 }
 
-/** Connects to participant-scoped attention stream for cross-participant beckon signals */
 function AttentionStreamConnector() {
   useAttentionStream();
   return null;
 }
 
-/**
- * Knowledge Layout
- *
- * Provides feature-specific providers for the /know section:
- * - CacheProvider: Query cache invalidation for resource operations
- * - OpenResourcesProvider: Manage currently open resources (tabs)
- * - ResourceAnnotationsProvider: Annotation CRUD operations and UI state
- */
-export default function KnowledgeLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const t = useTranslations('Footer');
+export default function KnowledgeLayout() {
+  const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const openResourcesManager = useOpenResourcesManager();
   const cacheManager = useCacheManager();
@@ -65,30 +50,30 @@ export default function KnowledgeLayout({
     <AuthTokenProvider token={authToken}>
       <ApiClientProvider baseUrl={NEXT_PUBLIC_BACKEND_URL}>
         <CacheProvider cacheManager={cacheManager}>
-            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <ResourceAnnotationsProvider>
-                <GlobalEventsConnector />
-                <AttentionStreamConnector />
-                <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
-                  <div className="flex flex-1 overflow-hidden">
-                    <KnowledgeSidebarWrapper />
-                    <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
-                      <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
-                        {children}
-                      </div>
-                    </main>
-                  </div>
-                  <Footer
-                    Link={Link}
-                    routes={routes}
-                    t={t}
-                    CookiePreferences={CookiePreferences}
-                    {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-                  />
+          <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+            <ResourceAnnotationsProvider>
+              <GlobalEventsConnector />
+              <AttentionStreamConnector />
+              <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+                <div className="flex flex-1 overflow-hidden">
+                  <KnowledgeSidebarWrapper />
+                  <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+                    <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
+                      <Outlet />
+                    </div>
+                  </main>
                 </div>
-              </ResourceAnnotationsProvider>
-            </OpenResourcesProvider>
-          </CacheProvider>
+                <Footer
+                  Link={Link}
+                  routes={routes}
+                  t={(key: string) => t(`Footer.${key}`)}
+                  CookiePreferences={CookiePreferences}
+                  {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+                />
+              </div>
+            </ResourceAnnotationsProvider>
+          </OpenResourcesProvider>
+        </CacheProvider>
       </ApiClientProvider>
     </AuthTokenProvider>
   );

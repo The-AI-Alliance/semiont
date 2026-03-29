@@ -1,0 +1,143 @@
+import React, { useEffect } from 'react';
+import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale } from './i18n/config';
+
+// Lazy-load page components for code splitting
+const LocaleLayout = React.lazy(() => import('./app/[locale]/layout'));
+const HomePage = React.lazy(() => import('./app/[locale]/page'));
+const AboutPage = React.lazy(() => import('./app/[locale]/about/page'));
+const PrivacyPage = React.lazy(() => import('./app/[locale]/privacy/page'));
+const TermsPage = React.lazy(() => import('./app/[locale]/terms/page'));
+const SignInPage = React.lazy(() => import('./app/[locale]/auth/signin/page'));
+const SignUpPage = React.lazy(() => import('./app/[locale]/auth/signup/page'));
+const AuthErrorPage = React.lazy(() => import('./app/[locale]/auth/error/page'));
+const WelcomePage = React.lazy(() => import('./app/[locale]/auth/welcome/page'));
+const KnowledgeLayout = React.lazy(() => import('./app/[locale]/know/layout'));
+const KnowledgePage = React.lazy(() => import('./app/[locale]/know/page'));
+const KnowledgeComposePage = React.lazy(() => import('./app/[locale]/know/compose/page'));
+const KnowledgeResourcePage = React.lazy(() => import('./app/[locale]/know/resource/[id]/page'));
+const AdminLayout = React.lazy(() => import('./app/[locale]/admin/layout'));
+const AdminPage = React.lazy(() => import('./app/[locale]/admin/page'));
+const AdminUsersPage = React.lazy(() => import('./app/[locale]/admin/users/client'));
+const AdminSecurityPage = React.lazy(() => import('./app/[locale]/admin/security/client'));
+const AdminExchangePage = React.lazy(() => import('./app/[locale]/admin/exchange/client'));
+const AdminDevOpsPage = React.lazy(() => import('./app/[locale]/admin/devops/page'));
+const ModerateLayout = React.lazy(() => import('./app/[locale]/moderate/layout'));
+const ModeratePage = React.lazy(() => import('./app/[locale]/moderate/page'));
+const ModerateRecentPage = React.lazy(() => import('./app/[locale]/moderate/recent/page'));
+const ModerateEntityTagsPage = React.lazy(() => import('./app/[locale]/moderate/entity-tags/page'));
+const ModerateTagSchemasPage = React.lazy(() => import('./app/[locale]/moderate/tag-schemas/page'));
+const ModerateLinkedDataPage = React.lazy(() => import('./app/[locale]/moderate/linked-data/client'));
+const NotFoundPage = React.lazy(() => import('./app/[locale]/not-found'));
+
+/**
+ * LocaleGuard — validates the :locale param and loads the locale bundle.
+ * Renders children once the locale bundle is ready; redirects unknown locales to default.
+ */
+function LocaleGuard({ children }: { children: React.ReactNode }) {
+  const { locale } = useParams<{ locale: string }>();
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    if (!locale) return;
+    const lang = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
+    if (i18n.language !== lang) {
+      i18n.changeLanguage(lang);
+    }
+  }, [locale, i18n]);
+
+  if (!locale || !isSupportedLocale(locale)) {
+    return <Navigate to={`/${DEFAULT_LOCALE}`} replace />;
+  }
+
+  // Wait for the locale bundle to load before rendering
+  if (!i18n.hasResourceBundle(locale, 'translation')) {
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
+/**
+ * RootRedirect — detect browser language and redirect / to /:locale
+ */
+function RootRedirect() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const browserLocale = navigator.language.split('-')[0] ?? DEFAULT_LOCALE;
+    const locale = isSupportedLocale(browserLocale) ? browserLocale : DEFAULT_LOCALE;
+    navigate(`/${locale}`, { replace: true });
+  }, [navigate]);
+
+  return null;
+}
+
+export default function App() {
+  return (
+    <React.Suspense fallback={null}>
+      <Routes>
+        {/* Root: detect locale and redirect */}
+        <Route path="/" element={<RootRedirect />} />
+
+        {/* Locale-prefixed routes */}
+        <Route
+          path="/:locale"
+          element={
+            <LocaleGuard>
+              <LocaleLayout />
+            </LocaleGuard>
+          }
+        >
+          <Route index element={<HomePage />} />
+          <Route path="about" element={<AboutPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
+
+          {/* Auth routes */}
+          <Route path="auth/signin" element={<SignInPage />} />
+          <Route path="auth/signup" element={<SignUpPage />} />
+          <Route path="auth/error" element={<AuthErrorPage />} />
+          <Route path="auth/welcome" element={<WelcomePage />} />
+
+          {/* Knowledge section */}
+          <Route path="know" element={<KnowledgeLayout />}>
+            <Route index element={<KnowledgePage />} />
+            <Route path="compose" element={<KnowledgeComposePage />} />
+            <Route path="resource/:id" element={<KnowledgeResourcePage />} />
+          </Route>
+
+          {/* Admin section */}
+          <Route path="admin" element={<AdminLayout />}>
+            <Route index element={<AdminPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="security" element={<AdminSecurityPage />} />
+            <Route path="exchange" element={<AdminExchangePage />} />
+            <Route path="devops" element={<AdminDevOpsPage />} />
+          </Route>
+
+          {/* Moderation section */}
+          <Route path="moderate" element={<ModerateLayout />}>
+            <Route index element={<ModeratePage />} />
+            <Route path="recent" element={<ModerateRecentPage />} />
+            <Route path="entity-tags" element={<ModerateEntityTagsPage />} />
+            <Route path="tag-schemas" element={<ModerateTagSchemasPage />} />
+            <Route path="linked-data" element={<ModerateLinkedDataPage />} />
+          </Route>
+
+          {/* 404 within locale */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+
+        {/* Bare locale codes without trailing slash */}
+        {SUPPORTED_LOCALES.map(locale => (
+          <Route key={locale} path={`/${locale}`} element={<Navigate to={`/${locale}/`} replace />} />
+        ))}
+
+        {/* Global 404 fallback */}
+        <Route path="*" element={<Navigate to={`/${DEFAULT_LOCALE}`} replace />} />
+      </Routes>
+    </React.Suspense>
+  );
+}

@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Admin Security Client - Thin Next.js wrapper
  *
@@ -8,7 +6,7 @@
  */
 
 import React, { useEffect, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useAdmin, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -20,7 +18,8 @@ type ResponseContent<T> = T extends { responses: { 200: { content: { 'applicatio
 type OAuthConfigResponse = ResponseContent<paths['/api/admin/oauth/config']['get']>;
 
 export default function AdminSecurity() {
-  const t = useTranslations('AdminSecurity');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AdminSecurity.${k}`, p as any) as string;
 
   // Toolbar and settings state
   const { activePanel } = usePanelBrowse();

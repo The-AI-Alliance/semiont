@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Admin Users Client - Thin Next.js wrapper
  *
@@ -8,7 +6,7 @@
  */
 
 import React, { useEffect, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useAdmin, buttonStyles, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,7 +20,8 @@ type AdminUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
 type AdminUserStatsResponse = ResponseContent<paths['/api/admin/users/stats']['get']>;
 
 export default function AdminUsers() {
-  const t = useTranslations('AdminUsers');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AdminUsers.${k}`, p as any) as string;
   const queryClient = useQueryClient();
 
   // Toolbar and settings state

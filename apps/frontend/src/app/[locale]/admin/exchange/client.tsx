@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Admin Exchange Client - Thin Next.js wrapper
  *
@@ -8,7 +6,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useAdmin, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
@@ -16,7 +14,8 @@ import { AdminExchangePage } from '@semiont/react-ui';
 import type { ImportPreview } from '@semiont/react-ui';
 
 export default function AdminExchangeClient() {
-  const t = useTranslations('AdminExchange');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AdminExchange.${k}`, p as any) as string;
 
   // Toolbar and settings state
   const { activePanel } = usePanelBrowse();

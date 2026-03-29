@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Entity Tags Page - Thin Next.js wrapper
  *
@@ -8,7 +6,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useEntityTypes, Toolbar } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -19,7 +17,8 @@ import { EntityTagsPage } from '@semiont/react-ui';
 // Only authenticated moderators/admins can reach this page
 
 export default function EntityTagsPageWrapper() {
-  const t = useTranslations('ModerateEntityTags');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateEntityTags.${k}`, p as any) as string;
   const [newTag, setNewTag] = useState('');
   const [error, setError] = useState('');
   const queryClient = useQueryClient();

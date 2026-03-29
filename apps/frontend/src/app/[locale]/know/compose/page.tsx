@@ -8,9 +8,10 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslation } from 'react-i18next';
+import { useLocale } from '@/i18n/routing';
 import { useRouter } from '@/i18n/routing';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
@@ -29,10 +30,11 @@ import { ResourceComposePage } from '@semiont/react-ui';
 import type { SaveResourceParams } from '@semiont/react-ui';
 
 function ComposeResourceContent() {
-  const t = useTranslations('Compose');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Compose.${k}`, p as any) as string;
   const locale = useLocale();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { isAuthenticated, isLoading: authLoading, token: authToken } = useAuth();
   const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
@@ -308,7 +310,8 @@ function ComposeResourceContent() {
 }
 
 export default function ComposeResourcePage() {
-  const t = useTranslations('Compose');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Compose.${k}`, p as any) as string;
 
   return (
     <Suspense fallback={<ComposeLoadingState message={t('loading')} />}>

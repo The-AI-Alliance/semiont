@@ -1,5 +1,3 @@
-'use client';
-
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { SemiontApiClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';

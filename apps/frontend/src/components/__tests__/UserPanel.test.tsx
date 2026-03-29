@@ -16,26 +16,11 @@ vi.mock('@/contexts/AuthContext', () => ({
   }),
 }));
 
-// Mock next/image
-vi.mock('next/image', () => ({
-  default: ({ src, alt, onError, unoptimized, sizes, quality, width, height, className }: any) => {
-    return (
-      <img
-        src={src}
-        alt={alt}
-        onError={onError}
-        width={width}
-        height={height}
-        className={className}
-      />
-    );
-  },
-}));
-
-// Mock next-intl
+// Mock react-i18next (overrides global setup to allow per-test translation control)
 const mockUseTranslations = vi.fn();
-vi.mock('next-intl', () => ({
-  useTranslations: () => mockUseTranslations,
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: mockUseTranslations, i18n: { language: 'en' } }),
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
 }));
 
 // Mock useAuth hook
@@ -73,25 +58,25 @@ describe('UserPanel Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Setup translation mock
+    // Setup translation mock — keys are prefixed "UserPanel.<subkey>" by the component
     mockUseTranslations.mockImplementation((key: string, params?: any) => {
       const translations: Record<string, string> = {
-        account: 'Account',
-        user: 'User',
-        profileAlt: 'Profile picture of {name}',
-        session: 'Session',
-        expiresIn: 'Expires in {time}',
-        privileges: 'Privileges',
-        administrator: 'Administrator',
-        moderator: 'Moderator',
-        signOut: 'Sign Out',
+        'UserPanel.account': 'Account',
+        'UserPanel.user': 'User',
+        'UserPanel.profileAlt': 'Profile picture of {name}',
+        'UserPanel.session': 'Session',
+        'UserPanel.expiresIn': 'Expires in {time}',
+        'UserPanel.privileges': 'Privileges',
+        'UserPanel.administrator': 'Administrator',
+        'UserPanel.moderator': 'Moderator',
+        'UserPanel.signOut': 'Sign Out',
       };
 
-      if (key === 'profileAlt' && params?.name) {
+      if (key === 'UserPanel.profileAlt' && params?.name) {
         return `Profile picture of ${params.name}`;
       }
 
-      if (key === 'expiresIn' && params?.time) {
+      if (key === 'UserPanel.expiresIn' && params?.time) {
         return `Expires in ${params.time}`;
       }
 

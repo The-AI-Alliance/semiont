@@ -1,7 +1,5 @@
-'use client';
-
 import { useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
@@ -11,7 +9,8 @@ import { RecentDocumentsPage } from '@semiont/react-ui';
 // Only authenticated moderators/admins can reach this page
 
 export default function RecentDocumentsPageWrapper() {
-  const t = useTranslations('ModerateRecent');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateRecent.${k}`, p as any) as string;
 
   // Toolbar and settings state
   const { activePanel } = usePanelBrowse();

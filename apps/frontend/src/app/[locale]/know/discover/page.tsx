@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
 import { useResources, useEntityTypes, useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -18,7 +18,8 @@ import { ResourceDiscoveryPage } from '@semiont/react-ui';
  * Main page component - handles Next.js hooks and data loading
  */
 export default function DiscoverPage() {
-  const t = useTranslations('Discover');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Discover.${k}`, p as any) as string;
   const router = useRouter();
 
   // Toolbar and settings state

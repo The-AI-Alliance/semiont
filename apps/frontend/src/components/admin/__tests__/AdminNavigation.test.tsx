@@ -1,49 +1,17 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { usePathname } from 'next/navigation';
 import { AdminNavigation } from '../AdminNavigation';
 import type { SimpleNavigationProps } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 
-// Mock next/navigation
-vi.mock('next/navigation', () => ({
-  usePathname: vi.fn(),
-}));
-
-// Mock @/i18n/routing to use the same mock as next/navigation
-vi.mock('@/i18n/routing', async () => {
-  const { usePathname } = await import('next/navigation');
-  return {
-    usePathname,
-    Link: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
-  };
-});
-
-// Mock next-intl
-const mockTranslations = {
-  Administration: {
-    title: 'Administration',
-    users: 'Users',
-    usersDescription: 'User management and permissions',
-    oauthSettings: 'OAuth Settings',
-    oauthSettingsDescription: 'View OAuth configuration',
-    exchange: 'Import / Export',
-    exchangeDescription: 'Back up and restore data',
-    devops: 'DevOps',
-    devopsDescription: 'Development operations and tools',
-  },
-  Sidebar: {
-    collapseSidebar: 'Collapse sidebar',
-    expandSidebar: 'Expand sidebar',
-  },
-};
-
-vi.mock('next-intl', () => ({
-  useTranslations: (namespace: string) => (key: string) => {
-    const translations = mockTranslations[namespace as keyof typeof mockTranslations];
-    return translations?.[key as keyof typeof translations] || key;
-  },
+// Mock @/i18n/routing — usePathname is a spy so tests can control the return value
+const mockUsePathname = vi.fn(() => '/admin');
+vi.mock('@/i18n/routing', () => ({
+  usePathname: mockUsePathname,
+  Link: ({ children, to, href, ...props }: any) => <a href={to ?? href} {...props}>{children}</a>,
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useLocale: () => 'en',
 }));
 
 // Mock Heroicons
@@ -105,7 +73,7 @@ describe('AdminNavigation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (usePathname as any).mockReturnValue('/admin');
+    mockUsePathname.mockReturnValue('/admin');
     // Mock localStorage
     Storage.prototype.getItem = vi.fn();
     Storage.prototype.setItem = vi.fn();
@@ -133,7 +101,7 @@ describe('AdminNavigation', () => {
 
     it('should pass currentPath from usePathname', () => {
       const testPath = '/admin/users';
-      (usePathname as any).mockReturnValue(testPath);
+      mockUsePathname.mockReturnValue(testPath);
 
       render(<AdminNavigation {...defaultProps} />);
 
@@ -342,7 +310,7 @@ describe('AdminNavigation', () => {
       let call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.currentPath).toBe('/admin');
 
-      (usePathname as any).mockReturnValue('/admin/users');
+      mockUsePathname.mockReturnValue('/admin/users');
       rerender(<AdminNavigation {...defaultProps} />);
 
       call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
@@ -355,7 +323,7 @@ describe('AdminNavigation', () => {
       const paths = ['/admin/users', '/admin/security', '/admin/devops'];
 
       paths.forEach((path) => {
-        (usePathname as any).mockReturnValue(path);
+        mockUsePathname.mockReturnValue(path);
         rerender(<AdminNavigation {...defaultProps} />);
 
         const call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;

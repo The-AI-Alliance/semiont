@@ -1,45 +1,32 @@
 import { useMemo } from 'react';
-import { useMessages, useLocale } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import type { TranslationManager } from '@semiont/react-ui';
 
-// Type for translation messages
 type Messages = Record<string, Record<string, string>>;
 
 /**
  * Translation Manager for Frontend
  *
- * This provides a TranslationManager implementation that wraps next-intl.
- * The messages include both frontend-specific translations and react-ui translations,
- * which are merged at build time by scripts/merge-translations.js.
- *
- * This ensures:
- * - Frontend-specific components get their translations
- * - React UI components get their built-in translations
- * - All translations respect the user's selected locale
- * - No "translation not found" errors occur
+ * Wraps react-i18next. The messages JSON (loaded by i18next-http-backend) has
+ * the same flat namespace structure: { "Namespace": { "key": "value" } }.
+ * TranslationManager.t(namespace, key) maps directly to this structure.
  */
 export function useMergedTranslationManager(): TranslationManager {
-  const messages = useMessages();
-  const locale = useLocale();
+  const { i18n } = useTranslation();
 
   return useMemo(() => {
-    const typedMessages = messages as Messages;
-
     return {
-      t: (namespace: string, key: string, params?: Record<string, any>): string => {
-        // Look up translation in merged messages
-        let translation = typedMessages[namespace]?.[key];
+      t: (namespace: string, key: string, params?: Record<string, unknown>): string => {
+        const messages = i18n.getResourceBundle(i18n.language, 'translation') as Messages | undefined;
+        let translation = messages?.[namespace]?.[key];
 
-        // If not found, warn and return namespace.key format
         if (!translation) {
-          // Only log in development to avoid console spam
           if (process.env.NODE_ENV === 'development') {
-            console.warn(`Translation not found: ${namespace}.${key} (locale: ${locale})`);
+            console.warn(`Translation not found: ${namespace}.${key} (locale: ${i18n.language})`);
           }
           return `${namespace}.${key}`;
         }
 
-        // Handle parameter interpolation
         if (params && typeof translation === 'string') {
           let result = translation;
           Object.entries(params).forEach(([paramKey, paramValue]) => {
@@ -51,5 +38,6 @@ export function useMergedTranslationManager(): TranslationManager {
         return translation;
       },
     };
-  }, [messages, locale]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i18n, i18n.language]);
 }

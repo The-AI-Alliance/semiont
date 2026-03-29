@@ -1,7 +1,4 @@
-'use client';
-
 import React, { useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
 import { Link } from '@/i18n/routing';
 import { sanitizeImageURL, useDropdown, UserMenuSkeleton } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
@@ -82,19 +79,14 @@ export function UserMenu() {
         aria-haspopup="true"
         id="user-menu-button"
       >
-        <Image
+        <img
           src={profileImageUrl}
           alt={`${displayName} profile`}
           width={32}
           height={32}
           className="w-8 h-8 rounded-full object-cover"
-          priority
           onError={() => setImageError(true)}
-          // Security: restrict image loading
-          unoptimized={profileImageUrl === FALLBACK_AVATAR}
-          // Performance optimizations
-          sizes="32px"
-          quality={85}
+          data-testid="profile-image"
         />
       </button>
       
@@ -109,7 +101,7 @@ export function UserMenu() {
         >
           <div className="p-3">
             <Link
-              href="/know"
+              to="/know"
               onClick={close}
               className="semiont-user-menu-link"
               role="menuitem"
@@ -122,7 +114,7 @@ export function UserMenu() {
             {(isModerator || isAdmin) && (
               <>
                 <Link
-                  href="/moderate"
+                  to="/moderate"
                   onClick={close}
                   className="semiont-user-menu-link"
                   role="menuitem"
@@ -136,7 +128,7 @@ export function UserMenu() {
             )}
             {isAdmin && (
               <Link
-                href="/admin"
+                to="/admin"
                 onClick={close}
                 className="semiont-user-menu-link"
                 role="menuitem"
