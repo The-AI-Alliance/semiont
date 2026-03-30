@@ -34,7 +34,8 @@ type LinkProps = React.ComponentProps<typeof RouterLink>;
 export const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(
   function Link({ to, ...props }, ref) {
     const { i18n } = useTranslation();
-    const locale = i18n.language || DEFAULT_LOCALE;
+    const params = useParams<{ locale?: string }>();
+    const locale = i18n.language || params.locale || DEFAULT_LOCALE;
     const target = typeof to === 'string' ? `/${locale}${to.startsWith('/') ? to : `/${to}`}` : to;
     return <RouterLink ref={ref} to={target} {...props} />;
   },
@@ -47,9 +48,10 @@ type RouterOptions = { locale?: string };
 export function useRouter() {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
+  const params = useParams<{ locale?: string }>();
 
   function prefixLocale(path: string, locale?: string): string {
-    const lang = locale || i18n.language || DEFAULT_LOCALE;
+    const lang = locale || i18n.language || params.locale || DEFAULT_LOCALE;
     return `/${lang}${path.startsWith('/') ? path : `/${path}`}`;
   }
 

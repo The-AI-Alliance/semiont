@@ -22,6 +22,11 @@ interface KnowledgeNavigationProps {
   navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
+// Adapter: CollapsibleResourceNavigation passes href, but our Link uses `to`
+function HrefLink({ href, to: _to, ...props }: React.ComponentProps<typeof Link> & { href?: string }) {
+  return <Link to={(href ?? '') as string} {...props} />;
+}
+
 export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: KnowledgeNavigationProps) {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
@@ -87,7 +92,7 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
       resources={openResources as OpenResource[]}
       isCollapsed={isCollapsed}
       currentPath={pathname}
-      LinkComponent={Link as any}
+      LinkComponent={HrefLink as any}
       onNavigate={handleNavigate}
       getResourceHref={getResourceHref}
       className="knowledge-navigation"

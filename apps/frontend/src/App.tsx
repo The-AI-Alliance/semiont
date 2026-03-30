@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale } from './i18n/config';
+import { DEFAULT_LOCALE, isSupportedLocale } from './i18n/config';
 
 // Lazy-load page components for code splitting
 const LocaleLayout = React.lazy(() => import('./app/[locale]/layout'));
@@ -15,6 +15,7 @@ const AuthErrorPage = React.lazy(() => import('./app/[locale]/auth/error/page'))
 const WelcomePage = React.lazy(() => import('./app/[locale]/auth/welcome/page'));
 const KnowledgeLayout = React.lazy(() => import('./app/[locale]/know/layout'));
 const KnowledgePage = React.lazy(() => import('./app/[locale]/know/page'));
+const KnowledgeDiscoverPage = React.lazy(() => import('./app/[locale]/know/discover/page'));
 const KnowledgeComposePage = React.lazy(() => import('./app/[locale]/know/compose/page'));
 const KnowledgeResourcePage = React.lazy(() => import('./app/[locale]/know/resource/[id]/page'));
 const AdminLayout = React.lazy(() => import('./app/[locale]/admin/layout'));
@@ -49,11 +50,6 @@ function LocaleGuard({ children }: { children: React.ReactNode }) {
 
   if (!locale || !isSupportedLocale(locale)) {
     return <Navigate to={`/${DEFAULT_LOCALE}`} replace />;
-  }
-
-  // Wait for the locale bundle to load before rendering
-  if (!i18n.hasResourceBundle(locale, 'translation')) {
-    return null;
   }
 
   return <>{children}</>;
@@ -104,6 +100,7 @@ export default function App() {
           {/* Knowledge section */}
           <Route path="know" element={<KnowledgeLayout />}>
             <Route index element={<KnowledgePage />} />
+            <Route path="discover" element={<KnowledgeDiscoverPage />} />
             <Route path="compose" element={<KnowledgeComposePage />} />
             <Route path="resource/:id" element={<KnowledgeResourcePage />} />
           </Route>
@@ -129,11 +126,6 @@ export default function App() {
           {/* 404 within locale */}
           <Route path="*" element={<NotFoundPage />} />
         </Route>
-
-        {/* Bare locale codes without trailing slash */}
-        {SUPPORTED_LOCALES.map(locale => (
-          <Route key={locale} path={`/${locale}`} element={<Navigate to={`/${locale}/`} replace />} />
-        ))}
 
         {/* Global 404 fallback */}
         <Route path="*" element={<Navigate to={`/${DEFAULT_LOCALE}`} replace />} />
