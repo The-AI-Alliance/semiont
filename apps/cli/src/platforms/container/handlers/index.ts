@@ -8,10 +8,6 @@ import { databaseProvisionDescriptor } from './database-provision.js';
 import { graphProvisionDescriptor } from './graph-provision.js';
 import { graphStopDescriptor } from './graph-stop.js';
 import { databaseStopDescriptor } from './database-stop.js';
-import { proxyProvisionDescriptor } from './proxy-provision.js';
-import { proxyStartDescriptor } from './proxy-start.js';
-import { proxyStopDescriptor } from './proxy-stop.js';
-import { proxyCheckDescriptor } from './proxy-check.js';
 import { inferenceCheckDescriptor } from './inference-check.js';
 import { inferenceStartDescriptor } from './inference-start.js';
 import { inferenceStopDescriptor } from './inference-stop.js';
@@ -28,23 +24,19 @@ const containerHandlers: Array<HandlerDescriptor<any, any>> = [
   webCheckDescriptor,
   databaseCheckDescriptor,
   graphCheckDescriptor,
-  proxyCheckDescriptor,
   inferenceCheckDescriptor,
   // Start handlers
   webStartDescriptor,
   databaseStartDescriptor,
   graphStartDescriptor,
-  proxyStartDescriptor,
   inferenceStartDescriptor,
   // Stop handlers
   graphStopDescriptor,
   databaseStopDescriptor,
-  proxyStopDescriptor,
   inferenceStopDescriptor,
   // Provision handlers
   databaseProvisionDescriptor,
   graphProvisionDescriptor,
-  proxyProvisionDescriptor,
   inferenceProvisionDescriptor
 ];
 

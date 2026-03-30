@@ -77,7 +77,7 @@ version = "0.1.0"
 sync = ${gitSync}
 
 [site]
-domain = "localhost:8080"
+domain = "localhost:3000"
 siteName = "${projectName}"
 adminEmail = ""
 oauthAllowedDomains = ["example.com"]
@@ -98,17 +98,13 @@ environment = "local"
 [environments.local.backend]
 platform = "posix"
 port = 4000
-publicURL = "http://localhost:8080"
+publicURL = "http://localhost:4000"
 
 [environments.local.frontend]
 platform = "posix"
 port = 3000
-publicURL = "http://localhost:8080"
-
-[environments.local.proxy]
-platform = "container"
-port = 8080
-publicURL = "http://localhost:8080"
+publicURL = "http://localhost:3000"
+backendURL = "http://localhost:4000"
 
 [environments.local.graph]
 platform = "external"

@@ -32,12 +32,6 @@ const DEFAULT_CLEANUP_PATTERNS: Record<string, ServiceCleanupPatterns> = {
       'webpack.*hot.*reload'  // Webpack HMR processes
     ]
   },
-  proxy: {
-    serviceType: 'proxy',
-    patterns: [
-      'envoy.*-c.*envoy\\.yaml'  // Envoy proxy processes
-    ]
-  }
 };
 
 /**

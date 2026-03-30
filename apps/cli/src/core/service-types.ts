@@ -27,7 +27,6 @@ export const SERVICE_TYPES = {
   
   // Infrastructure
   STACK: 'stack',          // Infrastructure stacks (CloudFormation, Terraform)
-  PROXY: 'proxy',          // API gateways, reverse proxies, load balancers
 } as const;
 
 /**
