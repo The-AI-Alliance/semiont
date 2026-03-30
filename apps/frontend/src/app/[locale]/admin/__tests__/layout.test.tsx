@@ -53,7 +53,17 @@ vi.mock('@/components/admin/AdminNavigation', () => ({
 
 vi.mock('@/lib/env', () => ({
   SEMIONT_SITE_NAME: 'Test Site',
-  SEMIONT_BACKEND_URL: 'http://localhost:4000',
+}));
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspaceContext: () => ({
+    activeWorkspace: { id: 'test', label: 'localhost', backendUrl: 'http://localhost:4000' },
+    workspaces: [],
+    activeWorkspaceId: 'test',
+    addWorkspace: vi.fn(),
+    removeWorkspace: vi.fn(),
+    setActiveWorkspace: vi.fn(),
+  }),
 }));
 
 /** Render AdminLayout (Outlet-based) with a child component via React Router. */

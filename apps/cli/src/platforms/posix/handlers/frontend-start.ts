@@ -86,21 +86,14 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   }
 
   const envConfig = service.environmentConfig;
-  const backendService = envConfig.services['backend']!;
   const frontendService = envConfig.services['frontend']! as import('@semiont/core').FrontendServiceConfig;
-  // Prefer explicit backendURL from config; fall back to backend port
-  const backendUrl = frontendService.backendURL
-    ?? `http://127.0.0.1:${backendService.port!}`;
   const frontendUrl = frontendService.publicURL!;
   const oauthAllowedDomains = envConfig.site?.oauthAllowedDomains || [];
-  const allowedOrigins: string[] = [...(frontendService.allowedOrigins || [])];
-  allowedOrigins.push(new URL(frontendUrl).host);
 
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) as Record<string, string>,
     NODE_ENV: envConfig.env?.NODE_ENV ?? 'development',
     PORT: port.toString(),
-    SEMIONT_BACKEND_URL: backendUrl,
     SEMIONT_SITE_NAME: config.siteName,
     SEMIONT_BASE_URL: frontendUrl,
     SEMIONT_OAUTH_ALLOWED_DOMAINS: oauthAllowedDomains.join(','),
@@ -132,7 +125,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   }
 
   const command = 'node';
-  const args = [serverScript, '--bus', backendUrl];
+  const args = [serverScript];
 
   try {
     // Open log files for writing (process will write directly)

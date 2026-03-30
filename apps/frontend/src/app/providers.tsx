@@ -15,6 +15,7 @@ import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { APIError } from '@semiont/api-client';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { WorkspaceProvider, useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
 
@@ -124,15 +125,29 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
   );
 }
 
+function WorkspaceAuthBridge({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
+  const { activeWorkspace } = useWorkspaceContext();
+  // When activeWorkspace is null (no backends configured), render without auth.
+  // KnowledgeLayout will redirect to the add-backend flow in that case.
+  const backendUrl = activeWorkspace?.backendUrl ?? '';
+  return (
+    <AuthProvider key={activeWorkspace?.id ?? ''} backendUrl={backendUrl}>
+      <InnerProviders queryClient={queryClient}>
+        {children}
+      </InnerProviders>
+    </AuthProvider>
+  );
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   // Create QueryClient once per app instance
   const [queryClient] = useState(() => createQueryClient());
 
   return (
-    <AuthProvider>
-      <InnerProviders queryClient={queryClient}>
+    <WorkspaceProvider>
+      <WorkspaceAuthBridge queryClient={queryClient}>
         {children}
-      </InnerProviders>
-    </AuthProvider>
+      </WorkspaceAuthBridge>
+    </WorkspaceProvider>
   );
 }

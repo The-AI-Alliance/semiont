@@ -8,9 +8,10 @@ import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 import { Link } from '@/i18n/routing';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { SemiontApiClient } from '@semiont/api-client';
 import { googleCredential, email as makeEmail, baseUrl } from '@semiont/core';
-import { SEMIONT_BACKEND_URL, SEMIONT_GOOGLE_CLIENT_ID } from '@/lib/env';
+import { SEMIONT_GOOGLE_CLIENT_ID } from '@/lib/env';
 
 declare global {
   interface Window {
@@ -34,7 +35,11 @@ export default function SignIn() {
   const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { setSession } = useAuthContext();
-  const apiClient = useMemo(() => new SemiontApiClient({ baseUrl: baseUrl(SEMIONT_BACKEND_URL) }), []);
+  const { activeWorkspace } = useWorkspaceContext();
+  const apiClient = useMemo(
+    () => new SemiontApiClient({ baseUrl: baseUrl(activeWorkspace?.backendUrl ?? '') }),
+    [activeWorkspace?.backendUrl]
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading] = useState(false);

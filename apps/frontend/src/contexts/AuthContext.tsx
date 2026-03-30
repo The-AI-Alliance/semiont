@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { SemiontApiClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
-import { SEMIONT_BACKEND_URL } from '@/lib/env';
 
 type UserInfo = components['schemas']['UserResponse'];
 
@@ -20,12 +19,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ backendUrl: backendUrlProp, children }: { backendUrl: string; children: React.ReactNode }) {
   const [session, setSessionState] = useState<AuthSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const client = new SemiontApiClient({ baseUrl: baseUrl(SEMIONT_BACKEND_URL) });
+    setIsLoading(true);
+    setSessionState(null);
+    const client = new SemiontApiClient({ baseUrl: baseUrl(backendUrlProp) });
     client.getMe()
       .then((data) => {
         setSessionState({ token: data.token, user: data });

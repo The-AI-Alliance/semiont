@@ -10,7 +10,8 @@ import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
-import { SEMIONT_BACKEND_URL } from '@/lib/env';
+import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { AddBackendForm } from '@/components/AddBackendForm';
 
 function GlobalEventsConnector() {
   useGlobalEvents();
@@ -29,6 +30,11 @@ export default function KnowledgeLayout() {
   const cacheManager = useCacheManager();
   const { token: authToken, isLoading } = useAuth();
   const router = useRouter();
+  const { activeWorkspace } = useWorkspaceContext();
+
+  if (!activeWorkspace) {
+    return <AddBackendForm onSuccess={() => router.push('/know')} />;
+  }
 
   if (isLoading) {
     return (
@@ -48,7 +54,7 @@ export default function KnowledgeLayout() {
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={SEMIONT_BACKEND_URL}>
+      <ApiClientProvider baseUrl={activeWorkspace?.backendUrl ?? ''}>
         <CacheProvider cacheManager={cacheManager}>
           <OpenResourcesProvider openResourcesManager={openResourcesManager}>
             <ResourceAnnotationsProvider>
