@@ -2,7 +2,7 @@ import { useContext } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, useGlobalEvents } from '@semiont/react-ui';
+import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, useGlobalEvents, useAttentionStream } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
@@ -12,12 +12,21 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { AddBackendForm } from '@/components/AddBackendForm';
+import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 
 function GlobalEventsConnector() {
   useGlobalEvents();
   return null;
 }
 
+function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
+  const { status } = useAttentionStream();
+  return (
+    <StreamStatusContext.Provider value={status}>
+      {children}
+    </StreamStatusContext.Provider>
+  );
+}
 
 export default function KnowledgeLayout() {
   const { t } = useTranslation();
@@ -55,23 +64,25 @@ export default function KnowledgeLayout() {
           <OpenResourcesProvider openResourcesManager={openResourcesManager}>
             <ResourceAnnotationsProvider>
               <GlobalEventsConnector />
-              <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
-                <div className="flex flex-1 overflow-hidden">
-                  <KnowledgeSidebarWrapper />
-                  <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
-                    <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
-                      <Outlet />
-                    </div>
-                  </main>
+              <KnowledgeLayoutInner>
+                <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+                  <div className="flex flex-1 overflow-hidden">
+                    <KnowledgeSidebarWrapper />
+                    <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+                      <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
+                        <Outlet />
+                      </div>
+                    </main>
+                  </div>
+                  <Footer
+                    Link={Link}
+                    routes={routes}
+                    t={(key: string) => t(`Footer.${key}`)}
+                    CookiePreferences={CookiePreferences}
+                    {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+                  />
                 </div>
-                <Footer
-                  Link={Link}
-                  routes={routes}
-                  t={(key: string) => t(`Footer.${key}`)}
-                  CookiePreferences={CookiePreferences}
-                  {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-                />
-              </div>
+              </KnowledgeLayoutInner>
             </ResourceAnnotationsProvider>
           </OpenResourcesProvider>
         </CacheProvider>
