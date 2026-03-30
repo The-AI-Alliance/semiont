@@ -38,6 +38,7 @@ import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { useBeckonFlow } from '../../../hooks/useBeckonFlow';
+import type { StreamStatus } from '../../../hooks/useResourceEvents';
 import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
 import { useContextGatherFlow } from '../../../hooks/useContextGatherFlow';
@@ -83,6 +84,11 @@ export interface ResourceViewerPageProps {
    * Callback to refetch document from parent
    */
   refetchDocument: () => Promise<unknown>;
+
+  /**
+   * SSE attention stream connection status for the active workspace
+   */
+  streamStatus: StreamStatus;
 }
 
 /**
@@ -120,6 +126,7 @@ export function ResourceViewerPage({
   routes,
   ToolbarPanels,
   refetchDocument,
+  streamStatus,
 }: ResourceViewerPageProps) {
   // Translations
   const tw = useTranslations('ReferenceWizard');
@@ -656,7 +663,7 @@ export function ResourceViewerPage({
             {/* Collaboration Panel */}
             {activePanel === 'collaboration' && (
               <CollaborationPanel
-                isConnected={false}
+                isConnected={streamStatus === 'connected'}
                 eventCount={0}
               />
             )}

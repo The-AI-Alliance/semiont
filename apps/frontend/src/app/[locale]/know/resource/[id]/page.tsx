@@ -10,7 +10,7 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLocale } from '@/i18n/routing';
-import { useResources } from '@semiont/react-ui';
+import { useResources, useAttentionStream } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 
@@ -28,6 +28,8 @@ export default function KnowledgeResourcePage() {
 
   // The URL param is the bare resource ID
   const rId = resourceId(params?.id as string);
+
+  const { status: streamStatus } = useAttentionStream();
 
   // Load only the resource descriptor - everything else is loaded by ResourceViewerPage
   const resources = useResources();
@@ -81,6 +83,7 @@ export default function KnowledgeResourcePage() {
       routes={routes}
       ToolbarPanels={ToolbarPanels}
       refetchDocument={refetchDocument}
+      streamStatus={streamStatus}
     />
   );
 }

@@ -153,6 +153,7 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   Link: ({ children }: any) => <a>{children}</a>,
   routes: {},
   refetchDocument: vi.fn().mockResolvedValue(undefined),
+  streamStatus: 'connected' as const,
   ToolbarPanels: ({ children, activePanel }: any) =>
     !activePanel ? null : <div data-testid="toolbar-panels">{children}</div>,
   ...overrides,
