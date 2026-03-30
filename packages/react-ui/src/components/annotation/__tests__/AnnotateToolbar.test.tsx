@@ -1,13 +1,14 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi, beforeEach, describe, it, expect } from 'vitest';
-import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
+import { TranslationProvider } from '../../../contexts/TranslationContext';
+import type { TranslationManager } from '../../../types/TranslationManager';
 
 // Mock translations
-const messages = {
+const messages: Record<string, Record<string, string>> = {
   AnnotateToolbar: {
     modeGroup: 'Mode',
     browse: 'Browse',
@@ -28,6 +29,10 @@ const messages = {
     circle: 'Circle',
     polygon: 'Polygon'
   }
+};
+
+const translationManager: TranslationManager = {
+  t: (namespace, key) => messages[namespace]?.[key] ?? `${namespace}.${key}`,
 };
 
 // Composition-based event tracker
@@ -84,20 +89,20 @@ const renderWithIntl = (component: React.ReactElement, tracker?: ReturnType<type
   if (tracker) {
     return render(
       <EventBusProvider>
-        <NextIntlClientProvider locale="en" messages={messages}>
+        <TranslationProvider translationManager={translationManager}>
           <tracker.EventTrackingWrapper>
             {component}
           </tracker.EventTrackingWrapper>
-        </NextIntlClientProvider>
+        </TranslationProvider>
       </EventBusProvider>
     );
   }
 
   return render(
     <EventBusProvider>
-      <NextIntlClientProvider locale="en" messages={messages}>
+      <TranslationProvider translationManager={translationManager}>
         {component}
-      </NextIntlClientProvider>
+      </TranslationProvider>
     </EventBusProvider>
   );
 };
@@ -184,12 +189,12 @@ describe('AnnotateToolbar', () => {
 
       rerender(
         <EventBusProvider>
-          <NextIntlClientProvider locale="en" messages={messages}>
+          <TranslationProvider translationManager={translationManager}>
             <AnnotateToolbar
               {...defaultProps}
               annotateMode={true}
             />
-          </NextIntlClientProvider>
+          </TranslationProvider>
         </EventBusProvider>
       );
       expect(screen.getByText('Annotate')).toBeInTheDocument();
@@ -289,14 +294,14 @@ describe('AnnotateToolbar', () => {
       // Simulate mode change by rerendering with new mode
       rerender(
         <EventBusProvider>
-          <NextIntlClientProvider locale="en" messages={messages}>
+          <TranslationProvider translationManager={translationManager}>
             <tracker.EventTrackingWrapper>
               <AnnotateToolbar
                 {...defaultProps}
                 annotateMode={true}
               />
             </tracker.EventTrackingWrapper>
-          </NextIntlClientProvider>
+          </TranslationProvider>
         </EventBusProvider>
       );
 
@@ -396,14 +401,14 @@ describe('AnnotateToolbar', () => {
       // Simulate selection
       rerender(
         <EventBusProvider>
-          <NextIntlClientProvider locale="en" messages={messages}>
+          <TranslationProvider translationManager={translationManager}>
             <tracker.EventTrackingWrapper>
               <AnnotateToolbar
                 {...defaultProps}
                 selectedMotivation="highlighting"
               />
             </tracker.EventTrackingWrapper>
-          </NextIntlClientProvider>
+          </TranslationProvider>
         </EventBusProvider>
       );
 
