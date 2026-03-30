@@ -7,6 +7,7 @@ import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
+import { useRouter } from '@/i18n/routing';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 
 export default function ModerateLayout() {
@@ -14,10 +15,16 @@ export default function ModerateLayout() {
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { isAuthenticated, isAdmin, isModerator, token: authToken } = useAuth();
   const { activeWorkspace } = useWorkspaceContext();
+  const router = useRouter();
+
+  if (!activeWorkspace) {
+    router.push('/know');
+    return null;
+  }
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={activeWorkspace?.backendUrl ?? ''}>
+      <ApiClientProvider baseUrl={activeWorkspace.backendUrl}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
           <div className="flex flex-1">
             <LeftSidebar

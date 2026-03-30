@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ServerIcon, PlusIcon, CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline';
 import { useWorkspaceContext, type Workspace } from '@/contexts/WorkspaceContext';
-import { AddBackendForm } from '@/components/AddBackendForm';
+import { useRouter } from '@/i18n/routing';
 
 interface WorkspaceSwitcherProps {
   isCollapsed: boolean;
@@ -10,15 +10,7 @@ interface WorkspaceSwitcherProps {
 export function WorkspaceSwitcher({ isCollapsed }: WorkspaceSwitcherProps) {
   const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspaceContext();
   const [isOpen, setIsOpen] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-
-  if (showAddForm) {
-    return (
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-2">
-        <AddBackendForm onSuccess={() => setShowAddForm(false)} />
-      </div>
-    );
-  }
+  const router = useRouter();
 
   if (isCollapsed) {
     return (
@@ -61,7 +53,7 @@ export function WorkspaceSwitcher({ isCollapsed }: WorkspaceSwitcherProps) {
             </button>
           ))}
           <button
-            onClick={() => { setIsOpen(false); setShowAddForm(true); }}
+            onClick={() => { setIsOpen(false); router.push('/auth/connect'); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 border-t border-gray-100 dark:border-gray-700 rounded-b-md"
           >
             <PlusIcon className="h-4 w-4 shrink-0" />

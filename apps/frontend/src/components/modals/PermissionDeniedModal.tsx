@@ -32,7 +32,7 @@ export function PermissionDeniedModal() {
 
   const handleSwitchAccount = () => {
     setShowModal(false);
-    window.location.href = `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
+    window.location.href = `/auth/connect?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
   };
 
   return (

@@ -50,7 +50,7 @@ export default function AboutPage() {
               {t('signUp')}
             </Link>
             <Link
-              to="/auth/signin?callbackUrl=/know"
+              to="/auth/connect?callbackUrl=/know"
               className={buttonStyles.primary.base}
             >
               {t('signIn')}

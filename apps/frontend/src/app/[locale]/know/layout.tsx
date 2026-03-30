@@ -11,7 +11,6 @@ import { useCacheManager } from '@/hooks/useCacheManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
-import { AddBackendForm } from '@/components/AddBackendForm';
 import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 
 function GlobalEventsConnector() {
@@ -38,7 +37,8 @@ export default function KnowledgeLayout() {
   const { activeWorkspace } = useWorkspaceContext();
 
   if (!activeWorkspace) {
-    return <AddBackendForm onSuccess={() => router.push('/know')} />;
+    router.push('/auth/connect?callbackUrl=/know');
+    return null;
   }
 
   if (isLoading) {
@@ -53,13 +53,14 @@ export default function KnowledgeLayout() {
   }
 
   if (!authToken) {
-    router.push(`/auth/signin?callbackUrl=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/know')}`);
+    const callbackUrl = encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/know');
+    router.push(`/auth/connect?workspaceId=${activeWorkspace.id}&callbackUrl=${callbackUrl}`);
     return null;
   }
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={activeWorkspace?.backendUrl ?? ''}>
+      <ApiClientProvider baseUrl={activeWorkspace.backendUrl}>
         <CacheProvider cacheManager={cacheManager}>
           <OpenResourcesProvider openResourcesManager={openResourcesManager}>
             <ResourceAnnotationsProvider>

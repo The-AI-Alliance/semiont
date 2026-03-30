@@ -157,9 +157,9 @@ describe('PermissionDeniedModal', () => {
       const switchAccountButton = screen.getByRole('button', { name: /switch account/i });
       fireEvent.click(switchAccountButton);
 
-      // Should redirect to signin with current path as callback
+      // Should redirect to connect with current path as callback
       expect(window.location.href).toBe(
-        `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`
+        `/auth/connect?callbackUrl=${encodeURIComponent(window.location.pathname)}`
       );
     });
 

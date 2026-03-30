@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext, useRef, useMemo } from 'react';
+import { useEffect, useState, useContext, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
@@ -10,8 +10,9 @@ import { Link } from '@/i18n/routing';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { SemiontApiClient } from '@semiont/api-client';
-import { googleCredential, email as makeEmail, baseUrl } from '@semiont/core';
+import { googleCredential, email as makeEmail, baseUrl as makeBaseUrl } from '@semiont/core';
 import { SEMIONT_GOOGLE_CLIENT_ID } from '@/lib/env';
+import type { Workspace } from '@/contexts/WorkspaceContext';
 
 declare global {
   interface Window {
@@ -26,26 +27,38 @@ declare global {
   }
 }
 
-export default function SignIn() {
+/**
+ * Normalise a user-entered URL: add https:// if no scheme is present.
+ */
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+export default function ConnectPage() {
   const { t: _t } = useTranslation();
-  const t = (k: string, p?: Record<string, unknown>) => _t(`AuthSignIn.${k}`, p as any) as string;
-  const tHome = (k: string, p?: Record<string, unknown>) => _t(`Home.${k}`, p as any) as string;
-  const tFooter = (k: string, p?: Record<string, unknown>) => _t(`Footer.${k}`, p as any) as string;
+  const t = (k: string) => _t(`AuthSignIn.${k}`) as string;
+  const tFooter = (k: string) => _t(`Footer.${k}`) as string;
   const [searchParams] = useSearchParams();
   const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { setSession } = useAuthContext();
-  const { activeWorkspace } = useWorkspaceContext();
-  const apiClient = useMemo(
-    () => new SemiontApiClient({ baseUrl: baseUrl(activeWorkspace?.backendUrl ?? '') }),
-    [activeWorkspace?.backendUrl]
-  );
-
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading] = useState(false);
-  const googleScriptLoaded = useRef(false);
+  const { workspaces, addWorkspace } = useWorkspaceContext();
 
   const callbackUrl = searchParams.get('callbackUrl') ?? '/know';
+
+  // If workspaceId is in the query string, we're re-authenticating to a known workspace.
+  const workspaceId = searchParams.get('workspaceId');
+  const knownWorkspace: Workspace | undefined = workspaceId
+    ? workspaces.find(w => w.id === workspaceId)
+    : undefined;
+
+  // The locked URL shown in the form (undefined = user must enter it)
+  const lockedBackendUrl = knownWorkspace?.backendUrl;
+
+  const [error, setError] = useState<string | null>(null);
+  const googleScriptLoaded = useRef(false);
 
   useEffect(() => {
     if (!SEMIONT_GOOGLE_CLIENT_ID || googleScriptLoaded.current) return;
@@ -57,17 +70,27 @@ export default function SignIn() {
     googleScriptLoaded.current = true;
   }, []);
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (backendUrl: string) => {
     if (!SEMIONT_GOOGLE_CLIENT_ID) {
       setError(t('errorGoogleSignIn'));
       return;
     }
     setError(null);
+    const normalizedUrl = normalizeUrl(backendUrl);
+    const client = new SemiontApiClient({ baseUrl: makeBaseUrl(normalizedUrl) });
+
     window.google?.accounts.id.initialize({
       client_id: SEMIONT_GOOGLE_CLIENT_ID,
       callback: async ({ credential }) => {
         try {
-          const response = await apiClient.authenticateGoogle(googleCredential(credential));
+          const response = await client.authenticateGoogle(googleCredential(credential));
+          if (!knownWorkspace) {
+            addWorkspace({
+              id: crypto.randomUUID(),
+              label: new URL(normalizedUrl).hostname,
+              backendUrl: normalizedUrl,
+            });
+          }
           setSession({ token: response.token, user: response.user as any });
           router.push(callbackUrl);
         } catch {
@@ -78,10 +101,19 @@ export default function SignIn() {
     window.google?.accounts.id.prompt();
   };
 
-  const handleCredentialsSignIn = async (email: string, password: string) => {
+  const handleCredentialsSignIn = async (backendUrl: string, email: string, password: string) => {
     setError(null);
+    const normalizedUrl = normalizeUrl(backendUrl);
+    const client = new SemiontApiClient({ baseUrl: makeBaseUrl(normalizedUrl) });
     try {
-      const response = await apiClient.authenticatePassword(makeEmail(email), password);
+      const response = await client.authenticatePassword(makeEmail(email), password);
+      if (!knownWorkspace) {
+        addWorkspace({
+          id: crypto.randomUUID(),
+          label: new URL(normalizedUrl).hostname,
+          backendUrl: normalizedUrl,
+        });
+      }
       setSession({ token: response.token, user: response.user as any });
       router.push(callbackUrl);
     } catch {
@@ -94,6 +126,8 @@ export default function SignIn() {
     welcomeBack: t('welcomeBack'),
     signInPrompt: t('signInPrompt'),
     continueWithGoogle: t('continueWithGoogle'),
+    backendUrlLabel: t('backendUrlLabel'),
+    backendUrlPlaceholder: t('backendUrlPlaceholder'),
     emailLabel: t('emailLabel'),
     emailPlaceholder: t('emailPlaceholder'),
     passwordLabel: t('passwordLabel'),
@@ -105,19 +139,21 @@ export default function SignIn() {
     backToHome: t('backToHome'),
     learnMore: t('learnMore'),
     signUpInstead: t('signUpInstead'),
+    errorBackendUrlRequired: t('errorBackendUrlRequired'),
     errorEmailRequired: t('errorEmailRequired'),
     errorPasswordRequired: t('errorPasswordRequired'),
-    tagline: tHome('tagline'),
+    tagline: _t('Home.tagline') as string,
   };
 
   return (
     <div className="semiont-page-wrapper">
       <SignInForm
+        {...(lockedBackendUrl !== undefined && { backendUrl: lockedBackendUrl })}
         onGoogleSignIn={SEMIONT_GOOGLE_CLIENT_ID ? handleGoogleSignIn : undefined as any}
         onCredentialsSignIn={handleCredentialsSignIn}
         error={error}
         showCredentialsAuth={true}
-        isLoading={isLoading}
+        isLoading={false}
         Link={Link}
         translations={translations}
       />

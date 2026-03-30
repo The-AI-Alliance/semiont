@@ -55,8 +55,13 @@ export function AuthProvider({ backendUrl: backendUrlProp, children }: { backend
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+const NO_AUTH: AuthContextValue = {
+  session: null,
+  isLoading: false,
+  setSession: () => {},
+  clearSession: () => {},
+};
+
 export function useAuthContext(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuthContext must be used within AuthProvider');
-  return ctx;
+  return useContext(AuthContext) ?? NO_AUTH;
 }

@@ -9,7 +9,7 @@ const HomePage = React.lazy(() => import('./app/[locale]/page'));
 const AboutPage = React.lazy(() => import('./app/[locale]/about/page'));
 const PrivacyPage = React.lazy(() => import('./app/[locale]/privacy/page'));
 const TermsPage = React.lazy(() => import('./app/[locale]/terms/page'));
-const SignInPage = React.lazy(() => import('./app/[locale]/auth/signin/page'));
+const ConnectPage = React.lazy(() => import('./app/[locale]/auth/connect/page'));
 const SignUpPage = React.lazy(() => import('./app/[locale]/auth/signup/page'));
 const AuthErrorPage = React.lazy(() => import('./app/[locale]/auth/error/page'));
 const WelcomePage = React.lazy(() => import('./app/[locale]/auth/welcome/page'));
@@ -92,7 +92,7 @@ export default function App() {
           <Route path="terms" element={<TermsPage />} />
 
           {/* Auth routes */}
-          <Route path="auth/signin" element={<SignInPage />} />
+          <Route path="auth/connect" element={<ConnectPage />} />
           <Route path="auth/signup" element={<SignUpPage />} />
           <Route path="auth/error" element={<AuthErrorPage />} />
           <Route path="auth/welcome" element={<WelcomePage />} />

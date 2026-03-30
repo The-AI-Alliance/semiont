@@ -21,7 +21,7 @@ function SignUpContent() {
   const callbackUrl = searchParams.get('callbackUrl') ?? '/auth/welcome';
 
   const handleSignUp = async () => {
-    router.push(`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    router.push(`/auth/connect?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   };
 
   const translations = {

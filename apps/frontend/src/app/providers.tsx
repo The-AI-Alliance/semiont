@@ -127,11 +127,18 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
 
 function WorkspaceAuthBridge({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
   const { activeWorkspace } = useWorkspaceContext();
-  // When activeWorkspace is null (no backends configured), render without auth.
-  // KnowledgeLayout will redirect to the add-backend flow in that case.
-  const backendUrl = activeWorkspace?.backendUrl ?? '';
+  if (!activeWorkspace) {
+    // No workspace configured yet. Render inner providers (routing, i18n, etc.) but skip
+    // AuthProvider — there is no backend URL to authenticate against. KnowledgeLayout will
+    // redirect to /auth/connect when the user navigates to /know.
+    return (
+      <InnerProviders queryClient={queryClient}>
+        {children}
+      </InnerProviders>
+    );
+  }
   return (
-    <AuthProvider key={activeWorkspace?.id ?? ''} backendUrl={backendUrl}>
+    <AuthProvider key={activeWorkspace.id} backendUrl={activeWorkspace.backendUrl}>
       <InnerProviders queryClient={queryClient}>
         {children}
       </InnerProviders>

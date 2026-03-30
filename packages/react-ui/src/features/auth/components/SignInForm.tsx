@@ -3,6 +3,9 @@
  *
  * Supports both Google OAuth and email/password credentials.
  * No Next.js dependencies - all data via props.
+ *
+ * When backendUrl is provided it is shown as a locked read-only field.
+ * When backendUrl is omitted the user must enter a backend URL to connect to.
  */
 
 import React from 'react';
@@ -11,14 +14,22 @@ import '../auth.css';
 
 export interface SignInFormProps {
   /**
-   * Callback when user clicks Google sign-in
+   * Callback when user clicks Google sign-in.
+   * Receives the backend URL (either the locked one or what the user typed).
    */
-  onGoogleSignIn: () => Promise<void>;
+  onGoogleSignIn: (backendUrl: string) => Promise<void>;
 
   /**
-   * Callback when user submits email/password credentials
+   * Callback when user submits email/password credentials.
+   * Receives the backend URL along with email and password.
    */
-  onCredentialsSignIn?: ((email: string, password: string) => Promise<void>) | undefined;
+  onCredentialsSignIn?: ((backendUrl: string, email: string, password: string) => Promise<void>) | undefined;
+
+  /**
+   * Pre-filled backend URL. When provided the field is read-only (re-auth to known workspace).
+   * When omitted the user enters the URL themselves (new connection).
+   */
+  backendUrl?: string;
 
   /**
    * Error message to display (if any)
@@ -48,6 +59,8 @@ export interface SignInFormProps {
     welcomeBack: string;
     signInPrompt: string;
     continueWithGoogle: string;
+    backendUrlLabel: string;
+    backendUrlPlaceholder: string;
     emailLabel: string;
     emailPlaceholder: string;
     passwordLabel: string;
@@ -59,6 +72,7 @@ export interface SignInFormProps {
     backToHome: string;
     learnMore: string;
     signUpInstead: string;
+    errorBackendUrlRequired: string;
     errorEmailRequired: string;
     errorPasswordRequired: string;
     tagline: string;
@@ -92,40 +106,41 @@ function GoogleIcon() {
 }
 
 /**
- * CredentialsAuthForm - Email/password form component
+ * CredentialsAuthForm - Backend URL + email/password form.
+ * When lockedBackendUrl is provided, the URL field is shown read-only.
  */
 function CredentialsAuthForm({
+  lockedBackendUrl,
   onSubmit,
   translations: t,
 }: {
-  onSubmit: (email: string, password: string) => Promise<void>;
+  lockedBackendUrl: string | undefined;
+  onSubmit: (backendUrl: string, email: string, password: string) => Promise<void>;
   translations: SignInFormProps['translations'];
 }) {
+  const [backendUrl, setBackendUrl] = React.useState(lockedBackendUrl ?? '');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [validationError, setValidationError] = React.useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
+  const [fieldErrors, setFieldErrors] = React.useState<{ backendUrl?: string; email?: string; password?: string }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const errors: { email?: string; password?: string } = {};
+    const errors: { backendUrl?: string; email?: string; password?: string } = {};
 
-    if (!email) {
-      errors.email = t.errorEmailRequired;
-    }
-    if (!password) {
-      errors.password = t.errorPasswordRequired;
-    }
+    if (!backendUrl.trim()) errors.backendUrl = t.errorBackendUrlRequired;
+    if (!email) errors.email = t.errorEmailRequired;
+    if (!password) errors.password = t.errorPasswordRequired;
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setValidationError(Object.values(errors)[0]); // Set first error for screen readers
+      setValidationError(Object.values(errors)[0]);
       return;
     }
 
     setFieldErrors({});
     setValidationError(null);
-    await onSubmit(email, password);
+    await onSubmit(backendUrl.trim(), email, password);
   };
 
   return (
@@ -138,6 +153,33 @@ function CredentialsAuthForm({
 
       <form onSubmit={handleSubmit} className="semiont-auth__form" noValidate>
         <div className="semiont-form__field">
+          <label htmlFor="backend-url" className="semiont-form__label">
+            {t.backendUrlLabel}
+          </label>
+          <input
+            id="backend-url"
+            type="url"
+            value={backendUrl}
+            onChange={(e) => {
+              if (lockedBackendUrl) return;
+              setBackendUrl(e.target.value);
+              if (fieldErrors.backendUrl) setFieldErrors({ ...fieldErrors, backendUrl: undefined });
+            }}
+            readOnly={!!lockedBackendUrl}
+            placeholder={t.backendUrlPlaceholder}
+            className={`semiont-input${lockedBackendUrl ? ' semiont-input--readonly' : ''}`}
+            aria-invalid={!!fieldErrors.backendUrl}
+            aria-describedby={fieldErrors.backendUrl ? 'backend-url-error' : undefined}
+            required
+          />
+          {fieldErrors.backendUrl && (
+            <span id="backend-url-error" className="semiont-form__error" role="alert">
+              {fieldErrors.backendUrl}
+            </span>
+          )}
+        </div>
+
+        <div className="semiont-form__field">
           <label htmlFor="email" className="semiont-form__label">
             {t.emailLabel}
           </label>
@@ -147,9 +189,7 @@ function CredentialsAuthForm({
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
-              if (fieldErrors.email) {
-                setFieldErrors({ ...fieldErrors, email: undefined });
-              }
+              if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: undefined });
             }}
             placeholder={t.emailPlaceholder}
             className="semiont-input"
@@ -163,6 +203,7 @@ function CredentialsAuthForm({
             </span>
           )}
         </div>
+
         <div className="semiont-form__field">
           <label htmlFor="password" className="semiont-form__label">
             {t.passwordLabel}
@@ -173,9 +214,7 @@ function CredentialsAuthForm({
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
-              if (fieldErrors.password) {
-                setFieldErrors({ ...fieldErrors, password: undefined });
-              }
+              if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: undefined });
             }}
             placeholder={t.passwordPlaceholder}
             className="semiont-input"
@@ -189,6 +228,7 @@ function CredentialsAuthForm({
             </span>
           )}
         </div>
+
         <button type="submit" className={`${buttonStyles.primary.base} semiont-button--full-width`}>
           {t.signInWithCredentials}
         </button>
@@ -203,17 +243,29 @@ function CredentialsAuthForm({
 }
 
 /**
- * SignInForm - Main sign-in component
+ * SignInForm - Main sign-in / connect component.
+ *
+ * When backendUrl is provided (re-auth to known workspace) the URL field is locked.
+ * When backendUrl is omitted (new connection) the user enters the URL themselves.
  */
 export function SignInForm({
   onGoogleSignIn,
   onCredentialsSignIn,
+  backendUrl,
   error,
   showCredentialsAuth = false,
   isLoading = false,
   Link,
   translations: t,
 }: SignInFormProps) {
+  const handleGoogleClick = () => {
+    // For Google auth we need the backend URL from the locked prop or we cannot proceed.
+    // The caller is responsible for ensuring backendUrl is set when Google sign-in is offered.
+    if (backendUrl) {
+      onGoogleSignIn(backendUrl);
+    }
+  };
+
   return (
     <main className="semiont-auth__main" role="main">
       <div className="semiont-auth__container">
@@ -245,12 +297,21 @@ export function SignInForm({
           <div className="semiont-auth__forms">
             {!isLoading ? (
               <>
-                {showCredentialsAuth && onCredentialsSignIn && <CredentialsAuthForm onSubmit={onCredentialsSignIn} translations={t} />}
+                {showCredentialsAuth && onCredentialsSignIn && (
+                  <CredentialsAuthForm
+                    lockedBackendUrl={backendUrl}
+                    onSubmit={onCredentialsSignIn}
+                    translations={t}
+                  />
+                )}
 
-                <button onClick={onGoogleSignIn} className={`${buttonStyles.primary.base} semiont-button--full-width`}>
-                  <GoogleIcon />
-                  {t.continueWithGoogle}
-                </button>
+                {/* Google sign-in only shown when a backend URL is known */}
+                {backendUrl && (
+                  <button onClick={handleGoogleClick} className={`${buttonStyles.primary.base} semiont-button--full-width`}>
+                    <GoogleIcon />
+                    {t.continueWithGoogle}
+                  </button>
+                )}
 
                 <div className="semiont-auth__info">
                   {showCredentialsAuth ? t.credentialsAuthEnabled : t.approvedDomainsOnly}
@@ -258,7 +319,6 @@ export function SignInForm({
               </>
             ) : (
               <div className="semiont-auth__loading" aria-busy="true" aria-live="polite">
-                {/* Placeholder to maintain consistent height while loading */}
                 <div style={{ height: '200px' }}></div>
               </div>
             )}

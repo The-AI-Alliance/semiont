@@ -26,7 +26,7 @@ export function SessionExpiredModal() {
   }, []);
 
   const handleSignIn = () => {
-    window.location.href = `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
+    window.location.href = `/auth/connect?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
   };
 
   const handleClose = () => {

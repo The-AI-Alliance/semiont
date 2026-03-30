@@ -36,7 +36,7 @@ export default function Welcome() {
   useEffect(() => {
     if (isLoading) return;
     if (!isAuthenticated) {
-      router.push('/auth/signin');
+      router.push('/auth/connect');
       return;
     }
 
