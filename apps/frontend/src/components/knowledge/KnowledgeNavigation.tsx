@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import {
   useOpenResources,
   useEventSubscriptions,
@@ -87,24 +88,31 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
   };
 
   return (
-    <CollapsibleResourceNavigation
-      fixedItems={fixedNavigation}
-      resources={openResources as OpenResource[]}
-      isCollapsed={isCollapsed}
-      currentPath={pathname}
-      LinkComponent={HrefLink as any}
-      onNavigate={handleNavigate}
-      getResourceHref={getResourceHref}
-      className="knowledge-navigation"
-      translations={{
-        title: t('title')
-      }}
-      icons={{
-        chevronLeft: ChevronLeftIcon,
-        bars: Bars3Icon,
-        close: XMarkIcon
-      }}
-      navigationMenu={navigationMenu}
-    />
+    <div className="flex flex-col h-full">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <CollapsibleResourceNavigation
+          fixedItems={fixedNavigation}
+          resources={openResources as OpenResource[]}
+          isCollapsed={isCollapsed}
+          currentPath={pathname}
+          LinkComponent={HrefLink as any}
+          onNavigate={handleNavigate}
+          getResourceHref={getResourceHref}
+          className="knowledge-navigation"
+          translations={{
+            title: t('title')
+          }}
+          icons={{
+            chevronLeft: ChevronLeftIcon,
+            bars: Bars3Icon,
+            close: XMarkIcon
+          }}
+          navigationMenu={navigationMenu}
+        />
+      </div>
+      <div className="shrink-0 px-2 pb-2">
+        <WorkspaceSwitcher isCollapsed={isCollapsed} />
+      </div>
+    </div>
   );
 }
