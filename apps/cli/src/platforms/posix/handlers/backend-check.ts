@@ -3,7 +3,7 @@ import * as path from 'path';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
-import { resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import type { BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
@@ -24,7 +24,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
 
   const projectRoot = service.projectRoot;
   const npmDir = resolveBackendNpmPackage(projectRoot);
-  const entryPoint = npmDir ? path.join(npmDir, 'dist', 'index.js') : null;
+  const entryPoint = npmDir ? (resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js')) : null;
   const project = new SemiontProject(projectRoot);
   const pidFile = project.backendPidFile;
   const appLogPath = project.backendAppLogFile;

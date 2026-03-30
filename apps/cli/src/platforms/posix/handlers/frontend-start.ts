@@ -6,7 +6,7 @@ import type { FrontendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { resolveFrontendNpmPackage } from './frontend-paths.js';
+import { resolveFrontendNpmPackage, resolveFrontendServerScript } from './frontend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import { checkPortFree, checkCommandAvailable, checkConfigPort, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -30,7 +30,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       metadata: { serviceType: 'frontend' }
     };
   }
-  const serverScript = path.join(npmDir, 'server.js');
+  const serverScript = resolveFrontendServerScript(projectRoot) ?? path.join(npmDir, 'server.js');
   const project = new SemiontProject(projectRoot);
   const pidFile = project.frontendPidFile;
   const logsDir = project.frontendLogsDir;
@@ -62,10 +62,12 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     try {
       // Check if process is actually running
       process.kill(pid, 0);
+      if (!service.quiet) {
+        printInfo(`Frontend is already running with PID ${pid}`);
+      }
       return {
-        success: false,
-        error: `Frontend is already running with PID ${pid}`,
-        metadata: { serviceType: 'frontend', pid }
+        success: true,
+        metadata: { serviceType: 'frontend', pid, alreadyRunning: true }
       };
     } catch {
       // Process not running, remove stale pid file
@@ -255,10 +257,8 @@ const preflightFrontendStart = async (context: PosixStartHandlerContext): Promis
     checks.push(await checkPortFree(config.port));
   }
   if (npmDir) {
-    checks.push(checkFileExists(
-      path.join(npmDir, 'server.js'),
-      'frontend server.js'
-    ));
+    const serverScript = resolveFrontendServerScript(projectRoot) ?? path.join(npmDir, 'server.js');
+    checks.push(checkFileExists(serverScript, 'frontend server.js'));
   } else {
     checks.push({ name: 'frontend-npm-package', pass: false, message: '@semiont/frontend not installed — run: semiont provision' });
   }

@@ -3,6 +3,7 @@
   "version": "0.4.6",
   "type": "module",
   "description": "Semiont backend server - pre-built for npm consumption",
+  "main": "dist/index.js",
   "bin": {
     "semiont-backend": "dist/index.js"
   },
