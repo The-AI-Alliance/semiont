@@ -85,6 +85,17 @@ vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
   KeyboardShortcutsContext: React.createContext(null),
 }));
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspaceContext: () => ({
+    activeWorkspace: { id: 'test', label: 'localhost', backendUrl: 'http://localhost:4000' },
+    workspaces: [],
+    activeWorkspaceId: 'test',
+    addWorkspace: vi.fn(),
+    removeWorkspace: vi.fn(),
+    setActiveWorkspace: vi.fn(),
+  }),
+}));
+
 /** Render a layout (which uses <Outlet />) with a test child component via React Router. */
 function renderLayout(Layout: React.ComponentType, child: React.ReactNode, wrapper?: React.ComponentType<{ children: React.ReactNode }>) {
   const tree = (
