@@ -5,7 +5,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
 import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -178,7 +178,6 @@ describe('AssessmentPanel Component', () => {
   };
 
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
 
     // Mock scrollIntoView for jsdom

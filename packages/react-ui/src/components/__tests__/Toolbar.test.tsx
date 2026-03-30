@@ -1,15 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../test-utils';
+import { renderWithProviders } from '../../test-utils';
 import { Toolbar } from '../Toolbar';
 
 describe('Toolbar', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   describe('document context', () => {
     it('renders all document context buttons when not archived', () => {
       renderWithProviders(

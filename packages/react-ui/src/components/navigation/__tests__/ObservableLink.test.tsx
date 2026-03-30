@@ -1,15 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../../test-utils';
+import { renderWithProviders } from '../../../test-utils';
 import { ObservableLink } from '../ObservableLink';
 
 describe('ObservableLink', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   it('renders anchor with href', () => {
     renderWithProviders(
       <ObservableLink href="/discover">Discover</ObservableLink>

@@ -18,7 +18,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useBindFlow } from '../../../hooks/useBindFlow';
-import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
@@ -42,7 +42,6 @@ describe('Bind Flow - Body Update Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
 
     bindAnnotationSpy = vi.fn().mockImplementation((_rId: any, annId: any, _req: any, opts: any) => {
       queueMicrotask(() => opts.eventBus.get('bind:finished').next({ annotationId: annId }));

@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
 import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
-import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider } from '../../../contexts/EventBusContext';
 
 const createMockResource = (id: string, name: string, entityTypes: string[] = []) => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
@@ -63,7 +63,6 @@ const renderWithProviders = (ui: React.ReactElement) => {
 
 describe('ResourceDiscoveryPage', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
   });
 
   describe('Basic Rendering', () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
-import { renderWithProviders, resetEventBusForTesting } from '../../../../test-utils';
+import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
@@ -105,7 +105,6 @@ describe('CommentEntry Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting(); // Reset event bus between tests
     mockGetCommentText.mockReturnValue('This is a test comment');
     mockGetAnnotationExactText.mockReturnValue('This is th');
 

@@ -17,7 +17,6 @@ import { screen } from '@testing-library/react';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import { AssistSection } from '../AssistSection';
-import { resetEventBusForTesting } from '../../../../contexts/EventBusContext';
 import type { EventBus } from "@semiont/core"
 
 // Mock translations
@@ -56,7 +55,6 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 describe('AssistSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
     // Clear localStorage
     if (typeof window !== 'undefined') {
       localStorage.clear();

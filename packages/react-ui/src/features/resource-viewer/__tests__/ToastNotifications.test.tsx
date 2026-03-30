@@ -16,7 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor, act } from '@testing-library/react';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { resourceId } from '@semiont/core';
@@ -41,7 +41,6 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
   const rUri = resourceId('test');
 
   beforeEach(() => {
-    resetEventBusForTesting();
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
   });

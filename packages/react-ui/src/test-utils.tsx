@@ -13,7 +13,7 @@ import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
-import { EventBusProvider, useEventBus, resetEventBusForTesting } from './contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from './contexts/EventBusContext';
 import type { EventBus } from '@semiont/core';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
@@ -165,13 +165,6 @@ export function renderWithProviders(
   return result;
 }
 
-/**
- * Re-export resetEventBusForTesting for test isolation
- *
- * Call this in beforeEach to ensure each test gets a fresh event bus
- * with no lingering subscriptions from previous tests.
- */
-export { resetEventBusForTesting };
 
 /**
  * Create a mock translation manager with custom translations

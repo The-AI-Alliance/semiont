@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React, { type ReactNode } from 'react';
 import { useYieldFlow } from '../useYieldFlow';
-import { EventBusProvider, useEventBus, resetEventBusForTesting, type EventBus } from '../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import type { YieldProgress } from '@semiont/core';
@@ -44,19 +44,14 @@ const wrapper = ({ children }: { children: ReactNode }) =>
     )
   );
 
-// Helper: capture the event bus from inside the provider tree
-function captureEventBus(): EventBus {
-  const { result } = renderHook(() => useEventBus(), { wrapper });
-  return result.current;
-}
-
-// Stable no-op callbacks for useYieldFlow params
-const noop = () => {};
 const mockClearNewAnnotationId = vi.fn();
 
 function renderYieldFlow() {
   return renderHook(
-    () => useYieldFlow('en', 'test-resource', mockClearNewAnnotationId),
+    () => ({
+      flow: useYieldFlow('en', 'test-resource', mockClearNewAnnotationId),
+      eventBus: useEventBus(),
+    }),
     { wrapper }
   );
 }
@@ -77,7 +72,6 @@ function makeProgress(overrides: Partial<YieldProgress> = {}): YieldProgress {
 
 describe('useYieldFlow — progress state', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
   });
 
@@ -88,132 +82,126 @@ describe('useYieldFlow — progress state', () => {
   it('should initialize with default progress state', () => {
     const { result } = renderYieldFlow();
 
-    expect(result.current.isGenerating).toBe(false);
-    expect(result.current.generationProgress).toBeNull();
+    expect(result.current.flow.isGenerating).toBe(false);
+    expect(result.current.flow.generationProgress).toBeNull();
   });
 
   it('should set isGenerating to true and update progress on yield:progress event', async () => {
     const { result } = renderYieldFlow();
-    const eventBus = captureEventBus();
 
     const mockProgress = makeProgress({ status: 'generating', percentage: 30, message: 'Generating content...' });
 
     act(() => {
-      eventBus.get('yield:progress').next(mockProgress);
+      result.current.eventBus.get('yield:progress').next(mockProgress);
     });
 
     await waitFor(() => {
-      expect(result.current.isGenerating).toBe(true);
-      expect(result.current.generationProgress).toEqual(mockProgress);
+      expect(result.current.flow.isGenerating).toBe(true);
+      expect(result.current.flow.generationProgress).toEqual(mockProgress);
     });
   });
 
   it('should update progress on subsequent yield:progress events', async () => {
     const { result } = renderYieldFlow();
-    const eventBus = captureEventBus();
 
     const firstProgress = makeProgress({ status: 'started', percentage: 0, message: 'Starting...' });
     const secondProgress = makeProgress({ status: 'generating', percentage: 50, message: 'Half way...' });
 
     act(() => {
-      eventBus.get('yield:progress').next(firstProgress);
+      result.current.eventBus.get('yield:progress').next(firstProgress);
     });
 
     await waitFor(() => {
-      expect(result.current.generationProgress).toEqual(firstProgress);
+      expect(result.current.flow.generationProgress).toEqual(firstProgress);
     });
 
     act(() => {
-      eventBus.get('yield:progress').next(secondProgress);
+      result.current.eventBus.get('yield:progress').next(secondProgress);
     });
 
     await waitFor(() => {
-      expect(result.current.generationProgress).toEqual(secondProgress);
-      expect(result.current.isGenerating).toBe(true);
+      expect(result.current.flow.generationProgress).toEqual(secondProgress);
+      expect(result.current.flow.isGenerating).toBe(true);
     });
   });
 
   it('should set isGenerating to false and update progress on yield:finished event', async () => {
     const { result } = renderYieldFlow();
-    const eventBus = captureEventBus();
 
     // First simulate some progress
     act(() => {
-      eventBus.get('yield:progress').next(makeProgress({ percentage: 75, message: 'Almost done...' }));
+      result.current.eventBus.get('yield:progress').next(makeProgress({ percentage: 75, message: 'Almost done...' }));
     });
 
     await waitFor(() => {
-      expect(result.current.isGenerating).toBe(true);
+      expect(result.current.flow.isGenerating).toBe(true);
     });
 
     // Now complete
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Generation complete!' });
 
     act(() => {
-      eventBus.get('yield:finished').next(finalProgress);
+      result.current.eventBus.get('yield:finished').next(finalProgress);
     });
 
     await waitFor(() => {
-      expect(result.current.isGenerating).toBe(false);
-      expect(result.current.generationProgress).toEqual(finalProgress);
+      expect(result.current.flow.isGenerating).toBe(false);
+      expect(result.current.flow.generationProgress).toEqual(finalProgress);
     });
   });
 
   it('should clear progress and set isGenerating to false on yield:failed event', async () => {
     const { result } = renderYieldFlow();
-    const eventBus = captureEventBus();
 
     // First simulate some progress
     act(() => {
-      eventBus.get('yield:progress').next(makeProgress({ percentage: 40 }));
+      result.current.eventBus.get('yield:progress').next(makeProgress({ percentage: 40 }));
     });
 
     await waitFor(() => {
-      expect(result.current.isGenerating).toBe(true);
+      expect(result.current.flow.isGenerating).toBe(true);
     });
 
     // Now fail
     act(() => {
-      eventBus.get('yield:failed').next({
+      result.current.eventBus.get('yield:failed').next({
         error: new Error('Generation failed'),
       });
     });
 
     await waitFor(() => {
-      expect(result.current.isGenerating).toBe(false);
-      expect(result.current.generationProgress).toBeNull();
+      expect(result.current.flow.isGenerating).toBe(false);
+      expect(result.current.flow.generationProgress).toBeNull();
     });
   });
 
   it('should handle yield:finished event without prior progress', async () => {
     const { result } = renderYieldFlow();
-    const eventBus = captureEventBus();
 
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Done!' });
 
     act(() => {
-      eventBus.get('yield:finished').next(finalProgress);
+      result.current.eventBus.get('yield:finished').next(finalProgress);
     });
 
     await waitFor(() => {
-      expect(result.current.isGenerating).toBe(false);
-      expect(result.current.generationProgress).toEqual(finalProgress);
+      expect(result.current.flow.isGenerating).toBe(false);
+      expect(result.current.flow.generationProgress).toEqual(finalProgress);
     });
   });
 
   it('should handle yield:failed event without prior progress gracefully', async () => {
     const { result } = renderYieldFlow();
-    const eventBus = captureEventBus();
 
     act(() => {
-      eventBus.get('yield:failed').next({
+      result.current.eventBus.get('yield:failed').next({
         error: new Error('Unexpected failure'),
       });
     });
 
     await waitFor(() => {
-      expect(result.current.isGenerating).toBe(false);
-      expect(result.current.generationProgress).toBeNull();
+      expect(result.current.flow.isGenerating).toBe(false);
+      expect(result.current.flow.generationProgress).toBeNull();
     });
   });
 });

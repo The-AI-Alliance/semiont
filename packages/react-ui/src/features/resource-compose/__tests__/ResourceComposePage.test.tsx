@@ -5,11 +5,11 @@
  * No Next.js mocking required - all dependencies passed as props!
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceComposePage } from '../components/ResourceComposePage';
 import type { ResourceComposePageProps, SaveResourceParams } from '../components/ResourceComposePage';
-import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider } from '../../../contexts/EventBusContext';
 
 // Mock CodeMirrorRenderer to avoid CodeMirror dependencies
 vi.mock('../../../components/CodeMirrorRenderer', () => ({
@@ -78,10 +78,6 @@ const renderWithProviders = (ui: React.ReactElement) => {
 };
 
 describe('ResourceComposePage', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   describe('Basic Rendering - New Resource Mode', () => {
     it('renders without crashing', () => {
       const props = createMockProps();

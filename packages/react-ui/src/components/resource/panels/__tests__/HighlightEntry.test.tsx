@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../../../test-utils';
+import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
 
@@ -52,7 +52,6 @@ describe('HighlightEntry', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
     mockGetAnnotationExactText.mockReturnValue('This is the highlighted text');
   });
 

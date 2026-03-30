@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { resourceId } from '@semiont/core';
@@ -86,7 +86,6 @@ function renderAnnotationFlow() {
 
 describe('useMarkFlow', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();

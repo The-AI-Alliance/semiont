@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { resourceId } from '@semiont/core';
@@ -82,7 +82,6 @@ function renderResourceEvents(options: {
 
 describe('useResourceEvents', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
     mockResourceEvents.mockClear();
     mockClose.mockClear();
   });

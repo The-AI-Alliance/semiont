@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -127,7 +127,6 @@ describe('ReferencesPanel Component', () => {
   };
 
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
   });
 

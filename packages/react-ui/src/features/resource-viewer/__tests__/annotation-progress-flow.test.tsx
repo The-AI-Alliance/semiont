@@ -28,7 +28,7 @@ import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { HighlightPanel } from '../../../components/resource/panels/HighlightPanel';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
@@ -71,7 +71,11 @@ vi.mock('../../../contexts/TranslationContext', () => ({
 
 // Create a mock SSE stream that we can control
 class MockSSEStream {
-  constructor(private eventBus: any) {}
+  private eventBus: any = null;
+
+  setEventBus(eventBus: any) {
+    this.eventBus = eventBus;
+  }
 
   close() {
     // Mock close method
@@ -133,10 +137,18 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
   let mockStream: MockSSEStream;
   const rUri = 'https://example.com/resources/test-resource-1';
 
+  // Helper component that captures the EventBus and wires it into mockStream
+  function EventBusCapturer() {
+    const eventBus = useEventBus();
+    mockStream.setEventBus(eventBus);
+    return null;
+  }
+
   // Helper to render test harness with composition
   const renderDetectionFlow = () => {
     return render(
       <EventBusProvider>
+        <EventBusCapturer />
         <AuthTokenProvider token={null}>
           <ApiClientProvider baseUrl="http://localhost:4000">
             <DetectionFlowTestHarness
@@ -150,12 +162,10 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
   };
 
   beforeEach(() => {
-    // Reset event bus for test isolation
-    const eventBus = resetEventBusForTesting();
     vi.clearAllMocks();
 
-    // Reset mocks - create stream with eventBus
-    mockStream = new MockSSEStream(eventBus);
+    // Create fresh stream for each test
+    mockStream = new MockSSEStream();
 
     // Spy on SSEClient prototype methods to inject mock stream
     vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue(mockStream as any);

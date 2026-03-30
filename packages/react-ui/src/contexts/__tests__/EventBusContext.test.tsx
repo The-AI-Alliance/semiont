@@ -3,13 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   EventBusProvider,
   useEventBus,
-  resetEventBusForTesting
 } from '../EventBusContext';
 
 describe('EventBusContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -188,8 +186,8 @@ describe('EventBusContext', () => {
     });
   });
 
-  describe('Global singleton event bus', () => {
-    it('should share the same event bus instance across multiple providers', () => {
+  describe('Per-mount isolated event bus', () => {
+    it('should give each provider mount its own isolated event bus', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
 
@@ -212,21 +210,19 @@ describe('EventBusContext', () => {
         result1.current.get('beckon:hover').subscribe(handler1);
         result2.current.get('beckon:hover').subscribe(handler2);
 
-        // Emit on bus 1 - should trigger both handlers since it's the same global bus
+        // Emit on bus 1 - should only trigger handler1 since buses are isolated
         result1.current.get('beckon:hover').next({ annotationId: 'ann-1' });
       });
 
-      // Both handlers should be called because they share the same global event bus
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-1' });
-      expect(handler2).toHaveBeenCalledWith({ annotationId: 'ann-1' });
+      expect(handler2).not.toHaveBeenCalled();
     });
 
-    it('should return the same event bus reference across different hook calls', () => {
-      const { result: result1 } = renderHook(() => useEventBus(), { wrapper });
-      const { result: result2 } = renderHook(() => useEventBus(), { wrapper });
+    it('should return the same event bus reference for hooks within the same provider', () => {
+      // Two useEventBus calls within the same render share the same EventBusProvider instance
+      const { result } = renderHook(() => ({ a: useEventBus(), b: useEventBus() }), { wrapper });
 
-      // Both hooks should return the exact same object reference
-      expect(result1.current).toBe(result2.current);
+      expect(result.current.a).toBe(result.current.b);
     });
   });
 
