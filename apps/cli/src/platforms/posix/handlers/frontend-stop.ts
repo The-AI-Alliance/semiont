@@ -3,7 +3,7 @@ import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated, isProcessRunning } from '../utils/process-manager.js';
-import { resolveFrontendNpmPackage } from './frontend-paths.js';
+import { resolveFrontendNpmPackage, resolveFrontendServerScript } from './frontend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
@@ -18,7 +18,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
 
   const projectRoot = service.projectRoot;
   const npmDir = resolveFrontendNpmPackage(projectRoot);
-  const serverScript = npmDir ? path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js') : null;
+  const serverScript = resolveFrontendServerScript(projectRoot) ?? (npmDir ? path.join(npmDir, 'server.js') : null);
   const project = new SemiontProject(projectRoot);
   const pidFile = project.frontendPidFile;
   const appLogPath = project.frontendAppLogFile;
@@ -28,15 +28,6 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
     printInfo(`Server script: ${serverScript}`);
   }
 
-  // Check if frontend server script exists (i.e. package is installed)
-  if (!serverScript || !fs.existsSync(serverScript)) {
-    return {
-      success: false,
-      error: 'Frontend not found',
-      metadata: { serviceType: 'frontend', serverScript }
-    };
-  }
-  
   // Check for PID file
   if (!fs.existsSync(pidFile)) {
     // Check if we have saved state with PID
