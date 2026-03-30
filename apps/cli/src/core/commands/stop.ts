@@ -23,7 +23,7 @@ import { START_ORDER } from './start.js';
 const StopOptionsSchema = OpsOptionsSchema.extend({
   service: z.string().optional(),
   force: z.boolean().default(false).describe('Force stop without graceful shutdown'),
-  timeout: z.number().default(30).describe('Timeout for graceful shutdown in seconds'),
+  timeout: z.number().default(3).describe('Timeout for graceful shutdown in seconds'),
 });
 
 export type StopOptions = z.output<typeof StopOptionsSchema>;
