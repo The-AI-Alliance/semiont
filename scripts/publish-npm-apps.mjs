@@ -92,44 +92,31 @@ function stageFrontend(version) {
 
   if (DRY_RUN) {
     log(`  Would stage to: ${stageDir}`);
-    log(`  Would copy: .next/standalone/ → standalone/, public/`);
+    log(`  Would copy: dist/, server.js`);
     log(`  Would use: package.publish.json with version ${version}`);
     return stageDir;
   }
 
   // Verify built artifacts exist
-  const standaloneDir = resolve(frontendDir, '.next/standalone');
-  if (!existsSync(standaloneDir)) {
-    throw new Error(`Frontend not built: ${standaloneDir} not found. Run 'npm run build' in apps/frontend first.`);
+  const distIndex = resolve(frontendDir, 'dist/index.html');
+  if (!existsSync(distIndex)) {
+    throw new Error(`Frontend not built: ${distIndex} not found. Run 'npm run build' in apps/frontend first.`);
+  }
+
+  const serverJs = resolve(frontendDir, 'server.js');
+  if (!existsSync(serverJs)) {
+    throw new Error(`Frontend server.js not found at ${serverJs}`);
   }
 
   // Clean and create staging directory
   if (existsSync(stageDir)) rmSync(stageDir, { recursive: true });
   mkdirSync(stageDir, { recursive: true });
 
-  // Copy standalone output
-  cpSync(standaloneDir, resolve(stageDir, 'standalone'), { recursive: true });
+  // Copy Vite build output
+  cpSync(resolve(frontendDir, 'dist'), resolve(stageDir, 'dist'), { recursive: true });
 
-  // Copy public assets into the standalone directory
-  const publicDir = resolve(frontendDir, 'public');
-  if (existsSync(publicDir)) {
-    cpSync(publicDir, resolve(stageDir, 'standalone/apps/frontend/public'), { recursive: true });
-  }
-
-  // Copy static assets
-  const staticDir = resolve(frontendDir, '.next/static');
-  if (existsSync(staticDir)) {
-    cpSync(staticDir, resolve(stageDir, 'standalone/apps/frontend/.next/static'), { recursive: true });
-  }
-
-  // Prepend shebang to server.js so the bin entry works as an executable
-  const serverJsPath = resolve(stageDir, 'standalone/apps/frontend/server.js');
-  if (existsSync(serverJsPath)) {
-    const content = readFileSync(serverJsPath, 'utf-8');
-    if (!content.startsWith('#!')) {
-      writeFileSync(serverJsPath, '#!/usr/bin/env node\n' + content);
-    }
-  }
+  // Copy static server script
+  cpSync(serverJs, resolve(stageDir, 'server.js'));
 
   // Copy and update publish package.json
   const publishPkg = JSON.parse(readFileSync(resolve(frontendDir, 'package.publish.json'), 'utf-8'));
@@ -141,7 +128,7 @@ function stageFrontend(version) {
   cpSync(resolve(frontendDir, 'README.npm.md'), resolve(stageDir, 'README.md'));
 
   log(`  Staged @semiont/frontend@${version} to ${stageDir}`);
-  log(`  Files: standalone/, package.json, README.md`);
+  log(`  Files: dist/, server.js, package.json, README.md`);
 
   return stageDir;
 }

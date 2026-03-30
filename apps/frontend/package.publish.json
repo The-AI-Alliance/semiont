@@ -1,15 +1,16 @@
 {
   "name": "@semiont/frontend",
   "version": "0.4.6",
-  "description": "Semiont frontend server - pre-built Next.js standalone output",
+  "description": "Semiont frontend - pre-built Vite SPA with static file server",
   "bin": {
-    "semiont-frontend": "standalone/apps/frontend/server.js"
+    "semiont-frontend": "server.js"
   },
   "files": [
-    "standalone"
+    "server.js",
+    "dist"
   ],
   "scripts": {
-    "start": "node standalone/apps/frontend/server.js"
+    "start": "node server.js"
   },
   "dependencies": {},
   "publishConfig": {
