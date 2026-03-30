@@ -13,7 +13,7 @@
     "administer": "Administracja"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Wszelkie prawa zastrzeżone.",
+    "copyright": "© {{year}} Semiont. Wszelkie prawa zastrzeżone.",
     "about": "O nas",
     "privacyPolicy": "Polityka prywatności",
     "cookiePreferences": "Ustawienia plików cookie",
@@ -94,7 +94,7 @@
     "contactAddress": "Adres:",
     "updatesTitle": "Aktualizacje niniejszej Polityki",
     "updates": "Możemy od czasu do czasu aktualizować niniejszą Politykę prywatności. Powiadomimy Cię o wszelkich istotnych zmianach, publikując nową Politykę prywatności na tej stronie i aktualizując datę wejścia w życie.",
-    "lastUpdated": "Ostatnia aktualizacja: {date}"
+    "lastUpdated": "Ostatnia aktualizacja: {{date}}"
   },
   "Terms": {
     "pageTitle": "Regulamin",
@@ -124,7 +124,7 @@
     "changes": "Możemy okresowo aktualizować niniejszy regulamin. Użytkownicy zostaną powiadomieni o istotnych zmianach, a dalsze korzystanie z platformy oznacza akceptację zaktualizowanego regulaminu.",
     "contactTitle": "Kontakt",
     "contact": "Jeśli masz pytania dotyczące niniejszego regulaminu lub chcesz zgłosić naruszenia, skontaktuj się z naszym zespołem wsparcia za pośrednictwem platformy lub pod adresem kontaktowym podanym w naszej Polityce prywatności.",
-    "lastUpdated": "Ostatnia aktualizacja: {date}",
+    "lastUpdated": "Ostatnia aktualizacja: {{date}}",
     "aup": "Korzystając z Semiont, zgadzasz się na odpowiedzialne korzystanie z naszej platformy zgodnie z niniejszym regulaminem. Zobowiązujemy się do utrzymania bezpiecznego, pełnego szacunku i produktywnego środowiska dla wszystkich użytkowników."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Ładowanie...",
     "welcomeTitle": "Witaj w Semiont!",
     "thanksForAccepting": "Dziękujemy za zaakceptowanie regulaminu. Przekierowujemy Cię do aplikacji...",
-    "welcomeUser": "Witaj w Semiont, {firstName}!",
+    "welcomeUser": "Witaj w Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Zanim zaczniesz korzystać z Semiont, zapoznaj się z regulaminem i zaakceptuj go",
     "termsSummaryTitle": "Podsumowanie regulaminu",
     "termsSummaryIntro": "Korzystając z Semiont, zgadzasz się na:",
@@ -246,9 +246,9 @@
     "archived": "Zarchiwizowane",
     "created": "Utworzone",
     "recentResources": "Ostatnie zasoby",
-    "searchResults": "Wyniki wyszukiwania ({count})",
-    "resourcesTaggedWith": "Zasoby oznaczone tagiem \"{entityType}\"",
-    "noResultsFound": "Nie znaleziono wyników dla \"{query}\". Wyświetlanie ostatnich zasobów.",
+    "searchResults": "Wyniki wyszukiwania ({{count}})",
+    "resourcesTaggedWith": "Zasoby oznaczone tagiem \"{{entityType}}\"",
+    "noResultsFound": "Nie znaleziono wyników dla \"{{query}}\". Wyświetlanie ostatnich zasobów.",
     "noResourcesAvailable": "Brak dostępnych zasobów. Utwórz swój pierwszy dokument, aby rozpocząć.",
     "composeFirstResource": "Utwórz pierwszy zasób",
     "loadingKnowledgeBase": "Ładowanie bazy wiedzy..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Konto",
     "user": "Użytkownik",
-    "profileAlt": "Profil użytkownika {name}",
+    "profileAlt": "Profil użytkownika {{name}}",
     "session": "Sesja",
-    "expiresIn": "Wygasa za: {time}",
+    "expiresIn": "Wygasa za: {{time}}",
     "privileges": "Uprawnienia",
     "administrator": "🛡️ Administrator",
     "moderator": "⚖️ Moderator",
@@ -433,7 +433,7 @@
     "configManagementDescription": "Ustawienia OAuth są zarządzane za pomocą zmiennych środowiskowych. Aby zmodyfikować te ustawienia:",
     "configLocalDev": "Dla rozwoju lokalnego: Zaktualizuj pliki .env",
     "configCloudDeploy": "Dla wdrożeń chmurowych: Użyj",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "aby zastosować zmiany z plików konfiguracyjnych",
     "configAWS": "Dla AWS: Ustawienia są przechowywane w AWS Secrets Manager i definicjach zadań ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Ustawienia plików cookie",
     "description": "Zarządzaj swoimi preferencjami dotyczącymi plików cookie i ustawieniami prywatności. Zmiany zaczną obowiązywać natychmiast.",
     "currentSettings": "Bieżące ustawienia",
-    "lastUpdated": "Ostatnia aktualizacja: {date}",
-    "version": "Wersja: {version}",
+    "lastUpdated": "Ostatnia aktualizacja: {{date}}",
+    "version": "Wersja: {{version}}",
     "cookieCategories": "Kategorie plików cookie",
     "required": "(Wymagane)",
-    "viewCookies": "Wyświetl pliki cookie ({count})",
+    "viewCookies": "Wyświetl pliki cookie ({{count}})",
     "dataManagement": "Zarządzanie danymi",
     "exportMyData": "Eksportuj moje dane",
     "deleteAllData": "Usuń wszystkie dane",

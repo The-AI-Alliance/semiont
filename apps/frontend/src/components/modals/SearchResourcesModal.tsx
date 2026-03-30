@@ -1,8 +1,6 @@
-'use client';
-
 import React from 'react';
 import { ResourceSearchModal } from '@semiont/react-ui';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 
 interface SearchResourcesModalProps {
   isOpen: boolean;
@@ -12,7 +10,8 @@ interface SearchResourcesModalProps {
 }
 
 export function SearchResourcesModal({ isOpen, onClose, onSelect, searchTerm = '' }: SearchResourcesModalProps) {
-  const t = useTranslations('SearchResources');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`SearchResources.${k}`, p as any) as string;
 
   return (
     <ResourceSearchModal

@@ -111,9 +111,9 @@ jobs:
         continue-on-error: false
         env:
           CI: true
-          SERVER_API_URL: http://localhost:4000
-          NEXT_PUBLIC_SITE_NAME: Semiont
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
+          SEMIONT_BACKEND_URL: http://localhost:4000
+          SEMIONT_SITE_NAME: Semiont
+          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Generate accessibility report
         if: always()
@@ -122,9 +122,9 @@ jobs:
           SEMIONT_ENV=unit SEMIONT_ROOT=../.. npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
         continue-on-error: true
         env:
-          SERVER_API_URL: http://localhost:4000
-          NEXT_PUBLIC_SITE_NAME: Semiont
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
+          SEMIONT_BACKEND_URL: http://localhost:4000
+          SEMIONT_SITE_NAME: Semiont
+          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Upload accessibility test results
         if: always()
@@ -176,11 +176,9 @@ jobs:
           cd apps/frontend
           npm run build
         env:
-          SERVER_API_URL: http://localhost:4000
-          NEXTAUTH_URL: http://localhost:3000
-          NEXTAUTH_SECRET: test-secret-for-ci-must-be-at-least-32-characters-long
-          NEXT_PUBLIC_SITE_NAME: Semiont
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
+          SEMIONT_BACKEND_URL: http://localhost:4000
+          SEMIONT_SITE_NAME: Semiont
+          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Install Lighthouse CI
         run: npm install -g @lhci/cli

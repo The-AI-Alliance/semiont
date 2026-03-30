@@ -2,9 +2,9 @@
 # Routes traffic between frontend (Next.js) and backend (Hono API)
 #
 # Routing rules (order matters - first match wins):
-# 1. /api/auth/*           → frontend (NextAuth)
-# 2. /api/cookies/*        → frontend (cookie consent/export)
-# 3. /api/resources/*      → frontend (authenticated proxy for images/files)
+# 1. /api/resources/*      → backend (authenticated proxy for images/files)
+# 2. /api/cookies/*        → backend (cookie consent/export)
+# 3. /api/tokens/mcp-setup → backend (MCP CLI token setup)
 # 4. /resources/*          → backend (main API, SSE-safe: no timeout, no buffering)
 # 5. /annotations/*        → backend (main API)
 # 6. /admin/*              → backend (main API)
@@ -47,21 +47,16 @@ static_resources:
             - name: local_service
               domains: ["*"]
               routes:
-              # Frontend Next.js API routes (must come before backend /api/*)
+              # Backend /api/ routes that need specific handling before generic /api/ catch-all
               - match:
-                  prefix: "/api/auth/"
+                  prefix: "/api/resources/"
                 route:
-                  cluster: frontend
+                  cluster: backend
                   timeout: 30s
               - match:
                   prefix: "/api/cookies/"
                 route:
-                  cluster: frontend
-                  timeout: 30s
-              - match:
-                  prefix: "/api/resources/"
-                route:
-                  cluster: frontend
+                  cluster: backend
                   timeout: 30s
 
               # Backend API routes (without /api prefix)

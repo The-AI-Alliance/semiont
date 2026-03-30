@@ -13,7 +13,7 @@
     "administer": "Quản trị"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Mọi quyền được bảo lưu.",
+    "copyright": "© {{year}} Semiont. Mọi quyền được bảo lưu.",
     "about": "Giới thiệu",
     "privacyPolicy": "Chính sách quyền riêng tư",
     "cookiePreferences": "Tùy chọn cookie",
@@ -94,7 +94,7 @@
     "contactAddress": "Địa chỉ:",
     "updatesTitle": "Cập nhật chính sách này",
     "updates": "Chúng tôi có thể cập nhật Chính sách quyền riêng tư này theo thời gian. Chúng tôi sẽ thông báo cho bạn về bất kỳ thay đổi quan trọng nào bằng cách đăng Chính sách quyền riêng tư mới trên trang này và cập nhật ngày có hiệu lực.",
-    "lastUpdated": "Cập nhật lần cuối: {date}"
+    "lastUpdated": "Cập nhật lần cuối: {{date}}"
   },
   "Terms": {
     "pageTitle": "Điều khoản dịch vụ",
@@ -124,7 +124,7 @@
     "changes": "Chúng tôi có thể cập nhật các điều khoản này định kỳ. Người dùng sẽ được thông báo về các thay đổi quan trọng, và việc tiếp tục sử dụng nền tảng đồng nghĩa với việc chấp nhận các điều khoản đã cập nhật.",
     "contactTitle": "Liên hệ",
     "contact": "Nếu bạn có câu hỏi về các điều khoản này hoặc cần báo cáo vi phạm, vui lòng liên hệ đội ngũ hỗ trợ của chúng tôi thông qua nền tảng hoặc theo thông tin liên hệ được cung cấp trong Chính sách quyền riêng tư.",
-    "lastUpdated": "Cập nhật lần cuối: {date}",
+    "lastUpdated": "Cập nhật lần cuối: {{date}}",
     "aup": "Bằng việc sử dụng Semiont, bạn đồng ý sử dụng nền tảng của chúng tôi một cách có trách nhiệm và tuân thủ các điều khoản này. Chúng tôi cam kết duy trì một môi trường an toàn, tôn trọng và hiệu quả cho tất cả người dùng."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Đang tải...",
     "welcomeTitle": "Chào mừng đến với Semiont!",
     "thanksForAccepting": "Cảm ơn bạn đã chấp nhận các điều khoản. Đang chuyển hướng bạn đến ứng dụng...",
-    "welcomeUser": "Chào mừng đến với Semiont, {firstName}!",
+    "welcomeUser": "Chào mừng đến với Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Trước khi bạn có thể bắt đầu sử dụng Semiont, vui lòng xem xét và chấp nhận các điều khoản dịch vụ của chúng tôi",
     "termsSummaryTitle": "Tóm tắt điều khoản dịch vụ",
     "termsSummaryIntro": "Bằng việc sử dụng Semiont, bạn đồng ý:",
@@ -246,9 +246,9 @@
     "archived": "Đã lưu trữ",
     "created": "Đã tạo",
     "recentResources": "Tài nguyên gần đây",
-    "searchResults": "Kết quả tìm kiếm ({count})",
-    "resourcesTaggedWith": "Tài nguyên được gắn thẻ '{entityType}'",
-    "noResultsFound": "Không tìm thấy kết quả cho '{query}'. Đang hiển thị tài nguyên gần đây thay thế.",
+    "searchResults": "Kết quả tìm kiếm ({{count}})",
+    "resourcesTaggedWith": "Tài nguyên được gắn thẻ '{{entityType}}'",
+    "noResultsFound": "Không tìm thấy kết quả cho '{{query}}'. Đang hiển thị tài nguyên gần đây thay thế.",
     "noResourcesAvailable": "Không có tài nguyên nào. Hãy tạo tài liệu đầu tiên của bạn để bắt đầu.",
     "composeFirstResource": "Soạn thảo tài nguyên đầu tiên",
     "loadingKnowledgeBase": "Đang tải cơ sở tri thức..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Tài khoản",
     "user": "Người dùng",
-    "profileAlt": "Hồ sơ {name}",
+    "profileAlt": "Hồ sơ {{name}}",
     "session": "Phiên làm việc",
-    "expiresIn": "Hết hạn sau: {time}",
+    "expiresIn": "Hết hạn sau: {{time}}",
     "privileges": "Quyền hạn",
     "administrator": "🛡️ Quản trị viên",
     "moderator": "⚖️ Kiểm duyệt viên",
@@ -433,7 +433,7 @@
     "configManagementDescription": "Cài đặt OAuth được quản lý thông qua biến môi trường. Để thay đổi các cài đặt này:",
     "configLocalDev": "Cho phát triển cục bộ: Cập nhật tệp .env của bạn",
     "configCloudDeploy": "Cho triển khai đám mây: Sử dụng",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "để áp dụng thay đổi từ tệp cấu hình",
     "configAWS": "Cho AWS: Cài đặt được lưu trữ trong AWS Secrets Manager và định nghĩa tác vụ ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Tùy chọn cookie",
     "description": "Quản lý tùy chọn cookie và cài đặt quyền riêng tư của bạn. Thay đổi sẽ có hiệu lực ngay lập tức.",
     "currentSettings": "Cài đặt hiện tại",
-    "lastUpdated": "Cập nhật lần cuối: {date}",
-    "version": "Phiên bản: {version}",
+    "lastUpdated": "Cập nhật lần cuối: {{date}}",
+    "version": "Phiên bản: {{version}}",
     "cookieCategories": "Danh mục cookie",
     "required": "(Bắt buộc)",
-    "viewCookies": "Xem cookie ({count})",
+    "viewCookies": "Xem cookie ({{count}})",
     "dataManagement": "Quản lý dữ liệu",
     "exportMyData": "Xuất dữ liệu của tôi",
     "deleteAllData": "Xóa tất cả dữ liệu",

@@ -1,69 +1,58 @@
-'use client';
-
-import React, { useContext } from 'react';
-import { useTranslations } from 'next-intl';
+import { useContext } from 'react';
+import { Outlet } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
 import { LeftSidebar, Footer, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
-import { NEXT_PUBLIC_BACKEND_URL } from '@/lib/env';
+import { SEMIONT_BACKEND_URL } from '@/lib/env';
 
-// Note: Authentication is handled by middleware.ts for all admin routes
-// This ensures centralized security and returns 404 for unauthorized users
-
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const t = useTranslations('Footer');
-  const tNav = useTranslations('Navigation');
-  const tHome = useTranslations('Home');
+export default function AdminLayout() {
+  const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { isAuthenticated, isAdmin, isModerator, token: authToken } = useAuth();
 
-  // Middleware has already verified admin access
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={NEXT_PUBLIC_BACKEND_URL}>
+      <ApiClientProvider baseUrl={SEMIONT_BACKEND_URL}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-            <div className="flex flex-1">
-              <LeftSidebar
-                Link={Link}
-                routes={routes}
-                t={tNav}
-                tHome={tHome}
-                brandingLink="/"
-                collapsible={true}
-                storageKey="admin-sidebar-collapsed"
-                isAuthenticated={isAuthenticated}
-                isAdmin={isAdmin}
-                isModerator={isModerator}
-              >
-                {(isCollapsed, toggleCollapsed, navigationMenu) => (
-                  <AdminNavigation
-                    isCollapsed={isCollapsed}
-                    toggleCollapsed={toggleCollapsed}
-                    navigationMenu={navigationMenu}
-                  />
-                )}
-              </LeftSidebar>
-              <main className="flex-1 p-6 flex flex-col">
-                <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
-                  {children}
-                </div>
-              </main>
-            </div>
-            <Footer
+          <div className="flex flex-1">
+            <LeftSidebar
               Link={Link}
               routes={routes}
-              t={t}
-              CookiePreferences={CookiePreferences}
-              {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-            />
+              t={(key: string) => t(`Navigation.${key}`)}
+              tHome={(key: string) => t(`Home.${key}`)}
+              brandingLink="/"
+              collapsible={true}
+              storageKey="admin-sidebar-collapsed"
+              isAuthenticated={isAuthenticated}
+              isAdmin={isAdmin}
+              isModerator={isModerator}
+            >
+              {(isCollapsed, toggleCollapsed, navigationMenu) => (
+                <AdminNavigation
+                  isCollapsed={isCollapsed}
+                  toggleCollapsed={toggleCollapsed}
+                  navigationMenu={navigationMenu}
+                />
+              )}
+            </LeftSidebar>
+            <main className="flex-1 p-6 flex flex-col">
+              <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
+                <Outlet />
+              </div>
+            </main>
           </div>
+          <Footer
+            Link={Link}
+            routes={routes}
+            t={(key: string) => t(`Footer.${key}`)}
+            CookiePreferences={CookiePreferences}
+            {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+          />
+        </div>
       </ApiClientProvider>
     </AuthTokenProvider>
   );

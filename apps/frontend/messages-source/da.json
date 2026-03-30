@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Alle rettigheder forbeholdes.",
+    "copyright": "© {{year}} Semiont. Alle rettigheder forbeholdes.",
     "about": "Om",
     "privacyPolicy": "Privatlivspolitik",
     "cookiePreferences": "Cookieindstillinger",
@@ -94,7 +94,7 @@
     "contactAddress": "Adresse:",
     "updatesTitle": "Opdateringer af denne politik",
     "updates": "Vi kan opdatere denne privatlivspolitik fra tid til anden. Vi vil underrette dig om væsentlige ændringer ved at offentliggøre den nye privatlivspolitik på denne side og opdatere ikrafttrædelsesdatoen.",
-    "lastUpdated": "Sidst opdateret: {date}"
+    "lastUpdated": "Sidst opdateret: {{date}}"
   },
   "Terms": {
     "pageTitle": "Servicevilkår",
@@ -124,7 +124,7 @@
     "changes": "Vi kan opdatere disse vilkår periodisk. Brugere vil blive underrettet om væsentlige ændringer, og fortsat brug af platformen udgør accept af de opdaterede vilkår.",
     "contactTitle": "Kontakt",
     "contact": "Hvis du har spørgsmål om disse vilkår eller har brug for at rapportere overtrædelser, kontakt venligst vores supportteam via platformen eller på kontaktoplysningerne i vores privatlivspolitik.",
-    "lastUpdated": "Sidst opdateret: {date}",
+    "lastUpdated": "Sidst opdateret: {{date}}",
     "aup": "Ved at bruge Semiont accepterer du at bruge vores platform ansvarligt og i overensstemmelse med disse vilkår. Vi er forpligtet til at opretholde et sikkert, respektfuldt og produktivt miljø for alle brugere."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Indlæser...",
     "welcomeTitle": "Velkommen til Semiont!",
     "thanksForAccepting": "Tak for at acceptere vores vilkår. Du bliver nu omdirigeret til appen...",
-    "welcomeUser": "Velkommen til Semiont, {firstName}!",
+    "welcomeUser": "Velkommen til Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Før du kan begynde at bruge Semiont, skal du gennemgå og acceptere vores servicevilkår",
     "termsSummaryTitle": "Resumé af servicevilkår",
     "termsSummaryIntro": "Ved at bruge Semiont accepterer du at:",
@@ -246,9 +246,9 @@
     "archived": "Arkiveret",
     "created": "Oprettet",
     "recentResources": "Seneste ressourcer",
-    "searchResults": "Søgeresultater ({count})",
-    "resourcesTaggedWith": "Ressourcer tagget med «{entityType}»",
-    "noResultsFound": "Ingen resultater fundet for «{query}». Viser seneste ressourcer i stedet.",
+    "searchResults": "Søgeresultater ({{count}})",
+    "resourcesTaggedWith": "Ressourcer tagget med «{{entityType}}»",
+    "noResultsFound": "Ingen resultater fundet for «{{query}}». Viser seneste ressourcer i stedet.",
     "noResourcesAvailable": "Ingen ressourcer tilgængelige. Opret dit første dokument for at komme i gang.",
     "composeFirstResource": "Opret første ressource",
     "loadingKnowledgeBase": "Indlæser vidensbase..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Konto",
     "user": "Bruger",
-    "profileAlt": "{name} profil",
+    "profileAlt": "{{name}} profil",
     "session": "Session",
-    "expiresIn": "Udløber om: {time}",
+    "expiresIn": "Udløber om: {{time}}",
     "privileges": "Rettigheder",
     "administrator": "🛡️ Administrator",
     "moderator": "⚖️ Moderator",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth-indstillinger styres via miljøvariabler. For at ændre disse indstillinger:",
     "configLocalDev": "Til lokal udvikling: Opdater dine .env-filer",
     "configCloudDeploy": "Til cloud-implementeringer: Brug",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "for at anvende ændringer fra konfigurationsfiler",
     "configAWS": "Til AWS: Indstillinger gemmes i AWS Secrets Manager og ECS-opgavedefinitioner"
   },
@@ -510,11 +510,11 @@
     "title": "Cookieindstillinger",
     "description": "Administrer dine cookieindstillinger og privatlivsindstillinger. Ændringer træder i kraft med det samme.",
     "currentSettings": "Aktuelle indstillinger",
-    "lastUpdated": "Sidst opdateret: {date}",
-    "version": "Version: {version}",
+    "lastUpdated": "Sidst opdateret: {{date}}",
+    "version": "Version: {{version}}",
     "cookieCategories": "Cookiekategorier",
     "required": "(Påkrævet)",
-    "viewCookies": "Se cookies ({count})",
+    "viewCookies": "Se cookies ({{count}})",
     "dataManagement": "Datahåndtering",
     "exportMyData": "Eksporter mine data",
     "deleteAllData": "Slet alle data",

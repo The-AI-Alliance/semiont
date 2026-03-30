@@ -13,7 +13,7 @@
     "administer": "Amministrazione"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Tutti i diritti riservati.",
+    "copyright": "© {{year}} Semiont. Tutti i diritti riservati.",
     "about": "Informazioni",
     "privacyPolicy": "Informativa sulla Privacy",
     "cookiePreferences": "Preferenze Cookie",
@@ -94,7 +94,7 @@
     "contactAddress": "Indirizzo:",
     "updatesTitle": "Aggiornamenti a Questa Informativa",
     "updates": "Potremmo aggiornare questa Informativa sulla Privacy di tanto in tanto. Ti notificheremo di eventuali modifiche sostanziali pubblicando la nuova Informativa sulla Privacy su questa pagina e aggiornando la data di entrata in vigore.",
-    "lastUpdated": "Ultimo aggiornamento: {date}"
+    "lastUpdated": "Ultimo aggiornamento: {{date}}"
   },
   "Terms": {
     "pageTitle": "Termini di Servizio",
@@ -124,7 +124,7 @@
     "changes": "Potremmo aggiornare questi termini periodicamente. Gli utenti saranno informati di modifiche significative e l'uso continuato della piattaforma costituisce accettazione dei termini aggiornati.",
     "contactTitle": "Contatti",
     "contact": "Se hai domande su questi termini o hai bisogno di segnalare violazioni, contatta il nostro team di supporto attraverso la piattaforma o alle informazioni di contatto fornite nella nostra Informativa sulla Privacy.",
-    "lastUpdated": "Ultimo aggiornamento: {date}",
+    "lastUpdated": "Ultimo aggiornamento: {{date}}",
     "aup": "Utilizzando Semiont, accetti di utilizzare la nostra piattaforma in modo responsabile e in conformità con questi termini. Ci impegniamo a mantenere un ambiente sicuro, rispettoso e produttivo per tutti gli utenti."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Caricamento...",
     "welcomeTitle": "Benvenuto su Semiont!",
     "thanksForAccepting": "Grazie per aver accettato i nostri termini. Reindirizzamento all'app...",
-    "welcomeUser": "Benvenuto su Semiont, {firstName}!",
+    "welcomeUser": "Benvenuto su Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Prima di poter iniziare a utilizzare Semiont, rivedi e accetta i nostri termini di servizio",
     "termsSummaryTitle": "Riepilogo dei Termini di Servizio",
     "termsSummaryIntro": "Utilizzando Semiont, accetti di:",
@@ -246,9 +246,9 @@
     "archived": "Archiviati",
     "created": "Creati",
     "recentResources": "Risorse Recenti",
-    "searchResults": "Risultati della Ricerca ({count})",
-    "resourcesTaggedWith": "Risorse etichettate con \"{entityType}\"",
-    "noResultsFound": "Nessun risultato trovato per \"{query}\". Mostrando le risorse recenti.",
+    "searchResults": "Risultati della Ricerca ({{count}})",
+    "resourcesTaggedWith": "Risorse etichettate con \"{{entityType}}\"",
+    "noResultsFound": "Nessun risultato trovato per \"{{query}}\". Mostrando le risorse recenti.",
     "noResourcesAvailable": "Nessuna risorsa disponibile. Crea il tuo primo documento per iniziare.",
     "composeFirstResource": "Componi la Prima Risorsa",
     "loadingKnowledgeBase": "Caricamento base di conoscenza..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Account",
     "user": "Utente",
-    "profileAlt": "Profilo di {name}",
+    "profileAlt": "Profilo di {{name}}",
     "session": "Sessione",
-    "expiresIn": "Scade tra: {time}",
+    "expiresIn": "Scade tra: {{time}}",
     "privileges": "Privilegi",
     "administrator": "🛡️ Amministratore",
     "moderator": "⚖️ Moderatore",
@@ -433,7 +433,7 @@
     "configManagementDescription": "Le impostazioni OAuth sono gestite tramite variabili d'ambiente. Per modificare queste impostazioni:",
     "configLocalDev": "Per lo sviluppo locale: Aggiorna i tuoi file .env",
     "configCloudDeploy": "Per i deploy cloud: Usa",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "per applicare le modifiche dai file di configurazione",
     "configAWS": "Per AWS: Le impostazioni sono archiviate in AWS Secrets Manager e nelle definizioni delle attività ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Preferenze Cookie",
     "description": "Gestisci le tue preferenze sui cookie e le impostazioni della privacy. Le modifiche avranno effetto immediato.",
     "currentSettings": "Impostazioni Correnti",
-    "lastUpdated": "Ultimo aggiornamento: {date}",
-    "version": "Versione: {version}",
+    "lastUpdated": "Ultimo aggiornamento: {{date}}",
+    "version": "Versione: {{version}}",
     "cookieCategories": "Categorie di Cookie",
     "required": "(Obbligatorio)",
-    "viewCookies": "Visualizza cookie ({count})",
+    "viewCookies": "Visualizza cookie ({{count}})",
     "dataManagement": "Gestione dei Dati",
     "exportMyData": "Esporta i Miei Dati",
     "deleteAllData": "Elimina Tutti i Dati",

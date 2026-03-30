@@ -1,9 +1,7 @@
-'use client';
-
 import React, { useTransition, useEffect, useCallback } from 'react';
 import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
-import { useLocale } from 'next-intl';
+import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
 import type { ToolbarPanelType } from '@semiont/react-ui';

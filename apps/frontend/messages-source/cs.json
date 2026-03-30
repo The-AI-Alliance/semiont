@@ -13,7 +13,7 @@
     "administer": "Administrace"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Všechna práva vyhrazena.",
+    "copyright": "© {{year}} Semiont. Všechna práva vyhrazena.",
     "about": "O aplikaci",
     "privacyPolicy": "Zásady ochrany osobních údajů",
     "cookiePreferences": "Nastavení cookies",
@@ -94,7 +94,7 @@
     "contactAddress": "Adresa:",
     "updatesTitle": "Aktualizace těchto zásad",
     "updates": "Tyto zásady ochrany osobních údajů můžeme čas od času aktualizovat. O jakýchkoli podstatných změnách vás budeme informovat zveřejněním nových zásad na této stránce a aktualizací data účinnosti.",
-    "lastUpdated": "Naposledy aktualizováno: {date}"
+    "lastUpdated": "Naposledy aktualizováno: {{date}}"
   },
   "Terms": {
     "pageTitle": "Podmínky služby",
@@ -124,7 +124,7 @@
     "changes": "Tyto podmínky můžeme pravidelně aktualizovat. Uživatelé budou informováni o významných změnách a pokračující používání platformy znamená přijetí aktualizovaných podmínek.",
     "contactTitle": "Kontakt",
     "contact": "Máte-li dotazy k těmto podmínkám nebo potřebujete nahlásit porušení, kontaktujte náš tým podpory prostřednictvím platformy nebo na kontaktních údajích uvedených v našich Zásadách ochrany osobních údajů.",
-    "lastUpdated": "Naposledy aktualizováno: {date}",
+    "lastUpdated": "Naposledy aktualizováno: {{date}}",
     "aup": "Používáním aplikace Semiont souhlasíte s tím, že budete naši platformu používat zodpovědně a v souladu s těmito podmínkami. Jsme odhodláni udržovat bezpečné, respektující a produktivní prostředí pro všechny uživatele."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Načítání...",
     "welcomeTitle": "Vítejte v Semiontu!",
     "thanksForAccepting": "Děkujeme za přijetí našich podmínek. Přesměrováváme vás do aplikace...",
-    "welcomeUser": "Vítejte v Semiontu, {firstName}!",
+    "welcomeUser": "Vítejte v Semiontu, {{firstName}}!",
     "reviewTermsPrompt": "Než začnete Semiont používat, prostudujte si a přijměte naše podmínky služby",
     "termsSummaryTitle": "Shrnutí podmínek služby",
     "termsSummaryIntro": "Používáním Semiontu souhlasíte s tím, že budete:",
@@ -246,9 +246,9 @@
     "archived": "Archivované",
     "created": "Vytvořené",
     "recentResources": "Nedávné zdroje",
-    "searchResults": "Výsledky hledání ({count})",
-    "resourcesTaggedWith": "Zdroje označené «{entityType}»",
-    "noResultsFound": "Pro «{query}» nebyly nalezeny žádné výsledky. Zobrazují se místo toho nedávné zdroje.",
+    "searchResults": "Výsledky hledání ({{count}})",
+    "resourcesTaggedWith": "Zdroje označené «{{entityType}}»",
+    "noResultsFound": "Pro «{{query}}» nebyly nalezeny žádné výsledky. Zobrazují se místo toho nedávné zdroje.",
     "noResourcesAvailable": "Žádné zdroje nejsou k dispozici. Vytvořte svůj první dokument a začněte.",
     "composeFirstResource": "Vytvořit první zdroj",
     "loadingKnowledgeBase": "Načítání znalostní báze..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Účet",
     "user": "Uživatel",
-    "profileAlt": "Profil uživatele {name}",
+    "profileAlt": "Profil uživatele {{name}}",
     "session": "Relace",
-    "expiresIn": "Vyprší za: {time}",
+    "expiresIn": "Vyprší za: {{time}}",
     "privileges": "Oprávnění",
     "administrator": "🛡️ Administrátor",
     "moderator": "⚖️ Moderátor",
@@ -433,7 +433,7 @@
     "configManagementDescription": "Nastavení OAuth se spravuje prostřednictvím proměnných prostředí. Pro úpravu těchto nastavení:",
     "configLocalDev": "Pro lokální vývoj: Aktualizujte své .env soubory",
     "configCloudDeploy": "Pro cloudové nasazení: Použijte",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "pro aplikování změn z konfiguračních souborů",
     "configAWS": "Pro AWS: Nastavení jsou uložena v AWS Secrets Manager a definicích úloh ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Nastavení cookies",
     "description": "Spravujte své předvolby cookies a nastavení soukromí. Změny se projeví okamžitě.",
     "currentSettings": "Aktuální nastavení",
-    "lastUpdated": "Naposledy aktualizováno: {date}",
-    "version": "Verze: {version}",
+    "lastUpdated": "Naposledy aktualizováno: {{date}}",
+    "version": "Verze: {{version}}",
     "cookieCategories": "Kategorie cookies",
     "required": "(Povinné)",
-    "viewCookies": "Zobrazit cookies ({count})",
+    "viewCookies": "Zobrazit cookies ({{count}})",
     "dataManagement": "Správa dat",
     "exportMyData": "Exportovat moje data",
     "deleteAllData": "Smazat všechna data",

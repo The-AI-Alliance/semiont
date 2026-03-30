@@ -13,7 +13,7 @@
     "administer": "Beheer"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Alle rechten voorbehouden.",
+    "copyright": "© {{year}} Semiont. Alle rechten voorbehouden.",
     "about": "Over ons",
     "privacyPolicy": "Privacybeleid",
     "cookiePreferences": "Cookievoorkeuren",
@@ -94,7 +94,7 @@
     "contactAddress": "Adres:",
     "updatesTitle": "Updates van dit beleid",
     "updates": "Wij kunnen dit privacybeleid van tijd tot tijd bijwerken. Wij zullen je op de hoogte stellen van belangrijke wijzigingen door het nieuwe privacybeleid op deze pagina te plaatsen en de ingangsdatum bij te werken.",
-    "lastUpdated": "Laatst bijgewerkt: {date}"
+    "lastUpdated": "Laatst bijgewerkt: {{date}}"
   },
   "Terms": {
     "pageTitle": "Servicevoorwaarden",
@@ -124,7 +124,7 @@
     "changes": "Wij kunnen deze voorwaarden periodiek bijwerken. Gebruikers worden op de hoogte gesteld van belangrijke wijzigingen, en voortgezet gebruik van het platform houdt aanvaarding van de bijgewerkte voorwaarden in.",
     "contactTitle": "Contact",
     "contact": "Als je vragen hebt over deze voorwaarden of schendingen wilt melden, neem dan contact op met ons ondersteuningsteam via het platform of via de contactgegevens in ons privacybeleid.",
-    "lastUpdated": "Laatst bijgewerkt: {date}",
+    "lastUpdated": "Laatst bijgewerkt: {{date}}",
     "aup": "Door Semiont te gebruiken, ga je ermee akkoord ons platform verantwoord en in overeenstemming met deze voorwaarden te gebruiken. Wij zetten ons in voor het handhaven van een veilige, respectvolle en productieve omgeving voor alle gebruikers."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Laden...",
     "welcomeTitle": "Welkom bij Semiont!",
     "thanksForAccepting": "Bedankt voor het accepteren van onze voorwaarden. Je wordt doorgestuurd naar de app...",
-    "welcomeUser": "Welkom bij Semiont, {firstName}!",
+    "welcomeUser": "Welkom bij Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Voordat je Semiont kunt gebruiken, bekijk en accepteer onze servicevoorwaarden",
     "termsSummaryTitle": "Samenvatting servicevoorwaarden",
     "termsSummaryIntro": "Door Semiont te gebruiken, ga je akkoord met:",
@@ -246,9 +246,9 @@
     "archived": "Gearchiveerd",
     "created": "Aangemaakt",
     "recentResources": "Recente bronnen",
-    "searchResults": "Zoekresultaten ({count})",
-    "resourcesTaggedWith": "Bronnen gelabeld met \"{entityType}\"",
-    "noResultsFound": "Geen resultaten gevonden voor \"{query}\". In plaats daarvan worden recente bronnen getoond.",
+    "searchResults": "Zoekresultaten ({{count}})",
+    "resourcesTaggedWith": "Bronnen gelabeld met \"{{entityType}}\"",
+    "noResultsFound": "Geen resultaten gevonden voor \"{{query}}\". In plaats daarvan worden recente bronnen getoond.",
     "noResourcesAvailable": "Geen bronnen beschikbaar. Maak je eerste document om te beginnen.",
     "composeFirstResource": "Eerste bron samenstellen",
     "loadingKnowledgeBase": "Kennisbank laden..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Account",
     "user": "Gebruiker",
-    "profileAlt": "{name} profiel",
+    "profileAlt": "{{name}} profiel",
     "session": "Sessie",
-    "expiresIn": "Verloopt over: {time}",
+    "expiresIn": "Verloopt over: {{time}}",
     "privileges": "Bevoegdheden",
     "administrator": "🛡️ Beheerder",
     "moderator": "⚖️ Moderator",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth-instellingen worden beheerd via omgevingsvariabelen. Om deze instellingen te wijzigen:",
     "configLocalDev": "Voor lokale ontwikkeling: Werk je .env-bestanden bij",
     "configCloudDeploy": "Voor cloudimplementaties: Gebruik",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "om wijzigingen uit configuratiebestanden toe te passen",
     "configAWS": "Voor AWS: Instellingen worden opgeslagen in AWS Secrets Manager en ECS-taakdefinities"
   },
@@ -510,11 +510,11 @@
     "title": "Cookievoorkeuren",
     "description": "Beheer je cookievoorkeuren en privacy-instellingen. Wijzigingen worden onmiddellijk van kracht.",
     "currentSettings": "Huidige instellingen",
-    "lastUpdated": "Laatst bijgewerkt: {date}",
-    "version": "Versie: {version}",
+    "lastUpdated": "Laatst bijgewerkt: {{date}}",
+    "version": "Versie: {{version}}",
     "cookieCategories": "Cookiecategorieën",
     "required": "(Vereist)",
-    "viewCookies": "Cookies bekijken ({count})",
+    "viewCookies": "Cookies bekijken ({{count}})",
     "dataManagement": "Gegevensbeheer",
     "exportMyData": "Mijn gegevens exporteren",
     "deleteAllData": "Alle gegevens verwijderen",

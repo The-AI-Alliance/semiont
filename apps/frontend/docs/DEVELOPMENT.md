@@ -1,6 +1,6 @@
 # Frontend Development Guide
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-03-29
 
 Complete guide to local development workflows, common tasks, debugging, and troubleshooting for the Semiont frontend.
 
@@ -121,7 +121,7 @@ If you prefer manual setup or need to understand the internals:
 ### Development Modes (Manual)
 
 **1. Standard Development** (`npm run dev`)
-- Uses Next.js dev server with hot reload
+- Uses Vite dev server with hot reload
 - Requires backend API running on port 3001
 
 **2. Mock API Development** (`npm run dev:mock`) - Recommended for UI work
@@ -129,8 +129,8 @@ If you prefer manual setup or need to understand the internals:
 - No backend dependencies needed
 - Perfect for rapid UI/UX iteration
 
-**3. Turbo Mode** (`npm run dev:fast`) - Experimental
-- Uses Next.js Turbopack for faster builds
+**3. Fast Mode** (`npm run dev:fast`)
+- Vite dev server with favicons and PDF.js pre-copied
 - Requires backend API running separately
 
 ### Fast Iteration Features
@@ -151,8 +151,8 @@ The mock server (`npm run dev:mock`) provides:
 ### Tips for Faster Development
 
 1. **Component Playground** - Create `src/app/playground/page.tsx` for isolated component testing
-2. **Disable Type Checking** (temporary) - Add `NEXT_DISABLE_TYPE_CHECK=true` to `.env.local`
-3. **Clear Cache** - Run `rm -rf .next` if experiencing slow builds
+2. **Disable Type Checking** (temporarily run tsc without --noEmit checks)
+3. **Clear Cache** - Run `rm -rf node_modules/.vite` if experiencing stale module issues
 4. **VS Code Integration** - Use Command Palette (`Cmd+Shift+P`) for quick file navigation
 
 ## Common Development Tasks
@@ -179,8 +179,6 @@ export default function Dashboard() {
 **2. Create component** in `src/components/`:
 ```typescript
 // src/components/DashboardContent.tsx
-"use client";
-
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -346,7 +344,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/routing";
 import { useEffect } from "react";
 
 interface ProtectedRouteProps {
@@ -414,8 +412,7 @@ Environment variables are configured automatically based on your environment con
 **2. Access in code** via validation schema in `src/lib/env.ts`:
 ```typescript
 const envSchema = z.object({
-  SERVER_API_URL: z.string().url(),
-  NEXTAUTH_URL: z.string().url(),
+  SEMIONT_BACKEND_URL: z.string().url(),
 });
 ```
 
@@ -425,9 +422,9 @@ const envSchema = z.object({
 
 ### Authentication Issues
 - Check browser dev tools Network tab
-- Review NextAuth debug logs
-- Verify JWT token in Authorization header
-- Check session cookie in Application tab
+- Verify httpOnly JWT cookie in Application tab > Cookies
+- Check /api/auth/me response for current session state
+- Verify backend is running and accessible
 
 ### API Errors
 - Review browser Network tab for failed requests
@@ -444,7 +441,7 @@ const envSchema = z.object({
 - Run `npm run type-check` to identify TypeScript errors
 - Verify all environment variables are set
 - Check for unused imports or missing dependencies
-- Clear Next.js cache: `rm -rf .next`
+- Clear Vite cache: `rm -rf node_modules/.vite`
 
 ### Runtime Errors
 - Error boundaries capture detailed error information
@@ -458,7 +455,7 @@ const envSchema = z.object({
 **Symptoms**: 404 or network errors when making API requests
 
 **Solutions**:
-- Verify `SERVER_API_URL` is set correctly
+- Verify `SEMIONT_BACKEND_URL` is set correctly
 - Check network tab for CORS issues
 - Ensure backend is running and accessible
 - Verify API endpoint path is correct
@@ -468,11 +465,10 @@ const envSchema = z.object({
 **Symptoms**: Unable to sign in or session not persisting
 
 **Solutions**:
-- Check Google OAuth configuration in Google Cloud Console
-- Verify `NEXTAUTH_URL` matches your domain
-- Check browser cookies and local storage
-- Ensure callback URL is whitelisted in OAuth settings
-- Review NextAuth.js debug logs
+- Check backend logs for OAuth errors
+- Verify httpOnly cookie is being set (Application tab in devtools)
+- Check /api/auth/me returns correct user data
+- Ensure OAuth callback URL in Google Cloud Console points to backend (/api/auth/oauth/google/callback)
 
 ### "Build failing"
 **Symptoms**: `npm run build` fails with errors
@@ -491,7 +487,7 @@ const envSchema = z.object({
 - Run `npm run perf` to identify bottlenecks
 - Check bundle size with `npm run analyze`
 - Implement code splitting with dynamic imports
-- Optimize images with Next.js Image component
+- Optimize images (use appropriate sizes, lazy loading)
 
 ### "Hot reload not working"
 **Symptoms**: Changes not reflecting in browser
@@ -499,7 +495,7 @@ const envSchema = z.object({
 **Solutions**:
 - Check for syntax errors in console
 - Restart dev server: `npm run dev`
-- Clear Next.js cache: `rm -rf .next`
+- Clear Vite cache: `rm -rf node_modules/.vite`
 - Check file watcher limits on Linux: `echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf`
 
 ## Code Style Guidelines
@@ -599,10 +595,8 @@ When you need to add spacing or layout to @semiont/react-ui components:
 The CSS is imported in `src/app/globals.css`:
 
 ```css
-/* Tailwind base styles */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind */
+@import "tailwindcss";
 
 /* Import all @semiont/react-ui styles */
 @import '@semiont/react-ui/styles';
@@ -654,5 +648,5 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 
 ---
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-03-29
 **For Questions**: See [System Documentation](../../../docs/) or file an issue

@@ -13,7 +13,7 @@
     "administer": "Hallinta"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Kaikki oikeudet pidätetään.",
+    "copyright": "© {{year}} Semiont. Kaikki oikeudet pidätetään.",
     "about": "Tietoja",
     "privacyPolicy": "Tietosuojakäytäntö",
     "cookiePreferences": "Evästeasetukset",
@@ -94,7 +94,7 @@
     "contactAddress": "Osoite:",
     "updatesTitle": "Käytännön päivitykset",
     "updates": "Saatamme päivittää tätä tietosuojakäytäntöä ajoittain. Ilmoitamme sinulle kaikista olennaisista muutoksista julkaisemalla uuden tietosuojakäytännön tällä sivulla ja päivittämällä voimaantulopäivän.",
-    "lastUpdated": "Päivitetty viimeksi: {date}"
+    "lastUpdated": "Päivitetty viimeksi: {{date}}"
   },
   "Terms": {
     "pageTitle": "Käyttöehdot",
@@ -124,7 +124,7 @@
     "changes": "Saatamme päivittää näitä ehtoja ajoittain. Käyttäjille ilmoitetaan merkittävistä muutoksista, ja alustan jatkuva käyttö merkitsee päivitettyjen ehtojen hyväksymistä.",
     "contactTitle": "Yhteystiedot",
     "contact": "Jos sinulla on kysyttävää näistä ehdoista tai sinun tarvitsee ilmoittaa rikkomuksista, ota yhteyttä tukitiimiimme alustan kautta tai tietosuojakäytännössämme annettujen yhteystietojen avulla.",
-    "lastUpdated": "Päivitetty viimeksi: {date}",
+    "lastUpdated": "Päivitetty viimeksi: {{date}}",
     "aup": "Käyttämällä Semiontia sitoudut käyttämään alustaamme vastuullisesti ja näiden ehtojen mukaisesti. Olemme sitoutuneet ylläpitämään turvallista, kunnioittavaa ja tuottavaa ympäristöä kaikille käyttäjille."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Ladataan...",
     "welcomeTitle": "Tervetuloa Semiontiin!",
     "thanksForAccepting": "Kiitos ehtojen hyväksymisestä. Ohjataan sinut sovellukseen...",
-    "welcomeUser": "Tervetuloa Semiontiin, {firstName}!",
+    "welcomeUser": "Tervetuloa Semiontiin, {{firstName}}!",
     "reviewTermsPrompt": "Ennen kuin voit aloittaa Semiontin käytön, tarkista ja hyväksy käyttöehtomme",
     "termsSummaryTitle": "Käyttöehtojen yhteenveto",
     "termsSummaryIntro": "Käyttämällä Semiontia sitoudut:",
@@ -246,9 +246,9 @@
     "archived": "Arkistoidut",
     "created": "Luodut",
     "recentResources": "Viimeisimmät resurssit",
-    "searchResults": "Hakutulokset ({count})",
-    "resourcesTaggedWith": "Resurssit tunnisteella \"{entityType}\"",
-    "noResultsFound": "Tuloksia ei löytynyt haulle \"{query}\". Näytetään viimeisimmät resurssit.",
+    "searchResults": "Hakutulokset ({{count}})",
+    "resourcesTaggedWith": "Resurssit tunnisteella \"{{entityType}}\"",
+    "noResultsFound": "Tuloksia ei löytynyt haulle \"{{query}}\". Näytetään viimeisimmät resurssit.",
     "noResourcesAvailable": "Resursseja ei ole saatavilla. Luo ensimmäinen asiakirjasi aloittaaksesi.",
     "composeFirstResource": "Luo ensimmäinen resurssi",
     "loadingKnowledgeBase": "Ladataan tietokantaa..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Tili",
     "user": "Käyttäjä",
-    "profileAlt": "{name} profiili",
+    "profileAlt": "{{name}} profiili",
     "session": "Istunto",
-    "expiresIn": "Vanhenee: {time}",
+    "expiresIn": "Vanhenee: {{time}}",
     "privileges": "Oikeudet",
     "administrator": "🛡️ Ylläpitäjä",
     "moderator": "⚖️ Moderaattori",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth-asetuksia hallitaan ympäristömuuttujien kautta. Näiden asetusten muuttamiseksi:",
     "configLocalDev": "Paikalliseen kehitykseen: Päivitä .env-tiedostosi",
     "configCloudDeploy": "Pilvikäyttöönottoon: Käytä",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "ottaaksesi muutokset käyttöön asetustiedostoista",
     "configAWS": "AWS:lle: Asetukset tallennetaan AWS Secrets Manageriin ja ECS-tehtävämäärityksiin"
   },
@@ -510,11 +510,11 @@
     "title": "Evästeasetukset",
     "description": "Hallitse evästeasetuksiasi ja yksityisyysasetuksiasi. Muutokset tulevat voimaan välittömästi.",
     "currentSettings": "Nykyiset asetukset",
-    "lastUpdated": "Päivitetty viimeksi: {date}",
-    "version": "Versio: {version}",
+    "lastUpdated": "Päivitetty viimeksi: {{date}}",
+    "version": "Versio: {{version}}",
     "cookieCategories": "Evästekategoriat",
     "required": "(Pakollinen)",
-    "viewCookies": "Näytä evästeet ({count})",
+    "viewCookies": "Näytä evästeet ({{count}})",
     "dataManagement": "Tietojen hallinta",
     "exportMyData": "Vie omat tiedot",
     "deleteAllData": "Poista kaikki tiedot",

@@ -13,7 +13,7 @@
     "administer": "الإدارة"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. جميع الحقوق محفوظة.",
+    "copyright": "© {{year}} Semiont. جميع الحقوق محفوظة.",
     "about": "حول",
     "privacyPolicy": "سياسة الخصوصية",
     "cookiePreferences": "تفضيلات ملفات تعريف الارتباط",
@@ -94,7 +94,7 @@
     "contactAddress": "العنوان:",
     "updatesTitle": "تحديثات هذه السياسة",
     "updates": "قد نقوم بتحديث سياسة الخصوصية هذه من وقت لآخر. سنُعلمك بأي تغييرات جوهرية عن طريق نشر سياسة الخصوصية الجديدة على هذه الصفحة وتحديث تاريخ السريان.",
-    "lastUpdated": "آخر تحديث: {date}"
+    "lastUpdated": "آخر تحديث: {{date}}"
   },
   "Terms": {
     "pageTitle": "شروط الخدمة",
@@ -124,7 +124,7 @@
     "changes": "قد نقوم بتحديث هذه الشروط بشكل دوري. سيتم إخطار المستخدمين بالتغييرات الجوهرية، ويُعتبر الاستمرار في استخدام المنصة قبولًا للشروط المحدثة.",
     "contactTitle": "الاتصال",
     "contact": "إذا كانت لديك أسئلة حول هذه الشروط أو تحتاج إلى الإبلاغ عن انتهاكات، يرجى الاتصال بفريق الدعم لدينا من خلال المنصة أو على معلومات الاتصال المقدمة في سياسة الخصوصية الخاصة بنا.",
-    "lastUpdated": "آخر تحديث: {date}",
+    "lastUpdated": "آخر تحديث: {{date}}",
     "aup": "باستخدامك لـ Semiont، فإنك توافق على استخدام منصتنا بمسؤولية ووفقًا لهذه الشروط. نحن ملتزمون بالحفاظ على بيئة آمنة ومحترمة ومنتجة لجميع المستخدمين."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "جارٍ التحميل...",
     "welcomeTitle": "مرحبًا بك في Semiont!",
     "thanksForAccepting": "شكرًا لقبولك شروطنا. جارٍ إعادة توجيهك إلى التطبيق...",
-    "welcomeUser": "مرحبًا بك في Semiont، {firstName}!",
+    "welcomeUser": "مرحبًا بك في Semiont، {{firstName}}!",
     "reviewTermsPrompt": "قبل أن تتمكن من البدء في استخدام Semiont، يرجى مراجعة شروط الخدمة والموافقة عليها",
     "termsSummaryTitle": "ملخص شروط الخدمة",
     "termsSummaryIntro": "باستخدامك لـ Semiont، فإنك توافق على:",
@@ -246,9 +246,9 @@
     "archived": "مؤرشف",
     "created": "تم الإنشاء",
     "recentResources": "الموارد الحديثة",
-    "searchResults": "نتائج البحث ({count})",
-    "resourcesTaggedWith": "الموارد المُعلَّمة بـ «{entityType}»",
-    "noResultsFound": "لم يتم العثور على نتائج لـ «{query}». عرض الموارد الحديثة بدلًا من ذلك.",
+    "searchResults": "نتائج البحث ({{count}})",
+    "resourcesTaggedWith": "الموارد المُعلَّمة بـ «{{entityType}}»",
+    "noResultsFound": "لم يتم العثور على نتائج لـ «{{query}}». عرض الموارد الحديثة بدلًا من ذلك.",
     "noResourcesAvailable": "لا توجد موارد متاحة. أنشئ أول مستند لك للبدء.",
     "composeFirstResource": "إنشاء أول مورد",
     "loadingKnowledgeBase": "جارٍ تحميل قاعدة المعرفة..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "الحساب",
     "user": "المستخدم",
-    "profileAlt": "الملف الشخصي لـ {name}",
+    "profileAlt": "الملف الشخصي لـ {{name}}",
     "session": "الجلسة",
-    "expiresIn": "تنتهي خلال: {time}",
+    "expiresIn": "تنتهي خلال: {{time}}",
     "privileges": "الصلاحيات",
     "administrator": "🛡️ مدير",
     "moderator": "⚖️ مشرف",
@@ -433,7 +433,7 @@
     "configManagementDescription": "تتم إدارة إعدادات OAuth من خلال متغيرات البيئة. لتعديل هذه الإعدادات:",
     "configLocalDev": "للتطوير المحلي: قم بتحديث ملفات .env الخاصة بك",
     "configCloudDeploy": "للنشر السحابي: استخدم",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "لتطبيق التغييرات من ملفات التكوين",
     "configAWS": "لـ AWS: يتم تخزين الإعدادات في AWS Secrets Manager وتعريفات مهام ECS"
   },
@@ -510,11 +510,11 @@
     "title": "تفضيلات ملفات تعريف الارتباط",
     "description": "إدارة تفضيلات ملفات تعريف الارتباط وإعدادات الخصوصية. ستسري التغييرات فورًا.",
     "currentSettings": "الإعدادات الحالية",
-    "lastUpdated": "آخر تحديث: {date}",
-    "version": "الإصدار: {version}",
+    "lastUpdated": "آخر تحديث: {{date}}",
+    "version": "الإصدار: {{version}}",
     "cookieCategories": "فئات ملفات تعريف الارتباط",
     "required": "(مطلوب)",
-    "viewCookies": "عرض ملفات تعريف الارتباط ({count})",
+    "viewCookies": "عرض ملفات تعريف الارتباط ({{count}})",
     "dataManagement": "إدارة البيانات",
     "exportMyData": "تصدير بياناتي",
     "deleteAllData": "حذف جميع البيانات",

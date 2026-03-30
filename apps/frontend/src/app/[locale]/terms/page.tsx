@@ -1,18 +1,21 @@
-'use client';
-
 import React, { useContext } from 'react';
-import Link from 'next/link';
-import { useTranslations, useLocale } from 'next-intl';
+import { Link } from '@/i18n/routing';
+import { useTranslation } from 'react-i18next';
+import { useLocale } from '@/i18n/routing';
 import { PageLayout } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 
 export default function TermsOfService() {
-  const t = useTranslations('Terms');
-  const tFooter = useTranslations('Footer');
-  const tNav = useTranslations('Navigation');
-  const tHome = useTranslations('Home');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Terms.${k}`, p as any) as string;
+  const { t: _tFooter } = useTranslation();
+  const tFooter = (k: string, p?: Record<string, unknown>) => _tFooter(`Footer.${k}`, p as any) as string;
+  const { t: _tNav } = useTranslation();
+  const tNav = (k: string, p?: Record<string, unknown>) => _tNav(`Navigation.${k}`, p as any) as string;
+  const { t: _tHome } = useTranslation();
+  const tHome = (k: string, p?: Record<string, unknown>) => _tHome(`Home.${k}`, p as any) as string;
   const locale = useLocale();
   const keyboardContext = useContext(KeyboardShortcutsContext);
 
@@ -88,7 +91,7 @@ export default function TermsOfService() {
             <h3>{t('privacyTitle')}</h3>
             <p>
               {t('privacy').split(t('privacyLink'))[0]}
-              <Link href={`/${locale}/privacy`} className="semiont-static-link">
+              <Link to={`/${locale}/privacy`} className="semiont-static-link">
                 {t('privacyLink')}
               </Link>
               {t('privacy').split(t('privacyLink'))[1]}

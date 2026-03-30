@@ -1,6 +1,6 @@
 # Semiont Frontend
 
-A type-safe React frontend built with Next.js 14, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered annotation detection and generation.
+A type-safe React SPA built with Vite + React Router, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered annotation detection and generation.
 
 ## Overview
 
@@ -70,23 +70,19 @@ docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
 # Run frontend container
 docker run -d \
   -p 3000:3000 \
-  -e SERVER_API_URL=http://localhost:4000 \
-  -e NEXTAUTH_URL=http://localhost:3000 \
-  -e NEXTAUTH_SECRET=your-secret-min-32-chars \
+  -e SEMIONT_BACKEND_URL=http://localhost:4000 \
   --name semiont-frontend \
   ghcr.io/the-ai-alliance/semiont-frontend:dev
 ```
 
 **Required Environment Variables:**
-- `SERVER_API_URL` - Backend API URL (e.g., `http://localhost:4000`)
-- `NEXTAUTH_URL` - Frontend URL for NextAuth callbacks (e.g., `http://localhost:3000`)
-- `NEXTAUTH_SECRET` - Secret for NextAuth session encryption (min 32 characters)
-- `NEXT_PUBLIC_SITE_NAME` - Site name displayed in UI (default: "Semiont")
+- `SEMIONT_BACKEND_URL` - Backend API URL (e.g., `http://localhost:4000`)
+- `SEMIONT_SITE_NAME` - Site name displayed in UI (default: "Semiont")
 
 **Optional Environment Variables:**
-- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - Google OAuth client ID for authentication
-- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
-- `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable email/password credentials authentication (default: false)
+- `SEMIONT_GOOGLE_CLIENT_ID` - Google OAuth client ID for authentication
+- `SEMIONT_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
+- `SEMIONT_ENABLE_LOCAL_AUTH` - Enable email/password credentials authentication (default: false)
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
@@ -94,10 +90,10 @@ docker run -d \
 
 ## Technology Stack
 
-- **Framework**: [Next.js 14](https://nextjs.org/) with App Router
+- **Framework**: [Vite](https://vitejs.dev/) + [React Router v7](https://reactrouter.com/)
 - **UI**: React 18 with TypeScript
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Authentication**: [NextAuth.js](https://next-auth.js.org/) with Google OAuth (server-side only, browser calls backend directly)
+- **i18n**: [i18next](https://www.i18next.com/) + react-i18next
 - **State Management**: [TanStack Query](https://tanstack.com/query) (React Query)
 - **API Client**: Type-safe client generated from OpenAPI spec
 - **Testing**: [Vitest](https://vitest.dev/) + React Testing Library + [MSW v2](https://mswjs.io/)
@@ -117,16 +113,16 @@ The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework
 - **React Query Hooks**: Type-safe API integration hooks
 - **Built-in Translations**: English and Spanish included with dynamic loading
 
-The library is framework-independent, accepting framework-specific implementations (like Link components) as props. This allows the same components to work with Next.js, Vite, or any React framework.
+The library is framework-independent, accepting framework-specific implementations (like Link components) as props. This allows the same components to work with Vite, or any React framework.
 
 ### Internationalization
 
 The frontend supports multiple languages through a hybrid approach:
 
-- **Frontend-specific translations**: Managed via `next-intl` in `messages/*.json`
-- **Component translations**: Provided by `@semiont/react-ui` with English and Spanish built-in
-- **Dynamic loading**: Non-English locales are loaded on-demand for optimal bundle size
-- **Unified translation manager**: Bridges next-intl with react-ui translations
+- **Frontend-specific translations**: `apps/frontend/messages-source/*.json` (source of truth)
+- **Component translations**: `packages/react-ui/translations/*.json` (source of truth)
+- **Generated output**: `scripts/merge-translations.js` merges both into `messages/` and `public/messages/` before every build/test/dev run
+- **Dynamic loading**: Non-English locales are loaded on-demand via `i18next-http-backend`
 
 Current supported languages:
 - English (en)
@@ -139,14 +135,17 @@ Current supported languages:
 
 ```
 src/
-├── app/                # Next.js 14 App Router
-│   ├── auth/          # Authentication routes
-│   ├── know/          # Document management routes
-│   ├── moderate/      # Moderation routes
-│   └── admin/         # Admin routes
+├── App.tsx             # React Router route tree
+├── main.tsx            # Entry point
+├── app/[locale]/       # Locale-prefixed page components
+│   ├── auth/          # Authentication pages
+│   ├── know/          # Document management pages
+│   ├── moderate/      # Moderation pages
+│   └── admin/         # Admin pages
 ├── components/         # Reusable UI components
 ├── hooks/             # Custom React hooks
-├── lib/               # Core utilities and API client
+├── i18n/              # i18next config and routing wrappers
+├── lib/               # Core utilities
 ├── mocks/             # MSW mock handlers
 └── types/             # TypeScript type definitions
 ```
@@ -296,13 +295,14 @@ We welcome contributions! Please read:
 - [CLI README](../cli/README.md) - Command-line interface
 
 ### External Resources
-- [Next.js 14 Documentation](https://nextjs.org/docs)
-- [NextAuth.js Documentation](https://next-auth.js.org/)
+- [Vite Documentation](https://vitejs.dev/)
+- [React Router v7 Documentation](https://reactrouter.com/)
+- [i18next Documentation](https://www.i18next.com/)
 - [TanStack Query Documentation](https://tanstack.com/query)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/)
 
 ---
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-03-29
 **For Help**: See [Documentation](./docs/) or file an issue

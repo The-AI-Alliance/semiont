@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Alla rättigheter förbehållna.",
+    "copyright": "© {{year}} Semiont. Alla rättigheter förbehållna.",
     "about": "Om",
     "privacyPolicy": "Integritetspolicy",
     "cookiePreferences": "Cookieinställningar",
@@ -94,7 +94,7 @@
     "contactAddress": "Adress:",
     "updatesTitle": "Uppdateringar av denna policy",
     "updates": "Vi kan komma att uppdatera denna integritetspolicy från tid till annan. Vi kommer att meddela dig om väsentliga ändringar genom att publicera den nya integritetspolicyn på denna sida och uppdatera ikraftträdandedatumet.",
-    "lastUpdated": "Senast uppdaterad: {date}"
+    "lastUpdated": "Senast uppdaterad: {{date}}"
   },
   "Terms": {
     "pageTitle": "Användarvillkor",
@@ -124,7 +124,7 @@
     "changes": "Vi kan komma att uppdatera dessa villkor regelbundet. Användare kommer att meddelas om betydande ändringar, och fortsatt användning av plattformen utgör godkännande av uppdaterade villkor.",
     "contactTitle": "Kontakt",
     "contact": "Om du har frågor om dessa villkor eller behöver rapportera överträdelser, vänligen kontakta vårt supportteam via plattformen eller på kontaktinformationen som anges i vår integritetspolicy.",
-    "lastUpdated": "Senast uppdaterad: {date}",
+    "lastUpdated": "Senast uppdaterad: {{date}}",
     "aup": "Genom att använda Semiont samtycker du till att använda vår plattform ansvarsfullt och i enlighet med dessa villkor. Vi är engagerade i att upprätthålla en säker, respektfull och produktiv miljö för alla användare."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Laddar...",
     "welcomeTitle": "Välkommen till Semiont!",
     "thanksForAccepting": "Tack för att du godkände våra villkor. Omdirigerar dig till appen...",
-    "welcomeUser": "Välkommen till Semiont, {firstName}!",
+    "welcomeUser": "Välkommen till Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Innan du kan börja använda Semiont, vänligen granska och godkänn våra användarvillkor",
     "termsSummaryTitle": "Sammanfattning av användarvillkoren",
     "termsSummaryIntro": "Genom att använda Semiont samtycker du till att:",
@@ -246,9 +246,9 @@
     "archived": "Arkiverade",
     "created": "Skapade",
     "recentResources": "Senaste resurser",
-    "searchResults": "Sökresultat ({count})",
-    "resourcesTaggedWith": "Resurser taggade med «{entityType}»",
-    "noResultsFound": "Inga resultat hittades för «{query}». Visar senaste resurser istället.",
+    "searchResults": "Sökresultat ({{count}})",
+    "resourcesTaggedWith": "Resurser taggade med «{{entityType}}»",
+    "noResultsFound": "Inga resultat hittades för «{{query}}». Visar senaste resurser istället.",
     "noResourcesAvailable": "Inga resurser tillgängliga. Skapa ditt första dokument för att komma igång.",
     "composeFirstResource": "Skapa första resursen",
     "loadingKnowledgeBase": "Laddar kunskapsbas..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Konto",
     "user": "Användare",
-    "profileAlt": "{name} profil",
+    "profileAlt": "{{name}} profil",
     "session": "Session",
-    "expiresIn": "Upphör om: {time}",
+    "expiresIn": "Upphör om: {{time}}",
     "privileges": "Behörigheter",
     "administrator": "🛡️ Administratör",
     "moderator": "⚖️ Moderator",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth-inställningar hanteras via miljövariabler. För att ändra dessa inställningar:",
     "configLocalDev": "För lokal utveckling: Uppdatera dina .env-filer",
     "configCloudDeploy": "För molndistribution: Använd",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "för att tillämpa ändringar från konfigurationsfiler",
     "configAWS": "För AWS: Inställningar lagras i AWS Secrets Manager och ECS-uppgiftsdefinitioner"
   },
@@ -510,11 +510,11 @@
     "title": "Cookieinställningar",
     "description": "Hantera dina cookieinställningar och integritetsinställningar. Ändringar träder i kraft omedelbart.",
     "currentSettings": "Nuvarande inställningar",
-    "lastUpdated": "Senast uppdaterad: {date}",
-    "version": "Version: {version}",
+    "lastUpdated": "Senast uppdaterad: {{date}}",
+    "version": "Version: {{version}}",
     "cookieCategories": "Cookiekategorier",
     "required": "(Krävs)",
-    "viewCookies": "Visa cookies ({count})",
+    "viewCookies": "Visa cookies ({{count}})",
     "dataManagement": "Datahantering",
     "exportMyData": "Exportera min data",
     "deleteAllData": "Radera all data",

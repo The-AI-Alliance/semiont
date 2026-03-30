@@ -13,7 +13,7 @@
     "administer": "Yönetim"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Tüm hakları saklıdır.",
+    "copyright": "© {{year}} Semiont. Tüm hakları saklıdır.",
     "about": "Hakkında",
     "privacyPolicy": "Gizlilik Politikası",
     "cookiePreferences": "Çerez Tercihleri",
@@ -94,7 +94,7 @@
     "contactAddress": "Adres:",
     "updatesTitle": "Bu Politikadaki Güncellemeler",
     "updates": "Bu Gizlilik Politikasını zaman zaman güncelleyebiliriz. Önemli değişiklikleri, yeni Gizlilik Politikasını bu sayfada yayınlayarak ve yürürlük tarihini güncelleyerek size bildireceğiz.",
-    "lastUpdated": "Son güncelleme: {date}"
+    "lastUpdated": "Son güncelleme: {{date}}"
   },
   "Terms": {
     "pageTitle": "Hizmet Şartları",
@@ -124,7 +124,7 @@
     "changes": "Bu şartları periyodik olarak güncelleyebiliriz. Önemli değişiklikler kullanıcılara bildirilecek olup platformun sürekli kullanımı güncellenmiş şartların kabulü anlamına gelir.",
     "contactTitle": "İletişim",
     "contact": "Bu şartlar hakkında sorularınız varsa veya ihlalleri bildirmeniz gerekiyorsa, lütfen platform üzerinden veya Gizlilik Politikamızda sağlanan iletişim bilgileri aracılığıyla destek ekibimizle iletişime geçin.",
-    "lastUpdated": "Son güncelleme: {date}",
+    "lastUpdated": "Son güncelleme: {{date}}",
     "aup": "Semiont'u kullanarak, platformumuzu sorumlu bir şekilde ve bu şartlara uygun olarak kullanmayı kabul edersiniz. Tüm kullanıcılar için güvenli, saygılı ve üretken bir ortam sağlamaya kararlıyız."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Yükleniyor...",
     "welcomeTitle": "Semiont'a Hoş Geldiniz!",
     "thanksForAccepting": "Şartlarımızı kabul ettiğiniz için teşekkürler. Uygulamaya yönlendiriliyorsunuz...",
-    "welcomeUser": "Semiont'a Hoş Geldiniz, {firstName}!",
+    "welcomeUser": "Semiont'a Hoş Geldiniz, {{firstName}}!",
     "reviewTermsPrompt": "Semiont'u kullanmaya başlamadan önce lütfen hizmet şartlarımızı inceleyin ve kabul edin",
     "termsSummaryTitle": "Hizmet Şartları Özeti",
     "termsSummaryIntro": "Semiont'u kullanarak şunları kabul edersiniz:",
@@ -246,9 +246,9 @@
     "archived": "Arşivlenmiş",
     "created": "Oluşturulmuş",
     "recentResources": "Son Kaynaklar",
-    "searchResults": "Arama Sonuçları ({count})",
-    "resourcesTaggedWith": "«{entityType}» ile etiketlenen kaynaklar",
-    "noResultsFound": "«{query}» için sonuç bulunamadı. Bunun yerine son kaynaklar gösteriliyor.",
+    "searchResults": "Arama Sonuçları ({{count}})",
+    "resourcesTaggedWith": "«{{entityType}}» ile etiketlenen kaynaklar",
+    "noResultsFound": "«{{query}}» için sonuç bulunamadı. Bunun yerine son kaynaklar gösteriliyor.",
     "noResourcesAvailable": "Kullanılabilir kaynak yok. Başlamak için ilk belgenizi oluşturun.",
     "composeFirstResource": "İlk Kaynağı Oluştur",
     "loadingKnowledgeBase": "Bilgi tabanı yükleniyor..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Hesap",
     "user": "Kullanıcı",
-    "profileAlt": "{name} profili",
+    "profileAlt": "{{name}} profili",
     "session": "Oturum",
-    "expiresIn": "Süre: {time}",
+    "expiresIn": "Süre: {{time}}",
     "privileges": "Yetkiler",
     "administrator": "🛡️ Yönetici",
     "moderator": "⚖️ Moderatör",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth ayarları ortam değişkenleri aracılığıyla yönetilir. Bu ayarları değiştirmek için:",
     "configLocalDev": "Yerel geliştirme için: .env dosyalarınızı güncelleyin",
     "configCloudDeploy": "Bulut dağıtımları için:",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "komutunu kullanarak yapılandırma dosyalarındaki değişiklikleri uygulayın",
     "configAWS": "AWS için: Ayarlar AWS Secrets Manager ve ECS görev tanımlarında saklanır"
   },
@@ -510,11 +510,11 @@
     "title": "Çerez Tercihleri",
     "description": "Çerez tercihlerinizi ve gizlilik ayarlarınızı yönetin. Değişiklikler hemen geçerli olacaktır.",
     "currentSettings": "Mevcut Ayarlar",
-    "lastUpdated": "Son güncelleme: {date}",
-    "version": "Sürüm: {version}",
+    "lastUpdated": "Son güncelleme: {{date}}",
+    "version": "Sürüm: {{version}}",
     "cookieCategories": "Çerez Kategorileri",
     "required": "(Zorunlu)",
-    "viewCookies": "Çerezleri görüntüle ({count})",
+    "viewCookies": "Çerezleri görüntüle ({{count}})",
     "dataManagement": "Veri Yönetimi",
     "exportMyData": "Verilerimi Dışa Aktar",
     "deleteAllData": "Tüm Verileri Sil",

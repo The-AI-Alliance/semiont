@@ -13,7 +13,7 @@
     "administer": "Verwaltung"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Alle Rechte vorbehalten.",
+    "copyright": "© {{year}} Semiont. Alle Rechte vorbehalten.",
     "about": "Über uns",
     "privacyPolicy": "Datenschutzrichtlinie",
     "cookiePreferences": "Cookie-Einstellungen",
@@ -94,7 +94,7 @@
     "contactAddress": "Adresse:",
     "updatesTitle": "Aktualisierungen dieser Richtlinie",
     "updates": "Wir können diese Datenschutzrichtlinie von Zeit zu Zeit aktualisieren. Über wesentliche Änderungen informieren wir Sie, indem wir die neue Datenschutzrichtlinie auf dieser Seite veröffentlichen und das Datum der letzten Aktualisierung anpassen.",
-    "lastUpdated": "Zuletzt aktualisiert: {date}"
+    "lastUpdated": "Zuletzt aktualisiert: {{date}}"
   },
   "Terms": {
     "pageTitle": "Nutzungsbedingungen",
@@ -124,7 +124,7 @@
     "changes": "Wir können diese Bedingungen regelmäßig aktualisieren. Benutzer werden über wesentliche Änderungen informiert, und die weitere Nutzung der Plattform gilt als Zustimmung zu den aktualisierten Bedingungen.",
     "contactTitle": "Kontakt",
     "contact": "Wenn Sie Fragen zu diesen Bedingungen haben oder Verstöße melden möchten, wenden Sie sich bitte über die Plattform oder die in unserer Datenschutzrichtlinie angegebenen Kontaktdaten an unser Support-Team.",
-    "lastUpdated": "Zuletzt aktualisiert: {date}",
+    "lastUpdated": "Zuletzt aktualisiert: {{date}}",
     "aup": "Durch die Nutzung von Semiont erklären Sie sich damit einverstanden, unsere Plattform verantwortungsvoll und im Einklang mit diesen Bedingungen zu nutzen. Wir setzen uns für eine sichere, respektvolle und produktive Umgebung für alle Benutzer ein."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Wird geladen...",
     "welcomeTitle": "Willkommen bei Semiont!",
     "thanksForAccepting": "Vielen Dank für die Annahme unserer Bedingungen. Sie werden zur Anwendung weitergeleitet...",
-    "welcomeUser": "Willkommen bei Semiont, {firstName}!",
+    "welcomeUser": "Willkommen bei Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Bevor Sie Semiont nutzen können, lesen und akzeptieren Sie bitte unsere Nutzungsbedingungen",
     "termsSummaryTitle": "Zusammenfassung der Nutzungsbedingungen",
     "termsSummaryIntro": "Durch die Nutzung von Semiont stimmen Sie zu:",
@@ -246,9 +246,9 @@
     "archived": "Archiviert",
     "created": "Erstellt",
     "recentResources": "Neueste Ressourcen",
-    "searchResults": "Suchergebnisse ({count})",
-    "resourcesTaggedWith": "Ressourcen mit Tag \"{entityType}\"",
-    "noResultsFound": "Keine Ergebnisse für \"{query}\" gefunden. Stattdessen werden neueste Ressourcen angezeigt.",
+    "searchResults": "Suchergebnisse ({{count}})",
+    "resourcesTaggedWith": "Ressourcen mit Tag \"{{entityType}}\"",
+    "noResultsFound": "Keine Ergebnisse für \"{{query}}\" gefunden. Stattdessen werden neueste Ressourcen angezeigt.",
     "noResourcesAvailable": "Keine Ressourcen verfügbar. Erstellen Sie Ihr erstes Dokument, um zu beginnen.",
     "composeFirstResource": "Erste Ressource erstellen",
     "loadingKnowledgeBase": "Wissensdatenbank wird geladen..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Konto",
     "user": "Benutzer",
-    "profileAlt": "Profil von {name}",
+    "profileAlt": "Profil von {{name}}",
     "session": "Sitzung",
-    "expiresIn": "Läuft ab in: {time}",
+    "expiresIn": "Läuft ab in: {{time}}",
     "privileges": "Berechtigungen",
     "administrator": "🛡️ Administrator",
     "moderator": "⚖️ Moderator",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth-Einstellungen werden über Umgebungsvariablen verwaltet. So ändern Sie diese Einstellungen:",
     "configLocalDev": "Für lokale Entwicklung: Aktualisieren Sie Ihre .env-Dateien",
     "configCloudDeploy": "Für Cloud-Deployments: Verwenden Sie",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "um Änderungen aus Konfigurationsdateien anzuwenden",
     "configAWS": "Für AWS: Einstellungen werden im AWS Secrets Manager und in ECS-Aufgabendefinitionen gespeichert"
   },
@@ -510,11 +510,11 @@
     "title": "Cookie-Einstellungen",
     "description": "Verwalten Sie Ihre Cookie-Einstellungen und Datenschutzpräferenzen. Änderungen werden sofort wirksam.",
     "currentSettings": "Aktuelle Einstellungen",
-    "lastUpdated": "Zuletzt aktualisiert: {date}",
-    "version": "Version: {version}",
+    "lastUpdated": "Zuletzt aktualisiert: {{date}}",
+    "version": "Version: {{version}}",
     "cookieCategories": "Cookie-Kategorien",
     "required": "(Erforderlich)",
-    "viewCookies": "Cookies anzeigen ({count})",
+    "viewCookies": "Cookies anzeigen ({{count}})",
     "dataManagement": "Datenverwaltung",
     "exportMyData": "Meine Daten exportieren",
     "deleteAllData": "Alle Daten löschen",

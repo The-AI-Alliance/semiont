@@ -340,6 +340,54 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
 });
 
 /**
+ * GET /api/tokens/mcp-setup?callback=...
+ *
+ * MCP CLI Token Setup - Browser-initiated flow that reads the httpOnly semiont-token
+ * cookie, generates a long-lived MCP refresh token, and redirects to the CLI callback URL.
+ * Requires authentication (cookie or Bearer).
+ */
+authRouter.get('/api/tokens/mcp-setup', authMiddleware, async (c) => {
+  const callback = c.req.query('callback');
+
+  if (!callback) {
+    return c.json({ error: 'Callback URL required' }, 400);
+  }
+
+  // Allow only localhost callbacks (following Google OAuth pattern for CLI auth)
+  const allowedCallbackPatterns = [
+    /^http:\/\/localhost:\d+\/.*$/,
+    /^http:\/\/127\.0\.0\.1:\d+\/.*$/,
+    /^http:\/\/\[::1\]:\d+\/.*$/,
+  ];
+
+  if (!allowedCallbackPatterns.some(p => p.test(callback))) {
+    return c.json({ error: 'Invalid callback URL. Must be a localhost URL for CLI authentication.' }, 400);
+  }
+
+  const user = c.get('user');
+
+  try {
+    const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
+      userId: makeUserId(user.id),
+      email: makeEmail(user.email),
+      domain: user.domain,
+      provider: user.provider,
+      isAdmin: user.isAdmin,
+      ...(user.name && { name: user.name })
+    };
+    const refreshToken = JWTService.generateToken(tokenPayload, '30d');
+
+    return c.redirect(`${callback}?token=${refreshToken}`, 302);
+  } catch (error) {
+    getRouteLogger().error('MCP setup error', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return c.json({ error: 'Failed to generate refresh token' }, 500);
+  }
+});
+
+/**
  * POST /api/tokens/mcp-generate
  *
  * Generate MCP Token - Generate a short-lived token for MCP server
@@ -410,4 +458,92 @@ authRouter.post('/api/users/logout', authMiddleware, async (c) => {
     success: true,
     message: 'Logged out successfully',
   }, 200);
+});
+
+/**
+ * GET /api/cookies/consent
+ *
+ * Get current user's cookie consent preferences.
+ * Requires authentication.
+ */
+authRouter.get('/api/cookies/consent', authMiddleware, async (c) => {
+  return c.json({
+    success: true,
+    consent: {
+      necessary: true,
+      analytics: false,
+      marketing: false,
+      preferences: false,
+      timestamp: new Date().toISOString(),
+      version: '1.0'
+    }
+  });
+});
+
+/**
+ * POST /api/cookies/consent
+ *
+ * Update user's cookie consent preferences.
+ * Requires authentication.
+ */
+authRouter.post('/api/cookies/consent', authMiddleware, async (c) => {
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ success: false, error: 'Invalid JSON' }, 400);
+  }
+
+  if (typeof body.necessary !== 'boolean' ||
+      typeof body.analytics !== 'boolean' ||
+      typeof body.marketing !== 'boolean' ||
+      typeof body.preferences !== 'boolean') {
+    return c.json({ success: false, error: 'Invalid consent data' }, 400);
+  }
+
+  if (!body.necessary) {
+    return c.json({ success: false, error: 'Necessary cookies cannot be disabled' }, 400);
+  }
+
+  return c.json({
+    success: true,
+    consent: {
+      necessary: body.necessary,
+      analytics: body.analytics,
+      marketing: body.marketing,
+      preferences: body.preferences,
+      timestamp: new Date().toISOString(),
+      version: '1.0'
+    }
+  });
+});
+
+/**
+ * GET /api/cookies/export
+ *
+ * Export user's cookie data for GDPR compliance.
+ * Requires authentication.
+ */
+authRouter.get('/api/cookies/export', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  const exportData = {
+    user: {
+      id: user.id,
+      email: user.email,
+    },
+    consent: {
+      necessary: true,
+      analytics: false,
+      marketing: false,
+      preferences: false,
+      timestamp: new Date().toISOString(),
+      version: '1.0'
+    },
+    exportDate: new Date().toISOString(),
+    dataRetentionPolicy: 'Cookie consent data is retained for 2 years from last update or until explicitly withdrawn.'
+  };
+
+  c.header('Content-Disposition', `attachment; filename="cookie-data-export-${Date.now()}.json"`);
+  return c.json(exportData);
 });

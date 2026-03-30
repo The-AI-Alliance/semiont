@@ -1,7 +1,5 @@
-'use client';
-
 import React, { useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -25,7 +23,8 @@ interface KnowledgeNavigationProps {
 }
 
 export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: KnowledgeNavigationProps) {
-  const t = useTranslations('Sidebar');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
   const pathname = usePathname();
   const router = useRouter();
   const { openResources, removeResource, reorderResources } = useOpenResources();

@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * DevOps Page - Thin Next.js wrapper
  *
@@ -7,7 +5,7 @@
  * and delegates rendering to the pure React AdminDevOpsPage component.
  */
 
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useCallback } from 'react';
 import {
   ChartBarIcon,
@@ -33,7 +31,8 @@ function StatusDisplayWithAuth() {
 }
 
 export default function DevOpsPage() {
-  const t = useTranslations('AdminDevOps');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AdminDevOps.${k}`, p as any) as string;
 
   // Toolbar and settings state
   const { activePanel } = usePanelBrowse();

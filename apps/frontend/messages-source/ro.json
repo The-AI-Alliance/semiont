@@ -13,7 +13,7 @@
     "administer": "Administrare"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. Toate drepturile rezervate.",
+    "copyright": "© {{year}} Semiont. Toate drepturile rezervate.",
     "about": "Despre",
     "privacyPolicy": "Politica de confidențialitate",
     "cookiePreferences": "Preferințe cookie-uri",
@@ -94,7 +94,7 @@
     "contactAddress": "Adresă:",
     "updatesTitle": "Actualizări ale acestei politici",
     "updates": "Este posibil să actualizăm această politică de confidențialitate din când în când. Vă vom notifica despre orice modificări semnificative prin publicarea noii politici de confidențialitate pe această pagină și actualizarea datei efective.",
-    "lastUpdated": "Ultima actualizare: {date}"
+    "lastUpdated": "Ultima actualizare: {{date}}"
   },
   "Terms": {
     "pageTitle": "Termeni și condiții",
@@ -124,7 +124,7 @@
     "changes": "Este posibil să actualizăm periodic acești termeni. Utilizatorii vor fi notificați cu privire la modificările semnificative, iar utilizarea continuă a platformei constituie acceptarea termenilor actualizați.",
     "contactTitle": "Contact",
     "contact": "Dacă aveți întrebări despre acești termeni sau trebuie să raportați încălcări, vă rugăm să contactați echipa noastră de asistență prin intermediul platformei sau la informațiile de contact furnizate în politica noastră de confidențialitate.",
-    "lastUpdated": "Ultima actualizare: {date}",
+    "lastUpdated": "Ultima actualizare: {{date}}",
     "aup": "Prin utilizarea Semiont, sunteți de acord să utilizați platforma noastră în mod responsabil și în conformitate cu acești termeni. Ne angajăm să menținem un mediu sigur, respectuos și productiv pentru toți utilizatorii."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "Se încarcă...",
     "welcomeTitle": "Bun venit la Semiont!",
     "thanksForAccepting": "Mulțumim pentru acceptarea termenilor noștri. Te redirecționăm către aplicație...",
-    "welcomeUser": "Bun venit la Semiont, {firstName}!",
+    "welcomeUser": "Bun venit la Semiont, {{firstName}}!",
     "reviewTermsPrompt": "Înainte de a putea începe să utilizezi Semiont, te rugăm să revizuiești și să accepți termenii și condițiile noastre",
     "termsSummaryTitle": "Rezumatul termenilor și condițiilor",
     "termsSummaryIntro": "Prin utilizarea Semiont, ești de acord cu:",
@@ -246,9 +246,9 @@
     "archived": "Arhivate",
     "created": "Create",
     "recentResources": "Resurse recente",
-    "searchResults": "Rezultate căutare ({count})",
-    "resourcesTaggedWith": "Resurse etichetate cu «{entityType}»",
-    "noResultsFound": "Niciun rezultat găsit pentru «{query}». Se afișează resursele recente în schimb.",
+    "searchResults": "Rezultate căutare ({{count}})",
+    "resourcesTaggedWith": "Resurse etichetate cu «{{entityType}}»",
+    "noResultsFound": "Niciun rezultat găsit pentru «{{query}}». Se afișează resursele recente în schimb.",
     "noResourcesAvailable": "Nu sunt resurse disponibile. Creează primul tău document pentru a începe.",
     "composeFirstResource": "Compune prima resursă",
     "loadingKnowledgeBase": "Se încarcă baza de cunoștințe..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "Cont",
     "user": "Utilizator",
-    "profileAlt": "Profil {name}",
+    "profileAlt": "Profil {{name}}",
     "session": "Sesiune",
-    "expiresIn": "Expiră în: {time}",
+    "expiresIn": "Expiră în: {{time}}",
     "privileges": "Privilegii",
     "administrator": "🛡️ Administrator",
     "moderator": "⚖️ Moderator",
@@ -433,7 +433,7 @@
     "configManagementDescription": "Setările OAuth sunt gestionate prin variabile de mediu. Pentru a modifica aceste setări:",
     "configLocalDev": "Pentru dezvoltare locală: Actualizați fișierele .env",
     "configCloudDeploy": "Pentru implementări cloud: Utilizați",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "pentru a aplica modificările din fișierele de configurare",
     "configAWS": "Pentru AWS: Setările sunt stocate în AWS Secrets Manager și definițiile sarcinilor ECS"
   },
@@ -510,11 +510,11 @@
     "title": "Preferințe cookie-uri",
     "description": "Gestionați preferințele dvs. de cookie-uri și setările de confidențialitate. Modificările vor intra în vigoare imediat.",
     "currentSettings": "Setări curente",
-    "lastUpdated": "Ultima actualizare: {date}",
-    "version": "Versiune: {version}",
+    "lastUpdated": "Ultima actualizare: {{date}}",
+    "version": "Versiune: {{version}}",
     "cookieCategories": "Categorii de cookie-uri",
     "required": "(Obligatoriu)",
-    "viewCookies": "Vizualizează cookie-urile ({count})",
+    "viewCookies": "Vizualizează cookie-urile ({{count}})",
     "dataManagement": "Gestionarea datelor",
     "exportMyData": "Exportă datele mele",
     "deleteAllData": "Șterge toate datele",

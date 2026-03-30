@@ -19,6 +19,8 @@ const path = require('path');
 const REACT_UI_TRANSLATIONS_DIR = path.resolve(__dirname, '../../../packages/react-ui/translations');
 const FRONTEND_MESSAGES_SOURCE_DIR = path.resolve(__dirname, '../messages-source');
 const FRONTEND_MESSAGES_OUTPUT_DIR = path.resolve(__dirname, '../messages');
+// Public copy served by Vite at /messages/{locale}.json for i18next-http-backend
+const FRONTEND_MESSAGES_PUBLIC_DIR = path.resolve(__dirname, '../public/messages');
 
 /**
  * Deep merge two objects, with source taking precedence
@@ -60,9 +62,12 @@ function getTranslationFiles(dir) {
  * Main merge function
  */
 function mergeTranslations() {
-  // Ensure output directory exists
+  // Ensure output directories exist
   if (!fs.existsSync(FRONTEND_MESSAGES_OUTPUT_DIR)) {
     fs.mkdirSync(FRONTEND_MESSAGES_OUTPUT_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(FRONTEND_MESSAGES_PUBLIC_DIR)) {
+    fs.mkdirSync(FRONTEND_MESSAGES_PUBLIC_DIR, { recursive: true });
   }
 
   // Get all react-ui translation files
@@ -91,20 +96,18 @@ function mergeTranslations() {
       const frontendContent = frontendMessages.get(reactUIFile.locale);
       const merged = deepMerge(reactUIContent, frontendContent);
 
+      const content = JSON.stringify(merged, null, 2) + '\n';
       // Write merged content to output directory
-      fs.writeFileSync(
-        outputPath,
-        JSON.stringify(merged, null, 2) + '\n',
-        'utf-8'
-      );
+      fs.writeFileSync(outputPath, content, 'utf-8');
+      // Also write to public/messages/ for Vite / i18next-http-backend
+      fs.writeFileSync(path.join(FRONTEND_MESSAGES_PUBLIC_DIR, `${reactUIFile.locale}.json`), content, 'utf-8');
       mergedCount++;
     } else {
+      const content = JSON.stringify(reactUIContent, null, 2) + '\n';
       // Create output file from react-ui translations only
-      fs.writeFileSync(
-        outputPath,
-        JSON.stringify(reactUIContent, null, 2) + '\n',
-        'utf-8'
-      );
+      fs.writeFileSync(outputPath, content, 'utf-8');
+      // Also write to public/messages/ for Vite / i18next-http-backend
+      fs.writeFileSync(path.join(FRONTEND_MESSAGES_PUBLIC_DIR, `${reactUIFile.locale}.json`), content, 'utf-8');
       createdCount++;
     }
   }

@@ -1,18 +1,20 @@
-'use client';
-
 import React, { useContext } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { PageLayout, buttonStyles } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
 
 export default function AboutPage() {
-  const t = useTranslations('About');
-  const tFooter = useTranslations('Footer');
-  const tNav = useTranslations('Navigation');
-  const tHome = useTranslations('Home');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`About.${k}`, p as any) as string;
+  const { t: _tFooter } = useTranslation();
+  const tFooter = (k: string, p?: Record<string, unknown>) => _tFooter(`Footer.${k}`, p as any) as string;
+  const { t: _tNav } = useTranslation();
+  const tNav = (k: string, p?: Record<string, unknown>) => _tNav(`Navigation.${k}`, p as any) as string;
+  const { t: _tHome } = useTranslation();
+  const tHome = (k: string, p?: Record<string, unknown>) => _tHome(`Home.${k}`, p as any) as string;
   const keyboardContext = useContext(KeyboardShortcutsContext);
 
   return (
@@ -42,13 +44,13 @@ export default function AboutPage() {
           {/* Action Buttons */}
           <div className="semiont-static-action-buttons">
             <Link
-              href="/auth/signup"
+              to="/auth/signup"
               className={buttonStyles.primary.base}
             >
               {t('signUp')}
             </Link>
             <Link
-              href="/auth/signin?callbackUrl=/know"
+              to="/auth/signin?callbackUrl=/know"
               className={buttonStyles.primary.base}
             >
               {t('signIn')}

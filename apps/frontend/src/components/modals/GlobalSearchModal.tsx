@@ -1,9 +1,7 @@
-'use client';
-
 import React from 'react';
 import { useRouter } from '@/i18n/routing';
 import { SearchModal } from '@semiont/react-ui';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -12,7 +10,8 @@ interface GlobalSearchModalProps {
 
 export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const router = useRouter();
-  const t = useTranslations('Search');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`Search.${k}`, p as any) as string;
 
   const handleNavigate = (type: 'resource' | 'entity', id: string) => {
     if (type === 'resource') {

@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Welcome Page - Thin Next.js wrapper
  *
@@ -11,13 +9,14 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useRouter } from '@/i18n/routing';
-import { useTranslations } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { PageLayout, useToast, useAuthApi } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
 
 export default function Welcome() {
-  const t = useTranslations('AuthWelcome');
+  const { t: _t } = useTranslation();
+  const t = (k: string, p?: Record<string, unknown>) => _t(`AuthWelcome.${k}`, p as any) as string;
   const { isAuthenticated, isLoading, user } = useAuth();
   const { clearSession } = useAuthContext();
   const router = useRouter();

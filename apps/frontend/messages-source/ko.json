@@ -13,7 +13,7 @@
     "administer": "관리"
   },
   "Footer": {
-    "copyright": "© {year} Semiont. 모든 권리 보유.",
+    "copyright": "© {{year}} Semiont. 모든 권리 보유.",
     "about": "소개",
     "privacyPolicy": "개인정보 처리방침",
     "cookiePreferences": "쿠키 설정",
@@ -94,7 +94,7 @@
     "contactAddress": "주소:",
     "updatesTitle": "정책 업데이트",
     "updates": "우리는 수시로 본 개인정보 처리방침을 업데이트할 수 있습니다. 중요한 변경사항이 있을 경우 이 페이지에 새로운 개인정보 처리방침을 게시하고 시행일을 업데이트하여 알려드리겠습니다.",
-    "lastUpdated": "최종 업데이트: {date}"
+    "lastUpdated": "최종 업데이트: {{date}}"
   },
   "Terms": {
     "pageTitle": "서비스 이용약관",
@@ -124,7 +124,7 @@
     "changes": "우리는 주기적으로 본 약관을 업데이트할 수 있습니다. 중요한 변경사항이 있을 경우 사용자에게 통지하며, 플랫폼의 계속 사용은 업데이트된 약관에 대한 동의로 간주됩니다.",
     "contactTitle": "연락처",
     "contact": "본 약관에 대한 질문이 있거나 위반 사항을 신고해야 하는 경우, 플랫폼을 통해 또는 개인정보 처리방침에 제공된 연락처 정보를 통해 지원팀에 문의하십시오.",
-    "lastUpdated": "최종 업데이트: {date}",
+    "lastUpdated": "최종 업데이트: {{date}}",
     "aup": "Semiont를 사용함으로써 귀하는 본 약관에 따라 책임감 있게 플랫폼을 사용하는 데 동의합니다. 우리는 모든 사용자를 위해 안전하고 존중하며 생산적인 환경을 유지하는 데 최선을 다하고 있습니다."
   },
   "NotFound": {
@@ -185,7 +185,7 @@
     "loading": "로딩 중...",
     "welcomeTitle": "Semiont에 오신 것을 환영합니다!",
     "thanksForAccepting": "약관에 동의해 주셔서 감사합니다. 앱으로 이동합니다...",
-    "welcomeUser": "Semiont에 오신 것을 환영합니다, {firstName}님!",
+    "welcomeUser": "Semiont에 오신 것을 환영합니다, {{firstName}}님!",
     "reviewTermsPrompt": "Semiont를 사용하기 전에 서비스 이용약관을 검토하고 동의해 주세요",
     "termsSummaryTitle": "서비스 이용약관 요약",
     "termsSummaryIntro": "Semiont를 사용함으로써 다음에 동의합니다:",
@@ -246,9 +246,9 @@
     "archived": "보관됨",
     "created": "생성됨",
     "recentResources": "최근 리소스",
-    "searchResults": "검색 결과 ({count})",
-    "resourcesTaggedWith": "\"{entityType}\"(으)로 태그된 리소스",
-    "noResultsFound": "\"{query}\"에 대한 결과가 없습니다. 대신 최근 리소스를 표시합니다.",
+    "searchResults": "검색 결과 ({{count}})",
+    "resourcesTaggedWith": "\"{{entityType}}\"(으)로 태그된 리소스",
+    "noResultsFound": "\"{{query}}\"에 대한 결과가 없습니다. 대신 최근 리소스를 표시합니다.",
     "noResourcesAvailable": "사용 가능한 리소스가 없습니다. 첫 번째 문서를 만들어 시작하세요.",
     "composeFirstResource": "첫 번째 리소스 작성",
     "loadingKnowledgeBase": "지식 베이스 로딩 중..."
@@ -295,9 +295,9 @@
   "UserPanel": {
     "account": "계정",
     "user": "사용자",
-    "profileAlt": "{name} 프로필",
+    "profileAlt": "{{name}} 프로필",
     "session": "세션",
-    "expiresIn": "만료: {time}",
+    "expiresIn": "만료: {{time}}",
     "privileges": "권한",
     "administrator": "🛡️ 관리자",
     "moderator": "⚖️ 중재자",
@@ -433,7 +433,7 @@
     "configManagementDescription": "OAuth 설정은 환경 변수를 통해 관리됩니다. 이 설정을 수정하려면:",
     "configLocalDev": "로컬 개발: .env 파일을 업데이트하세요",
     "configCloudDeploy": "클라우드 배포: 다음을 사용하세요",
-    "configCloudDeployCommand": "semiont update -e {environment}",
+    "configCloudDeployCommand": "semiont update -e {{environment}}",
     "configCloudDeployEnd": "구성 파일의 변경사항을 적용",
     "configAWS": "AWS: 설정은 AWS Secrets Manager 및 ECS 작업 정의에 저장됩니다"
   },
@@ -510,11 +510,11 @@
     "title": "쿠키 설정",
     "description": "쿠키 설정 및 개인정보 설정을 관리합니다. 변경사항은 즉시 적용됩니다.",
     "currentSettings": "현재 설정",
-    "lastUpdated": "최종 업데이트: {date}",
-    "version": "버전: {version}",
+    "lastUpdated": "최종 업데이트: {{date}}",
+    "version": "버전: {{version}}",
     "cookieCategories": "쿠키 카테고리",
     "required": "(필수)",
-    "viewCookies": "쿠키 보기 ({count})",
+    "viewCookies": "쿠키 보기 ({{count}})",
     "dataManagement": "데이터 관리",
     "exportMyData": "내 데이터 내보내기",
     "deleteAllData": "모든 데이터 삭제",

@@ -56,13 +56,9 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          SERVER_API_URL: http://localhost:4000
-          NEXT_PUBLIC_SITE_NAME: Semiont Test
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
-          NEXTAUTH_URL: http://localhost:3000
-          NEXTAUTH_SECRET: test-secret-for-ci-only
-          GOOGLE_CLIENT_ID: dummy-client-id-for-ci
-          GOOGLE_CLIENT_SECRET: dummy-client-secret-for-ci
+          SEMIONT_BACKEND_URL: http://localhost:4000
+          SEMIONT_SITE_NAME: Semiont Test
+          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Start application for security verification
         run: |
@@ -73,99 +69,104 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
           sleep 5
         env:
-          SERVER_API_URL: http://localhost:4000
-          NEXT_PUBLIC_SITE_NAME: Semiont Test
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
-          NEXTAUTH_URL: http://localhost:3000
-          NEXTAUTH_SECRET: test-secret-for-ci-only
-          GOOGLE_CLIENT_ID: dummy-client-id-for-ci
-          GOOGLE_CLIENT_SECRET: dummy-client-secret-for-ci
+          SEMIONT_BACKEND_URL: http://localhost:4000
+          SEMIONT_SITE_NAME: Semiont Test
+          SEMIONT_OAUTH_ALLOWED_DOMAINS: example.com,test.com
 
       - name: Verify no admin content leakage
         run: |
           echo "Testing admin route security..."
-          
-          # Test 1: Verify admin route returns 404 for unauthenticated users
+
+          # This is a Vite SPA: the server returns 200 + index.html for all routes.
+          # Client-side auth guards (tested by test:security unit tests) prevent
+          # unauthorized access. We verify the server response is the SPA shell and
+          # does NOT contain server-rendered admin content or sensitive data.
+
+          # Test 1: Verify admin route returns 200 (SPA shell, not admin content)
           status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/admin)
-          if [ "$status_code" != "404" ]; then
-            echo "❌ SECURITY FAILURE: Admin route returned $status_code instead of 404"
-            echo "Admin routes should return 404 to hide their existence from unauthorized users"
+          if [ "$status_code" != "200" ]; then
+            echo "❌ UNEXPECTED: Admin route returned $status_code instead of 200"
+            echo "SPA server should return 200 for all routes (client-side routing)"
             exit 1
           fi
-          echo "✅ Admin route returns proper 404 status code (hiding admin routes)"
-          
-          # Test 2: Verify no admin content in response body
+          echo "✅ Admin route returns 200 (SPA shell served correctly)"
+
+          # Test 2: Verify response is the SPA HTML shell, not server-rendered admin content
           response=$(curl -s http://localhost:3000/admin)
-          
-          # Check for admin-specific content that should NOT be present
-          # Note: The URL path "/admin" might appear in the 404 page, which is acceptable
-          # We're looking for actual admin functionality content
-          if echo "$response" | grep -qi "admin dashboard\|user management\|delete user\|admin control\|access denied"; then
-            echo "❌ SECURITY FAILURE: Admin-related content leaked in response!"
+
+          # Verify it's a valid HTML page (the SPA entry point)
+          if ! echo "$response" | grep -qi "<html\|<!DOCTYPE"; then
+            echo "❌ UNEXPECTED: Admin route did not return an HTML page"
             exit 1
           fi
-          echo "✅ No admin content leaked in 404 response"
-          
-          # Test 3: Verify it's a standard 404 page (not revealing admin existence)
-          if echo "$response" | grep -qi "404\|not.*found\|page.*could.*not.*be.*found"; then
-            echo "✅ Standard 404 page displayed (good security practice)"
-          else
-            echo "⚠️ Warning: 404 page might not be standard, but no admin content leaked"
+          echo "✅ Admin route returns HTML shell (SPA entry point)"
+
+          # Test 3: Verify no server-rendered admin-specific content in the shell
+          # The SPA shell should only contain the app bootstrap JS, not admin UI
+          if echo "$response" | grep -qi "admin dashboard\|user management\|delete user\|admin control"; then
+            echo "❌ SECURITY FAILURE: Server-rendered admin content found in SPA shell!"
+            exit 1
           fi
-          
-          # Test 4: Verify no sensitive data patterns
-          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|DELETE|admin@"; then
+          echo "✅ No server-rendered admin content in SPA shell"
+
+          # Test 4: Verify no sensitive data patterns in HTML shell
+          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"; then
             echo "❌ SECURITY FAILURE: Sensitive data patterns found in response!"
             exit 1
           fi
           echo "✅ No sensitive data patterns detected"
-          
+
           echo "🎉 All admin route security checks passed!"
 
       - name: Verify no moderate content leakage
         run: |
           echo "Testing moderate route security..."
 
-          # Test 1: Verify moderate route returns 404 for unauthenticated users
+          # This is a Vite SPA: the server returns 200 + index.html for all routes.
+          # Client-side auth guards (tested by test:security unit tests) prevent
+          # unauthorized access. We verify the server response is the SPA shell and
+          # does NOT contain server-rendered moderation content or sensitive data.
+
+          # Test 1: Verify moderate route returns 200 (SPA shell, not moderation content)
           status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/moderate)
-          if [ "$status_code" != "404" ]; then
-            echo "❌ SECURITY FAILURE: Moderate route returned $status_code instead of 404"
-            echo "Moderate routes should return 404 to hide their existence from unauthorized users"
+          if [ "$status_code" != "200" ]; then
+            echo "❌ UNEXPECTED: Moderate route returned $status_code instead of 200"
+            echo "SPA server should return 200 for all routes (client-side routing)"
             exit 1
           fi
-          echo "✅ Moderate route returns proper 404 status code (hiding moderate routes)"
+          echo "✅ Moderate route returns 200 (SPA shell served correctly)"
 
-          # Test 2: Verify no moderate content in response body
+          # Test 2: Verify response is the SPA HTML shell
           response=$(curl -s http://localhost:3000/moderate)
 
-          if echo "$response" | grep -qi "moderation\|moderator dashboard\|entity.tag\|tag.schema\|linked.data\|recent activity"; then
-            echo "❌ SECURITY FAILURE: Moderate-related content leaked in response!"
+          if ! echo "$response" | grep -qi "<html\|<!DOCTYPE"; then
+            echo "❌ UNEXPECTED: Moderate route did not return an HTML page"
             exit 1
           fi
-          echo "✅ No moderate content leaked in 404 response"
+          echo "✅ Moderate route returns HTML shell (SPA entry point)"
 
-          # Test 3: Verify it's a standard 404 page (not revealing moderate existence)
-          if echo "$response" | grep -qi "404\|not.*found\|page.*could.*not.*be.*found"; then
-            echo "✅ Standard 404 page displayed (good security practice)"
-          else
-            echo "⚠️ Warning: 404 page might not be standard, but no moderate content leaked"
+          # Test 3: Verify no server-rendered moderation content in the shell
+          if echo "$response" | grep -qi "moderator dashboard\|entity.tag\|tag.schema\|linked.data\|recent activity"; then
+            echo "❌ SECURITY FAILURE: Server-rendered moderation content found in SPA shell!"
+            exit 1
           fi
+          echo "✅ No server-rendered moderation content in SPA shell"
 
           # Test 4: Verify no sensitive data patterns
-          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|DELETE|admin@"; then
+          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"; then
             echo "❌ SECURITY FAILURE: Sensitive data patterns found in response!"
             exit 1
           fi
           echo "✅ No sensitive data patterns detected"
 
-          # Test 5: Verify moderate sub-routes also return 404
+          # Test 5: Verify moderate sub-routes also return 200 (SPA shell)
           for subroute in "/moderate/recent" "/moderate/entity-tags" "/moderate/tag-schemas" "/moderate/linked-data"; do
             status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000$subroute")
-            if [ "$status_code" != "404" ]; then
-              echo "❌ SECURITY FAILURE: $subroute returned $status_code instead of 404"
+            if [ "$status_code" != "200" ]; then
+              echo "❌ UNEXPECTED: $subroute returned $status_code instead of 200"
               exit 1
             fi
-            echo "✅ $subroute returns proper 404"
+            echo "✅ $subroute returns 200 (SPA shell)"
           done
 
           echo "🎉 All moderate route security checks passed!"
@@ -177,7 +178,7 @@ jobs:
             kill $APP_PID || true
           fi
           # Kill any remaining Node.js processes
-          pkill -f "next.*start" || true
+          pkill -f "node.*server.js" || true
 
       - name: Upload test coverage
         uses: codecov/codecov-action@v5
@@ -516,10 +517,10 @@ jobs:
           
           if [ "${{ needs.frontend-security.result }}" == "success" ]; then
             echo "✅ **Frontend Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "- Admin route security verified" >> $GITHUB_STEP_SUMMARY
-            echo "- Moderate route security verified" >> $GITHUB_STEP_SUMMARY
-            echo "- No information disclosure detected" >> $GITHUB_STEP_SUMMARY
-            echo "- Authentication checks working properly" >> $GITHUB_STEP_SUMMARY
+            echo "- SPA shell serves correctly for admin/moderate routes" >> $GITHUB_STEP_SUMMARY
+            echo "- No server-rendered privileged content in SPA shell" >> $GITHUB_STEP_SUMMARY
+            echo "- No sensitive data patterns in responses" >> $GITHUB_STEP_SUMMARY
+            echo "- Client-side auth guards verified by unit tests" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Frontend Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
             echo "- **CRITICAL**: Security vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY

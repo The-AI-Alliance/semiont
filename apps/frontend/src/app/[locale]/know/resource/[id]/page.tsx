@@ -8,8 +8,8 @@
  */
 
 import { useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useParams } from 'react-router-dom';
+import { useLocale } from '@/i18n/routing';
 import { useResources } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';

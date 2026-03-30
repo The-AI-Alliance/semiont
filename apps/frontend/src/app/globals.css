@@ -1,3 +1,6 @@
+@import "@fontsource/inter";
+@import "@fontsource/orbitron";
+@import '@semiont/react-ui/styles';
 @import "tailwindcss";
 
 /* Load Tailwind config */
@@ -11,9 +14,6 @@
 
 /* Scan @semiont/react-ui for Tailwind classes */
 @source "../../../../packages/react-ui/src";
-
-/* Import @semiont/react-ui styles */
-@import '@semiont/react-ui/styles';
 
 /* Light mode (default) */
 :root {
