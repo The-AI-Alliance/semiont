@@ -4,7 +4,11 @@
  * Serves the Vite-built dist/ directory with SPA fallback (all routes → index.html).
  *
  * Environment variables:
- *   PORT  - port to listen on (default: 3000)
+ *   PORT                - port to listen on (default: 3000)
+ *   SEMIONT_BACKEND_URL - fallback backend URL if --bus is not passed
+ *
+ * Arguments:
+ *   --bus <url>  - backend URL injected into index.html as window.__SEMIONT_CONFIG__
  */
 'use strict';
 
@@ -13,6 +17,10 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
+
+// --bus <url> sets the backend URL injected into the SPA at serve time
+const busArgIndex = process.argv.indexOf('--bus');
+const BUS_URL = busArgIndex !== -1 ? process.argv[busArgIndex + 1] : (process.env.SEMIONT_BACKEND_URL || '');
 
 // dist/ is a sibling of this file in the published package
 const DIST_DIR = path.join(__dirname, 'dist');
@@ -40,6 +48,14 @@ const MIME_TYPES = {
 };
 
 function serveFile(res, filePath, ext) {
+  if (ext === '.html') {
+    const html = fs.readFileSync(filePath, 'utf8');
+    const configScript = `<script>window.__SEMIONT_CONFIG__=${JSON.stringify({ backendURL: BUS_URL })};</script>`;
+    const injected = html.replace('</head>', `${configScript}</head>`);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(injected);
+    return;
+  }
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
   res.writeHead(200, { 'Content-Type': contentType });
   fs.createReadStream(filePath).pipe(res);
@@ -61,7 +77,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // SPA fallback: all non-file routes serve index.html
+  // SPA fallback: all non-file routes serve index.html with runtime config injected
   const indexPath = path.join(DIST_DIR, 'index.html');
   if (!fs.existsSync(indexPath)) {
     res.writeHead(500, { 'Content-Type': 'text/plain' });
