@@ -150,7 +150,7 @@ export interface CommandExtensions {
   };
   
   // check command extensions
-  status?: 'running' | 'stopped' | 'unknown';
+  status?: 'running' | 'stopped' | 'unknown' | 'provisioned';
   health?: {
     healthy: boolean;
     details: HealthDetails;

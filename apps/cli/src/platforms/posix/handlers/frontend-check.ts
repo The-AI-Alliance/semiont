@@ -59,7 +59,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       
       // Check if process is running
       process.kill(pid, 0);
-      status = 'running';
+      status = 'unhealthy';  // Upgraded to 'running' only after HTTP health check passes
       details.pid = pid;
       
       // Get process info
@@ -106,7 +106,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
 
   // If running, check health endpoint (frontend serves at root /)
   // Use localhost for POSIX platform (config.url may require external auth in environments like Codespaces)
-  if (status === 'running' || status === 'unknown') {
+  if (status === 'unhealthy' || status === 'unknown') {
     const healthUrl = `http://localhost:${config.port}`;
 
     try {
@@ -117,6 +117,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
 
       if (response.ok) {
         healthy = true;
+        status = 'running';
         details.message = 'Frontend is running and healthy';
         details.statusCode = response.status;
 
@@ -125,16 +126,12 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
           details.htmlAvailable = true;
         }
       } else {
-        status = 'unhealthy';
         details.message = `Health check failed with status ${response.status}`;
         details.healthStatus = response.status;
       }
     } catch (error) {
-      if (status === 'running') {
-        status = 'unhealthy';
-        details.message = 'Process is running but health check failed';
-        details.healthError = (error as Error).toString();
-      }
+      details.message = 'Process is running but health check failed';
+      details.healthError = (error as Error).toString();
     }
   }
   
