@@ -14,3 +14,19 @@ export function resolveBackendNpmPackage(projectRoot: string): string | null {
     return null;
   }
 }
+
+/**
+ * Resolve the path to the backend entry point (dist/index.js).
+ * Uses the package's `main` field (declared in package.publish.json) so the
+ * path is derived from the manifest rather than hardcoded.
+ * Returns null if not installed.
+ */
+export function resolveBackendEntryPoint(projectRoot: string): string | null {
+  try {
+    const require = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
+    // @semiont/backend declares `"main": "dist/index.js"` — resolve() follows it directly
+    return require.resolve('@semiont/backend');
+  } catch {
+    return null;
+  }
+}

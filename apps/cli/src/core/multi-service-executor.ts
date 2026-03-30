@@ -128,7 +128,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
         const result = await this.executeService(serviceInfo, finalOptions, envConfig);
         results.push(result);
 
-        if (!isStructuredOutput && !finalOptions.quiet && !result.success) {
+        if (!isStructuredOutput && !finalOptions.quiet && !result.success && result.error) {
           printError(`Failed to ${this.descriptor.name} ${serviceInfo.name}: ${result.error}`);
         }
       } catch (error) {

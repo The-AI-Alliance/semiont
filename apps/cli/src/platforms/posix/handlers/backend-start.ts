@@ -6,7 +6,7 @@ import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse, isHostReachable } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import { checkPortFree, checkCommandAvailable, checkConfigPort, checkConfigField, checkFileExists, checkJwtSecretExists, readSecret, getSecretsFilePath, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -30,7 +30,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
       metadata: { serviceType: 'backend' }
     };
   }
-  const entryPoint = path.join(npmDir, 'dist', 'index.js');
+  const entryPoint = resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js');
   const project = new SemiontProject(projectRoot);
   const pidFile = project.backendPidFile;
   const logsDir = project.backendLogsDir;
@@ -62,10 +62,12 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     try {
       // Check if process is actually running
       process.kill(pid, 0);
+      if (!service.quiet) {
+        printInfo(`Backend is already running with PID ${pid}`);
+      }
       return {
-        success: false,
-        error: `Backend is already running with PID ${pid}`,
-        metadata: { serviceType: 'backend', pid }
+        success: true,
+        metadata: { serviceType: 'backend', pid, alreadyRunning: true }
       };
     } catch {
       // Process not running, remove stale pid file
@@ -323,7 +325,7 @@ const preflightBackendStart = async (context: PosixStartHandlerContext): Promise
     checks.push(await checkPortFree(config.port));
   }
   if (npmDir) {
-    checks.push(checkFileExists(path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
+    checks.push(checkFileExists(resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
   } else {
     checks.push({ name: 'backend-npm-package', pass: false, message: '@semiont/backend not installed — run: semiont provision' });
   }

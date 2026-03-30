@@ -119,7 +119,7 @@ export class OutputFormatter {
       if (!result.success) {
         statusIndicator = '[FAIL]';
         statusColor = c.red;
-      } else if (status === 'running' || status === 'healthy') {
+      } else if (status === 'running' || status === 'healthy' || status === 'provisioned') {
         statusIndicator = '[OK]';
         statusColor = c.green;
       } else if (status === 'stopped') {
@@ -289,7 +289,7 @@ export class OutputFormatter {
       
       if (!result.success) {
         statusText = `${c.red}[FAIL]${c.reset} ${status}`;
-      } else if (status === 'running' || status === 'healthy') {
+      } else if (status === 'running' || status === 'healthy' || status === 'provisioned') {
         statusText = `${c.green}[OK]${c.reset} ${status}`;
       } else if (status === 'stopped') {
         statusText = `${c.yellow}[--]${c.reset} ${status}`;

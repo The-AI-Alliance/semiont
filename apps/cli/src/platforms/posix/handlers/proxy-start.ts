@@ -33,10 +33,12 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
     const pid = parseInt(fs.readFileSync(paths.pidFile, 'utf-8'));
     try {
       process.kill(pid, 0);
+      if (!service.quiet) {
+        printInfo(`Proxy is already running with PID ${pid}`);
+      }
       return {
-        success: false,
-        error: `Proxy is already running with PID ${pid}`,
-        metadata: { serviceType: 'proxy', pid }
+        success: true,
+        metadata: { serviceType: 'proxy', pid, alreadyRunning: true }
       };
     } catch {
       fs.unlinkSync(paths.pidFile);

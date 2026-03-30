@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
-import { resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import type { BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
@@ -24,7 +25,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
 
   const projectRoot = service.projectRoot;
   const npmDir = resolveBackendNpmPackage(projectRoot);
-  const entryPoint = npmDir ? path.join(npmDir, 'dist', 'index.js') : null;
+  const entryPoint = npmDir ? (resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js')) : null;
   const project = new SemiontProject(projectRoot);
   const pidFile = project.backendPidFile;
   const appLogPath = project.backendAppLogFile;
@@ -60,14 +61,12 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
       
       // Check if process is running
       process.kill(pid, 0);
-      status = 'running';
+      status = 'unhealthy';  // Upgraded to 'running' only after HTTP health check passes
       details.pid = pid;
       
       // Get process info
       try {
-        const psOutput = require('child_process')
-          .execFileSync('ps', ['-p', String(pid), '-o', 'comm=,rss=,pcpu='], { encoding: 'utf-8' })
-          .trim();
+        const psOutput = execFileSync('ps', ['-p', String(pid), '-o', 'comm=,rss=,pcpu='], { encoding: 'utf-8' }).trim();
         
         if (psOutput) {
           const [command, rss, cpu] = psOutput.split(/\s+/);
@@ -94,7 +93,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
         savedState.resources.data.pid && 
         StateManager.isProcessRunning(savedState.resources.data.pid)) {
       pid = savedState.resources.data.pid;
-      status = 'running';
+      status = 'unhealthy';  // Upgraded to 'running' only after HTTP health check passes
       details.pid = pid;
       details.fromSavedState = true;
     } else {
@@ -109,33 +108,19 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   
   // If running, check health endpoint using API client
   // Use localhost for POSIX platform (publicURL may require external auth in environments like Codespaces)
-  if (status === 'running' || status === 'unknown') {
+  if (status === 'unhealthy' || status === 'unknown') {
     const localUrl = `http://localhost:${config.port}`;
     const client = new SemiontApiClient({ baseUrl: baseUrl(localUrl) });
 
     try {
       const healthData = await client.healthCheck();
       healthy = true;
+      status = 'running';
       details.health = healthData;
       details.message = 'Backend is running and healthy';
-
-      // Get API info
-      try {
-        const apiResponse = await fetch(`${localUrl}/api`, {
-          signal: AbortSignal.timeout(2000)
-        });
-        if (apiResponse.ok) {
-          details.apiAvailable = true;
-        }
-      } catch {
-        // API endpoint might not exist
-      }
     } catch (error) {
-      if (status === 'running') {
-        status = 'unhealthy';
-        details.message = 'Process is running but health check failed';
-        details.healthError = (error as Error).toString();
-      }
+      details.message = 'Process is running but health check failed';
+      details.healthError = (error as Error).toString();
     }
   }
   
@@ -143,8 +128,6 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   let logs: { recent: string[]; errors: string[] } | undefined;
   if (fs.existsSync(appLogPath)) {
     try {
-      const { execFileSync } = require('child_process');
-
       // Get last 10 lines of app log
       const recentLogs = execFileSync('tail', ['-10', appLogPath], { encoding: 'utf-8' })
         .split('\n')

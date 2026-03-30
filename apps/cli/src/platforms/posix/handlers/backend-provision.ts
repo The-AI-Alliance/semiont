@@ -5,7 +5,7 @@ import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { resolveBackendNpmPackage } from './backend-paths.js';
+import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import { checkCommandAvailable, checkEnvVarsInConfig, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -55,7 +55,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     };
   }
 
-  const entryPoint = path.join(npmDir, 'dist', 'index.js');
+  const entryPoint = resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js');
   const project = new SemiontProject(projectRoot);
 
   if (!service.quiet) {
