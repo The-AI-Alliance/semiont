@@ -62,10 +62,12 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
     // Type guard for check-specific results
     const checkResult = handlerResult as any; // CheckHandlerResult
     
+    // A check "succeeds" only if the service is actually healthy, not just that the check ran
+    const isHealthy = handlerResult.success && checkResult.health?.healthy === true;
     return createCommandResult({
       entity: service.name,
       platform: platform.getPlatformName() as any,
-      success: handlerResult.success,
+      success: isHealthy,
       error: handlerResult.error,
       metadata: {
         ...handlerResult.metadata,
