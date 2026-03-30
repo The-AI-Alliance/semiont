@@ -78,7 +78,7 @@ export default function KnowledgeLayout() {
                   <Footer
                     Link={Link}
                     routes={routes}
-                    t={(key: string) => t(`Footer.${key}`)}
+                    t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
                     CookiePreferences={CookiePreferences}
                     {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
                   />

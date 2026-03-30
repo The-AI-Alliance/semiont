@@ -39,7 +39,7 @@ function normalizeUrl(raw: string): string {
 export default function ConnectPage() {
   const { t: _t } = useTranslation();
   const t = (k: string) => _t(`AuthSignIn.${k}`) as string;
-  const tFooter = (k: string) => _t(`Footer.${k}`) as string;
+  const tFooter = (k: string, p?: Record<string, unknown>) => _t(`Footer.${k}`, p as any) as string;
   const [searchParams] = useSearchParams();
   const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
