@@ -75,7 +75,7 @@ export interface RequestOptions {
  */
 export class SemiontApiClient {
   private http: KyInstance;
-  private baseUrl: BaseUrl;
+  readonly baseUrl: BaseUrl;
   private logger?: Logger;
 
   /**
