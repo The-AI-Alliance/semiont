@@ -7,6 +7,7 @@ import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"
 import { useHoverDelay } from '../../hooks/useHoverDelay';
+import { useApiClient } from '../../contexts/ApiClientContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -62,9 +63,10 @@ export function SvgDrawingCanvas({
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
   const { hoverDelayMs } = useHoverDelay();
+  const apiClient = useApiClient();
   const imageUrl = useMemo(() => {
-    return `/api/resources/${resourceUri}`;
-  }, [resourceUri]);
+    return `${apiClient.baseUrl}/resources/${resourceUri}`;
+  }, [apiClient.baseUrl, resourceUri]);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
