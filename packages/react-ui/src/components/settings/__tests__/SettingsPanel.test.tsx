@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
-import { renderWithProviders, resetEventBusForTesting } from '../../../test-utils';
+import { renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { SettingsPanel } from '../SettingsPanel';
 
@@ -36,7 +36,6 @@ describe('SettingsPanel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
   });
 
   it('renders settings title', () => {

@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
@@ -31,7 +31,6 @@ vi.mock('../../../components/Toast', () => ({
 
 describe('REPRODUCING BUG: Detection state not updating', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
 
     // Minimal mock - SSE streams not needed for this test

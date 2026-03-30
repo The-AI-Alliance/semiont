@@ -4,7 +4,6 @@ import { renderHook, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { useObservableRouter, useObservableExternalNavigation } from '../useObservableBrowse';
 import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
-import { resetEventBusForTesting } from '../../contexts/EventBusContext';
 
 // Wrapper that provides EventBus context
 function Wrapper({ children }: { children: React.ReactNode }) {
@@ -13,7 +12,6 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 describe('useObservableRouter', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
   });
 
   it('wraps push and emits browse:router-push event', () => {
@@ -83,7 +81,6 @@ describe('useObservableRouter', () => {
 
 describe('useObservableExternalNavigation', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.useFakeTimers();
   });
 

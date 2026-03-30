@@ -1,91 +1,30 @@
 'use client';
 
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useRef, type ReactNode } from 'react';
 import { EventBus } from '@semiont/core';
 
 const EventBusContext = createContext<EventBus | null>(null);
-
-/**
- * Global singleton event bus.
- *
- * Uses RxJS-based EventBus from @semiont/core for framework-agnostic event routing.
- *
- * This ensures all components in the application share the same event bus instance,
- * which is critical for cross-component communication (e.g., hovering an annotation
- * in one component scrolls the panel in another component).
- *
- * FUTURE: Multi-Window Support
- * When we need to support multiple document windows (e.g., pop-out resource viewers),
- * we'll need to transition to a per-window event bus architecture:
- *
- * Option 1: Window-scoped event bus
- *   - Create a new event bus for each window/portal
- *   - Pass windowId or documentId to EventBusProvider
- *   - Store Map<windowId, EventBus> instead of single global
- *   - Components use useEventBus(windowId) to get correct bus
- *
- * Option 2: Event bus hierarchy
- *   - Global event bus for app-wide events (settings, navigation)
- *   - Per-document event bus for document-specific events (annotation hover)
- *   - Components subscribe to both buses as needed
- *
- * Option 3: Cross-window event bridge
- *   - Keep per-window buses isolated
- *   - Use BroadcastChannel or postMessage for cross-window events
- *   - Bridge pattern to sync certain events across windows
- *
- * For now, single global bus is correct for single-window app.
- */
-let globalEventBus = new EventBus();
-
-/**
- * Reset the global event bus - FOR TESTING ONLY.
- *
- * Call this in test setup (beforeEach) to ensure test isolation.
- * Each test gets a fresh event bus with no lingering subscriptions.
- *
- * @returns The new EventBus instance
- *
- * @example
- * ```typescript
- * beforeEach(() => {
- *   const eventBus = resetEventBusForTesting();
- * });
- * ```
- */
-export function resetEventBusForTesting(): EventBus {
-  globalEventBus.destroy();
-  globalEventBus = new EventBus();
-  return globalEventBus;
-}
 
 export interface EventBusProviderProps {
   children: ReactNode;
 }
 
 /**
- * Unified event bus provider for all application events
+ * Unified event bus provider for all application events.
  *
- * Consolidates three previous event buses:
- * - MakeMeaningEventBus (document/annotation operations)
- * - NavigationEventBus (navigation and sidebar UI)
- * - GlobalSettingsEventBus (app-wide settings)
- *
- * Benefits:
- * - Single import: useEventBus()
- * - No decision fatigue about which bus to use
- * - Easier cross-domain coordination
- * - Simpler provider hierarchy
- *
- * NOTE: This provider uses a global singleton event bus to ensure all components
- * share the same instance. Multiple providers in the tree will all reference the
- * same global bus.
+ * Each provider mount creates a fresh EventBus instance. This means:
+ * - Workspace switches (which remount via key prop) get isolated buses
+ * - Tests get isolation naturally — no resetEventBusForTesting needed
  *
  * Operation handlers (API calls triggered by events) are set up separately via
  * the useBindFlow hook, which should be called at the resource page level.
  */
 export function EventBusProvider({ children }: EventBusProviderProps) {
-  const eventBus = useMemo(() => globalEventBus, []);
+  const eventBusRef = useRef<EventBus | null>(null);
+  if (!eventBusRef.current) {
+    eventBusRef.current = new EventBus();
+  }
+  const eventBus = eventBusRef.current;
 
   return (
     <EventBusContext.Provider value={eventBus}>

@@ -11,7 +11,7 @@ import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
 // Import directly from context file to bypass mocked barrel export
-import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { ToastProvider } from '../../../components/Toast';
@@ -86,7 +86,7 @@ useDebouncedCallback: (fn: any) => fn,
       announceResourceLoading: vi.fn(),
       announceResourceLoaded: vi.fn(),
     }),
-    // Don't mock EventBusProvider, useEventBus, resetEventBusForTesting - let actual pass through via ...actual
+    // Don't mock EventBusProvider, useEventBus - let actual pass through via ...actual
     useEventSubscriptions: vi.fn(),
     useResourceAnnotations: () => ({
       clearNewAnnotationId: vi.fn(),
@@ -153,6 +153,7 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   Link: ({ children }: any) => <a>{children}</a>,
   routes: {},
   refetchDocument: vi.fn().mockResolvedValue(undefined),
+  streamStatus: 'connected' as const,
   ToolbarPanels: ({ children, activePanel }: any) =>
     !activePanel ? null : <div data-testid="toolbar-panels">{children}</div>,
   ...overrides,
@@ -175,7 +176,6 @@ const renderWithProviders = (ui: React.ReactElement) => {
 
 describe('ResourceViewerPage', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
   });
 
   describe('Basic Rendering', () => {

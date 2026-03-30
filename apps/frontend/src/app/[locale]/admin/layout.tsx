@@ -7,16 +7,17 @@ import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
-import { SEMIONT_BACKEND_URL } from '@/lib/env';
+import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 
 export default function AdminLayout() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { isAuthenticated, isAdmin, isModerator, token: authToken } = useAuth();
+  const { activeWorkspace } = useWorkspaceContext();
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={SEMIONT_BACKEND_URL}>
+      <ApiClientProvider baseUrl={activeWorkspace?.backendUrl ?? ''}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
           <div className="flex flex-1">
             <LeftSidebar

@@ -21,7 +21,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
@@ -107,7 +107,6 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
     markAnnotationSpy = vi
       .spyOn(SemiontApiClient.prototype, 'markAnnotation')
       .mockResolvedValue({ annotationId: MOCK_ANNOTATION.id } as any);

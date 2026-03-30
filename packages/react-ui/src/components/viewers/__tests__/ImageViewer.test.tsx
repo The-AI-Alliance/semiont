@@ -16,7 +16,7 @@ describe('ImageViewer', () => {
     renderWithProviders(<ImageViewer {...defaultProps} />);
 
     const img = screen.getByRole('img');
-    expect(img).toHaveAttribute('src', '/api/resources/abc-123');
+    expect(img).toHaveAttribute('src', 'http://localhost:4000/resources/abc-123');
   });
 
   it('should use default alt text when none provided', () => {
@@ -44,7 +44,7 @@ describe('ImageViewer', () => {
     );
 
     const img = screen.getByRole('img');
-    expect(img).toHaveAttribute('src', '/api/resources/resource-xyz');
+    expect(img).toHaveAttribute('src', 'http://localhost:4000/resources/resource-xyz');
   });
 
   it('should render with correct class names', () => {

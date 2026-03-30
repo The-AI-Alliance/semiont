@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../../../test-utils';
+import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
 
@@ -73,7 +73,6 @@ describe('TagEntry', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
     mockGetAnnotationExactText.mockReturnValue('Tagged text content');
     mockGetTagCategory.mockReturnValue('Entity');
     mockGetTagSchemaId.mockReturnValue(null);

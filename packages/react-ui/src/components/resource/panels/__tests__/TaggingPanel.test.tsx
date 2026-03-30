@@ -5,7 +5,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { TaggingPanel } from '../TaggingPanel';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
 import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -203,7 +203,6 @@ describe('TaggingPanel Component', () => {
   };
 
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
 
     // Mock scrollIntoView for jsdom

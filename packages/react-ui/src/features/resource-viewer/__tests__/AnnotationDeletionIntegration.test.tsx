@@ -27,7 +27,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
 vi.mock('../../../components/Toast', () => ({
@@ -51,7 +51,6 @@ describe('Annotation Deletion - Feature Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
 
     // Mock the deleteAnnotation method on SemiontApiClient prototype
     deleteAnnotationSpy = vi.fn().mockResolvedValue({ success: true });

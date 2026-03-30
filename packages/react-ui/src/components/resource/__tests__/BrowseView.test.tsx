@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
 import type { components } from '@semiont/core';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -214,7 +214,6 @@ describe('BrowseView Component', () => {
   };
 
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
     mockNewAnnotationIds = new Set();
 

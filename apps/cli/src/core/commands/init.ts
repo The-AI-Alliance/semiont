@@ -104,7 +104,6 @@ publicURL = "http://localhost:4000"
 platform = "posix"
 port = 3000
 publicURL = "http://localhost:3000"
-backendURL = "http://localhost:4000"
 
 [environments.local.graph]
 platform = "external"

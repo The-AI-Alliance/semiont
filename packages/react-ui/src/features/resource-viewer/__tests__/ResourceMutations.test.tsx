@@ -27,7 +27,7 @@ import { act } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SemiontApiClient } from '@semiont/api-client';
 import { resourceId, accessToken } from '@semiont/core';
-import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -128,7 +128,6 @@ describe('Resource mutations — hooks hoisted to top level', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetEventBusForTesting();
 
     generateCloneTokenSpy = vi
       .spyOn(SemiontApiClient.prototype, 'generateCloneToken')

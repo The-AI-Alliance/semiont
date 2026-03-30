@@ -1,16 +1,12 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, resetEventBusForTesting } from '../../test-utils';
+import { renderWithProviders } from '../../test-utils';
 import { AnnotateReferencesProgressWidget } from '../AnnotateReferencesProgressWidget';
 import type { MarkProgress } from '@semiont/core';
 
 describe('AnnotateReferencesProgressWidget', () => {
-  beforeEach(() => {
-    resetEventBusForTesting();
-  });
-
   it('returns null when progress is null', () => {
     const { container } = renderWithProviders(
       <AnnotateReferencesProgressWidget progress={null} />

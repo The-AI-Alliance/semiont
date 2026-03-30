@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { useBeckonFlow } from '../useBeckonFlow';
-import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
 
 // ─── Test harness ──────────────────────────────────────────────────────────────
 
@@ -44,7 +44,6 @@ function renderBeckonFlow() {
 
 describe('useBeckonFlow', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
   });
 
   describe('initial state', () => {

@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
 import { usePanelBrowse } from '../usePanelBrowse';
 
 // Test harness
@@ -39,7 +39,6 @@ function renderPanelBrowse() {
 
 describe('usePanelBrowse', () => {
   beforeEach(() => {
-    resetEventBusForTesting();
     localStorage.clear();
   });
 

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { vi, beforeEach, describe, it, expect } from 'vitest';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
 import type { TranslationManager } from '../../../types/TranslationManager';
 
@@ -118,7 +118,6 @@ describe('AnnotateToolbar', () => {
   };
 
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
   });
 

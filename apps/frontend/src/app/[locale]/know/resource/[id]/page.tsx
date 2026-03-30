@@ -13,6 +13,7 @@ import { useLocale } from '@/i18n/routing';
 import { useResources } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
+import { useStreamStatus } from '@/contexts/StreamStatusContext';
 
 // Feature components
 import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
@@ -28,6 +29,8 @@ export default function KnowledgeResourcePage() {
 
   // The URL param is the bare resource ID
   const rId = resourceId(params?.id as string);
+
+  const streamStatus = useStreamStatus();
 
   // Load only the resource descriptor - everything else is loaded by ResourceViewerPage
   const resources = useResources();
@@ -81,6 +84,7 @@ export default function KnowledgeResourcePage() {
       routes={routes}
       ToolbarPanels={ToolbarPanels}
       refetchDocument={refetchDocument}
+      streamStatus={streamStatus}
     />
   );
 }

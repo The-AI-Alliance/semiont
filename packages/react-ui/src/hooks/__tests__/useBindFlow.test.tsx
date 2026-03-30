@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { annotationId, resourceId } from '@semiont/core';
@@ -78,7 +78,6 @@ describe('useBindFlow', () => {
   const testAnnotationId = annotationId('anno-456');
 
   beforeEach(() => {
-    resetEventBusForTesting();
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();

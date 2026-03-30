@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
+import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -129,7 +129,6 @@ describe('ResourceInfoPanel Component', () => {
   };
 
   beforeEach(() => {
-    resetEventBusForTesting();
     vi.clearAllMocks();
   });
 

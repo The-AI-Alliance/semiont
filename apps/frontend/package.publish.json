@@ -1,6 +1,6 @@
 {
   "name": "@semiont/frontend",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "Semiont frontend - pre-built Vite SPA with static file server",
   "main": "server.js",
   "bin": {
