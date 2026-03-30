@@ -2,11 +2,13 @@
  * ID generation utilities
  */
 
-import { randomBytes } from 'crypto';
+// crypto.randomUUID() is available as a global in Node 14.17+ and all modern browsers.
+// Declared here because the core package tsconfig uses lib:ES2022 (no dom types).
+declare const crypto: { randomUUID(): string };
 
 /**
- * Generate a UUID v4-like ID (without dashes)
+ * Generate a UUID v4 string (without dashes)
  */
 export function generateUuid(): string {
-  return randomBytes(16).toString('hex');
+  return crypto.randomUUID().replace(/-/g, '');
 }

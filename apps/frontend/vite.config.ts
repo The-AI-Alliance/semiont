@@ -10,6 +10,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // vfile (used by react-markdown) imports Node's 'url' module for file:// path handling.
+      // In the browser that code path is never reached, so stub it out.
+      'url': path.resolve(__dirname, 'src/lib/browser-stubs/url.ts'),
     },
   },
 
