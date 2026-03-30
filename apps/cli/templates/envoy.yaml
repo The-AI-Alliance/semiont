@@ -1,5 +1,5 @@
 # Envoy proxy configuration for local development and Codespaces
-# Routes traffic between frontend (Next.js) and backend (Hono API)
+# Routes traffic between frontend (Vite SPA) and backend (Hono API)
 #
 # Routing rules (order matters - first match wins):
 # 1. /api/resources/*      → backend (authenticated proxy for images/files)
@@ -11,8 +11,8 @@
 # 7. /api/events/stream    → backend (SSE-safe: no timeout, no buffering)
 # 8. /api/participants/*   → backend (SSE-safe: no timeout, no buffering)
 # 9. /api/*                → backend (OpenAPI docs, spec)
-# 10. /_next/*             → frontend (Next.js static assets)
-# 11. /*                   → frontend (Next.js pages)
+# 10. /assets/*            → frontend (Vite static assets)
+# 11. /*                   → frontend (Vite SPA pages)
 
 static_resources:
   listeners:
@@ -148,14 +148,14 @@ static_resources:
                   cluster: backend
                   timeout: 30s
 
-              # Next.js static assets (must come before catch-all)
+              # Vite static assets (must come before catch-all)
               - match:
-                  prefix: "/_next/"
+                  prefix: "/assets/"
                 route:
                   cluster: frontend
                   timeout: 30s
 
-              # Everything else goes to frontend (Next.js pages)
+              # Everything else goes to frontend (Vite SPA pages)
               - match:
                   prefix: "/"
                 route:

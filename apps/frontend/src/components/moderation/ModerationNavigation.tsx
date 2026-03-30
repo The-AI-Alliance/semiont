@@ -19,6 +19,11 @@ interface ModerationNavigationProps {
   navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
+// Adapter: SimpleNavigation passes href, but our Link uses `to`
+function HrefLink({ href, to: _to, ...props }: React.ComponentProps<typeof Link> & { href?: string }) {
+  return <Link to={(href ?? '') as string} {...props} />;
+}
+
 export function ModerationNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: ModerationNavigationProps) {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`Moderation.${k}`, p as any) as string;
@@ -68,7 +73,7 @@ export function ModerationNavigation({ isCollapsed, toggleCollapsed, navigationM
       title={t('title')}
       items={navigation}
       currentPath={pathname}
-      LinkComponent={Link as any}
+      LinkComponent={HrefLink as any}
       {...(navigationMenu && { dropdownContent: navigationMenu })}
       isCollapsed={isCollapsed}
       icons={{

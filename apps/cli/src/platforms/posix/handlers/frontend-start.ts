@@ -30,7 +30,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       metadata: { serviceType: 'frontend' }
     };
   }
-  const serverScript = path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js');
+  const serverScript = path.join(npmDir, 'server.js');
   const project = new SemiontProject(projectRoot);
   const pidFile = project.frontendPidFile;
   const logsDir = project.frontendLogsDir;
@@ -96,20 +96,12 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) as Record<string, string>,
     NODE_ENV: envConfig.env?.NODE_ENV ?? 'development',
     PORT: port.toString(),
-    SERVER_API_URL: backendUrl,
-    NEXT_PUBLIC_SITE_NAME: config.siteName,
-    NEXT_PUBLIC_BASE_URL: frontendUrl,
-    NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: oauthAllowedDomains.join(','),
-    NEXT_PUBLIC_ALLOWED_ORIGINS: allowedOrigins.join(','),
+    SEMIONT_BACKEND_URL: backendUrl,
+    SEMIONT_SITE_NAME: config.siteName,
+    SEMIONT_BASE_URL: frontendUrl,
+    SEMIONT_OAUTH_ALLOWED_DOMAINS: oauthAllowedDomains.join(','),
     LOG_DIR: logsDir,
   };
-
-  // Debug: log NEXT_PUBLIC_* env vars
-  const nextPublicVars = Object.keys(env).filter(k => k.startsWith('NEXT_PUBLIC_'));
-  if (!service.quiet) {
-    printInfo(`Environment variables: ${nextPublicVars.length} NEXT_PUBLIC_* vars found`);
-    nextPublicVars.forEach(k => printInfo(`  ${k}=${(env as Record<string, string>)[k]}`));
-  }
   
   // Ensure logs and pid directories exist
   fs.mkdirSync(logsDir, { recursive: true });
@@ -264,7 +256,7 @@ const preflightFrontendStart = async (context: PosixStartHandlerContext): Promis
   }
   if (npmDir) {
     checks.push(checkFileExists(
-      path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js'),
+      path.join(npmDir, 'server.js'),
       'frontend server.js'
     ));
   } else {

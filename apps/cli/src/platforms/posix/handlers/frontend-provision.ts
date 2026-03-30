@@ -54,7 +54,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     };
   }
 
-  const serverScript = path.join(npmDir, 'standalone', 'apps', 'frontend', 'server.js');
+  const serverScript = path.join(npmDir, 'server.js');
   const project = new SemiontProject(projectRoot);
 
   if (!service.quiet) {

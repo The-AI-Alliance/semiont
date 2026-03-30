@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
 [![License](https://img.shields.io/npm/l/@semiont/frontend.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Pre-built Semiont frontend server as a Next.js standalone output. This package contains the compiled frontend application ready to run with Node.js.
+Pre-built Semiont frontend as a Vite SPA with a zero-dependency Node.js static file server. This package contains the compiled frontend application ready to run with Node.js.
 
 ## Installation
 
@@ -31,16 +31,17 @@ The CLI handles configuration, environment setup, and process management.
 ## Direct Usage
 
 ```bash
-semiont-frontend
+PORT=3000 semiont-frontend
 # or
-node node_modules/@semiont/frontend/standalone/apps/frontend/server.js
+PORT=3000 node node_modules/@semiont/frontend/server.js
 ```
 
-Requires environment variables (`NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SERVER_API_URL`, etc.) to be configured.
+Requires `PORT` and `SEMIONT_BACKEND_URL` environment variables to be configured.
 
 ## What's Included
 
-- `standalone/` - Next.js standalone output with all dependencies bundled
+- `dist/` - Vite-built static SPA assets
+- `server.js` - Zero-dependency Node.js static file server with SPA fallback
 
 ## Links
 
