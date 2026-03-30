@@ -429,6 +429,9 @@
         "publicURL": {
           "type": "string"
         },
+        "backendURL": {
+          "type": "string"
+        },
         "allowedOrigins": {
           "type": "array",
           "items": {

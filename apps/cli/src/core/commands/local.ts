@@ -82,7 +82,7 @@ function runSemiontSafe(args: string[], env: NodeJS.ProcessEnv): { success: bool
 // SERVICE READINESS
 // =====================================================================
 
-const REQUIRED_SERVICES = ['database', 'backend', 'frontend', 'proxy'];
+const REQUIRED_SERVICES = ['database', 'backend', 'frontend'];
 const EXTERNAL_SERVICES = ['graph', 'inference'];
 const ALL_SERVICES = [...REQUIRED_SERVICES, ...EXTERNAL_SERVICES];
 
@@ -130,7 +130,6 @@ function isProvisioned(serviceName: string, semiotRoot: string): boolean {
     case 'frontend':
       return fs.existsSync(path.join(semiotRoot, 'frontend', '.env'));
     case 'database':
-    case 'proxy':
     // For these, rely on check result only — we don't have a simple local sentinel
     default:
       return false;
@@ -338,7 +337,7 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     // ─── Step 6: Summary ─────────────────────────────────────────────────
 
-    console.log(`\n${colors.bright}${colors.green}✓ Semiont is running at http://localhost:8080${colors.reset}\n`);
+    console.log(`\n${colors.bright}${colors.green}✓ Semiont is running at http://localhost:3000${colors.reset}\n`);
     console.log(`  Admin email:    ${adminEmail}`);
     console.log(`  Admin password: ${adminPassword}`);
 

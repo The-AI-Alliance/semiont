@@ -2,8 +2,13 @@
 // No validation at module load time - values are validated when actually used
 
 // SEMIONT_BACKEND_URL: Client-side backend URL used by the browser to call the API directly.
-// Defaults to '' (relative URLs) when running behind Envoy on the same origin.
-export const SEMIONT_BACKEND_URL = process.env.SEMIONT_BACKEND_URL || '';
+// Injected at serve time via window.__SEMIONT_CONFIG__ (from server.js --bus arg).
+// Falls back to the build-time env var, then '' (relative URLs).
+declare global { interface Window { __SEMIONT_CONFIG__?: { backendURL?: string } } }
+export const SEMIONT_BACKEND_URL =
+  (typeof window !== 'undefined' && window.__SEMIONT_CONFIG__?.backendURL) ||
+  (import.meta.env.SEMIONT_BACKEND_URL as string | undefined) ||
+  '';
 
 // Site Configuration
 export const SEMIONT_SITE_NAME = process.env.SEMIONT_SITE_NAME || 'Semiont';

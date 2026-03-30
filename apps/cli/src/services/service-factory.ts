@@ -15,9 +15,8 @@ import { DatabaseService } from './database-service.js';
 import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
 import { InferenceService } from './inference-service.js';
-import { ProxyService } from './proxy-service.js';
 
-const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference', 'proxy'] as const;
+const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference'] as const;
 
 type InferenceProviderConfig = OllamaProviderConfig | AnthropicProviderConfig;
 
@@ -54,9 +53,6 @@ export class ServiceFactory {
 
       case 'mcp':
         return new MCPService(name, platform, envConfig, serviceConfig, runtimeFlags);
-
-      case 'proxy':
-        return new ProxyService('proxy', platform, envConfig, serviceConfig, runtimeFlags);
 
       case 'inference':
       default: {

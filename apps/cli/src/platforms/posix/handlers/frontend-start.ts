@@ -87,8 +87,10 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
   const envConfig = service.environmentConfig;
   const backendService = envConfig.services['backend']!;
-  const backendUrl = `http://127.0.0.1:${backendService.port!}`;
-  const frontendService = envConfig.services['frontend']!;
+  const frontendService = envConfig.services['frontend']! as import('@semiont/core').FrontendServiceConfig;
+  // Prefer explicit backendURL from config; fall back to backend port
+  const backendUrl = frontendService.backendURL
+    ?? `http://127.0.0.1:${backendService.port!}`;
   const frontendUrl = frontendService.publicURL!;
   const oauthAllowedDomains = envConfig.site?.oauthAllowedDomains || [];
   const allowedOrigins: string[] = [...(frontendService.allowedOrigins || [])];
@@ -130,7 +132,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   }
 
   const command = 'node';
-  const args = [serverScript];
+  const args = [serverScript, '--bus', backendUrl];
 
   try {
     // Open log files for writing (process will write directly)
