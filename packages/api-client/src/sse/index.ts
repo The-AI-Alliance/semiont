@@ -741,10 +741,8 @@ export class SSEClient {
       this.logger
     );
 
-    // Handle onConnected callback by subscribing to SSE stream-connected event
-    // Note: Type assertion needed because SSE_STREAM_CONNECTED is SSE infrastructure, not part of EventMap
     if (options.onConnected) {
-      const sub = options.eventBus.get(SSE_STREAM_CONNECTED as any).subscribe(() => {
+      const sub = options.eventBus.get(SSE_STREAM_CONNECTED).subscribe(() => {
         options.onConnected!();
         sub.unsubscribe(); // One-time callback
       });
@@ -798,7 +796,7 @@ export class SSEClient {
     );
 
     if (options.onConnected) {
-      const sub = options.eventBus.get(SSE_STREAM_CONNECTED as any).subscribe(() => {
+      const sub = options.eventBus.get(SSE_STREAM_CONNECTED).subscribe(() => {
         options.onConnected!();
         sub.unsubscribe();
       });
@@ -840,7 +838,7 @@ export class SSEClient {
     );
 
     if (options.onConnected) {
-      const sub = options.eventBus.get(SSE_STREAM_CONNECTED as any).subscribe(() => {
+      const sub = options.eventBus.get(SSE_STREAM_CONNECTED).subscribe(() => {
         options.onConnected!();
         sub.unsubscribe();
       });

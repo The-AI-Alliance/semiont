@@ -174,7 +174,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
       expect(result.status).toBe('running');
       expect(result.jobId).toBe('job-123');
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/jobs/job-123`);
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/jobs/job-123`, { headers: {} });
     });
 
     test('should poll job until complete', async () => {
@@ -235,7 +235,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       const result = await client.logout();
 
       expect(result.message).toBe('Logged out successfully');
-      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/logout`);
+      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/logout`, { headers: {} });
     });
   });
 
@@ -259,7 +259,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
       expect(result.version).toBe('1.0.0');
       expect(result.features.semanticContent).toBe('enabled');
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/status`);
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/status`, { headers: {} });
     });
   });
 
@@ -327,7 +327,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       expect(result.events).toHaveLength(2);
       expect(result.annotationId).toBe('ann-123');
       expect(result.events[0].metadata.sequenceNumber).toBe(1);
-      expect(mockKy.get).toHaveBeenCalledWith(`${testResourceUrl}/annotations/${testAnnotationId}/history`);
+      expect(mockKy.get).toHaveBeenCalledWith(`${testResourceUrl}/annotations/${testAnnotationId}/history`, { headers: {} });
     });
   });
 

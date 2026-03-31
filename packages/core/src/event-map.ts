@@ -680,6 +680,10 @@ export type EventMap = {
   'settings:locale-changed': { locale: string };
   'settings:hover-delay-changed': { hoverDelayMs: number };
 
+  // SSE infrastructure event — emitted by the backend as the first event on a stream
+  // to signal that the connection is established. Not a domain event.
+  'stream-connected': Record<string, never>;
+
 };
 
 /**
@@ -687,3 +691,4 @@ export type EventMap = {
  * Use this to enforce compile-time checking of event names
  */
 export type EventName = keyof EventMap;
+

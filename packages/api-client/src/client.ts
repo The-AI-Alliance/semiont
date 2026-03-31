@@ -115,13 +115,7 @@ export class SemiontApiClient {
       credentials: 'include',
       hooks: {
         beforeRequest: [
-          (request, options) => {
-            // Add auth header from request options
-            const auth = (options as any).auth;
-            if (auth) {
-              request.headers.set('Authorization', `Bearer ${auth}`);
-            }
-
+          (request) => {
             // Log HTTP request
             if (this.logger) {
               this.logger.debug('HTTP Request', {
@@ -129,7 +123,7 @@ export class SemiontApiClient {
                 url: request.url,
                 method: request.method,
                 timestamp: Date.now(),
-                hasAuth: !!auth
+                hasAuth: request.headers.has('Authorization'),
               });
             }
           },
@@ -153,7 +147,7 @@ export class SemiontApiClient {
           async (error) => {
             const { response, request } = error;
             if (response) {
-              const body = await response.json().catch(() => ({})) as any;
+              const body = await response.json().catch(() => ({})) as { message?: string };
 
               // Log HTTP error
               if (this.logger) {
@@ -187,6 +181,10 @@ export class SemiontApiClient {
     });
   }
 
+  private authHeaders(options?: { auth?: AccessToken }): Record<string, string> {
+    return options?.auth ? { Authorization: `Bearer ${options.auth}` } : {};
+  }
+
   // ============================================================================
   // AUTHENTICATION
   // ============================================================================
@@ -194,40 +192,35 @@ export class SemiontApiClient {
   async authenticatePassword(email: Email, password: string, options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/password']['post']>> {
     return this.http.post(`${this.baseUrl}/api/tokens/password`, {
       json: { email, password },
-      ...options,
-      auth: options?.auth
-    } as any).json<any>();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async refreshToken(token: RefreshToken, options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/refresh']['post']>> {
     return this.http.post(`${this.baseUrl}/api/tokens/refresh`, {
       json: { refreshToken: token },
-      ...options,
-      auth: options?.auth
-    } as any).json<any>();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async authenticateGoogle(credential: GoogleCredential, options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/google']['post']>> {
     return this.http.post(`${this.baseUrl}/api/tokens/google`, {
       json: { credential },
-      ...options,
-      auth: options?.auth
-    } as any).json<any>();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async generateMCPToken(options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/mcp-generate']['post']>> {
     return this.http.post(`${this.baseUrl}/api/tokens/mcp-generate`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async getMediaToken(resourceId: ResourceId, options?: RequestOptions): Promise<{ token: string }> {
     return this.http.post(`${this.baseUrl}/api/tokens/media`, {
       json: { resourceId },
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   // ============================================================================
@@ -236,23 +229,20 @@ export class SemiontApiClient {
 
   async getMe(options?: RequestOptions): Promise<ResponseContent<paths['/api/users/me']['get']>> {
     return this.http.get(`${this.baseUrl}/api/users/me`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async acceptTerms(options?: RequestOptions): Promise<ResponseContent<paths['/api/users/accept-terms']['post']>> {
     return this.http.post(`${this.baseUrl}/api/users/accept-terms`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async logout(options?: RequestOptions): Promise<ResponseContent<paths['/api/users/logout']['post']>> {
-    if (options) {
-      return this.http.post(`${this.baseUrl}/api/users/logout`, options as any).json();
-    }
-    return this.http.post(`${this.baseUrl}/api/users/logout`).json();
+    return this.http.post(`${this.baseUrl}/api/users/logout`, {
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   // ============================================================================
@@ -321,16 +311,14 @@ export class SemiontApiClient {
     // POST with multipart/form-data (ky automatically sets Content-Type)
     return this.http.post(`${this.baseUrl}/resources`, {
       body: formData,
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async browseResource(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${id}`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   /**
@@ -361,10 +349,10 @@ export class SemiontApiClient {
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
     const response = await this.http.get(`${this.baseUrl}/resources/${id}`, {
       headers: {
-        Accept: options?.accept || 'text/plain'
+        Accept: options?.accept || 'text/plain',
+        ...this.authHeaders(options),
       },
-      auth: options?.auth
-    } as any);
+    });
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
     const data = await response.arrayBuffer();
@@ -414,10 +402,10 @@ export class SemiontApiClient {
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
     const response = await this.http.get(`${this.baseUrl}/resources/${id}`, {
       headers: {
-        Accept: options?.accept || 'text/plain'
+        Accept: options?.accept || 'text/plain',
+        ...this.authHeaders(options),
       },
-      auth: options?.auth
-    } as any);
+    });
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
 
@@ -441,9 +429,8 @@ export class SemiontApiClient {
 
     return this.http.get(`${this.baseUrl}/resources`, {
       searchParams,
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async updateResource(
@@ -453,37 +440,32 @@ export class SemiontApiClient {
   ): Promise<void> {
     await this.http.patch(`${this.baseUrl}/resources/${id}`, {
       json: data,
-      ...options,
-      auth: options?.auth
-    } as any).text();
+      headers: this.authHeaders(options),
+    }).text();
   }
 
-  async getResourceEvents(id: ResourceId, options?: RequestOptions): Promise<{ events: any[] }> {
+  async getResourceEvents(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/events']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${id}/events`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
-  async browseReferences(id: ResourceId, options?: RequestOptions): Promise<{ referencedBy: any[] }> {
+  async browseReferences(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/referenced-by']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${id}/referenced-by`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async generateCloneToken(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/clone-with-token']['post']>> {
     return this.http.post(`${this.baseUrl}/resources/${id}/clone-with-token`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async getResourceByToken(token: CloneToken, options?: RequestOptions): Promise<ResponseContent<paths['/api/clone-tokens/{token}']['get']>> {
     return this.http.get(`${this.baseUrl}/api/clone-tokens/${token}`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async createResourceFromToken(
@@ -492,9 +474,8 @@ export class SemiontApiClient {
   ): Promise<{ resourceId: string }> {
     return this.http.post(`${this.baseUrl}/api/clone-tokens/create-resource`, {
       json: data,
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   // ============================================================================
@@ -508,23 +489,20 @@ export class SemiontApiClient {
   ): Promise<{ annotationId: string }> {
     return this.http.post(`${this.baseUrl}/resources/${id}/annotations`, {
       json: data,
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async getAnnotation(id: AnnotationId, options?: RequestOptions): Promise<ResponseContent<paths['/annotations/{id}']['get']>> {
     return this.http.get(`${this.baseUrl}/annotations/${id}`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async browseAnnotation(resourceId: ResourceId, annotationId: AnnotationId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async browseAnnotations(
@@ -537,16 +515,14 @@ export class SemiontApiClient {
 
     return this.http.get(`${this.baseUrl}/resources/${id}/annotations`, {
       searchParams,
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async deleteAnnotation(resourceId: ResourceId, annotationId: AnnotationId, options?: RequestOptions): Promise<void> {
     await this.http.delete(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}`, {
-      ...options,
-      auth: options?.auth
-    } as any);
+      headers: this.authHeaders(options),
+    });
   }
 
   async bindAnnotation(
@@ -557,9 +533,8 @@ export class SemiontApiClient {
   ): Promise<void> {
     await this.http.put(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/body`, {
       json: data,
-      ...options,
-      auth: options?.auth
-    } as any);
+      headers: this.authHeaders(options),
+    });
   }
 
   async getAnnotationHistory(
@@ -567,11 +542,9 @@ export class SemiontApiClient {
     annotationId: AnnotationId,
     options?: RequestOptions
   ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/history']['get']>> {
-    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/history`;
-    if (options) {
-      return this.http.get(url, options as any).json();
-    }
-    return this.http.get(url).json();
+    return this.http.get(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/history`, {
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   // ============================================================================
@@ -581,24 +554,21 @@ export class SemiontApiClient {
   async addEntityType(type: EntityType, options?: RequestOptions): Promise<void> {
     await this.http.post(`${this.baseUrl}/api/entity-types`, {
       json: { tag: type },
-      ...options,
-      auth: options?.auth
-    } as any);
+      headers: this.authHeaders(options),
+    });
   }
 
   async addEntityTypesBulk(types: EntityType[], options?: RequestOptions): Promise<void> {
     await this.http.post(`${this.baseUrl}/api/entity-types/bulk`, {
       json: { tags: types },
-      ...options,
-      auth: options?.auth
-    } as any);
+      headers: this.authHeaders(options),
+    });
   }
 
   async listEntityTypes(options?: RequestOptions): Promise<ResponseContent<paths['/api/entity-types']['get']>> {
     return this.http.get(`${this.baseUrl}/api/entity-types`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   // ============================================================================
@@ -612,9 +582,8 @@ export class SemiontApiClient {
   ): Promise<ResponseContent<paths['/api/participants/{id}/attention']['post']>> {
     return this.http.post(`${this.baseUrl}/api/participants/${participantId}/attention`, {
       json: data,
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   // ============================================================================
@@ -623,16 +592,14 @@ export class SemiontApiClient {
 
   async listUsers(options?: RequestOptions): Promise<ResponseContent<paths['/api/admin/users']['get']>> {
     return this.http.get(`${this.baseUrl}/api/admin/users`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async getUserStats(options?: RequestOptions): Promise<ResponseContent<paths['/api/admin/users/stats']['get']>> {
     return this.http.get(`${this.baseUrl}/api/admin/users/stats`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   /**
@@ -646,16 +613,14 @@ export class SemiontApiClient {
   ): Promise<ResponseContent<paths['/api/admin/users/{id}']['patch']>> {
     return this.http.patch(`${this.baseUrl}/api/admin/users/${id}`, {
       json: data,
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async getOAuthConfig(options?: RequestOptions): Promise<ResponseContent<paths['/api/admin/oauth/config']['get']>> {
     return this.http.get(`${this.baseUrl}/api/admin/oauth/config`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   // ============================================================================
@@ -669,12 +634,8 @@ export class SemiontApiClient {
   async backupKnowledgeBase(
     options?: RequestOptions,
   ): Promise<Response> {
-    return fetch(`${this.baseUrl}/api/admin/exchange/backup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    return this.http.post(`${this.baseUrl}/api/admin/exchange/backup`, {
+      headers: this.authHeaders(options),
     });
   }
 
@@ -691,41 +652,12 @@ export class SemiontApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/admin/exchange/restore`, {
-      method: 'POST',
-      headers: {
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    const response = await this.http.post(`${this.baseUrl}/api/admin/exchange/restore`, {
       body: formData,
+      headers: this.authHeaders(options),
     });
 
-    if (!response.ok) {
-      throw new Error(`Restore failed: ${response.status} ${response.statusText}`);
-    }
-
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult: { phase: string; message?: string; result?: Record<string, unknown> } = { phase: 'unknown' };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop()!;
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const event = JSON.parse(line.slice(6));
-          options?.onProgress?.(event);
-          finalResult = event;
-        }
-      }
-    }
-
-    return finalResult;
+    return this.parseSSEStream(response, options?.onProgress);
   }
 
   // ============================================================================
@@ -740,13 +672,10 @@ export class SemiontApiClient {
     params?: { includeArchived?: boolean },
     options?: RequestOptions,
   ): Promise<Response> {
-    const query = params?.includeArchived ? '?includeArchived=true' : '';
-    return fetch(`${this.baseUrl}/api/moderate/exchange/export${query}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    const searchParams = params?.includeArchived ? new URLSearchParams({ includeArchived: 'true' }) : undefined;
+    return this.http.post(`${this.baseUrl}/api/moderate/exchange/export`, {
+      headers: this.authHeaders(options),
+      ...(searchParams ? { searchParams } : {}),
     });
   }
 
@@ -763,18 +692,18 @@ export class SemiontApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/moderate/exchange/import`, {
-      method: 'POST',
-      headers: {
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    const response = await this.http.post(`${this.baseUrl}/api/moderate/exchange/import`, {
       body: formData,
+      headers: this.authHeaders(options),
     });
 
-    if (!response.ok) {
-      throw new Error(`Import failed: ${response.status} ${response.statusText}`);
-    }
+    return this.parseSSEStream(response, options?.onProgress);
+  }
 
+  private async parseSSEStream(
+    response: Response,
+    onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void,
+  ): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }> {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -791,7 +720,7 @@ export class SemiontApiClient {
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const event = JSON.parse(line.slice(6));
-          options?.onProgress?.(event);
+          onProgress?.(event);
           finalResult = event;
         }
       }
@@ -805,10 +734,9 @@ export class SemiontApiClient {
   // ============================================================================
 
   async getJobStatus(id: JobId, options?: RequestOptions): Promise<ResponseContent<paths['/api/jobs/{id}']['get']>> {
-    if (options) {
-      return this.http.get(`${this.baseUrl}/api/jobs/${id}`, options as any).json();
-    }
-    return this.http.get(`${this.baseUrl}/api/jobs/${id}`).json();
+    return this.http.get(`${this.baseUrl}/api/jobs/${id}`, {
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   /**
@@ -859,16 +787,14 @@ export class SemiontApiClient {
 
   async healthCheck(options?: RequestOptions): Promise<ResponseContent<paths['/api/health']['get']>> {
     return this.http.get(`${this.baseUrl}/api/health`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async getStatus(options?: RequestOptions): Promise<ResponseContent<paths['/api/status']['get']>> {
-    if (options) {
-      return this.http.get(`${this.baseUrl}/api/status`, options as any).json();
-    }
-    return this.http.get(`${this.baseUrl}/api/status`).json();
+    return this.http.get(`${this.baseUrl}/api/status`, {
+      headers: this.authHeaders(options),
+    }).json();
   }
 
   async browseFiles(
@@ -881,8 +807,7 @@ export class SemiontApiClient {
     if (sort)    searchParams.append('sort', sort);
     return this.http.get(`${this.baseUrl}/api/browse/files`, {
       searchParams,
-      ...options,
-      auth: options?.auth,
-    } as any).json();
+      headers: this.authHeaders(options),
+    }).json();
   }
 }

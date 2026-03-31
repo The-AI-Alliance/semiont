@@ -111,6 +111,7 @@ export {
 } from './events';
 
 // Event utilities
+export type { StoredEventLike } from './event-utils';
 export {
   getAnnotationUriFromEvent,
   isEventRelatedToAnnotation,

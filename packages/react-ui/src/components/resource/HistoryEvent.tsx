@@ -2,7 +2,7 @@
 
 import React, { useRef, useCallback, useEffect } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
-import type { StoredEvent, ResourceEventType } from '@semiont/core';
+import type { StoredEventLike, ResourceEventType } from '@semiont/core';
 import { getAnnotationUriFromEvent } from '@semiont/core';
 import {
   formatEventType,
@@ -16,9 +16,9 @@ import {
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 interface Props {
-  event: StoredEvent;
+  event: StoredEventLike;
   annotations: any[]; // Unified annotations array (all types)
-  allEvents: StoredEvent[];
+  allEvents: StoredEventLike[];
   isRelated: boolean;
   t: TranslateFn;
   Link: React.ComponentType<LinkComponentProps>;
