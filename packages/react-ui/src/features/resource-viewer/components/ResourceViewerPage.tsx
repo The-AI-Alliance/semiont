@@ -186,7 +186,7 @@ export function ResourceViewerPage({
     generationProgress,
     onGenerateDocument,
   } = useYieldFlow(locale, rUri, clearNewAnnotationId);
-  const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow(eventBus, { client, resourceId: rUri });
+  const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow({ resourceId: rUri });
 
   // Wizard state — driven by bind:initiate from ReferenceEntry
   const [wizardOpen, setWizardOpen] = useState(false);

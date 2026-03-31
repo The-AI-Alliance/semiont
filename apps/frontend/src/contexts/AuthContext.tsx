@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { SemiontApiClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
-import { baseUrl } from '@semiont/core';
+import { baseUrl, EventBus } from '@semiont/core';
 
 type UserInfo = components['schemas']['UserResponse'];
 
@@ -26,7 +26,7 @@ export function AuthProvider({ backendUrl: backendUrlProp, children }: { backend
   useEffect(() => {
     setIsLoading(true);
     setSessionState(null);
-    const client = new SemiontApiClient({ baseUrl: baseUrl(backendUrlProp) });
+    const client = new SemiontApiClient({ baseUrl: baseUrl(backendUrlProp), eventBus: new EventBus() });
     client.getMe()
       .then((data) => {
         setSessionState({ token: data.token, user: data });

@@ -1,34 +1,25 @@
 /**
  * useContextGatherFlow - Context gather capability hook
  *
- * Gather capability: given a reference annotation, fetch the surrounding
- * text context (before/selected/after) from the source document so it can
- * be gathered and used as grounding material for generation.
+ * Activates gather orchestration for a resource by delegating to
+ * client.flows.gatherContext(). Manages UI state (gatherContext, gatherLoading,
+ * gatherError, gatherAnnotationId) via EventBus subscriptions — the
+ * React-specific portion.
  *
- * This hook is the single owner of gather state. It is triggered by
- * gather:requested on the event bus, making the capability
- * accessible to both human UI flows and agents.
- *
- * @subscribes gather:requested - Fetch LLM context for an annotation
- * @emits gather:complete - Context successfully fetched
- * @emits gather:failed - Context fetch failed
- * @returns Gather state (context, loading, error, which annotation)
+ * @subscribes gather:requested - Triggers loading state
+ * @subscribes gather:complete - Sets gathered context
+ * @subscribes gather:failed - Sets error state
+ * @returns Gather flow state
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { EventBus, EventMap, GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
-import { SemiontApiClient } from '@semiont/api-client';
+import type { GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
 import { accessToken } from '@semiont/core';
+import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
-
-
-/** Helper to convert string | null to AccessToken | undefined */
-function toAccessToken(token: string | null) {
-  return token ? accessToken(token) : undefined;
-}
+import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
 export interface ContextGatherFlowConfig {
-  client: SemiontApiClient;
   resourceId: ResourceId;
 }
 
@@ -41,70 +32,42 @@ export interface ContextGatherFlowState {
 }
 
 export function useContextGatherFlow(
-  eventBus: EventBus,
-  config: ContextGatherFlowConfig
+  config: ContextGatherFlowConfig,
 ): ContextGatherFlowState {
+  const client = useApiClient();
   const token = useAuthToken();
-
-  const [gatherContext, setCorrelationContext] = useState<GatheredContext | null>(null);
-  const [gatherLoading, setCorrelationLoading] = useState(false);
-  const [gatherError, setCorrelationError] = useState<Error | null>(null);
-  const [gatherAnnotationId, setCorrelationAnnotationId] = useState<AnnotationId | null>(null);
-
-  // Store latest config/token in refs to avoid re-subscribing when they change
-  const configRef = useRef(config);
   const tokenRef = useRef(token);
-  useEffect(() => { configRef.current = config; });
   useEffect(() => { tokenRef.current = token; });
 
+  const [gatherContext, setGatherContext] = useState<GatheredContext | null>(null);
+  const [gatherLoading, setGatherLoading] = useState(false);
+  const [gatherError, setGatherError] = useState<Error | null>(null);
+  const [gatherAnnotationId, setGatherAnnotationId] = useState<AnnotationId | null>(null);
+
+  // Activate flow engine subscription (SSE orchestration)
   useEffect(() => {
-    const handleGatherRequested = (event: EventMap['gather:requested']) => {
-      const { correlationId } = event;
-      setCorrelationLoading(true);
-      setCorrelationError(null);
-      setCorrelationContext(null);
-      setCorrelationAnnotationId(event.annotationId);
+    const sub = client.flows.gatherContext(config.resourceId, () =>
+      tokenRef.current ? accessToken(tokenRef.current) : undefined
+    );
+    return () => sub.unsubscribe();
+  }, [config.resourceId, client]);
 
-      const { client, resourceId } = configRef.current;
-      const contextWindow = event.options?.contextWindow ?? 2000;
-
-      // Subscribe to result events before starting the stream
-      const finishedSub = eventBus.get('gather:annotation-finished').subscribe((finishedEvent) => {
-        if (finishedEvent.correlationId !== correlationId) return;
-        finishedSub.unsubscribe();
-        failedSub.unsubscribe();
-
-        const context = finishedEvent.response.context ?? null;
-        setCorrelationContext(context);
-        setCorrelationLoading(false);
-
-        eventBus.get('gather:complete').next({
-          correlationId,
-          annotationId: finishedEvent.annotationId,
-          response: finishedEvent.response,
-        });
-      });
-
-      const failedSub = eventBus.get('gather:failed').subscribe((failedEvent) => {
-        if (failedEvent.correlationId !== correlationId) return;
-        finishedSub.unsubscribe();
-        failedSub.unsubscribe();
-
-        setCorrelationError(failedEvent.error);
-        setCorrelationLoading(false);
-      });
-
-      client.sse.gatherAnnotation(
-        resourceId,
-        event.annotationId,
-        { contextWindow },
-        { auth: toAccessToken(tokenRef.current), eventBus },
-      );
-    };
-
-    const subscription = eventBus.get('gather:requested').subscribe(handleGatherRequested);
-    return () => subscription.unsubscribe();
-  }, [eventBus]);
+  useEventSubscriptions({
+    'gather:requested': (event) => {
+      setGatherLoading(true);
+      setGatherError(null);
+      setGatherContext(null);
+      setGatherAnnotationId(event.annotationId);
+    },
+    'gather:complete': (event) => {
+      setGatherContext(event.response.context ?? null);
+      setGatherLoading(false);
+    },
+    'gather:failed': (event) => {
+      setGatherError(event.error);
+      setGatherLoading(false);
+    },
+  });
 
   return { gatherContext, gatherLoading, gatherError, gatherAnnotationId };
 }

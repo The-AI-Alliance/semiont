@@ -46,7 +46,6 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import type { SSEStream } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -210,53 +209,23 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
 export function useAttentionStream(): { status: StreamStatus } {
   const client = useApiClient();
   const token = useAuthToken();
-  const eventBus = useEventBus();
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; });
   const [status, setStatus] = useState<StreamStatus>('disconnected');
-  const streamRef = useRef<SSEStream | null>(null);
-  const connectingRef = useRef(false);
 
-  const connect = useCallback(async () => {
-    if (connectingRef.current || streamRef.current) return;
-    connectingRef.current = true;
-
-    if (!client) {
-      setStatus('error');
-      connectingRef.current = false;
-      return;
-    }
-
+  useEffect(() => {
     setStatus('connecting');
-
     try {
-      const stream = client.sse.attentionStream({
-        ...(token ? { auth: accessToken(token) } : {}),
-        eventBus,
-      });
-      streamRef.current = stream;
+      const sub = client.flows.attentionStream(() =>
+        tokenRef.current ? accessToken(tokenRef.current) : undefined
+      );
       setStatus('connected');
-      connectingRef.current = false;
+      return () => { sub.unsubscribe(); setStatus('disconnected'); };
     } catch (error) {
       console.error('[AttentionStream] Failed to connect:', error);
       setStatus('error');
-      connectingRef.current = false;
+      return;
     }
-  }, [client, token, eventBus]);
-
-  const disconnect = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.close();
-      streamRef.current = null;
-    }
-    setStatus('disconnected');
-    connectingRef.current = false;
-  }, []);
-
-  useEffect(() => {
-    if (client) {
-      connect();
-    }
-    return () => disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
 
   return { status };
