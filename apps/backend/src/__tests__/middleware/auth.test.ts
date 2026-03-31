@@ -47,6 +47,7 @@ function createMockContext(headers: Record<string, string> = {}): Context {
   const context = {
     req: {
       header: vi.fn((name: string) => headers[name]),
+      query: vi.fn().mockReturnValue(undefined),
       path: '/test',
       method: 'GET',
       raw: { headers: rawHeaders },
