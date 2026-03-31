@@ -133,10 +133,10 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider baseUrl={apiBaseUrl}>
-          <SessionProvider sessionManager={sessionManager}>
-            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <EventBusProvider>
+        <EventBusProvider>
+          <ApiClientProvider baseUrl={apiBaseUrl}>
+            <SessionProvider sessionManager={sessionManager}>
+              <OpenResourcesProvider openResourcesManager={openResourcesManager}>
                 <QueryClientProvider client={queryClient}>
                   <ToastProvider>
                     {returnEventBus ? (
@@ -148,10 +148,10 @@ export function renderWithProviders(
                     )}
                   </ToastProvider>
                 </QueryClientProvider>
-              </EventBusProvider>
-            </OpenResourcesProvider>
-          </SessionProvider>
-        </ApiClientProvider>
+              </OpenResourcesProvider>
+            </SessionProvider>
+          </ApiClientProvider>
+        </EventBusProvider>
       </TranslationProvider>
     );
   }

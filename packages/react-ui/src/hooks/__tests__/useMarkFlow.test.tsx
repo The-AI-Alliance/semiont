@@ -31,24 +31,15 @@ vi.mock('../../components/Toast', () => ({
   }),
 }));
 
-// Mock API client
-const mockMarkAnnotation = vi.fn();
-const mockDeleteAnnotation = vi.fn();
+// Mock API client — useMarkFlow calls client.flows.mark()
+const mockMark = vi.fn();
 
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
-      markAnnotation: mockMarkAnnotation,
-      deleteAnnotation: mockDeleteAnnotation,
-      sse: {
-        markReferences: vi.fn(),
-        markTags: vi.fn(),
-        markHighlights: vi.fn(),
-        markAssessments: vi.fn(),
-        markComments: vi.fn(),
-      },
+      flows: { mark: mockMark },
     }),
   };
 });
@@ -89,8 +80,7 @@ describe('useMarkFlow', () => {
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();
-    mockMarkAnnotation.mockClear();
-    mockDeleteAnnotation.mockClear();
+    mockMark.mockReturnValue({ unsubscribe: vi.fn() });
     vi.useFakeTimers();
   });
 
@@ -251,7 +241,7 @@ describe('useMarkFlow', () => {
           version: 1,
           payload: {
             jobId: 'job-1' as any,
-            jobType: 'annotation',
+            jobType: 'highlight-annotation' as const,
             error: 'AI service unavailable',
           },
         });

@@ -19,10 +19,10 @@ import { resourceId } from '@semiont/core';
 import type { ResourceEvent } from '@semiont/core';
 import { useResourceEvents } from '../useResourceEvents';
 
-// Mock SSE stream
+// Mock flow subscription
 const mockClose = vi.fn();
 const mockResourceEvents = vi.fn(() => ({
-  close: mockClose,
+  unsubscribe: mockClose,
 }));
 
 // Mock API client
@@ -31,7 +31,7 @@ vi.mock('../../contexts/ApiClientContext', async () => {
   return {
     ...actual,
     useApiClient: () => ({
-      sse: {
+      flows: {
         resourceEvents: mockResourceEvents,
       },
     }),

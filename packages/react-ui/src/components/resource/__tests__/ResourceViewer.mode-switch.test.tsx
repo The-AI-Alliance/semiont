@@ -75,19 +75,19 @@ const mockTranslationManager = {
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return (
     <TranslationProvider translationManager={mockTranslationManager}>
-      <AuthTokenProvider token="test-token">
-        <ApiClientProvider baseUrl="http://localhost:4000">
-          <QueryClientProvider client={queryClient}>
-            <EventBusProvider>
+      <EventBusProvider>
+        <AuthTokenProvider token="test-token">
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <QueryClientProvider client={queryClient}>
               <ResourceAnnotationsProvider>
                 <CacheProvider cacheManager={mockCacheManager}>
                   {children}
                 </CacheProvider>
               </ResourceAnnotationsProvider>
-            </EventBusProvider>
-          </QueryClientProvider>
-        </ApiClientProvider>
-      </AuthTokenProvider>
+            </QueryClientProvider>
+          </ApiClientProvider>
+        </AuthTokenProvider>
+      </EventBusProvider>
     </TranslationProvider>
   );
 }
