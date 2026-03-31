@@ -444,13 +444,13 @@ export class SemiontApiClient {
     }).text();
   }
 
-  async getResourceEvents(id: ResourceId, options?: RequestOptions): Promise<{ events: any[] }> {
+  async getResourceEvents(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/events']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${id}/events`, {
       headers: this.authHeaders(options),
     }).json();
   }
 
-  async browseReferences(id: ResourceId, options?: RequestOptions): Promise<{ referencedBy: any[] }> {
+  async browseReferences(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/referenced-by']['get']>> {
     return this.http.get(`${this.baseUrl}/resources/${id}/referenced-by`, {
       headers: this.authHeaders(options),
     }).json();
