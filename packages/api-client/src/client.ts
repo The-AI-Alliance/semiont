@@ -634,12 +634,8 @@ export class SemiontApiClient {
   async backupKnowledgeBase(
     options?: RequestOptions,
   ): Promise<Response> {
-    return fetch(`${this.baseUrl}/api/admin/exchange/backup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    return this.http.post(`${this.baseUrl}/api/admin/exchange/backup`, {
+      headers: this.authHeaders(options),
     });
   }
 
@@ -656,41 +652,12 @@ export class SemiontApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/admin/exchange/restore`, {
-      method: 'POST',
-      headers: {
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    const response = await this.http.post(`${this.baseUrl}/api/admin/exchange/restore`, {
       body: formData,
+      headers: this.authHeaders(options),
     });
 
-    if (!response.ok) {
-      throw new Error(`Restore failed: ${response.status} ${response.statusText}`);
-    }
-
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult: { phase: string; message?: string; result?: Record<string, unknown> } = { phase: 'unknown' };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop()!;
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const event = JSON.parse(line.slice(6));
-          options?.onProgress?.(event);
-          finalResult = event;
-        }
-      }
-    }
-
-    return finalResult;
+    return this.parseSSEStream(response, options?.onProgress);
   }
 
   // ============================================================================
@@ -705,13 +672,10 @@ export class SemiontApiClient {
     params?: { includeArchived?: boolean },
     options?: RequestOptions,
   ): Promise<Response> {
-    const query = params?.includeArchived ? '?includeArchived=true' : '';
-    return fetch(`${this.baseUrl}/api/moderate/exchange/export${query}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    const searchParams = params?.includeArchived ? new URLSearchParams({ includeArchived: 'true' }) : undefined;
+    return this.http.post(`${this.baseUrl}/api/moderate/exchange/export`, {
+      headers: this.authHeaders(options),
+      ...(searchParams ? { searchParams } : {}),
     });
   }
 
@@ -728,18 +692,18 @@ export class SemiontApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/moderate/exchange/import`, {
-      method: 'POST',
-      headers: {
-        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
-      },
+    const response = await this.http.post(`${this.baseUrl}/api/moderate/exchange/import`, {
       body: formData,
+      headers: this.authHeaders(options),
     });
 
-    if (!response.ok) {
-      throw new Error(`Import failed: ${response.status} ${response.statusText}`);
-    }
+    return this.parseSSEStream(response, options?.onProgress);
+  }
 
+  private async parseSSEStream(
+    response: Response,
+    onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void,
+  ): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }> {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -756,7 +720,7 @@ export class SemiontApiClient {
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const event = JSON.parse(line.slice(6));
-          options?.onProgress?.(event);
+          onProgress?.(event);
           finalResult = event;
         }
       }
