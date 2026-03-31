@@ -26,7 +26,7 @@ export function useAuth() {
       displayName: user?.name ?? user?.email?.split('@')[0] ?? 'User',
       avatarUrl: user?.image ?? null,
       isAdmin: user?.isAdmin ?? false,
-      isModerator: false,
+      isModerator: user?.isModerator ?? false,
     };
   }, [session, isLoading]);
 }

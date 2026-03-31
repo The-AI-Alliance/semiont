@@ -24,6 +24,9 @@
     "isAdmin": {
       "type": "boolean"
     },
+    "isModerator": {
+      "type": "boolean"
+    },
     "isActive": {
       "type": "boolean"
     },
@@ -51,6 +54,7 @@
     "domain",
     "provider",
     "isAdmin",
+    "isModerator",
     "isActive",
     "termsAcceptedAt",
     "lastLogin",

@@ -48,6 +48,7 @@ const makeUser = (overrides: Partial<AuthSession['user']> = {}): AuthSession['us
   domain: 'company.com',
   provider: 'google',
   isAdmin: false,
+  isModerator: false,
   isActive: true,
   termsAcceptedAt: '2024-01-01',
   lastLogin: null,

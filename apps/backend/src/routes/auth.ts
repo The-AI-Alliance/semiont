@@ -329,6 +329,7 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
     domain: user.domain,
     provider: user.provider,
     isAdmin: user.isAdmin,
+    isModerator: user.isModerator,
     isActive: user.isActive,
     termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
     lastLogin: user.lastLogin?.toISOString() || null,
