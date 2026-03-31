@@ -46,6 +46,19 @@ vi.mock('@/components/knowledge/NavigationHandler', () => ({
   NavigationHandler: () => null,
 }));
 
+// Mock WorkspaceContext so AuthProvider is rendered (activeWorkspace must be set)
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  WorkspaceProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useWorkspaceContext: () => ({
+    workspaces: [{ id: 'ws-1', label: 'Test', backendUrl: 'http://localhost:4000' }],
+    activeWorkspaceId: 'ws-1',
+    activeWorkspace: { id: 'ws-1', label: 'Test', backendUrl: 'http://localhost:4000' },
+    addWorkspace: vi.fn(),
+    removeWorkspace: vi.fn(),
+    setActiveWorkspace: vi.fn(),
+  }),
+}));
+
 // Mock react-query to spy on QueryClient creation
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
