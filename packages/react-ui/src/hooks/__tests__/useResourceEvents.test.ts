@@ -29,7 +29,7 @@ const mockClient = {
 
 vi.mocked(SemiontApiClient).mockImplementation(function () { return mockClient; });
 
-const RID = makeResourceId('http://example.com/resources/1');
+const RID = makeResourceId('res-1');
 
 const wrapper = ({ children }: { children: ReactNode }) =>
   React.createElement(
