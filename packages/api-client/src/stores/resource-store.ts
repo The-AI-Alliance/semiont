@@ -56,6 +56,11 @@ export class ResourceStore {
       this.invalidateLists();
     });
 
+    eventBus.get('yield:updated').subscribe((event: EventMap['yield:updated']) => {
+      this.invalidateDetail(event.resourceId);
+      this.invalidateLists();
+    });
+
     // resourceId is optional on BaseEvent — present for resource-scoped events
     eventBus.get('mark:archived').subscribe((event: EventMap['mark:archived']) => {
       if (event.resourceId) {

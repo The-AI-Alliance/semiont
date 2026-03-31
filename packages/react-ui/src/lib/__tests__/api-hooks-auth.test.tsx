@@ -85,6 +85,17 @@ describe('API Hooks Authentication', () => {
       // Health
       healthCheck: vi.fn().mockResolvedValue({ status: 'ok' }),
       getStatus: vi.fn().mockResolvedValue({ status: 'operational' }),
+
+      // Stores (used by mutation onSuccess handlers)
+      stores: {
+        resources: {
+          invalidateDetail: vi.fn(),
+          invalidateLists: vi.fn(),
+        },
+        annotations: {
+          invalidateDetail: vi.fn(),
+        },
+      },
     };
 
     vi.mocked(SemiontApiClient).mockImplementation(function() { return mockClient; });

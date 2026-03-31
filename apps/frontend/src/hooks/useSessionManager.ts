@@ -1,41 +1,21 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import type { SessionManager } from '@semiont/react-ui';
+import { useObservable } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
+import { SessionStore } from '@/stores/session-store';
 
 /**
- * Hook that provides SessionManager implementation using AuthContext
+ * Hook that provides SessionManager delegating to SessionStore.
+ * State lives in a BehaviorSubject; React re-renders via useObservable subscription.
  */
 export function useSessionManager(): SessionManager {
   const { token } = useAuth();
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const store = useMemo(() => new SessionStore(), []);
 
-  useEffect(() => {
-    if (token) {
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3 && parts[1]) {
-          const payload = JSON.parse(atob(parts[1]));
-          if (payload.exp) {
-            setExpiresAt(new Date(payload.exp * 1000));
-          }
-        }
-      } catch {
-        setExpiresAt(null);
-      }
-    } else {
-      setExpiresAt(null);
-    }
-  }, [token]);
+  // Keep store in sync with the current token
+  useEffect(() => { store.setToken(token ?? null); }, [store, token]);
 
-  return useMemo(() => {
-    const now = Date.now();
-    const timeUntilExpiry = expiresAt ? expiresAt.getTime() - now : null;
+  const session = useObservable(store.session$) ?? store.state;
 
-    return {
-      isAuthenticated: !!token,
-      expiresAt,
-      timeUntilExpiry,
-      isExpiringSoon: timeUntilExpiry !== null && timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0,
-    };
-  }, [token, expiresAt]);
+  return session;
 }

@@ -20,6 +20,7 @@ import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
+import { useObservable } from '@semiont/react-ui';
 import { QUERY_KEYS } from '../../../lib/query-keys';
 import { useResources, useEntityTypes } from '../../../lib/api-hooks';
 import { useResourceContent } from '../../../hooks/useResourceContent';
@@ -29,7 +30,6 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
-import { useDebouncedCallback } from '../../../hooks/useDebounce';
 import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 // Import EventBus hooks directly from context to avoid mocking issues in tests
 import { useEventBus } from '../../../contexts/EventBusContext';
@@ -135,7 +135,7 @@ export function ResourceViewerPage({
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
   const client = useApiClient();
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient(); // retained for non-store queries (events log)
 
   // UI state hooks
   const { showError, showSuccess } = useToast();
@@ -165,7 +165,7 @@ export function ResourceViewerPage({
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  const { data: annotationsData } = resources.annotations.useQuery(rUri);
+  const annotationsData = useObservable(client.stores.annotations.listForResource(rUri));
   const annotations = useMemo(
     () => annotationsData?.annotations || [],
     [annotationsData?.annotations]
@@ -262,15 +262,6 @@ export function ResourceViewerPage({
     });
   }, []); // eventBus is stable singleton
 
-  // Debounced invalidation for real-time events
-  const debouncedInvalidateAnnotations = useDebouncedCallback(
-    () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-    },
-    500
-  );
-
   // Add resource to open tabs when it loads
   useEffect(() => {
     if (resource && rUri) {
@@ -283,56 +274,22 @@ export function ResourceViewerPage({
   }, [resource, rUri, addResource]);
 
   // Real-time document events (SSE)
+  // Annotation updates are handled by AnnotationStore reacting to EventBus events.
+  // Callbacks here only handle non-annotation side effects.
   useResourceEvents({
     rUri,
     autoConnect: true,
 
-    // Annotation events - use debounced invalidation to batch rapid updates
     onAnnotationAdded: useCallback((_event: any) => {
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
+      // Store handles annotation refresh; events log needs explicit invalidation
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
+    }, [queryClient, rUri]),
 
     onAnnotationRemoved: useCallback((_event: any) => {
-      debouncedInvalidateAnnotations();
-    }, [debouncedInvalidateAnnotations]),
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
+    }, [queryClient, rUri]),
 
-    onAnnotationBodyUpdated: useCallback((event: any) => {
-      // Optimistically update annotations cache with body operations
-      queryClient.setQueryData(QUERY_KEYS.resources.annotations(rUri), (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          annotations: old.annotations.map((annotation: any) => {
-            if (annotation.id === event.payload.annotationId) {
-              let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
-
-              for (const op of event.payload.operations || []) {
-                if (op.op === 'add') {
-                  bodyArray.push(op.item);
-                } else if (op.op === 'remove') {
-                  bodyArray = bodyArray.filter((item: any) =>
-                    JSON.stringify(item) !== JSON.stringify(op.item)
-                  );
-                } else if (op.op === 'replace') {
-                  const index = bodyArray.findIndex((item: any) =>
-                    JSON.stringify(item) === JSON.stringify(op.oldItem)
-                  );
-                  if (index !== -1) {
-                    bodyArray[index] = op.newItem;
-                  }
-                }
-              }
-
-              return {
-                ...annotation,
-                body: bodyArray,
-              };
-            }
-            return annotation;
-          }),
-        };
-      });
-
+    onAnnotationBodyUpdated: useCallback((_event: any) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
     }, [queryClient, rUri]),
 
@@ -340,25 +297,21 @@ export function ResourceViewerPage({
     onDocumentArchived: useCallback((_event: any) => {
       refetchDocument();
       showSuccess('This document has been archived');
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
+    }, [refetchDocument, showSuccess]),
 
     onDocumentUnarchived: useCallback((_event: any) => {
       refetchDocument();
       showSuccess('This document has been unarchived');
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
+    }, [refetchDocument, showSuccess]),
 
     // Entity tag events
     onEntityTagAdded: useCallback((_event: any) => {
       refetchDocument();
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, debouncedInvalidateAnnotations]),
+    }, [refetchDocument]),
 
     onEntityTagRemoved: useCallback((_event: any) => {
       refetchDocument();
-      debouncedInvalidateAnnotations();
-    }, [refetchDocument, debouncedInvalidateAnnotations]),
+    }, [refetchDocument]),
 
     onError: useCallback((error: any) => {
       console.error('[RealTime] Event stream error:', error);
@@ -407,8 +360,7 @@ export function ResourceViewerPage({
 
   const handleAnnotationAdded = useCallback((event: Extract<ResourceEvent, { type: 'annotation.added' }>) => {
     triggerSparkleAnimation(event.payload.annotation.id);
-    debouncedInvalidateAnnotations();
-  }, [triggerSparkleAnimation, debouncedInvalidateAnnotations]);
+  }, [triggerSparkleAnimation]);
 
   const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
   const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
@@ -420,13 +372,11 @@ export function ResourceViewerPage({
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
   const handleDetectionComplete = useCallback(() => {
-    // Toast notification is handled by useMarkFlow
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+    // Toast notification is handled by useMarkFlow; store handles annotation refresh
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);
   const handleDetectionFailed = useCallback(() => {
-    // Error notification is handled by useMarkFlow
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+    // Error notification is handled by useMarkFlow; store handles annotation refresh
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);
   const handleGenerationComplete = useCallback(() => {
@@ -462,7 +412,6 @@ export function ResourceViewerPage({
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
-    'mark:removed': debouncedInvalidateAnnotations,
     'mark:create-failed': handleAnnotationCreateFailed,
     'mark:delete-failed': handleAnnotationDeleteFailed,
     'mark:body-updated': handleAnnotateBodyUpdated,
