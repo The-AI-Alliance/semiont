@@ -41,6 +41,7 @@ vi.mock('../../../lib/api-hooks', () => ({
   useResources: () => ({
     annotations: { useQuery: () => ({ data: { annotations: [] } }) },
     referencedBy: { useQuery: () => ({ data: { referencedBy: [] }, isLoading: false }) },
+    mediaToken: { useQuery: () => ({ data: { token: 'mock-media-token' }, isLoading: false }) },
     update: { useMutation: () => ({ mutateAsync: vi.fn() }) },
     generateCloneToken: { useMutation: () => ({ mutateAsync: vi.fn() }) },
   }),
