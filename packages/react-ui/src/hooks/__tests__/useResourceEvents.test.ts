@@ -116,7 +116,7 @@ describe('useResourceEvents', () => {
   });
 
   describe('EventBus event dispatch', () => {
-    function renderWithHandlers(handlers: Parameters<typeof useResourceEvents>[0]) {
+    function renderWithHandlers(handlers: Omit<Parameters<typeof useResourceEvents>[0], 'rUri'>) {
       return renderHook(
         () => ({
           events: useResourceEvents({ rUri: RID, autoConnect: false, ...handlers }),

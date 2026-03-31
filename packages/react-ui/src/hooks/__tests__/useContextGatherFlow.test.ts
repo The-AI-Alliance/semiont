@@ -187,7 +187,7 @@ describe('useContextGatherFlow', () => {
 
   it('updates gatherAnnotationId on each gather:requested', async () => {
     const { result } = renderContextGatherFlow();
-    const AID2 = makeAnnotationId('http://example.com/annotations/2');
+    const AID2 = makeAnnotationId('ann-2');
 
     act(() => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
