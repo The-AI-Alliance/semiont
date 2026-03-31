@@ -43,7 +43,7 @@ function waitForGatherResourceFinished(eventBus: EventBus): Promise<components['
     const doneSub = eventBus.get('gather:finished').subscribe((event) => {
       doneSub.unsubscribe();
       failSub.unsubscribe();
-      resolve(event.context);
+      resolve(event.response);
     });
     const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
       doneSub.unsubscribe();

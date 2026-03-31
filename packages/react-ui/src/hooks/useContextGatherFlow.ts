@@ -59,6 +59,7 @@ export function useContextGatherFlow(
 
   useEffect(() => {
     const handleGatherRequested = (event: EventMap['gather:requested']) => {
+      const { correlationId } = event;
       setCorrelationLoading(true);
       setCorrelationError(null);
       setCorrelationContext(null);
@@ -69,7 +70,7 @@ export function useContextGatherFlow(
 
       // Subscribe to result events before starting the stream
       const finishedSub = eventBus.get('gather:annotation-finished').subscribe((finishedEvent) => {
-        if (finishedEvent.annotationId !== event.annotationId) return;
+        if (finishedEvent.correlationId !== correlationId) return;
         finishedSub.unsubscribe();
         failedSub.unsubscribe();
 
@@ -78,13 +79,14 @@ export function useContextGatherFlow(
         setCorrelationLoading(false);
 
         eventBus.get('gather:complete').next({
+          correlationId,
           annotationId: finishedEvent.annotationId,
           response: finishedEvent.response,
         });
       });
 
       const failedSub = eventBus.get('gather:failed').subscribe((failedEvent) => {
-        if (failedEvent.annotationId !== event.annotationId) return;
+        if (failedEvent.correlationId !== correlationId) return;
         finishedSub.unsubscribe();
         failedSub.unsubscribe();
 

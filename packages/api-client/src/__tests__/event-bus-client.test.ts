@@ -313,7 +313,7 @@ describe('EventBusClient', () => {
           eventBus.get('match:search-results').next({
             correlationId: e.correlationId,
             referenceId: e.referenceId,
-            results: mockResults,
+            response: mockResults,
           });
         });
       });
@@ -548,7 +548,7 @@ describe('EventBusClient', () => {
           eventBus.get('gather:resource-complete').next({
             correlationId: e.correlationId,
             resourceId: e.resourceId,
-            context: mockContext,
+            response: mockContext,
           });
         });
       });

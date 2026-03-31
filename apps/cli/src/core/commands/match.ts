@@ -52,7 +52,7 @@ function waitForSearchResults(eventBus: EventBus, referenceId: string): Promise<
       if (event.referenceId === referenceId) {
         resultSub.unsubscribe();
         errorSub.unsubscribe();
-        resolve(event.results as ScoredResult[]);
+        resolve(event.response as ScoredResult[]);
       }
     });
     const errorSub = eventBus.get('match:search-failed').subscribe((event) => {

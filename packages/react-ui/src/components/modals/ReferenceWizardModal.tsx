@@ -115,10 +115,9 @@ export function ReferenceWizardModal({
     if (!isOpen) return;
 
     const subscription = eventBus.get('match:search-results').subscribe((event) => {
-      const e = event as { referenceId: string; results: ScoredResult[] };
-      if (annotationId && e.referenceId === annotationId) {
+      if (annotationId && event.referenceId === annotationId) {
         setIsSearching(false);
-        setWizardStep({ step: 'search-results', results: e.results });
+        setWizardStep({ step: 'search-results', results: event.response as ScoredResult[] });
       }
     });
 
@@ -149,6 +148,7 @@ export function ReferenceWizardModal({
     setIsSearching(true);
     const contextWithHint = userHint ? { ...context, userHint } : context;
     eventBus.get('match:search-requested').next({
+      correlationId: crypto.randomUUID(),
       referenceId: annotationId,
       context: contextWithHint,
       limit: config.limit,

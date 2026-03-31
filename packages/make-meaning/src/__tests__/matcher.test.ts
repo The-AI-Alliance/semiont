@@ -108,21 +108,22 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-1',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'test query' } },
       });
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-1');
-      expect(result!.results).toEqual(
+      expect(result!.response).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ '@id': 'r1', name: 'Resource 1' }),
           expect.objectContaining({ '@id': 'r2', name: 'Resource 2' }),
         ]),
       );
-      expect(result!.results).toHaveLength(2);
+      expect(result!.response).toHaveLength(2);
       // Context-driven search always adds score
-      for (const r of result!.results) {
+      for (const r of result!.response) {
         expect(r).toHaveProperty('score');
       }
 
@@ -135,6 +136,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-2',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'failing query' } },
       });
@@ -150,12 +152,13 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-3',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'nonexistent' } },
       });
 
       const result = await resultPromise;
-      expect(result!.results).toEqual([]);
+      expect(result!.response).toEqual([]);
     });
   });
 
@@ -201,15 +204,16 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-no-ctx',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'Alpha' } },
       });
 
       const result = await resultPromise;
-      expect(result!.results).toHaveLength(1);
-      expect(result!.results[0]).toMatchObject({ '@id': 'res-a', name: 'Alpha' });
-      expect(result!.results[0]).toHaveProperty('score');
-      expect(result!.results[0]).toHaveProperty('matchReason');
+      expect(result!.response).toHaveLength(1);
+      expect(result!.response[0]).toMatchObject({ '@id': 'res-a', name: 'Alpha' });
+      expect(result!.response[0]).toHaveProperty('score');
+      expect(result!.response[0]).toHaveProperty('matchReason');
     });
 
     it('should score exact name match higher than contains match', async () => {
@@ -218,12 +222,13 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-name',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
-      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       const beta = scores.find(r => r.name === 'Beta');
       expect(alpha).toBeDefined();
@@ -246,6 +251,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-et',
         context: makeContext({
           sourceContext: { before: '', selected: 'nonmatching', after: '' }, // no name match — isolate entity type signal
@@ -254,7 +260,7 @@ describe('Matcher', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       expect(alpha).toBeDefined();
       expect(alpha!.matchReason).toContain('entity types');
@@ -274,6 +280,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-bidir',
         context: makeContext({
           sourceContext: { before: '', selected: 'test', after: '' },
@@ -287,7 +294,7 @@ describe('Matcher', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const beta = scores.find(r => r.name === 'Beta');
       expect(beta).toBeDefined();
       expect(beta!.matchReason).toContain('bidirectional connection');
@@ -304,6 +311,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-neighbor',
         context: makeContext({
           sourceContext: { before: '', selected: 'something', after: '' },
@@ -317,8 +325,8 @@ describe('Matcher', () => {
       });
 
       const result = await resultPromise;
-      expect(result!.results.length).toBeGreaterThanOrEqual(1);
-      const gamma = result!.results.find((r: any) => r.name === 'Gamma');
+      expect(result!.response.length).toBeGreaterThanOrEqual(1);
+      const gamma = result!.response.find((r: any) => r.name === 'Gamma');
       expect(gamma).toBeDefined();
     });
 
@@ -330,6 +338,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-multi',
         context: makeContext({
           sourceContext: { before: '', selected: 'Alpha', after: '' },
@@ -338,7 +347,7 @@ describe('Matcher', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       expect(alpha).toBeDefined();
       expect(alpha!.matchReason).toContain('retrieval sources');
@@ -354,12 +363,13 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-sort',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
-      const scores = result!.results as Array<{ score: number }>;
+      const scores = result!.response as Array<{ score: number }>;
       for (let i = 1; i < scores.length; i++) {
         expect(scores[i - 1].score).toBeGreaterThanOrEqual(scores[i].score);
       }
@@ -393,12 +403,13 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-inference',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
-      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       const beta = scores.find(r => r.name === 'Beta');
       expect(alpha).toBeDefined();
@@ -437,13 +448,14 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-inference-fail',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
       // Should still return results with structural scores only
-      expect(result!.results.length).toBe(1);
+      expect(result!.response.length).toBe(1);
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Inference semantic scoring failed, using structural scores only',
         expect.anything(),
@@ -457,14 +469,15 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-no-inference',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
-      expect(result!.results.length).toBe(1);
+      expect(result!.response.length).toBe(1);
       // No inference call — score is purely structural
-      const alpha = result!.results[0] as any;
+      const alpha = result!.response[0] as any;
       expect(alpha.matchReason).not.toContain('semantic match');
     });
 
@@ -474,6 +487,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-fail',
         context: makeContext({ sourceContext: { before: '', selected: 'anything', after: '' } }),
       });
@@ -518,12 +532,13 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+          correlationId: 'test-corr-id',
           referenceId: 'ref-range',
           context: makeContext(),
         });
 
         const result = await resultPromise;
-        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
         // Only Gamma (index 2, score 0.7) should get semantic boost
         const gamma = scores.find(r => r.name === 'Gamma');
         expect(gamma!.matchReason).toContain('semantic match');
@@ -542,12 +557,13 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+          correlationId: 'test-corr-id',
           referenceId: 'ref-malformed',
           context: makeContext(),
         });
 
         const result = await resultPromise;
-        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
         // Only Alpha (index 0) should get semantic match (0.8 > 0.5)
         const alpha = scores.find(r => r.name === 'Alpha');
         expect(alpha!.matchReason).toContain('semantic match');
@@ -562,14 +578,15 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+          correlationId: 'test-corr-id',
           referenceId: 'ref-empty',
           context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
         });
 
         const result = await resultPromise;
         // Should still return results with structural scores only
-        expect(result!.results.length).toBe(3);
-        const alpha = result!.results.find((r: any) => r.name === 'Alpha') as any;
+        expect(result!.response.length).toBe(3);
+        const alpha = result!.response.find((r: any) => r.name === 'Alpha') as any;
         expect(alpha.matchReason).not.toContain('semantic match');
       });
 
@@ -580,12 +597,13 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+          correlationId: 'test-corr-id',
           referenceId: 'ref-oob',
           context: makeContext(),
         });
 
         const result = await resultPromise;
-        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
         // Alpha (index 0) should get boost, Gamma (index 2) should get boost
         // Index 4 (5th candidate) doesn't exist, should be silently ignored
         const alpha = scores.find(r => r.name === 'Alpha');
@@ -598,12 +616,13 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+          correlationId: 'test-corr-id',
           referenceId: 'ref-threshold',
           context: makeContext(),
         });
 
         const result = await resultPromise;
-        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
         const alpha = scores.find(r => r.name === 'Alpha');
         const beta = scores.find(r => r.name === 'Beta');
         const gamma = scores.find(r => r.name === 'Gamma');
@@ -622,6 +641,7 @@ describe('Matcher', () => {
 
         const summary = 'This passage discusses Greek mythology figures.';
         eventBus.get('match:search-requested').next({
+          correlationId: 'test-corr-id',
           referenceId: 'ref-summary',
           context: makeContext({
             sourceContext: { before: '', selected: 'Zeus', after: '' },
@@ -647,6 +667,7 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+          correlationId: 'test-corr-id',
           referenceId: 'ref-passage',
           context: makeContext({
             sourceContext: { before: 'In the beginning,', selected: 'Zeus ruled the heavens', after: 'and the earth.' },
@@ -673,6 +694,7 @@ describe('Matcher', () => {
       await matcher.stop();
 
       eventBus.get('match:search-requested').next({
+        correlationId: 'test-corr-id',
         referenceId: 'ref-4',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'after stop' } },
       });

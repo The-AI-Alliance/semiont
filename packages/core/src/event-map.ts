@@ -355,24 +355,24 @@ export type EventMap = {
   // Knowledge base graph reads (Matcher actor handles these)
 
   'match:search-requested': {
-    correlationId?: string;
+    correlationId: string;
     referenceId: string;
     context: GatheredContext;
     limit?: number;
     useSemanticScoring?: boolean;
   };
   'match:search-results': {
+    correlationId: string;
     referenceId: string;
-    results: Array<components['schemas']['ResourceDescriptor'] & {
+    response: Array<components['schemas']['ResourceDescriptor'] & {
       score?: number;
       matchReason?: string;
     }>;
-    correlationId?: string;
   };
   'match:search-failed': {
+    correlationId: string;
     referenceId: string;
     error: Error;
-    correlationId?: string;
   };
 
   // ========================================================================
@@ -382,7 +382,7 @@ export type EventMap = {
 
   // Annotation-level context (for yield flow and LLM context endpoint)
   'gather:requested': {
-    correlationId?: string;
+    correlationId: string;
     annotationId: AnnotationId;
     resourceId: ResourceId;
     options?: {
@@ -392,12 +392,12 @@ export type EventMap = {
     };
   };
   'gather:complete': {
-    correlationId?: string;
+    correlationId: string;
     annotationId: AnnotationId;
     response: components['schemas']['AnnotationLLMContextResponse'];
   };
   'gather:failed': {
-    correlationId?: string;
+    correlationId: string;
     annotationId: AnnotationId;
     error: Error;
   };
@@ -408,14 +408,14 @@ export type EventMap = {
     percentage?: number;
   };
   'gather:annotation-finished': {
-    correlationId?: string;
+    correlationId: string;
     annotationId: AnnotationId;
     response: components['schemas']['AnnotationLLMContextResponse'];
   };
 
   // Resource-level context (for LLM context endpoint)
   'gather:resource-requested': {
-    correlationId?: string;
+    correlationId: string;
     resourceId: ResourceId;
     options: {
       depth: number;
@@ -425,12 +425,12 @@ export type EventMap = {
     };
   };
   'gather:resource-complete': {
-    correlationId?: string;
+    correlationId: string;
     resourceId: ResourceId;
-    context: components['schemas']['ResourceLLMContextResponse'];
+    response: components['schemas']['ResourceLLMContextResponse'];
   };
   'gather:resource-failed': {
-    correlationId?: string;
+    correlationId: string;
     resourceId: ResourceId;
     error: Error;
   };
@@ -441,9 +441,9 @@ export type EventMap = {
     percentage?: number;
   };
   'gather:finished': {
-    correlationId?: string;
+    correlationId: string;
     resourceId: ResourceId;
-    context: components['schemas']['ResourceLLMContextResponse'];
+    response: components['schemas']['ResourceLLMContextResponse'];
   };
 
   // ========================================================================

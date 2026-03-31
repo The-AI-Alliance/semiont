@@ -204,7 +204,7 @@ export function ResourceViewerPage({
       setWizardOpen(true);
 
       // Trigger context gathering
-      eventBus.get('gather:requested').next({ annotationId: event.annotationId, resourceId: event.resourceId });
+      eventBus.get('gather:requested').next({ correlationId: crypto.randomUUID(), annotationId: event.annotationId, resourceId: event.resourceId });
     });
     return () => subscription.unsubscribe();
   }, [eventBus]);

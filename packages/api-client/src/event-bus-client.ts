@@ -342,7 +342,7 @@ export class EventBusClient {
     const result$ = merge(
       this.eventBus.get('gather:resource-complete').pipe(
         filter((e) => e.correlationId === correlationId),
-        map((e) => ({ ok: true as const, response: e.context })),
+        map((e) => ({ ok: true as const, response: e.response })),
       ),
       this.eventBus.get('gather:resource-failed').pipe(
         filter((e) => e.correlationId === correlationId),
@@ -378,7 +378,7 @@ export class EventBusClient {
     const result$ = merge(
       this.eventBus.get('match:search-results').pipe(
         filter((e) => e.correlationId === correlationId),
-        map((e) => ({ ok: true as const, results: e.results })),
+        map((e) => ({ ok: true as const, response: e.response })),
       ),
       this.eventBus.get('match:search-failed').pipe(
         filter((e) => e.correlationId === correlationId),
@@ -415,6 +415,6 @@ export class EventBusClient {
     if (!result.ok) {
       throw result.error;
     }
-    return result.results;
+    return result.response;
   }
 }
