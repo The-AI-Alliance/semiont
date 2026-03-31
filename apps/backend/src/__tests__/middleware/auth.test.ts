@@ -12,6 +12,7 @@ import { vi, describe, it, expect, beforeEach, type Mocked } from 'vitest';
 import { Context } from 'hono';
 import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth';
 import { OAuthService } from '../../auth/oauth';
+import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
 
 // Mock OAuthService
@@ -21,12 +22,24 @@ vi.mock('../../auth/oauth', () => ({
   }
 }));
 
+// Mock JWTService
+vi.mock('../../auth/jwt', () => ({
+  JWTService: {
+    verifyMediaToken: vi.fn(),
+  }
+}));
+
 const mockOAuthService = OAuthService as Mocked<typeof OAuthService>;
+const mockJWTService = JWTService as Mocked<typeof JWTService>;
 
 // Helper to create mock Hono context
-function createMockContext(headers: Record<string, string> = {}): Context {
+function createMockContext(
+  headers: Record<string, string> = {},
+  options: { path?: string; method?: string; queryParams?: Record<string, string> } = {}
+): Context {
   const mockJson = vi.fn().mockReturnValue(new Response());
   const mockSet = vi.fn();
+  const { path = '/test', method = 'GET', queryParams = {} } = options;
 
   // Mock logger that the auth middleware expects
   const mockLogger = {
@@ -47,9 +60,9 @@ function createMockContext(headers: Record<string, string> = {}): Context {
   const context = {
     req: {
       header: vi.fn((name: string) => headers[name]),
-      query: vi.fn().mockReturnValue(undefined),
-      path: '/test',
-      method: 'GET',
+      query: vi.fn((name: string) => queryParams[name]),
+      path,
+      method,
       raw: { headers: rawHeaders },
     },
     json: mockJson,
@@ -365,6 +378,108 @@ describe('Auth Middleware', () => {
         expect(contexts[1]?.set).toHaveBeenCalledWith('user', mockUser2);
         expect(contexts[2]?.set).toHaveBeenCalledWith('user', mockUser3);
         expect(mockNext).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    describe('Media Token Authentication', () => {
+      it('should accept a valid media token on GET /api/resources/:id', async () => {
+        mockJWTService.verifyMediaToken.mockImplementation(() => {/* valid — no throw */});
+        const context = createMockContext(
+          {},
+          { path: '/api/resources/res-abc', method: 'GET', queryParams: { token: 'valid.media.token' } }
+        );
+
+        await authMiddleware(context, mockNext);
+
+        expect(mockJWTService.verifyMediaToken).toHaveBeenCalledWith('valid.media.token', 'res-abc');
+        expect(context.set).toHaveBeenCalledWith('token', 'valid.media.token');
+        expect(mockNext).toHaveBeenCalled();
+        expect(context.json).not.toHaveBeenCalled();
+        expect(mockOAuthService.getUserFromToken).not.toHaveBeenCalled();
+      });
+
+      it('should return 401 for an invalid media token', async () => {
+        mockJWTService.verifyMediaToken.mockImplementation(() => { throw new Error('Invalid media token'); });
+        const context = createMockContext(
+          {},
+          { path: '/api/resources/res-abc', method: 'GET', queryParams: { token: 'bad.token' } }
+        );
+
+        await authMiddleware(context, mockNext);
+
+        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(mockNext).not.toHaveBeenCalled();
+      });
+
+      it('should return 401 for an expired media token', async () => {
+        mockJWTService.verifyMediaToken.mockImplementation(() => { throw new Error('Media token expired'); });
+        const context = createMockContext(
+          {},
+          { path: '/api/resources/res-abc', method: 'GET', queryParams: { token: 'expired.media.token' } }
+        );
+
+        await authMiddleware(context, mockNext);
+
+        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(mockNext).not.toHaveBeenCalled();
+      });
+
+      it('should not accept a media token for a different resource', async () => {
+        mockJWTService.verifyMediaToken.mockImplementation(() => { throw new Error('Media token resource mismatch'); });
+        const context = createMockContext(
+          {},
+          { path: '/api/resources/res-other', method: 'GET', queryParams: { token: 'token.for.res-abc' } }
+        );
+
+        await authMiddleware(context, mockNext);
+
+        expect(mockJWTService.verifyMediaToken).toHaveBeenCalledWith('token.for.res-abc', 'res-other');
+        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(mockNext).not.toHaveBeenCalled();
+      });
+
+      it('should not accept a media token on a non-resource path', async () => {
+        // /api/admin/users does not match MEDIA_TOKEN_PATH — falls through to normal auth
+        const context = createMockContext(
+          {},
+          { path: '/api/admin/users', method: 'GET', queryParams: { token: 'some.media.token' } }
+        );
+
+        await authMiddleware(context, mockNext);
+
+        // verifyMediaToken must not be called — path doesn't match
+        expect(mockJWTService.verifyMediaToken).not.toHaveBeenCalled();
+        // Falls through to normal auth which fails (no Bearer header)
+        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(mockNext).not.toHaveBeenCalled();
+      });
+
+      it('should not accept a media token on a POST to /api/resources/:id', async () => {
+        // Method must be GET — POST should fall through to normal auth
+        const context = createMockContext(
+          {},
+          { path: '/api/resources/res-abc', method: 'POST', queryParams: { token: 'valid.media.token' } }
+        );
+
+        await authMiddleware(context, mockNext);
+
+        expect(mockJWTService.verifyMediaToken).not.toHaveBeenCalled();
+        expect(context.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, 401);
+        expect(mockNext).not.toHaveBeenCalled();
+      });
+
+      it('should fall through to Bearer auth when no ?token= param is present', async () => {
+        // Path matches but no token param — should use normal Bearer flow
+        mockOAuthService.getUserFromToken.mockRejectedValue(new Error('Invalid token'));
+        const context = createMockContext(
+          { 'Authorization': 'Bearer normal-token' },
+          { path: '/api/resources/res-abc', method: 'GET' }
+        );
+
+        await authMiddleware(context, mockNext);
+
+        expect(mockJWTService.verifyMediaToken).not.toHaveBeenCalled();
+        expect(mockOAuthService.getUserFromToken).toHaveBeenCalledWith('normal-token');
       });
     });
   });
