@@ -1,20 +1,17 @@
 /**
  * Tests for useBindFlow hook
  *
- * Validates the write side of reference resolution:
- * - Event subscription to bind:update-body
- * - API calls with correct parameters
- * - Success/failure event emission
- * - Toast notifications
- * - Body update operations (add, remove, replace)
+ * Validates the React-layer of the bind flow:
+ * - Delegates to client.flows.bind() on mount
+ * - Shows error toast on bind:body-update-failed
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
 import { EventBusProvider, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
-import { annotationId, resourceId } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import { useBindFlow } from '../useBindFlow';
 
 // Mock the toast hook to track calls
@@ -28,22 +25,23 @@ vi.mock('../../components/Toast', () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-const { mockBindAnnotation, mockShowSuccess, mockShowError, mockShowInfo } = vi.hoisted(() => {
+const { mockBind, mockUnsubscribe, mockShowSuccess, mockShowError, mockShowInfo } = vi.hoisted(() => {
   return {
-    mockBindAnnotation: vi.fn(),
+    mockBind: vi.fn(),
+    mockUnsubscribe: vi.fn(),
     mockShowSuccess: vi.fn(),
     mockShowError: vi.fn(),
     mockShowInfo: vi.fn(),
   };
 });
 
-// Mock API client — useBindFlow calls client.sse.bindAnnotation (SSEClient)
+// Mock API client — useBindFlow calls client.flows.bind()
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
-      sse: { bindAnnotation: mockBindAnnotation },
+      flows: { bind: mockBind },
     }),
   };
 });
@@ -75,181 +73,30 @@ function renderBindFlow() {
 }
 
 describe('useBindFlow', () => {
-  const testAnnotationId = annotationId('anno-456');
-
   beforeEach(() => {
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();
-    mockBindAnnotation.mockClear();
+    mockBind.mockClear();
+    mockUnsubscribe.mockClear();
 
-    // Default: emit bind:finished on success
-    mockBindAnnotation.mockImplementation((_rId: any, annId: any, _req: any, opts: any) => {
-      queueMicrotask(() => opts.eventBus.get('bind:finished').next({ annotationId: annId }));
-      return { close: vi.fn() };
-    });
+    mockBind.mockReturnValue({ unsubscribe: mockUnsubscribe });
   });
 
-  afterEach(() => {
-    // Cleanup
-  });
-
-  // ─── Body update operations ─────────────────────────────────────────
-
-  it('handles body update with add operation', async () => {
-    const { getEventBus } = renderBindFlow();
-
-    const newBodyItem = {
-      type: 'SpecificResource' as const,
-      source: 'resource:789',
-    };
-
-    act(() => {
-      getEventBus().get('bind:update-body').next({
-        annotationId: testAnnotationId,
-        resourceId: resourceId('resource-123'),
-        operations: [
-          {
-            op: 'add',
-            item: newBodyItem,
-          },
-        ],
-      });
-    });
+  it('calls client.flows.bind on mount', async () => {
+    renderBindFlow();
 
     await waitFor(() => {
-      expect(mockBindAnnotation).toHaveBeenCalled();
+      expect(mockBind).toHaveBeenCalled();
     });
   });
 
-  it('handles body update with remove operation', async () => {
+  it('shows error toast on bind:body-update-failed', async () => {
     const { getEventBus } = renderBindFlow();
-
-    const oldBodyItem = {
-      type: 'SpecificResource' as const,
-      source: 'resource:789',
-    };
-
-    act(() => {
-      getEventBus().get('bind:update-body').next({
-        annotationId: testAnnotationId,
-        resourceId: resourceId('resource-123'),
-        operations: [
-          {
-            op: 'remove',
-            item: oldBodyItem,
-          },
-        ],
-      });
-    });
-
-    await waitFor(() => {
-      expect(mockBindAnnotation).toHaveBeenCalled();
-    });
-  });
-
-  it('handles body update with replace operation', async () => {
-    const { getEventBus } = renderBindFlow();
-
-    act(() => {
-      getEventBus().get('bind:update-body').next({
-        annotationId: testAnnotationId,
-        resourceId: resourceId('resource-123'),
-        operations: [
-          {
-            op: 'replace',
-            oldItem: { type: 'SpecificResource' as const, source: 'resource:123' },
-            newItem: { type: 'SpecificResource' as const, source: 'resource:789' },
-          },
-        ],
-      });
-    });
-
-    await waitFor(() => {
-      expect(mockBindAnnotation).toHaveBeenCalled();
-    });
-  });
-
-  it('emits bind:body-updated on successful update', async () => {
-    const { getEventBus } = renderBindFlow();
-
-    const bodyUpdatedSpy = vi.fn();
-    getEventBus().get('bind:body-updated').subscribe(bodyUpdatedSpy);
-
-    act(() => {
-      getEventBus().get('bind:update-body').next({
-        annotationId: testAnnotationId,
-        resourceId: resourceId('resource-123'),
-        operations: [
-          {
-            op: 'add',
-            item: { type: 'SpecificResource' as const, source: 'resource:789' },
-          },
-        ],
-      });
-    });
-
-    await waitFor(() => {
-      expect(bodyUpdatedSpy).toHaveBeenCalledWith({
-        annotationId: testAnnotationId,
-      });
-    });
-  });
-
-  it('emits bind:body-update-failed on API error', async () => {
-    const testError = new Error('Network error');
-
-    mockBindAnnotation.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
-      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: testError }));
-      return { close: vi.fn() };
-    });
-
-    const { getEventBus } = renderBindFlow();
-
-    const bodyUpdateFailedSpy = vi.fn();
-    getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
-
-    act(() => {
-      getEventBus().get('bind:update-body').next({
-        annotationId: testAnnotationId,
-        resourceId: resourceId('resource-123'),
-        operations: [
-          {
-            op: 'add',
-            item: { type: 'SpecificResource' as const, source: 'resource:789' },
-          },
-        ],
-      });
-    });
-
-    await waitFor(() => {
-      expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
-        error: testError,
-      });
-    });
-  });
-
-  it('shows error toast on body update failure', async () => {
     const testError = new Error('Failed to link reference');
 
-    mockBindAnnotation.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
-      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: testError }));
-      return { close: vi.fn() };
-    });
-
-    const { getEventBus } = renderBindFlow();
-
     act(() => {
-      getEventBus().get('bind:update-body').next({
-        annotationId: testAnnotationId,
-        resourceId: resourceId('resource-123'),
-        operations: [
-          {
-            op: 'add',
-            item: { type: 'SpecificResource' as const, source: 'resource:789' },
-          },
-        ],
-      });
+      getEventBus().get('bind:body-update-failed').next({ error: testError });
     });
 
     await waitFor(() => {
@@ -257,5 +104,25 @@ describe('useBindFlow', () => {
         expect.stringContaining('Failed to update reference')
       );
     });
+  });
+
+  it('unsubscribes on unmount', async () => {
+    function TestComponent() {
+      useBindFlow(resourceId('resource-123'));
+      return null;
+    }
+    const { unmount } = render(
+      <EventBusProvider>
+        <AuthTokenProvider token="test-token-123">
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestComponent />
+          </ApiClientProvider>
+        </AuthTokenProvider>
+      </EventBusProvider>
+    );
+
+    await waitFor(() => expect(mockBind).toHaveBeenCalled());
+    unmount();
+    expect(mockUnsubscribe).toHaveBeenCalled();
   });
 });

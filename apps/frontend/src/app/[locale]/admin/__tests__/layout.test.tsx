@@ -36,6 +36,8 @@ vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
+    EventBusProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     LeftSidebar: ({ children }: { children: React.ReactNode | Function }) => (
       <aside data-testid="admin-sidebar">
         {typeof children === 'function'

@@ -143,6 +143,8 @@ const client = new SemiontApiClient({
 
 🛠️ **[Utilities Guide](./docs/Utilities.md)** - Text encoding, fuzzy anchoring, SVG utilities
 
+🗄️ **[Observable Stores](./docs/STORES.md)** - Reactive resource and annotation caches, EventBus-driven invalidation, React integration
+
 ## Key Features
 
 - **Two clients** - HTTP (`SemiontApiClient`) and EventBus (`EventBusClient`) for the same operations

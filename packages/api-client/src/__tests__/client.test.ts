@@ -15,7 +15,7 @@ vi.mock('ky', () => ({
 import ky from 'ky';
 import { SemiontApiClient } from '../client';
 import type { ContentFormat } from '@semiont/core';
-import { baseUrl, resourceId, annotationId, entityType, jobId } from '@semiont/core';
+import { baseUrl, resourceId, annotationId, entityType, jobId, EventBus } from '@semiont/core';
 
 describe('SemiontApiClient - Archive Operations', () => {
   let client: SemiontApiClient;
@@ -39,6 +39,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
     client = new SemiontApiClient({
       baseUrl: testBaseUrl,
+      eventBus: new EventBus(),
       timeout: 10000,
     });
   });

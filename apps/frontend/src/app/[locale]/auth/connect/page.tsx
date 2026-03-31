@@ -10,7 +10,7 @@ import { Link } from '@/i18n/routing';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { SemiontApiClient } from '@semiont/api-client';
-import { googleCredential, email as makeEmail, baseUrl as makeBaseUrl } from '@semiont/core';
+import { googleCredential, email as makeEmail, baseUrl as makeBaseUrl, EventBus } from '@semiont/core';
 import { SEMIONT_GOOGLE_CLIENT_ID } from '@/lib/env';
 import type { Workspace } from '@/contexts/WorkspaceContext';
 
@@ -77,7 +77,7 @@ export default function ConnectPage() {
     }
     setError(null);
     const normalizedUrl = normalizeUrl(backendUrl);
-    const client = new SemiontApiClient({ baseUrl: makeBaseUrl(normalizedUrl) });
+    const client = new SemiontApiClient({ baseUrl: makeBaseUrl(normalizedUrl), eventBus: new EventBus() });
 
     window.google?.accounts.id.initialize({
       client_id: SEMIONT_GOOGLE_CLIENT_ID,
@@ -104,7 +104,7 @@ export default function ConnectPage() {
   const handleCredentialsSignIn = async (backendUrl: string, email: string, password: string) => {
     setError(null);
     const normalizedUrl = normalizeUrl(backendUrl);
-    const client = new SemiontApiClient({ baseUrl: makeBaseUrl(normalizedUrl) });
+    const client = new SemiontApiClient({ baseUrl: makeBaseUrl(normalizedUrl), eventBus: new EventBus() });
     try {
       const response = await client.authenticatePassword(makeEmail(email), password);
       if (!knownWorkspace) {

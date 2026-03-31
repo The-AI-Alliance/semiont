@@ -8,7 +8,7 @@ import {
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken } from '@semiont/core';
+import { baseUrl, accessToken, EventBus } from '@semiont/core';
 
 /**
  * Semiont MCP Server
@@ -34,6 +34,7 @@ const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
 // Auth token is stored separately and passed per-request
 const apiClient = new SemiontApiClient({
   baseUrl: baseUrl(SEMIONT_API_URL),
+  eventBus: new EventBus(),
 });
 
 // Store the access token to pass with each request

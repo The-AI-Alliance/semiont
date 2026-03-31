@@ -166,9 +166,11 @@ const renderWithProviders = (ui: React.ReactElement) => {
     <ThemeProvider>
       <ToastProvider>
         <AuthTokenProvider token={null}>
-          <ApiClientProvider baseUrl="http://localhost:4000">
-            <EventBusProvider>{ui}</EventBusProvider>
-          </ApiClientProvider>
+          <EventBusProvider>
+            <ApiClientProvider baseUrl="http://localhost:4000">
+              {ui}
+            </ApiClientProvider>
+          </EventBusProvider>
         </AuthTokenProvider>
       </ToastProvider>
     </ThemeProvider>

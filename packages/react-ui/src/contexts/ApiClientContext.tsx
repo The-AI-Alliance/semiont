@@ -3,6 +3,7 @@
 import { createContext, useContext, ReactNode, useMemo } from 'react';
 import { baseUrl } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
+import { useEventBus } from './EventBusContext';
 
 const ApiClientContext = createContext<SemiontApiClient | undefined>(undefined);
 
@@ -12,22 +13,25 @@ export interface ApiClientProviderProps {
 }
 
 /**
- * Provider for API client - creates a stateless singleton client
- * The client instance never changes (no token dependency)
- * Auth tokens are passed per-request via useAuthToken() in calling code
+ * Provider for API client — must be nested inside EventBusProvider.
+ * The client is re-created when the baseUrl changes (workspace switch).
+ * The EventBus is taken from EventBusContext so client and UI components
+ * share the same workspace-scoped bus.
  */
 export function ApiClientProvider({
   baseUrl: url,
   children,
 }: ApiClientProviderProps) {
-  // Client created once and never recreated (no token dependency)
+  const eventBus = useEventBus();
+
   const client = useMemo(
     () => new SemiontApiClient({
       baseUrl: baseUrl(url),
+      eventBus,
       // Use no timeout in test environment to avoid AbortController issues with ky + vitest
       ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
     }),
-    [url] // Only baseUrl in deps, token removed
+    [url, eventBus]
   );
 
   return (

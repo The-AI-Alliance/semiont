@@ -202,6 +202,54 @@ await updateMutation.mutateAsync({ id, title, content });
 - Error handling with retry logic
 - No manual state management needed
 
+### Observable Stores (RxJS BehaviorSubject)
+
+High-churn entity data and browser-persistent application state are managed as observable stores — `BehaviorSubject`-backed classes with no React dependency. Components subscribe via `useObservable(store.observable$)`.
+
+**Entity stores** (live in `@semiont/api-client`, owned by `SemiontApiClient`):
+
+| Store | Access | What it holds |
+|---|---|---|
+| `ResourceStore` | `client.stores.resources` | Resource descriptors, lazily fetched, invalidated by EventBus domain events |
+| `AnnotationStore` | `client.stores.annotations` | Annotation lists + details per resource, invalidated by SSE events |
+
+These update automatically when backend SSE events arrive (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed for annotation or resource list consumers. See [`@semiont/api-client/docs/STORES.md`](../../../packages/api-client/docs/STORES.md) for full documentation.
+
+**Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
+
+| Store | What it holds |
+|---|---|
+| `OpenResourcesStore` | Open document tabs; persisted to `localStorage`, synced across browser tabs via `StorageEvent` |
+| `SessionStore` | Session expiry state derived from the JWT; drives the "expiring soon" warning |
+
+These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `api-client` package.
+
+**React integration**: `useStoreTokenSync()` (called once at the workspace root) keeps the entity stores' token getters current as the auth token changes.
+
+### Binary Content (Media Tokens)
+
+Binary resources (images, PDFs) cannot carry `Authorization` headers through browser-native fetch paths (`<img src>`, PDF.js URL streaming). Buffering entire files into `ArrayBuffer` in the JS heap is unacceptable for large files.
+
+The solution is **media tokens** — short-lived JWTs scoped to a single resource, passed as `?token=<media-token>` on the resource URL:
+
+```
+ResourceViewerPage
+  → useMediaToken(resourceId)       # React Query, staleTime: 4 min
+      → POST /api/tokens/media
+      → { token }
+  → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`
+  → <img src={resourceUrl}> or pdfjsLib.getDocument({ url: resourceUrl })
+      → browser/PDF.js fetches directly, streams
+```
+
+`ResourceViewerPage` branches on `getMimeCategory(resource)`:
+- `'text'` → `useResourceContent` (fetch + decode to string) → text viewer
+- `'image'` (includes `application/pdf`) → `useMediaToken` → URL passed to image/PDF viewer
+
+Callers of `ResourceViewerPage` do not manage media tokens; the component handles it internally. The `useMediaToken` hook is available from `@semiont/react-ui` for any component that needs a token-authenticated URL independently.
+
+See [`@semiont/api-client/docs/MEDIA-TOKENS.md`](../../../packages/api-client/docs/MEDIA-TOKENS.md) for the full specification including the JWT format and `POST /api/tokens/media` endpoint.
+
 ### UI State (React Context)
 
 UI-only state and framework-agnostic providers:

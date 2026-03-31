@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ApiClientProvider, useApiClient } from '../ApiClientContext';
+import { EventBusProvider } from '../EventBusContext';
 import { SemiontApiClient } from '@semiont/api-client';
 
 // Test component that uses the hook
@@ -16,43 +17,51 @@ function TestConsumer() {
   );
 }
 
+function wrap(ui: React.ReactElement) {
+  return (
+    <EventBusProvider>
+      {ui}
+    </EventBusProvider>
+  );
+}
+
 describe('ApiClientContext', () => {
   describe('ApiClientProvider', () => {
     it('should provide API client to child components', () => {
-      render(
+      render(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <TestConsumer />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('client-status')).toHaveTextContent('has-client');
       expect(screen.getByTestId('client-type')).toHaveTextContent('SemiontApiClient');
     });
 
     it('should render children', () => {
-      render(
+      render(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <div data-testid="child">Child content</div>
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('child')).toHaveTextContent('Child content');
     });
 
     it('should update when baseUrl changes', () => {
-      const { rerender } = render(
+      const { rerender } = render(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <TestConsumer />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('client-status')).toHaveTextContent('has-client');
 
-      rerender(
+      rerender(wrap(
         <ApiClientProvider baseUrl="https://api2.example.com">
           <TestConsumer />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('client-status')).toHaveTextContent('has-client');
     });
@@ -71,11 +80,11 @@ describe('ApiClientContext', () => {
     });
 
     it('should return client from context', () => {
-      render(
+      render(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <TestConsumer />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('client-status')).toBeInTheDocument();
     });
@@ -86,11 +95,11 @@ describe('ApiClientContext', () => {
         return <div data-testid="is-instance">{client instanceof SemiontApiClient ? 'true' : 'false'}</div>;
       }
 
-      render(
+      render(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <TypeCheckConsumer />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('is-instance')).toHaveTextContent('true');
     });
@@ -117,11 +126,11 @@ describe('ApiClientContext', () => {
         );
       }
 
-      render(
+      render(wrap(
         <ApiClientProvider baseUrl="https://outer.api.com">
           <OuterConsumer />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('outer-status')).toHaveTextContent('has-client');
       expect(screen.getByTestId('inner-status')).toHaveTextContent('has-client');
@@ -140,12 +149,12 @@ describe('ApiClientContext', () => {
         return <div data-testid="consumer2">{client ? 'has-client' : 'no-client'}</div>;
       }
 
-      render(
+      render(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <Consumer1 />
           <Consumer2 />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('consumer1')).toHaveTextContent('has-client');
       expect(screen.getByTestId('consumer2')).toHaveTextContent('has-client');
@@ -158,19 +167,19 @@ describe('ApiClientContext', () => {
         return <div data-testid="conditional">{client ? 'shown' : 'hidden'}</div>;
       }
 
-      const { rerender } = render(
+      const { rerender } = render(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <ConditionalConsumer show={false} />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.queryByTestId('conditional')).not.toBeInTheDocument();
 
-      rerender(
+      rerender(wrap(
         <ApiClientProvider baseUrl="https://api.example.com">
           <ConditionalConsumer show={true} />
         </ApiClientProvider>
-      );
+      ));
 
       expect(screen.getByTestId('conditional')).toHaveTextContent('shown');
     });

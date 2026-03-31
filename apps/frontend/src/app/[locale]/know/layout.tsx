@@ -2,7 +2,7 @@ import { useContext } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, useGlobalEvents, useAttentionStream } from '@semiont/react-ui';
+import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, useGlobalEvents, useAttentionStream, useStoreTokenSync } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
@@ -14,6 +14,7 @@ import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 
 function GlobalEventsConnector() {
+  useStoreTokenSync();
   useGlobalEvents();
   return null;
 }

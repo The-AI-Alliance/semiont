@@ -23,6 +23,7 @@ import {
 } from '../api-hooks';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
+import { EventBusProvider } from '../../contexts/EventBusContext';
 
 // Mock the API client
 vi.mock('@semiont/api-client', () => ({
@@ -84,6 +85,17 @@ describe('API Hooks Authentication', () => {
       // Health
       healthCheck: vi.fn().mockResolvedValue({ status: 'ok' }),
       getStatus: vi.fn().mockResolvedValue({ status: 'operational' }),
+
+      // Stores (used by mutation onSuccess handlers)
+      stores: {
+        resources: {
+          invalidateDetail: vi.fn(),
+          invalidateLists: vi.fn(),
+        },
+        annotations: {
+          invalidateDetail: vi.fn(),
+        },
+      },
     };
 
     vi.mocked(SemiontApiClient).mockImplementation(function() { return mockClient; });
@@ -102,13 +114,15 @@ describe('API Hooks Authentication', () => {
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <AuthTokenProvider token="test-token">
-      <ApiClientProvider baseUrl="">
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      </ApiClientProvider>
-    </AuthTokenProvider>
+    <EventBusProvider>
+      <AuthTokenProvider token="test-token">
+        <ApiClientProvider baseUrl="">
+          <QueryClientProvider client={queryClient}>
+            {children}
+          </QueryClientProvider>
+        </ApiClientProvider>
+      </AuthTokenProvider>
+    </EventBusProvider>
   );
 
   describe('useResources queries', () => {
@@ -339,6 +353,7 @@ describe('API Hooks Authentication', () => {
         format: 'text/plain',
         entityTypes: [],
         creationMethod: 'ui',
+        storageUri: 'file:///test.txt',
       });
 
       expect(mockClient.yieldResource).toHaveBeenCalledWith(
@@ -389,13 +404,15 @@ describe('API Hooks Authentication', () => {
 
       // Rerender with new token
       const wrapperWithNewToken = ({ children }: { children: React.ReactNode }) => (
-        <AuthTokenProvider token="new-token">
-          <ApiClientProvider baseUrl="">
-            <QueryClientProvider client={queryClient}>
-              {children}
-            </QueryClientProvider>
-          </ApiClientProvider>
-        </AuthTokenProvider>
+        <EventBusProvider>
+          <AuthTokenProvider token="new-token">
+            <ApiClientProvider baseUrl="">
+              <QueryClientProvider client={queryClient}>
+                {children}
+              </QueryClientProvider>
+            </ApiClientProvider>
+          </AuthTokenProvider>
+        </EventBusProvider>
       );
 
       const query2 = renderHook(() => useResources().list.useQuery(), { wrapper: wrapperWithNewToken });

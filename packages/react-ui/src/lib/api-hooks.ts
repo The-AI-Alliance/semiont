@@ -24,11 +24,14 @@ import {
   entityType,
   userDID,
   accessToken,
+  resourceId as resourceIdBrand,
+  annotationId as annotationIdBrand,
 } from '@semiont/core';
 import { SemiontApiClient, decodeWithCharset } from '@semiont/api-client';
 import { QUERY_KEYS } from './query-keys';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
+import { useEventBus } from '../contexts/EventBusContext';
 
 /**
  * Convert raw token (string | null) to AccessToken | undefined
@@ -42,8 +45,9 @@ function toAccessToken(token: string | null) {
  */
 export function useResources() {
   const client = useApiClient();
-  const queryClient = useQueryClient();
   const token = useAuthToken();
+  // eventBus used for yield:updated emission in update mutation
+  const eventBus = useEventBus();
 
   return {
     list: {
@@ -136,8 +140,10 @@ export function useResources() {
             }
             return client.yieldResource(data, { auth: toAccessToken(token) });
           },
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
+          onSuccess: (result) => {
+            // Fetch new resource into store and invalidate lists
+            client.stores.resources.invalidateDetail(resourceIdBrand(result.resourceId));
+            client.stores.resources.invalidateLists();
           },
         });
       },
@@ -152,8 +158,7 @@ export function useResources() {
             return client.updateResource(id, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_data, variables) => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.detail(variables.id) });
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
+            eventBus.get('yield:updated').next({ resourceId: variables.id });
           },
         });
       },
@@ -190,8 +195,9 @@ export function useResources() {
             if (!client) throw new Error('Not authenticated');
             return client.createResourceFromToken(data, { auth: toAccessToken(token) });
           },
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
+          onSuccess: (result) => {
+            client.stores.resources.invalidateDetail(resourceIdBrand(result.resourceId));
+            client.stores.resources.invalidateLists();
           },
         });
       },
@@ -204,7 +210,7 @@ export function useResources() {
  */
 export function useAnnotations() {
   const client = useApiClient();
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient(); // retained for events log invalidation (no store yet)
   const token = useAuthToken();
 
   return {
@@ -249,8 +255,10 @@ export function useAnnotations() {
             if (!client) throw new Error('Not authenticated');
             return client.markAnnotation(resourceId, data, { auth: toAccessToken(token) });
           },
-          onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(variables.resourceId) });
+          onSuccess: (result, variables) => {
+            // AnnotationStore reacts to mark:added SSE event automatically.
+            // Explicitly invalidate the annotation detail and events log.
+            client.stores.annotations.invalidateDetail(annotationIdBrand(result.annotationId));
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
           },
         });
@@ -269,20 +277,10 @@ export function useAnnotations() {
             return client.deleteAnnotation(variables.resourceId, variables.annotationId, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
-            const queryKey = QUERY_KEYS.resources.annotations(variables.resourceId);
-            const currentData = queryClient.getQueryData<{ resource: any; annotations: any[] }>(queryKey);
-
-            if (currentData) {
-              queryClient.setQueryData(queryKey, {
-                ...currentData,
-                annotations: currentData.annotations.filter(ann => ann.id !== variables.annotationId)
-              });
-            } else {
-              queryClient.invalidateQueries({ queryKey });
-            }
-
+            // AnnotationStore reacts to mark:removed SSE event automatically.
+            // Explicitly remove from detail cache and invalidate events log.
+            client.stores.annotations.invalidateDetail(variables.annotationId);
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
-            queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationId] });
           },
         });
       },
@@ -305,8 +303,10 @@ export function useAnnotations() {
             return client.bindAnnotation(resourceId, annotationId, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationId] });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(variables.resourceId) });
+            // AnnotationStore reacts to mark:body-updated SSE event automatically.
+            // Invalidate annotation detail and events log; invalidate referencedBy for linked targets.
+            client.stores.annotations.invalidateDetail(variables.annotationId);
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
 
             if (variables.data.operations) {
               for (const op of variables.data.operations) {
@@ -320,8 +320,6 @@ export function useAnnotations() {
                 }
               }
             }
-
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
           },
         });
       },

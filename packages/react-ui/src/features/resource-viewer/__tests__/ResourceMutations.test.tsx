@@ -101,15 +101,15 @@ function renderHarness() {
   });
 
   render(
-    <AuthTokenProvider token={TEST_TOKEN}>
-      <ApiClientProvider baseUrl={BASE_URL}>
-        <QueryClientProvider client={queryClient}>
-          <EventBusProvider>
+    <EventBusProvider>
+      <AuthTokenProvider token={TEST_TOKEN}>
+        <ApiClientProvider baseUrl={BASE_URL}>
+          <QueryClientProvider client={queryClient}>
             <ResourceMutationHarness onEventBus={(eventBus) => { capturedEventBus = eventBus; }} />
-          </EventBusProvider>
-        </QueryClientProvider>
-      </ApiClientProvider>
-    </AuthTokenProvider>
+          </QueryClientProvider>
+        </ApiClientProvider>
+      </AuthTokenProvider>
+    </EventBusProvider>
   );
 
   const emit = <K extends keyof EventMap>(event: K, payload: EventMap[K]) => {
