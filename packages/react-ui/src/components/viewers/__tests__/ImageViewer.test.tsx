@@ -4,19 +4,18 @@ import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../test-utils';
 import { ImageViewer } from '../ImageViewer';
-import type { ResourceId } from '@semiont/core';
 
 describe('ImageViewer', () => {
   const defaultProps = {
-    resourceUri: 'abc-123' as ResourceId,
+    imageUrl: 'http://localhost:4000/resources/abc-123?token=tok',
     mimeType: 'image/png',
   };
 
-  it('should render an img element with correct src derived from URI', () => {
+  it('should render an img element with the provided src', () => {
     renderWithProviders(<ImageViewer {...defaultProps} />);
 
     const img = screen.getByRole('img');
-    expect(img).toHaveAttribute('src', 'http://localhost:4000/resources/abc-123');
+    expect(img).toHaveAttribute('src', defaultProps.imageUrl);
   });
 
   it('should use default alt text when none provided', () => {
@@ -33,18 +32,6 @@ describe('ImageViewer', () => {
 
     const img = screen.getByRole('img');
     expect(img).toHaveAttribute('alt', 'A beautiful diagram');
-  });
-
-  it('should extract the last segment of the URI as resource ID', () => {
-    renderWithProviders(
-      <ImageViewer
-        resourceUri={'resource-xyz' as ResourceId}
-        mimeType="image/jpeg"
-      />
-    );
-
-    const img = screen.getByRole('img');
-    expect(img).toHaveAttribute('src', 'http://localhost:4000/resources/resource-xyz');
   });
 
   it('should render with correct class names', () => {

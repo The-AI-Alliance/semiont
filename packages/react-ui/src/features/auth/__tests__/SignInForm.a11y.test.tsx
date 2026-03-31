@@ -29,6 +29,8 @@ const mockTranslations = {
   welcomeBack: 'Welcome back to Semiont',
   signInPrompt: 'Sign in to your knowledge workspace',
   continueWithGoogle: 'Continue with Google',
+  backendUrlLabel: 'Backend URL',
+  backendUrlPlaceholder: 'https://your-semiont-server.com',
   emailLabel: 'Email',
   emailPlaceholder: 'your@email.com',
   passwordLabel: 'Password',
@@ -42,6 +44,7 @@ const mockTranslations = {
   signUpInstead: 'Sign Up Instead',
   errorEmailRequired: 'Email is required',
   errorPasswordRequired: 'Password is required',
+  errorBackendUrlRequired: 'Backend URL is required',
   tagline: 'make meaning',
 };
 
@@ -53,6 +56,7 @@ describe('SignInForm - Accessibility', () => {
       const { container } = render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -200,6 +204,7 @@ describe('SignInForm - Accessibility', () => {
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -257,6 +262,7 @@ describe('SignInForm - Accessibility', () => {
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -374,6 +380,7 @@ describe('SignInForm - Accessibility', () => {
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
@@ -391,6 +398,7 @@ describe('SignInForm - Accessibility', () => {
       const { container } = render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
