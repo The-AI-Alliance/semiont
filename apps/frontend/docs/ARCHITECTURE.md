@@ -202,6 +202,30 @@ await updateMutation.mutateAsync({ id, title, content });
 - Error handling with retry logic
 - No manual state management needed
 
+### Observable Stores (RxJS BehaviorSubject)
+
+High-churn entity data and browser-persistent application state are managed as observable stores — `BehaviorSubject`-backed classes with no React dependency. Components subscribe via `useObservable(store.observable$)`.
+
+**Entity stores** (live in `@semiont/api-client`, owned by `SemiontApiClient`):
+
+| Store | Access | What it holds |
+|---|---|---|
+| `ResourceStore` | `client.stores.resources` | Resource descriptors, lazily fetched, invalidated by EventBus domain events |
+| `AnnotationStore` | `client.stores.annotations` | Annotation lists + details per resource, invalidated by SSE events |
+
+These update automatically when backend SSE events arrive (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed for annotation or resource list consumers. See [`@semiont/api-client/docs/STORES.md`](../../../packages/api-client/docs/STORES.md) for full documentation.
+
+**Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
+
+| Store | What it holds |
+|---|---|
+| `OpenResourcesStore` | Open document tabs; persisted to `localStorage`, synced across browser tabs via `StorageEvent` |
+| `SessionStore` | Session expiry state derived from the JWT; drives the "expiring soon" warning |
+
+These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `api-client` package.
+
+**React integration**: `useStoreTokenSync()` (called once at the workspace root) keeps the entity stores' token getters current as the auth token changes.
+
 ### UI State (React Context)
 
 UI-only state and framework-agnostic providers:
