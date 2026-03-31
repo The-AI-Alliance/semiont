@@ -226,6 +226,30 @@ These stores depend on browser APIs (`localStorage`, `window`) and so cannot liv
 
 **React integration**: `useStoreTokenSync()` (called once at the workspace root) keeps the entity stores' token getters current as the auth token changes.
 
+### Binary Content (Media Tokens)
+
+Binary resources (images, PDFs) cannot carry `Authorization` headers through browser-native fetch paths (`<img src>`, PDF.js URL streaming). Buffering entire files into `ArrayBuffer` in the JS heap is unacceptable for large files.
+
+The solution is **media tokens** — short-lived JWTs scoped to a single resource, passed as `?token=<media-token>` on the resource URL:
+
+```
+ResourceViewerPage
+  → useMediaToken(resourceId)       # React Query, staleTime: 4 min
+      → POST /api/tokens/media
+      → { token }
+  → resourceUrl = `${baseUrl}/api/resources/${id}?token=${token}`
+  → <img src={resourceUrl}> or pdfjsLib.getDocument({ url: resourceUrl })
+      → browser/PDF.js fetches directly, streams
+```
+
+`ResourceViewerPage` branches on `getMimeCategory(resource)`:
+- `'text'` → `useResourceContent` (fetch + decode to string) → text viewer
+- `'image'` (includes `application/pdf`) → `useMediaToken` → URL passed to image/PDF viewer
+
+Callers of `ResourceViewerPage` do not manage media tokens; the component handles it internally. The `useMediaToken` hook is available from `@semiont/react-ui` for any component that needs a token-authenticated URL independently.
+
+See [`@semiont/api-client/docs/MEDIA-TOKENS.md`](../../../packages/api-client/docs/MEDIA-TOKENS.md) for the full specification including the JWT format and `POST /api/tokens/media` endpoint.
+
 ### UI State (React Context)
 
 UI-only state and framework-agnostic providers:
