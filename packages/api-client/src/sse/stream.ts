@@ -254,9 +254,7 @@ export function createSSEStream(
         abortController.abort();
       }
     } catch (error) {
-      console.error('[SSE] Failed to parse event data:', error);
-      console.error('[SSE] Event type:', eventType);
-      console.error('[SSE] Data:', data);
+      logger?.error('SSE Failed to parse event data', { error, eventType, data });
     }
   };
 

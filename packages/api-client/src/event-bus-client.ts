@@ -22,19 +22,29 @@
 
 import { firstValueFrom, merge } from 'rxjs';
 import { filter, map, take, timeout } from 'rxjs/operators';
-import type { EventBus, EventMap, components } from '@semiont/core';
+import type { EventBus, EventMap, EventName, components } from '@semiont/core';
 import type { ResourceId, AnnotationId, UserId } from '@semiont/core';
 import type { JobId } from '@semiont/core';
 
-type EventName = keyof EventMap;
+type CorrelatedRequestEvent = {
+  [K in EventName]: EventMap[K] extends { correlationId: string } ? K : never;
+}[EventName];
+
+type CorrelatedResponseEvent = {
+  [K in EventName]: EventMap[K] extends { correlationId: string; response: unknown } ? K : never;
+}[EventName];
+
+type CorrelatedFailureEvent = {
+  [K in EventName]: EventMap[K] extends { correlationId: string; error: Error } ? K : never;
+}[EventName];
 
 /**
  * Send a request event and await a correlated response or failure.
  */
 async function eventBusRequest<
-  TReq extends EventName,
-  TSuccess extends EventName,
-  TFailure extends EventName,
+  TReq extends CorrelatedRequestEvent,
+  TSuccess extends CorrelatedResponseEvent,
+  TFailure extends CorrelatedFailureEvent,
 >(
   eventBus: EventBus,
   requestEvent: TReq,
@@ -42,24 +52,24 @@ async function eventBusRequest<
   successEvent: TSuccess,
   failureEvent: TFailure,
   timeoutMs = 30_000,
-): Promise<(EventMap[TSuccess] & { response: any })['response']> {
-  const correlationId = (payload as any).correlationId as string;
+): Promise<EventMap[TSuccess]['response']> {
+  const { correlationId } = payload;
 
   const result$ = merge(
     eventBus.get(successEvent).pipe(
-      filter((e: any) => e.correlationId === correlationId),
-      map((e: any) => ({ ok: true as const, response: e.response })),
+      filter((e) => e.correlationId === correlationId),
+      map((e) => ({ ok: true as const, response: e.response })),
     ),
     eventBus.get(failureEvent).pipe(
-      filter((e: any) => e.correlationId === correlationId),
-      map((e: any) => ({ ok: false as const, error: e.error as Error })),
+      filter((e) => e.correlationId === correlationId),
+      map((e) => ({ ok: false as const, error: e.error })),
     ),
   ).pipe(take(1), timeout(timeoutMs));
 
   // firstValueFrom subscribes eagerly — must be called before .next()
   const resultPromise = firstValueFrom(result$);
 
-  (eventBus.get(requestEvent) as any).next(payload);
+  eventBus.get(requestEvent).next(payload);
 
   const result = await resultPromise;
   if (!result.ok) {
