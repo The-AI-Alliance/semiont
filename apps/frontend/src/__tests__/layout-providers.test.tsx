@@ -96,20 +96,6 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   }),
 }));
 
-/** Render a layout (which uses <Outlet />) with a test child component via React Router. */
-function renderLayout(Layout: React.ComponentType, child: React.ReactNode, wrapper?: React.ComponentType<{ children: React.ReactNode }>) {
-  const tree = (
-    <MemoryRouter initialEntries={['/en/test']}>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="*" element={<>{child}</>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
-  );
-
-  return render(wrapper ? React.createElement(wrapper, null, tree) : tree);
-}
 
 describe('Layout Providers', () => {
   let queryClient: QueryClient;
@@ -132,7 +118,17 @@ describe('Layout Providers', () => {
         return <div>Token: {token || 'null'}</div>;
       };
 
-      renderLayout(AdminLayout, <TestComponent />);
+      render(
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<AdminLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
+      );
       expect(screen.getByText(/Token:/)).toBeInTheDocument();
     });
 
@@ -144,7 +140,17 @@ describe('Layout Providers', () => {
         return <div>Client: {client ? 'present' : 'null'}</div>;
       };
 
-      renderLayout(AdminLayout, <TestComponent />);
+      render(
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<AdminLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
+      );
       expect(screen.getByText('Client: present')).toBeInTheDocument();
     });
 
@@ -192,7 +198,17 @@ describe('Layout Providers', () => {
         return <div>Token: {token || 'null'}</div>;
       };
 
-      renderLayout(ModerateLayout, <TestComponent />);
+      render(
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<ModerateLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
+      );
       expect(screen.getByText(/Token:/)).toBeInTheDocument();
     });
 
@@ -204,7 +220,17 @@ describe('Layout Providers', () => {
         return <div>Client: {client ? 'present' : 'null'}</div>;
       };
 
-      renderLayout(ModerateLayout, <TestComponent />);
+      render(
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<ModerateLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
+      );
       expect(screen.getByText('Client: present')).toBeInTheDocument();
     });
 
