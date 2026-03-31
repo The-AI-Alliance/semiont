@@ -85,13 +85,13 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
             if (isStreamClosed) return;
             logger.info('Bind search completed', {
               referenceId,
-              resultCount: event.results.length,
+              resultCount: event.response.length,
             });
             try {
               await writeTypedSSE(stream, {
                 data: JSON.stringify({
                   referenceId: event.referenceId,
-                  results: event.results,
+                  response: event.response,
                 }),
                 event: 'match:search-results',
                 id: String(Date.now()),

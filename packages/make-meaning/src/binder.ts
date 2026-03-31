@@ -86,9 +86,9 @@ export class Binder {
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
       this.eventBus.get('match:search-results').next({
-        referenceId: event.referenceId,
-        results: limited,
         correlationId: event.correlationId,
+        referenceId: event.referenceId,
+        response: limited,
       });
     } catch (error) {
       this.logger.error('Bind search failed', {
@@ -96,9 +96,9 @@ export class Binder {
         error,
       });
       this.eventBus.get('match:search-failed').next({
+        correlationId: event.correlationId,
         referenceId: event.referenceId,
         error: error instanceof Error ? error : new Error(String(error)),
-        correlationId: event.correlationId,
       });
     }
   }

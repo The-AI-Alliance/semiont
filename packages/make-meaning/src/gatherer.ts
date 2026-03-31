@@ -90,6 +90,7 @@ export class Gatherer {
       );
 
       this.eventBus.get('gather:complete').next({
+        correlationId: event.correlationId,
         annotationId: event.annotationId,
         response,
       });
@@ -99,6 +100,7 @@ export class Gatherer {
         error,
       });
       this.eventBus.get('gather:failed').next({
+        correlationId: event.correlationId,
         annotationId: event.annotationId,
         error: error instanceof Error ? error : new Error(String(error)),
       });
@@ -119,8 +121,9 @@ export class Gatherer {
       );
 
       this.eventBus.get('gather:resource-complete').next({
+        correlationId: event.correlationId,
         resourceId: event.resourceId,
-        context: result,
+        response: result,
       });
     } catch (error) {
       this.logger.error('Gather resource context failed', {
@@ -128,6 +131,7 @@ export class Gatherer {
         error,
       });
       this.eventBus.get('gather:resource-failed').next({
+        correlationId: event.correlationId,
         resourceId: event.resourceId,
         error: error instanceof Error ? error : new Error(String(error)),
       });
