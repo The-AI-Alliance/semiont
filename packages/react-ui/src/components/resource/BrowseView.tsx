@@ -3,7 +3,6 @@
 import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { resourceId as toResourceId } from '@semiont/core';
 import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { createHoverHandlers } from '../../hooks/useBeckonFlow';
@@ -240,7 +239,7 @@ export const BrowseView = memo(function BrowseView({
             <div ref={containerRef} className="semiont-browse-view__content">
               <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
                 <PdfAnnotationCanvas
-                  resourceUri={toResourceId(resourceUri)}
+                  pdfUrl={content}
                   existingAnnotations={allAnnotations}
                   drawingMode={null}
                   selectedMotivation={null}
@@ -264,7 +263,7 @@ export const BrowseView = memo(function BrowseView({
           />
           <div ref={containerRef} className="semiont-browse-view__content">
             <ImageViewer
-              resourceUri={toResourceId(resourceUri)}
+              imageUrl={content}
               mimeType={mimeType}
               alt="Resource content"
             />

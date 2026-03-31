@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import type { components, ResourceId } from '@semiont/core';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import type { components } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"
 import { useHoverDelay } from '../../hooks/useHoverDelay';
-import { useApiClient } from '../../contexts/ApiClientContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -37,7 +36,7 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
 }
 
 interface SvgDrawingCanvasProps {
-  resourceUri: ResourceId;
+  imageUrl: string;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
@@ -54,7 +53,7 @@ interface SvgDrawingCanvasProps {
  * @emits mark:requested - New annotation drawn on canvas. Payload: { selector: SvgSelector, motivation: SelectionMotivation }
  */
 export function SvgDrawingCanvas({
-  resourceUri,
+  imageUrl,
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
@@ -63,10 +62,6 @@ export function SvgDrawingCanvas({
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
   const { hoverDelayMs } = useHoverDelay();
-  const apiClient = useApiClient();
-  const imageUrl = useMemo(() => {
-    return `${apiClient.baseUrl}/resources/${resourceUri}`;
-  }, [apiClient.baseUrl, resourceUri]);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);

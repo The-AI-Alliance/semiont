@@ -424,6 +424,28 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
 });
 
 /**
+ * POST /api/tokens/media
+ *
+ * Generate a short-lived, resource-scoped media token.
+ * Used by the frontend to authenticate binary resource fetches (images, PDFs)
+ * via ?token= query parameter without exposing the session JWT in URLs.
+ */
+authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
+  const user = c.get('user');
+  let body: { resourceId: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid request body' }, 400);
+  }
+  if (!body.resourceId || typeof body.resourceId !== 'string') {
+    return c.json({ error: 'resourceId is required' }, 400);
+  }
+  const token = JWTService.generateMediaToken(body.resourceId, user.id);
+  return c.json({ token }, 200);
+});
+
+/**
  * POST /api/users/accept-terms
  *
  * Accept Terms - Mark terms as accepted for the current user

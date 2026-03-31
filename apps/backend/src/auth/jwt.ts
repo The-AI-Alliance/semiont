@@ -126,6 +126,23 @@ export class JWTService {
     }
   }
 
+  static generateMediaToken(resourceId: string, userId: string): string {
+    const payload = { purpose: 'media', sub: resourceId, userId };
+    return jwt.sign(payload, this.getSecret(), { expiresIn: '5m' });
+  }
+
+  static verifyMediaToken(token: string, resourceId: string): void {
+    let decoded: jwt.JwtPayload;
+    try {
+      decoded = jwt.verify(token, this.getSecret()) as jwt.JwtPayload;
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) throw new Error('Media token expired');
+      throw new Error('Invalid media token');
+    }
+    if (decoded['purpose'] !== 'media') throw new Error('Invalid media token');
+    if (decoded['sub'] !== resourceId) throw new Error('Media token resource mismatch');
+  }
+
   static isAllowedDomain(email: Email): boolean {
     const parts = email.split('@');
     if (parts.length !== 2 || !parts[0] || !parts[1]) {

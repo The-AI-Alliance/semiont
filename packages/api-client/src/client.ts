@@ -222,6 +222,14 @@ export class SemiontApiClient {
     } as any).json();
   }
 
+  async getMediaToken(resourceId: ResourceId, options?: RequestOptions): Promise<{ token: string }> {
+    return this.http.post(`${this.baseUrl}/api/tokens/media`, {
+      json: { resourceId },
+      ...options,
+      auth: options?.auth
+    } as any).json();
+  }
+
   // ============================================================================
   // USERS
   // ============================================================================

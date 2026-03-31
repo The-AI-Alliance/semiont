@@ -13,18 +13,20 @@ export interface UseResourceContentResult {
 }
 
 /**
- * Hook to load resource content (representation)
+ * Hook to load text resource content (representation)
  *
- * Fetches the primary representation of a resource based on its media type.
- * Uses React Query for caching, deduplication, and consistent loading state.
+ * Fetches and decodes the primary text representation of a resource.
+ * Only for text types (text/plain, text/markdown).
+ * Binary types (image/*, application/pdf) use useMediaToken instead.
  */
 export function useResourceContent(
   rUri: ResourceId,
-  resource: SemiontResource
+  resource: SemiontResource,
+  enabled = true
 ): UseResourceContentResult {
   const { showError } = useToast();
   const resources = useResources();
-  const mediaType = getPrimaryMediaType(resource) || 'text/plain';
+  const mediaType = enabled ? (getPrimaryMediaType(resource) || 'text/plain') : '';
 
   const { data, isLoading, error } = resources.representation.useQuery(rUri, mediaType);
 

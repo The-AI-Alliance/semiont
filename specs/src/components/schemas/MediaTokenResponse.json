@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "description": "Short-lived media token for use as ?token= query parameter on resource URLs"
+    }
+  },
+  "required": ["token"]
+}

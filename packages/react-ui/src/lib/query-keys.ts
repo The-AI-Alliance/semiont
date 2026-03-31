@@ -25,6 +25,7 @@ export const QUERY_KEYS = {
     annotations: (id: ResourceId) => ['resources', id, 'annotations'] as const,
     referencedBy: (id: ResourceId) => ['resources', id, 'referenced-by'] as const,
     representation: (id: ResourceId) => ['resources', id, 'representation'] as const,
+    mediaToken: (id: ResourceId) => ['resources', id, 'media-token'] as const,
   },
 
   annotations: {

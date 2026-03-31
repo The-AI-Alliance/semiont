@@ -39,6 +39,9 @@
     "/api/tokens/mcp-generate": {
       "$ref": "paths/api_tokens_mcp-generate.json"
     },
+    "/api/tokens/media": {
+      "$ref": "paths/api_tokens_media.json"
+    },
     "/api/users/me": {
       "$ref": "paths/api_users_me.json"
     },

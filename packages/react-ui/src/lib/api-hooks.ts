@@ -107,6 +107,16 @@ export function useResources() {
         }),
     },
 
+    mediaToken: {
+      useQuery: (id: ResourceId) =>
+        useQuery({
+          queryKey: QUERY_KEYS.resources.mediaToken(id),
+          queryFn: () => client!.getMediaToken(id, { auth: toAccessToken(token) }),
+          enabled: !!client && !!id,
+          staleTime: 4 * 60 * 1000,
+        }),
+    },
+
     search: {
       useQuery: (query: string, limit: number) =>
         useQuery({

@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { createHoverHandlers } from '../../hooks/useBeckonFlow';
-import type { components, ResourceId } from '@semiont/core';
+import type { components } from '@semiont/core';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"
@@ -48,7 +48,7 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
 }
 
 interface PdfAnnotationCanvasProps {
-  resourceUri: ResourceId;
+  pdfUrl: string;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
@@ -66,7 +66,7 @@ interface PdfAnnotationCanvasProps {
  * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfAnnotationCanvas({
-  resourceUri,
+  pdfUrl,
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
@@ -75,12 +75,6 @@ export function PdfAnnotationCanvas({
   selectedAnnotationId,
   hoverDelayMs = 150
 }: PdfAnnotationCanvasProps) {
-  const pdfUrl = useMemo(() => {
-    return `/api/resources/${resourceUri}`;
-  }, [resourceUri]);
-
-  // Removed excessive logging
-
   // PDF state
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState<number>(0);

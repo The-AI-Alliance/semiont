@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "The resource ID to generate a media token for"
+    }
+  },
+  "required": ["resourceId"]
+}

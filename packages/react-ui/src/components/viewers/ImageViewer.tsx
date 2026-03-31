@@ -1,16 +1,10 @@
-import type { ResourceId } from '@semiont/core';
-import { useApiClient } from '../../contexts/ApiClientContext';
-
 interface ImageViewerProps {
-  resourceUri: ResourceId;
+  imageUrl: string;
   mimeType: string;
   alt?: string;
 }
 
-export function ImageViewer({ resourceUri, alt = 'Resource image' }: ImageViewerProps) {
-  const { baseUrl } = useApiClient();
-  const imageUrl = `${baseUrl}/resources/${resourceUri}`;
-
+export function ImageViewer({ imageUrl, alt = 'Resource image' }: ImageViewerProps) {
   return (
     <div className="semiont-image-viewer">
       <img

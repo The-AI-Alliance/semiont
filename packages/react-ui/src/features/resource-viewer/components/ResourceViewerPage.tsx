@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { components, ResourceId, ResourceEvent, GatheredContext } from '@semiont/core';
 import { annotationId } from '@semiont/core';
-import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getMimeCategory } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -23,6 +23,7 @@ import { ResourceViewer } from '@semiont/react-ui';
 import { QUERY_KEYS } from '../../../lib/query-keys';
 import { useResources, useEntityTypes } from '../../../lib/api-hooks';
 import { useResourceContent } from '../../../hooks/useResourceContent';
+import { useMediaToken } from '../../../hooks/useMediaToken';
 import { useToast } from '../../../components/Toast';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
@@ -148,8 +149,21 @@ export function ResourceViewerPage({
   const resources = useResources();
   const entityTypesAPI = useEntityTypes();
 
-  // Load all data
-  const { content, loading: contentLoading } = useResourceContent(rUri, resource);
+  // Determine MIME category to choose content path
+  const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
+  const isBinary = getMimeCategory(resourceMediaType) === 'image';
+
+  // Text path: fetch and decode representation (disabled for binary — mediaToken path handles those)
+  const { content: textContent, loading: textLoading } = useResourceContent(rUri, resource, !isBinary);
+
+  // Binary path: fetch short-lived media token, construct URL
+  const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(rUri);
+  const binaryContent = (isBinary && mediaToken && client)
+    ? `${client.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
+    : '';
+
+  const content = isBinary ? binaryContent : textContent;
+  const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
   const { data: annotationsData } = resources.annotations.useQuery(rUri);
   const annotations = useMemo(
