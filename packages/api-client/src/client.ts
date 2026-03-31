@@ -20,6 +20,7 @@ import type {
   ContentFormat,
   Email,
   EntityType,
+  EventBus,
   GoogleCredential,
   JobId,
   Motivation,
@@ -28,6 +29,9 @@ import type {
   UserDID
 } from '@semiont/core';
 import { SSEClient } from './sse/index';
+import { FlowEngine } from './flows';
+import { ResourceStore } from './stores/resource-store';
+import { AnnotationStore } from './stores/annotation-store';
 import type { Logger } from '@semiont/core';
 
 // Type helpers to extract request/response types from OpenAPI paths
@@ -54,6 +58,8 @@ export class APIError extends Error {
 
 export interface SemiontApiClientConfig {
   baseUrl: BaseUrl;
+  /** Per-workspace EventBus. Required — one bus per workspace, constructed externally. */
+  eventBus: EventBus;
   timeout?: number;
   retry?: number;
   logger?: Logger;
@@ -76,6 +82,8 @@ export interface RequestOptions {
 export class SemiontApiClient {
   private http: KyInstance;
   readonly baseUrl: BaseUrl;
+  /** The workspace-scoped EventBus this client was constructed with. */
+  readonly eventBus: EventBus;
   private logger?: Logger;
 
   /**
@@ -83,24 +91,29 @@ export class SemiontApiClient {
    *
    * Separate from the main HTTP client to clearly mark streaming endpoints.
    * Uses native fetch() instead of ky for SSE support.
-   *
-   * @example
-   * ```typescript
-   * const stream = client.sse.detectAnnotations(
-   *   resourceId,
-   *   { entityTypes: ['Person', 'Organization'] },
-   *   { auth: accessToken }
-   * );
-   *
-   * stream.onProgress((p) => console.log(p.message));
-   * stream.onComplete((r) => console.log(`Found ${r.foundCount} entities`));
-   * stream.close();
-   * ```
    */
   public readonly sse: SSEClient;
 
+  /**
+   * Framework-agnostic flow orchestration.
+   * Each method returns a Subscription; call .unsubscribe() to tear down.
+   */
+  public readonly flows: FlowEngine;
+
+  /**
+   * Per-workspace observable stores for entity data.
+   * Call stores.resources.setTokenGetter() / stores.annotations.setTokenGetter()
+   * from the React layer when the auth token changes.
+   */
+  public readonly stores: {
+    resources: ResourceStore;
+    annotations: AnnotationStore;
+  };
+
   constructor(config: SemiontApiClientConfig) {
-    const { baseUrl, timeout = 30000, retry = 2, logger } = config;
+    const { baseUrl, eventBus, timeout = 30000, retry = 2, logger } = config;
+
+    this.eventBus = eventBus;
 
     // Store logger and baseUrl for constructing full URLs
     this.logger = logger;
@@ -179,6 +192,15 @@ export class SemiontApiClient {
       baseUrl: this.baseUrl,
       logger: this.logger
     });
+
+    // Flow engine — pure RxJS orchestration, no React imports
+    this.flows = new FlowEngine(this.eventBus, this.sse, this);
+
+    // Observable stores — EventBus-reactive caches for entity data
+    this.stores = {
+      resources: new ResourceStore(this, this.eventBus),
+      annotations: new AnnotationStore(this, this.eventBus),
+    };
   }
 
   private authHeaders(options?: { auth?: AccessToken }): Record<string, string> {
