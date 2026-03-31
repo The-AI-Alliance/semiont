@@ -5,7 +5,8 @@
     "resourceInfo": "Kaynak Bilgisi",
     "collaboration": "İşbirliği",
     "userAccount": "Kullanıcı Hesabı",
-    "settings": "Ayarlar"
+    "settings": "Ayarlar",
+    "knowledgeBase": "Bilgi Tabanı"
   },
   "ResourceInfoPanel": {
     "title": "Kaynak Bilgisi",

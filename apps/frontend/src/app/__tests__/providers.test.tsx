@@ -46,16 +46,16 @@ vi.mock('@/components/knowledge/NavigationHandler', () => ({
   NavigationHandler: () => null,
 }));
 
-// Mock WorkspaceContext so AuthProvider is rendered (activeWorkspace must be set)
-vi.mock('@/contexts/WorkspaceContext', () => ({
-  WorkspaceProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useWorkspaceContext: () => ({
-    workspaces: [{ id: 'ws-1', label: 'Test', backendUrl: 'http://localhost:4000' }],
-    activeWorkspaceId: 'ws-1',
-    activeWorkspace: { id: 'ws-1', label: 'Test', backendUrl: 'http://localhost:4000' },
-    addWorkspace: vi.fn(),
-    removeWorkspace: vi.fn(),
-    setActiveWorkspace: vi.fn(),
+// Mock KnowledgeBaseContext so AuthProvider is rendered (activeKnowledgeBase must be set)
+vi.mock('@/contexts/KnowledgeBaseContext', () => ({
+  KnowledgeBaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useKnowledgeBaseContext: () => ({
+    knowledgeBases: [{ id: 'kb-1', label: 'Test', backendUrl: 'http://localhost:4000' }],
+    activeKnowledgeBaseId: 'kb-1',
+    activeKnowledgeBase: { id: 'kb-1', label: 'Test', backendUrl: 'http://localhost:4000' },
+    addKnowledgeBase: vi.fn(),
+    removeKnowledgeBase: vi.fn(),
+    setActiveKnowledgeBase: vi.fn(),
   }),
 }));
 

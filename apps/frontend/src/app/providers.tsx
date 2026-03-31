@@ -15,7 +15,7 @@ import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { APIError } from '@semiont/api-client';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { WorkspaceProvider, useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { KnowledgeBaseProvider, useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
 
@@ -125,10 +125,10 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
   );
 }
 
-function WorkspaceAuthBridge({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
-  const { activeWorkspace } = useWorkspaceContext();
-  if (!activeWorkspace) {
-    // No workspace configured yet. Render inner providers (routing, i18n, etc.) but skip
+function KnowledgeBaseAuthBridge({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
+  const { activeKnowledgeBase } = useKnowledgeBaseContext();
+  if (!activeKnowledgeBase) {
+    // No knowledge base configured yet. Render inner providers (routing, i18n, etc.) but skip
     // AuthProvider — there is no backend URL to authenticate against. KnowledgeLayout will
     // redirect to /auth/connect when the user navigates to /know.
     return (
@@ -138,7 +138,7 @@ function WorkspaceAuthBridge({ children, queryClient }: { children: React.ReactN
     );
   }
   return (
-    <AuthProvider key={activeWorkspace.id} backendUrl={activeWorkspace.backendUrl}>
+    <AuthProvider key={activeKnowledgeBase.id} backendUrl={activeKnowledgeBase.backendUrl}>
       <InnerProviders queryClient={queryClient}>
         {children}
       </InnerProviders>
@@ -151,10 +151,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => createQueryClient());
 
   return (
-    <WorkspaceProvider>
-      <WorkspaceAuthBridge queryClient={queryClient}>
+    <KnowledgeBaseProvider>
+      <KnowledgeBaseAuthBridge queryClient={queryClient}>
         {children}
-      </WorkspaceAuthBridge>
-    </WorkspaceProvider>
+      </KnowledgeBaseAuthBridge>
+    </KnowledgeBaseProvider>
   );
 }

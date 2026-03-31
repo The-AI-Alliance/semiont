@@ -5,7 +5,8 @@
     "resourceInfo": "Broninformatie",
     "collaboration": "Samenwerking",
     "userAccount": "Gebruikersaccount",
-    "settings": "Instellingen"
+    "settings": "Instellingen",
+    "knowledgeBase": "Kennisbank"
   },
   "ResourceInfoPanel": {
     "title": "Broninformatie",

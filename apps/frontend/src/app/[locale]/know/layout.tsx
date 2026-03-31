@@ -10,7 +10,7 @@ import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
-import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
 import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 
 function GlobalEventsConnector() {
@@ -35,9 +35,9 @@ export default function KnowledgeLayout() {
   const cacheManager = useCacheManager();
   const { token: authToken, isLoading } = useAuth();
   const router = useRouter();
-  const { activeWorkspace } = useWorkspaceContext();
+  const { activeKnowledgeBase } = useKnowledgeBaseContext();
 
-  if (!activeWorkspace) {
+  if (!activeKnowledgeBase) {
     router.push('/auth/connect?callbackUrl=/know');
     return null;
   }
@@ -55,13 +55,13 @@ export default function KnowledgeLayout() {
 
   if (!authToken) {
     const callbackUrl = encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/know');
-    router.push(`/auth/connect?workspaceId=${activeWorkspace.id}&callbackUrl=${callbackUrl}`);
+    router.push(`/auth/connect?workspaceId=${activeKnowledgeBase.id}&callbackUrl=${callbackUrl}`);
     return null;
   }
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={activeWorkspace.backendUrl}>
+      <ApiClientProvider baseUrl={activeKnowledgeBase.backendUrl}>
         <CacheProvider cacheManager={cacheManager}>
           <OpenResourcesProvider openResourcesManager={openResourcesManager}>
             <ResourceAnnotationsProvider>

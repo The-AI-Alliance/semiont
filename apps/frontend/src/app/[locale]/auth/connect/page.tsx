@@ -8,11 +8,11 @@ import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 import { Link } from '@/i18n/routing';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
 import { SemiontApiClient } from '@semiont/api-client';
 import { googleCredential, email as makeEmail, baseUrl as makeBaseUrl, EventBus } from '@semiont/core';
 import { SEMIONT_GOOGLE_CLIENT_ID } from '@/lib/env';
-import type { Workspace } from '@/contexts/WorkspaceContext';
+import type { KnowledgeBase } from '@/contexts/KnowledgeBaseContext';
 
 declare global {
   interface Window {
@@ -44,18 +44,18 @@ export default function ConnectPage() {
   const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { setSession } = useAuthContext();
-  const { workspaces, addWorkspace } = useWorkspaceContext();
+  const { knowledgeBases, addKnowledgeBase } = useKnowledgeBaseContext();
 
   const callbackUrl = searchParams.get('callbackUrl') ?? '/know';
 
   // If workspaceId is in the query string, we're re-authenticating to a known workspace.
   const workspaceId = searchParams.get('workspaceId');
-  const knownWorkspace: Workspace | undefined = workspaceId
-    ? workspaces.find(w => w.id === workspaceId)
+  const knownKnowledgeBase: KnowledgeBase | undefined = workspaceId
+    ? knowledgeBases.find(w => w.id === workspaceId)
     : undefined;
 
   // The locked URL shown in the form (undefined = user must enter it)
-  const lockedBackendUrl = knownWorkspace?.backendUrl;
+  const lockedBackendUrl = knownKnowledgeBase?.backendUrl;
 
   const [error, setError] = useState<string | null>(null);
   const googleScriptLoaded = useRef(false);
@@ -84,8 +84,8 @@ export default function ConnectPage() {
       callback: async ({ credential }) => {
         try {
           const response = await client.authenticateGoogle(googleCredential(credential));
-          if (!knownWorkspace) {
-            addWorkspace({
+          if (!knownKnowledgeBase) {
+            addKnowledgeBase({
               id: crypto.randomUUID(),
               label: new URL(normalizedUrl).hostname,
               backendUrl: normalizedUrl,
@@ -107,8 +107,8 @@ export default function ConnectPage() {
     const client = new SemiontApiClient({ baseUrl: makeBaseUrl(normalizedUrl), eventBus: new EventBus() });
     try {
       const response = await client.authenticatePassword(makeEmail(email), password);
-      if (!knownWorkspace) {
-        addWorkspace({
+      if (!knownKnowledgeBase) {
+        addKnowledgeBase({
           id: crypto.randomUUID(),
           label: new URL(normalizedUrl).hostname,
           backendUrl: normalizedUrl,

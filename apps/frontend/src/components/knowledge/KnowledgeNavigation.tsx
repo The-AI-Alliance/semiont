@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
-import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import {
   useOpenResources,
   useEventSubscriptions,
@@ -109,9 +108,6 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
           }}
           navigationMenu={navigationMenu}
         />
-      </div>
-      <div className="shrink-0 px-2 pb-2">
-        <WorkspaceSwitcher isCollapsed={isCollapsed} />
       </div>
     </div>
   );

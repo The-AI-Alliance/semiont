@@ -5,7 +5,8 @@
     "resourceInfo": "معلومات المورد",
     "collaboration": "التعاون",
     "userAccount": "حساب المستخدم",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "knowledgeBase": "قاعدة المعرفة"
   },
   "ResourceInfoPanel": {
     "title": "معلومات المورد",

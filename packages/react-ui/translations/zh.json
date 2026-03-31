@@ -5,7 +5,8 @@
     "resourceInfo": "资源信息",
     "collaboration": "协作",
     "userAccount": "用户帐户",
-    "settings": "设置"
+    "settings": "设置",
+    "knowledgeBase": "知识库"
   },
   "ResourceInfoPanel": {
     "title": "资源信息",

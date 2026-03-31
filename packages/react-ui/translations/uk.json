@@ -5,7 +5,8 @@
     "resourceInfo": "Інформація про ресурс",
     "collaboration": "Співпраця",
     "userAccount": "Обліковий запис",
-    "settings": "Налаштування"
+    "settings": "Налаштування",
+    "knowledgeBase": "База знань"
   },
   "ResourceInfoPanel": {
     "title": "Інформація про ресурс",

@@ -5,7 +5,8 @@
     "resourceInfo": "Info do Recurso",
     "collaboration": "Colaboracao",
     "userAccount": "Conta do Usuario",
-    "settings": "Configuracoes"
+    "settings": "Configuracoes",
+    "knowledgeBase": "Base de conhecimento"
   },
   "ResourceInfoPanel": {
     "title": "Info do Recurso",

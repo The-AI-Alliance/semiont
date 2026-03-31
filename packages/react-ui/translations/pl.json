@@ -5,7 +5,8 @@
     "resourceInfo": "Informacje o zasobie",
     "collaboration": "Współpraca",
     "userAccount": "Konto użytkownika",
-    "settings": "Ustawienia"
+    "settings": "Ustawienia",
+    "knowledgeBase": "Baza wiedzy"
   },
   "ResourceInfoPanel": {
     "title": "Informacje o zasobie",

@@ -5,7 +5,8 @@
     "resourceInfo": "Informace o zdroji",
     "collaboration": "Spolupráce",
     "userAccount": "Uživatelský účet",
-    "settings": "Nastavení"
+    "settings": "Nastavení",
+    "knowledgeBase": "Znalostní báze"
   },
   "ResourceInfoPanel": {
     "title": "Informace o zdroji",

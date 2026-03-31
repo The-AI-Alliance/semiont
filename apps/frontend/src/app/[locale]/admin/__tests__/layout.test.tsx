@@ -57,14 +57,14 @@ vi.mock('@/lib/env', () => ({
   SEMIONT_SITE_NAME: 'Test Site',
 }));
 
-vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspaceContext: () => ({
-    activeWorkspace: { id: 'test', label: 'localhost', backendUrl: 'http://localhost:4000' },
-    workspaces: [],
-    activeWorkspaceId: 'test',
-    addWorkspace: vi.fn(),
-    removeWorkspace: vi.fn(),
-    setActiveWorkspace: vi.fn(),
+vi.mock('@/contexts/KnowledgeBaseContext', () => ({
+  useKnowledgeBaseContext: () => ({
+    activeKnowledgeBase: { id: 'test', label: 'localhost', backendUrl: 'http://localhost:4000' },
+    knowledgeBases: [],
+    activeKnowledgeBaseId: 'test',
+    addKnowledgeBase: vi.fn(),
+    removeKnowledgeBase: vi.fn(),
+    setActiveKnowledgeBase: vi.fn(),
   }),
 }));
 

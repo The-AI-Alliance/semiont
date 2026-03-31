@@ -5,7 +5,8 @@
     "resourceInfo": "সম্পদের তথ্য",
     "collaboration": "সহযোগিতা",
     "userAccount": "ব্যবহারকারীর অ্যাকাউন্ট",
-    "settings": "সেটিংস"
+    "settings": "সেটিংস",
+    "knowledgeBase": "জ্ঞান ভান্ডার"
   },
   "ResourceInfoPanel": {
     "title": "সম্পদের তথ্য",

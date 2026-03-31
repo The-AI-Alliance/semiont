@@ -5,7 +5,8 @@
     "resourceInfo": "Thông tin tài nguyên",
     "collaboration": "Cộng tác",
     "userAccount": "Tài khoản người dùng",
-    "settings": "Cài đặt"
+    "settings": "Cài đặt",
+    "knowledgeBase": "Cơ sở kiến thức"
   },
   "ResourceInfoPanel": {
     "title": "Thông tin tài nguyên",
