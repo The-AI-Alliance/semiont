@@ -62,11 +62,10 @@ export class MockPlatform extends Platform {
 
 
   /**
-   * Map service types to mock handler types
+   * Mock platform supports all service types — logical type IS the handler key.
    */
-  protected override mapServiceType(_declaredType: string): string {
-    // Mock platform uses default handler for all services
-    return 'default';
+  protected override mapServiceType(declaredType: import('../../core/service-types.js').ServiceType): import('../../core/service-types.js').ServiceType {
+    return declaredType;
   }
   
   /**

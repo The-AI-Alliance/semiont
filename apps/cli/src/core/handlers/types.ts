@@ -1,6 +1,7 @@
 import { Service } from '../service-interface.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
 import type { PlatformType } from '../platform.js';
+import type { ServiceType } from '../service-types.js';
 
 /**
  * All commands that can be dispatched to a handler
@@ -229,7 +230,7 @@ export interface PreflightResult {
 export interface HandlerDescriptor<TPlatform, TContext extends BaseHandlerContext<TPlatform>, TResult extends HandlerResult> {
   command: CommandName;
   platform: PlatformType;
-  serviceType: string;  // Handler dispatch key; may be more specific than ServiceType (e.g. 'ecs-fargate', 'rds')
+  serviceType: ServiceType;
   handler: Handler<TPlatform, TContext, TResult>;
   preflight: (context: TContext) => Promise<PreflightResult>;
   requiresDiscovery?: boolean;  // Whether this handler needs resource discovery

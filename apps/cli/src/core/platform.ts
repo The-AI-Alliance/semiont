@@ -7,7 +7,7 @@
  */
 
 import { Service } from './service-interface.js';
-import { getServiceTypeFromAnnotations } from './service-types.js';
+import { getServiceTypeFromAnnotations, ServiceType } from './service-types.js';
 
 /**
  * Platform type identifier
@@ -80,7 +80,7 @@ export abstract class Platform {
    * Determine service type from service requirements.
    * Requires an explicit service/type annotation — no guessing.
    */
-  determineServiceType(service: Service): string {
+  determineServiceType(service: Service): ServiceType {
     const requirements = service.getRequirements();
     const declaredType = getServiceTypeFromAnnotations(requirements.annotations);
 
@@ -95,10 +95,11 @@ export abstract class Platform {
   }
 
   /**
-   * Map generic service type to platform-specific handler type.
-   * Override in platform implementations if needed.
+   * Map logical ServiceType to the handler dispatch key for this platform.
+   * Base implementation is identity (logical type = handler key).
+   * Override in platform implementations to map to platform-specific handler keys.
    */
-  protected mapServiceType(declaredType: string): string {
+  protected mapServiceType(declaredType: ServiceType): ServiceType {
     return declaredType;
   }
   

@@ -347,18 +347,10 @@ const preflightEcsPublish = async (_context: AWSPublishHandlerContext): Promise<
 export const ecsPublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'aws',
-  serviceType: 'ecs',
+  serviceType: 'backend',
   handler: publishECSService,
   preflight: preflightEcsPublish,
   requiresDiscovery: true
 };
 
-// Also export for ecs-fargate (alias)
-export const ecsFargatePublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
-  command: 'publish',
-  platform: 'aws',
-  serviceType: 'ecs-fargate',
-  handler: publishECSService,
-  preflight: preflightEcsPublish,
-  requiresDiscovery: true
-};
+export const ecsFargatePublishDescriptor = ecsPublishDescriptor;

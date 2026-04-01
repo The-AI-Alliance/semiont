@@ -691,18 +691,10 @@ const preflightEcsUpdate = async (_context: AWSUpdateHandlerContext): Promise<Pr
 export const ecsUpdateDescriptor: HandlerDescriptor<AWSUpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
   platform: 'aws',
-  serviceType: 'ecs',
+  serviceType: 'backend',
   handler: updateECSService,
   preflight: preflightEcsUpdate,
   requiresDiscovery: true
 };
 
-// Also export for ecs-fargate (alias)
-export const ecsFargateUpdateDescriptor: HandlerDescriptor<AWSUpdateHandlerContext, UpdateHandlerResult> = {
-  command: 'update',
-  platform: 'aws',
-  serviceType: 'ecs-fargate',
-  handler: updateECSService,
-  preflight: preflightEcsUpdate,
-  requiresDiscovery: true
-};
+export const ecsFargateUpdateDescriptor = ecsUpdateDescriptor;

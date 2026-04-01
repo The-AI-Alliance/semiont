@@ -154,7 +154,15 @@ const preflightWebStart = async (context: ContainerStartHandlerContext): Promise
 export const webStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
-  serviceType: 'web',
+  serviceType: 'backend',
+  handler: startWebContainer,
+  preflight: preflightWebStart
+};
+
+export const webFrontendStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
+  command: 'start',
+  platform: 'container',
+  serviceType: 'frontend',
   handler: startWebContainer,
   preflight: preflightWebStart
 };

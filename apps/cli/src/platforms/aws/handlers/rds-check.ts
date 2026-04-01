@@ -102,7 +102,7 @@ const preflightRdsCheck = async (_context: AWSCheckHandlerContext): Promise<Pref
 export const rdsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
-  serviceType: 'rds',
+  serviceType: 'database',
   handler: rdsCheckHandler,
   preflight: preflightRdsCheck,
   requiresDiscovery: true
