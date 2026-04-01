@@ -39,6 +39,10 @@ export class ResourceStore {
   private readonly fetchingDetail = new Set<ResourceId>();
   private readonly fetchingList = new Set<string>();
 
+  /** Memoized Observables — same instance returned for the same key */
+  private readonly detailObs$ = new Map<ResourceId, Observable<ResourceDetail | undefined>>();
+  private readonly listObs$ = new Map<string, Observable<ResourceListResponse | undefined>>();
+
   /** Mutable token getter — updated from the React layer when auth changes */
   private getToken: TokenGetter = () => undefined;
 
@@ -98,10 +102,12 @@ export class ResourceStore {
     if (!this.detail$.value.has(id) && !this.fetchingDetail.has(id)) {
       this.fetchDetail(id);
     }
-    return this.detail$.pipe(
-      map(m => m.get(id)),
-      distinctUntilChanged(),
-    );
+    let obs = this.detailObs$.get(id);
+    if (!obs) {
+      obs = this.detail$.pipe(map(m => m.get(id)), distinctUntilChanged());
+      this.detailObs$.set(id, obs);
+    }
+    return obs;
   }
 
   /**
@@ -113,10 +119,12 @@ export class ResourceStore {
     if (!this.list$.value.has(key) && !this.fetchingList.has(key)) {
       this.fetchList(key, options);
     }
-    return this.list$.pipe(
-      map(m => m.get(key)),
-      distinctUntilChanged(),
-    );
+    let obs = this.listObs$.get(key);
+    if (!obs) {
+      obs = this.list$.pipe(map(m => m.get(key)), distinctUntilChanged());
+      this.listObs$.set(key, obs);
+    }
+    return obs;
   }
 
   /** Invalidate and re-fetch a specific resource detail */

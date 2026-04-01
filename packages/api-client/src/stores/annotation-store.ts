@@ -40,6 +40,10 @@ export class AnnotationStore {
   private readonly fetchingList = new Set<ResourceId>();
   private readonly fetchingDetail = new Set<AnnotationId>();
 
+  /** Memoized Observables — same instance returned for the same key */
+  private readonly listObs$ = new Map<ResourceId, Observable<AnnotationsListResponse | undefined>>();
+  private readonly detailObs$ = new Map<AnnotationId, Observable<AnnotationDetail | undefined>>();
+
   /** Mutable token getter — updated from the React layer when auth changes */
   private getToken: TokenGetter = () => undefined;
 
@@ -101,10 +105,12 @@ export class AnnotationStore {
     if (!this.list$.value.has(resourceId) && !this.fetchingList.has(resourceId)) {
       this.fetchList(resourceId);
     }
-    return this.list$.pipe(
-      map(m => m.get(resourceId)),
-      distinctUntilChanged(),
-    );
+    let obs = this.listObs$.get(resourceId);
+    if (!obs) {
+      obs = this.list$.pipe(map(m => m.get(resourceId)), distinctUntilChanged());
+      this.listObs$.set(resourceId, obs);
+    }
+    return obs;
   }
 
   /**
@@ -115,10 +121,12 @@ export class AnnotationStore {
     if (!this.detail$.value.has(annotationId) && !this.fetchingDetail.has(annotationId)) {
       this.fetchDetail(resourceId, annotationId);
     }
-    return this.detail$.pipe(
-      map(m => m.get(annotationId)),
-      distinctUntilChanged(),
-    );
+    let obs = this.detailObs$.get(annotationId);
+    if (!obs) {
+      obs = this.detail$.pipe(map(m => m.get(annotationId)), distinctUntilChanged());
+      this.detailObs$.set(annotationId, obs);
+    }
+    return obs;
   }
 
   /** Invalidate and re-fetch a resource's annotation list */
