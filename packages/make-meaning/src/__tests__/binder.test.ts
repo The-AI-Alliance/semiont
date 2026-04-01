@@ -152,7 +152,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-2');
-      expect(result!.error.message).toBe('Graph connection failed');
+      expect(result!.error).toBe('Graph connection failed');
     });
 
     it('should handle empty search results', async () => {
@@ -340,7 +340,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.correlationId).toBe('corr-7');
-      expect(result!.error.message).toBe('Graph unavailable');
+      expect(result!.error).toBe('Graph unavailable');
     });
 
     it('should emit referenced-by-failed when getResource throws', async () => {
@@ -357,7 +357,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.correlationId).toBe('corr-8');
-      expect(result!.error.message).toBe('Resource lookup failed');
+      expect(result!.error).toBe('Resource lookup failed');
     });
   });
 
@@ -693,7 +693,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-fail');
-      expect(result!.error.message).toBe('DB down');
+      expect(result!.error).toBe('DB down');
     });
 
     describe('inference response parsing edge cases', () => {

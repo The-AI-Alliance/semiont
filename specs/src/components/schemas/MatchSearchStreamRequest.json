@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Client-generated correlation ID to thread the response back to the originating request"
+    },
+    "referenceId": {
+      "type": "string",
+      "description": "Annotation ID of the reference to search candidates for"
+    },
+    "context": {
+      "$ref": "./GatheredContext.json",
+      "description": "Gathered context for the reference annotation"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Maximum number of candidate results to return (default: 10)"
+    },
+    "useSemanticScoring": {
+      "type": "boolean",
+      "description": "Enable semantic similarity scoring in addition to keyword matching (default: true)"
+    }
+  },
+  "required": ["referenceId", "context"]
+}

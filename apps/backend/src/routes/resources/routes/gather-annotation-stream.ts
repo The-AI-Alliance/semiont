@@ -36,7 +36,8 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      const correlationId = crypto.randomUUID();
+      // Use client-supplied correlationId so the frontend can match the response
+      const correlationId = body.correlationId ?? crypto.randomUUID();
 
       // Emit gather:requested — Gatherer subscribes and processes
       eventBus.get('gather:requested').next({

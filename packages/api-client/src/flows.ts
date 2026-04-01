@@ -70,7 +70,8 @@ export class FlowEngine {
 
     sub.add(
       this.eventBus.get('match:search-requested').subscribe((event: EventMap['match:search-requested']) => {
-        this.sse.bindSearch(rUri, {
+        this.sse.matchSearch(rUri, {
+          correlationId: event.correlationId,
           referenceId: event.referenceId,
           context: event.context,
           limit: event.limit,
@@ -254,7 +255,7 @@ export class FlowEngine {
       this.sse.gatherAnnotation(
         rUri,
         event.annotationId,
-        { contextWindow },
+        { contextWindow, correlationId },
         { auth: getToken(), eventBus: this.eventBus },
       );
     });

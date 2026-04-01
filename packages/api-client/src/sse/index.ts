@@ -8,7 +8,7 @@
 import { createSSEStream } from './stream';
 import type { SSEStream } from './types';
 import type { ResourceId, AnnotationId } from '@semiont/core';
-import type { AccessToken, BaseUrl, EntityType, GatheredContext, Logger } from '@semiont/core';
+import type { AccessToken, BaseUrl, EntityType, Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 /**
@@ -90,14 +90,9 @@ export type GatherAnnotationStreamRequest = components['schemas']['GatherAnnotat
 export type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRequest'];
 
 /**
- * Request body for bind search stream
+ * Request body for match search stream
  */
-export interface BindSearchStreamRequest {
-  referenceId: string;
-  context: GatheredContext;
-  limit?: number;
-  useSemanticScoring?: boolean;
-}
+export type MatchSearchStreamRequest = components['schemas']['MatchSearchStreamRequest'];
 
 /**
  * SSE Client configuration
@@ -658,12 +653,12 @@ export class SSEClient {
    * @param options - Request options (auth token, eventBus)
    * @returns SSE stream controller
    */
-  bindSearch(
+  matchSearch(
     resourceId: ResourceId,
-    request: BindSearchStreamRequest,
+    request: MatchSearchStreamRequest,
     options: SSERequestOptions
   ): SSEStream {
-    const url = `${this.baseUrl}/resources/${resourceId}/bind-search-stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/match-search-stream`;
 
     return createSSEStream(
       url,

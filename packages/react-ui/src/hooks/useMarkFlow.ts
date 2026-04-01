@@ -12,7 +12,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Motivation, ResourceId, Selector, ResourceEvent } from '@semiont/core';
+import type { Motivation, ResourceId, Selector } from '@semiont/core';
 import { accessToken } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -87,11 +87,11 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
     progressDismissTimeoutRef.current = setTimeout(() => { setProgress(null); progressDismissTimeoutRef.current = null; }, 5000);
   }, [showSuccess]);
 
-  const handleAnnotationFailed = useCallback((event: Extract<ResourceEvent, { type: 'job.failed' }>) => {
+  const handleAnnotationFailed = useCallback((event: EventMap['mark:assist-failed']) => {
     if (progressDismissTimeoutRef.current) { clearTimeout(progressDismissTimeoutRef.current); progressDismissTimeoutRef.current = null; }
     setAssistingMotivation(null);
     setProgress(null);
-    showError(event.payload.error || 'Annotation failed');
+    showError(event.message || 'Annotation failed');
   }, [showError]);
 
   useEventSubscriptions({

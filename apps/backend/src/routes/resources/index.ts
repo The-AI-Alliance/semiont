@@ -14,7 +14,7 @@ import { registerAnnotateAssessmentsStream } from './routes/annotate-assessments
 import { registerAnnotateCommentsStream } from './routes/annotate-comments-stream';
 import { registerAnnotateTagsStream } from './routes/annotate-tags-stream';
 import { registerGetReferencedBy } from './routes/referenced-by';
-import { registerBindSearchStream } from './routes/bind-search-stream';
+import { registerMatchSearchStream } from './routes/match-search-stream';
 import { registerTokenRoutes } from './routes/token';
 import { registerGetResourceAnnotations } from './routes/get-annotations';
 import { registerGetEvents } from './routes/events';
@@ -51,7 +51,7 @@ registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /ap
   registerAnnotateCommentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments-stream
   registerAnnotateTagsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags-stream
   registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
-  registerBindSearchStream(resourcesRouter);  // POST /resources/:id/bind-search-stream
+  registerMatchSearchStream(resourcesRouter);  // POST /resources/:id/match-search-stream
 
   // Annotation routes (nested under resources) - must be before generic :id route
   registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)
