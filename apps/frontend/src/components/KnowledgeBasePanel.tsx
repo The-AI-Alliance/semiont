@@ -21,13 +21,14 @@ export function KnowledgeBasePanel() {
               key={kb.id}
               onClick={() => setActiveKnowledgeBase(kb.id)}
               className={`semiont-panel-item semiont-panel-item--clickable${kb.id === activeKnowledgeBase?.id ? ' semiont-panel-item--selected' : ''}`}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <span className="semiont-panel-text">{kb.label}</span>
+              <span className="semiont-panel-text" style={{ flex: 1 }}>{kb.label}</span>
               <span className="semiont-panel-text-secondary">
                 {kb.backendUrl.replace(/^https?:\/\//, '')}
               </span>
               {kb.id === activeKnowledgeBase?.id && (
-                <CheckIcon className="semiont-panel-header__icon" style={{ width: '1rem', height: '1rem', color: 'var(--semiont-color-primary-500)', flexShrink: 0 }} />
+                <CheckIcon style={{ width: '1rem', height: '1rem', color: 'var(--semiont-color-primary-500)', flexShrink: 0 }} />
               )}
             </button>
           ))}
