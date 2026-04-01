@@ -89,10 +89,11 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
             });
             try {
               await writeTypedSSE(stream, {
-                data: JSON.stringify({
+                data: {
+                  correlationId: event.correlationId,
                   referenceId: event.referenceId,
                   response: event.response,
-                }),
+                },
                 event: 'match:search-results',
                 id: String(Date.now()),
               });
@@ -111,10 +112,11 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
             logger.error('Bind search failed', { referenceId, error: event.error });
             try {
               await writeTypedSSE(stream, {
-                data: JSON.stringify({
+                data: {
+                  correlationId: event.correlationId,
                   referenceId: event.referenceId,
-                  error: event.error.message,
-                }),
+                  error: event.error,
+                },
                 event: 'match:search-failed',
                 id: String(Date.now()),
               });
@@ -142,10 +144,11 @@ export function registerBindSearchStream(router: ResourcesRouterType) {
       } catch (error) {
         try {
           await writeTypedSSE(stream, {
-            data: JSON.stringify({
+            data: {
+              correlationId,
               referenceId,
               error: error instanceof Error ? error.message : 'Search failed',
-            }),
+            },
             event: 'match:search-failed',
             id: String(Date.now()),
           });

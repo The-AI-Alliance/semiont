@@ -160,11 +160,11 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
               logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: 'started',
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
-                  } as CommentDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -182,13 +182,12 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
               logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
-                    stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
-                  } as CommentDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -208,7 +207,7 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     motivation: 'commenting',
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -218,7 +217,7 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
                     message: result?.commentsCreated !== undefined
                       ? `Complete! Created ${result.commentsCreated} comments`
                       : 'Comment detection complete!'
-                  } as CommentDetectionProgress),
+                  },
                   event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
@@ -237,11 +236,10 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
               logger.info('Detection failed', { error: event.payload.error });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
-                    status: 'error',
+                  data: {
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Comment detection failed'
-                  } as CommentDetectionProgress),
+                  },
                   event: 'mark:assist-failed',
                   id: String(Date.now())
                 });

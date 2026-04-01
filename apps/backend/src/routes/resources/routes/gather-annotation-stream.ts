@@ -70,7 +70,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               if (isStreamClosed) return;
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({ message: event.message, percentage: event.percentage }),
+                  data: { message: event.message, percentage: event.percentage },
                   event: 'gather:annotation-progress',
                   id: String(Date.now()),
                 });
@@ -86,7 +86,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               if (isStreamClosed) return;
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({ annotationId: event.annotationId, response: event.response }),
+                  data: { correlationId: event.correlationId, annotationId: event.annotationId, response: event.response },
                   event: 'gather:annotation-finished',
                   id: String(Date.now()),
                 });
@@ -103,7 +103,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               if (isStreamClosed) return;
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({ annotationId: event.annotationId, error: event.error }),
+                  data: { correlationId: event.correlationId, annotationId: event.annotationId, error: event.error },
                   event: 'gather:failed',
                   id: String(Date.now()),
                 });

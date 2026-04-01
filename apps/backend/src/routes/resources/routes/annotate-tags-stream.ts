@@ -175,12 +175,12 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
               logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: 'started',
                     resourceId: resourceId(id),
                     totalCategories: categories.length,
                     message: 'Starting detection...'
-                  } as TagDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -198,16 +198,15 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
               logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
-                    stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
                     percentage: progress.percentage,
                     currentCategory: progress.currentCategory,
                     processedCategories: progress.processedCategories,
                     totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
-                  } as TagDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -227,7 +226,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     motivation: 'tagging',
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -238,7 +237,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                     message: result?.tagsCreated !== undefined
                       ? `Complete! Created ${result.tagsCreated} tags`
                       : 'Tag detection complete!'
-                  } as TagDetectionProgress),
+                  },
                   event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
@@ -257,11 +256,10 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
               logger.info('Detection failed', { error: event.payload.error });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
-                    status: 'error',
+                  data: {
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Tag detection failed'
-                  } as TagDetectionProgress),
+                  },
                   event: 'mark:assist-failed',
                   id: String(Date.now())
                 });

@@ -31,15 +31,6 @@ import { getLogger } from '../../../logger';
 
 type YieldResourceStreamRequest = components['schemas']['YieldResourceStreamRequest'];
 
-interface YieldProgress {
-  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
-  referenceId: string;
-  resourceName?: string;
-  resourceId?: string;
-  sourceResourceId?: string;
-  percentage: number;
-  message?: string;
-}
 
 export function registerYieldResourceStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
@@ -196,13 +187,13 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
               logger.info('Generation started');
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: 'started',
                     referenceId: reference.id,
                     resourceName,
                     percentage: 0,
                     message: 'Starting...'
-                  } as YieldProgress),
+                  },
                   event: 'yield:progress',
                   id: String(Date.now())
                 });
@@ -220,13 +211,13 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
               logger.info('Generation progress', { progress });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: progress.status,
                     referenceId: reference.id,
                     resourceName,
                     percentage: progress.percentage || 0,
                     message: progress.message || `${progress.status}...`
-                  } as YieldProgress),
+                  },
                   event: 'yield:progress',
                   id: String(Date.now())
                 });
@@ -244,7 +235,7 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
               logger.info('Generation completed');
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: 'complete',
                     referenceId: reference.id,
                     resourceName,
@@ -252,7 +243,7 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
                     sourceResourceId: resourceIdParam,
                     percentage: 100,
                     message: 'Draft resource created! Ready for review.'
-                  } as YieldProgress),
+                  },
                   event: 'yield:finished',
                   id: String(Date.now())
                 });
@@ -291,12 +282,12 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
           // Send error event
           try {
             await writeTypedSSE(stream, {
-              data: JSON.stringify({
+              data: {
                 status: 'error',
                 referenceId: reference.id,
                 percentage: 0,
                 message: error instanceof Error ? error.message : 'Generation failed'
-              } as YieldProgress),
+              },
               event: 'yield:failed',
               id: String(Date.now())
             });

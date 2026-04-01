@@ -157,18 +157,15 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
               logger.info('[EventBus] Received mark:progress event', { progress, resourceId: id });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: progress.status || 'scanning',
                     resourceId: resourceId(id),
                     currentEntityType: progress.currentEntityType,
-                    totalEntityTypes: entityTypes.length,
-                    processedEntityTypes: progress.completedEntityTypes?.length || 0,
-                    foundCount: progress.completedEntityTypes?.reduce((sum, et) => sum + et.foundCount, 0),
+                    percentage: progress.percentage,
                     message: progress.message || (progress.currentEntityType
                       ? `Scanning for ${progress.currentEntityType}...`
                       : 'Processing...'),
-                    percentage: progress.percentage
-                  } as DetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -188,17 +185,15 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     motivation: 'linking',
                     status: 'complete',
                     resourceId: resourceId(id),
-                    totalEntityTypes: entityTypes.length,
-                    processedEntityTypes: entityTypes.length,
                     foundCount: result?.totalFound,
                     message: result?.totalFound !== undefined
                       ? `Detection complete! Found ${result.totalFound} entities`
                       : 'Detection complete!'
-                  } as DetectionProgress),
+                  },
                   event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
@@ -217,13 +212,10 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
               logger.info('Detection failed', { error: event.payload.error });
               try{
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
-                    status: 'error',
+                  data: {
                     resourceId: resourceId(id),
-                    totalEntityTypes: entityTypes.length,
-                    processedEntityTypes: 0,
                     message: event.payload.error || 'Detection failed'
-                  } as DetectionProgress),
+                  },
                   event: 'mark:assist-failed',
                   id: String(Date.now())
                 });
