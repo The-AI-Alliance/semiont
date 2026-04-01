@@ -70,7 +70,7 @@ export function ConfigureGenerationStep({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="semiont-form">
+    <form onSubmit={handleSubmit} className="semiont-form semiont-form--scrollable">
       {/* Resource Title */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-title" className="semiont-form__label">
@@ -115,73 +115,67 @@ export function ConfigureGenerationStep({
           id="wizard-prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          rows={3}
+          rows={2}
           className="semiont-textarea"
           placeholder={t.additionalInstructionsPlaceholder}
         />
       </div>
 
-      {/* Language Selection */}
-      <div className="semiont-form__field">
-        <label htmlFor="wizard-language" className="semiont-form__label">
-          {t.language}
-        </label>
-        <select
-          id="wizard-language"
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="semiont-select"
-        >
-          {LOCALES.map((lang) => (
-            <option key={lang.code} value={lang.code}>
-              {lang.nativeName}
-            </option>
-          ))}
-        </select>
-        <p className="semiont-form__help">
-          {t.languageHelp}
-        </p>
-      </div>
-
-      {/* Temperature Slider */}
-      <div className="semiont-form__field">
-        <label htmlFor="wizard-temperature" className="semiont-form__label">
-          {t.creativity} ({temperature.toFixed(1)})
-        </label>
-        <input
-          id="wizard-temperature"
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={temperature}
-          onChange={(e) => setTemperature(parseFloat(e.target.value))}
-          className="semiont-slider"
-        />
-        <div className="semiont-slider__labels">
-          <span>{t.creativityFocused}</span>
-          <span>{t.creativityCreative}</span>
+      {/* Language / Creativity / Max Length — compact inline row */}
+      <div className="semiont-form__inline-row">
+        <div className="semiont-form__field semiont-form__field--inline">
+          <label htmlFor="wizard-language" className="semiont-form__label">
+            {t.language}
+          </label>
+          <select
+            id="wizard-language"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="semiont-select"
+          >
+            {LOCALES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.nativeName}
+              </option>
+            ))}
+          </select>
         </div>
-      </div>
 
-      {/* Max Tokens Input */}
-      <div className="semiont-form__field">
-        <label htmlFor="wizard-maxTokens" className="semiont-form__label">
-          {t.maxLength}
-        </label>
-        <input
-          id="wizard-maxTokens"
-          type="number"
-          min="100"
-          max="4000"
-          step="100"
-          value={maxTokens}
-          onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-          className="semiont-input"
-        />
-        <p className="semiont-form__help">
-          {t.maxLengthHelp}
-        </p>
+        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--grow">
+          <label htmlFor="wizard-temperature" className="semiont-form__label">
+            {t.creativity} ({temperature.toFixed(1)})
+          </label>
+          <input
+            id="wizard-temperature"
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={temperature}
+            onChange={(e) => setTemperature(parseFloat(e.target.value))}
+            className="semiont-slider"
+          />
+          <div className="semiont-slider__labels semiont-slider__labels--small">
+            <span>{t.creativityFocused}</span>
+            <span>{t.creativityCreative}</span>
+          </div>
+        </div>
+
+        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--narrow">
+          <label htmlFor="wizard-maxTokens" className="semiont-form__label">
+            {t.maxLength}
+          </label>
+          <input
+            id="wizard-maxTokens"
+            type="number"
+            min="100"
+            max="4000"
+            step="100"
+            value={maxTokens}
+            onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+            className="semiont-input"
+          />
+        </div>
       </div>
 
       {/* Action Buttons */}

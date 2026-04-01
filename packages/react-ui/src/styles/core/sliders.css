@@ -216,6 +216,11 @@
   color: var(--semiont-text-secondary);
 }
 
+/* Small labels variant — reduced font size for compact inline contexts */
+.semiont-slider__labels--small {
+  font-size: 0.6875rem;
+}
+
 .semiont-slider__value {
   text-align: center;
   font-size: var(--semiont-text-sm);
