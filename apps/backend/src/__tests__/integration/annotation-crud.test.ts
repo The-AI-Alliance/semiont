@@ -31,7 +31,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
-    project = new SemiontProject(testEnv.config._metadata!.projectRoot);
+    project = new SemiontProject(testEnv.config._metadata!.projectRoot!);
 
     // Create KnowledgeBase for AnnotationContext calls
     const viewStorage = new FilesystemViewStorage(project);
