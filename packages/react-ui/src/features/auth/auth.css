@@ -307,3 +307,65 @@
   white-space: nowrap;
   border-width: 0;
 }
+
+/* URL field with inline probe indicator */
+.semiont-form__input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-form__input-row:focus-visible {
+  outline: 2px solid var(--semiont-focus-ring, #3b82f6);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-form__input-row:focus-visible {
+  outline-color: var(--semiont-focus-ring, #60a5fa);
+}
+
+.semiont-form__input-row .semiont-input {
+  flex: 1;
+}
+
+.semiont-form__input-row .semiont-input:focus-visible {
+  outline: 2px solid var(--semiont-focus-ring, #3b82f6);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-form__input-row .semiont-input:focus-visible {
+  outline-color: var(--semiont-focus-ring, #60a5fa);
+}
+
+.semiont-form__url-status {
+  flex-shrink: 0;
+  font-size: 1rem;
+  width: 1.25rem;
+  text-align: center;
+}
+
+.semiont-form__url-status--checking {
+  color: var(--semiont-text-muted, #888888);
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+[data-theme="dark"] .semiont-form__url-status--checking {
+  color: var(--semiont-text-muted, #888888);
+}
+
+.semiont-form__url-status--ok {
+  color: var(--semiont-success, #22c55e);
+}
+
+[data-theme="dark"] .semiont-form__url-status--ok {
+  color: var(--semiont-success, #22c55e);
+}
+
+.semiont-form__url-status--error {
+  color: var(--semiont-error, #ef4444);
+}
+
+[data-theme="dark"] .semiont-form__url-status--error {
+  color: var(--semiont-error, #ef4444);
+}

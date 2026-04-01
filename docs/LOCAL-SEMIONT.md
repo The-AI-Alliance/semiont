@@ -2,7 +2,7 @@
 
 Run Semiont locally using published npm packages — no need to clone the Semiont repository.
 
-The CLI installs and provisions backend and frontend from pre-built npm packages, runs database migrations, and starts all services. The database and Envoy proxy run as containers (Docker/Podman).
+The CLI installs and provisions the backend and database from pre-built npm packages, runs database migrations, and starts all services. The database runs as a container (Docker/Podman).
 
 ## Quick Start
 
@@ -10,10 +10,12 @@ The fastest way to get Semiont running is a single command:
 
 ```bash
 npm install -g @semiont/cli
-semiont local
+semiont serve
 ```
 
-`semiont local` guides you through the entire setup interactively — it prompts for a project directory, initializes the project, provisions and starts all services, and creates an admin user. At the end it prints the login URL and your credentials file location.
+`semiont serve` guides you through the entire setup interactively — it prompts for a project directory, initializes the project, provisions and starts the database and backend, and creates an admin user. At the end it prints the Knowledge Base URL and your credentials, and tells you how to start the frontend separately.
+
+> `semiont local` is an alias for `semiont serve`.
 
 See [Prerequisites](#prerequisites) below before running if you haven't installed Node.js or Docker yet.
 
@@ -31,7 +33,7 @@ node --version   # should print v20.x or higher
 
 ### Docker or Podman
 
-Used for the PostgreSQL database and Envoy proxy containers. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [Podman](https://podman.io/docs/installation).
+Used for the PostgreSQL database container. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [Podman](https://podman.io/docs/installation).
 
 ```bash
 docker --version   # or: podman --version
@@ -114,11 +116,8 @@ semiont provision
 
 This:
 - Generates `~/.config/semiont/secrets` with a JWT secret (if absent)
-- Generates `~/.config/semiont/{project}/proxy/envoy.yaml`
 - Runs database migrations
-- Creates XDG runtime directories for the frontend (`~/.local/state/semiont/frontend/`, PID dir)
-
-The frontend itself is bundled with the CLI — no separate npm install is performed.
+- Creates XDG runtime directories for the backend (`~/.local/state/semiont/backend/`, PID dir)
 
 ### 4. Start Services
 
@@ -127,9 +126,19 @@ semiont start
 semiont check
 ```
 
-Starts the database container, backend, frontend, and proxy. `semiont check` verifies all services are healthy.
+Starts the database container and backend. `semiont check` verifies all services are healthy.
 
-### 5. Create an Admin User
+### 5. Start the Frontend (optional)
+
+The frontend is a separate service and is not started by `semiont serve`. To start it:
+
+```bash
+semiont start --service frontend
+```
+
+The frontend is a globally-installed service and does not require a project directory.
+
+### 6. Create an Admin User
 
 ```bash
 semiont useradd --email you@example.com --generate-password --admin
@@ -137,9 +146,12 @@ semiont useradd --email you@example.com --generate-password --admin
 
 Note the generated password from the output.
 
-### 6. Access the Application
+### 7. Access the Application
 
-Open http://localhost:8080 and log in with the admin credentials from step 5.
+- **Knowledge Base API**: http://localhost:4000
+- **Frontend UI** (if started): http://localhost:3000
+
+Log in with the admin credentials from step 6.
 
 To run demo workflows, see the [Semiont Workflows](https://github.com/The-AI-Alliance/semiont-workflows) repository.
 
@@ -147,9 +159,8 @@ To run demo workflows, see the [Semiont Workflows](https://github.com/The-AI-All
 
 | Service | Port | URL |
 |---------|------|-----|
-| Envoy Proxy | 8080 | http://localhost:8080 (main entry point) |
-| Frontend | 3000 | http://localhost:3000 (direct) |
-| Backend | 4000 | http://localhost:4000 (direct) |
+| Backend (Knowledge Base) | 4000 | http://localhost:4000 |
+| Frontend UI | 3000 | http://localhost:3000 (start separately) |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 
 ## Paths Outside the Project
@@ -159,7 +170,7 @@ Machine-specific and secret state is kept in standard XDG directories, never com
 | Path | Contents |
 |------|----------|
 | `~/.semiontconfig` | Global user config: inference provider, database credentials, default environment |
-| `~/.config/semiont/{project}/` | Generated config files for managed processes (proxy, secrets) |
+| `~/.config/semiont/{project}/` | Generated config files for managed processes (secrets) |
 | `~/.local/share/semiont/{project}/database/{service}/` | PostgreSQL data directory |
 | `~/.local/share/semiont/{project}/graph/` | JanusGraph data directory — only when `type = "janusgraph"` in config (not the default) |
 | `~/.local/state/semiont/{project}/projections/` | Materialized view cache (rebuilt from event log on demand) |
@@ -178,13 +189,14 @@ See [Project Layout](./PROJECT-LAYOUT.md) for the full layout including what liv
 ```bash
 semiont start --service backend
 semiont stop --service backend
+semiont start --service frontend
+semiont stop --service frontend
 semiont check
 ```
 
 ### Re-provision After Config Changes
 
 ```bash
-semiont provision --service frontend
 semiont provision --service backend
 ```
 

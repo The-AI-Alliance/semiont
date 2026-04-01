@@ -159,6 +159,8 @@
     "backendUrlLabel": "عنوان URL للخادم الخلفي",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "يرجى إدخال عنوان URL للخادم الخلفي",
+    "errorBackendUrlInvalid": "يرجى إدخال عنوان URL صالح (مثال: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "تعذّر الوصول إلى هذا العنوان — هل الخادم الخلفي يعمل؟",
     "errorEmailRequired": "يرجى إدخال عنوان بريدك الإلكتروني",
     "errorPasswordRequired": "يرجى إدخال كلمة المرور",
     "errorSignInFailed": "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",

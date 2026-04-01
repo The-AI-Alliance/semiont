@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL backendu",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Zadejte prosím URL backendu",
+    "errorBackendUrlInvalid": "Zadejte platnou adresu URL (např. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Na tuto adresu URL nelze dosáhnout — je backend spuštěn?",
     "errorEmailRequired": "Zadejte prosím svou e-mailovou adresu",
     "errorPasswordRequired": "Zadejte prosím své heslo",
     "errorSignInFailed": "Přihlášení selhalo. Zkuste to prosím znovu.",

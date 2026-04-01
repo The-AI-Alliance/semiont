@@ -34,6 +34,7 @@ type Variables = {
 
 // Meta-routes that serve the API documentation itself (self-referential, not in spec)
 const DOCUMENTATION_META_ROUTES = [
+  '/',                 // Splash page (HTML, not an API endpoint)
   '/api/docs',         // Swagger UI
   '/api/swagger',      // Redirect to /api/docs
   '/api',              // Redirect to /api/docs

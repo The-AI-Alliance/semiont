@@ -159,6 +159,8 @@
     "backendUrlLabel": "백엔드 URL",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "백엔드 URL을 입력해 주세요",
+    "errorBackendUrlInvalid": "유효한 URL을 입력하세요 (예: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "해당 URL에 연결할 수 없습니다 — 백엔드가 실행 중인가요?",
     "errorEmailRequired": "이메일 주소를 입력해 주세요",
     "errorPasswordRequired": "비밀번호를 입력해 주세요",
     "errorSignInFailed": "로그인에 실패했습니다. 다시 시도해 주세요.",

@@ -159,6 +159,8 @@
     "backendUrlLabel": "后端URL",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "请输入后端URL",
+    "errorBackendUrlInvalid": "请输入有效的 URL（例如：http://localhost:4000）",
+    "errorBackendUrlUnreachable": "无法连接到该 URL——后端是否正在运行？",
     "errorEmailRequired": "请输入您的电子邮件地址",
     "errorPasswordRequired": "请输入您的密码",
     "errorSignInFailed": "登录失败。请重试。",

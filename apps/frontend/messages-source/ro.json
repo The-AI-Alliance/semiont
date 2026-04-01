@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL backend",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Vă rugăm să introduceți URL-ul backend",
+    "errorBackendUrlInvalid": "Introduceți un URL valid (ex. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Acel URL nu este accesibil — rulează backend-ul?",
     "errorEmailRequired": "Vă rugăm să introduceți adresa de e-mail",
     "errorPasswordRequired": "Vă rugăm să introduceți parola",
     "errorSignInFailed": "Autentificarea a eșuat. Vă rugăm să încercați din nou.",

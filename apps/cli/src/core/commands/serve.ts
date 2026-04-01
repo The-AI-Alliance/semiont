@@ -1,5 +1,5 @@
 /**
- * Local Command
+ * Serve Command
  *
  * One command that takes a new user from nothing to a running Semiont instance.
  * Replaces the manual sequence: mkdir → init → provision → start → check → useradd.
@@ -23,12 +23,13 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { ensureGlobalConfig } from './init.js';
+import { loadEnvironmentConfig } from '../config-loader.js';
 
 // =====================================================================
 // SCHEMA
 // =====================================================================
 
-const LocalOptionsSchema = OpsOptionsSchema.extend({
+const ServeOptionsSchema = OpsOptionsSchema.extend({
   directory: z.string().optional(),
   yes: z.boolean().default(false),
 }).transform((data) => ({
@@ -36,7 +37,7 @@ const LocalOptionsSchema = OpsOptionsSchema.extend({
   environment: data.environment || '_local_',
 }));
 
-type LocalOptions = z.output<typeof LocalOptionsSchema>;
+type ServeOptions = z.output<typeof ServeOptionsSchema>;
 
 // =====================================================================
 // HELPERS
@@ -82,7 +83,7 @@ function runSemiontSafe(args: string[], env: NodeJS.ProcessEnv): { success: bool
 // SERVICE READINESS
 // =====================================================================
 
-const REQUIRED_SERVICES = ['database', 'backend', 'frontend'];
+const REQUIRED_SERVICES = ['database', 'backend'];
 const EXTERNAL_SERVICES = ['graph', 'inference'];
 const ALL_SERVICES = [...REQUIRED_SERVICES, ...EXTERNAL_SERVICES];
 
@@ -140,7 +141,7 @@ function isProvisioned(serviceName: string, semiotRoot: string): boolean {
 // COMMAND IMPLEMENTATION
 // =====================================================================
 
-async function local(options: LocalOptions): Promise<CommandResults> {
+async function serve(options: ServeOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const envVarsToAdvise: string[] = [];
   const warnings: string[] = [];
@@ -337,9 +338,15 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 
     // ─── Step 6: Summary ─────────────────────────────────────────────────
 
-    console.log(`\n${colors.bright}${colors.green}✓ Semiont is running at http://localhost:3000${colors.reset}\n`);
+    const envConfig = loadEnvironmentConfig(semiotRoot, semiotEnv);
+    const backendUrl = envConfig.services?.backend?.publicURL ?? 'http://localhost:4000';
+
+    console.log(`\n${colors.bright}${colors.green}✓ Semiont Knowledge Base is running at ${backendUrl}${colors.reset}\n`);
     console.log(`  Admin email:    ${adminEmail}`);
     console.log(`  Admin password: ${adminPassword}`);
+    console.log('');
+    console.log(`  To start the frontend UI:`);
+    console.log(`  ${colors.cyan}semiont start --service frontend${colors.reset}`);
 
     if (warnings.length > 0) {
       console.log(`\n${colors.yellow}Warnings:${colors.reset}`);
@@ -373,10 +380,10 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 // COMMAND DEFINITION
 // =====================================================================
 
-export const localCommand = new CommandBuilder()
-  .name('local')
+export const serveCommand = new CommandBuilder()
+  .name('serve')
   .description('Set up and start Semiont locally (init + provision + start + useradd)')
-  .schema(LocalOptionsSchema)
+  .schema(ServeOptionsSchema)
   .args(withOpsArgs({
     '--directory': {
       type: 'string',
@@ -393,9 +400,9 @@ export const localCommand = new CommandBuilder()
   .requiresEnvironment(false)
   .requiresServices(false)
   .examples(
-    'semiont local',
-    'semiont local --yes',
-    'semiont local --directory /opt/myproject --yes',
+    'semiont serve',
+    'semiont serve --yes',
+    'semiont serve --directory /opt/myproject --yes',
   )
-  .setupHandler(local)
+  .setupHandler(serve)
   .build();

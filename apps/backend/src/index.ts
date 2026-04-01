@@ -79,6 +79,7 @@ const eventBus = new EventBus();
 const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
 
 // Import route definitions
+import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
@@ -143,6 +144,7 @@ app.use('*', async (c, next) => {
 });
 
 // Mount route routers
+app.route('/', rootRouter);
 app.route('/', healthRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);

@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL backend",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Εισαγάγετε τη διεύθυνση URL backend",
+    "errorBackendUrlInvalid": "Εισάγετε μια έγκυρη διεύθυνση URL (π.χ. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Δεν είναι δυνατή η πρόσβαση σε αυτήν τη διεύθυνση URL — λειτουργεί το backend;",
     "errorEmailRequired": "Παρακαλώ εισαγάγετε τη διεύθυνση email σας",
     "errorPasswordRequired": "Παρακαλώ εισαγάγετε τον κωδικό πρόσβασής σας",
     "errorSignInFailed": "Αποτυχία σύνδεσης. Παρακαλώ δοκιμάστε ξανά.",

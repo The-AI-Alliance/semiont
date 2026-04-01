@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL แบ็กเอนด์",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "กรุณาป้อน URL แบ็กเอนด์",
+    "errorBackendUrlInvalid": "กรุณาระบุ URL ที่ถูกต้อง (เช่น http://localhost:4000)",
+    "errorBackendUrlUnreachable": "ไม่สามารถเข้าถึง URL นั้นได้ — แบ็กเอนด์กำลังทำงานอยู่หรือไม่?",
     "errorEmailRequired": "กรุณากรอกที่อยู่อีเมลของคุณ",
     "errorPasswordRequired": "กรุณากรอกรหัสผ่านของคุณ",
     "errorSignInFailed": "การเข้าสู่ระบบล้มเหลว กรุณาลองอีกครั้ง",

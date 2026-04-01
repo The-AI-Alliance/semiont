@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL бекенду",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Будь ласка, введіть URL бекенду",
+    "errorBackendUrlInvalid": "Введіть дійсну URL-адресу (наприклад: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Не вдається досягти цієї URL-адреси — чи запущено бекенд?",
     "errorEmailRequired": "Будь ласка, введіть вашу адресу електронної пошти",
     "errorPasswordRequired": "Будь ласка, введіть ваш пароль",
     "errorSignInFailed": "Не вдалося увійти. Будь ласка, спробуйте ще раз.",
