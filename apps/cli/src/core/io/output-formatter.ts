@@ -179,7 +179,7 @@ export class OutputFormatter {
         output += `   ${c.dim}health: ${healthStatus}${c.reset}\n`;
 
         // Always show actionable path info from health details
-        const pathKeys = ['appLog', 'errorLog', 'pidFile', 'backendDir', 'frontendDir', 'dataDir', 'volumeName', 'containerName'];
+        const pathKeys = ['pid', 'appLog', 'errorLog', 'pidFile', 'backendDir', 'frontendDir', 'dataDir', 'volumeName', 'containerName'];
         if (health.details) {
           for (const key of pathKeys) {
             const value = health.details[key];
