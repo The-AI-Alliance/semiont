@@ -82,7 +82,7 @@ function runSemiontSafe(args: string[], env: NodeJS.ProcessEnv): { success: bool
 // SERVICE READINESS
 // =====================================================================
 
-const REQUIRED_SERVICES = ['database', 'backend', 'frontend'];
+const REQUIRED_SERVICES = ['database', 'backend'];
 const EXTERNAL_SERVICES = ['graph', 'inference'];
 const ALL_SERVICES = [...REQUIRED_SERVICES, ...EXTERNAL_SERVICES];
 
