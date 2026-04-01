@@ -67,7 +67,6 @@
     "@semiont/api-client": "^0.4.8",
     "@semiont/content": "^0.4.8",
     "@semiont/core": "^0.4.8",
-    "@semiont/frontend": "^0.4.8",
     "@semiont/event-sourcing": "^0.4.8",
     "@semiont/graph": "^0.4.8",
     "@semiont/make-meaning": "^0.4.8",
@@ -94,5 +93,5 @@
   "overrides": {
     "esbuild": "0.27.2"
   },
-  "bundleDependencies": []
+  "bundledDependencies": ["@semiont/frontend"]
 }

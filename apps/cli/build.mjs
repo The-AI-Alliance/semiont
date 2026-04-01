@@ -226,6 +226,27 @@ if (existsSync('dist/dashboard')) {
   console.log('⚠️  Dashboard bundle not found. Run "npm run build:dashboard" to build it.')
 }
 
+// Copy staged @semiont/frontend into node_modules so createRequire can resolve it,
+// and so npm bundles it into the CLI tarball via bundledDependencies.
+const frontendStageSrc = '../../.npm-stage/frontend'
+if (existsSync(frontendStageSrc)) {
+  try {
+    const frontendDest = 'node_modules/@semiont/frontend'
+    await mkdir('node_modules/@semiont', { recursive: true })
+    if (existsSync(frontendDest)) {
+      const { rmSync } = await import('fs')
+      rmSync(frontendDest, { recursive: true })
+    }
+    await cp(frontendStageSrc, frontendDest, { recursive: true })
+    console.log('✅ Copied @semiont/frontend into node_modules')
+  } catch (error) {
+    console.error('❌ Failed to copy @semiont/frontend:', error.message)
+    process.exit(1)
+  }
+} else {
+  console.warn('⚠️  .npm-stage/frontend not found — run `node scripts/publish-npm-apps.mjs` first to stage the frontend')
+}
+
 // Copy MCP server to dist
 const mcpServerSrc = '../../packages/mcp-server/dist'
 if (existsSync(mcpServerSrc)) {
