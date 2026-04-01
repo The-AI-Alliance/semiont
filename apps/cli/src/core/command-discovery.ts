@@ -31,7 +31,7 @@ import { restoreCmd } from './commands/restore.js';
 import { verifyCmd } from './commands/verify.js';
 import { exportCmd } from './commands/export.js';
 import { importCmd } from './commands/import.js';
-import { localCommand } from './commands/local.js';
+import { serveCommand } from './commands/serve.js';
 import { cleanCommand } from './commands/clean.js';
 import { mvCmd } from './commands/mv.js';
 import { yieldCmd } from './commands/yield.js';
@@ -68,7 +68,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'verify': verifyCmd,
   'export': exportCmd,
   'import': importCmd,
-  'local': localCommand,
+  'serve': serveCommand,
   'clean': cleanCommand,
   'mv': mvCmd,
   'yield': yieldCmd,

@@ -1,5 +1,5 @@
 /**
- * Local Command
+ * Serve Command
  *
  * One command that takes a new user from nothing to a running Semiont instance.
  * Replaces the manual sequence: mkdir → init → provision → start → check → useradd.
@@ -28,7 +28,7 @@ import { ensureGlobalConfig } from './init.js';
 // SCHEMA
 // =====================================================================
 
-const LocalOptionsSchema = OpsOptionsSchema.extend({
+const ServeOptionsSchema = OpsOptionsSchema.extend({
   directory: z.string().optional(),
   yes: z.boolean().default(false),
 }).transform((data) => ({
@@ -36,7 +36,7 @@ const LocalOptionsSchema = OpsOptionsSchema.extend({
   environment: data.environment || '_local_',
 }));
 
-type LocalOptions = z.output<typeof LocalOptionsSchema>;
+type ServeOptions = z.output<typeof ServeOptionsSchema>;
 
 // =====================================================================
 // HELPERS
@@ -140,7 +140,7 @@ function isProvisioned(serviceName: string, semiotRoot: string): boolean {
 // COMMAND IMPLEMENTATION
 // =====================================================================
 
-async function local(options: LocalOptions): Promise<CommandResults> {
+async function serve(options: ServeOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const envVarsToAdvise: string[] = [];
   const warnings: string[] = [];
@@ -373,10 +373,10 @@ async function local(options: LocalOptions): Promise<CommandResults> {
 // COMMAND DEFINITION
 // =====================================================================
 
-export const localCommand = new CommandBuilder()
-  .name('local')
+export const serveCommand = new CommandBuilder()
+  .name('serve')
   .description('Set up and start Semiont locally (init + provision + start + useradd)')
-  .schema(LocalOptionsSchema)
+  .schema(ServeOptionsSchema)
   .args(withOpsArgs({
     '--directory': {
       type: 'string',
@@ -393,9 +393,9 @@ export const localCommand = new CommandBuilder()
   .requiresEnvironment(false)
   .requiresServices(false)
   .examples(
-    'semiont local',
-    'semiont local --yes',
-    'semiont local --directory /opt/myproject --yes',
+    'semiont serve',
+    'semiont serve --yes',
+    'semiont serve --directory /opt/myproject --yes',
   )
-  .setupHandler(local)
+  .setupHandler(serve)
   .build();
