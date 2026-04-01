@@ -39,7 +39,7 @@ export class PosixPlatform extends Platform {
     registry.registerHandlers('posix', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'posix' {
     return 'posix';
   }
   

@@ -110,7 +110,7 @@ export class AWSPlatform extends Platform {
     };
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'aws' {
     return 'aws';
   }
   

@@ -26,6 +26,7 @@ import { EnvironmentConfig, PlatformType, parseEnvironment } from '@semiont/core
 import { resolveServiceDeployments } from './service-resolver.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { serviceSupportsCommand } from './service-command-capabilities.js';
+import type { CommandName } from './handlers/types.js';
 
 
 /**
@@ -38,7 +39,7 @@ import { serviceSupportsCommand } from './service-command-capabilities.js';
  */
 async function checkServiceSupportsCommand(
   serviceName: string,
-  command: string,
+  command: CommandName,
   envConfig: EnvironmentConfig
 ): Promise<boolean> {
   try {

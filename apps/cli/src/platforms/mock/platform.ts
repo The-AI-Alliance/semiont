@@ -46,7 +46,7 @@ export class MockPlatform extends Platform {
     registry.registerHandlers('mock', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'mock' {
     return 'mock';
   }
       

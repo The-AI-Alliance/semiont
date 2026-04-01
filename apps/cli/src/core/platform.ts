@@ -52,7 +52,7 @@ export abstract class Platform {
   /**
    * Get the platform name for logging and identification
    */
-  abstract getPlatformName(): string;
+  abstract getPlatformName(): PlatformType;
   
   /**
    * Build platform-specific context extensions for handlers

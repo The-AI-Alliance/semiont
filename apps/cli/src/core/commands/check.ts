@@ -77,6 +77,7 @@ const checkDescriptor: CommandDescriptor<CheckOptions> = createCommandDescriptor
       }
     }, {
       status: checkResult.status || 'unknown',
+      provisioned: checkResult.provisioned,
       health: checkResult.health,
       logs: checkResult.logs,
       resources: checkResult.platformResources,

@@ -9,6 +9,7 @@
 import { ServiceName } from './service-discovery.js';
 import { PlatformType } from '@semiont/core';
 import { PlatformResources } from '../platforms/platform-resources.js';
+import type { ServiceStatus } from './handlers/types.js';
 
 /**
  * Generic command result with command-specific extensions
@@ -150,7 +151,8 @@ export interface CommandExtensions {
   };
   
   // check command extensions
-  status?: 'running' | 'stopped' | 'unknown' | 'provisioned';
+  status?: ServiceStatus;
+  provisioned?: boolean;
   health?: {
     healthy: boolean;
     details: HealthDetails;

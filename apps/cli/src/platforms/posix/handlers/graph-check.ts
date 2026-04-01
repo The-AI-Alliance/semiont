@@ -1,9 +1,11 @@
+import * as fs from 'fs';
 import { StateManager } from '../../../core/state-manager.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execFileSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { GraphServiceConfig } from '@semiont/core';
 import { checkPortLookupCommand, checkConfigField, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { getGraphPaths } from './graph-paths.js';
 
 /**
  * Check handler for POSIX graph database services
@@ -15,6 +17,17 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
   // Type narrowing for graph service config
   const config = service.config as GraphServiceConfig;
   const graphType = config.type;
+
+  // provisioned = janusgraph data directory exists (written by provision handler)
+  let provisioned = true;
+  if (graphType === 'janusgraph') {
+    try {
+      const paths = getGraphPaths(context);
+      provisioned = fs.existsSync(paths.janusgraphDir);
+    } catch {
+      provisioned = false;
+    }
+  }
 
   // Load saved state
   const savedState = await StateManager.load(
@@ -96,6 +109,7 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
   return {
     success: true,
     status,
+    provisioned,
     platformResources,
     health,
     logs,

@@ -88,7 +88,6 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
         serviceType,
       }
     }, {
-      status: handlerResult.success ? 'provisioned' : 'unknown',
       provisionedResources: provisionResult.provisionedResources,
       stackOutputs: provisionResult.stackOutputs,
       resources: provisionResult.resources,

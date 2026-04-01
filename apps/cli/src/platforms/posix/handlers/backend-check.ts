@@ -49,6 +49,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     return {
       success: true,
       status: 'stopped',
+      provisioned: false,
       health: { healthy: false, details },
       metadata: { serviceType: 'backend' }
     };

@@ -42,7 +42,7 @@ export class ContainerPlatform extends Platform {
     registry.registerHandlers('container', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'container' {
     return 'container';
   }
 
