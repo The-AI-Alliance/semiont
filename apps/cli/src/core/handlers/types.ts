@@ -1,5 +1,17 @@
 import { Service } from '../service-interface.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
+import type { PlatformType } from '../platform.js';
+import type { ServiceType } from '../service-types.js';
+
+/**
+ * All commands that can be dispatched to a handler
+ */
+export type CommandName = 'check' | 'start' | 'stop' | 'restart' | 'provision' | 'publish' | 'update' | 'restore';
+
+/**
+ * Possible run-states for a service
+ */
+export type ServiceStatus = 'running' | 'stopped' | 'unknown' | 'unhealthy';
 
 /**
  * Core handler types that all platform handlers must implement
@@ -72,7 +84,17 @@ export interface HandlerResult {
  * Check handler specific result
  */
 export interface CheckHandlerResult extends HandlerResult {
-  status: 'running' | 'stopped' | 'unknown' | 'unhealthy';
+  status: ServiceStatus;
+  /**
+   * Whether the service has been provisioned (i.e. provision has been run and
+   * its artifacts are present). Handlers set this based on their own sentinels:
+   * - backend: @semiont/backend npm package installed (entry point exists)
+   * - inference/ollama: all required models pulled
+   * - graph/janusgraph: data directory / compose file exists
+   * - database/container: volume exists
+   * Defaults to true when not set (assume provisioned if handler doesn't specify).
+   */
+  provisioned?: boolean;
   health?: {
     healthy: boolean;
     details: Record<string, any>;
@@ -206,9 +228,9 @@ export interface PreflightResult {
  * TPlatform is the platform strategy type
  */
 export interface HandlerDescriptor<TPlatform, TContext extends BaseHandlerContext<TPlatform>, TResult extends HandlerResult> {
-  command: string;  // 'start', 'update', etc. - handler declares its command
-  platform: string; // 'aws', 'container', etc. - handler declares its platform
-  serviceType: string;  // 'lambda', 'ecs-fargate', etc.
+  command: CommandName;
+  platform: PlatformType;
+  serviceType: ServiceType;
   handler: Handler<TPlatform, TContext, TResult>;
   preflight: (context: TContext) => Promise<PreflightResult>;
   requiresDiscovery?: boolean;  // Whether this handler needs resource discovery

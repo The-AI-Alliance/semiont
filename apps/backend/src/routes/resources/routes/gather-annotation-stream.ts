@@ -36,17 +36,8 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      const correlationId = crypto.randomUUID();
-
-      // Emit gather:requested — Gatherer subscribes and processes
-      eventBus.get('gather:requested').next({
-        correlationId,
-        annotationId: annotationId(annotationIdParam),
-        resourceId: resourceId(resourceIdParam),
-        options: { includeSourceContext: true, includeTargetContext: true, contextWindow },
-      });
-
-      logger.info('Emitted gather:requested', { annotationId: annotationIdParam, correlationId, contextWindow });
+      // Use client-supplied correlationId so the frontend can match the response
+      const correlationId = body.correlationId ?? crypto.randomUUID();
 
       c.header('X-Accel-Buffering', 'no');
       c.header('Cache-Control', 'no-cache, no-transform');
@@ -70,7 +61,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               if (isStreamClosed) return;
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({ message: event.message, percentage: event.percentage }),
+                  data: { message: event.message, percentage: event.percentage },
                   event: 'gather:annotation-progress',
                   id: String(Date.now()),
                 });
@@ -86,7 +77,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               if (isStreamClosed) return;
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({ annotationId: event.annotationId, response: event.response }),
+                  data: { correlationId: event.correlationId, annotationId: event.annotationId, response: event.response },
                   event: 'gather:annotation-finished',
                   id: String(Date.now()),
                 });
@@ -103,7 +94,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               if (isStreamClosed) return;
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({ annotationId: event.annotationId, error: event.error }),
+                  data: { correlationId: event.correlationId, annotationId: event.annotationId, error: event.error },
                   event: 'gather:failed',
                   id: String(Date.now()),
                 });
@@ -113,6 +104,17 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               cleanup();
             })
           );
+
+          // Emit gather:requested AFTER subscriptions are set up to avoid the race
+          // where gather:complete fires before this route is listening for it
+          eventBus.get('gather:requested').next({
+            correlationId,
+            annotationId: annotationId(annotationIdParam),
+            resourceId: resourceId(resourceIdParam),
+            options: { includeSourceContext: true, includeTargetContext: true, contextWindow },
+          });
+
+          logger.info('Emitted gather:requested', { annotationId: annotationIdParam, correlationId, contextWindow });
 
           keepAliveInterval = setInterval(async () => {
             if (isStreamClosed) { clearInterval(keepAliveInterval!); return; }

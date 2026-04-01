@@ -118,13 +118,19 @@ const startMockService = async (context: MockStartHandlerContext): Promise<Start
   };
 };
 
-/**
- * Descriptor for default mock service start handler
- */
-export const defaultStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = {
-  command: 'start',
-  platform: 'mock',
-  serviceType: 'default',
+const baseStartDescriptor = {
+  command: 'start' as const,
+  platform: 'mock' as const,
   handler: startMockService,
   preflight: async () => passingPreflight(),
 };
+
+export const defaultStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'backend' };
+export const frontendStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'frontend' };
+export const databaseStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'database' };
+export const graphStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'graph' };
+export const workerStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'worker' };
+export const inferenceStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'inference' };
+export const mcpStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'mcp' };
+export const stackStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'stack' };
+export const filesystemStartDescriptor: HandlerDescriptor<MockStartHandlerContext, StartHandlerResult> = { ...baseStartDescriptor, serviceType: 'filesystem' };

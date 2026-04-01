@@ -152,7 +152,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-2');
-      expect(result!.error.message).toBe('Graph connection failed');
+      expect(result!.error).toBe('Graph connection failed');
     });
 
     it('should handle empty search results', async () => {
@@ -693,7 +693,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-fail');
-      expect(result!.error.message).toBe('DB down');
+      expect(result!.error).toBe('DB down');
     });
 
     describe('inference response parsing edge cases', () => {

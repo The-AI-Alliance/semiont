@@ -17,7 +17,7 @@ import { CommandResult, createCommandResult } from './command-result.js';
 import { CommandResults } from './command-types.js';
 import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
-import { HandlerResult, PreflightResult } from './handlers/types.js';
+import { HandlerResult, PreflightResult, CommandName } from './handlers/types.js';
 import { Config, ServiceConfig } from './cli-config.js';
 import { parseEnvironment } from '@semiont/core';
 import { printError, printInfo, printWarning, printSuccess } from './io/cli-logger.js';
@@ -446,7 +446,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    * Called after the current command completes to validate preconditions for the next command.
    */
   async runPreflightsForCommand(
-    nextCommand: string,
+    nextCommand: CommandName,
     serviceDeployments: ServicePlatformInfo[],
     options: TOptions,
     envConfig: EnvironmentConfig
@@ -546,7 +546,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    * Create a simple executor for commands without special requirements
    */
   static createSimple<TOptions extends BaseOptions>(
-    commandName: string,
+    commandName: CommandName,
     resultBuilder: (result: HandlerResult, service: Service, platform: Platform) => CommandResult
   ): MultiServiceExecutor<TOptions> {
     return new MultiServiceExecutor<TOptions>({

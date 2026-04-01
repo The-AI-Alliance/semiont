@@ -95,7 +95,7 @@ const preflightEfsCheck = async (_context: AWSCheckHandlerContext): Promise<Pref
 export const efsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
-  serviceType: 'efs',
+  serviceType: 'filesystem',
   handler: efsCheckHandler,
   preflight: preflightEfsCheck,
   requiresDiscovery: true

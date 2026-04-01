@@ -99,6 +99,9 @@
     "/resources/{id}/gather-resource-stream": {
       "$ref": "paths/resources_{id}_gather-resource-stream.json"
     },
+    "/resources/{id}/match-search-stream": {
+      "$ref": "paths/resources_{id}_match-search-stream.json"
+    },
     "/resources/{resourceId}/annotations/{annotationId}/gather-annotation-stream": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_gather-annotation-stream.json"
     },

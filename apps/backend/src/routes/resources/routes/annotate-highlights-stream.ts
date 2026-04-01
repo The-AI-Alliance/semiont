@@ -158,11 +158,11 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
               logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: 'started',
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
-                  } as HighlightDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -180,13 +180,12 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
               logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
-                    stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
-                  } as HighlightDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -206,7 +205,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     motivation: 'highlighting',
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -216,7 +215,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                     message: result?.highlightsCreated !== undefined
                       ? `Complete! Created ${result.highlightsCreated} highlights`
                       : 'Highlight detection complete!'
-                  } as HighlightDetectionProgress),
+                  },
                   event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
@@ -235,11 +234,10 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
               logger.info('Detection failed', { error: event.payload.error });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
-                    status: 'error',
+                  data: {
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Highlight detection failed'
-                  } as HighlightDetectionProgress),
+                  },
                   event: 'mark:assist-failed',
                   id: String(Date.now())
                 });

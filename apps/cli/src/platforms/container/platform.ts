@@ -42,7 +42,7 @@ export class ContainerPlatform extends Platform {
     registry.registerHandlers('container', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'container' {
     return 'container';
   }
 
@@ -100,25 +100,20 @@ export class ContainerPlatform extends Platform {
   }
   
   /**
-   * Map service types to container handler types
+   * Map service types to container handler keys.
+   * Logical type IS the handler key — no translation needed.
    */
-  protected override mapServiceType(declaredType: string): string {
-    // Container uses 'web' handler for frontend/backend services
-    if (declaredType === 'frontend' || declaredType === 'backend') {
-      return 'web';
+  protected override mapServiceType(declaredType: import('../../core/service-types.js').ServiceType): import('../../core/service-types.js').ServiceType {
+    switch (declaredType) {
+      case 'frontend':
+      case 'backend':
+      case 'database':
+      case 'graph':
+      case 'inference':
+        return declaredType;
+      default:
+        throw new Error(`Unsupported service type for container platform: ${declaredType}. Supported types: frontend, backend, database, graph, inference`);
     }
-
-    // Database gets special handler
-    if (declaredType === 'database') return 'database';
-
-    // Graph databases get graph handler
-    if (declaredType === 'graph') return 'graph';
-
-    // Inference services (Ollama) get inference handler
-    if (declaredType === 'inference') return 'inference';
-
-    // No generic handler - all service types must be explicitly supported
-    throw new Error(`Unsupported service type for container platform: ${declaredType}. Supported types: frontend, backend, database, graph, inference`);
   }
   
   /**

@@ -206,6 +206,7 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
       return {
         success: true,
         status: 'stopped',
+        provisioned: false,
         health: {
           healthy: false,
           details: { error: 'Container does not exist' }

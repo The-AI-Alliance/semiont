@@ -94,10 +94,11 @@ export function useYieldFlow(
         : 'Resource created successfully!');
       setTimeout(() => clearProgress(), 2000);
     },
-    'yield:failed': ({ error }: { error: Error }) => {
+    'yield:failed': ({ error, message }) => {
       setYieldProgress(null);
       setIsGenerating(false);
-      showError(`Resource generation failed: ${error.message}`);
+      const msg = message || (error instanceof Error ? error.message : error) || 'Generation failed';
+      showError(`Resource generation failed: ${msg}`);
     },
   });
 

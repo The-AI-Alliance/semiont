@@ -1,0 +1,59 @@
+{
+  "post": {
+    "summary": "Match Search (SSE Stream)",
+    "description": "Search for binding candidates for a reference annotation via Server-Sent Events. Delegates to the Matcher actor on the backend EventBus.",
+    "tags": [
+      "Resources",
+      "Annotations",
+      "Real-time",
+      "AI"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path",
+        "description": "Resource ID"
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/MatchSearchStreamRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "SSE stream opened successfully",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "$ref": "../components/schemas/EventStreamResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "referenceId and context are required"
+      },
+      "401": {
+        "description": "Authentication required"
+      },
+      "404": {
+        "description": "Resource not found"
+      }
+    }
+  }
+}

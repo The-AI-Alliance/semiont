@@ -140,7 +140,7 @@ export const stopCommand = new CommandBuilder()
       '--timeout': {
         type: 'number',
         description: 'Timeout for graceful shutdown in seconds',
-        default: 30,
+        default: 3,
       },
     },
     aliases: {

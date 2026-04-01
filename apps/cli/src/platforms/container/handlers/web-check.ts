@@ -196,7 +196,15 @@ const preflightWebCheck = async (context: ContainerCheckHandlerContext): Promise
 export const webCheckDescriptor: HandlerDescriptor<ContainerCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'container',
-  serviceType: 'web',
+  serviceType: 'backend',
+  handler: checkWebContainer,
+  preflight: preflightWebCheck
+};
+
+export const webFrontendCheckDescriptor: HandlerDescriptor<ContainerCheckHandlerContext, CheckHandlerResult> = {
+  command: 'check',
+  platform: 'container',
+  serviceType: 'frontend',
   handler: checkWebContainer,
   preflight: preflightWebCheck
 };

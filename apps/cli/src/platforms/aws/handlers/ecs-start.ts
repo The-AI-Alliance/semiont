@@ -83,18 +83,10 @@ const preflightEcsStart = async (_context: AWSStartHandlerContext): Promise<Pref
 export const ecsFargateStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'aws',
-  serviceType: 'ecs-fargate',
+  serviceType: 'backend',
   handler: startECSService,
   preflight: preflightEcsStart,
   requiresDiscovery: true
 };
 
-// Also export as 'ecs' (shorter alias)
-export const ecsStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {
-  command: 'start',
-  platform: 'aws',
-  serviceType: 'ecs',
-  handler: startECSService,
-  preflight: preflightEcsStart,
-  requiresDiscovery: true
-};
+export const ecsStartDescriptor = ecsFargateStartDescriptor;

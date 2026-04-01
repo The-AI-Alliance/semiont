@@ -114,17 +114,8 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
       // Emit detection failed event
       act(() => {
         eventBusInstance.get('mark:assist-failed').next({
-          type: 'job.failed' as const,
           resourceId: 'test' as any,
-          userId: 'user' as any,
-          id: 'evt-1' as any,
-          timestamp: new Date().toISOString(),
-          version: 1,
-          payload: {
-            jobId: 'job-1' as any,
-            jobType: 'detection',
-            error: 'AI service unavailable',
-          },
+          message: 'AI service unavailable',
         });
       });
 

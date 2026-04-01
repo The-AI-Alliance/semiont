@@ -1,6 +1,10 @@
 {
   "type": "object",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Client-generated correlation ID to thread the response back to the originating request"
+    },
     "depth": {
       "type": "integer",
       "minimum": 1,

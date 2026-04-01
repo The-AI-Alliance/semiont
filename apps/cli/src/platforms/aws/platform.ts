@@ -25,6 +25,7 @@ import { HandlerRegistry } from "../../core/handlers/registry.js";
 import { handlers } from './handlers/index.js';
 import { Platform, LogOptions, LogEntry, CredentialValidationResult } from '../../core/platform.js';
 import { Service } from '../../core/service-interface.js';
+import type { ServiceType } from '../../core/service-types.js';
 import { StateManager } from '../../core/state-manager.js';
 
 import { ECSClient } from '@aws-sdk/client-ecs';
@@ -110,7 +111,7 @@ export class AWSPlatform extends Platform {
     };
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'aws' {
     return 'aws';
   }
   
@@ -225,7 +226,7 @@ export class AWSPlatform extends Platform {
     
     if (dataStack) {
       // Get RDS Instance - match database service
-      if (service.name === 'database' || this.determineServiceType(service) === 'rds') {
+      if (this.determineServiceType(service) === 'database') {
         const databases = await this.getStackResources(dataStack, region, 'AWS::RDS::DBInstance');
         if (databases[0]) {
           resources[service.name] = { dbInstanceId: databases[0].PhysicalResourceId };
@@ -325,52 +326,37 @@ export class AWSPlatform extends Platform {
   
   
   /**
-   * Map service types to AWS-specific handler types
+   * Map service types to AWS handler keys.
+   * Logical type IS the handler key — no translation needed.
    */
-  protected override mapServiceType(declaredType: string): string {
-    // Map high-level types to AWS services
+  protected override mapServiceType(declaredType: ServiceType): ServiceType {
+    // Validate supported types for this platform
     switch (declaredType) {
       case 'frontend':
-        // Frontend defaults to ECS Fargate (can be overridden with aws/service annotation)
-        return 'ecs-fargate';
       case 'backend':
-        // Backend defaults to ECS Fargate
-        return 'ecs-fargate';
       case 'database':
-        return 'rds';
       case 'graph':
-        // Graph databases on AWS use Neptune
-        return 'neptune';
       case 'worker':
-        return 'ecs-fargate';
-      case 'inference':
-        return 'sagemaker';  // Future support
+      case 'filesystem':
       case 'stack':
-        return 'stack';
+        return declaredType;
       default:
         throw new Error(
           `Unsupported service type for AWS platform: '${declaredType}'. ` +
-          `Supported types: frontend, backend, database, graph, worker, inference, stack`
+          `Supported types: frontend, backend, database, graph, worker, filesystem, stack`
         );
     }
   }
-  
+
   /**
    * Override base determineServiceType to handle special AWS cases
    */
-  public override determineServiceType(service: Service): string {
-    const requirements = service.getRequirements();
-    
+  public override determineServiceType(service: Service): ServiceType {
     // Special case for AWS stack provisioning
     if (service.name === '__aws_stack__') {
       return 'stack';
     }
-    
-    // Check explicit AWS service annotation first
-    if (requirements.annotations?.['aws/service']) {
-      return requirements.annotations['aws/service'];
-    }
-    
+
     // Use base implementation which calls mapServiceType
     return super.determineServiceType(service);
   }

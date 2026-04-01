@@ -160,11 +160,11 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
               logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: 'started',
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
-                  } as AssessmentDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -182,13 +182,12 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
               logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
-                    stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
-                  } as AssessmentDetectionProgress),
+                  },
                   event: 'mark:progress',
                   id: String(Date.now())
                 });
@@ -212,7 +211,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
+                  data: {
                     motivation: 'assessing',
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -222,7 +221,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                     message: result?.assessmentsCreated !== undefined
                       ? `Complete! Created ${result.assessmentsCreated} assessments`
                       : 'Assessment detection complete!'
-                  } as AssessmentDetectionProgress),
+                  },
                   event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
@@ -241,11 +240,10 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
               logger.info('Detection failed', { error: event.payload.error });
               try {
                 await writeTypedSSE(stream, {
-                  data: JSON.stringify({
-                    status: 'error',
+                  data: {
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Assessment detection failed'
-                  } as AssessmentDetectionProgress),
+                  },
                   event: 'mark:assist-failed',
                   id: String(Date.now())
                 });

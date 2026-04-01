@@ -83,7 +83,7 @@ export class Matcher {
       this.eventBus.get('match:search-failed').next({
         correlationId: event.correlationId,
         referenceId: event.referenceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }

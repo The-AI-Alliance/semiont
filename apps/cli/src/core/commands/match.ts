@@ -128,7 +128,7 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const eventBus = new EventBus();
   const resultsPromise = waitForSearchResults(eventBus, rawAnnotationId);
 
-  client.sse.bindSearch(
+  client.sse.matchSearch(
     resourceId,
     {
       referenceId: rawAnnotationId,

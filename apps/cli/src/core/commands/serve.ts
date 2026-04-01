@@ -93,7 +93,9 @@ interface ServiceCheckResult {
   name: string;
   status: ServiceStatus;
   healthy: boolean;
-  external: boolean;
+  // Whether the service has been provisioned, as reported by the check handler.
+  // Undefined means the handler didn't set it — treat as provisioned (default true).
+  provisioned?: boolean;
 }
 
 function parseCheckOutput(jsonOutput: string): ServiceCheckResult[] {
@@ -103,9 +105,9 @@ function parseCheckOutput(jsonOutput: string): ServiceCheckResult[] {
     const items: any[] = parsed.results || [];
     for (const item of items) {
       const name: string = item.entity || '';
-      const meta = item.metadata || {};
-      const statusStr: string = meta.status || 'unknown';
-      const health = meta.health;
+      const extensions = item.extensions || {};
+      const statusStr: string = extensions.status || 'unknown';
+      const health = extensions.health;
       const healthy: boolean = item.success && (health?.healthy ?? statusStr === 'running');
       const status: ServiceStatus =
         statusStr === 'running' && healthy ? 'healthy' :
@@ -115,25 +117,12 @@ function parseCheckOutput(jsonOutput: string): ServiceCheckResult[] {
         name,
         status,
         healthy,
-        external: EXTERNAL_SERVICES.includes(name),
+        provisioned: extensions.provisioned,
       });
     }
     return results;
   } catch {
     return [];
-  }
-}
-
-function isProvisioned(serviceName: string, semiotRoot: string): boolean {
-  switch (serviceName) {
-    case 'backend':
-      return fs.existsSync(path.join(semiotRoot, 'backend', '.env'));
-    case 'frontend':
-      return fs.existsSync(path.join(semiotRoot, 'frontend', '.env'));
-    case 'database':
-    // For these, rely on check result only — we don't have a simple local sentinel
-    default:
-      return false;
   }
 }
 
@@ -236,6 +225,19 @@ async function serve(options: ServeOptions): Promise<CommandResults> {
 
     // ─── Step 3: Service readiness loop ─────────────────────────────────
 
+    // Derive which services are external from the actual environment config.
+    // Fallback to the static list if the config isn't available yet (e.g. before init).
+    let externalServices = EXTERNAL_SERVICES;
+    try {
+      const cfg = loadEnvironmentConfig(semiotRoot, semiotEnv);
+      externalServices = ALL_SERVICES.filter(name => {
+        const svc = (cfg.services as Record<string, { platform?: unknown } | undefined>)?.[name];
+        return svc?.platform === 'external';
+      });
+    } catch {
+      // Config not yet available — use static defaults
+    }
+
     console.log(`${colors.cyan}▶ Checking services...${colors.reset}`);
     const checkResult = runSemiontSafe(['check', '--all', '--output', 'json'], env);
     const serviceStatuses = parseCheckOutput(checkResult.output);
@@ -247,7 +249,7 @@ async function serve(options: ServeOptions): Promise<CommandResults> {
 
     for (const serviceName of ALL_SERVICES) {
       const info = statusByName.get(serviceName);
-      const isExternal = EXTERNAL_SERVICES.includes(serviceName);
+      const isExternal = externalServices.includes(serviceName);
 
       if (!info) {
         // Service not reported — treat as needing provision+start
@@ -266,9 +268,11 @@ async function serve(options: ServeOptions): Promise<CommandResults> {
         continue;
       }
 
-      // Decide: provision+start or start only
+      // Decide: provision+start or start only.
+      // Check handlers set provisioned=false when their sentinel is absent.
+      // Undefined means the handler didn't specify — default to provisioned.
       const alreadyProvisioned = info
-        ? info.status === 'stopped' && isProvisioned(serviceName, semiotRoot)
+        ? info.status === 'stopped' && (info.provisioned ?? true)
         : false;
 
       if (!alreadyProvisioned) {

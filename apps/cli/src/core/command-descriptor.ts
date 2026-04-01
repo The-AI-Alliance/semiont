@@ -9,7 +9,7 @@
 import { ServicePlatformInfo } from './service-resolver.js';
 import { Service } from './service-interface.js';
 import { Platform } from './platform.js';
-import { HandlerResult } from './handlers/types.js';
+import { HandlerResult, CommandName } from './handlers/types.js';
 import { CommandResult } from './command-result.js';
 
 /**
@@ -19,7 +19,7 @@ export interface CommandDescriptor<TOptions> {
   /**
    * The name of the command (e.g., 'start', 'update', 'publish')
    */
-  name: string;
+  name: CommandName;
   
   /**
    * Transform handler result to CommandResult with extensions
@@ -94,7 +94,7 @@ export interface CommandDescriptor<TOptions> {
    * If set, run preflight checks for this command after execution completes.
    * E.g., provision sets nextCommand='start' to validate start preconditions.
    */
-  nextCommand?: string;
+  nextCommand?: CommandName;
 }
 
 /**

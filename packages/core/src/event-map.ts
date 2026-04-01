@@ -120,7 +120,7 @@ export type EventMap = {
   };
   'yield:progress': YieldProgress;
   'yield:finished': YieldProgress;
-  'yield:failed': { error: Error };
+  'yield:failed': { error?: Error | string; status?: string; referenceId?: string; percentage?: number; message?: string };
 
   // Domain Events (from backend event store)
   'yield:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
@@ -273,9 +273,9 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'mark:progress': MarkProgress;
-  'mark:assist-finished': { motivation?: Motivation; resourceId?: ResourceId; progress?: MarkProgress };
-  'mark:assist-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  'mark:progress': MarkProgress & { resourceId?: ResourceId };
+  'mark:assist-finished': { motivation?: Motivation; resourceId?: ResourceId; status?: string; percentage?: number; foundCount?: number; createdCount?: number; byCategory?: Record<string, number>; message?: string; progress?: MarkProgress };
+  'mark:assist-failed': { resourceId?: ResourceId; message?: string };
   'mark:assist-cancelled': void;
   'mark:progress-dismiss': void;
 
@@ -372,7 +372,7 @@ export type EventMap = {
   'match:search-failed': {
     correlationId: string;
     referenceId: string;
-    error: Error;
+    error: string;
   };
 
   // ========================================================================

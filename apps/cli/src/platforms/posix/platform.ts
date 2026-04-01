@@ -39,26 +39,29 @@ export class PosixPlatform extends Platform {
     registry.registerHandlers('posix', handlers);
   }
   
-  getPlatformName(): string {
+  getPlatformName(): 'posix' {
     return 'posix';
   }
   
   /**
-   * Map service types to POSIX handler types
+   * Map service types to POSIX handler keys.
+   * Logical type IS the handler key — no translation needed.
    */
-  protected override mapServiceType(declaredType: string): string {
-    if (declaredType === 'frontend') return 'frontend';
-    if (declaredType === 'backend') return 'backend';
-    if (declaredType === 'database') return 'database';
-    if (declaredType === 'graph') return 'graph';
-    if (declaredType === 'mcp') return 'mcp';
-    if (declaredType === 'inference') return 'inference';
-    if (declaredType === 'web') return 'web';
-
-    throw new Error(
-      `Unsupported service type for posix platform: '${declaredType}'. ` +
-      `Supported types: frontend, backend, database, graph, mcp, inference`
-    );
+  protected override mapServiceType(declaredType: import('../../core/service-types.js').ServiceType): import('../../core/service-types.js').ServiceType {
+    switch (declaredType) {
+      case 'frontend':
+      case 'backend':
+      case 'database':
+      case 'graph':
+      case 'mcp':
+      case 'inference':
+        return declaredType;
+      default:
+        throw new Error(
+          `Unsupported service type for posix platform: '${declaredType}'. ` +
+          `Supported types: frontend, backend, database, graph, mcp, inference`
+        );
+    }
   }
   
   /**
@@ -88,7 +91,6 @@ export class PosixPlatform extends Platform {
     
     // Route to appropriate implementation
     switch (serviceType) {
-      case 'web':
       case 'worker':
       case 'backend':
       case 'frontend':

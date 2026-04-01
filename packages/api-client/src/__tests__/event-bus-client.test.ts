@@ -328,7 +328,7 @@ describe('EventBusClient', () => {
           eventBus.get('match:search-failed').next({
             referenceId: e.referenceId,
             correlationId: e.correlationId,
-            error: new Error('Search unavailable'),
+            error: 'Search unavailable',
           });
         });
       });

@@ -36,6 +36,7 @@ import { extractCLIBehaviors, CLIBehaviors } from './service-cli-behaviors.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { ServiceName } from './service-discovery.js';
 import { parseEnvironment } from '@semiont/core';
+import type { CommandName } from './handlers/types.js';
 
 /**
  * Get the CLI version from package.json
@@ -90,6 +91,8 @@ export async function executeCommand(
   try {
     // Load the command definition
     const command = await loadCommand(commandName);
+    // commandName is now known-valid since loadCommand would have thrown otherwise
+    const validatedCommandName = commandName as CommandName;
     
     // Handle help flag
     if (argv.includes('--help') || argv.includes('-h')) {
@@ -115,7 +118,7 @@ export async function executeCommand(
 
           const resolvedServices = await resolveServiceSelector(
             options.service as string,
-            commandName,
+            validatedCommandName,
             envConfig
           );
           const serviceDeployments = projectRoot ? resolveServiceDeployments(resolvedServices, envConfig) : [];
@@ -182,8 +185,8 @@ export async function executeCommand(
       const projectRoot = findProjectRootOrNull();
       const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
-      await validateServiceSelector(service, commandName, envConfig);
-      const resolvedServices = await resolveServiceSelector(service, commandName, envConfig);
+      await validateServiceSelector(service, validatedCommandName, envConfig);
+      const resolvedServices = await resolveServiceSelector(service, validatedCommandName, envConfig);
 
       const projectBoundServices = resolvedServices.filter(n => n !== 'frontend');
       if (!projectRoot && projectBoundServices.length > 0) {

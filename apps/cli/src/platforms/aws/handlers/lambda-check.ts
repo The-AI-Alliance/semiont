@@ -128,7 +128,7 @@ const preflightLambdaCheck = async (_context: AWSCheckHandlerContext): Promise<P
 export const lambdaCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
-  serviceType: 'lambda',
+  serviceType: 'worker',
   handler: lambdaCheckHandler,
   preflight: preflightLambdaCheck
 };

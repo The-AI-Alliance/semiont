@@ -382,7 +382,7 @@ export class EventBusClient {
       ),
       this.eventBus.get('match:search-failed').pipe(
         filter((e) => e.correlationId === correlationId),
-        map((e) => ({ ok: false as const, error: e.error })),
+        map((e) => ({ ok: false as const, error: new Error(e.error) })),
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 

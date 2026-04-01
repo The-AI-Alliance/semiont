@@ -27,6 +27,7 @@ export const SERVICE_TYPES = {
   
   // Infrastructure
   STACK: 'stack',          // Infrastructure stacks (CloudFormation, Terraform)
+  FILESYSTEM: 'filesystem', // Shared/persistent file storage (EFS, NFS, etc.)
 } as const;
 
 /**
