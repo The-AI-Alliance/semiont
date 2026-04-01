@@ -37,7 +37,10 @@ export async function generateResourceFromTopic(
     maxTokens
   });
 
-  // Use provided values or defaults
+  // Use provided values or defaults.
+  // 500 tokens is the canonical backend default for maxTokens; the UI also initialises
+  // its field to 500 as a UX convenience, but the authoritative fallback lives here so
+  // that direct API callers get a sensible limit even when they omit the parameter.
   const finalTemperature = temperature ?? 0.7;
   const finalMaxTokens = maxTokens ?? 500;
 
@@ -110,6 +113,10 @@ ${after ? `${after}...` : ''}
     }
   }
 
+  const structureGuidance = finalMaxTokens >= 1000
+    ? 'organized into titled sections (## Section) with well-structured paragraphs'
+    : 'organized into well-structured paragraphs';
+
   // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
@@ -117,7 +124,7 @@ ${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${co
 
 Requirements:
 - Start with a clear heading (# Title)
-- Write 2-3 paragraphs of substantive content
+- Aim for approximately ${finalMaxTokens} tokens of content, ${structureGuidance}
 - Be factual and informative
 - Use markdown formatting
 - Return ONLY the markdown content, no JSON, no code fences, no additional wrapper`;
