@@ -211,15 +211,17 @@ export function loadTomlConfig(
   // 1. Read project config from .semiont/config (skipped when no project root)
   const projectConfigContent = projectRoot ? reader.readIfExists(`${projectRoot}/.semiont/config`) : null;
   let projectName = 'semiont-project';
+  let projectVersion: string | undefined;
   let projectSite: EnvironmentSection['site'] | undefined;
   let projectEnvSection: EnvironmentSection = {};
   if (projectConfigContent) {
     const projectConfig = parseToml(projectConfigContent) as {
-      project?: { name?: string };
+      project?: { name?: string; version?: string };
       site?: EnvironmentSection['site'];
       environments?: Record<string, EnvironmentSection>;
     };
     projectName = projectConfig.project?.name ?? projectName;
+    projectVersion = projectConfig.project?.version;
     projectSite = projectConfig.site;
     projectEnvSection = projectConfig.environments?.[environment] ?? {};
   }
@@ -440,6 +442,7 @@ export function loadTomlConfig(
       environment,
       projectRoot,
       projectName,
+      projectVersion,
       ...(Object.keys(actors).length > 0 ? { actors } : {}),
       ...(Object.keys(workers).length > 0 ? { workers } : {}),
     },
