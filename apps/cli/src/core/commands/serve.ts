@@ -128,10 +128,6 @@ function isProvisioned(serviceName: string, semiotRoot: string): boolean {
   switch (serviceName) {
     case 'backend':
       return fs.existsSync(path.join(semiotRoot, 'backend', '.env'));
-    case 'frontend':
-      return fs.existsSync(path.join(semiotRoot, 'frontend', '.env'));
-    case 'database':
-    // For these, rely on check result only — we don't have a simple local sentinel
     default:
       return false;
   }
@@ -334,7 +330,7 @@ async function serve(options: ServeOptions): Promise<CommandResults> {
     // ─── Step 5: Final check ─────────────────────────────────────────────
 
     console.log(`${colors.cyan}▶ Final service check...${colors.reset}\n`);
-    runSemiont(['check', '--all'], env);
+    runSemiont(['check', ...ALL_SERVICES.flatMap(s => ['--service', s])], env);
 
     // ─── Step 6: Summary ─────────────────────────────────────────────────
 
