@@ -14,15 +14,19 @@ export function useOpenResourcesManager(): OpenResourcesManager {
 
   const openResources = useObservable(store.resources$) ?? store.resources;
 
-  return useMemo(
+  const callbacks = useMemo(
     () => ({
-      openResources,
       addResource: (id: string, name: string, mediaType?: string, storageUri?: string) =>
         store.add(id, name, mediaType, storageUri),
       removeResource: (id: string) => store.remove(id),
       updateResourceName: (id: string, name: string) => store.updateName(id, name),
       reorderResources: (oldIndex: number, newIndex: number) => store.reorder(oldIndex, newIndex),
     }),
-    [store, openResources],
+    [store],
+  );
+
+  return useMemo(
+    () => ({ openResources, ...callbacks }),
+    [openResources, callbacks],
   );
 }
