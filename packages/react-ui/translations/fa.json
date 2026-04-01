@@ -5,7 +5,8 @@
     "resourceInfo": "اطلاعات منبع",
     "collaboration": "همکاری",
     "userAccount": "حساب کاربری",
-    "settings": "تنظیمات"
+    "settings": "تنظیمات",
+    "knowledgeBase": "پایگاه دانش"
   },
   "ResourceInfoPanel": {
     "title": "اطلاعات منبع",

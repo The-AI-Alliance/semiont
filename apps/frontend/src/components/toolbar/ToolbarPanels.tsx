@@ -1,6 +1,7 @@
 import React, { useTransition, useEffect, useCallback } from 'react';
 import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
+import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
 import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
@@ -101,6 +102,11 @@ export function ToolbarPanels({
       {/* Custom context-specific panels */}
       <div className="semiont-toolbar-panels__content">
         {children}
+
+        {/* Knowledge Base Panel - common to all contexts */}
+        {activePanel === 'knowledge-base' && (
+          <KnowledgeBasePanel />
+        )}
 
         {/* User Panel - common to all contexts */}
         {activePanel === 'user' && (

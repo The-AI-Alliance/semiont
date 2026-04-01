@@ -5,7 +5,8 @@
     "resourceInfo": "Resurssin tiedot",
     "collaboration": "Yhteistyö",
     "userAccount": "Käyttäjätili",
-    "settings": "Asetukset"
+    "settings": "Asetukset",
+    "knowledgeBase": "Tietokanta"
   },
   "ResourceInfoPanel": {
     "title": "Resurssin tiedot",

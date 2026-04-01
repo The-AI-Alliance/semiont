@@ -5,7 +5,8 @@
     "resourceInfo": "Resource Info",
     "collaboration": "Collaboration",
     "userAccount": "User Account",
-    "settings": "Settings"
+    "settings": "Settings",
+    "knowledgeBase": "Knowledge Base"
   },
   "ResourceInfoPanel": {
     "title": "Resource Info",
@@ -275,7 +276,7 @@
     "accessibilityTitle": "Accessibility",
     "a11ySkipLinks": "Navigate to skip links (when at page start)",
     "a11yFollowLink": "Follow skip link",
-    "macNote": "Using Mac keyboard shortcuts. \u2318 is the Command key.",
+    "macNote": "Using Mac keyboard shortcuts. ⌘ is the Command key.",
     "windowsNote": "Using Windows/Linux keyboard shortcuts. Ctrl is the Control key.",
     "footerHint": "Press {{key}} anytime to show this help",
     "close": "Close"

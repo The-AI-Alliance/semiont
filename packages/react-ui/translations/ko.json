@@ -5,7 +5,8 @@
     "resourceInfo": "리소스 정보",
     "collaboration": "협업",
     "userAccount": "사용자 계정",
-    "settings": "설정"
+    "settings": "설정",
+    "knowledgeBase": "지식 베이스"
   },
   "ResourceInfoPanel": {
     "title": "리소스 정보",

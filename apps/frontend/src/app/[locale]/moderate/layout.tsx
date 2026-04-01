@@ -8,23 +8,23 @@ import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
-import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
 
 export default function ModerateLayout() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { isAuthenticated, isAdmin, isModerator, token: authToken } = useAuth();
-  const { activeWorkspace } = useWorkspaceContext();
+  const { activeKnowledgeBase } = useKnowledgeBaseContext();
   const router = useRouter();
 
-  if (!activeWorkspace) {
+  if (!activeKnowledgeBase) {
     router.push('/know');
     return null;
   }
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={activeWorkspace.backendUrl}>
+      <ApiClientProvider baseUrl={activeKnowledgeBase.backendUrl}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
           <div className="flex flex-1">
             <LeftSidebar

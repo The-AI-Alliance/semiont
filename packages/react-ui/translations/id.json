@@ -5,7 +5,8 @@
     "resourceInfo": "Info Sumber Daya",
     "collaboration": "Kolaborasi",
     "userAccount": "Akun Pengguna",
-    "settings": "Pengaturan"
+    "settings": "Pengaturan",
+    "knowledgeBase": "Basis Pengetahuan"
   },
   "ResourceInfoPanel": {
     "title": "Info Sumber Daya",

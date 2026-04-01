@@ -5,7 +5,8 @@
     "resourceInfo": "Ressursinfo",
     "collaboration": "Samarbeid",
     "userAccount": "Brukerkonto",
-    "settings": "Innstillinger"
+    "settings": "Innstillinger",
+    "knowledgeBase": "Kunnskapsbase"
   },
   "ResourceInfoPanel": {
     "title": "Ressursinfo",

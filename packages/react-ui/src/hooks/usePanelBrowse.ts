@@ -14,10 +14,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
-export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
+export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'knowledge-base';
 
 /** Panels available on all pages */
-export const COMMON_PANELS: readonly ToolbarPanelType[] = ['user', 'settings'] as const;
+export const COMMON_PANELS: readonly ToolbarPanelType[] = ['knowledge-base', 'user', 'settings'] as const;
 
 /** Panels available only on resource viewer pages */
 export const RESOURCE_PANELS: readonly ToolbarPanelType[] = ['history', 'info', 'annotations', 'collaboration', 'jsonld'] as const;

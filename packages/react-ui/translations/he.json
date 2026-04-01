@@ -5,7 +5,8 @@
     "resourceInfo": "מידע על המשאב",
     "collaboration": "שיתוף פעולה",
     "userAccount": "חשבון משתמש",
-    "settings": "הגדרות"
+    "settings": "הגדרות",
+    "knowledgeBase": "בסיס ידע"
   },
   "ResourceInfoPanel": {
     "title": "מידע על המשאב",

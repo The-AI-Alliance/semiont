@@ -5,7 +5,8 @@
     "resourceInfo": "Πληροφορίες Πόρου",
     "collaboration": "Συνεργασία",
     "userAccount": "Λογαριασμός Χρήστη",
-    "settings": "Ρυθμίσεις"
+    "settings": "Ρυθμίσεις",
+    "knowledgeBase": "Βάση Γνώσεων"
   },
   "ResourceInfoPanel": {
     "title": "Πληροφορίες Πόρου",

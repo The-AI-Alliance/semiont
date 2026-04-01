@@ -5,7 +5,8 @@
     "resourceInfo": "ข้อมูลทรัพยากร",
     "collaboration": "การทำงานร่วมกัน",
     "userAccount": "บัญชีผู้ใช้",
-    "settings": "การตั้งค่า"
+    "settings": "การตั้งค่า",
+    "knowledgeBase": "ฐานความรู้"
   },
   "ResourceInfoPanel": {
     "title": "ข้อมูลทรัพยากร",

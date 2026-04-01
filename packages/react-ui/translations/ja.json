@@ -5,7 +5,8 @@
     "resourceInfo": "リソース情報",
     "collaboration": "コラボレーション",
     "userAccount": "ユーザーアカウント",
-    "settings": "設定"
+    "settings": "設定",
+    "knowledgeBase": "ナレッジベース"
   },
   "ResourceInfoPanel": {
     "title": "リソース情報",
