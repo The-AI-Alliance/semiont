@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL del backend",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Por favor ingrese la URL del backend",
+    "errorBackendUrlInvalid": "Introduce una URL válida (p. ej. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "No se puede acceder a esa URL — ¿está el backend en ejecución?",
     "errorEmailRequired": "Por favor, ingrese su dirección de correo electrónico",
     "errorPasswordRequired": "Por favor, ingrese su contraseña",
     "errorSignInFailed": "No se pudo iniciar sesión. Por favor, inténtelo de nuevo.",

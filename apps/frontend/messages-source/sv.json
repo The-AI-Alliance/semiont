@@ -159,6 +159,8 @@
     "backendUrlLabel": "Backend-URL",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Ange backend-URL",
+    "errorBackendUrlInvalid": "Ange en giltig URL (t.ex. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Den URL:en går inte att nå — körs backend?",
     "errorEmailRequired": "Vänligen ange din e-postadress",
     "errorPasswordRequired": "Vänligen ange ditt lösenord",
     "errorSignInFailed": "Inloggningen misslyckades. Försök igen.",

@@ -159,6 +159,8 @@
     "backendUrlLabel": "כתובת URL של השרת",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "אנא הזן את כתובת ה-URL של השרת",
+    "errorBackendUrlInvalid": "נא להזין כתובת URL תקינה (לדוגמה: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "לא ניתן להגיע לכתובת URL זו — האם ה-backend פועל?",
     "errorEmailRequired": "אנא הזינו את כתובת הדוא\"ל שלכם",
     "errorPasswordRequired": "אנא הזינו את הסיסמה שלכם",
     "errorSignInFailed": "ההתחברות נכשלה. אנא נסו שוב.",

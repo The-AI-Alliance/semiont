@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL Backend",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Vui lòng nhập URL backend",
+    "errorBackendUrlInvalid": "Vui lòng nhập URL hợp lệ (ví dụ: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Không thể kết nối đến URL đó — backend có đang chạy không?",
     "errorEmailRequired": "Vui lòng nhập địa chỉ email của bạn",
     "errorPasswordRequired": "Vui lòng nhập mật khẩu của bạn",
     "errorSignInFailed": "Đăng nhập thất bại. Vui lòng thử lại.",

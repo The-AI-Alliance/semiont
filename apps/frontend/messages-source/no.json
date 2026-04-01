@@ -159,6 +159,8 @@
     "backendUrlLabel": "Backend URL",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Vennligst skriv inn backend URL",
+    "errorBackendUrlInvalid": "Skriv inn en gyldig URL (f.eks. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Den URL-en er ikke tilgjengelig — kjører backend?",
     "errorEmailRequired": "Vennligst skriv inn e-postadressen din",
     "errorPasswordRequired": "Vennligst skriv inn passordet ditt",
     "errorSignInFailed": "Innlogging mislyktes. Vennligst prøv igjen.",

@@ -159,6 +159,8 @@
     "backendUrlLabel": "बैकएंड URL",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "कृपया बैकएंड URL दर्ज करें",
+    "errorBackendUrlInvalid": "कृपया एक मान्य URL दर्ज करें (उदा. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "उस URL तक नहीं पहुँचा जा सका — क्या बैकएंड चल रहा है?",
     "errorEmailRequired": "कृपया अपना ईमेल पता दर्ज करें",
     "errorPasswordRequired": "कृपया अपना पासवर्ड दर्ज करें",
     "errorSignInFailed": "साइन इन करने में विफल। कृपया पुनः प्रयास करें।",

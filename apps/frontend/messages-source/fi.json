@@ -159,6 +159,8 @@
     "backendUrlLabel": "Backend-URL",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Anna backend-URL",
+    "errorBackendUrlInvalid": "Anna kelvollinen URL-osoite (esim. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "Tähän URL-osoitteeseen ei saada yhteyttä — onko taustajärjestelmä käynnissä?",
     "errorEmailRequired": "Syötä sähköpostiosoitteesi",
     "errorPasswordRequired": "Syötä salasanasi",
     "errorSignInFailed": "Kirjautuminen epäonnistui. Yritä uudelleen.",

@@ -159,6 +159,8 @@
     "backendUrlLabel": "آدرس URL بک‌اند",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "لطفاً آدرس URL بک‌اند را وارد کنید",
+    "errorBackendUrlInvalid": "لطفاً یک URL معتبر وارد کنید (مثال: http://localhost:4000)",
+    "errorBackendUrlUnreachable": "این URL در دسترس نیست — آیا سرور پشتیبان در حال اجرا است؟",
     "errorEmailRequired": "لطفاً آدرس ایمیل خود را وارد کنید",
     "errorPasswordRequired": "لطفاً رمز عبور خود را وارد کنید",
     "errorSignInFailed": "ورود ناموفق بود. لطفاً دوباره تلاش کنید.",

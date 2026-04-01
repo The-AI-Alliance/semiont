@@ -159,6 +159,8 @@
     "backendUrlLabel": "URL Backend",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "Harap masukkan URL backend",
+    "errorBackendUrlInvalid": "Masukkan URL yang valid (mis. http://localhost:4000)",
+    "errorBackendUrlUnreachable": "URL tersebut tidak dapat dijangkau — apakah backend sedang berjalan?",
     "errorEmailRequired": "Silakan masukkan alamat email Anda",
     "errorPasswordRequired": "Silakan masukkan kata sandi Anda",
     "errorSignInFailed": "Gagal masuk. Silakan coba lagi.",

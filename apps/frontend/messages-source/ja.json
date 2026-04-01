@@ -159,6 +159,8 @@
     "backendUrlLabel": "バックエンドURL",
     "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
     "errorBackendUrlRequired": "バックエンドURLを入力してください",
+    "errorBackendUrlInvalid": "有効なURLを入力してください（例：http://localhost:4000）",
+    "errorBackendUrlUnreachable": "そのURLに接続できません——バックエンドは起動していますか？",
     "errorEmailRequired": "メールアドレスを入力してください",
     "errorPasswordRequired": "パスワードを入力してください",
     "errorSignInFailed": "サインインに失敗しました。もう一度お試しください。",
