@@ -83,12 +83,8 @@ export abstract class BaseService implements Service {
     return env as Environment;
   }
 
-  get projectRoot(): string {
-    const root = this.envConfig._metadata?.projectRoot;
-    if (!root) {
-      throw new Error('Project root is required in envConfig._metadata');
-    }
-    return root;
+  get projectRoot(): string | null {
+    return this.envConfig._metadata?.projectRoot ?? null;
   }
 
   get environmentConfig() { return this.envConfig; }

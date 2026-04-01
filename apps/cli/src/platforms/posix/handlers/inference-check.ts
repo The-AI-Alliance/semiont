@@ -23,7 +23,7 @@ const checkInference = async (context: PosixCheckHandlerContext): Promise<CheckH
 
   // Check saved state for PID
   const savedState = await StateManager.load(
-    service.projectRoot,
+    service.projectRoot!,
     service.environment,
     service.name
   );

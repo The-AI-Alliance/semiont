@@ -176,7 +176,7 @@ export class AWSPlatform extends Platform {
     
     // Load existing state for potential update
     const existingState = await StateManager.load(
-      service.projectRoot,
+      service.projectRoot!,
       service.environment,
       service.name
     );
@@ -306,7 +306,7 @@ export class AWSPlatform extends Platform {
       };
       
       await StateManager.save(
-        service.projectRoot,
+        service.projectRoot!,
         service.environment,
         service.name,
         {
@@ -412,7 +412,7 @@ export class AWSPlatform extends Platform {
     serviceType: string
   ): Promise<{ logGroup: string; logStream?: string } | undefined> {
     const state = await StateManager.load(
-      service.projectRoot,
+      service.projectRoot!,
       service.environment,
       service.name
     );

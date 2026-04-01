@@ -190,9 +190,10 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       printInfo(`  Error log: ${errorLogFile}`);
       printInfo('');
       printInfo('Commands:');
-      printInfo(`  Check status: semiont check --service frontend --environment ${service.environment}`);
+      const envFlag = service.projectRoot ? ` --environment ${service.environment}` : '';
+      printInfo(`  Check status: semiont check --service frontend${envFlag}`);
       printInfo(`  View logs: tail -f ${appLogFile}`);
-      printInfo(`  Stop: semiont stop --service frontend --environment ${service.environment}`);
+      printInfo(`  Stop: semiont stop --service frontend${envFlag}`);
     }
 
     return {

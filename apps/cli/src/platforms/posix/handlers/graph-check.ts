@@ -18,7 +18,7 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
 
   // Load saved state
   const savedState = await StateManager.load(
-    service.projectRoot,
+    service.projectRoot!,
     service.environment,
     service.name
   );

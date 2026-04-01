@@ -22,7 +22,7 @@
 import type { ServiceConfig } from './cli-config.js';
 import { commandRequiresServices } from './command-discovery.js';
 import { ServiceSelector, ServiceCapability, ServiceName } from './service-discovery.js';
-import { EnvironmentConfig, parseEnvironment } from '@semiont/core';
+import { EnvironmentConfig, PlatformType, parseEnvironment } from '@semiont/core';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { ServiceFactory } from '../services/service-factory.js';
 import { serviceSupportsCommand } from './service-command-capabilities.js';
@@ -48,11 +48,20 @@ async function checkServiceSupportsCommand(
       throw new Error('Environment is required in envConfig._metadata');
     }
 
-    // Get service deployment info
-    const deployments = resolveServiceDeployments(
-      [serviceName],
-      envConfig
-    );
+    // Get service deployment info.
+    // When projectRoot is null (no project directory), resolveServiceDeployments would throw.
+    // In that case, derive the deployment directly from envConfig.services — enough to create
+    // the service and check its annotations.
+    let deployments;
+    if (!projectRoot) {
+      const serviceConfig = envConfig.services?.[serviceName] as ServiceConfig | undefined;
+      if (!serviceConfig) return false;
+      const platformType = (serviceConfig as { platform?: { type?: string } }).platform?.type;
+      if (!platformType) return false;
+      deployments = [{ name: serviceName, platform: platformType as PlatformType, config: serviceConfig }];
+    } else {
+      deployments = resolveServiceDeployments([serviceName], envConfig);
+    }
 
     if (deployments.length === 0) {
       return false;

@@ -23,7 +23,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   // Type narrowing for backend service config
   const config = service.config as BackendServiceConfig;
 
-  const projectRoot = service.projectRoot;
+  const projectRoot = service.projectRoot!;
   const npmDir = resolveBackendNpmPackage(projectRoot);
   const entryPoint = npmDir ? (resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js')) : null;
   const project = new SemiontProject(projectRoot);
