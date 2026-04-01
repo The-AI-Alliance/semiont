@@ -22,7 +22,7 @@ function makeOptions(overrides: Partial<StopOptions> = {}): StopOptions {
     preflight: false,
     service: undefined,
     force: false,
-    timeout: 30,
+    timeout: 3,
     ...overrides,
   };
 }
