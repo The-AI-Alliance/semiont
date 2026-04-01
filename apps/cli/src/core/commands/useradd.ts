@@ -47,7 +47,7 @@ import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
  * We resolve from the project's node_modules (same pattern as backend-paths.ts).
  * DATABASE_URL must be set in process.env before calling this.
  */
-function loadPrismaClient(projectRoot: string): import('@prisma/client').PrismaClient {
+function loadPrismaClient(projectRoot: string): any { // any: dynamically loaded from project's node_modules, not the CLI's devDep
   const req = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
 
   // Try loading from @semiont/backend's generated client first
