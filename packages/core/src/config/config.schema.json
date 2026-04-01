@@ -1249,7 +1249,7 @@
               "type": "string"
             },
             "projectRoot": {
-              "type": "string"
+              "type": ["string", "null"]
             }
           },
           "required": [

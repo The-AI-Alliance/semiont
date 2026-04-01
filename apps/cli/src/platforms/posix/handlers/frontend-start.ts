@@ -141,9 +141,21 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     try {
       process.kill(proc.pid, 0);
     } catch {
+      // Read last few lines from error log for diagnostics
+      let logTail = '';
+      try {
+        const logContent = fs.readFileSync(errorLogFile, 'utf-8');
+        const lines = logContent.split('\n').filter(l => l.trim());
+        const tail = lines.slice(-10).join('\n');
+        if (tail) logTail = `\n\nLast lines from error log:\n${tail}`;
+      } catch { /* log may not exist */ }
+
+      const portCheck = await checkPortFree(port);
+      const portNote = !portCheck.pass ? `\n\n${portCheck.message}` : '';
+
       return {
         success: false,
-        error: 'Frontend process failed to start. Check logs for details.',
+        error: `Frontend process failed to start.\n\nError log: ${errorLogFile}${portNote}${logTail}`,
         metadata: {
           serviceType: 'frontend',
           logFile: appLogFile,

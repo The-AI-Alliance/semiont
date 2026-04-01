@@ -18,7 +18,7 @@ import type {
  * Global CLI configuration passed to all commands and services
  */
 export interface Config {
-  projectRoot: string;
+  projectRoot: string | null;
   environment: Environment;
   verbose: boolean;
   quiet: boolean;

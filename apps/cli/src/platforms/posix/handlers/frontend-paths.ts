@@ -1,34 +1,26 @@
 import * as path from 'path';
 import * as os from 'os';
-import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+
+// dist/frontend/ is copied here by build.mjs from .npm-stage/frontend
+const FRONTEND_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'frontend');
 
 /**
- * Resolve the frontend npm package directory from the CLI's own node_modules.
- * Returns the package directory or null if not installed.
+ * Resolve the frontend package directory bundled alongside the CLI in dist/frontend/.
+ * Returns the directory or null if not present.
  */
 export function resolveFrontendNpmPackage(): string | null {
-  try {
-    const require = createRequire(import.meta.url);
-    const pkgPath = require.resolve('@semiont/frontend/package.json');
-    return path.dirname(pkgPath);
-  } catch {
-    return null;
-  }
+  return existsSync(FRONTEND_DIR) ? FRONTEND_DIR : null;
 }
 
 /**
- * Resolve the path to the frontend server.js entry point from the CLI's own node_modules.
- * Uses the package's `main` field so the path is derived from the manifest rather than hardcoded.
- * Returns null if not installed.
+ * Resolve the path to the frontend server.js entry point bundled in dist/frontend/.
+ * Returns null if not present.
  */
 export function resolveFrontendServerScript(): string | null {
-  try {
-    const require = createRequire(import.meta.url);
-    // @semiont/frontend declares `"main": "server.js"` — resolve() follows it directly
-    return require.resolve('@semiont/frontend');
-  } catch {
-    return null;
-  }
+  const script = path.join(FRONTEND_DIR, 'server.js');
+  return existsSync(script) ? script : null;
 }
 
 export interface FrontendXdgPaths {

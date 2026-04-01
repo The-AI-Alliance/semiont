@@ -59,15 +59,9 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
   ): Promise<CommandResults<CommandResult>> {
     const startTime = Date.now();
 
-    // Environment and projectRoot are guaranteed to be in envConfig._metadata
     const environment = envConfig._metadata?.environment;
     if (!environment) {
       throw new Error('Environment is required in envConfig._metadata');
-    }
-
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!projectRoot) {
-      throw new Error('Project root is required in config metadata');
     }
 
     // Apply defaults and validate
@@ -209,10 +203,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     if (!environment) {
       throw new Error('Environment is required in envConfig._metadata');
     }
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!projectRoot) {
-      throw new Error('Project root is required in envConfig._metadata');
-    }
+    const projectRoot = envConfig._metadata?.projectRoot ?? null;
 
     // Get available environments for validation
     const { getAvailableEnvironments } = await import('../core/config-loader.js');
@@ -331,8 +322,8 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     envConfig: EnvironmentConfig
   ): Promise<CommandResult[]> {
     const environment = envConfig._metadata?.environment;
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!environment || !projectRoot) return [];
+    if (!environment) return [];
+    const projectRoot = envConfig._metadata?.projectRoot ?? null;
 
     const { PlatformFactory } = await import('../platforms/index.js');
     const { getAvailableEnvironments } = await import('../core/config-loader.js');
@@ -461,8 +452,8 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     envConfig: EnvironmentConfig
   ): Promise<void> {
     const environment = envConfig._metadata?.environment;
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!environment || !projectRoot) return;
+    if (!environment) return;
+    const projectRoot = envConfig._metadata?.projectRoot ?? null;
 
     const quiet = options.quiet || false;
     const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);

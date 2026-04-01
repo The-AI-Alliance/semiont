@@ -42,10 +42,7 @@ async function checkServiceSupportsCommand(
   envConfig: EnvironmentConfig
 ): Promise<boolean> {
   try {
-    const projectRoot = envConfig._metadata?.projectRoot;
-    if (!projectRoot) {
-      throw new Error('Project root is required in envConfig._metadata');
-    }
+    const projectRoot = envConfig._metadata?.projectRoot ?? null;
     const environment = envConfig._metadata?.environment;
     if (!environment) {
       throw new Error('Environment is required in envConfig._metadata');
