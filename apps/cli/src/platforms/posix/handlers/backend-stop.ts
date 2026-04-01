@@ -16,7 +16,7 @@ import { SemiontProject } from '@semiont/core/node';
 const stopBackendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
 
-  const projectRoot = service.projectRoot;
+  const projectRoot = service.projectRoot!;
   const npmDir = resolveBackendNpmPackage(projectRoot);
   const entryPoint = npmDir ? (resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js')) : null;
   const project = new SemiontProject(projectRoot);

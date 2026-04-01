@@ -140,7 +140,7 @@ export class ContainerPlatform extends Platform {
   async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
     const serviceType = this.determineServiceType(service);
     const state = await StateManager.load(
-      service.projectRoot,
+      service.projectRoot!,
       service.environment,
       service.name
     );

@@ -21,7 +21,7 @@ The Semiont frontend provides a rich annotation experience for building semantic
 [![npm version](https://img.shields.io/npm/v/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
 
-The frontend is published as `@semiont/frontend` on npm as a pre-built Next.js standalone output. When using the Semiont CLI, `semiont provision` automatically installs this package unless `SEMIONT_REPO` is set (which directs the CLI to use a local source checkout instead).
+The frontend is published as `@semiont/frontend` on npm as a pre-built Vite SPA with a minimal Node.js static file server. It is bundled directly inside `@semiont/cli` — no separate installation step is required. When the CLI starts the frontend service, it runs the bundled `server.js` from its own `node_modules`.
 
 ## Quick Start
 

@@ -36,7 +36,7 @@ const checkDatabaseProcess = async (context: PosixCheckHandlerContext): Promise<
   if (!pid) {
     // Load saved state
     const savedState = await StateManager.load(
-      service.projectRoot,
+      service.projectRoot!,
       service.environment,
       service.name
     );

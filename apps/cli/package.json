@@ -15,7 +15,6 @@
     "README.md",
     "LICENSE"
   ],
-  "bundledDependencies": false,
   "publishConfig": {
     "access": "public"
   },
@@ -92,6 +91,5 @@
   },
   "overrides": {
     "esbuild": "0.27.2"
-  },
-  "bundleDependencies": []
+  }
 }

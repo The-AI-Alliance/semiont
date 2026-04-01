@@ -21,7 +21,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const { service } = context;
   const config = service.config as BackendServiceConfig;
 
-  const projectRoot = service.projectRoot;
+  const projectRoot = service.projectRoot!;
   const npmDir = resolveBackendNpmPackage(projectRoot);
   if (!npmDir) {
     return {
@@ -123,7 +123,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     SITE_DOMAIN: siteDomain,
     OAUTH_ALLOWED_DOMAINS: allowedDomains,
     JWT_SECRET: jwtSecret,
-    SEMIONT_ROOT: service.projectRoot,
+    SEMIONT_ROOT: service.projectRoot!,
     SEMIONT_ENV: service.environment,
   };
   
@@ -316,7 +316,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
-  const projectRoot = context.service.projectRoot;
+  const projectRoot = context.service.projectRoot!;
   const npmDir = resolveBackendNpmPackage(projectRoot);
   const project = new SemiontProject(projectRoot);
   const checks = [checkCommandAvailable('node')];

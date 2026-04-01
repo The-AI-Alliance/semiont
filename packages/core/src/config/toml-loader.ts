@@ -202,14 +202,14 @@ function requirePlatform(value: string | undefined, serviceName: string): Platfo
  * @param env - Environment variables for ${VAR} resolution
  */
 export function loadTomlConfig(
-  projectRoot: string,
+  projectRoot: string | null,
   environment: string,
   globalConfigPath: string,
   reader: TomlFileReader,
   env: Record<string, string | undefined>
 ): EnvironmentConfig {
-  // 1. Read project config from .semiont/config
-  const projectConfigContent = reader.readIfExists(`${projectRoot}/.semiont/config`);
+  // 1. Read project config from .semiont/config (skipped when no project root)
+  const projectConfigContent = projectRoot ? reader.readIfExists(`${projectRoot}/.semiont/config`) : null;
   let projectName = 'semiont-project';
   let projectSite: EnvironmentSection['site'] | undefined;
   let projectEnvSection: EnvironmentSection = {};
@@ -458,7 +458,7 @@ export function createTomlConfigLoader(
   globalConfigPath: string,
   env: Record<string, string | undefined>
 ) {
-  return (projectRoot: string, environment: string): EnvironmentConfig => {
+  return (projectRoot: string | null, environment: string): EnvironmentConfig => {
     return loadTomlConfig(projectRoot, environment, globalConfigPath, reader, env);
   };
 }

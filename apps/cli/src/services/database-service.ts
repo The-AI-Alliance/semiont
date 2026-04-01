@@ -214,7 +214,7 @@ export class DatabaseService extends BaseService {
     const possibleLogPaths = [
       '/var/log/postgresql/',
       '/usr/local/var/log/',
-      path.join(this.projectRoot, 'data/logs')
+      path.join(this.projectRoot!, 'data/logs')
     ];
     
     for (const logPath of possibleLogPaths) {

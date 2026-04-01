@@ -182,7 +182,7 @@ exchangeRouter.post('/api/moderate/exchange/export', async (c) => {
   const sourceUrl = config.services?.backend?.publicURL ?? 'http://localhost:4000';
   const includeArchived = c.req.query('includeArchived') === 'true';
 
-  const entityTypes = await readEntityTypesProjection(new SemiontProject(config._metadata!.projectRoot));
+  const entityTypes = await readEntityTypesProjection(new SemiontProject(config._metadata!.projectRoot!));
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `semiont-export-${timestamp}.tar.gz`;

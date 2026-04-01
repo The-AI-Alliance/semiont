@@ -5,10 +5,11 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useradd, type UseraddOptions } from '../useradd';
-import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 
-// Mock Prisma client for testing
+// Use dynamic require so this only resolves at runtime (after prisma generate)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // Helper to create complete UseraddOptions with defaults

@@ -1,84 +1,50 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { resolveFrontendNpmPackage } from './frontend-paths.js';
-import { SemiontProject } from '@semiont/core/node';
+import { resolveFrontendNpmPackage, resolveFrontendServerScript, frontendXdgPaths } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
 import { checkCommandAvailable, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
-// Injected by esbuild at build time via __SEMIONT_VERSION__ define
-declare const __SEMIONT_VERSION__: string;
-const SEMIONT_VERSION: string = __SEMIONT_VERSION__;
-
 /**
  * Provision handler for frontend services on POSIX systems
  *
- * Sets up the frontend runtime directory structure and prepares the build.
+ * Creates the XDG runtime directories needed by the frontend service.
+ * @semiont/frontend is bundled with the CLI and requires no separate installation.
  */
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
 
-  const projectRoot = service.projectRoot;
-
-  // Install (or update) @semiont/frontend to the version matching the CLI
-  const packageSpec = `@semiont/frontend@${SEMIONT_VERSION}`;
-
-  if (!service.quiet) {
-    printInfo(`Installing ${packageSpec}...`);
-  }
-  try {
-    execFileSync('npm', ['install', packageSpec, '--prefix', projectRoot], {
-      cwd: projectRoot,
-      stdio: service.verbose ? 'inherit' : 'pipe'
-    });
-    if (!service.quiet) {
-      printSuccess(`Installed ${packageSpec}`);
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: `Failed to install ${packageSpec}: ${error}`,
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-
-  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  const npmDir = resolveFrontendNpmPackage();
   if (!npmDir) {
     return {
       success: false,
-      error: 'Cannot find @semiont/frontend after install',
+      error: '@semiont/frontend not found. Reinstall @semiont/cli to restore it.',
       metadata: { serviceType: 'frontend' }
     };
   }
 
-  const serverScript = path.join(npmDir, 'server.js');
-  const project = new SemiontProject(projectRoot);
+  const serverScript = resolveFrontendServerScript() ?? path.join(npmDir, 'server.js');
+  const { pidFile, logsDir } = frontendXdgPaths();
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
-    printInfo(`Using installed npm package: ${serverScript}`);
+    printInfo(`Using bundled package: ${serverScript}`);
   }
 
   // Create runtime directories
-  fs.mkdirSync(project.frontendLogsDir, { recursive: true });
-  fs.mkdirSync(path.dirname(project.frontendPidFile), { recursive: true });
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(pidFile), { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${project.frontendLogsDir}`);
-  }
-
-  // npm package: pre-built, skip install/build steps
-  if (!service.quiet) {
-    printInfo('Using pre-built npm package — skipping install, build, and workspace steps');
+    printInfo(`Created runtime directories in: ${logsDir}`);
   }
 
   const metadata = {
     serviceType: 'frontend',
     serverScript,
-    logsDir: project.frontendLogsDir,
+    logsDir,
     configured: true
   };
 
@@ -87,11 +53,11 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     printInfo('');
     printInfo('Frontend details:');
     printInfo(`  Server script: ${serverScript}`);
-    printInfo(`  Logs directory: ${project.frontendLogsDir}`);
+    printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
     printInfo('Next steps:');
     printInfo(`  1. Ensure backend is running`);
-    printInfo(`  3. Start frontend: semiont start --service frontend --environment ${service.environment}`);
+    printInfo(`  2. Start frontend: semiont start --service frontend --environment ${service.environment}`);
   }
 
   return {

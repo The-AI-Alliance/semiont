@@ -3,26 +3,20 @@ import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated, isProcessRunning } from '../utils/process-manager.js';
-import { resolveFrontendNpmPackage, resolveFrontendServerScript } from './frontend-paths.js';
-import { SemiontProject } from '@semiont/core/node';
+import { resolveFrontendNpmPackage, resolveFrontendServerScript, frontendXdgPaths } from './frontend-paths.js';
 import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Stop handler for frontend services on POSIX systems
  *
- * Stops the frontend Node.js process gracefully using the PID file
- * stored in the frontend source directory
+ * Stops the frontend Node.js process gracefully using the PID file.
  */
 const stopFrontendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
 
-  const projectRoot = service.projectRoot;
-  const npmDir = resolveFrontendNpmPackage(projectRoot);
-  const serverScript = resolveFrontendServerScript(projectRoot) ?? (npmDir ? path.join(npmDir, 'server.js') : null);
-  const project = new SemiontProject(projectRoot);
-  const pidFile = project.frontendPidFile;
-  const appLogPath = project.frontendAppLogFile;
-  const errorLogPath = project.frontendErrorLogFile;
+  const npmDir = resolveFrontendNpmPackage();
+  const serverScript = resolveFrontendServerScript() ?? (npmDir ? path.join(npmDir, 'server.js') : null);
+  const { pidFile, appLogFile, errorLogFile } = frontendXdgPaths();
 
   if (service.verbose) {
     printInfo(`Server script: ${serverScript}`);
@@ -31,28 +25,25 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
   // Check for PID file
   if (!fs.existsSync(pidFile)) {
     // Check if we have saved state with PID
-    if (context.savedState?.resources?.platform === 'posix' && 
+    if (context.savedState?.resources?.platform === 'posix' &&
         context.savedState.resources.data.pid) {
       const pid = context.savedState.resources.data.pid;
-      
+
       try {
-        // Check if process is running
         if (!isProcessRunning(pid)) {
           throw new Error('Process not running');
         }
-        
-        // Process is running, try to stop it
+
         if (!service.quiet) {
           printInfo(`Stopping frontend process (PID ${pid} from saved state)...`);
         }
-        
-        // Use enhanced killing method
+
         await killProcessGroupAndRelated(pid, 'frontend', service.verbose);
-        
+
         if (!service.quiet) {
           printSuccess(`Frontend service ${service.name} stopped successfully`);
         }
-        
+
         return {
           success: true,
           metadata: {
@@ -62,7 +53,6 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
           }
         };
       } catch {
-        // Process not running
         return {
           success: true,
           metadata: {
@@ -72,7 +62,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
         };
       }
     }
-    
+
     return {
       success: true,
       metadata: {
@@ -81,7 +71,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       }
     };
   }
-  
+
   // Read PID from file
   let pid: number;
   try {
@@ -93,16 +83,15 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       metadata: { serviceType: 'frontend', pidFile }
     };
   }
-  
+
   // Check if process is actually running
   if (!isProcessRunning(pid)) {
-    // Process not running, just clean up PID file
     fs.unlinkSync(pidFile);
-    
+
     if (!service.quiet) {
       printInfo('Frontend was not running (stale PID file removed)');
     }
-    
+
     return {
       success: true,
       metadata: {
@@ -111,51 +100,46 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
       }
     };
   }
-  
+
   if (!service.quiet) {
     printInfo(`Stopping frontend service ${service.name} (PID ${pid})...`);
   }
-  
+
   // Write shutdown marker to logs
   const shutdownMessage = `\n=== Frontend Shutdown Initiated at ${new Date().toISOString()} ===\n`;
   try {
-    if (fs.existsSync(appLogPath)) {
-      fs.appendFileSync(appLogPath, shutdownMessage);
+    if (fs.existsSync(appLogFile)) {
+      fs.appendFileSync(appLogFile, shutdownMessage);
     }
-    if (fs.existsSync(errorLogPath)) {
-      fs.appendFileSync(errorLogPath, shutdownMessage);
+    if (fs.existsSync(errorLogFile)) {
+      fs.appendFileSync(errorLogFile, shutdownMessage);
     }
   } catch {
     // Log writing is best-effort
   }
-  
+
   try {
-    // Use enhanced killing method with process group support
     const graceful = await killProcessGroupAndRelated(pid, 'frontend', service.verbose);
-    
-    // Clean up PID file
+
     if (fs.existsSync(pidFile)) {
       fs.unlinkSync(pidFile);
     }
-    
-    // No need to clean up .env.local - it's a real file now, not a symlink
-    
-    // Write final log entry
+
     const finalMessage = `\n=== Frontend Stopped at ${new Date().toISOString()} ===\n`;
     try {
-      if (fs.existsSync(appLogPath)) {
-        fs.appendFileSync(appLogPath, finalMessage);
+      if (fs.existsSync(appLogFile)) {
+        fs.appendFileSync(appLogFile, finalMessage);
       }
     } catch {
       // Log writing is best-effort
     }
-    
+
     if (!service.quiet) {
       printSuccess(`Frontend service ${service.name} stopped successfully`);
-      printInfo(`  App log: ${appLogPath}`);
-      printInfo(`  Error log: ${errorLogPath}`);
+      printInfo(`  App log: ${appLogFile}`);
+      printInfo(`  Error log: ${errorLogFile}`);
     }
-    
+
     return {
       success: true,
       metadata: {
@@ -165,7 +149,7 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
         graceful
       }
     };
-    
+
   } catch (error) {
     return {
       success: false,

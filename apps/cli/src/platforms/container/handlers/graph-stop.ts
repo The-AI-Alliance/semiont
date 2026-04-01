@@ -33,7 +33,7 @@ const stopGraphService = async (context: ContainerStopHandlerContext): Promise<S
 
 async function stopJanusGraph(context: ContainerStopHandlerContext): Promise<StopHandlerResult> {
   const { service, runtime, options, containerName } = context;
-  const composePath = path.join(service.projectRoot, 'docker-compose.janusgraph.yml');
+  const composePath = path.join(service.projectRoot!, 'docker-compose.janusgraph.yml');
 
   if (!await fileExists(composePath)) {
     if (!service.quiet) {

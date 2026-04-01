@@ -226,6 +226,25 @@ if (existsSync('dist/dashboard')) {
   console.log('⚠️  Dashboard bundle not found. Run "npm run build:dashboard" to build it.')
 }
 
+// Copy staged @semiont/frontend into dist/frontend/ so it travels with the CLI tarball.
+const frontendStageSrc = '../../.npm-stage/frontend'
+if (existsSync(frontendStageSrc)) {
+  try {
+    const frontendDest = 'dist/frontend'
+    if (existsSync(frontendDest)) {
+      const { rmSync } = await import('fs')
+      rmSync(frontendDest, { recursive: true })
+    }
+    await cp(frontendStageSrc, frontendDest, { recursive: true })
+    console.log('✅ Copied @semiont/frontend into dist/frontend')
+  } catch (error) {
+    console.error('❌ Failed to copy @semiont/frontend:', error.message)
+    process.exit(1)
+  }
+} else {
+  console.warn('⚠️  .npm-stage/frontend not found — run `node scripts/publish-npm-apps.mjs` first to stage the frontend')
+}
+
 // Copy MCP server to dist
 const mcpServerSrc = '../../packages/mcp-server/dist'
 if (existsSync(mcpServerSrc)) {

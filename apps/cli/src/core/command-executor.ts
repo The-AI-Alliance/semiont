@@ -27,7 +27,7 @@ import type { ServiceConfig } from './cli-config.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot, resolveEnvironment } from './config-loader.js';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRootOrNull, resolveEnvironment } from './config-loader.js';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError, printInfo } from './io/cli-logger.js';
@@ -109,7 +109,7 @@ export async function executeCommand(
       if (options.environment || process.env.SEMIONT_ENV) {
         try {
           const env = options.environment || process.env.SEMIONT_ENV;
-          const projectRoot = findProjectRoot();
+          const projectRoot = findProjectRootOrNull();
           const envConfig = loadEnvironmentConfig(projectRoot, env);
           const availableEnvironments = getAvailableEnvironments();
 
@@ -118,7 +118,7 @@ export async function executeCommand(
             commandName,
             envConfig
           );
-          const serviceDeployments = resolveServiceDeployments(resolvedServices, envConfig);
+          const serviceDeployments = projectRoot ? resolveServiceDeployments(resolvedServices, envConfig) : [];
 
           if (serviceDeployments.length > 0) {
             const deployment = serviceDeployments[0];
@@ -179,20 +179,33 @@ export async function executeCommand(
         : 'all';
       // At this point, environment is guaranteed to be defined if requiresEnvironment is true
       const environment = options.environment!;
-      const projectRoot = findProjectRoot();
+      const projectRoot = findProjectRootOrNull();
       const envConfig = loadEnvironmentConfig(projectRoot, environment);
 
       await validateServiceSelector(service, commandName, envConfig);
       const resolvedServices = await resolveServiceSelector(service, commandName, envConfig);
-      services = resolveServiceDeployments(resolvedServices, envConfig);
+
+      const projectBoundServices = resolvedServices.filter(n => n !== 'frontend');
+      if (!projectRoot && projectBoundServices.length > 0) {
+        throw new Error(
+          `No .semiont/ directory found — run this command from a project directory, or run: semiont init\n` +
+          `(Services requiring a project: ${projectBoundServices.join(', ')})`
+        );
+      }
+
+      services = projectRoot ? resolveServiceDeployments(resolvedServices, envConfig) : resolvedServices.map(name => ({
+        name,
+        platform: (envConfig.services?.[name] as { platform?: { type?: string } })?.platform?.type as import('@semiont/core').PlatformType,
+        config: envConfig.services?.[name] as unknown as ServicePlatformInfo['config'],
+      })) as ServicePlatformInfo[];
     }
-    
+
     // Execute the command handler based on its type
     let results;
     if (command.requiresServices) {
       // Service command - pass services, options, and config (config includes projectRoot in _metadata)
       const environment = options.environment!;
-      const projectRoot = findProjectRoot();
+      const projectRoot = findProjectRootOrNull();
       const envConfig = loadEnvironmentConfig(projectRoot, environment);
       results = await command.handler(services, options, envConfig);
     } else {

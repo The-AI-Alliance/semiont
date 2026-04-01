@@ -23,7 +23,7 @@ const SEMIONT_VERSION: string = __SEMIONT_VERSION__;
 const provisionBackendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, options } = context;
 
-  const projectRoot = service.projectRoot;
+  const projectRoot = service.projectRoot!;
 
   // Install (or update) @semiont/backend to the version matching the CLI
   const packageSpec = `@semiont/backend@${SEMIONT_VERSION}`;

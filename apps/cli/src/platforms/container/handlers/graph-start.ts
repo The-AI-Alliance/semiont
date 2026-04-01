@@ -33,7 +33,7 @@ const startGraphService = async (context: ContainerStartHandlerContext): Promise
 
 async function startJanusGraph(context: ContainerStartHandlerContext): Promise<StartHandlerResult> {
   const { service, runtime, containerName } = context;
-  const composePath = path.join(service.projectRoot, 'docker-compose.janusgraph.yml');
+  const composePath = path.join(service.projectRoot!, 'docker-compose.janusgraph.yml');
 
   if (!await fileExists(composePath)) {
     return {

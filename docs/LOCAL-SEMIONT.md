@@ -116,6 +116,9 @@ This:
 - Generates `~/.config/semiont/secrets` with a JWT secret (if absent)
 - Generates `~/.config/semiont/{project}/proxy/envoy.yaml`
 - Runs database migrations
+- Creates XDG runtime directories for the frontend (`~/.local/state/semiont/frontend/`, PID dir)
+
+The frontend itself is bundled with the CLI — no separate npm install is performed.
 
 ### 4. Start Services
 
@@ -162,8 +165,9 @@ Machine-specific and secret state is kept in standard XDG directories, never com
 | `~/.local/state/semiont/{project}/projections/` | Materialized view cache (rebuilt from event log on demand) |
 | `~/.local/state/semiont/{project}/jobs/` | Background job state |
 | `~/.local/state/semiont/{project}/backend/` | Backend log files |
-| `~/.local/state/semiont/{project}/frontend/` | Frontend log files |
-| `$XDG_RUNTIME_DIR/semiont/{project}/` | PID files (falls back to `$TMPDIR/semiont/{project}/`) |
+| `~/.local/state/semiont/frontend/` | Frontend log files (keyed by service name, not project) |
+| `$XDG_RUNTIME_DIR/semiont/{project}/` | Backend PID file (falls back to `$TMPDIR/semiont/{project}/`) |
+| `$XDG_RUNTIME_DIR/semiont/frontend/` | Frontend PID file (falls back to `$TMPDIR/semiont/frontend/`) |
 
 See [Project Layout](./PROJECT-LAYOUT.md) for the full layout including what lives inside the project root.
 
@@ -186,11 +190,11 @@ semiont provision --service backend
 
 ### View Logs
 
-Log files are stored in `~/.local/state/semiont/{project}/`:
+Log files are stored in XDG state directories:
 
 ```bash
 tail -f ~/.local/state/semiont/{project}/backend/app.log
-tail -f ~/.local/state/semiont/{project}/frontend/app.log
+tail -f ~/.local/state/semiont/frontend/app.log
 ```
 
 ## Developer Mode

@@ -65,13 +65,10 @@ export class PosixPlatform extends Platform {
    * Build platform-specific context extensions for handlers
    */
   async buildHandlerContextExtensions(service: Service, _requiresDiscovery: boolean): Promise<Record<string, any>> {
-    // Load saved state for posix handlers
-    const savedState = await StateManager.load(
-      service.projectRoot,
-      service.environment,
-      service.name
-    );
-    
+    const savedState = service.projectRoot!
+      ? await StateManager.load(service.projectRoot!, service.environment, service.name)
+      : null;
+
     return {
       savedState
     };
@@ -84,7 +81,7 @@ export class PosixPlatform extends Platform {
   async collectLogs(service: Service, options?: LogOptions): Promise<LogEntry[] | undefined> {
     const serviceType = this.determineServiceType(service);
     const state = await StateManager.load(
-      service.projectRoot,
+      service.projectRoot!,
       service.environment,
       service.name
     );
@@ -186,8 +183,10 @@ export class PosixPlatform extends Platform {
       if (logs.length === 0) {
         const logPaths = [
           path.join('/var/log', service.name, '*.log'),
-          path.join(service.projectRoot, 'logs', '*.log'),
-          path.join(service.projectRoot, '.logs', '*.log')
+          ...(service.projectRoot! ? [
+            path.join(service.projectRoot!, 'logs', '*.log'),
+            path.join(service.projectRoot!, '.logs', '*.log'),
+          ] : []),
         ];
         
         for (const pattern of logPaths) {
@@ -243,7 +242,7 @@ export class PosixPlatform extends Platform {
       '/var/log/postgresql/*.log',
       '/var/log/mysql/*.log',
       '/var/log/mongodb/*.log',
-      path.join(service.projectRoot, 'data', 'logs', '*.log')
+      ...(service.projectRoot! ? [path.join(service.projectRoot!, 'data', 'logs', '*.log')] : []),
     ];
     
     for (const pattern of logPaths) {

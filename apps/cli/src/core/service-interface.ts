@@ -39,7 +39,7 @@ export interface Service {
 
   // Derived properties (from environmentConfig._metadata)
   readonly environment: Environment;
-  readonly projectRoot: string;
+  readonly projectRoot: string | null;
   
   // Service-specific methods that platforms can call
   getPort(): number;
