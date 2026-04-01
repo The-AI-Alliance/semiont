@@ -17,7 +17,7 @@
 
 import { Subscription } from 'rxjs';
 import type { EventMap, EventBus, ResourceId, Selector, EntityType, AccessToken } from '@semiont/core';
-import { annotationId as makeAnnotationId } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SSEClient } from './sse/index';
 import type { SemiontApiClient } from './client';
 
@@ -89,6 +89,7 @@ export class FlowEngine {
    * Activate the yield (generation) flow for a resource.
    *
    * @subscribes yield:request — calls SSE yieldResource
+   * @subscribes yield:finished — links generated resource back to the reference annotation via bind:update-body
    * @subscribes job:cancel-requested (generation) — aborts in-flight stream
    */
   yield(_rUri: ResourceId, getToken: TokenGetter): Subscription {
@@ -105,6 +106,18 @@ export class FlowEngine {
           event.options,
           { auth: getToken(), eventBus: this.eventBus },
         );
+      }),
+    );
+
+    sub.add(
+      this.eventBus.get('yield:finished').subscribe((event: EventMap['yield:finished']) => {
+        // Link the newly generated resource back to the reference annotation
+        if (!event.resourceId || !event.referenceId || !event.sourceResourceId) return;
+        this.eventBus.get('bind:update-body').next({
+          annotationId: makeAnnotationId(event.referenceId),
+          resourceId: makeResourceId(event.sourceResourceId),
+          operations: [{ op: 'add', item: { type: 'SpecificResource', source: event.resourceId } }],
+        });
       }),
     );
 
