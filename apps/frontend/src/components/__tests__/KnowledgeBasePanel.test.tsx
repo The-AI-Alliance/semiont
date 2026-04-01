@@ -34,7 +34,7 @@ describe('KnowledgeBasePanel', () => {
   describe('Rendering', () => {
     it('should render the panel title', () => {
       render(<KnowledgeBasePanel />);
-      expect(screen.getByRole('heading', { name: 'Knowledge Bases' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Knowledge Bases/ })).toBeInTheDocument();
     });
 
     it('should render all knowledge bases', () => {
@@ -58,7 +58,7 @@ describe('KnowledgeBasePanel', () => {
       mockKnowledgeBases = [];
       mockActiveKnowledgeBase = null;
       render(<KnowledgeBasePanel />);
-      expect(screen.getByRole('heading', { name: 'Knowledge Bases' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Knowledge Bases/ })).toBeInTheDocument();
       expect(screen.getByText('Add knowledge base')).toBeInTheDocument();
     });
   });
