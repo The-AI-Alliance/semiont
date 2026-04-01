@@ -69,6 +69,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'export': exportCmd,
   'import': importCmd,
   'serve': serveCommand,
+  'local': serveCommand,
   'clean': cleanCommand,
   'mv': mvCmd,
   'yield': yieldCmd,
