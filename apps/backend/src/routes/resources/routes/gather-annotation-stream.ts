@@ -39,16 +39,6 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
       // Use client-supplied correlationId so the frontend can match the response
       const correlationId = body.correlationId ?? crypto.randomUUID();
 
-      // Emit gather:requested — Gatherer subscribes and processes
-      eventBus.get('gather:requested').next({
-        correlationId,
-        annotationId: annotationId(annotationIdParam),
-        resourceId: resourceId(resourceIdParam),
-        options: { includeSourceContext: true, includeTargetContext: true, contextWindow },
-      });
-
-      logger.info('Emitted gather:requested', { annotationId: annotationIdParam, correlationId, contextWindow });
-
       c.header('X-Accel-Buffering', 'no');
       c.header('Cache-Control', 'no-cache, no-transform');
 
@@ -114,6 +104,17 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               cleanup();
             })
           );
+
+          // Emit gather:requested AFTER subscriptions are set up to avoid the race
+          // where gather:complete fires before this route is listening for it
+          eventBus.get('gather:requested').next({
+            correlationId,
+            annotationId: annotationId(annotationIdParam),
+            resourceId: resourceId(resourceIdParam),
+            options: { includeSourceContext: true, includeTargetContext: true, contextWindow },
+          });
+
+          logger.info('Emitted gather:requested', { annotationId: annotationIdParam, correlationId, contextWindow });
 
           keepAliveInterval = setInterval(async () => {
             if (isStreamClosed) { clearInterval(keepAliveInterval!); return; }
