@@ -23,6 +23,7 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { ensureGlobalConfig } from './init.js';
+import { loadEnvironmentConfig } from '../config-loader.js';
 
 // =====================================================================
 // SCHEMA
@@ -337,9 +338,15 @@ async function serve(options: ServeOptions): Promise<CommandResults> {
 
     // ─── Step 6: Summary ─────────────────────────────────────────────────
 
-    console.log(`\n${colors.bright}${colors.green}✓ Semiont is running at http://localhost:3000${colors.reset}\n`);
+    const envConfig = loadEnvironmentConfig(semiotRoot, semiotEnv);
+    const backendUrl = envConfig.services?.backend?.publicURL ?? 'http://localhost:4000';
+
+    console.log(`\n${colors.bright}${colors.green}✓ Semiont Knowledge Base is running at ${backendUrl}${colors.reset}\n`);
     console.log(`  Admin email:    ${adminEmail}`);
     console.log(`  Admin password: ${adminPassword}`);
+    console.log('');
+    console.log(`  To start the frontend UI:`);
+    console.log(`  ${colors.cyan}semiont start --service frontend${colors.reset}`);
 
     if (warnings.length > 0) {
       console.log(`\n${colors.yellow}Warnings:${colors.reset}`);
