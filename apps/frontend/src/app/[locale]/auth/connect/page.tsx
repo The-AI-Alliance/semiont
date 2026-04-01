@@ -140,6 +140,8 @@ export default function ConnectPage() {
     learnMore: t('learnMore'),
     signUpInstead: t('signUpInstead'),
     errorBackendUrlRequired: t('errorBackendUrlRequired'),
+    errorBackendUrlInvalid: t('errorBackendUrlInvalid'),
+    errorBackendUrlUnreachable: t('errorBackendUrlUnreachable'),
     errorEmailRequired: t('errorEmailRequired'),
     errorPasswordRequired: t('errorPasswordRequired'),
     tagline: _t('Home.tagline') as string,

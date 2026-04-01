@@ -73,6 +73,8 @@ export interface SignInFormProps {
     learnMore: string;
     signUpInstead: string;
     errorBackendUrlRequired: string;
+    errorBackendUrlInvalid: string;
+    errorBackendUrlUnreachable: string;
     errorEmailRequired: string;
     errorPasswordRequired: string;
     tagline: string;
@@ -105,6 +107,15 @@ function GoogleIcon() {
   );
 }
 
+type UrlProbeStatus = 'idle' | 'checking' | 'ok' | 'error';
+
+function normalizeUrlForProbe(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `http://${trimmed}`;
+}
+
 /**
  * CredentialsAuthForm - Backend URL + email/password form.
  * When lockedBackendUrl is provided, the URL field is shown read-only.
@@ -123,6 +134,29 @@ function CredentialsAuthForm({
   const [password, setPassword] = React.useState('');
   const [validationError, setValidationError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<{ backendUrl?: string; email?: string; password?: string }>({});
+  const [urlProbeStatus, setUrlProbeStatus] = React.useState<UrlProbeStatus>('idle');
+
+  const probeUrl = async (raw: string) => {
+    const url = normalizeUrlForProbe(raw);
+    if (!url) return;
+    // Validate format
+    try { new URL(url); } catch {
+      setFieldErrors(prev => ({ ...prev, backendUrl: t.errorBackendUrlInvalid }));
+      setUrlProbeStatus('error');
+      return;
+    }
+    setUrlProbeStatus('checking');
+    try {
+      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) });
+      setUrlProbeStatus(res.ok ? 'ok' : 'error');
+      if (!res.ok) {
+        setFieldErrors(prev => ({ ...prev, backendUrl: t.errorBackendUrlUnreachable }));
+      }
+    } catch {
+      setUrlProbeStatus('error');
+      setFieldErrors(prev => ({ ...prev, backendUrl: t.errorBackendUrlUnreachable }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,6 +177,17 @@ function CredentialsAuthForm({
     await onSubmit(backendUrl.trim(), email, password);
   };
 
+  const probeIndicator = !lockedBackendUrl && urlProbeStatus !== 'idle' ? (
+    <span
+      className={`semiont-form__url-status semiont-form__url-status--${urlProbeStatus}`}
+      aria-live="polite"
+    >
+      {urlProbeStatus === 'checking' && '⟳'}
+      {urlProbeStatus === 'ok' && '✓'}
+      {urlProbeStatus === 'error' && '✗'}
+    </span>
+  ) : null;
+
   return (
     <>
       {validationError && (
@@ -156,22 +201,27 @@ function CredentialsAuthForm({
           <label htmlFor="backend-url" className="semiont-form__label">
             {t.backendUrlLabel}
           </label>
-          <input
-            id="backend-url"
-            type="url"
-            value={backendUrl}
-            onChange={(e) => {
-              if (lockedBackendUrl) return;
-              setBackendUrl(e.target.value);
-              if (fieldErrors.backendUrl) setFieldErrors({ ...fieldErrors, backendUrl: undefined });
-            }}
-            readOnly={!!lockedBackendUrl}
-            placeholder={t.backendUrlPlaceholder}
-            className={`semiont-input${lockedBackendUrl ? ' semiont-input--readonly' : ''}`}
-            aria-invalid={!!fieldErrors.backendUrl}
-            aria-describedby={fieldErrors.backendUrl ? 'backend-url-error' : undefined}
-            required
-          />
+          <div className="semiont-form__input-row">
+            <input
+              id="backend-url"
+              type="url"
+              value={backendUrl}
+              onChange={(e) => {
+                if (lockedBackendUrl) return;
+                setBackendUrl(e.target.value);
+                setUrlProbeStatus('idle');
+                if (fieldErrors.backendUrl) setFieldErrors({ ...fieldErrors, backendUrl: undefined });
+              }}
+              onBlur={() => { if (!lockedBackendUrl) probeUrl(backendUrl); }}
+              readOnly={!!lockedBackendUrl}
+              placeholder={t.backendUrlPlaceholder}
+              className={`semiont-input${lockedBackendUrl ? ' semiont-input--readonly' : ''}`}
+              aria-invalid={!!fieldErrors.backendUrl}
+              aria-describedby={fieldErrors.backendUrl ? 'backend-url-error' : undefined}
+              required
+            />
+            {probeIndicator}
+          </div>
           {fieldErrors.backendUrl && (
             <span id="backend-url-error" className="semiont-form__error" role="alert">
               {fieldErrors.backendUrl}
