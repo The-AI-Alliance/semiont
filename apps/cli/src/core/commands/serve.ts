@@ -338,7 +338,7 @@ async function serve(options: ServeOptions): Promise<CommandResults> {
     // ─── Step 5: Final check ─────────────────────────────────────────────
 
     console.log(`${colors.cyan}▶ Final service check...${colors.reset}\n`);
-    runSemiont(['check', ...ALL_SERVICES.flatMap(s => ['--service', s])], env);
+    runSemiont(['check', '--all'], env);
 
     // ─── Step 6: Summary ─────────────────────────────────────────────────
 
