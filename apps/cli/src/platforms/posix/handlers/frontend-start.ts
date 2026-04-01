@@ -6,34 +6,29 @@ import type { FrontendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { resolveFrontendNpmPackage, resolveFrontendServerScript } from './frontend-paths.js';
-import { SemiontProject } from '@semiont/core/node';
+import { resolveFrontendNpmPackage, resolveFrontendServerScript, frontendXdgPaths } from './frontend-paths.js';
 import { checkPortFree, checkCommandAvailable, checkConfigPort, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for frontend services on POSIX systems
  *
- * Starts the frontend Node.js process using the configuration from
- * the frontend source directory's .env.local and logs
+ * Starts the frontend Node.js process using @semiont/frontend bundled with the CLI.
  */
 const startFrontendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const config = service.config as FrontendServiceConfig;
 
-  const projectRoot = service.projectRoot;
-  const npmDir = resolveFrontendNpmPackage(projectRoot);
+  const npmDir = resolveFrontendNpmPackage();
   if (!npmDir) {
     return {
       success: false,
-      error: 'Frontend not provisioned. Run: semiont provision --service frontend',
+      error: 'Frontend package not found. Reinstall @semiont/cli to restore it.',
       metadata: { serviceType: 'frontend' }
     };
   }
-  const serverScript = resolveFrontendServerScript(projectRoot) ?? path.join(npmDir, 'server.js');
-  const project = new SemiontProject(projectRoot);
-  const pidFile = project.frontendPidFile;
-  const logsDir = project.frontendLogsDir;
+  const serverScript = resolveFrontendServerScript() ?? path.join(npmDir, 'server.js');
+  const { pidFile, logsDir, appLogFile, errorLogFile } = frontendXdgPaths();
 
   if (service.verbose) {
     printInfo(`Server script: ${serverScript}`);
@@ -47,20 +42,10 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     };
   }
 
-  // Check if frontend is provisioned (logsDir created by provision)
-  if (!fs.existsSync(logsDir)) {
-    return {
-      success: false,
-      error: `Frontend not provisioned. Run: semiont provision --service frontend --environment ${service.environment}`,
-      metadata: { serviceType: 'frontend', serverScript }
-    };
-  }
-  
   // Check if already running
   if (fs.existsSync(pidFile)) {
     const pid = parseInt(fs.readFileSync(pidFile, 'utf-8'));
     try {
-      // Check if process is actually running
       process.kill(pid, 0);
       if (!service.quiet) {
         printInfo(`Frontend is already running with PID ${pid}`);
@@ -74,7 +59,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       fs.unlinkSync(pidFile);
     }
   }
-  
+
   const port = config.port!;
 
   if (await isPortInUse(port)) {
@@ -99,24 +84,20 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     SEMIONT_OAUTH_ALLOWED_DOMAINS: oauthAllowedDomains.join(','),
     LOG_DIR: logsDir,
   };
-  
+
   // Ensure logs and pid directories exist
   fs.mkdirSync(logsDir, { recursive: true });
   fs.mkdirSync(path.dirname(pidFile), { recursive: true });
-  
+
   // Setup log files
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
-  
-  // Create/open log streams
-  const appLogStream = fs.createWriteStream(appLogPath, { flags: 'a' });
-  const errorLogStream = fs.createWriteStream(errorLogPath, { flags: 'a' });
-  
+  const appLogStream = fs.createWriteStream(appLogFile, { flags: 'a' });
+  const errorLogStream = fs.createWriteStream(errorLogFile, { flags: 'a' });
+
   // Write startup marker to logs
   const startupMessage = `\n=== Frontend Starting at ${new Date().toISOString()} ===\n`;
   appLogStream.write(startupMessage);
   errorLogStream.write(startupMessage);
-  
+
   if (!service.quiet) {
     printInfo(`Starting frontend service ${service.name}...`);
     printInfo(`Server script: ${serverScript}`);
@@ -128,42 +109,35 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   const args = [serverScript];
 
   try {
-    // Open log files for writing (process will write directly)
-    const appLogFd = fs.openSync(appLogPath, 'a');
-    const errorLogFd = fs.openSync(errorLogPath, 'a');
+    const appLogFd = fs.openSync(appLogFile, 'a');
+    const errorLogFd = fs.openSync(errorLogFile, 'a');
 
-    // Spawn the frontend process with stdio redirected to files
     const proc = spawn(command, args, {
       cwd: path.dirname(serverScript),
       env,
       detached: true,
-      stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
+      stdio: ['ignore', appLogFd, errorLogFd]
     });
-    
+
     if (!proc.pid) {
       fs.closeSync(appLogFd);
       fs.closeSync(errorLogFd);
       throw new Error('Failed to start frontend process');
     }
-    
-    // Save PID
+
     fs.writeFileSync(pidFile, proc.pid.toString());
-    
-    // Close file descriptors - the child process has its own references
+
     fs.closeSync(appLogFd);
     fs.closeSync(errorLogFd);
-    
-    // Close the log streams we opened for the startup message
+
     appLogStream.end();
     errorLogStream.end();
-    
-    // Completely detach from the child process
+
     proc.unref();
-    
+
     // Wait a moment to check if process started successfully
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Verify process is still running
+
     try {
       process.kill(proc.pid, 0);
     } catch {
@@ -172,13 +146,12 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         error: 'Frontend process failed to start. Check logs for details.',
         metadata: {
           serviceType: 'frontend',
-          logFile: appLogPath,
-          errorLogFile: errorLogPath
+          logFile: appLogFile,
+          errorLogFile
         }
       };
     }
-    
-    // Build resources
+
     const commandStr = `node ${serverScript}`;
     const resources: PlatformResources = {
       platform: 'posix',
@@ -188,7 +161,7 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         command: commandStr,
         workingDirectory: path.dirname(serverScript),
         path: serverScript,
-        logFile: appLogPath
+        logFile: appLogFile
       }
     };
 
@@ -201,12 +174,12 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
       printInfo(`  PID: ${proc.pid}`);
       printInfo(`  Port: ${port}`);
       printInfo(`  Endpoint: ${endpoint}`);
-      printInfo(`  App log: ${appLogPath}`);
-      printInfo(`  Error log: ${errorLogPath}`);
+      printInfo(`  App log: ${appLogFile}`);
+      printInfo(`  Error log: ${errorLogFile}`);
       printInfo('');
       printInfo('Commands:');
       printInfo(`  Check status: semiont check --service frontend --environment ${service.environment}`);
-      printInfo(`  View logs: tail -f ${appLogPath}`);
+      printInfo(`  View logs: tail -f ${appLogFile}`);
       printInfo(`  Stop: semiont stop --service frontend --environment ${service.environment}`);
     }
 
@@ -223,13 +196,11 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
         command: commandStr
       }
     };
-    
+
   } catch (error) {
-    // Clean up PID file if exists
     if (fs.existsSync(pidFile)) {
       fs.unlinkSync(pidFile);
     }
-    
     return {
       success: false,
       error: `Failed to start frontend: ${error}`,
@@ -243,23 +214,18 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
 const preflightFrontendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as FrontendServiceConfig;
-  const projectRoot = context.service.projectRoot;
-  const npmDir = resolveFrontendNpmPackage(projectRoot);
-  const project = new SemiontProject(projectRoot);
+  const npmDir = resolveFrontendNpmPackage();
   const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'frontend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
   if (npmDir) {
-    const serverScript = resolveFrontendServerScript(projectRoot) ?? path.join(npmDir, 'server.js');
+    const serverScript = resolveFrontendServerScript() ?? path.join(npmDir, 'server.js');
     checks.push(checkFileExists(serverScript, 'frontend server.js'));
   } else {
-    checks.push({ name: 'frontend-npm-package', pass: false, message: '@semiont/frontend not installed — run: semiont provision' });
+    checks.push({ name: 'frontend-npm-package', pass: false, message: '@semiont/frontend not found — reinstall @semiont/cli' });
   }
-  checks.push(
-    checkFileExists(project.frontendLogsDir, 'frontend logs dir (run: semiont provision)'),
-  );
   return preflightFromChecks(checks);
 };
 

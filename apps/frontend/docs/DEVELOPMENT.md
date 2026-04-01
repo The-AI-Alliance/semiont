@@ -72,6 +72,7 @@ semiont restart --service backend # Restart backend with fresh connection
 - **Smart Dependencies**: Frontend auto-starts backend when needed
 - **Consistent Environment**: Everyone gets identical setup
 - **Zero Configuration**: No environment files, API URLs, or manual setup
+- **No Separate Install**: `@semiont/frontend` is bundled with the CLI — `semiont provision` just creates runtime directories
 - **Easy Reset**: Fresh database with sample data via `--reset`
 - **Focused Development**: Mock mode for UI work, real API mode for integration
 - **Container Runtime Flexibility**: Works with Docker or Podman (auto-detected)
