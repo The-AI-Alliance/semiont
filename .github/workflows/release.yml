@@ -72,6 +72,7 @@ jobs:
     with:
       dry_run: ${{ inputs.dry_run }}
       stable_release: true
+    secrets: inherit
 
   backend:
     needs: npm
@@ -79,6 +80,7 @@ jobs:
     with:
       dry_run: ${{ inputs.dry_run }}
       stable_release: true
+    secrets: inherit
 
   frontend:
     needs: npm
@@ -86,7 +88,9 @@ jobs:
     with:
       dry_run: ${{ inputs.dry_run }}
       stable_release: true
+    secrets: inherit
 
   devcontainer:
     needs: tag
     uses: ./.github/workflows/devcontainer-prebuild.yml
+    secrets: inherit
