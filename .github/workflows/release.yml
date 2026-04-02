@@ -11,13 +11,11 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: write
-  id-token: write
-
 jobs:
   tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
