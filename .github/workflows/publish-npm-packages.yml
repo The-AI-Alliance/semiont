@@ -1,6 +1,6 @@
 name: Publish npm packages
 
-run-name: "NPM: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} (manual)"
+run-name: "NPM: ${{ inputs.stable_release && 'stable' || 'dev' }} v${{ github.run_number }}"
 
 on:
   workflow_dispatch:
@@ -12,6 +12,16 @@ on:
         default: false
       stable_release:
         description: 'Stable release (publish without -build.N suffix)'
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+      stable_release:
         required: false
         type: boolean
         default: false
@@ -62,7 +72,7 @@ jobs:
         id: version
         run: |
           BASE_VERSION=$(node -p "require('./version.json').version")
-          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
+          if [ "${{ inputs.stable_release }}" = "true" ]; then
             PUBLISH_VERSION="$BASE_VERSION"
             DIST_TAG="latest"
           else
@@ -130,7 +140,7 @@ jobs:
         run: node scripts/publish-npm-apps.mjs
 
       - name: Publish packages
-        if: github.event.inputs.dry_run != 'true'
+        if: inputs.dry_run != 'true'
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.publish }}"
