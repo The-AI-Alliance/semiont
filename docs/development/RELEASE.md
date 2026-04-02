@@ -45,7 +45,8 @@ gh run watch <run-id> --exit-status
 
 1. **Verifies version sync** across all `package.json` files
 2. **Creates and pushes a git tag** `v{version}` (skips if already exists)
-3. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and frontend
+3. **Creates a GitHub Release** with auto-generated release notes from commits and merged PRs
+4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and frontend
 
 ### Publishing npm packages independently
 
