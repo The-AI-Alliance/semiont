@@ -1,0 +1,180 @@
+name: Publish npm packages
+
+run-name: "NPM: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} (manual)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build but do not publish)'
+        required: false
+        type: boolean
+        default: false
+      stable_release:
+        description: 'Stable release (publish without -build.N suffix)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm install --include=optional
+
+      - name: Build packages
+        run: |
+          npm run openapi:bundle
+          for pkg in api-client ontology core content event-sourcing graph inference jobs make-meaning react-ui; do
+            npm run build --workspace=@semiont/$pkg
+          done
+
+      - name: Build @semiont/cli
+        working-directory: ./apps/cli
+        run: npm run build
+
+      - name: Build backend app
+        working-directory: ./apps/backend
+        run: npm run build
+
+      - name: Build frontend app
+        working-directory: ./apps/frontend
+        run: npm run build
+
+      - name: Determine version
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./version.json').version")
+          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
+            PUBLISH_VERSION="$BASE_VERSION"
+            DIST_TAG="latest"
+          else
+            PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
+            DIST_TAG="dev"
+          fi
+          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
+          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
+
+      - name: Update package versions
+        run: |
+          TARGET_VERSION="${{ steps.version.outputs.publish }}"
+          echo "Updating all packages to version $TARGET_VERSION"
+
+          node -e "
+            const fs = require('fs');
+            const version = '$TARGET_VERSION';
+
+            // Update version.json so staging script picks up the correct version
+            const versionJson = JSON.parse(fs.readFileSync('version.json', 'utf-8'));
+            versionJson.version = version;
+            for (const pkg of Object.keys(versionJson.packages)) {
+              versionJson.packages[pkg] = version;
+            }
+            fs.writeFileSync('version.json', JSON.stringify(versionJson, null, 2) + '\n');
+            console.log('Updated version.json to ' + version);
+
+            const packages = [
+              'packages/api-client',
+              'packages/ontology',
+              'packages/core',
+              'packages/content',
+              'packages/event-sourcing',
+              'packages/graph',
+              'packages/inference',
+              'packages/jobs',
+              'packages/make-meaning',
+              'packages/react-ui',
+            ];
+
+            for (const dir of packages) {
+              const path = dir + '/package.json';
+              const pkg = JSON.parse(fs.readFileSync(path, 'utf-8'));
+              pkg.version = version;
+              fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+              console.log('Updated ' + pkg.name + ' to ' + version);
+            }
+
+            // CLI: update version + @semiont/* dependencies
+            const cliPath = 'apps/cli/package.json';
+            const cli = JSON.parse(fs.readFileSync(cliPath, 'utf-8'));
+            cli.version = version;
+            for (const dep of Object.keys(cli.dependencies || {})) {
+              if (dep.startsWith('@semiont/')) {
+                cli.dependencies[dep] = version;
+              }
+            }
+            fs.writeFileSync(cliPath, JSON.stringify(cli, null, 2) + '\n');
+            console.log('Updated ' + cli.name + ' to ' + version + ' (with dependencies)');
+          "
+
+      - name: Stage app packages
+        run: node scripts/publish-npm-apps.mjs
+
+      - name: Publish packages
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.publish }}"
+
+          # Publish library packages and CLI
+          for dir in packages/api-client packages/core packages/ontology packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui apps/cli; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "Publishing $NAME@$VERSION"
+            (cd "$dir" && npm publish --tag "$TAG" --access public)
+          done
+
+          # Publish app packages from staging directories
+          for dir in .npm-stage/backend .npm-stage/frontend; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "Publishing $NAME@$VERSION"
+            (cd "$dir" && npm publish --tag "$TAG" --access public)
+          done
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.version.outputs.publish }}"
+          TAG="${{ steps.version.outputs.tag }}"
+
+          echo "## Published npm packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Dist tag:** $TAG" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Library packages:" >> $GITHUB_STEP_SUMMARY
+          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui apps/cli; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### App packages:" >> $GITHUB_STEP_SUMMARY
+          for dir in .npm-stage/backend .npm-stage/frontend; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "npm install $NAME@$TAG" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "npm install -g @semiont/cli@$TAG" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/backend@$TAG" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/frontend@$TAG" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
