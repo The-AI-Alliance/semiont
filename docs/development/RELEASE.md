@@ -4,92 +4,91 @@ This document describes the release process for Semiont.
 
 ## Overview
 
-Semiont uses a semi-automated release process with three main scripts:
-1. **release:publish** - Creates and publishes a stable release
-2. **release:await** - Waits for CI/CD to complete the release
-3. **release:bump** - Bumps version for next development cycle
+Semiont uses a two-step release process:
+1. **Release workflow** — Tags the version and publishes all artifacts (npm packages, container images, devcontainer)
+2. **release:bump** — Bumps the version for the next development cycle
 
-## Release Scripts
+## Step 1: Publish a Stable Release
 
-### Version Management Scripts
+The **Release** workflow handles tagging, npm publishing, container image builds, and devcontainer prebuilds as a single coordinated pipeline.
+
+### From the GitHub UI
+
+1. Go to **Actions** > **Release** in the repository:
+   https://github.com/The-AI-Alliance/semiont/actions/workflows/release.yml
+2. Click **Run workflow**
+3. Optionally check **Dry run** to build without publishing
+4. Click the green **Run workflow** button
+5. Monitor the run — child jobs (npm, backend, frontend, devcontainer) appear as nested steps
+
+### From the command line
+
+```bash
+# Live release
+gh workflow run release.yml
+
+# Dry run (builds but does not publish)
+gh workflow run release.yml --field dry_run=true
+```
+
+Monitor progress:
+
+```bash
+# List recent runs
+gh run list --workflow=release.yml --limit=3
+
+# Watch a specific run
+gh run watch <run-id> --exit-status
+```
+
+### What the release workflow does
+
+1. **Verifies version sync** across all `package.json` files
+2. **Creates and pushes a git tag** `v{version}` (skips if already exists)
+3. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and frontend
+4. **Builds and pushes container images** — backend and frontend to GitHub Container Registry (after npm, since Dockerfiles install from npm)
+5. **Rebuilds the devcontainer** pre-built image (in parallel with npm)
+
+### Publishing individual artifacts
+
+The child workflows can also be triggered independently if you need to re-publish a single artifact:
+
+**GitHub UI:** Actions > select the workflow > Run workflow
+
+**Command line:**
+```bash
+gh workflow run publish-npm-packages.yml --field stable_release=true
+gh workflow run publish-backend.yml --field stable_release=true
+gh workflow run publish-frontend.yml --field stable_release=true
+gh workflow run devcontainer-prebuild.yml
+```
+
+All publish workflows accept a `--field dry_run=true` option.
+
+## Step 2: Bump Version for Next Cycle
+
+After the release completes, bump the version for the next development cycle:
+
+```bash
+./scripts/version-bump.sh patch  # Bug fixes (0.4.9 → 0.4.10)
+./scripts/version-bump.sh minor  # New features (0.4.9 → 0.5.0)
+./scripts/version-bump.sh major  # Breaking changes (0.4.9 → 1.0.0)
+./scripts/version-bump.sh        # Interactive prompt
+```
+
+This script:
+- Bumps the version in `version.json`
+- Syncs to all `package.json` files
+- Commits (signed) and pushes to main
+
+## Version Management Scripts
 
 ```bash
 npm run version:show    # Display current version across all packages
 npm run version:sync    # Sync version.json to all package.json files
 npm run version:bump    # Bump version (patch/minor/major)
-npm run version:set     # Set specific version
+npm run version:set     # Set a specific version
 ```
-
-### Release Workflow Scripts
-
-```bash
-npm run release:publish # Step 1: Tag and publish stable release
-npm run release:await   # Step 2: Wait for CI/CD completion
-npm run release:bump    # Step 3: Bump version for next cycle
-```
-
-## Release Workflow
-
-### Prerequisites
-
-- Clean working directory (no uncommitted changes)
-- On main branch with latest changes
-- All tests passing
-- Proper npm/GitHub permissions for publishing
-
-### Step 1: Publish Stable Release
-
-```bash
-npm run release:publish
-```
-
-This script:
-- Creates a git tag for the current version (e.g., `v0.2.30`)
-- Pushes the tag to GitHub
-- Triggers CI/CD to build and publish packages
-
-**What gets published:**
-- npm packages to `@semiont/*` with `latest` tag (including `@semiont/backend` and `@semiont/frontend`)
-- Docker containers to GitHub Container Registry
-
-### Step 2: Wait for Release Completion
-
-```bash
-npm run release:await
-```
-
-This script:
-- Monitors GitHub Actions for the release workflow
-- Waits for all packages to be published
-- Verifies npm and container registries
-
-### Step 3: Bump Version for Development
-
-```bash
-npm run release:bump patch  # For bug fixes (0.2.30 → 0.2.31)
-npm run release:bump minor  # For features (0.2.30 → 0.3.0)
-npm run release:bump major  # For breaking changes (0.2.30 → 1.0.0)
-npm run release:bump        # Interactive prompt
-```
-
-This script:
-- Bumps version in version.json
-- Syncs to all package.json files
-- Commits and pushes to main
-- Next builds will be `{version}-build.N` with `dev` tag
-
-## Version Numbering
-
-### Stable Releases
-- Format: `X.Y.Z` (e.g., `0.2.30`)
-- Published with npm tag `latest`
-- Tagged in git as `vX.Y.Z`
-
-### Development Builds
-- Format: `X.Y.Z-build.N` (e.g., `0.2.31-build.1`)
-- Published with npm tag `dev`
-- Automatically created on each push to main
-- Build number increments with each CI run
 
 ## Complete Release Example
 
@@ -98,23 +97,32 @@ This script:
 git checkout main
 git pull
 
-# 2. Check current version
+# 2. Check current version and run tests
 npm run version:show
-
-# 3. Run tests to ensure everything works
 npm test
 
-# 4. Publish stable release (e.g., 0.2.30)
-npm run release:publish
+# 3. Publish stable release
+gh workflow run release.yml
 
-# 5. Wait for CI/CD to complete
-npm run release:await
+# 4. Monitor until complete
+gh run list --workflow=release.yml --limit=1
+gh run watch <run-id> --exit-status
 
-# 6. Bump version for next development cycle
-npm run release:bump patch  # Bumps to 0.2.31
-
-# Next push to main will publish 0.2.31-build.1 with dev tag
+# 5. Bump version for next development cycle
+./scripts/version-bump.sh patch
 ```
+
+## Version Numbering
+
+### Stable Releases
+- Format: `X.Y.Z` (e.g., `0.4.9`)
+- Published with npm tag `latest`
+- Tagged in git as `vX.Y.Z`
+
+### Development Builds
+- Format: `X.Y.Z-build.N` (e.g., `0.4.10-build.1`)
+- Published with npm tag `dev`
+- Build number increments with each CI run
 
 ## Publishing Channels
 
@@ -145,10 +153,10 @@ npm install @semiont/frontend@dev
 - https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont
 
 **Images:**
-- `ghcr.io/the-ai-alliance/semiont/backend:latest`
-- `ghcr.io/the-ai-alliance/semiont/frontend:latest`
-- `ghcr.io/the-ai-alliance/semiont/backend:dev`
-- `ghcr.io/the-ai-alliance/semiont/frontend:dev`
+- `ghcr.io/the-ai-alliance/semiont-backend:latest`
+- `ghcr.io/the-ai-alliance/semiont-frontend:latest`
+- `ghcr.io/the-ai-alliance/semiont-backend:dev`
+- `ghcr.io/the-ai-alliance/semiont-frontend:dev`
 
 ## Version Bump Guidelines
 
@@ -173,79 +181,58 @@ Use for:
 - Incompatible configuration changes
 - Removal of deprecated features
 
-## CI/CD Integration
-
-The release process triggers GitHub Actions workflows:
-
-1. **On tag push** (`v*` tags):
-   - Builds all packages
-   - Runs full test suite
-   - Publishes npm packages with `latest` tag
-   - Builds and pushes Docker containers with `latest` tag
-
-2. **On main branch push**:
-   - Builds all packages
-   - Runs tests
-   - Publishes npm packages with `dev` tag
-   - Builds and pushes Docker containers with `dev` tag
-
 ## Troubleshooting
 
-### Release script fails
+### Release workflow fails
 
-1. Check git status - ensure clean working directory
-2. Verify you're on main branch
-3. Check npm/GitHub authentication
-4. Review error messages for specific issues
+1. Check the run in GitHub Actions: https://github.com/The-AI-Alliance/semiont/actions/workflows/release.yml
+2. Expand the failed child job to see which step failed
+3. Re-run failed jobs from the parent run page
 
-### CI/CD build fails
+### Version mismatch error
 
-1. Check GitHub Actions: https://github.com/The-AI-Alliance/semiont/actions
-2. Review build logs for errors
-3. Ensure all tests pass locally
-4. Verify version consistency across packages
+The tag job verifies all packages match `version.json`. If they don't:
+```bash
+npm run version:sync
+git add -A && git commit -m "sync versions" && git push
+```
 
-### Package not published
+### Container build times out waiting for npm
 
-1. Check npm permissions: `npm whoami`
-2. Verify organization membership
-3. Check GitHub Actions secrets are configured
-4. Review publish logs in CI/CD
+The backend and frontend container builds poll npm for the published packages. If npm publishing is slow, the container jobs may time out. Re-run the failed container job — the npm packages should be available by then.
 
-## Manual Release (Emergency)
+### Manual release (emergency)
 
-If automated release fails, you can manually release:
+If the workflow is broken, you can tag and trigger manually:
 
 ```bash
-# 1. Set version
-npm run version:set 0.2.30
-npm run version:sync
+# 1. Create and push tag
+git tag v0.4.9
+git push origin v0.4.9
 
-# 2. Create and push tag
-git tag v0.2.30
-git push origin v0.2.30
-
-# 3. CI/CD will handle the rest
-# Monitor at: https://github.com/The-AI-Alliance/semiont/actions
+# 2. Trigger publish workflows individually
+gh workflow run publish-npm-packages.yml --field stable_release=true
+gh workflow run publish-backend.yml --field stable_release=true
+gh workflow run publish-frontend.yml --field stable_release=true
+gh workflow run devcontainer-prebuild.yml
 ```
 
 ## Release Checklist
 
 Before releasing:
 - [ ] All tests passing
-- [ ] Documentation updated
-- [ ] CHANGELOG.md updated (if maintained)
 - [ ] No uncommitted changes
 - [ ] On main branch with latest changes
+- [ ] Version in `version.json` is correct
 
 After releasing:
 - [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/frontend`)
 - [ ] Verify Docker containers published
 - [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
-- [ ] Announce release (if major/minor version)
+- [ ] Bump version for next cycle: `./scripts/version-bump.sh`
 
 ## Questions?
 
 For questions about the release process:
 - Open a [GitHub Discussion](https://github.com/The-AI-Alliance/semiont/discussions)
-- Review [CONTRIBUTING.md](CONTRIBUTING.md) for general contribution guidelines
+- Review [CONTRIBUTING.md](../../CONTRIBUTING.md) for general contribution guidelines

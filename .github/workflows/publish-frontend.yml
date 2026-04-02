@@ -1,6 +1,6 @@
 name: Publish Frontend Container Image
 
-run-name: "Frontend: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} (manual)"
+run-name: "Frontend: ${{ inputs.stable_release && 'stable' || 'dev' }} v${{ github.run_number }}"
 
 on:
   workflow_dispatch:
@@ -12,6 +12,16 @@ on:
         default: false
       stable_release:
         description: 'Stable release (publish without -build.N suffix)'
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+      stable_release:
         required: false
         type: boolean
         default: false
@@ -43,7 +53,7 @@ jobs:
         run: |
           BASE_VERSION=$(node -p "require('./apps/frontend/package.json').version")
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
+          if [ "${{ inputs.stable_release }}" = "true" ]; then
             PUBLISH_VERSION="$BASE_VERSION"
             DIST_TAG="latest"
           else
@@ -77,7 +87,7 @@ jobs:
           context: .
           file: ./apps/frontend/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event.inputs.dry_run != 'true' }}
+          push: ${{ inputs.dry_run != 'true' }}
           tags: |
             ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.tag }}
             ghcr.io/the-ai-alliance/semiont-frontend:${{ steps.version.outputs.publish }}
