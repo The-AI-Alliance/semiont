@@ -5,12 +5,12 @@ This document describes the release process for Semiont.
 ## Overview
 
 Semiont uses a two-step release process:
-1. **Release workflow** — Tags the version and publishes all artifacts (npm packages, container images, devcontainer)
+1. **Release workflow** — Tags the version and publishes all npm packages
 2. **release:bump** — Bumps the version for the next development cycle
 
 ## Step 1: Publish a Stable Release
 
-The **Release** workflow handles tagging, npm publishing, container image builds, and devcontainer prebuilds as a single coordinated pipeline.
+The **Release** workflow handles tagging and npm publishing.
 
 ### From the GitHub UI
 
@@ -19,7 +19,7 @@ The **Release** workflow handles tagging, npm publishing, container image builds
 2. Click **Run workflow**
 3. Optionally check **Dry run** to build without publishing
 4. Click the green **Run workflow** button
-5. Monitor the run — child jobs (npm, backend, frontend, devcontainer) appear as nested steps
+5. Monitor the run — the tag and npm publish jobs appear as nested steps
 
 ### From the command line
 
@@ -46,24 +46,18 @@ gh run watch <run-id> --exit-status
 1. **Verifies version sync** across all `package.json` files
 2. **Creates and pushes a git tag** `v{version}` (skips if already exists)
 3. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and frontend
-4. **Builds and pushes container images** — backend and frontend to GitHub Container Registry (after npm, since Dockerfiles install from npm)
-5. **Rebuilds the devcontainer** pre-built image (in parallel with npm)
 
-### Publishing individual artifacts
+### Publishing npm packages independently
 
-The child workflows can also be triggered independently if you need to re-publish a single artifact:
+The npm publish workflow can also be triggered on its own:
 
-**GitHub UI:** Actions > select the workflow > Run workflow
+**GitHub UI:** Actions > Publish npm packages > Run workflow
 
 **Command line:**
 ```bash
 gh workflow run publish-npm-packages.yml --field stable_release=true
-gh workflow run publish-backend.yml --field stable_release=true
-gh workflow run publish-frontend.yml --field stable_release=true
-gh workflow run devcontainer-prebuild.yml
+gh workflow run publish-npm-packages.yml --field dry_run=true
 ```
-
-All publish workflows accept a `--field dry_run=true` option.
 
 ## Step 2: Bump Version for Next Cycle
 
@@ -147,16 +141,6 @@ npm install @semiont/frontend@dev
 **View all versions:**
 - https://www.npmjs.com/settings/semiont/packages
 
-### Container Images
-
-**GitHub Container Registry:**
-- https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont
-
-**Images:**
-- `ghcr.io/the-ai-alliance/semiont-backend:latest`
-- `ghcr.io/the-ai-alliance/semiont-frontend:latest`
-- `ghcr.io/the-ai-alliance/semiont-backend:dev`
-- `ghcr.io/the-ai-alliance/semiont-frontend:dev`
 
 ## Version Bump Guidelines
 
@@ -197,10 +181,6 @@ npm run version:sync
 git add -A && git commit -m "sync versions" && git push
 ```
 
-### Container build times out waiting for npm
-
-The backend and frontend container builds poll npm for the published packages. If npm publishing is slow, the container jobs may time out. Re-run the failed container job — the npm packages should be available by then.
-
 ### Manual release (emergency)
 
 If the workflow is broken, you can tag and trigger manually:
@@ -210,11 +190,8 @@ If the workflow is broken, you can tag and trigger manually:
 git tag v0.4.9
 git push origin v0.4.9
 
-# 2. Trigger publish workflows individually
+# 2. Trigger npm publish
 gh workflow run publish-npm-packages.yml --field stable_release=true
-gh workflow run publish-backend.yml --field stable_release=true
-gh workflow run publish-frontend.yml --field stable_release=true
-gh workflow run devcontainer-prebuild.yml
 ```
 
 ## Release Checklist
@@ -227,7 +204,6 @@ Before releasing:
 
 After releasing:
 - [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/frontend`)
-- [ ] Verify Docker containers published
 - [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
 - [ ] Bump version for next cycle: `./scripts/version-bump.sh`
 

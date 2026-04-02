@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
   id-token: write
 
 jobs:
@@ -72,25 +71,4 @@ jobs:
     with:
       dry_run: ${{ inputs.dry_run }}
       stable_release: true
-    secrets: inherit
-
-  backend:
-    needs: npm
-    uses: ./.github/workflows/publish-backend.yml
-    with:
-      dry_run: ${{ inputs.dry_run }}
-      stable_release: true
-    secrets: inherit
-
-  frontend:
-    needs: npm
-    uses: ./.github/workflows/publish-frontend.yml
-    with:
-      dry_run: ${{ inputs.dry_run }}
-      stable_release: true
-    secrets: inherit
-
-  devcontainer:
-    needs: tag
-    uses: ./.github/workflows/devcontainer-prebuild.yml
     secrets: inherit
