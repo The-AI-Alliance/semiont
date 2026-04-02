@@ -48,17 +48,6 @@ gh run watch <run-id> --exit-status
 3. **Creates a GitHub Release** with auto-generated release notes from commits and merged PRs
 4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and frontend
 
-### Publishing npm packages independently
-
-The npm publish workflow can also be triggered on its own:
-
-**GitHub UI:** Actions > Publish npm packages > Run workflow
-
-**Command line:**
-```bash
-gh workflow run publish-npm-packages.yml --field stable_release=true
-gh workflow run publish-npm-packages.yml --field dry_run=true
-```
 
 ## Step 2: Bump Version for Next Cycle
 
@@ -191,8 +180,8 @@ If the workflow is broken, you can tag and trigger manually:
 git tag v0.4.9
 git push origin v0.4.9
 
-# 2. Trigger npm publish
-gh workflow run publish-npm-packages.yml --field stable_release=true
+# 2. Trigger release
+gh workflow run release.yml
 ```
 
 ## Release Checklist
