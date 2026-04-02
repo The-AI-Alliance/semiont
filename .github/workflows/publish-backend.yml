@@ -26,13 +26,14 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
 
     steps:
       - name: Checkout repository
