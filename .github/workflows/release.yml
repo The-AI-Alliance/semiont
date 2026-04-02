@@ -65,6 +65,18 @@ jobs:
             echo "Pushed tag $TAG"
           fi
 
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::warning::Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes
+            echo "Created release $TAG"
+          fi
+
   npm:
     needs: tag
     uses: ./.github/workflows/publish-npm-packages.yml
