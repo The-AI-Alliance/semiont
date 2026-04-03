@@ -19,7 +19,7 @@ Semiont services run on different **platforms** depending on the deployment envi
 ### Container - Isolated Services
 - **Documentation**: [Container.md](./Container.md)
 - **CLI Implementation**: [apps/cli/src/platforms/container/](../../apps/cli/src/platforms/container/)
-- **Use Case**: Docker/Podman containerized services
+- **Use Case**: Containerized services (Apple Container, Docker, Podman)
 - **Services**: database, graph, generic, web
 
 ### AWS - Production Cloud
@@ -45,7 +45,7 @@ Semiont services run on different **platforms** depending on the deployment envi
 | Platform | Management | Use Case | Primary Services |
 |----------|-----------|----------|------------------|
 | **POSIX** | Native processes | Local dev | backend, frontend, mcp |
-| **Container** | Docker/Podman | Isolation | database, graph |
+| **Container** | Container runtime | Isolation | database, graph |
 | **AWS** | AWS managed | Production | ECS, RDS, Neptune, S3 |
 | **External** | Third-party APIs | External | inference, graph |
 | **Mock** | Simulated | Testing | Any (test doubles) |

@@ -2,7 +2,7 @@
 
 Run Semiont locally using published npm packages — no need to clone the Semiont repository.
 
-The CLI installs and provisions the backend and database from pre-built npm packages, runs database migrations, and starts all services. The database runs as a container (Docker/Podman).
+The CLI installs and provisions the backend and database from pre-built npm packages, runs database migrations, and starts all services. The database runs as a container (Apple Container, Docker, or Podman).
 
 ## Quick Start
 
@@ -31,12 +31,12 @@ Version 20 or higher. Install from [nodejs.org](https://nodejs.org/) or via a ve
 node --version   # should print v20.x or higher
 ```
 
-### Docker or Podman
+### Container Runtime
 
-Used for the PostgreSQL database container. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [Podman](https://podman.io/docs/installation).
+Used for the PostgreSQL database container. Install [Apple Container](https://github.com/apple/container) (macOS), [Docker Desktop](https://www.docker.com/products/docker-desktop/), or [Podman](https://podman.io/docs/installation).
 
 ```bash
-docker --version   # or: podman --version
+container --version   # or: docker --version / podman --version
 ```
 
 ### Inference (Anthropic or Ollama)

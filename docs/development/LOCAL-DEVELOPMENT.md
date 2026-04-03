@@ -6,7 +6,7 @@ This guide explains how to run Semiont locally for development.
 
 - **Node.js** v20 or higher
 - **npm** (comes with Node.js)
-- **Docker or Podman** (for PostgreSQL and Envoy containers)
+- **Container runtime** — Apple Container, Docker, or Podman (for PostgreSQL containers)
 - **Git**
 
 ## Setup

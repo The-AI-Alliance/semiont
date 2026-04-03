@@ -8,7 +8,7 @@ Thank you for your interest in contributing to Semiont! This document provides g
 
 - **AWS** - Production deployment on Amazon Web Services
 - **POSIX** - Local development on Linux/macOS
-- **Container** - Docker/Podman containerized environments
+- **Container** - Apple Container/Docker/Podman containerized environments
 - **External** - Integration with external services
 - **Mock** - Testing platform
 
@@ -54,7 +54,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 
 - Node.js 18+ with npm
 - Git
-- Docker or Podman (for container development)
+- Apple Container, Docker, or Podman (for container development)
 - TypeScript knowledge
 
 ### Initial Setup
@@ -237,7 +237,7 @@ When submitting a new platform:
 Study existing platforms as reference:
 
 - **[AWS](apps/cli/src/platforms/aws/)** - Most complete implementation (ECS, RDS, ALB, CloudFront)
-- **[Container](apps/cli/src/platforms/container/)** - Docker/Podman abstraction
+- **[Container](apps/cli/src/platforms/container/)** - Container runtime abstraction
 - **[POSIX](apps/cli/src/platforms/posix/)** - Local development platform
 
 ## 🔄 Pull Request Process

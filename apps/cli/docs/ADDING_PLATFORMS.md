@@ -6,7 +6,7 @@ This guide walks you through adding a new platform to the Semiont CLI using the 
 
 Platforms in Semiont represent different infrastructure targets where services can be deployed:
 - **posix** - Local processes on POSIX-compliant systems (Linux, macOS)
-- **container** - Docker/Podman containers
+- **container** - Apple Container/Docker/Podman containers
 - **aws** - AWS cloud services (ECS, Lambda, RDS, etc.)
 - **external** - Externally managed services
 - **mock** - Mock platform for testing
@@ -603,7 +603,7 @@ When creating a new platform:
 
 Look at existing platforms for examples:
 - `posix/handlers/` - POSIX system handlers with process management
-- `container/handlers/` - Docker/Podman container handlers
+- `container/handlers/` - Container runtime handlers
 - `aws/handlers/` - AWS cloud service handlers with multiple service types
 - `mock/handlers/` - Simple mock handlers for testing
 

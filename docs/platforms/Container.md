@@ -1,10 +1,10 @@
 # Container Platform
 
-Container-based platform using Docker or Podman.
+Container-based platform using Apple Container, Docker, or Podman.
 
 ## Overview
 
-The Container platform runs services in containers using Docker or Podman ([database-start.ts](../../apps/cli/src/platforms/container/handlers/database-start.ts)).
+The Container platform runs services in containers using the auto-detected runtime (Apple Container > Docker > Podman).
 
 **Platform Type**: `container`
 
@@ -50,7 +50,7 @@ Service-specific handlers:
 
 ## Container Runtime
 
-The platform uses `execSync` to execute Docker/Podman commands ([database-start.ts:1](../../apps/cli/src/platforms/container/handlers/database-start.ts#L1)).
+The platform uses `execFileSync` to execute container runtime commands. The runtime is auto-detected (Apple Container > Docker > Podman) or forced via `CONTAINER_RUNTIME`.
 
 ## Networking
 
