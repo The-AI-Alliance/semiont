@@ -8,7 +8,7 @@
  * - apps/frontend/messages-source/*.json (frontend-specific translations)
  *
  * And merges them into:
- * - apps/frontend/messages/*.json (generated output for next-intl)
+ * - apps/frontend/messages/*.json (generated merged output)
  *
  * The messages/ directory is gitignored since it contains generated content.
  */

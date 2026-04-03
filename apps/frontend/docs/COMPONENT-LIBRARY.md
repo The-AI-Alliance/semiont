@@ -13,11 +13,11 @@ The factoring of @semiont/react-ui creates a clear architectural boundary:
 ```
 ┌─────────────────────────────────────┐
 │         apps/frontend               │
-│  (Next.js specific implementation)  │
+│  (Vite + React Router v7)           │
 │                                     │
 │  • Routing & Pages                  │
-│  • Authentication (NextAuth)        │
-│  • i18n (next-intl)                │
+│  • Authentication                   │
+│  • i18n (i18next)                  │
 │  • App-specific components          │
 │  • Tailwind for layouts            │
 └─────────────┬───────────────────────┘
@@ -129,14 +129,14 @@ export function NextAuthSessionProvider({ children }) {
 ```tsx
 // app/providers/TranslationProvider.tsx
 import { TranslationProvider } from '@semiont/react-ui';
-import { useTranslations as useNextIntl } from 'next-intl';
+import { useTranslation } from 'react-i18next';
 
-export function NextIntlTranslationProvider({ children }) {
-  const t = useNextIntl();
+export function I18nextTranslationProvider({ children }) {
+  const { t, i18n } = useTranslation();
 
   const translationManager = {
     t: (key, params) => t(key, params),
-    locale: 'en',
+    locale: i18n.language,
     setLocale: (locale) => {
       // Handle locale change with Next.js routing
     }
@@ -273,7 +273,7 @@ import { Button } from '@semiont/react-ui';
 
 ### 1. **Framework Independence**
 - @semiont/react-ui can be used with any React framework
-- Not tied to Next.js, NextAuth, or next-intl
+- Not tied to any specific framework
 - Enables building Vite, CRA, or Remix apps with same components
 
 ### 2. **Consistent Design System**
