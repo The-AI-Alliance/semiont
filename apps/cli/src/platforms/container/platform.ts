@@ -26,11 +26,12 @@ import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
 import { Service } from '../../core/service-interface.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
+import type { ContainerRuntime } from './handlers/types.js';
 import { StateManager } from '../../core/state-manager.js';
 
 export class ContainerPlatform extends Platform {
 
-  private runtime: 'docker' | 'podman';
+  private runtime: ContainerRuntime;
   
   constructor() {
     super();
@@ -51,11 +52,13 @@ export class ContainerPlatform extends Platform {
   /**
    * Helper method to detect container runtime
    */
-  private detectContainerRuntime(): string {
+  private detectContainerRuntime(): ContainerRuntime {
+    const candidates: ContainerRuntime[] = ['container', 'docker', 'podman'];
     if (process.env.CONTAINER_RUNTIME) {
-      return process.env.CONTAINER_RUNTIME.toLowerCase();
+      const env = process.env.CONTAINER_RUNTIME.toLowerCase() as ContainerRuntime;
+      if (candidates.includes(env)) return env;
     }
-    for (const runtime of ['container', 'docker', 'podman']) {
+    for (const runtime of candidates) {
       try {
         execFileSync(runtime, ['--version'], { stdio: 'ignore' });
         return runtime;
