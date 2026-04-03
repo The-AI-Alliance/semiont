@@ -38,10 +38,14 @@ echo "==> Using container runtime: $RT"
 # --- Parse arguments ---
 
 NUCLEAR=false
-for arg in "$@"; do
-  case "$arg" in
-    --nuclear) NUCLEAR=true ;;
-    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+SKIP_BUILD=false
+PACKAGES=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --nuclear) NUCLEAR=true; shift ;;
+    --skip-build) SKIP_BUILD=true; shift ;;
+    --package) PACKAGES="$2"; shift 2 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
 
@@ -82,6 +86,13 @@ fi
 
 # --- Build + Publish in container ---
 
+# --- Resolve host address for the builder container ---
+# Docker/Podman support --add-host=host.docker.internal:host-gateway.
+# Apple Container doesn't, but the default gateway (ip route) reaches the host.
+
+HOST_ADDR=$($RT run --rm node:24-alpine sh -c "ip route | awk '/default/{print \$3}'")
+echo "==> Host address from container: $HOST_ADDR"
+
 echo "==> Building and publishing to $REGISTRY..."
 
 VERDACCIO_AUTH=$(echo -n "$VERDACCIO_USER:$VERDACCIO_PASS" | base64)
@@ -89,22 +100,34 @@ VERDACCIO_AUTH=$(echo -n "$VERDACCIO_USER:$VERDACCIO_PASS" | base64)
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -w /workspace \
-  --add-host=host.docker.internal:host-gateway \
+  -m 8g \
+  -e NODE_OPTIONS="--max-old-space-size=4096" \
   node:24-alpine \
   sh -c "
+    set -e
+    apk add --no-cache bash git > /dev/null
+
     # Create .npmrc for Verdaccio auth
     cat > /tmp/.npmrc <<NPMRC
-registry=http://host.docker.internal:4873
-//host.docker.internal:4873/:_auth=$VERDACCIO_AUTH
-//host.docker.internal:4873/:always-auth=true
+registry=http://$HOST_ADDR:4873
+//$HOST_ADDR:4873/:_auth=$VERDACCIO_AUTH
+//$HOST_ADDR:4873/:always-auth=true
 NPMRC
 
-    # Build everything
-    ./scripts/ci/build.sh
+    # Build (unless --skip-build)
+    if [ '$SKIP_BUILD' != 'true' ]; then
+      BUILD_ARGS=''
+      if [ -n '$PACKAGES' ]; then
+        BUILD_ARGS='--package $PACKAGES'
+      fi
+      ./scripts/ci/build.sh \$BUILD_ARGS
+    else
+      echo '==> Skipping build (--skip-build)'
+    fi
 
     # Publish with --clean (unpublish existing versions for same-version iteration)
     ./scripts/ci/publish.sh \
-      --registry http://host.docker.internal:4873 \
+      --registry http://$HOST_ADDR:4873 \
       --tag latest \
       --clean \
       --npmrc /tmp/.npmrc

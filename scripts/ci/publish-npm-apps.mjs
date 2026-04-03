@@ -16,7 +16,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = resolve(__dirname, '..');
+const rootDir = resolve(__dirname, '../..');
 const DRY_RUN = process.argv.includes('--dry-run');
 const STAGE_DIR = resolve(rootDir, '.npm-stage');
 
