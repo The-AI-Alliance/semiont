@@ -73,41 +73,40 @@ graph TD
 | 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
 | 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
 
-Human actors interact through the **Human UI** — the browser, Envoy proxy, Next.js frontend, and Hono backend. The UI translates DOM interactions (clicks, selections, form submissions) into events on the bus.
+Human actors interact through the **Human UI** — the browser and a static SPA (Vite + React). The frontend connects to one or more event buses (each backed by a Hono backend), translating DOM interactions (clicks, selections, form submissions) into events via REST and SSE. Because the frontend is a static SPA, it can be served from any file server or CDN — no server-side rendering or Node.js process required.
 
 ```mermaid
 graph TB
-    HUMAN["Human Actor<br/>(Reader, Analyst, Author)"] -->|browser| PROXY
+    HUMAN["Human Actor<br/>(Reader, Analyst, Author)"] -->|browser| FE
 
     subgraph ui ["Human UI"]
-        PROXY["Envoy / ALB<br/>(route by path)"]
-        FE["Frontend<br/>(Next.js + React)"]
-        DB[("Users DB<br/>(PostgreSQL)")]
-
-        subgraph backend ["Backend (Hono + JWT)"]
-            BE["Routes"]
-            BUS["Event Bus"]
-            BE -->|RxJS| BUS
+        subgraph spa ["SPA (static)"]
+            FE["React UI"]
+            API["API Client<br/>(RxJS)"]
+            FE -->|RxJS| API
         end
 
-        PROXY -->|"auth, pages"| FE
-        PROXY -->|"API calls"| BE
-        FE -->|"HTTP + SSE"| BE
-        BE --> DB
+        BUS1["Event Bus 1"]
+        BUS2["Event Bus 2"]
+        BUSN["Event Bus N"]
+
+        API -->|"REST + SSE"| BUS1
+        API -->|"REST + SSE"| BUS2
+        API -->|"REST + SSE"| BUSN
     end
 
     classDef actor fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef ui fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
-    classDef backend fill:#c4a020,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef client fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
 
     class HUMAN actor
-    class PROXY,FE,DB ui
-    class BE backend
-    class BUS bus
+    class FE ui
+    class API client
+    class BUS1,BUS2,BUSN bus
 ```
 
-AI actors connect via the backend API (REST + JWT) or MCP protocol. They emit the same events as human actors. The knowledge base cannot distinguish a human-created annotation from an AI-created one — both are W3C annotations with a `creator` field that identifies the agent.
+AI actors connect to an event bus via REST + JWT or MCP protocol. They emit the same events as human actors. The knowledge base cannot distinguish a human-created annotation from an AI-created one — both are W3C annotations with a `creator` field that identifies the agent.
 
 ### Knowledge System
 
@@ -129,12 +128,15 @@ All four are reactive actors: they subscribe to the EventBus via RxJS pipelines 
 title: Knowledge System (per project)
 ---
 graph TB
-    BUS["Event Bus"]
+    BE["Backend<br/>(Event Bus)"]
+    DB[("Users DB<br/>(PostgreSQL)")]
 
-    BUS -->|"mark, yield"| STOWER["Stower"]
-    BUS -->|"gather"| GATHERER["Gatherer"]
-    BUS -->|"match"| MATCHER["Matcher"]
-    BUS -->|"browse"| BROWSER["Browser"]
+    BE --> DB
+
+    BE -->|"RxJS: mark, yield"| STOWER["Stower"]
+    BE -->|"RxJS: gather"| GATHERER["Gatherer"]
+    BE -->|"RxJS: match"| MATCHER["Matcher"]
+    BE -->|"RxJS: browse"| BROWSER["Browser"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
@@ -165,13 +167,13 @@ graph TB
     BROWSER -->|query| VIEWS
     BROWSER -->|read| CONTENT
 
-    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+    classDef backend fill:#c4a020,stroke:#8b6914,stroke-width:2px,color:#000
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef planned fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
-    class BUS bus
-    class EVENTLOG,VIEWS,CONTENT,GRAPH store
+    class BE backend
+    class DB,EVENTLOG,VIEWS,CONTENT,GRAPH store
     class VECTORS planned
     class STOWER,GATHERER,MATCHER,BROWSER worker
 ```
