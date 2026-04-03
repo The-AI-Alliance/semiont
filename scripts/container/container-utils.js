@@ -2,7 +2,7 @@
 
 /**
  * Container utility commands for Semiont
- * Automatically detects and uses Docker or Podman
+ * Automatically detects and uses Apple Container, Docker, or Podman
  */
 
 const { spawn } = require('child_process');
@@ -13,12 +13,9 @@ const command = process.argv[2];
 async function detectContainerRuntime() {
   // Check if forced via environment variable
   if (process.env.CONTAINER_RUNTIME) {
-    const runtime = process.env.CONTAINER_RUNTIME.toLowerCase();
-    if (runtime === 'docker' || runtime === 'podman') {
-      return runtime;
-    }
+    return process.env.CONTAINER_RUNTIME.toLowerCase();
   }
-  
+
   // Check if forced via script name
   const scriptName = process.env.npm_lifecycle_event || '';
   if (scriptName.includes('podman')) {
@@ -27,19 +24,15 @@ async function detectContainerRuntime() {
   if (scriptName.includes('docker')) {
     return 'docker';
   }
-  
-  // Auto-detect available runtime
-  const isDockerAvailable = await checkCommand('docker', ['--version']);
-  if (isDockerAvailable) {
-    return 'docker';
+
+  // Auto-detect: Apple Container > Docker > Podman
+  for (const runtime of ['container', 'docker', 'podman']) {
+    if (await checkCommand(runtime, ['--version'])) {
+      return runtime;
+    }
   }
-  
-  const isPodmanAvailable = await checkCommand('podman', ['--version']);
-  if (isPodmanAvailable) {
-    return 'podman';
-  }
-  
-  throw new Error('No container runtime found. Please install Docker or Podman.');
+
+  throw new Error('No container runtime found. Install Apple Container, Docker, or Podman.');
 }
 
 function checkCommand(command, args) {
@@ -110,7 +103,7 @@ async function main() {
       await cleanImages(runtime);
       break;
     default:
-      console.log('Usage: node scripts/container-utils.js [list|clean]');
+      console.log('Usage: node scripts/container/container-utils.js [list|clean]');
       process.exit(1);
   }
 }

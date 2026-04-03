@@ -7,8 +7,8 @@
  * `npm publish` from within each staging dir.
  *
  * Usage:
- *   node scripts/publish-npm-apps.mjs                # Stage both apps
- *   node scripts/publish-npm-apps.mjs --dry-run      # Show what would be staged
+ *   node scripts/ci/publish-npm-apps.mjs                # Stage both apps
+ *   node scripts/ci/publish-npm-apps.mjs --dry-run      # Show what would be staged
  */
 
 import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'fs';
