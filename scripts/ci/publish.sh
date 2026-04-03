@@ -16,6 +16,20 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+# --- Colors ---
+
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+DIM='\033[2m'
+RESET='\033[0m'
+
+banner() { echo -e "\n${CYAN}${BOLD}══════════════════════════════════════════════════════════════${RESET}"; echo -e "${CYAN}${BOLD}  $1${RESET}"; echo -e "${CYAN}${BOLD}══════════════════════════════════════════════════════════════${RESET}\n"; }
+step()   { echo -e "${GREEN}▸${RESET} $1"; }
+ok()     { echo -e "${GREEN}✓${RESET} $1"; }
+
 # --- Parse arguments ---
 
 REGISTRY="https://registry.npmjs.org"
@@ -33,7 +47,7 @@ while [[ $# -gt 0 ]]; do
     --clean) CLEAN=true; shift ;;
     --npmrc) NPMRC="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
-    *) echo "Unknown argument: $1" >&2; exit 1 ;;
+    *) echo -e "${RED}Unknown argument: $1${RESET}" >&2; exit 1 ;;
   esac
 done
 
@@ -42,11 +56,11 @@ done
 if [[ -z "$VERSION" ]]; then
   VERSION=$(node -p "require('./version.json').version")
 fi
-echo "==> Publishing version: $VERSION (tag: $TAG, registry: $REGISTRY)"
 
-# --- Stamp version into all package.json files ---
+banner "STAMP VERSIONS"
+echo -e "  Version: ${BOLD}$VERSION${RESET}  Tag: ${BOLD}$TAG${RESET}  Registry: ${DIM}$REGISTRY${RESET}"
+echo ""
 
-echo "==> Stamping version $VERSION..."
 node -e "
   const fs = require('fs');
   const version = '$VERSION';
@@ -94,7 +108,7 @@ node -e "
 
 # --- Stage app packages ---
 
-echo "==> Staging backend and frontend..."
+banner "STAGE APPS"
 node scripts/ci/publish-npm-apps.mjs
 
 # --- Build npmrc args ---
@@ -106,6 +120,8 @@ fi
 
 # --- Publish ---
 
+banner "PUBLISH PACKAGES"
+
 publish_pkg() {
   local dir="$1"
   local label="${2:-}"
@@ -114,19 +130,17 @@ publish_pkg() {
   pkg_version=$(node -p "require('./$dir/package.json').version")
 
   if [[ "$CLEAN" == "true" ]]; then
-    echo "  Unpublishing $pkg_name@$pkg_version..."
+    echo -e "  ${DIM}unpublish${RESET} $pkg_name@$pkg_version"
     npm unpublish "$pkg_name@$pkg_version" --registry "$REGISTRY" "${NPMRC_ARGS[@]}" --force 2>/dev/null || true
   fi
 
-  echo "  Publishing $pkg_name@$pkg_version${label:+ ($label)}..."
   if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  [DRY RUN] Would publish $pkg_name@$pkg_version"
+    echo -e "  ${YELLOW}dry-run${RESET}  $pkg_name@$pkg_version${label:+ ($label)}"
   else
     (cd "$dir" && npm publish --registry "$REGISTRY" --tag "$TAG" --access public "${NPMRC_ARGS[@]}")
+    ok "$pkg_name@$pkg_version${label:+ ($label)}"
   fi
 }
-
-echo "==> Publishing packages to $REGISTRY..."
 
 # Library packages and CLI
 for dir in \
@@ -152,4 +166,4 @@ for dir in .npm-stage/backend .npm-stage/frontend; do
   publish_pkg "$dir" "staged"
 done
 
-echo "==> Publish complete."
+banner "PUBLISH COMPLETE ✓"
