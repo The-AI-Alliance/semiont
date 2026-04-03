@@ -140,12 +140,6 @@ interface EnvironmentSection {
     port?: number;
     publicURL?: string;
   };
-  proxy?: {
-    platform?: string;
-    port?: number;
-    adminPort?: number;
-    publicURL?: string;
-  };
   site?: {
     domain?: string;
     siteName?: string;
@@ -388,46 +382,52 @@ export function loadTomlConfig(
   }
 
   const frontend = resolved.frontend;
-  const proxy = resolved.proxy;
+
+  const services: EnvironmentConfig['services'] = {};
+
+  if (backend) {
+    services.backend = {
+      platform: { type: requirePlatform(backend.platform, 'backend') },
+      port: backend.port ?? 4000,
+      publicURL: backend.publicURL ?? `http://localhost:${backend.port ?? 4000}`,
+      corsOrigin: backend.corsOrigin ?? backend.frontendURL ?? 'http://localhost:3000',
+    };
+  }
+
+  if (frontend) {
+    services.frontend = {
+      platform: { type: requirePlatform(frontend.platform, 'frontend') },
+      port: frontend.port ?? 3000,
+      siteName: site?.siteName ?? 'Semiont',
+      publicURL: frontend.publicURL,
+    };
+  }
+
+  if (resolved.graph) {
+    services.graph = {
+      ...resolved.graph,
+      platform: { type: requirePlatform(resolved.graph.platform as string | undefined, 'graph') },
+      type: (resolved.graph.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
+    } as EnvironmentConfig['services']['graph'];
+  } else if (makeMeaningSection?.graph) {
+    services.graph = makeMeaningSection.graph as EnvironmentConfig['services']['graph'];
+  }
+
+  if (resolved.database) {
+    services.database = {
+      platform: { type: requirePlatform(resolved.database.platform, 'database') },
+      type: 'postgres',
+      image: resolved.database.image,
+      host: resolved.database.host ?? 'localhost',
+      port: resolved.database.port ?? 5432,
+      name: resolved.database.name,
+      user: resolved.database.user,
+      password: resolved.database.password,
+    } as EnvironmentConfig['services']['database'];
+  }
 
   const config: EnvironmentConfig = {
-    services: {
-      backend: backend ? {
-        platform: { type: requirePlatform(backend.platform, 'backend') },
-        port: backend.port ?? 4000,
-        publicURL: backend.publicURL ?? `http://localhost:${backend.port ?? 4000}`,
-        corsOrigin: backend.corsOrigin ?? backend.frontendURL ?? 'http://localhost:3000',
-      } : undefined,
-      frontend: frontend ? {
-        platform: { type: requirePlatform(frontend.platform, 'frontend') },
-        port: frontend.port ?? 3000,
-        siteName: site?.siteName ?? 'Semiont',
-        publicURL: frontend.publicURL,
-      } : undefined,
-      proxy: proxy ? {
-        platform: { type: requirePlatform(proxy.platform, 'proxy') },
-        type: 'envoy',
-        port: proxy.port ?? 8080,
-        adminPort: proxy.adminPort ?? 9901,
-        backendPort: backend?.port ?? 4000,
-        frontendPort: frontend?.port ?? 3000,
-      } : undefined,
-      graph: resolved.graph ? {
-        ...resolved.graph,
-        platform: { type: requirePlatform(resolved.graph.platform as string | undefined, 'graph') },
-        type: (resolved.graph.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
-      } as EnvironmentConfig['services']['graph'] : (makeMeaningSection?.graph as EnvironmentConfig['services']['graph']),
-      database: resolved.database ? {
-        platform: { type: requirePlatform(resolved.database.platform, 'database') },
-        type: 'postgres',
-        image: resolved.database.image,
-        host: resolved.database.host ?? 'localhost',
-        port: resolved.database.port ?? 5432,
-        name: resolved.database.name,
-        user: resolved.database.user,
-        password: resolved.database.password,
-      } as EnvironmentConfig['services']['database'] : undefined,
-    },
+    services,
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
     ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
