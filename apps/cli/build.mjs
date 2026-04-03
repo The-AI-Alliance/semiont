@@ -242,7 +242,7 @@ if (existsSync(frontendStageSrc)) {
     process.exit(1)
   }
 } else {
-  console.warn('⚠️  .npm-stage/frontend not found — run `node scripts/publish-npm-apps.mjs` first to stage the frontend')
+  console.warn('⚠️  .npm-stage/frontend not found — run `node scripts/ci/publish-npm-apps.mjs` first to stage the frontend')
 }
 
 // Copy MCP server to dist
