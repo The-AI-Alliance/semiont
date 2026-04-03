@@ -1,13 +1,13 @@
 /**
  * Routing abstraction layer — React Router implementation
  *
- * Replaces next-intl/navigation. All call sites import from @/i18n/routing
- * and do not need to change when the underlying router changes.
+ * All call sites import from @/i18n/routing and do not need to change
+ * when the underlying router changes.
  *
  * Key behaviours:
  * - Link: locale-prefixed anchor rendered via react-router-dom
  * - useRouter: locale-aware push/replace/back
- * - usePathname: returns path WITHOUT locale prefix (matches next-intl behaviour)
+ * - usePathname: returns path WITHOUT locale prefix
  * - redirect: programmatic navigation without locale prefix
  */
 
@@ -80,7 +80,7 @@ export function useRouter() {
 // ── usePathname ───────────────────────────────────────────────────────────────
 
 /**
- * Returns the path WITHOUT the locale prefix, matching next-intl behaviour.
+ * Returns the path WITHOUT the locale prefix.
  * e.g. /en/know/discover → /know/discover
  */
 export function usePathname(): string {
