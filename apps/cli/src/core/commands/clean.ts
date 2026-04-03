@@ -96,7 +96,10 @@ function listDir(dir: string): string[] {
 }
 
 function containerRuntime(): string | null {
-  for (const rt of ['docker', 'podman']) {
+  if (process.env.CONTAINER_RUNTIME) {
+    return process.env.CONTAINER_RUNTIME.toLowerCase();
+  }
+  for (const rt of ['container', 'docker', 'podman']) {
     try {
       execFileSync(rt, ['info'], { stdio: 'ignore' });
       return rt;
@@ -232,7 +235,7 @@ export async function clean(options: CleanOptions): Promise<CommandResults> {
     });
   } else if (cleanVolumes && !runtime) {
     if (!options.quiet) {
-      console.log(`${colors.yellow}⚠️  No container runtime found (docker/podman) — skipping volumes${colors.reset}`);
+      console.log(`${colors.yellow}⚠️  No container runtime found — skipping volumes${colors.reset}`);
     }
   }
 

@@ -124,7 +124,7 @@ jobs:
           "
 
       - name: Stage app packages
-        run: node scripts/publish-npm-apps.mjs
+        run: node scripts/ci/publish-npm-apps.mjs
 
       - name: Publish packages
         if: github.event.inputs.dry_run != 'true'
