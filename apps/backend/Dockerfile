@@ -86,11 +86,7 @@ user = "postgres"
 password = "localpass"
 EOF
 
-ARG ADMIN_EMAIL=admin@example.com
-ARG ADMIN_PASSWORD=password
 ENV NODE_ENV=production
-ENV ADMIN_EMAIL=${ADMIN_EMAIL}
-ENV ADMIN_PASSWORD=${ADMIN_PASSWORD}
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
@@ -98,5 +94,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 CMD semiont provision --service backend --verbose && \
     semiont start --service backend --verbose && \
-    semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin --upsert && \
+    if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then \
+      semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin --upsert; \
+    fi && \
     tail -f /home/semiont/.local/state/semiont/*/backend/app.log

@@ -8,6 +8,7 @@ set -euo pipefail
 #   2. Starts a PostgreSQL container (port 5432, database "semiont", password "localpass")
 #   3. Builds the backend container image from .semiont/containers/Dockerfile.backend
 #   4. Runs the backend container (port 4000), mounting the current KB directory
+#   5. Creates an admin user if --email and --password are provided
 #
 # The script stays attached and streams backend logs. Press Ctrl+C to stop.
 # To run in the background: .semiont/scripts/local_backend.sh &
@@ -18,11 +19,14 @@ set -euo pipefail
 #     NEO4J_DATABASE, ANTHROPIC_API_KEY
 #
 # Options:
-#   --no-cache    Force a fresh container build (skip layer cache)
+#   --no-cache              Force a fresh container build (skip layer cache)
+#   --email <email>         Admin user email (requires --password)
+#   --password <password>   Admin user password (requires --email)
 #
 # Usage:
 #   .semiont/scripts/local_backend.sh
 #   .semiont/scripts/local_backend.sh --no-cache
+#   .semiont/scripts/local_backend.sh --email admin@example.com --password password
 #
 # Equivalent without this script (npm required):
 #   npm install -g @semiont/cli neo4j-driver
@@ -33,10 +37,14 @@ cd "$(git rev-parse --show-toplevel)"
 # --- Parse arguments ---
 
 CACHE_FLAG=""
-for arg in "$@"; do
-  case "$arg" in
-    --no-cache) CACHE_FLAG="--no-cache" ;;
-    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-cache) CACHE_FLAG="--no-cache"; shift ;;
+    --email) ADMIN_EMAIL="$2"; shift 2 ;;
+    --password) ADMIN_PASSWORD="$2"; shift 2 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
 
@@ -113,6 +121,13 @@ $RT build $CACHE_FLAG --tag semiont-backend \
 
 echo ""
 echo "Starting backend on http://localhost:4000..."
+
+ADMIN_ARGS=()
+if [[ -n "$ADMIN_EMAIL" && -n "$ADMIN_PASSWORD" ]]; then
+  ADMIN_ARGS=(--env ADMIN_EMAIL="$ADMIN_EMAIL" --env ADMIN_PASSWORD="$ADMIN_PASSWORD")
+  echo "Admin user: $ADMIN_EMAIL"
+fi
+
 $RT run --publish 4000:4000 \
   --volume "$(pwd)":/kb \
   --env NEO4J_URI="$NEO4J_URI" \
@@ -121,4 +136,5 @@ $RT run --publish 4000:4000 \
   --env NEO4J_DATABASE="$NEO4J_DATABASE" \
   --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   --env POSTGRES_HOST="$HOST_ADDR" \
+  "${ADMIN_ARGS[@]}" \
   -it semiont-backend
