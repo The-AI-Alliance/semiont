@@ -20,7 +20,7 @@ import { exportLinkedData } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
@@ -133,19 +133,16 @@ export const exportCmd = new CommandBuilder()
     'semiont export --out export.tar.gz',
     'semiont export --include-archived --out full-export.tar.gz',
   )
-  .args({
-    args: {
-      '--out': {
-        type: 'string',
-        description: 'Output file path (required)',
-      },
-      '--include-archived': {
-        type: 'boolean',
-        description: 'Include archived resources in export',
-      },
+  .args(withOpsArgs({
+    '--out': {
+      type: 'string',
+      description: 'Output file path (required)',
     },
-    aliases: {},
-  })
+    '--include-archived': {
+      type: 'boolean',
+      description: 'Include archived resources in export',
+    },
+  }))
   .schema(ExportOptionsSchema)
   .handler(runExport)
   .build();

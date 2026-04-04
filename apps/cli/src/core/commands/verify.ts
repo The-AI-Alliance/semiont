@@ -16,7 +16,7 @@ import type { StoredEvent } from '@semiont/core';
 import { isBackupManifest, validateManifestVersion, BACKUP_FORMAT } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess, printWarning, printError } from '../io/cli-logger.js';
 
 // Inline tar reader import — we need readTarGz from make-meaning's exchange internals,
@@ -239,17 +239,14 @@ export const verifyCmd = new CommandBuilder()
   .examples(
     'semiont verify --file backup.tar.gz',
   )
-  .args({
-    args: {
-      '--file': {
-        type: 'string',
-        description: 'Backup file to verify (required)',
-      },
+  .args(withOpsArgs({
+    '--file': {
+      type: 'string',
+      description: 'Backup file to verify (required)',
     },
-    aliases: {
-      '-f': '--file',
-    },
-  })
+  }, {
+    '-f': '--file',
+  }))
   .schema(VerifyOptionsSchema)
   .handler(runVerify)
   .build();

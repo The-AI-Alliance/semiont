@@ -25,7 +25,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -148,50 +148,47 @@ export const updateCommand = new CommandBuilder()
     'semiont update --service backend --wait --timeout 300',
     'semiont update --all --skip-tests'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to update (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Update all services',
-        default: false,
-      },
-      '--force': {
-        type: 'boolean',
-        description: 'Force update without prompts',
-        default: false,
-      },
-      '--wait': {
-        type: 'boolean',
-        description: 'Wait for update to complete',
-        default: false,
-      },
-      '--timeout': {
-        type: 'number',
-        description: 'Timeout in seconds when using --wait',
-      },
-      '--skip-tests': {
-        type: 'boolean',
-        description: 'Skip running tests during update',
-        default: false,
-      },
-      '--skip-build': {
-        type: 'boolean',
-        description: 'Skip building during update',
-        default: false,
-      },
-      '--grace-period': {
-        type: 'number',
-        description: 'Grace period in seconds for graceful shutdown',
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to update (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
+    '--all': {
+      type: 'boolean',
+      description: 'Update all services',
+      default: false,
     },
-  })
+    '--force': {
+      type: 'boolean',
+      description: 'Force update without prompts',
+      default: false,
+    },
+    '--wait': {
+      type: 'boolean',
+      description: 'Wait for update to complete',
+      default: false,
+    },
+    '--timeout': {
+      type: 'number',
+      description: 'Timeout in seconds when using --wait',
+    },
+    '--skip-tests': {
+      type: 'boolean',
+      description: 'Skip running tests during update',
+      default: false,
+    },
+    '--skip-build': {
+      type: 'boolean',
+      description: 'Skip building during update',
+      default: false,
+    },
+    '--grace-period': {
+      type: 'number',
+      description: 'Grace period in seconds for graceful shutdown',
+    },
+  }, {
+    '-s': '--service',
+  }))
   .schema(UpdateOptionsSchema)
   .handler(update)
   .build();

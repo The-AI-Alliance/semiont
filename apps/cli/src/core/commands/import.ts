@@ -20,7 +20,7 @@ import { importLinkedData, Stower, createKnowledgeBase } from '@semiont/make-mea
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 
@@ -172,21 +172,18 @@ export const importCmd = new CommandBuilder()
     'semiont import --file export.tar.gz',
     'semiont import --file export.tar.gz --user-id did:web:example.com:users:alice',
   )
-  .args({
-    args: {
-      '--file': {
-        type: 'string',
-        description: 'Input file path (required)',
-      },
-      '--user-id': {
-        type: 'string',
-        description: 'User identity for imported resources (default: current user)',
-      },
+  .args(withOpsArgs({
+    '--file': {
+      type: 'string',
+      description: 'Input file path (required)',
     },
-    aliases: {
-      '-f': '--file',
+    '--user-id': {
+      type: 'string',
+      description: 'User identity for imported resources (default: current user)',
     },
-  })
+  }, {
+    '-f': '--file',
+  }))
   .schema(ImportOptionsSchema)
   .handler(runImport)
   .build();

@@ -10,7 +10,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -123,22 +123,19 @@ export const startCommand = new CommandBuilder()
     'semiont start --service backend --verbose',
     'semiont start --all'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to start (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Start all services',
-        default: false,
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to start (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
+    '--all': {
+      type: 'boolean',
+      description: 'Start all services',
+      default: false,
     },
-  })
+  }, {
+    '-s': '--service',
+  }))
   .schema(StartOptionsSchema)
   .handler(start)
   .build();

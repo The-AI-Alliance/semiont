@@ -19,7 +19,7 @@ import { importBackup, Stower, createKnowledgeBase } from '@semiont/make-meaning
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 
@@ -164,17 +164,14 @@ export const restoreCmd = new CommandBuilder()
   .examples(
     'semiont restore --file backup.tar.gz',
   )
-  .args({
-    args: {
-      '--file': {
-        type: 'string',
-        description: 'Input file path (required)',
-      },
+  .args(withOpsArgs({
+    '--file': {
+      type: 'string',
+      description: 'Input file path (required)',
     },
-    aliases: {
-      '-f': '--file',
-    },
-  })
+  }, {
+    '-f': '--file',
+  }))
   .schema(RestoreOptionsSchema)
   .handler(runRestore)
   .build();

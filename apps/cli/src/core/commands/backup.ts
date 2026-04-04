@@ -18,7 +18,7 @@ import { WorkingTreeStore } from '@semiont/content';
 import { exportBackup } from '@semiont/make-meaning';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
@@ -117,15 +117,12 @@ export const backupCmd = new CommandBuilder()
   .examples(
     'semiont backup --out backup.tar.gz',
   )
-  .args({
-    args: {
-      '--out': {
-        type: 'string',
-        description: 'Output file path (required)',
-      },
+  .args(withOpsArgs({
+    '--out': {
+      type: 'string',
+      description: 'Output file path (required)',
     },
-    aliases: {},
-  })
+  }))
   .schema(BackupOptionsSchema)
   .handler(runBackup)
   .build();

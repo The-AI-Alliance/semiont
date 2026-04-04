@@ -20,7 +20,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -132,35 +132,32 @@ export const publishCommand = new CommandBuilder()
     'semiont publish --service backend --no-cache',
     'semiont publish --all --registry my-registry.com'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to publish (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Publish all services',
-        default: false,
-      },
-      '--tag': {
-        type: 'string',
-        description: 'Custom version tag',
-      },
-      '--registry': {
-        type: 'string',
-        description: 'Override default registry',
-      },
-      '--no-cache': {
-        type: 'boolean',
-        description: 'Skip Docker cache',
-        default: false,
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to publish (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
+    '--all': {
+      type: 'boolean',
+      description: 'Publish all services',
+      default: false,
     },
-  })
+    '--tag': {
+      type: 'string',
+      description: 'Custom version tag',
+    },
+    '--registry': {
+      type: 'string',
+      description: 'Override default registry',
+    },
+    '--no-cache': {
+      type: 'boolean',
+      description: 'Skip Docker cache',
+      default: false,
+    },
+  }, {
+    '-s': '--service',
+  }))
   .schema(PublishOptionsSchema)
   .handler(publish)
   .build();
