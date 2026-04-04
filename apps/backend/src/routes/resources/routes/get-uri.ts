@@ -1,15 +1,13 @@
 /**
- * Get Resource URI Route - W3C Content Negotiation
+ * Get Resource URI Route
  *
- * Single endpoint for all resource representations via content negotiation:
+ * Single endpoint for all resource representations:
  * - Accept: application/ld+json -> JSON-LD metadata via EventBus (default)
  * - Accept: text/plain, text/markdown, etc. -> raw representation (binary, stays direct)
- * - ?view=semiont -> redirects to Semiont frontend viewer
  */
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
@@ -57,15 +55,6 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
   router.get('/resources/:id', async (c) => {
     const { id } = c.req.param();
-
-    // Check for explicit view=semiont query parameter
-    const view = c.req.query('view');
-    if (view === 'semiont') {
-      const frontendUrl = getFrontendUrl();
-      const normalizedBase = frontendUrl.endsWith('/') ? frontendUrl.slice(0, -1) : frontendUrl;
-      const redirectUrl = `${normalizedBase}/know/resource/${id}`;
-      return c.redirect(redirectUrl, 302);
-    }
 
     // Check Accept header for content negotiation
     const acceptHeader = c.req.header('Accept') || 'application/ld+json';

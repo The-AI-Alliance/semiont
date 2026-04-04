@@ -11,7 +11,7 @@ You are helping a user get Semiont running locally. The CLI installs backend, fr
 ## Prerequisites
 
 - **Node.js 20+** — `node --version`
-- **Docker or Podman** — for PostgreSQL and Envoy proxy containers
+- **Container runtime** — Apple Container, Docker, or Podman (for PostgreSQL containers)
 - **Inference** — either `ANTHROPIC_API_KEY` (cloud) or [Ollama](https://ollama.com/) (local, no key needed)
 - **Neo4j** (optional, for knowledge graph) — free at [Neo4j Aura](https://neo4j.com/cloud/aura/) or local
 
@@ -96,7 +96,7 @@ password = "${NEO4J_PASSWORD}"
 ## Guidance for the AI assistant
 
 - **Start with `semiont local`** if the user is setting up for the first time — it's the single interactive command that covers everything.
-- **Check prerequisites first.** The most common failures are missing Docker/Podman or no inference key. Run `docker --version` and check for `ANTHROPIC_API_KEY` before proceeding.
+- **Check prerequisites first.** The most common failures are a missing container runtime or no inference key. Run `container --version` (or `docker`/`podman`) and check for `ANTHROPIC_API_KEY` before proceeding.
 - **`semiont check` is the diagnostic command.** If something isn't working after start, run it to see which services are unhealthy.
 - **Config lives in `~/.semiontconfig`.** If inference or DB isn't working, that's the first file to inspect.
 - **Re-provision after config changes** — `semiont provision` must be re-run for config changes to take effect; a restart alone is not enough.

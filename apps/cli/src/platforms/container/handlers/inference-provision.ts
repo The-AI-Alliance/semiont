@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process';
-import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
+import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor, type ContainerRuntime } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import type { OllamaProviderConfig } from '@semiont/core';
 import { InferenceService } from '../../../services/inference-service.js';
@@ -100,7 +100,7 @@ const provisionInference = async (context: ContainerProvisionHandlerContext): Pr
   };
 };
 
-function detectGpu(runtime: 'docker' | 'podman'): PreflightCheck {
+function detectGpu(runtime: ContainerRuntime): PreflightCheck {
   try {
     const output = execFileSync(runtime, ['info', '--format', '{{.Runtimes}}'], {
       encoding: 'utf-8',

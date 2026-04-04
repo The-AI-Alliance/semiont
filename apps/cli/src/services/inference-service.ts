@@ -8,7 +8,7 @@
  * Platform Adaptations:
  * - external: Direct API calls to inference providers (no lifecycle management)
  * - posix: Ollama runs as a local process via `ollama serve`
- * - container: Ollama runs in Docker/Podman with persistent model volume
+ * - container: Ollama runs in a container with persistent model volume
  */
 
 import { BaseService } from '../core/base-service.js';

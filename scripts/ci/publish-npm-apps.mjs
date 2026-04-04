@@ -7,16 +7,18 @@
  * `npm publish` from within each staging dir.
  *
  * Usage:
- *   node scripts/publish-npm-apps.mjs                # Stage both apps
- *   node scripts/publish-npm-apps.mjs --dry-run      # Show what would be staged
+ *   node scripts/ci/publish-npm-apps.mjs                # Stage both apps
+ *   node scripts/ci/publish-npm-apps.mjs --dry-run      # Show what would be staged
  */
 
-import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = resolve(__dirname, '..');
+const rootDir = resolve(__dirname, '../..');
 const DRY_RUN = process.argv.includes('--dry-run');
 const STAGE_DIR = resolve(rootDir, '.npm-stage');
 
@@ -58,9 +60,9 @@ function stageBackend(version) {
   mkdirSync(stageDir, { recursive: true });
 
   // Copy built artifacts
-  cpSync(resolve(backendDir, 'dist'), resolve(stageDir, 'dist'), { recursive: true });
-  cpSync(resolve(backendDir, 'prisma'), resolve(stageDir, 'prisma'), { recursive: true });
-  cpSync(resolve(backendDir, 'prisma.config.ts'), resolve(stageDir, 'prisma.config.ts'));
+  execFileSync('cp', ['-r', resolve(backendDir, 'dist'), resolve(stageDir, 'dist')]);
+  execFileSync('cp', ['-r', resolve(backendDir, 'prisma'), resolve(stageDir, 'prisma')]);
+  execFileSync('cp', [resolve(backendDir, 'prisma.config.ts'), resolve(stageDir, 'prisma.config.ts')]);
 
   // Copy and update publish package.json
   const publishPkg = JSON.parse(readFileSync(resolve(backendDir, 'package.publish.json'), 'utf-8'));
@@ -76,7 +78,7 @@ function stageBackend(version) {
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
 
   // Copy README for npm listing
-  cpSync(resolve(backendDir, 'README.npm.md'), resolve(stageDir, 'README.md'));
+  execFileSync('cp', [resolve(backendDir, 'README.npm.md'), resolve(stageDir, 'README.md')]);
 
   log(`  Staged @semiont/backend@${version} to ${stageDir}`);
   log(`  Files: dist/, prisma/, prisma.config.ts, package.json, README.md`);
@@ -113,10 +115,10 @@ function stageFrontend(version) {
   mkdirSync(stageDir, { recursive: true });
 
   // Copy Vite build output
-  cpSync(resolve(frontendDir, 'dist'), resolve(stageDir, 'dist'), { recursive: true });
+  execFileSync('cp', ['-r', resolve(frontendDir, 'dist'), resolve(stageDir, 'dist')]);
 
   // Copy static server script
-  cpSync(serverJs, resolve(stageDir, 'server.js'));
+  execFileSync('cp', [serverJs, resolve(stageDir, 'server.js')]);
 
   // Copy and update publish package.json
   const publishPkg = JSON.parse(readFileSync(resolve(frontendDir, 'package.publish.json'), 'utf-8'));
@@ -125,7 +127,7 @@ function stageFrontend(version) {
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
 
   // Copy README for npm listing
-  cpSync(resolve(frontendDir, 'README.npm.md'), resolve(stageDir, 'README.md'));
+  execFileSync('cp', [resolve(frontendDir, 'README.npm.md'), resolve(stageDir, 'README.md')]);
 
   log(`  Staged @semiont/frontend@${version} to ${stageDir}`);
   log(`  Files: dist/, server.js, package.json, README.md`);

@@ -8,7 +8,7 @@ import { beforeAll, afterEach, afterAll } from 'vitest';
 
 // Mock handlers for external services
 export const handlers = [
-  // Mock Docker/Podman info endpoint (used by Testcontainers)
+  // Mock container runtime info endpoint (used by Testcontainers)
   http.get('http://localhost/info', () => {
     return HttpResponse.json({
       ID: 'mock-docker-engine',

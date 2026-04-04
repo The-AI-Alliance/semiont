@@ -4,10 +4,10 @@ set -euo pipefail
 # Version Bump: Update version across all packages, commit, and push
 #
 # Usage:
-#   ./scripts/version-bump.sh patch
-#   ./scripts/version-bump.sh minor
-#   ./scripts/version-bump.sh major
-#   ./scripts/version-bump.sh        # Interactive prompt
+#   ./scripts/release/version-bump.sh patch
+#   ./scripts/release/version-bump.sh minor
+#   ./scripts/release/version-bump.sh major
+#   ./scripts/release/version-bump.sh        # Interactive prompt
 
 cd "$(git rev-parse --show-toplevel)"
 

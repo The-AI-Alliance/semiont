@@ -4,9 +4,9 @@
   ],
   "plugins": [
     "stylelint-order",
-    "./scripts/stylelint-plugin-theme-selectors.js",
-    "./scripts/stylelint-plugin-semiont-invariants.js",
-    "./scripts/stylelint-plugin-accessibility.js"
+    "./scripts/lint/stylelint-plugin-theme-selectors.js",
+    "./scripts/lint/stylelint-plugin-semiont-invariants.js",
+    "./scripts/lint/stylelint-plugin-accessibility.js"
   ],
   "rules": {
     "semiont/theme-selectors": true,

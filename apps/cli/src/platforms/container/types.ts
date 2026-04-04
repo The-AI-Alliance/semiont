@@ -1,5 +1,5 @@
 /**
- * Container platform resources - for services running in Docker/Podman
+ * Container platform resources - for services running in Apple Container/Docker/Podman
  */
 export interface ContainerResources {
   id?: string;                // Short container ID

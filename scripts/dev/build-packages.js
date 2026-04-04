@@ -30,7 +30,7 @@ console.log('📦 Bundling OpenAPI spec from specs/src/...');
 try {
   execFileSync('npm', ['run', 'openapi:bundle'], {
     stdio: 'inherit',
-    cwd: path.join(__dirname, '..')
+    cwd: path.join(__dirname, '../..')
   });
   console.log('✅ OpenAPI spec bundled successfully\n');
 } catch (error) {
@@ -117,8 +117,8 @@ for (const step of buildSteps) {
   try {
     // Check if package/app exists
     const basePath = step.type === 'package'
-      ? path.join(__dirname, '..', 'packages', step.name.replace('@semiont/', ''))
-      : path.join(__dirname, '..', 'apps', step.name.replace('semiont-', ''));
+      ? path.join(__dirname, '../..', 'packages', step.name.replace('@semiont/', ''))
+      : path.join(__dirname, '../..', 'apps', step.name.replace('semiont-', ''));
 
     if (!fs.existsSync(basePath)) {
       console.error(`❌ Directory not found: ${basePath}`);
@@ -144,7 +144,7 @@ for (const step of buildSteps) {
     // Build the package/app
     execFileSync('npm', ['run', 'build', `--workspace=${step.name}`], {
       stdio: 'inherit',
-      cwd: path.join(__dirname, '..')
+      cwd: path.join(__dirname, '../..')
     });
 
     console.log(`✅ ${step.name} built successfully\n`);

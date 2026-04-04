@@ -54,10 +54,10 @@ gh run watch <run-id> --exit-status
 After the release completes, bump the version for the next development cycle:
 
 ```bash
-./scripts/version-bump.sh patch  # Bug fixes (0.4.9 → 0.4.10)
-./scripts/version-bump.sh minor  # New features (0.4.9 → 0.5.0)
-./scripts/version-bump.sh major  # Breaking changes (0.4.9 → 1.0.0)
-./scripts/version-bump.sh        # Interactive prompt
+./scripts/release/version-bump.sh patch  # Bug fixes (0.4.9 → 0.4.10)
+./scripts/release/version-bump.sh minor  # New features (0.4.9 → 0.5.0)
+./scripts/release/version-bump.sh major  # Breaking changes (0.4.9 → 1.0.0)
+./scripts/release/version-bump.sh        # Interactive prompt
 ```
 
 This script:
@@ -93,7 +93,7 @@ gh run list --workflow=release.yml --limit=1
 gh run watch <run-id> --exit-status
 
 # 5. Bump version for next development cycle
-./scripts/version-bump.sh patch
+./scripts/release/version-bump.sh patch
 ```
 
 ## Version Numbering
@@ -195,7 +195,7 @@ Before releasing:
 After releasing:
 - [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/frontend`)
 - [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
-- [ ] Bump version for next cycle: `./scripts/version-bump.sh`
+- [ ] Bump version for next cycle: `./scripts/release/version-bump.sh`
 
 ## Questions?
 

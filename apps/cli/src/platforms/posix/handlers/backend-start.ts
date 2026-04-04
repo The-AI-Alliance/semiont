@@ -105,7 +105,6 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
   const nodeEnv = envConfig.env?.NODE_ENV ?? 'development';
   const enableLocalAuth = envConfig.app?.security?.enableLocalAuth ?? (nodeEnv === 'development');
-  const frontendUrl = envConfig.services!.frontend!.publicURL!;
   const backendUrl = config.publicURL!;
   const siteDomain = envConfig.site!.domain!;
   const allowedDomains = envConfig.site!.oauthAllowedDomains!.join(',');
@@ -117,7 +116,6 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     HOST: '0.0.0.0',
     DATABASE_URL: databaseUrl,
     LOG_DIR: logsDir,
-    FRONTEND_URL: frontendUrl,
     BACKEND_URL: backendUrl,
     ENABLE_LOCAL_AUTH: enableLocalAuth.toString(),
     SITE_DOMAIN: siteDomain,

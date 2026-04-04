@@ -186,7 +186,6 @@ vi.mock('../../config', () => ({
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
     ADMIN_EMAIL: 'admin@example.com',
     DATABASE_URL: 'postgresql://test:test@localhost:5432/test_db',
-    FRONTEND_URL: 'http://localhost:3000',
     CORS_ORIGIN: 'http://localhost:3000',
   },
 }));

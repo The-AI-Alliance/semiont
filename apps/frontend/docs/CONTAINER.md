@@ -315,7 +315,7 @@ Routing Layer → Browser
 ```
 
 **Routing implementations by platform:**
-- Container (Docker/Podman): Envoy proxy
+- Container: Envoy proxy
 - AWS: Application Load Balancer (ALB)
 - Kubernetes: Ingress Controller (nginx, Traefik, etc.)
 - POSIX: TBD
@@ -338,7 +338,7 @@ For issues or questions:
 
 ---
 
-**Container Runtime**: Docker/Podman
+**Container Runtime**: Apple Container, Docker, or Podman
 **Orchestration**: Compatible with Docker Compose, Kubernetes, ECS
 **Routing**: Varies by platform (Envoy for containers, ALB for AWS, etc.)
 **Base Image**: node:22-alpine

@@ -77,7 +77,7 @@ semiont restart --service backend # Restart backend with fresh connection
 - **⚡ Zero Configuration**: No manual database setup, connection strings, or environment variables
 - **🧹 Easy Reset**: Corrupted data? `--reset` gives you a fresh start
 - **🎯 Focused Development**: Start only what you need
-- **🐳 Container Runtime Flexibility**: Works with Docker or Podman (auto-detected)
+- **🐳 Container Runtime Flexibility**: Works with Apple Container, Docker, or Podman (auto-detected)
 
 ## Development Workflows
 

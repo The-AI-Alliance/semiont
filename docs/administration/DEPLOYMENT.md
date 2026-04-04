@@ -207,16 +207,16 @@ graph LR
 
 ### Container Runtime Support
 
-Semiont automatically detects and uses Docker or Podman:
-- Auto-detection tries Docker first, then Podman
+Semiont automatically detects and uses a container runtime:
+- Auto-detection order: Apple Container > Docker > Podman
 - Force specific runtime: `CONTAINER_RUNTIME=podman semiont publish`
-- All commands work with both runtimes
+- All commands work with any supported runtime
 
 ## Prerequisites
 
 ### Required Tools
 - Node.js 20+ and npm 9+
-- Docker or Podman (for container builds)
+- Apple Container, Docker, or Podman (for container builds)
 - AWS CLI configured with credentials
 - Semiont CLI installed (`npm install -g semiont-cli` or local install)
 
@@ -597,9 +597,8 @@ semiont stop --environment staging
 
 If `semiont publish` fails during build:
 ```bash
-# Check for Docker/Podman
-docker version
-podman version
+# Check container runtime
+container --version || docker --version || podman --version
 
 # Try building manually to see detailed errors
 cd apps/frontend && npm run build

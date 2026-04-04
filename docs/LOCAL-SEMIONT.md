@@ -2,14 +2,24 @@
 
 Run Semiont locally using published npm packages — no need to clone the Semiont repository.
 
-The CLI installs and provisions the backend and database from pre-built npm packages, runs database migrations, and starts all services. The database runs as a container (Docker/Podman).
+There are two ways to start:
 
-## Quick Start
+**Use an existing knowledge base** — clone a KB repository that already has documents and container scripts:
 
-The fastest way to get Semiont running is a single command:
+```bash
+git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
+cd gutenberg-kb
+.semiont/scripts/local_backend.sh    # terminal 1
+.semiont/scripts/local_frontend.sh   # terminal 2
+```
+
+No npm required — everything runs in containers. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites and details. The authoritative Dockerfiles and scripts live in the Semiont repo at [apps/backend/Dockerfile](../apps/backend/Dockerfile), [apps/frontend/Dockerfile](../apps/frontend/Dockerfile), [apps/backend/scripts/local_backend.sh](../apps/backend/scripts/local_backend.sh), and [apps/frontend/scripts/local_frontend.sh](../apps/frontend/scripts/local_frontend.sh).
+
+**Create a new knowledge base** — start from scratch with your own documents:
 
 ```bash
 npm install -g @semiont/cli
+semiont init
 semiont serve
 ```
 
@@ -17,7 +27,7 @@ semiont serve
 
 > `semiont local` is an alias for `semiont serve`.
 
-See [Prerequisites](#prerequisites) below before running if you haven't installed Node.js or Docker yet.
+The rest of this document covers the npm-based setup for creating new knowledge bases.
 
 ---
 
@@ -31,12 +41,12 @@ Version 20 or higher. Install from [nodejs.org](https://nodejs.org/) or via a ve
 node --version   # should print v20.x or higher
 ```
 
-### Docker or Podman
+### Container Runtime
 
-Used for the PostgreSQL database container. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [Podman](https://podman.io/docs/installation).
+Used for the PostgreSQL database container. Install [Apple Container](https://github.com/apple/container) (macOS), [Docker Desktop](https://www.docker.com/products/docker-desktop/), or [Podman](https://podman.io/docs/installation).
 
 ```bash
-docker --version   # or: podman --version
+container --version   # or: docker --version / podman --version
 ```
 
 ### Inference (Anthropic or Ollama)
