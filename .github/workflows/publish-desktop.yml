@@ -55,11 +55,8 @@ jobs:
             patchelf \
             xdg-utils
 
-      - name: Install dependencies
-        run: npm install --include=optional
-
-      - name: Build frontend SPA
-        run: npm run build -w semiont-frontend
+      - name: Build all packages
+        run: ./scripts/ci/build.sh
 
       - name: Build desktop app
         uses: tauri-apps/tauri-action@v0
