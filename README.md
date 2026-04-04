@@ -56,7 +56,9 @@ The script stays attached and streams logs. Open a second terminal for the front
 
 Open **http://localhost:3000**. Enter **http://localhost:4000** as the knowledge base URL and log in with the credentials created during backend setup.
 
-See **[Run Semiont locally](docs/LOCAL-SEMIONT.md)** for the npm-based alternative.
+The frontend is also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux) — download from the Releases page.
+
+For more details, npm-based alternatives, and configuration: **[Backend setup](apps/backend/docs/LOCAL.md)** | **[Frontend setup](apps/frontend/docs/LOCAL.md)** | **[Overview](docs/LOCAL-SEMIONT.md)**
 
 ## Semiont Knowledge Bases
 
