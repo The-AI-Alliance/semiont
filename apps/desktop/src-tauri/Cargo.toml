@@ -1,0 +1,14 @@
+[package]
+name = "semiont-desktop"
+version = "0.0.0"
+edition = "2021"
+description = "Semiont desktop application"
+license = "Apache-2.0"
+repository = "https://github.com/The-AI-Alliance/semiont"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

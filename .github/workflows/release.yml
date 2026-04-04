@@ -6,17 +6,19 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (tag only, do not trigger publish)'
+        description: 'Dry run (tag only, do not publish)'
         required: false
         type: boolean
         default: false
 
 jobs:
-  release:
+  tag:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v6
@@ -74,12 +76,16 @@ jobs:
             echo "Created release $TAG"
           fi
 
-      - name: Trigger npm publish
-        if: inputs.dry_run != true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run publish-npm-packages.yml --field stable_release=true
-          echo "Triggered publish-npm-packages.yml (stable release)"
-          echo ""
-          echo "Monitor at: https://github.com/${{ github.repository }}/actions/workflows/publish-npm-packages.yml"
+  npm:
+    needs: tag
+    if: inputs.dry_run != true
+    uses: ./.github/workflows/publish-npm-packages.yml
+    with:
+      stable_release: true
+    secrets: inherit
+
+  desktop:
+    needs: tag
+    if: inputs.dry_run != true
+    uses: ./.github/workflows/publish-desktop.yml
+    secrets: inherit

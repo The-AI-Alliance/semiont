@@ -1,0 +1,108 @@
+name: Publish Desktop App
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: Apple Silicon
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            label: Intel Mac
+          - platform: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            label: Linux x64
+
+    runs-on: ${{ matrix.platform }}
+    name: ${{ matrix.label }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read version
+        id: version
+        run: echo "version=$(jq -r .version version.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Install dependencies
+        run: npm install --include=optional
+
+      - name: Build frontend SPA
+        run: npm run build -w semiont-frontend
+
+      - name: Build desktop app
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: apps/desktop
+          tauriScript: cargo tauri
+          args: --target ${{ matrix.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+          if-no-files-found: ignore
+
+  attach:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read version
+        id: version
+        run: echo "version=$(jq -r .version version.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Attach to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          echo "Attaching desktop artifacts to release $TAG..."
+          find artifacts -type f \( -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) | while read f; do
+            echo "  Uploading $(basename $f)..."
+            gh release upload "$TAG" "$f" --clobber
+          done
