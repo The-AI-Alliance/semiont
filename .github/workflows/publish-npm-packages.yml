@@ -15,6 +15,16 @@ on:
         required: false
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+      stable_release:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish:
