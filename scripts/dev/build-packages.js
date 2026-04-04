@@ -30,7 +30,7 @@ console.log('📦 Bundling OpenAPI spec from specs/src/...');
 try {
   execFileSync('npm', ['run', 'openapi:bundle'], {
     stdio: 'inherit',
-    cwd: path.join(__dirname, '..')
+    cwd: path.join(__dirname, '../..')
   });
   console.log('✅ OpenAPI spec bundled successfully\n');
 } catch (error) {
@@ -144,7 +144,7 @@ for (const step of buildSteps) {
     // Build the package/app
     execFileSync('npm', ['run', 'build', `--workspace=${step.name}`], {
       stdio: 'inherit',
-      cwd: path.join(__dirname, '..')
+      cwd: path.join(__dirname, '../..')
     });
 
     console.log(`✅ ${step.name} built successfully\n`);
