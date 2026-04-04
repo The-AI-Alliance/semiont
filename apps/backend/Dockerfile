@@ -86,11 +86,17 @@ user = "postgres"
 password = "localpass"
 EOF
 
+ARG ADMIN_EMAIL=admin@example.com
+ARG ADMIN_PASSWORD=password
 ENV NODE_ENV=production
+ENV ADMIN_EMAIL=${ADMIN_EMAIL}
+ENV ADMIN_PASSWORD=${ADMIN_PASSWORD}
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:4000/api/health || exit 1
 
-CMD semiont serve --verbose && \
-    tail -f /home/semiont/.local/state/semiont/app/backend/app.log
+CMD semiont provision --service backend --verbose && \
+    semiont start --service backend --verbose && \
+    semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin --upsert && \
+    tail -f /home/semiont/.local/state/semiont/*/backend/app.log
