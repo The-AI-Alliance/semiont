@@ -117,8 +117,8 @@ for (const step of buildSteps) {
   try {
     // Check if package/app exists
     const basePath = step.type === 'package'
-      ? path.join(__dirname, '..', 'packages', step.name.replace('@semiont/', ''))
-      : path.join(__dirname, '..', 'apps', step.name.replace('semiont-', ''));
+      ? path.join(__dirname, '../..', 'packages', step.name.replace('@semiont/', ''))
+      : path.join(__dirname, '../..', 'apps', step.name.replace('semiont-', ''));
 
     if (!fs.existsSync(basePath)) {
       console.error(`❌ Directory not found: ${basePath}`);
