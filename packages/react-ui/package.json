@@ -1,6 +1,6 @@
 {
   "name": "@semiont/react-ui",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "React components and hooks for Semiont",
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
