@@ -15,24 +15,65 @@
 
 **Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
-Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure. Inference runs on **Anthropic** (cloud) or **Ollama** (local) — mix providers per worker to balance cost, capability, and privacy.
-
-![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
-
 ## Get Started
 
-**[Run Semiont locally](docs/LOCAL-SEMIONT.md)** using published npm packages — no need to clone this repository. Install the CLI, initialize a project, provision services, and start annotating.
+No npm or Node.js required — everything runs in containers.
+
+### Prerequisites
+
+- **Container runtime** — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/)
+- **Inference provider** — an `ANTHROPIC_API_KEY` ([Anthropic Console](https://console.anthropic.com/)) or [Ollama](https://ollama.com/) running locally
+- **Neo4j** — a free cloud instance at [Neo4j Aura](https://neo4j.com/cloud/aura/) or Neo4j running locally
+
+Set your credentials:
+
+```bash
+export NEO4J_URI=<your-neo4j-uri>
+export NEO4J_USERNAME=<your-neo4j-username>
+export NEO4J_PASSWORD=<your-neo4j-password>
+export NEO4J_DATABASE=<your-neo4j-database>
+export ANTHROPIC_API_KEY=<your-api-key>
+```
+
+### Clone a knowledge base and run
+
+```bash
+git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
+cd gutenberg-kb
+```
+
+Start the backend (builds containers, starts PostgreSQL and the API server):
+
+```bash
+.semiont/scripts/local_backend.sh
+```
+
+The script stays attached and streams logs. Open a second terminal for the frontend:
+
+```bash
+.semiont/scripts/local_frontend.sh
+```
+
+Open **http://localhost:3000**. Enter **http://localhost:4000** as the knowledge base URL and log in with the credentials created during backend setup.
+
+See **[Run Semiont locally](docs/LOCAL-SEMIONT.md)** for the npm-based alternative.
 
 ## Semiont Knowledge Bases
 
-Ready-to-run knowledge base repositories you can load directly into Semiont:
+| Knowledge Base | Description |
+|---|---|
+| **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** | Public domain literature from Project Gutenberg |
+| `git clone https://github.com/The-AI-Alliance/gutenberg-kb.git` | |
+| **[synthetic_family](https://github.com/pingel-org/synthetic_family)** | A synthetic family dataset for testing and exploration |
+| `git clone https://github.com/pingel-org/synthetic_family.git` | |
 
-- **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — Public domain literature from Project Gutenberg
-- **[synthetic_family](https://github.com/pingel-org/synthetic_family)** — A synthetic family dataset for testing and exploration
-
-More coming soon.
+Each KB repo includes container-based scripts in `.semiont/scripts/` — see the KB README for details.
 
 ## Why Semiont
+
+Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure. Inference runs on **Anthropic** (cloud) or **Ollama** (local) — mix providers per worker to balance cost, capability, and privacy.
+
+![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
 
 **Eliminate Cold Starts** — Import a set of documents and the seven flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
 
@@ -56,10 +97,7 @@ More coming soon.
 
 ## 📦 Published Artifacts
 
-Semiont publishes npm packages and container images for easy integration and deployment.
-
-- **NPM Packages** - See [packages/README.md](packages/README.md) for available packages and documentation
-- **Container Images** - See [docs/administration/IMAGES.md](docs/administration/IMAGES.md) for Docker images and deployment examples
+- **NPM Packages** — See [packages/README.md](packages/README.md) for available packages and documentation
 
 ## 📖 Documentation
 
@@ -79,7 +117,7 @@ Semiont publishes npm packages and container images for easy integration and dep
 | Application | Description |
 | --- | --- |
 | **[Backend](apps/backend/README.md)** | Hono API server — routes, event bridging, real-time SSE, logging |
-| **[Frontend](apps/frontend/README.md)** | Next.js app — annotations, accessibility, i18n, performance |
+| **[Frontend](apps/frontend/README.md)** | Vite + React SPA — annotations, accessibility, i18n, performance |
 | **[CLI](apps/cli/README.md)** | Environment management, service orchestration, deployment commands |
 
 ## Core Development & Contributing
@@ -109,7 +147,7 @@ semiont/
 │   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
 │   └── docs/                   # API and W3C annotation documentation
 ├── apps/                       # Application packages
-│   ├── frontend/               # Next.js 15 frontend application
+│   ├── frontend/               # Vite + React frontend SPA
 │   ├── backend/                # Hono backend API server
 │   └── cli/                    # Semiont management CLI
 ├── packages/                   # Shared workspace packages (see packages/README.md)
