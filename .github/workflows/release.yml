@@ -79,10 +79,17 @@ jobs:
   npm:
     needs: tag
     if: inputs.dry_run != true
-    uses: ./.github/workflows/publish-npm-packages.yml
-    with:
-      stable_release: true
-    secrets: inherit
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Trigger npm publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run publish-npm-packages.yml --field stable_release=true
+          echo "Triggered publish-npm-packages.yml (stable release)"
 
   desktop:
     needs: tag
