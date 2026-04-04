@@ -4,7 +4,7 @@
 scripts/
 ├── ci/           Build and publish (GitHub Actions + local containers)
 ├── release/      Version management (runs on host — jq + git only)
-├── build/        Dev-time build helpers (requires npm)
+├── dev/        Dev-time build helpers (requires npm)
 ├── lint/         Stylelint plugins and CSS checks
 ├── compliance/   Architecture compliance audits
 └── container/    Container image management
