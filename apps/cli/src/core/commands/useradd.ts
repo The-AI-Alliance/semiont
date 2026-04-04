@@ -37,7 +37,7 @@ import * as path from 'path';
 import { createRequire } from 'module';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 
@@ -321,56 +321,53 @@ export const useraddCommand = new CommandBuilder()
     'semiont useradd --email user@example.com --password mypass123',
     'semiont useradd --email user@example.com --update --password newpass'
   )
-  .args({
-    args: {
-      '--email': {
-        type: 'string',
-        description: 'User email address (required)',
-      },
-      '--name': {
-        type: 'string',
-        description: 'User display name',
-      },
-      '--password': {
-        type: 'string',
-        description: 'Password (prompts if not provided)',
-      },
-      '--generate-password': {
-        type: 'boolean',
-        description: 'Generate random 16-char password',
-        default: false,
-      },
-      '--admin': {
-        type: 'boolean',
-        description: 'Grant admin privileges',
-        default: false,
-      },
-      '--moderator': {
-        type: 'boolean',
-        description: 'Grant moderator privileges',
-        default: false,
-      },
-      '--inactive': {
-        type: 'boolean',
-        description: 'Create inactive user',
-        default: false,
-      },
-      '--update': {
-        type: 'boolean',
-        description: 'Update existing user',
-        default: false,
-      },
-      '--upsert': {
-        type: 'boolean',
-        description: 'Create user if absent, skip silently if already exists',
-        default: false,
-      },
+  .args(withOpsArgs({
+    '--email': {
+      type: 'string',
+      description: 'User email address (required)',
     },
-    aliases: {
-      '-p': '--password',
-      '-g': '--generate-password',
+    '--name': {
+      type: 'string',
+      description: 'User display name',
     },
-  })
+    '--password': {
+      type: 'string',
+      description: 'Password (prompts if not provided)',
+    },
+    '--generate-password': {
+      type: 'boolean',
+      description: 'Generate random 16-char password',
+      default: false,
+    },
+    '--admin': {
+      type: 'boolean',
+      description: 'Grant admin privileges',
+      default: false,
+    },
+    '--moderator': {
+      type: 'boolean',
+      description: 'Grant moderator privileges',
+      default: false,
+    },
+    '--inactive': {
+      type: 'boolean',
+      description: 'Create inactive user',
+      default: false,
+    },
+    '--update': {
+      type: 'boolean',
+      description: 'Update existing user',
+      default: false,
+    },
+    '--upsert': {
+      type: 'boolean',
+      description: 'Create user if absent, skip silently if already exists',
+      default: false,
+    },
+  }, {
+    '-p': '--password',
+    '-g': '--generate-password',
+  }))
   .schema(UseraddOptionsSchema)
   .handler(useradd)
   .build();

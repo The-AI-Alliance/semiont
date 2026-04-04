@@ -9,10 +9,12 @@ Clone a knowledge base repository and run the backend script:
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
-.semiont/scripts/local_backend.sh
+.semiont/scripts/local_backend.sh --email admin@example.com --password password
 ```
 
-The script starts PostgreSQL and the backend in containers. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites (Neo4j, Anthropic API key).
+The script starts PostgreSQL and the backend in containers. Pass `--email` and `--password` to create an admin user on startup. If omitted, no user is created.
+
+See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites (Neo4j, Anthropic API key).
 
 The authoritative Dockerfile and script live in the Semiont repo:
 - [apps/backend/Dockerfile](../Dockerfile)

@@ -11,7 +11,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -149,47 +149,44 @@ export const provisionCommand = new CommandBuilder()
     'semiont provision --stack data',
     'semiont provision --stack app --force'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to provision (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Provision all services',
-        default: false,
-      },
-      '--stack': {
-        type: 'string',
-        description: 'AWS CDK stack to provision (data or app)',
-        choices: ['data', 'app'],
-      },
-      '--force': {
-        type: 'boolean',
-        description: 'Force provision without prompts',
-        default: false,
-      },
-      '--destroy': {
-        type: 'boolean',
-        description: 'Destroy provisioned resources',
-        default: false,
-      },
-      '--skip-dependencies': {
-        type: 'boolean',
-        description: 'Skip provisioning service dependencies',
-        default: false,
-      },
-      '--rotate-secret': {
-        type: 'boolean',
-        description: 'Force generation of a new JWT_SECRET. Has no effect on other services. Warns if the peer service will be left out of sync.',
-        default: false,
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to provision (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
+    '--all': {
+      type: 'boolean',
+      description: 'Provision all services',
+      default: false,
     },
-  })
+    '--stack': {
+      type: 'string',
+      description: 'AWS CDK stack to provision (data or app)',
+      choices: ['data', 'app'],
+    },
+    '--force': {
+      type: 'boolean',
+      description: 'Force provision without prompts',
+      default: false,
+    },
+    '--destroy': {
+      type: 'boolean',
+      description: 'Destroy provisioned resources',
+      default: false,
+    },
+    '--skip-dependencies': {
+      type: 'boolean',
+      description: 'Skip provisioning service dependencies',
+      default: false,
+    },
+    '--rotate-secret': {
+      type: 'boolean',
+      description: 'Force generation of a new JWT_SECRET. Has no effect on other services. Warns if the peer service will be left out of sync.',
+      default: false,
+    },
+  }, {
+    '-s': '--service',
+  }))
   .schema(ProvisionOptionsSchema)
   .handler(provision)
   .build();

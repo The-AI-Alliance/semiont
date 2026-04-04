@@ -10,7 +10,7 @@ import { CommandResult, createCommandResult } from '../command-result.js';
 import { CommandDescriptor, createCommandDescriptor } from '../command-descriptor.js';
 import { MultiServiceExecutor } from '../multi-service-executor.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { Platform } from '../platform.js';
 import { Service } from '../service-interface.js';
 import { HandlerResult } from '../handlers/types.js';
@@ -121,34 +121,31 @@ export const stopCommand = new CommandBuilder()
     'semiont stop --service backend --force',
     'semiont stop --all'
   )
-  .args({
-    args: {
-      '--service': {
-        type: 'string',
-        description: 'Service to stop (or "all" for all services)',
-      },
-      '--all': {
-        type: 'boolean',
-        description: 'Stop all services',
-        default: false,
-      },
-      '--force': {
-        type: 'boolean',
-        description: 'Force stop without graceful shutdown',
-        default: false,
-      },
-      '--timeout': {
-        type: 'number',
-        description: 'Timeout for graceful shutdown in seconds',
-        default: 3,
-      },
+  .args(withOpsArgs({
+    '--service': {
+      type: 'string',
+      description: 'Service to stop (or "all" for all services)',
     },
-    aliases: {
-      '-s': '--service',
-      '-f': '--force',
-      '-t': '--timeout',
+    '--all': {
+      type: 'boolean',
+      description: 'Stop all services',
+      default: false,
     },
-  })
+    '--force': {
+      type: 'boolean',
+      description: 'Force stop without graceful shutdown',
+      default: false,
+    },
+    '--timeout': {
+      type: 'number',
+      description: 'Timeout for graceful shutdown in seconds',
+      default: 3,
+    },
+  }, {
+    '-s': '--service',
+    '-f': '--force',
+    '-t': '--timeout',
+  }))
   .schema(StopOptionsSchema)
   .handler(stop)
   .build();

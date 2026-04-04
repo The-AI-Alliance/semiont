@@ -92,5 +92,9 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:4000/api/health || exit 1
 
-CMD semiont serve --verbose && \
-    tail -f /home/semiont/.local/state/semiont/app/backend/app.log
+CMD semiont provision --service backend --verbose && \
+    semiont start --service backend --verbose && \
+    if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then \
+      semiont useradd --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --admin --upsert; \
+    fi && \
+    tail -f /home/semiont/.local/state/semiont/*/backend/app.log

@@ -16,7 +16,7 @@ import { Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
-import { OpsOptionsSchema } from '../base-options-schema.js';
+import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
 import { printInfo, printSuccess } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { checkGitAvailable } from '../handlers/preflight-utils.js';
@@ -168,23 +168,20 @@ export const mvCmd = new CommandBuilder()
     'semiont mv docs/old-name.md docs/new-name.md',
     'semiont mv file://docs/old.md file://docs/new.md',
   )
-  .args({
-    args: {
-      '--from': {
-        type: 'string',
-        description: 'Source path or file:// URI',
-      },
-      '--to': {
-        type: 'string',
-        description: 'Destination path or file:// URI',
-      },
-      '--no-git': {
-        type: 'boolean',
-        description: 'Skip git mv even when inside a git repository',
-      },
+  .args(withOpsArgs({
+    '--from': {
+      type: 'string',
+      description: 'Source path or file:// URI',
     },
-    aliases: {},
-  })
+    '--to': {
+      type: 'string',
+      description: 'Destination path or file:// URI',
+    },
+    '--no-git': {
+      type: 'boolean',
+      description: 'Skip git mv even when inside a git repository',
+    },
+  }))
   .schema(MvOptionsSchema)
   .handler(runMv)
   .build();

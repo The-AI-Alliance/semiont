@@ -45,7 +45,7 @@ cd gutenberg-kb
 Start the backend (builds containers, starts PostgreSQL and the API server):
 
 ```bash
-.semiont/scripts/local_backend.sh
+.semiont/scripts/local_backend.sh --email admin@example.com --password password
 ```
 
 The script stays attached and streams logs. Open a second terminal for the frontend:
@@ -54,7 +54,7 @@ The script stays attached and streams logs. Open a second terminal for the front
 .semiont/scripts/local_frontend.sh
 ```
 
-Open **http://localhost:3000**. Enter **http://localhost:4000** as the knowledge base URL. Log in with **admin@example.com** / **password**.
+Open **http://localhost:3000**. Enter **http://localhost:4000** as the knowledge base URL. Log in with the email and password you provided above.
 
 The frontend is also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux) — download from the Releases page.
 
