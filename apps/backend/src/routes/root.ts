@@ -19,49 +19,48 @@ rootRouter.get('/', (c) => {
   <title>Semiont</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Orbitron:wght@700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #0a0a0f;
-      color: #e0e0e0;
-      font-family: 'Orbitron', sans-serif;
+      background: #ffffff;
+      color: #111827;
+      font-family: 'Inter', -apple-system, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 1rem;
+      gap: 0.75rem;
     }
     h1 {
-      font-size: 4rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 3rem;
       font-weight: 700;
-      letter-spacing: 0.2em;
-      color: #00e5ff;
-      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #0066cc;
     }
     h2 {
-      font-size: 1.2rem;
-      font-weight: 400;
-      letter-spacing: 0.4em;
-      color: #888;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: 0.3em;
+      color: #6b7280;
       text-transform: uppercase;
     }
     .meta {
-      margin-top: 2rem;
-      font-size: 0.75rem;
-      letter-spacing: 0.15em;
-      color: #555;
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: #9ca3af;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.3rem;
+      gap: 0.25rem;
     }
     a {
-      color: #00e5ff;
+      color: #0066cc;
       text-decoration: none;
-      letter-spacing: 0.15em;
-      font-size: 0.75rem;
+      font-size: 0.8rem;
     }
     a:hover { text-decoration: underline; }
   </style>
@@ -71,7 +70,7 @@ rootRouter.get('/', (c) => {
   <h2>knowledge base</h2>
   <div class="meta">
     ${siteName ? `<span>${siteName}</span>` : ''}
-    ${projectName ? `<span>project: ${projectName}${projectVersion ? ' v' + projectVersion : ''}</span>` : ''}
+    ${projectName ? `<span>${projectName}${projectVersion ? ' v' + projectVersion : ''}</span>` : ''}
     <a href="/api/health">/api/health</a>
   </div>
 </body>
