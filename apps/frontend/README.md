@@ -188,6 +188,7 @@ Some operations run asynchronously via background job workers:
 ## Documentation
 
 ### Getting Started
+- **[Local Setup](./docs/LOCAL.md)** - Run the frontend locally (container, npm, or desktop app)
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, common tasks, debugging
 - **[Testing Guide](./docs/TESTING.md)** - Test structure, running tests, writing tests
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Publishing and deployment workflows

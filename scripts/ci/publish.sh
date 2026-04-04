@@ -154,8 +154,6 @@ for dir in \
   packages/api-client \
   packages/ontology \
   packages/react-ui \
-  packages/mcp-server \
-  packages/test-utils \
   apps/cli
 do
   publish_pkg "$dir"
