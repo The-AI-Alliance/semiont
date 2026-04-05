@@ -1,4 +1,4 @@
-# Semiont backend with Neo4j and PostgreSQL
+# Semiont backend with Neo4j, Qdrant, and PostgreSQL
 #
 # Usage:
 #   export ANTHROPIC_API_KEY=<your-key>
@@ -20,6 +20,16 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:7474"]
       interval: 10s
       timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 5s
+      timeout: 3s
       retries: 10
 
   postgres:
@@ -47,10 +57,13 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       POSTGRES_HOST: postgres
       NEO4J_HOST: neo4j
+      QDRANT_HOST: qdrant
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-password}
     depends_on:
       neo4j:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
       postgres:
         condition: service_healthy

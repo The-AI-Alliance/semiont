@@ -108,6 +108,32 @@ for i in $(seq 1 30); do
 done
 echo "Neo4j running on bolt://localhost:7687 (browser: http://localhost:7474)"
 
+# --- Qdrant ---
+
+QDRANT_NAME="semiont-qdrant"
+echo ""
+echo "Starting Qdrant..."
+$RT stop "$QDRANT_NAME" 2>/dev/null || true
+sleep 1
+PID_ON_PORT=$(lsof -ti :6333 2>/dev/null || echo "")
+if [[ -n "$PID_ON_PORT" ]]; then
+  kill $PID_ON_PORT 2>/dev/null || true
+  sleep 1
+fi
+
+$RT run -d --rm \
+  --name "$QDRANT_NAME" \
+  -p 6333:6333 \
+  qdrant/qdrant > /dev/null
+
+for i in $(seq 1 15); do
+  if curl -sf http://localhost:6333/healthz > /dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+echo "Qdrant running on http://localhost:6333"
+
 # --- PostgreSQL ---
 
 POSTGRES_NAME="semiont-postgres"
@@ -161,5 +187,6 @@ $RT run --publish 4000:4000 \
   --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   --env POSTGRES_HOST="$HOST_ADDR" \
   --env NEO4J_HOST="$HOST_ADDR" \
+  --env QDRANT_HOST="$HOST_ADDR" \
   "${ADMIN_ARGS[@]}" \
   -it semiont-backend

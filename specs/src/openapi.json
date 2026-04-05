@@ -387,6 +387,9 @@
       "ResourceDescriptor": {
         "$ref": "components/schemas/ResourceDescriptor.json"
       },
+      "SemanticMatch": {
+        "$ref": "components/schemas/SemanticMatch.json"
+      },
       "ResourceLLMContextResponse": {
         "$ref": "components/schemas/ResourceLLMContextResponse.json"
       },

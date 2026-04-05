@@ -17,6 +17,7 @@ import type { EventMap, GatheredContext, Logger, components } from '@semiont/cor
 import { type EventBus, resourceId } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
+import type { EmbeddingProvider } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -30,6 +31,7 @@ export class Matcher {
     private eventBus: EventBus,
     logger: Logger,
     private inferenceClient: InferenceClient,
+    private embeddingProvider?: EmbeddingProvider,
   ) {
     this.logger = logger;
   }
@@ -112,12 +114,14 @@ export class Matcher {
     const connections = context.graphContext?.connections ?? [];
 
     // 1. Multi-source candidate retrieval (parallel)
-    const [nameMatches, entityTypeMatches] = await Promise.all([
+    const [nameMatches, entityTypeMatches, semanticMatches] = await Promise.all([
       this.kb.graph.searchResources(searchTerm),
       annotationEntityTypes.length > 0
         ? this.kb.graph.listResources({ entityTypes: annotationEntityTypes, limit: 50 })
             .then(r => r.resources)
         : Promise.resolve([]),
+      // 4. Semantic match — vector similarity search (if vectors configured)
+      this.searchVectors(searchTerm, annotationEntityTypes),
     ]);
 
     // 3. Graph neighborhood candidates — fetch full resources for connection IDs
@@ -150,10 +154,19 @@ export class Matcher {
       if (r) addCandidate(r, 'neighborhood');
     }
 
+    // Semantic matches need to be resolved to full resources from the graph
+    const semanticScores = new Map<string, number>();
+    for (const sm of semanticMatches) {
+      semanticScores.set(sm.resourceId, sm.score);
+      const resource = await this.kb.graph.getResource(resourceId(sm.resourceId)).catch(() => null);
+      if (resource) addCandidate(resource, 'semantic');
+    }
+
     this.logger.debug('Candidate retrieval', {
       nameMatches: nameMatches.length,
       entityTypeMatches: entityTypeMatches.length,
       neighborResources: neighborResources.filter(Boolean).length,
+      semanticMatches: semanticMatches.length,
       totalCandidates: candidateMap.size,
     });
 
@@ -224,6 +237,13 @@ export class Matcher {
         const ageDays = ageMs / (1000 * 60 * 60 * 24);
         // Up to 5 points for resources created in the last 30 days
         score += Math.max(0, 5 * (1 - ageDays / 30));
+      }
+
+      // Semantic similarity (vector search score, weighted by 25)
+      const semanticScore = semanticScores.get(id);
+      if (semanticScore !== undefined) {
+        score += semanticScore * 25;
+        reasons.push('semantic similarity');
       }
 
       // Multi-source bonus (found by multiple retrieval strategies)
@@ -361,6 +381,34 @@ No explanations.`;
     });
 
     return scores;
+  }
+
+  /**
+   * Search vectors for semantically similar resources.
+   * Returns empty array if vectors or embedding provider are not configured.
+   */
+  private async searchVectors(
+    searchTerm: string,
+    entityTypes: string[],
+  ): Promise<Array<{ resourceId: string; score: number }>> {
+    if (!this.kb.vectors || !this.embeddingProvider || !searchTerm.trim()) return [];
+
+    try {
+      const embedding = await this.embeddingProvider.embed(searchTerm);
+      const results = await this.kb.vectors.searchResources(embedding, {
+        limit: 20,
+        scoreThreshold: 0.4,
+        filter: entityTypes.length > 0 ? { entityTypes } : undefined,
+      });
+
+      return results.map(r => ({
+        resourceId: String(r.resourceId),
+        score: r.score,
+      }));
+    } catch (error) {
+      this.logger.warn('Vector search failed, falling back to structural search', { error });
+      return [];
+    }
   }
 
   async stop(): Promise<void> {

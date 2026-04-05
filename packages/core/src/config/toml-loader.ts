@@ -157,6 +157,22 @@ interface EnvironmentSection {
     password?: string;
   };
   graph?: GraphSection;
+  vectors?: {
+    type?: 'qdrant' | 'memory';
+    host?: string;
+    port?: number;
+    embedding?: {
+      type?: 'voyage' | 'ollama';
+      model?: string;
+      apiKey?: string;
+      baseURL?: string;
+      endpoint?: string;
+    };
+    chunking?: {
+      chunkSize?: number;
+      overlap?: number;
+    };
+  };
   inference?: InferenceFlatSection;
   'make-meaning'?: {
     graph?: Record<string, unknown>;
@@ -424,6 +440,26 @@ export function loadTomlConfig(
       user: resolved.database.user,
       password: resolved.database.password,
     } as EnvironmentConfig['services']['database'];
+  }
+
+  if (resolved.vectors) {
+    services.vectors = {
+      platform: { type: 'external' as PlatformType },
+      type: (resolved.vectors.type ?? 'qdrant') as 'qdrant' | 'memory',
+      host: resolved.vectors.host,
+      port: resolved.vectors.port ?? 6333,
+      embedding: resolved.vectors.embedding ? {
+        type: resolved.vectors.embedding.type!,
+        model: resolved.vectors.embedding.model!,
+        apiKey: resolved.vectors.embedding.apiKey,
+        baseURL: resolved.vectors.embedding.baseURL,
+        endpoint: resolved.vectors.embedding.endpoint,
+      } : undefined,
+      chunking: resolved.vectors.chunking ? {
+        chunkSize: resolved.vectors.chunking.chunkSize ?? 512,
+        overlap: resolved.vectors.chunking.overlap ?? 64,
+      } : undefined,
+    } as EnvironmentConfig['services']['vectors'];
   }
 
   const config: EnvironmentConfig = {

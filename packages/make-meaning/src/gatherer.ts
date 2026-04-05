@@ -21,6 +21,7 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
+import type { EmbeddingProvider } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
 import { AnnotationContext } from './annotation-context';
 import { LLMContext } from './llm-context';
@@ -34,6 +35,7 @@ export class Gatherer {
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
     logger: Logger,
+    private embeddingProvider?: EmbeddingProvider,
   ) {
     this.logger = logger;
   }
@@ -87,6 +89,7 @@ export class Gatherer {
         event.options ?? {},
         this.inferenceClient,
         this.logger,
+        this.embeddingProvider,
       );
 
       this.eventBus.get('gather:complete').next({

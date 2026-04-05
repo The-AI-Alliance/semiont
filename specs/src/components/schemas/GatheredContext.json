@@ -122,6 +122,20 @@
           "description": "LLM-generated summary of the annotation's relationships in the knowledge graph"
         }
       }
+    },
+    "semanticContext": {
+      "type": "object",
+      "description": "Semantically similar passages from across the knowledge base, found via vector search",
+      "properties": {
+        "similar": {
+          "type": "array",
+          "items": {
+            "$ref": "./SemanticMatch.json"
+          },
+          "description": "Passages ranked by cosine similarity to the focal text"
+        }
+      },
+      "required": ["similar"]
     }
   },
   "required": ["annotation", "sourceResource"]
