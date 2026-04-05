@@ -305,7 +305,6 @@ export function SignInForm({
   error,
   showCredentialsAuth = false,
   isLoading = false,
-  Link,
   translations: t,
 }: SignInFormProps) {
   const handleGoogleClick = () => {
