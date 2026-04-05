@@ -145,7 +145,7 @@ export class Smelter {
 
   private async handleResourceCreated(event: ResourceEvent): Promise<void> {
     const rid = makeResourceId(event.resourceId!);
-    const storageUri = (event as any).storageUri;
+    const storageUri = (event as any).payload?.storageUri ?? (event as any).storageUri;
 
     if (!storageUri) return;
 
@@ -198,7 +198,7 @@ export class Smelter {
   }
 
   private async handleAnnotationAdded(event: ResourceEvent): Promise<void> {
-    const annotation = (event as any).annotation as Annotation | undefined;
+    const annotation = ((event as any).payload?.annotation ?? (event as any).annotation) as Annotation | undefined;
     if (!annotation || !annotation.id) return;
 
     const rid = makeResourceId(event.resourceId!);
@@ -239,7 +239,7 @@ export class Smelter {
   }
 
   private async handleAnnotationRemoved(event: ResourceEvent): Promise<void> {
-    const annotationId = (event as any).annotationId as string | undefined;
+    const annotationId = ((event as any).payload?.annotationId ?? (event as any).annotationId) as string | undefined;
     if (!annotationId) return;
 
     const rid = makeResourceId(event.resourceId!);

@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
+import { EventBus, resourceId, userId, CREATION_METHODS } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -109,17 +109,22 @@ describe('Smelter', () => {
   it('calls embed when a resource is created with content', async () => {
     // Store some content first
     const content = Buffer.from('Abraham Lincoln was the 16th president of the United States.');
-    const storageUri = await contentStore.store(content, 'text/plain', 'lincoln.txt');
+    const uri = 'representations/lincoln.txt';
+    await contentStore.store(content, uri);
 
     // Append resource.created event
     await eventStore.appendEvent({
       type: 'resource.created',
       resourceId: resourceId('res-lincoln'),
       userId: userId('user-1'),
-      name: 'Lincoln',
-      storageUri,
-      mediaType: 'text/plain',
-      creationMethod: CREATION_METHODS.UPLOAD,
+      version: 1,
+      payload: {
+        name: 'Lincoln',
+        format: 'text/plain',
+        contentChecksum: 'abc123',
+        creationMethod: CREATION_METHODS.UPLOAD,
+        storageUri: uri,
+      },
     });
 
     await tick();
@@ -128,26 +133,39 @@ describe('Smelter', () => {
   });
 
   it('indexes annotation text into vector store', async () => {
+    // Create resource first
+    await eventStore.appendEvent({
+      type: 'resource.created',
+      resourceId: resourceId('res-1'),
+      userId: userId('user-1'),
+      version: 1,
+      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+    });
+    await tick();
+
     // Append annotation.added event
     await eventStore.appendEvent({
       type: 'annotation.added',
       resourceId: resourceId('res-1'),
       userId: userId('user-1'),
-      annotation: {
-        '@context': 'http://www.w3.org/ns/anno.jsonld',
-        type: 'Annotation',
-        id: 'ann-1',
-        motivation: 'highlighting',
-        target: {
-          type: 'SpecificResource',
-          source: 'res-1',
-          selector: {
-            type: 'TextQuoteSelector',
-            exact: 'Lincoln was a great leader',
+      version: 1,
+      payload: {
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          type: 'Annotation',
+          id: 'ann-1',
+          motivation: 'highlighting',
+          target: {
+            type: 'SpecificResource',
+            source: 'res-1',
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: 'Lincoln was a great leader',
+            },
           },
+          body: [],
+          created: new Date().toISOString(),
         },
-        body: [],
-        created: new Date().toISOString(),
       },
     } as any);
 
