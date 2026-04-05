@@ -2,12 +2,12 @@
 
 <table>
 <tr>
-<td width="40%" valign="top">
+<td width="25%" valign="top">
 
 **Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
 </td>
-<td width="60%">
+<td width="75%">
 <img src="website/assets/images/semiont-2026-03-10.png" alt="Semiont screenshot" />
 </td>
 </tr>
@@ -31,7 +31,7 @@ git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
 ```
 
-Start the backend (builds containers, starts PostgreSQL and the API server):
+Start the backend (builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server):
 
 ```bash
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
@@ -113,7 +113,6 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 
 > ⚠️ **Early Development**: Semiont is in active alpha development. The API is not yet stable and breaking changes are expected. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to participate.
 
-[![Development Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/The-AI-Alliance/semiont)
 [![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
 [![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml?query=branch%3Amain)
