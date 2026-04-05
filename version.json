@@ -15,6 +15,7 @@
     "@semiont/cli": "0.4.13",
     "semiont-backend": "0.4.13",
     "semiont-frontend": "0.4.13",
-    "@semiont/test-utils": "0.4.13"
+    "@semiont/test-utils": "0.4.13",
+    "@semiont/vectors": "0.4.13"
   }
 }
