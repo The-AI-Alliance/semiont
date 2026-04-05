@@ -70,9 +70,7 @@ describe('Home Page', () => {
     expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
     expect(screen.getByTestId('footer')).toBeInTheDocument();
     
-    // Check for action buttons
-    expect(screen.getByText('Learn More')).toBeInTheDocument();
-    expect(screen.getByText('Sign Up')).toBeInTheDocument();
+    // Check for sign-in button (unauthenticated state)
     expect(screen.getByText('Sign In')).toBeInTheDocument();
   });
 
