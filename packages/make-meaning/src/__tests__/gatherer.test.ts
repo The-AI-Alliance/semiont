@@ -119,6 +119,7 @@ describe('Gatherer', () => {
         {},
         mockInferenceClient,
         mockLogger,
+        undefined,
       );
     });
 

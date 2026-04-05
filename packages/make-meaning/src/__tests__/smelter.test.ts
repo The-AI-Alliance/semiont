@@ -109,8 +109,8 @@ describe('Smelter', () => {
   it('calls embed when a resource is created with content', async () => {
     // Store some content first
     const content = Buffer.from('Abraham Lincoln was the 16th president of the United States.');
-    const uri = 'representations/lincoln.txt';
-    await contentStore.store(content, uri);
+    const uri = 'file://lincoln.txt';
+    await contentStore.store(content, uri, { noGit: true });
 
     // Append resource.created event
     await eventStore.appendEvent({
