@@ -157,7 +157,7 @@
     "errorGeneric": "एक प्रमाणीकरण त्रुटि हुई। कृपया पुनः प्रयास करें।",
     "errorGoogleSignIn": "Google साइन-इन आरंभ करने में विफल। कृपया पुनः प्रयास करें।",
     "backendUrlLabel": "बैकएंड URL",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "कृपया बैकएंड URL दर्ज करें",
     "errorBackendUrlInvalid": "कृपया एक मान्य URL दर्ज करें (उदा. http://localhost:4000)",
     "errorBackendUrlUnreachable": "उस URL तक नहीं पहुँचा जा सका — क्या बैकएंड चल रहा है?",

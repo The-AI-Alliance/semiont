@@ -157,7 +157,7 @@
     "errorGeneric": "একটি যাচাইকরণ ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
     "errorGoogleSignIn": "Google সাইন-ইন শুরু করতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
     "backendUrlLabel": "ব্যাকএন্ড URL",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "অনুগ্রহ করে ব্যাকএন্ড URL লিখুন",
     "errorBackendUrlInvalid": "একটি বৈধ URL লিখুন (যেমন: http://localhost:4000)",
     "errorBackendUrlUnreachable": "সেই URL-এ পৌঁছানো যাচ্ছে না — ব্যাকএন্ড কি চলছে?",

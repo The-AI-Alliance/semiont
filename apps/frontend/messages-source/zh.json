@@ -157,7 +157,7 @@
     "errorGeneric": "发生身份验证错误。请重试。",
     "errorGoogleSignIn": "无法启动 Google 登录。请重试。",
     "backendUrlLabel": "后端URL",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "请输入后端URL",
     "errorBackendUrlInvalid": "请输入有效的 URL（例如：http://localhost:4000）",
     "errorBackendUrlUnreachable": "无法连接到该 URL——后端是否正在运行？",

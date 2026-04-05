@@ -157,7 +157,7 @@
     "errorGeneric": "Ralat pengesahan telah berlaku. Sila cuba lagi.",
     "errorGoogleSignIn": "Gagal memulakan log masuk Google. Sila cuba lagi.",
     "backendUrlLabel": "URL Backend",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Sila masukkan URL backend",
     "errorBackendUrlInvalid": "Sila masukkan URL yang sah (cth. http://localhost:4000)",
     "errorBackendUrlUnreachable": "URL tersebut tidak dapat dicapai — adakah backend sedang berjalan?",

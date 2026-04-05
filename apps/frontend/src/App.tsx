@@ -64,7 +64,9 @@ function RootRedirect() {
   useEffect(() => {
     const browserLocale = navigator.language.split('-')[0] ?? DEFAULT_LOCALE;
     const locale = isSupportedLocale(browserLocale) ? browserLocale : DEFAULT_LOCALE;
-    navigate(`/${locale}`, { replace: true });
+    // Desktop app: skip landing page, go straight to the workspace
+    const isDesktop = '__TAURI_INTERNALS__' in window;
+    navigate(isDesktop ? `/${locale}/know/discover` : `/${locale}`, { replace: true });
   }, [navigate]);
 
   return null;

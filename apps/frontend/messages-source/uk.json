@@ -157,7 +157,7 @@
     "errorGeneric": "Виникла помилка автентифікації. Будь ласка, спробуйте ще раз.",
     "errorGoogleSignIn": "Не вдалося розпочати вхід через Google. Будь ласка, спробуйте ще раз.",
     "backendUrlLabel": "URL бекенду",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Будь ласка, введіть URL бекенду",
     "errorBackendUrlInvalid": "Введіть дійсну URL-адресу (наприклад: http://localhost:4000)",
     "errorBackendUrlUnreachable": "Не вдається досягти цієї URL-адреси — чи запущено бекенд?",

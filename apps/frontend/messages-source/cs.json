@@ -157,7 +157,7 @@
     "errorGeneric": "Došlo k chybě ověření. Zkuste to prosím znovu.",
     "errorGoogleSignIn": "Nepodařilo se zahájit přihlášení přes Google. Zkuste to prosím znovu.",
     "backendUrlLabel": "URL backendu",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Zadejte prosím URL backendu",
     "errorBackendUrlInvalid": "Zadejte platnou adresu URL (např. http://localhost:4000)",
     "errorBackendUrlUnreachable": "Na tuto adresu URL nelze dosáhnout — je backend spuštěn?",

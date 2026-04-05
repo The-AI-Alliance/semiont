@@ -157,7 +157,7 @@
     "errorGeneric": "خطایی در احراز هویت رخ داد. لطفاً دوباره تلاش کنید.",
     "errorGoogleSignIn": "شروع ورود با Google ناموفق بود. لطفاً دوباره تلاش کنید.",
     "backendUrlLabel": "آدرس URL بک‌اند",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "لطفاً آدرس URL بک‌اند را وارد کنید",
     "errorBackendUrlInvalid": "لطفاً یک URL معتبر وارد کنید (مثال: http://localhost:4000)",
     "errorBackendUrlUnreachable": "این URL در دسترس نیست — آیا سرور پشتیبان در حال اجرا است؟",

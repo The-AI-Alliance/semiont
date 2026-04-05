@@ -157,7 +157,7 @@
     "errorGeneric": "Παρουσιάστηκε σφάλμα ελέγχου ταυτότητας. Παρακαλώ δοκιμάστε ξανά.",
     "errorGoogleSignIn": "Αποτυχία εκκίνησης σύνδεσης Google. Παρακαλώ δοκιμάστε ξανά.",
     "backendUrlLabel": "URL backend",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Εισαγάγετε τη διεύθυνση URL backend",
     "errorBackendUrlInvalid": "Εισάγετε μια έγκυρη διεύθυνση URL (π.χ. http://localhost:4000)",
     "errorBackendUrlUnreachable": "Δεν είναι δυνατή η πρόσβαση σε αυτήν τη διεύθυνση URL — λειτουργεί το backend;",

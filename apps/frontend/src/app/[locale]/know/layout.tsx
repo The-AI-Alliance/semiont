@@ -81,6 +81,7 @@ export default function KnowledgeLayout() {
                     routes={routes}
                     t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
                     CookiePreferences={CookiePreferences}
+                    showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
                     {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
                   />
                 </div>

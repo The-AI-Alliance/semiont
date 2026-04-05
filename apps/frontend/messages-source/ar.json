@@ -157,7 +157,7 @@
     "errorGeneric": "حدث خطأ في المصادقة. يرجى المحاولة مرة أخرى.",
     "errorGoogleSignIn": "فشل بدء تسجيل الدخول عبر Google. يرجى المحاولة مرة أخرى.",
     "backendUrlLabel": "عنوان URL للخادم الخلفي",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "يرجى إدخال عنوان URL للخادم الخلفي",
     "errorBackendUrlInvalid": "يرجى إدخال عنوان URL صالح (مثال: http://localhost:4000)",
     "errorBackendUrlUnreachable": "تعذّر الوصول إلى هذا العنوان — هل الخادم الخلفي يعمل؟",

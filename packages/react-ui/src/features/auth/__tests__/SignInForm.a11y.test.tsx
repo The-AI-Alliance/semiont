@@ -30,7 +30,7 @@ const mockTranslations = {
   signInPrompt: 'Sign in to your knowledge workspace',
   continueWithGoogle: 'Continue with Google',
   backendUrlLabel: 'Backend URL',
-  backendUrlPlaceholder: 'https://your-semiont-server.com',
+  backendUrlPlaceholder: 'http://localhost:4000',
   emailLabel: 'Email',
   emailPlaceholder: 'your@email.com',
   passwordLabel: 'Password',
