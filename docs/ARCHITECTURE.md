@@ -110,35 +110,27 @@ AI actors connect to an event bus via REST + JWT or MCP protocol. They emit the 
 
 ### Knowledge System
 
-The **Knowledge System** binds the Knowledge Base to its actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
+The **Knowledge System** binds the Knowledge Base to its five actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
 
-The knowledge base itself is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide.
-
-The four primary actors are the interfaces to the Knowledge Base:
-
-- **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
-- **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores, including semantic similarity search via vectors
-- **Matcher** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources, combining structural signals with semantic similarity scoring
-- **Browser** (directory reads) — subscribes to `browse:directory-requested` events and reads resource content from the content store, merging it with KB metadata from materialized views
-- **Smelter** (vector projection) — subscribes to resource and annotation events, chunks text, computes embeddings, persists them as events, and indexes into the vector store
-
-All five are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+The knowledge base itself is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide. Five reactive actors mediate all access: **Stower** (write), **Gatherer** (read context), **Matcher** (read search), **Browser** (read directory), and **Smelter** (vector projection). All five subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 ```mermaid
 ---
-title: Knowledge System (per project)
+title: Knowledge System
 ---
 graph TB
-    BE["Backend<br/>(Event Bus)"]
+    API["HTTP API<br/>(backend)"]
+    BE["Event Bus<br/>(RxJS)"]
     DB[("Users DB<br/>(PostgreSQL)")]
 
-    BE --> DB
+    API --> BE
+    API --> DB
 
-    BE -->|"RxJS: mark, yield"| STOWER["Stower"]
-    BE -->|"RxJS: gather"| GATHERER["Gatherer"]
-    BE -->|"RxJS: match"| MATCHER["Matcher"]
-    BE -->|"RxJS: browse"| BROWSER["Browser"]
-    BE -->|"RxJS: resource, annotation"| SMELTER["Smelter"]
+    BE -->|"mark, yield"| STOWER["Stower"]
+    BE -->|"gather"| GATHERER["Gatherer"]
+    BE -->|"match"| MATCHER["Matcher"]
+    BE -->|"browse"| BROWSER["Browser"]
+    BE -->|"resource, annotation"| SMELTER["Smelter"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
@@ -175,7 +167,7 @@ graph TB
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
-    class BE backend
+    class API,BE backend
     class DB,EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
     class STOWER,GATHERER,MATCHER,BROWSER,SMELTER worker
 ```
@@ -202,7 +194,7 @@ The Matcher is the read actor for entity resolution. When an Analyst or Linker A
 
 ### Browser
 
-The Browser is the directory read actor. When a client emits a `browse:directory-requested` event (e.g. from the CLI or the UI file navigator), the Browser performs a prefix scan of the materialized views for tracked resources under the requested path and reads their content from the content store, then merges the result with any untracked entries. Each entry in the result is either a bare entry (`tracked: false`) or an enriched one carrying KB metadata (resource ID, entity types, annotation count, creator). It enforces a path confinement invariant: all resolved paths must remain within `project.root`.
+The Browser is the read actor for navigation and content retrieval. It handles directory listings, resource reads, and annotation lookups — everything the UI and CLI need to present the knowledge base to a user. For directory requests, it performs a prefix scan of the materialized views for tracked resources under the requested path, reads their content from the content store, and merges the result with untracked entries. Each entry is either bare (`tracked: false`) or enriched with KB metadata (resource ID, entity types, annotation count, creator). It enforces a path confinement invariant: all resolved paths must remain within `project.root`.
 
 ### Smelter
 
@@ -261,7 +253,7 @@ Domain Layer:
 AI Layer:
   @semiont/inference      - LLM integration (Anthropic, OpenAI, local)
   @semiont/jobs           - Job queue and annotation workers
-  @semiont/make-meaning   - Stower, Gatherer, Matcher, Browser — the KB actor implementations
+  @semiont/make-meaning   - Stower, Gatherer, Matcher, Browser, Smelter — the KB actor implementations
 
 UI Layer:
   @semiont/react-ui       - React components, hooks, and context providers
