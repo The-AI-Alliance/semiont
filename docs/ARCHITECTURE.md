@@ -119,9 +119,12 @@ The knowledge base itself is not an intelligent actor. It has no goals, preferen
 title: Knowledge System
 ---
 graph TB
-    API["HTTP API<br/>(backend)"]
+    subgraph top [" "]
+        direction LR
+        API["HTTP API<br/>(backend)"]
+        DB[("Users DB<br/>(PostgreSQL)")]
+    end
     BE["Event Bus<br/>(RxJS)"]
-    DB[("Users DB<br/>(PostgreSQL)")]
 
     API --> BE
     API --> DB
@@ -170,6 +173,8 @@ graph TB
     class API,BE backend
     class DB,EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
     class STOWER,GATHERER,MATCHER,BROWSER,SMELTER worker
+
+    style top fill:none,stroke:none
 ```
 
 | Store | Purpose | Access Pattern |
