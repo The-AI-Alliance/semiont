@@ -219,15 +219,15 @@ Content sources:
 
 The seven flows are verbs that actors perform. Each flow is a conversation between one or more intelligent actors and the knowledge base, mediated by the event bus:
 
-| Flow | Verb | Who does it | What happens |
-|------|------|-------------|-------------|
-| **[Mark](flows/MARK.md)** | Annotate | Analyst, Author, Marker Agent | Create W3C annotations on resources |
-| **[Browse](flows/BROWSE.md)** | Navigate | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
-| **[Beckon](flows/BECKON.md)** | Focus | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
-| **[Match](flows/MATCHER.md)** | Search | Analyst, Linker Agent, Matcher | Retrieve and rank candidate resources for an entity reference |
-| **[Bind](flows/BIND.md)** | Link | Analyst, Linker Agent, Matcher | Resolve references to concrete resources |
-| **[Gather](flows/GATHER.md)** | Contextualize | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
-| **[Yield](flows/YIELD.md)** | Create | Author, Generator Agent, Content Streams | Produce new resources in the knowledge base |
+| Flow | Who does it | What happens |
+|------|-------------|-------------|
+| **[Mark](flows/MARK.md)** | Analyst, Author, Marker Agent | Create W3C annotations on resources |
+| **[Browse](flows/BROWSE.md)** | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
+| **[Beckon](flows/BECKON.md)** | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
+| **[Match](flows/MATCHER.md)** | Analyst, Linker Agent, Matcher | Retrieve and rank candidate resources for an entity reference |
+| **[Bind](flows/BIND.md)** | Analyst, Linker Agent, Matcher | Resolve references to concrete resources |
+| **[Gather](flows/GATHER.md)** | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
+| **[Yield](flows/YIELD.md)** | Author, Generator Agent, Content Streams | Produce new resources in the knowledge base |
 
 ## Why This Matters
 
