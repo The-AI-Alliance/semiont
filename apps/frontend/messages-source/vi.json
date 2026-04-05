@@ -157,7 +157,7 @@
     "errorGeneric": "Đã xảy ra lỗi xác thực. Vui lòng thử lại.",
     "errorGoogleSignIn": "Không thể khởi tạo đăng nhập Google. Vui lòng thử lại.",
     "backendUrlLabel": "URL Backend",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Vui lòng nhập URL backend",
     "errorBackendUrlInvalid": "Vui lòng nhập URL hợp lệ (ví dụ: http://localhost:4000)",
     "errorBackendUrlUnreachable": "Không thể kết nối đến URL đó — backend có đang chạy không?",

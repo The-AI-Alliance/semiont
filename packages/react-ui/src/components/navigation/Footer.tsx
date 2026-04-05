@@ -12,8 +12,9 @@ interface FooterProps {
   t: TranslateFn;
   CookiePreferences?: React.ComponentType<{ isOpen: boolean; onClose: () => void }>;
   onOpenKeyboardHelp?: () => void;
-  apiDocsUrl?: string;
   sourceCodeUrl?: string;
+  /** Show About, Privacy Policy, Terms of Service, Cookie Preferences links. False for desktop apps. */
+  showPolicyLinks?: boolean;
 }
 
 export function Footer({
@@ -22,8 +23,8 @@ export function Footer({
   t,
   CookiePreferences,
   onOpenKeyboardHelp,
-  apiDocsUrl = '/api/docs',
-  sourceCodeUrl = 'https://github.com/The-AI-Alliance/semiont'
+  sourceCodeUrl = 'https://github.com/The-AI-Alliance/semiont',
+  showPolicyLinks = true,
 }: FooterProps) {
   const [showCookiePreferences, setShowCookiePreferences] = useState(false);
 
@@ -37,25 +38,35 @@ export function Footer({
             </div>
 
             <div className="semiont-footer__links">
-              <Link
-                href={routes.about?.() || '/about'}
-                className="semiont-footer__link"
-              >
-                {t('about')}
-              </Link>
-              <Link
-                href={routes.privacy?.() || '/privacy'}
-                className="semiont-footer__link"
-              >
-                {t('privacyPolicy')}
-              </Link>
-              {CookiePreferences && (
-                <button
-                  onClick={() => setShowCookiePreferences(true)}
-                  className="semiont-footer__link"
-                >
-                  {t('cookiePreferences')}
-                </button>
+              {showPolicyLinks && (
+                <>
+                  <Link
+                    href={routes.about?.() || '/about'}
+                    className="semiont-footer__link"
+                  >
+                    {t('about')}
+                  </Link>
+                  <Link
+                    href={routes.privacy?.() || '/privacy'}
+                    className="semiont-footer__link"
+                  >
+                    {t('privacyPolicy')}
+                  </Link>
+                  {CookiePreferences && (
+                    <button
+                      onClick={() => setShowCookiePreferences(true)}
+                      className="semiont-footer__link"
+                    >
+                      {t('cookiePreferences')}
+                    </button>
+                  )}
+                  <Link
+                    href={routes.terms?.() || '/terms'}
+                    className="semiont-footer__link"
+                  >
+                    {t('termsOfService')}
+                  </Link>
+                </>
               )}
               {onOpenKeyboardHelp && (
                 <button
@@ -68,20 +79,6 @@ export function Footer({
                   </kbd>
                 </button>
               )}
-              <Link
-                href={routes.terms?.() || '/terms'}
-                className="semiont-footer__link"
-              >
-                {t('termsOfService')}
-              </Link>
-              <a
-                href={apiDocsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="semiont-footer__link"
-              >
-                {t('apiDocs')}
-              </a>
               <a
                 href={sourceCodeUrl}
                 target="_blank"
@@ -95,7 +92,7 @@ export function Footer({
         </div>
       </footer>
 
-      {CookiePreferences && (
+      {showPolicyLinks && CookiePreferences && (
         <CookiePreferences
           isOpen={showCookiePreferences}
           onClose={() => setShowCookiePreferences(false)}

@@ -157,7 +157,7 @@
     "errorGeneric": "A apărut o eroare de autentificare. Vă rugăm să încercați din nou.",
     "errorGoogleSignIn": "Nu s-a putut iniția autentificarea cu Google. Vă rugăm să încercați din nou.",
     "backendUrlLabel": "URL backend",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Vă rugăm să introduceți URL-ul backend",
     "errorBackendUrlInvalid": "Introduceți un URL valid (ex. http://localhost:4000)",
     "errorBackendUrlUnreachable": "Acel URL nu este accesibil — rulează backend-ul?",

@@ -93,22 +93,6 @@ describe('Footer Component', () => {
       expect(termsLink).toHaveAttribute('href', '/terms');
     });
 
-    it('should render API Docs link with default URL', () => {
-      render(
-        <Footer
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-        />
-      );
-
-      const apiDocsLink = screen.getByText('footer.apiDocs');
-      expect(apiDocsLink).toBeInTheDocument();
-      expect(apiDocsLink).toHaveAttribute('href', '/api/docs');
-      expect(apiDocsLink).toHaveAttribute('target', '_blank');
-      expect(apiDocsLink).toHaveAttribute('rel', 'noopener noreferrer');
-    });
-
     it('should render Source Code link with default URL', () => {
       render(
         <Footer
@@ -272,20 +256,6 @@ describe('Footer Component', () => {
   });
 
   describe('Custom URLs', () => {
-    it('should use custom API Docs URL', () => {
-      render(
-        <Footer
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          apiDocsUrl="/custom/api/docs"
-        />
-      );
-
-      const apiDocsLink = screen.getByText('footer.apiDocs');
-      expect(apiDocsLink).toHaveAttribute('href', '/custom/api/docs');
-    });
-
     it('should use custom Source Code URL', () => {
       render(
         <Footer
@@ -410,9 +380,6 @@ describe('Footer Component', () => {
           t={mockT}
         />
       );
-
-      const apiDocsLink = screen.getByText('footer.apiDocs');
-      expect(apiDocsLink).toHaveAttribute('rel', 'noopener noreferrer');
 
       const sourceLink = screen.getByText('footer.sourceCode');
       expect(sourceLink).toHaveAttribute('rel', 'noopener noreferrer');

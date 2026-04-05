@@ -157,7 +157,7 @@
     "errorGeneric": "Tunnistautumisvirhe tapahtui. Yritä uudelleen.",
     "errorGoogleSignIn": "Google-kirjautumisen aloittaminen epäonnistui. Yritä uudelleen.",
     "backendUrlLabel": "Backend-URL",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Anna backend-URL",
     "errorBackendUrlInvalid": "Anna kelvollinen URL-osoite (esim. http://localhost:4000)",
     "errorBackendUrlUnreachable": "Tähän URL-osoitteeseen ei saada yhteyttä — onko taustajärjestelmä käynnissä?",

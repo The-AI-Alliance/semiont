@@ -157,7 +157,7 @@
     "errorGeneric": "Det oppstod en autentiseringsfeil. Vennligst prøv igjen.",
     "errorGoogleSignIn": "Kunne ikke starte Google-innlogging. Vennligst prøv igjen.",
     "backendUrlLabel": "Backend URL",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Vennligst skriv inn backend URL",
     "errorBackendUrlInvalid": "Skriv inn en gyldig URL (f.eks. http://localhost:4000)",
     "errorBackendUrlUnreachable": "Den URL-en er ikke tilgjengelig — kjører backend?",

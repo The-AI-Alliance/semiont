@@ -305,7 +305,6 @@ export function SignInForm({
   error,
   showCredentialsAuth = false,
   isLoading = false,
-  Link,
   translations: t,
 }: SignInFormProps) {
   const handleGoogleClick = () => {
@@ -374,18 +373,6 @@ export function SignInForm({
             )}
           </div>
 
-          {/* Navigation Links */}
-          <div className="semiont-auth__links">
-            <Link href="/" className={buttonStyles.secondary.base}>
-              {t.backToHome}
-            </Link>
-            <Link href="/about" className={buttonStyles.secondary.base}>
-              {t.learnMore}
-            </Link>
-            <Link href="/auth/signup" className={buttonStyles.primary.base}>
-              {t.signUpInstead}
-            </Link>
-          </div>
         </div>
       </div>
     </main>

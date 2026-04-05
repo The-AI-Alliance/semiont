@@ -157,7 +157,7 @@
     "errorGeneric": "An authentication error occurred. Please try again.",
     "errorGoogleSignIn": "Failed to initiate Google sign-in. Please try again.",
     "backendUrlLabel": "Backend URL",
-    "backendUrlPlaceholder": "https://your-semiont-backend.example.com",
+    "backendUrlPlaceholder": "http://localhost:4000",
     "errorBackendUrlRequired": "Please enter the backend URL",
     "errorBackendUrlInvalid": "Please enter a valid URL (e.g. http://localhost:4000)",
     "errorBackendUrlUnreachable": "Cannot reach that URL — is the backend running?",

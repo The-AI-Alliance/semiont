@@ -49,17 +49,9 @@ export default function Home() {
                     </Link>
                   </>
                 ) : (
-                  <>
-                    <Link to="/about" className={buttonStyles.secondary.base}>
-                      {t('learnMore')}
-                    </Link>
-                    <Link to="/auth/signup" className={buttonStyles.primary.base}>
-                      {t('signUp')}
-                    </Link>
-                    <Link to="/auth/connect?callbackUrl=/know" className={buttonStyles.primary.base}>
-                      {t('signIn')}
-                    </Link>
-                  </>
+                  <Link to="/auth/connect?callbackUrl=/know" className={buttonStyles.primary.base}>
+                    {t('signIn')}
+                  </Link>
                 )}
               </div>
             </div>
@@ -72,6 +64,7 @@ export default function Home() {
         routes={routes}
         t={tFooter}
         CookiePreferences={CookiePreferences}
+        showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
         {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
       />
     </div>
