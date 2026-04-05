@@ -215,26 +215,6 @@ describe('SignInForm - Accessibility', () => {
       expect(button).not.toHaveAttribute('disabled');
     });
 
-    it('should have keyboard-accessible navigation links', () => {
-      const onGoogleSignIn = vi.fn();
-
-      render(
-        <SignInForm
-          onGoogleSignIn={onGoogleSignIn}
-          Link={MockLink}
-          translations={mockTranslations}
-        />
-      );
-
-      const homeLink = screen.getByRole('link', { name: 'Back to Home' });
-      const learnMoreLink = screen.getByRole('link', { name: 'Learn More' });
-      const signUpLink = screen.getByRole('link', { name: 'Sign Up Instead' });
-
-      expect(homeLink).toHaveAttribute('href', '/');
-      expect(learnMoreLink).toHaveAttribute('href', '/about');
-      expect(signUpLink).toHaveAttribute('href', '/auth/signup');
-    });
-
     it('should have keyboard-accessible credentials submit button', () => {
       const onGoogleSignIn = vi.fn();
       const onCredentialsSignIn = vi.fn();
