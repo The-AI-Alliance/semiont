@@ -20,7 +20,7 @@ No public business methods. All interaction is via EventBus commands. See [Archi
 
 ### Gatherer
 
-Read actor. Handles all browse reads, context assembly, and entity type listing.
+Read actor. Handles all browse reads, context assembly, entity type listing, and vector semantic search (adds `semanticContext` to `GatheredContext` when a VectorStore is available).
 
 **Implementation**: [src/gatherer.ts](../src/gatherer.ts)
 
@@ -45,7 +45,7 @@ Responds to:
 
 ### Matcher
 
-Search/link actor. Searches KB stores for entity resolution, context-driven search with composite scoring, and graph queries. When an `InferenceClient` is provided, the Matcher also performs LLM-based semantic relevance scoring of search candidates (GraphRAG-style).
+Search/link actor. Searches KB stores for entity resolution, context-driven search with composite scoring, and graph queries. Retrieves candidates from four sources (name match, entity type filter, graph neighborhood, vector semantic search) with vector similarity weighted at 25. When an `InferenceClient` is provided, the Matcher also performs LLM-based semantic relevance scoring of search candidates (GraphRAG-style).
 
 **Implementation**: [src/matcher.ts](../src/matcher.ts)
 
@@ -60,6 +60,26 @@ await matcher.stop();
 Responds to:
 - `bind:search-requested` → context-driven search when `context` field is present, plain search otherwise → emits `bind:search-results` or `bind:search-failed`
 - `bind:referenced-by-requested` → emits `bind:referenced-by-result` or `bind:referenced-by-failed`
+
+### Smelter
+
+Embedding pipeline actor. Subscribes to resource and annotation events, chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), persists `embedding:computed` events, and indexes vectors into the VectorStore (Qdrant or memory).
+
+**Implementation**: [src/smelter.ts](../src/smelter.ts)
+
+```typescript
+import { Smelter } from '@semiont/make-meaning';
+
+const smelter = new Smelter(kb, eventBus, vectorStore, embeddingProvider, logger, chunkingConfig);
+await smelter.initialize();
+await smelter.stop();
+```
+
+Responds to:
+- `yield:created` → chunks and embeds resource text, indexes into VectorStore → emits `embedding:computed`
+- `mark:created` → chunks and embeds annotation text → emits `embedding:computed`
+- `mark:body-updated` → re-chunks and re-embeds annotation text → emits `embedding:computed`
+- `yield:moved` / resource deleted → removes vectors from index → emits `embedding:deleted`
 
 ### CloneTokenManager
 
@@ -318,6 +338,8 @@ export interface KnowledgeBase {
   views: ViewStorage;
   content: RepresentationStore;
   graph: GraphDatabase;
+  vectors?: VectorStore;   // Optional — Qdrant or memory (from @semiont/vectors)
+  smelter?: Smelter;       // Optional — embedding pipeline actor
 }
 
 export function createKnowledgeBase(
@@ -326,6 +348,8 @@ export function createKnowledgeBase(
   projectRoot: string | undefined,
   graphDb: GraphDatabase,
   logger: Logger,
+  vectorStore?: VectorStore,
+  smelter?: Smelter,
 ): KnowledgeBase
 ```
 

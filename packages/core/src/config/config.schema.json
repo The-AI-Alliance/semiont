@@ -443,6 +443,63 @@
       ],
       "additionalProperties": false
     },
+    "VectorsServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["qdrant", "memory"],
+          "default": "qdrant"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "default": 6333
+        },
+        "embedding": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["voyage", "ollama"]
+            },
+            "model": {
+              "type": "string"
+            },
+            "apiKey": {
+              "type": "string"
+            },
+            "baseURL": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
+            }
+          },
+          "required": ["type", "model"]
+        },
+        "chunking": {
+          "type": "object",
+          "properties": {
+            "chunkSize": {
+              "type": "integer",
+              "default": 512
+            },
+            "overlap": {
+              "type": "integer",
+              "default": 64
+            }
+          }
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
     "DatabaseServiceConfig": {
       "type": "object",
       "properties": {
@@ -1048,6 +1105,9 @@
         },
         "mcp": {
           "$ref": "#/definitions/McpServiceConfig"
+        },
+        "vectors": {
+          "$ref": "#/definitions/VectorsServiceConfig"
         }
       },
       "additionalProperties": true

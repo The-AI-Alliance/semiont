@@ -10,6 +10,7 @@
  */
 
 import type { InferenceClient } from '@semiont/inference';
+import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
 import {
   getBodySource,
@@ -74,7 +75,8 @@ export class AnnotationContext {
     kb: KnowledgeBase,
     options: BuildContextOptions = {},
     inferenceClient?: InferenceClient,
-    logger?: Logger
+    logger?: Logger,
+    embeddingProvider?: EmbeddingProvider,
   ): Promise<AnnotationLLMContextResponse> {
     const {
       includeSourceContext = true,
@@ -305,6 +307,34 @@ Summary:`;
       siblingEntityTypes: siblingEntityTypes.size,
     });
 
+    // Build semantic context via vector search (if vectors and embedding are configured)
+    let semanticContext: GatheredContext['semanticContext'];
+    if (kb.vectors && embeddingProvider && sourceContext?.selected) {
+      try {
+        const focalEmbedding = await embeddingProvider.embed(sourceContext.selected);
+        const results = await kb.vectors.searchAnnotations(focalEmbedding, {
+          limit: 10,
+          scoreThreshold: 0.5,
+          filter: { excludeResourceId: resourceId },
+        });
+
+        if (results.length > 0) {
+          semanticContext = {
+            similar: results.map((r: VectorSearchResult) => ({
+              text: r.text,
+              resourceId: r.resourceId,
+              annotationId: r.annotationId,
+              score: r.score,
+              entityTypes: r.entityTypes,
+            })),
+          };
+          logger?.debug('Semantic context found', { matches: results.length });
+        }
+      } catch (error) {
+        logger?.warn('Semantic context search failed', { error });
+      }
+    }
+
     // Build GatheredContext structure (sourceContext is optional for image/PDF annotations)
     const generationContext: GatheredContext = {
       annotation,
@@ -315,6 +345,7 @@ Summary:`;
         entityTypes: annotationEntityTypes,
       },
       graphContext,
+      ...(semanticContext ? { semanticContext } : {}),
     };
     if (sourceContext) {
       generationContext.sourceContext = {

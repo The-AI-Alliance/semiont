@@ -680,6 +680,26 @@ export type EventMap = {
   'settings:locale-changed': { locale: string };
   'settings:hover-delay-changed': { hoverDelayMs: number };
 
+  // ========================================================================
+  // EMBEDDING EVENTS
+  // ========================================================================
+  // Computed by the Smelter actor, persisted by the Stower in .semiont/events/
+
+  'embedding:computed': {
+    resourceId: ResourceId;
+    annotationId?: AnnotationId;
+    chunkIndex: number;
+    chunkText: string;
+    embedding: number[];
+    model: string;
+    dimensions: number;
+  };
+
+  'embedding:deleted': {
+    resourceId: ResourceId;
+    annotationId?: AnnotationId;
+  };
+
   // SSE infrastructure event — emitted by the backend as the first event on a stream
   // to signal that the connection is established. Not a domain event.
   'stream-connected': Record<string, never>;

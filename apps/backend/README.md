@@ -99,6 +99,7 @@ See [Container Documentation](./docs/CONTAINER.md) for advanced usage, Docker Co
 - **Web Framework**: [Hono](https://hono.dev/) - Fast, lightweight web framework
 - **Database**: PostgreSQL with [Prisma ORM](https://prisma.io/)
 - **Graph Database**: Neptune (AWS production) / In-memory (local development)
+- **Vector Database**: Qdrant (optional) / In-memory — semantic search via `@semiont/vectors`
 - **Authentication**: JWT with OAuth 2.0 (Google)
 - **Validation**: [Ajv](https://ajv.js.org/) for OpenAPI schema validation
 - **API Documentation**: Hand-written OpenAPI 3.0 specification (spec-first approach)
@@ -167,6 +168,8 @@ For complete details, see [W3C Web Annotation Implementation](../../docs/W3C-WEB
 ### Data Architecture
 
 ```
+Vector Store (semantic similarity search — Qdrant, optional)
+   ↑
 Graph Database (relationships, backlinks, graph traversal)
    ↑
 Materialized Views (fast queries, current state)

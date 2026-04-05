@@ -21,6 +21,7 @@ graph BT
 
     %% Layer 2: AI & Infrastructure
     inference["@semiont/inference<br/><i>LLM abstraction</i>"]
+    vectors["@semiont/vectors<br/><i>Vector store & embeddings</i>"]
     jobs["@semiont/jobs<br/><i>Job queue</i>"]
     graph_pkg["@semiont/graph<br/><i>Graph DB abstraction</i>"]
     event["@semiont/event-sourcing<br/><i>Event store & views</i>"]
@@ -45,6 +46,7 @@ graph BT
     meaning --> content
     meaning --> ontology
     meaning --> inference
+    meaning --> vectors
     meaning --> jobs
     react --> api
     react --> ontology
@@ -52,6 +54,7 @@ graph BT
     %% Infrastructure dependencies
     inference --> core
     inference --> api
+    vectors --> core
     jobs --> core
     jobs --> api
     jobs --> inference
@@ -77,7 +80,7 @@ graph BT
 
     class core,api layer0
     class ontology,content,event,graph_pkg layer1
-    class inference,jobs layer2
+    class inference,vectors,jobs layer2
     class meaning,react layer3
     class backend,frontend,cli layer4
 ```
@@ -105,6 +108,7 @@ graph BT
 | [@semiont/event-sourcing](https://www.npmjs.com/package/@semiont/event-sourcing) | [![npm](https://img.shields.io/npm/v/@semiont/event-sourcing)](https://www.npmjs.com/package/@semiont/event-sourcing) | [event-sourcing](./event-sourcing/) | Event store, event bus, view storage (filesystem-based) |
 | [@semiont/graph](https://www.npmjs.com/package/@semiont/graph) | [![npm](https://img.shields.io/npm/v/@semiont/graph)](https://www.npmjs.com/package/@semiont/graph) | [graph](./graph/) | Graph database abstraction (Neo4j, Neptune, JanusGraph, in-memory) |
 | [@semiont/inference](https://www.npmjs.com/package/@semiont/inference) | [![npm](https://img.shields.io/npm/v/@semiont/inference)](https://www.npmjs.com/package/@semiont/inference) | [inference](./inference/) | AI primitives: text generation via InferenceClient (Anthropic, Ollama) |
+| [@semiont/vectors](https://www.npmjs.com/package/@semiont/vectors) | [![npm](https://img.shields.io/npm/v/@semiont/vectors)](https://www.npmjs.com/package/@semiont/vectors) | [vectors](./vectors/) | Vector store (Qdrant + memory), embedding providers (Voyage, Ollama), chunking |
 | [@semiont/jobs](https://www.npmjs.com/package/@semiont/jobs) | [![npm](https://img.shields.io/npm/v/@semiont/jobs)](https://www.npmjs.com/package/@semiont/jobs) | [jobs](./jobs/) | Filesystem-based job queue for long-running operations |
 | [@semiont/make-meaning](https://www.npmjs.com/package/@semiont/make-meaning) | [![npm](https://img.shields.io/npm/v/@semiont/make-meaning)](https://www.npmjs.com/package/@semiont/make-meaning) | [make-meaning](./make-meaning/) | Context assembly, pattern detection, and reasoning APIs |
 | [@semiont/react-ui](https://www.npmjs.com/package/@semiont/react-ui) | [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) | [react-ui](./react-ui/) | React components and hooks for Semiont UIs |

@@ -4,7 +4,7 @@
 
 ## Actor Model
 
-The package owns the **Knowledge Base** and three actors that interface with it. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose only `initialize()` and `stop()`.
+The package owns the **Knowledge Base** and its actors that interface with it. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose only `initialize()` and `stop()`.
 
 ```mermaid
 graph TB
@@ -15,6 +15,7 @@ graph TB
     BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>mark:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
     BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER["Gatherer"]
     BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER["Matcher"]
+    BUS -->|"yield:created, mark:created,<br/>mark:body-updated"| SMELTER["Smelter"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
@@ -27,6 +28,7 @@ graph TB
         end
         VIEWS["Materialized Views<br/>(fast single-doc queries)"]
         GRAPH["Graph<br/>(eventually consistent)"]
+        VECTORS["Vector Store<br/>(Qdrant / memory)"]
 
         EVENTLOG -->|materialize| VIEWS
         EVENTLOG -->|project| GRAPH
@@ -35,9 +37,14 @@ graph TB
     GATHERER -->|query| VIEWS
     GATHERER -->|read| CONTENT
     GATHERER -->|traverse| GRAPH
+    GATHERER -->|search| VECTORS
 
     MATCHER -->|query| VIEWS
     MATCHER -->|traverse| GRAPH
+    MATCHER -->|search| VECTORS
+
+    SMELTER -->|read| CONTENT
+    SMELTER -->|embed & index| VECTORS
 
     CTM -->|query| VIEWS
     CTM -->|read| CONTENT
@@ -45,6 +52,7 @@ graph TB
     STOWER -->|"yield:created,<br/>mark:created, ..."| BUS
     GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
     MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
+    SMELTER -->|"embedding:computed,<br/>embedding:deleted"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -53,8 +61,8 @@ graph TB
     classDef caller fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
 
     class BUS bus
-    class EVENTLOG,VIEWS,CONTENT,GRAPH store
-    class STOWER,GATHERER,MATCHER,CTM worker
+    class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
+    class STOWER,GATHERER,MATCHER,SMELTER,CTM worker
     class Routes,Workers,EBC caller
 ```
 
@@ -100,7 +108,7 @@ The read actor for the Knowledge Base. Handles all browse reads, context assembl
 | `browse:events-requested` | `EventQuery.queryEvents()` | `browse:events-result` / `browse:events-failed` |
 | `browse:annotation-history-requested` | `EventQuery` + annotation event filtering | `browse:annotation-history-result` / `browse:annotation-history-failed` |
 | `mark:entity-types-requested` | `readEntityTypesProjection()` | `mark:entity-types-result` / `mark:entity-types-failed` |
-| `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + optional inference summary | `gather:complete` / `gather:failed` |
+| `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + vector semantic search + optional inference summary | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
 
 ### Matcher (Search/Link Actor)
@@ -114,7 +122,20 @@ Searches KB stores to resolve entity references and discover relationships. When
 | `bind:search-requested` | Context-driven search (when `context` present) or `kb.graph.searchResources()` (plain) | `bind:search-results` / `bind:search-failed` |
 | `bind:referenced-by-requested` | `kb.graph.getResourceReferencedBy()` + resource lookups | `bind:referenced-by-result` / `bind:referenced-by-failed` |
 
-**Context-driven search** retrieves candidates from three sources (name match, entity type filter, graph neighborhood), scores them with structural signals (entity type overlap, bidirectionality, citation weight, name match, recency), and optionally blends LLM semantic relevance scores when an `InferenceClient` is available.
+**Context-driven search** retrieves candidates from four sources (name match, entity type filter, graph neighborhood, vector semantic search), scores them with structural signals (entity type overlap, bidirectionality, citation weight, name match, recency, vector similarity weighted at 25), and optionally blends LLM semantic relevance scores when an `InferenceClient` is available.
+
+### Smelter (Embedding Actor)
+
+**Implementation**: [src/smelter.ts](../src/smelter.ts)
+
+Subscribes to resource and annotation events, chunks text content, computes embeddings via `@semiont/vectors` (Voyage or Ollama), persists `embedding:computed` events on the EventBus, and indexes vectors into the VectorStore (Qdrant or memory).
+
+| Request Event | Handler | Result Event |
+|--------------|---------|-------------|
+| `yield:created` | Chunk resource text, embed, index into VectorStore | `embedding:computed` |
+| `mark:created` | Chunk annotation text, embed, index into VectorStore | `embedding:computed` |
+| `mark:body-updated` | Re-chunk and re-embed annotation text | `embedding:computed` |
+| `yield:moved` / resource deleted | Remove vectors from index | `embedding:deleted` |
 
 ### CloneTokenManager (Clone Token Actor)
 
@@ -140,6 +161,8 @@ export interface KnowledgeBase {
   views: ViewStorage;            // Materialized Views (fast reads)
   content: RepresentationStore;  // Content Store (SHA-256 addressed)
   graph: GraphDatabase;          // Graph (eventually consistent)
+  vectors?: VectorStore;         // Vector index (Qdrant / memory) — optional
+  smelter?: Smelter;             // Embedding pipeline actor — optional
 }
 ```
 
@@ -187,15 +210,17 @@ EventBus (callback, fire-and-forget)
 2. EventStore (with EventBus integration)
 3. InferenceClient
 4. GraphDatabase
-5. **KnowledgeBase** (groups stores)
-6. GraphDBConsumer
-7. **Stower** (must start before Gatherer/Matcher — it handles writes they depend on)
-8. Entity type bootstrap (emits via EventBus, Stower persists)
-9. **Gatherer** (browse reads, context assembly, entity type listing)
-10. **Matcher** (search, referenced-by)
-11. **CloneTokenManager** (clone token lifecycle)
-12. Job status subscription (inline `job:status-requested` handler)
-13. Workers (6 annotation/generation workers)
+5. VectorStore *(optional — Qdrant or memory, from `@semiont/vectors`)*
+6. **KnowledgeBase** (groups stores, including optional vectors)
+7. GraphDBConsumer
+8. **Stower** (must start before Gatherer/Matcher — it handles writes they depend on)
+9. Entity type bootstrap (emits via EventBus, Stower persists)
+10. **Smelter** *(optional — subscribes to resource/annotation events, embeds and indexes)*
+11. **Gatherer** (browse reads, context assembly, entity type listing, vector semantic search)
+12. **Matcher** (search, referenced-by, vector semantic search)
+13. **CloneTokenManager** (clone token lifecycle)
+14. Job status subscription (inline `job:status-requested` handler)
+15. Workers (6 annotation/generation workers)
 
 ## Storage Architecture
 

@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The chunk text that matched"
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "Source resource ID"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Source annotation ID, if the match is from an annotation"
+    },
+    "score": {
+      "type": "number",
+      "description": "Cosine similarity score (0-1)"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Entity types on the matched passage"
+    }
+  },
+  "required": ["text", "resourceId", "score"]
+}

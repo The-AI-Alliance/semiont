@@ -82,6 +82,7 @@ jobs:
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
               npm run build --workspace=@semiont/inference
+              npm run build --workspace=@semiont/vectors
               npm run build --workspace=@semiont/jobs
               npm run build --workspace=@semiont/graph
               ;;

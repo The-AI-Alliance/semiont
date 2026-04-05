@@ -25,6 +25,9 @@ export const SERVICE_TYPES = {
   // Special protocols
   MCP: 'mcp',              // Model Context Protocol servers
   
+  // Vectors
+  VECTORS: 'vectors',     // Vector databases, embedding search (Qdrant, etc.)
+
   // Infrastructure
   STACK: 'stack',          // Infrastructure stacks (CloudFormation, Terraform)
   FILESYSTEM: 'filesystem', // Shared/persistent file storage (EFS, NFS, etc.)

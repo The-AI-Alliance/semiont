@@ -110,7 +110,36 @@ async function createKnowledgeSystemFromConfig(
   const graphConfig = config.services!.graph!;
   const graphDb   = await getGraphDatabase(graphConfig);
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
-  const kb         = await createKnowledgeBase(eventStore, project, graphDb, logger);
+
+  // Initialize vector search if configured
+  let vectorStore: import('@semiont/vectors').VectorStore | undefined;
+  let embeddingProvider: import('@semiont/vectors').EmbeddingProvider | undefined;
+  const vectorsConfig = (config.services as any)?.vectors;
+  if (vectorsConfig) {
+    const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
+    const embeddingConfig = vectorsConfig.embedding;
+    if (embeddingConfig) {
+      embeddingProvider = await createEmbeddingProvider(embeddingConfig);
+      vectorStore = await createVectorStore({
+        type: vectorsConfig.type ?? 'qdrant',
+        host: vectorsConfig.host,
+        port: vectorsConfig.port,
+        dimensions: embeddingProvider.dimensions(),
+      });
+      logger.info('Vector search initialized', {
+        store: vectorsConfig.type,
+        embedding: embeddingConfig.type,
+        model: embeddingConfig.model,
+      });
+    }
+  }
+
+  const kb = await createKnowledgeBase(eventStore, project, graphDb, logger, {
+    vectorStore,
+    embeddingProvider,
+    eventBus,
+    chunkingConfig: vectorsConfig?.chunking,
+  });
 
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
@@ -121,6 +150,7 @@ async function createKnowledgeSystemFromConfig(
     kb, eventBus,
     createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
     logger.child({ component: 'gatherer' }),
+    embeddingProvider,
   );
   await gatherer.initialize();
 
@@ -128,6 +158,7 @@ async function createKnowledgeSystemFromConfig(
     kb, eventBus,
     logger.child({ component: 'matcher' }),
     createInferenceClient(resolveActorInference(config, 'matcher'), logger.child({ component: 'inference-client-matcher' })),
+    embeddingProvider,
   );
   await matcher.initialize();
 

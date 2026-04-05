@@ -78,6 +78,11 @@ const buildSteps = [
     description: 'AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)'
   },
   {
+    name: '@semiont/vectors',
+    type: 'package',
+    description: 'Vector storage, embedding, and semantic search (depends on @semiont/core)'
+  },
+  {
     name: '@semiont/jobs',
     type: 'package',
     description: 'Job queue and worker infrastructure (depends on @semiont/core, @semiont/api-client, @semiont/event-sourcing, @semiont/inference)'

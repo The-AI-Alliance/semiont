@@ -36,6 +36,20 @@ username = "neo4j"
 password = "localpass"
 database = "neo4j"
 
+[environments.local.vectors]
+type = "qdrant"
+host = "${QDRANT_HOST}"
+port = 6333
+
+[environments.local.vectors.embedding]
+type = "voyage"
+model = "voyage-3"
+apiKey = "${ANTHROPIC_API_KEY}"
+
+[environments.local.vectors.chunking]
+chunkSize = 512
+overlap = 64
+
 [environments.local.inference.anthropic]
 platform = "external"
 endpoint = "https://api.anthropic.com"
