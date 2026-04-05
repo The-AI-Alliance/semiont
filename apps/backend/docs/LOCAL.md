@@ -12,9 +12,9 @@ cd gutenberg-kb
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
 ```
 
-The script starts PostgreSQL and the backend in containers. Pass `--email` and `--password` to create an admin user on startup. If omitted, no user is created.
+The script starts Neo4j, PostgreSQL, and the backend in containers. Pass `--email` and `--password` to create an admin user on startup. If omitted, no user is created.
 
-See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites (Neo4j, Anthropic API key).
+Prerequisites: a container runtime and `ANTHROPIC_API_KEY`. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for details.
 
 The authoritative Dockerfile and script live in the Semiont repo:
 - [apps/backend/Dockerfile](../Dockerfile)

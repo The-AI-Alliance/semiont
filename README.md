@@ -23,15 +23,8 @@ No npm or Node.js required — everything runs in containers.
 
 - **Container runtime** — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/)
 - **Inference provider** — an `ANTHROPIC_API_KEY` ([Anthropic Console](https://console.anthropic.com/)) or [Ollama](https://ollama.com/) running locally
-- **Neo4j** — a free cloud instance at [Neo4j Aura](https://neo4j.com/cloud/aura/) or Neo4j running locally
-
-Set your credentials:
 
 ```bash
-export NEO4J_URI=<your-neo4j-uri>
-export NEO4J_USERNAME=<your-neo4j-username>
-export NEO4J_PASSWORD=<your-neo4j-password>
-export NEO4J_DATABASE=<your-neo4j-database>
 export ANTHROPIC_API_KEY=<your-api-key>
 ```
 

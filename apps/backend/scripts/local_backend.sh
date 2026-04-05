@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Start a local Semiont backend: PostgreSQL + backend in containers.
+# Start a local Semiont backend: Neo4j + PostgreSQL + backend in containers.
 #
 # This script:
 #   1. Detects your container runtime (Apple Container, Docker, or Podman)
-#   2. Starts a PostgreSQL container (port 5432, database "semiont", password "localpass")
-#   3. Builds the backend container image from .semiont/containers/Dockerfile.backend
-#   4. Runs the backend container (port 4000), mounting the current KB directory
-#   5. Creates an admin user if --email and --password are provided
+#   2. Starts a Neo4j container (bolt port 7687, browser port 7474)
+#   3. Starts a PostgreSQL container (port 5432, database "semiont")
+#   4. Builds the backend container image from .semiont/containers/Dockerfile.backend
+#   5. Runs the backend container (port 4000), mounting the current KB directory
+#   6. Creates an admin user if --email and --password are provided
 #
 # The script stays attached and streams backend logs. Press Ctrl+C to stop.
 # To run in the background: .semiont/scripts/local_backend.sh &
 #
 # Prerequisites:
 #   - Container runtime (Apple Container, Docker, or Podman)
-#   - Environment variables: NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD,
-#     NEO4J_DATABASE, ANTHROPIC_API_KEY
+#   - Environment variable: ANTHROPIC_API_KEY
 #
 # Options:
 #   --no-cache              Force a fresh container build (skip layer cache)
@@ -24,9 +24,8 @@ set -euo pipefail
 #   --password <password>   Admin user password (requires --email)
 #
 # Usage:
-#   .semiont/scripts/local_backend.sh
-#   .semiont/scripts/local_backend.sh --no-cache
 #   .semiont/scripts/local_backend.sh --email admin@example.com --password password
+#   .semiont/scripts/local_backend.sh --no-cache --email admin@example.com --password password
 #
 # Equivalent without this script (npm required):
 #   npm install -g @semiont/cli neo4j-driver
@@ -67,7 +66,7 @@ echo "npm registry: $NPM_REGISTRY"
 
 # --- Check required env vars ---
 
-for var in NEO4J_URI NEO4J_USERNAME NEO4J_PASSWORD NEO4J_DATABASE ANTHROPIC_API_KEY; do
+for var in ANTHROPIC_API_KEY; do
   if [[ -z "${!var:-}" ]]; then
     echo "Missing required environment variable: $var"
     exit 1
@@ -79,6 +78,36 @@ done
 HOST_ADDR=$($RT run --rm node:22-alpine sh -c "ip route | awk '/default/{print \$3}'" 2>/dev/null)
 echo "Host address: $HOST_ADDR"
 
+# --- Neo4j ---
+
+NEO4J_NAME="semiont-neo4j"
+echo ""
+echo "Starting Neo4j..."
+$RT stop "$NEO4J_NAME" 2>/dev/null || true
+sleep 1
+PID_ON_PORT=$(lsof -ti :7687 2>/dev/null || echo "")
+if [[ -n "$PID_ON_PORT" ]]; then
+  kill $PID_ON_PORT 2>/dev/null || true
+  sleep 1
+fi
+
+$RT run -d --rm \
+  --name "$NEO4J_NAME" \
+  -p 7474:7474 \
+  -p 7687:7687 \
+  -e NEO4J_AUTH=neo4j/localpass \
+  -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes \
+  neo4j:5-community > /dev/null
+
+# Wait for Neo4j to be ready
+for i in $(seq 1 30); do
+  if curl -sf http://localhost:7474 > /dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+echo "Neo4j running on bolt://localhost:7687 (browser: http://localhost:7474)"
+
 # --- PostgreSQL ---
 
 POSTGRES_NAME="semiont-postgres"
@@ -86,7 +115,6 @@ echo ""
 echo "Starting PostgreSQL..."
 $RT stop "$POSTGRES_NAME" 2>/dev/null || true
 sleep 1
-# Kill anything on port 5432
 PID_ON_PORT=$(lsof -ti :5432 2>/dev/null || echo "")
 if [[ -n "$PID_ON_PORT" ]]; then
   kill $PID_ON_PORT 2>/dev/null || true
@@ -130,11 +158,8 @@ fi
 
 $RT run --publish 4000:4000 \
   --volume "$(pwd)":/kb \
-  --env NEO4J_URI="$NEO4J_URI" \
-  --env NEO4J_USERNAME="$NEO4J_USERNAME" \
-  --env NEO4J_PASSWORD="$NEO4J_PASSWORD" \
-  --env NEO4J_DATABASE="$NEO4J_DATABASE" \
   --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   --env POSTGRES_HOST="$HOST_ADDR" \
+  --env NEO4J_HOST="$HOST_ADDR" \
   "${ADMIN_ARGS[@]}" \
   -it semiont-backend
