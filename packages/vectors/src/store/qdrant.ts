@@ -58,7 +58,7 @@ export class QdrantVectorStore implements VectorStore {
   async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void> {
     if (chunks.length === 0) return;
 
-    const points = chunks.map((chunk, i) => ({
+    const points = chunks.map((chunk) => ({
       id: `${resourceId}-${chunk.chunkIndex}`,
       vector: chunk.embedding,
       payload: {
