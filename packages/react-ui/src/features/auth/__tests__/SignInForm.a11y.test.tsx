@@ -253,22 +253,21 @@ describe('SignInForm - Accessibility', () => {
       expect(button).toHaveAccessibleName(/Continue with Google/i);
     });
 
-    it('should have accessible link names', () => {
+    it('should have accessible button names', () => {
       const onGoogleSignIn = vi.fn();
 
       render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
       );
 
-      const links = screen.getAllByRole('link');
-
-      // All links should have accessible names
-      links.forEach(link => {
-        expect(link).toHaveAccessibleName();
+      const buttons = screen.getAllByRole('button');
+      buttons.forEach(button => {
+        expect(button).toHaveAccessibleName();
       });
     });
   });
@@ -390,23 +389,23 @@ describe('SignInForm - Accessibility', () => {
       expect(button?.className).toBeTruthy();
     });
 
-    it('should have visible focus indicators on links', () => {
+    it('should have visible focus indicators on buttons', () => {
       const onGoogleSignIn = vi.fn();
 
       const { container } = render(
         <SignInForm
           onGoogleSignIn={onGoogleSignIn}
+          backendUrl="http://localhost:4000"
           Link={MockLink}
           translations={mockTranslations}
         />
       );
 
-      const links = container.querySelectorAll('a');
+      const buttons = container.querySelectorAll('button');
 
-      // At least one link should exist and have focus styling
-      expect(links.length).toBeGreaterThan(0);
-      links.forEach(link => {
-        expect(link.className).toBeTruthy();
+      expect(buttons.length).toBeGreaterThan(0);
+      buttons.forEach(button => {
+        expect(button.className).toBeTruthy();
       });
     });
   });
