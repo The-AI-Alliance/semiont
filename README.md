@@ -2,13 +2,13 @@
 
 <table>
 <tr>
-<td>
+<td width="40%" valign="top">
 
 **Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
 </td>
-<td>
-<img src="website/assets/images/semiont-2026-03-10.png" alt="Semiont screenshot" width="400" />
+<td width="60%">
+<img src="website/assets/images/semiont-2026-03-10.png" alt="Semiont screenshot" />
 </td>
 </tr>
 </table>
