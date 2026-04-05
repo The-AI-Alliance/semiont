@@ -18,7 +18,7 @@ import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventStore } from '@semiont/event-sourcing';
 import { burstBuffer } from '@semiont/core';
-import type { ResourceId, AnnotationId, Logger, StoredEvent, ResourceEvent } from '@semiont/core';
+import type { Logger, StoredEvent, ResourceEvent } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
@@ -26,7 +26,7 @@ import type { EmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/vectors';
 import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/vectors';
 import type { WorkingTreeStore } from '@semiont/content';
-import { getExactText } from '@semiont/api-client';
+import { getExactText, getTargetSelector } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -204,7 +204,8 @@ export class Smelter {
     const rid = makeResourceId(event.resourceId!);
     const aid = makeAnnotationId(annotation.id);
 
-    const exactText = getExactText(annotation);
+    const selector = getTargetSelector(annotation.target);
+    const exactText = getExactText(selector);
     if (!exactText || !exactText.trim()) return;
 
     const embedding = await this.embeddingProvider.embed(exactText);
