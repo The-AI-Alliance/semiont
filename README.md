@@ -1,6 +1,17 @@
 # Semiont - Semantic Knowledge Kernel
 
+<table>
+<tr>
+<td>
+
 **Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
+
+</td>
+<td>
+<img src="website/assets/images/semiont-2026-03-10.png" alt="Semiont screenshot" width="400" />
+</td>
+</tr>
+</table>
 
 ## Quick Start
 
@@ -37,8 +48,6 @@ Open **http://localhost:3000**. Enter **http://localhost:4000** as the knowledge
 The frontend is also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux) — download from the Releases page.
 
 For more details, npm-based alternatives, and configuration: **[Backend setup](apps/backend/docs/LOCAL.md)** | **[Frontend setup](apps/frontend/docs/LOCAL.md)** | **[Overview](docs/LOCAL-SEMIONT.md)**
-
-![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
 
 ## Semiont Knowledge Bases
 
