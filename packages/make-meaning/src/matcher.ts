@@ -17,7 +17,7 @@ import type { EventMap, GatheredContext, Logger, components } from '@semiont/cor
 import { type EventBus, resourceId } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
-import type { EmbeddingProvider } from '@semiont/vectors';
+import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -401,7 +401,7 @@ No explanations.`;
         filter: entityTypes.length > 0 ? { entityTypes } : undefined,
       });
 
-      return results.map(r => ({
+      return results.map((r: VectorSearchResult) => ({
         resourceId: String(r.resourceId),
         score: r.score,
       }));

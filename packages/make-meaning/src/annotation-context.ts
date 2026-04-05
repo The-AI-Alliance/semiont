@@ -10,7 +10,7 @@
  */
 
 import type { InferenceClient } from '@semiont/inference';
-import type { EmbeddingProvider } from '@semiont/vectors';
+import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
 import {
   getBodySource,
@@ -320,7 +320,7 @@ Summary:`;
 
         if (results.length > 0) {
           semanticContext = {
-            similar: results.map(r => ({
+            similar: results.map((r: VectorSearchResult) => ({
               text: r.text,
               resourceId: r.resourceId,
               annotationId: r.annotationId,
