@@ -19,6 +19,7 @@ This document provides a deployment-focused overview of Semiont services. For AP
 | **Content Store** | Filesystem | `@semiont/content` | [API](../../packages/content/docs/API.md) |
 | **Event Store** | Filesystem | `@semiont/event-sourcing` | [API](../../packages/event-sourcing/docs/API.md), [Architecture](../../packages/event-sourcing/docs/ARCHITECTURE.md) |
 | **Graph Database** | Multiple Providers | `@semiont/graph` | [API](../../packages/graph/docs/API.md), [Architecture](../../packages/graph/docs/ARCHITECTURE.md) |
+| **Vector Store** | Qdrant / Memory | `@semiont/vectors` | [Package](../../packages/vectors/) |
 | **PostgreSQL** | User Auth Only | Backend Implementation | [Database Guide](../../apps/backend/docs/DATABASE.md) |
 
 ### Compute Layer
@@ -71,6 +72,19 @@ type = "memory"   # or: neo4j
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 apiKey = "${ANTHROPIC_API_KEY}"
+
+[environments.local.vectors]
+type = "qdrant"           # or: memory
+host = "localhost"
+port = 6333
+
+[environments.local.vectors.embedding]
+provider = "voyage"       # or: ollama
+model = "voyage-3"
+
+[environments.local.vectors.chunking]
+maxTokens = 512
+overlap = 64
 ```
 
 See [Configuration Guide](../administration/CONFIGURATION.md) for the full schema.
@@ -114,7 +128,7 @@ graph LR
 ### Runtime Dependencies
 
 - **Frontend** → Backend API
-- **Backend** → Database (users), Event Store, Graph (optional)
+- **Backend** → Database (users), Event Store, Graph (optional), Vector Store (optional)
 - **Job Worker** → Event Store, Inference
 - **MCP Server** → Backend API
 
@@ -209,6 +223,7 @@ semiont rollback --environment production
 - [@semiont/graph](../../packages/graph/docs/) - Graph database providers
 - [@semiont/inference](../../packages/inference/docs/) - LLM integration
 - [@semiont/jobs](../../packages/jobs/docs/) - Job queue patterns
+- [@semiont/vectors](../../packages/vectors/) - Vector store and embeddings
 - [@semiont/content](../../packages/content/docs/) - Content addressing
 
 ### CLI Integration

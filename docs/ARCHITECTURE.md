@@ -117,11 +117,12 @@ The knowledge base itself is not an intelligent actor. It has no goals, preferen
 The four primary actors are the interfaces to the Knowledge Base:
 
 - **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
-- **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores
-- **Matcher** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources
+- **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores, including semantic similarity search via vectors
+- **Matcher** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources, combining structural signals with semantic similarity scoring
 - **Browser** (directory reads) — subscribes to `browse:directory-requested` events and reads resource content from the content store, merging it with KB metadata from materialized views
+- **Smelter** (vector projection) — subscribes to resource and annotation events, chunks text, computes embeddings, persists them as events, and indexes into the vector store
 
-All four are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All five are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 ```mermaid
 ---
@@ -137,9 +138,13 @@ graph TB
     BE -->|"RxJS: gather"| GATHERER["Gatherer"]
     BE -->|"RxJS: match"| MATCHER["Matcher"]
     BE -->|"RxJS: browse"| BROWSER["Browser"]
+    BE -->|"RxJS: resource, annotation"| SMELTER["Smelter"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
+
+    SMELTER -->|embed| VECTORS
+    SMELTER -->|"emit embedding:computed"| STOWER
 
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record (git-tracked)"]
@@ -148,11 +153,10 @@ graph TB
         end
         VIEWS["Materialized Views<br/>(fast single-doc queries)"]
         GRAPH["Graph<br/>(eventually consistent)"]
-        VECTORS["Vectors<br/>(planned)"]
+        VECTORS["Vectors<br/>(Qdrant)"]
 
         EVENTLOG -->|materialize| VIEWS
         EVENTLOG -->|project| GRAPH
-        CONTENT -->|embed| VECTORS
     end
 
     GATHERER -->|query| VIEWS
@@ -169,13 +173,11 @@ graph TB
 
     classDef backend fill:#c4a020,stroke:#8b6914,stroke-width:2px,color:#000
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
-    classDef planned fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class BE backend
-    class DB,EVENTLOG,VIEWS,CONTENT,GRAPH store
-    class VECTORS planned
-    class STOWER,GATHERER,MATCHER,BROWSER worker
+    class DB,EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
+    class STOWER,GATHERER,MATCHER,BROWSER,SMELTER worker
 ```
 
 | Store | Purpose | Access Pattern |
@@ -184,7 +186,7 @@ graph TB
 | **Materialized Views** | Denormalized projections for fast reads | Gatherer/Matcher/Browser query by resource URI |
 | **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Stower writes; Gatherer reads by SHA-256 checksum |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Gatherer/Matcher traverse and search |
-| **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Gatherer/Matcher search |
+| **Vectors** | Embedding vectors in Qdrant for semantic similarity search | Smelter projects; Gatherer/Matcher search |
 
 ### Stower
 
@@ -201,6 +203,10 @@ The Matcher is the read actor for entity resolution. When an Analyst or Linker A
 ### Browser
 
 The Browser is the directory read actor. When a client emits a `browse:directory-requested` event (e.g. from the CLI or the UI file navigator), the Browser performs a prefix scan of the materialized views for tracked resources under the requested path and reads their content from the content store, then merges the result with any untracked entries. Each entry in the result is either a bare entry (`tracked: false`) or an enriched one carrying KB metadata (resource ID, entity types, annotation count, creator). It enforces a path confinement invariant: all resolved paths must remain within `project.root`.
+
+### Smelter
+
+The Smelter is the vector projection actor. When a resource is created or an annotation is added, the Smelter receives the event, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store (Qdrant). It also emits `embedding:computed` events on the bus so the Stower can persist the embeddings in `.semiont/events/` — making them part of the system of record. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
 
 ### Feeder and Content Streams
 
@@ -250,6 +256,7 @@ Domain Layer:
   @semiont/content        - Content-addressed storage (SHA-256, deduplicated)
   @semiont/event-sourcing - Event store, materialized views, view materializer
   @semiont/graph          - Graph database abstraction (Neo4j, Neptune, in-memory)
+  @semiont/vectors        - Vector storage, embedding, and semantic search (Qdrant, in-memory)
 
 AI Layer:
   @semiont/inference      - LLM integration (Anthropic, OpenAI, local)
