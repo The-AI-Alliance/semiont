@@ -353,7 +353,8 @@ export class Smelter {
       this.logger.error('Smelter failed to process event', {
         type: storedEvent.event.type,
         resourceId: storedEvent.event.resourceId,
-        error: err,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
       });
     }
   }
