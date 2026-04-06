@@ -17,9 +17,10 @@ const stopBackendService = async (context: PosixStopHandlerContext): Promise<Sto
   const { service } = context;
 
   const projectRoot = service.projectRoot!;
-  const npmDir = resolveBackendNpmPackage(projectRoot);
-  const entryPoint = npmDir ? (resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js')) : null;
   const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
+  const npmDir = resolveBackendNpmPackage(installPrefix);
+  const entryPoint = npmDir ? (resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js')) : null;
   const pidFile = project.backendPidFile;
   const appLogPath = project.backendAppLogFile;
   const errorLogPath = project.backendErrorLogFile;

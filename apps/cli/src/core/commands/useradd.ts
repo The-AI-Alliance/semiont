@@ -35,6 +35,7 @@ import * as crypto from 'crypto';
 import * as argon2 from 'argon2';
 import * as path from 'path';
 import { createRequire } from 'module';
+import { SemiontProject } from '@semiont/core/node';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { OpsOptionsSchema, withOpsArgs } from '../base-options-schema.js';
@@ -48,7 +49,9 @@ import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
  * DATABASE_URL must be set in process.env before calling this.
  */
 function loadPrismaClient(projectRoot: string): any { // any: dynamically loaded from project's node_modules, not the CLI's devDep
-  const req = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
+  const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
+  const req = createRequire(path.join(installPrefix, 'node_modules', '.package.json'));
 
   // Try loading from @semiont/backend's generated client first
   try {
@@ -59,7 +62,7 @@ function loadPrismaClient(projectRoot: string): any { // any: dynamically loaded
     const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
     return new PrismaClient({ adapter });
   } catch {
-    // Fall back to direct @prisma/client in project (monorepo workspace)
+    // Fall back to direct @prisma/client in install prefix
   }
 
   try {

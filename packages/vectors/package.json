@@ -20,18 +20,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@qdrant/js-client-rest": "^1.13.0",
     "@semiont/core": "*"
   },
-  "peerDependencies": {
-    "@qdrant/js-client-rest": ">=1.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@qdrant/js-client-rest": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@qdrant/js-client-rest": "^1.13.0",
     "tsup": "^8.5.1",
     "typescript": "^5.6.3"
   },
