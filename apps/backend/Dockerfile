@@ -42,9 +42,13 @@ host = "${QDRANT_HOST}"
 port = 6333
 
 [environments.local.vectors.embedding]
-type = "voyage"
-model = "voyage-3"
-apiKey = "${ANTHROPIC_API_KEY}"
+type = "ollama"
+model = "nomic-embed-text"
+baseURL = "http://${OLLAMA_HOST}:11434"
+# To use Voyage AI instead:
+# type = "voyage"
+# model = "voyage-3"
+# apiKey = "<your-voyage-api-key>"
 
 [environments.local.vectors.chunking]
 chunkSize = 512

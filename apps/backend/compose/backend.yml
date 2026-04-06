@@ -1,8 +1,9 @@
-# Semiont backend with Neo4j, Qdrant, and PostgreSQL
+# Semiont backend with Neo4j, Qdrant, Ollama, and PostgreSQL
 #
 # Usage:
 #   export ANTHROPIC_API_KEY=<your-key>
 #   docker compose -f .semiont/compose/backend.yml up
+#   docker compose -f .semiont/compose/backend.yml exec ollama ollama pull nomic-embed-text
 #
 # Admin credentials default to admin@example.com / password.
 # Override with ADMIN_EMAIL and ADMIN_PASSWORD env vars.
@@ -32,6 +33,18 @@ services:
       timeout: 3s
       retries: 10
 
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
   postgres:
     image: postgres:15-alpine
     ports:
@@ -58,6 +71,7 @@ services:
       POSTGRES_HOST: postgres
       NEO4J_HOST: neo4j
       QDRANT_HOST: qdrant
+      OLLAMA_HOST: ollama
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-password}
     depends_on:
@@ -65,5 +79,10 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
       postgres:
         condition: service_healthy
+
+volumes:
+  ollama_models:
