@@ -92,7 +92,7 @@ jobs:
         run: echo "version=$(jq -r .version version.json)" >> "$GITHUB_OUTPUT"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
