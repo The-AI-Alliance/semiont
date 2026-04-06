@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Start a local Semiont backend: Neo4j + PostgreSQL + backend in containers.
+# Start a local Semiont backend: Neo4j + Qdrant + Ollama + PostgreSQL + backend in containers.
 #
 # This script:
 #   1. Detects your container runtime (Apple Container, Docker, or Podman)
 #   2. Starts a Neo4j container (bolt port 7687, browser port 7474)
-#   3. Starts a PostgreSQL container (port 5432, database "semiont")
-#   4. Builds the backend container image from .semiont/containers/Dockerfile.backend
-#   5. Runs the backend container (port 4000), mounting the current KB directory
-#   6. Creates an admin user if --email and --password are provided
+#   3. Starts a Qdrant container (port 6333)
+#   4. Starts an Ollama container (port 11434) for local embeddings
+#   5. Starts a PostgreSQL container (port 5432, database "semiont")
+#   6. Builds the backend container image from .semiont/containers/Dockerfile.backend
+#   7. Runs the backend container (port 4000), mounting the current KB directory
+#   8. Creates an admin user if --email and --password are provided
 #
 # The script stays attached and streams backend logs. Press Ctrl+C to stop.
 # To run in the background: .semiont/scripts/local_backend.sh &
@@ -22,6 +24,7 @@ set -euo pipefail
 #   --no-cache              Force a fresh container build (skip layer cache)
 #   --email <email>         Admin user email (requires --password)
 #   --password <password>   Admin user password (requires --email)
+#   --clean-ollama          Remove the Ollama model cache volume and exit
 #
 # Usage:
 #   .semiont/scripts/local_backend.sh --email admin@example.com --password password
@@ -38,11 +41,13 @@ cd "$(git rev-parse --show-toplevel)"
 CACHE_FLAG=""
 ADMIN_EMAIL=""
 ADMIN_PASSWORD=""
+CLEAN_OLLAMA=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-cache) CACHE_FLAG="--no-cache"; shift ;;
     --email) ADMIN_EMAIL="$2"; shift 2 ;;
     --password) ADMIN_PASSWORD="$2"; shift 2 ;;
+    --clean-ollama) CLEAN_OLLAMA=true; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -59,7 +64,14 @@ if [[ -z "${RT:-}" ]]; then
   echo "No container runtime found. Install Apple Container, Docker, or Podman."
   exit 1
 fi
-echo "Using container runtime: $RT"
+echo "Using container runtime: ${RT}"
+
+# Handle --clean-ollama
+if [[ "${CLEAN_OLLAMA}" == "true" ]]; then
+  echo "Removing Ollama model cache volume..."
+  "${RT}" volume rm semiont-ollama-models 2>/dev/null && echo "Removed." || echo "Volume not found."
+  exit 0
+fi
 
 NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}"
 echo "npm registry: $NPM_REGISTRY"
@@ -134,6 +146,51 @@ for i in $(seq 1 15); do
 done
 echo "Qdrant running on http://localhost:6333"
 
+# --- Ollama ---
+
+OLLAMA_NAME="semiont-ollama"
+echo ""
+echo "Starting Ollama..."
+"${RT}" stop "${OLLAMA_NAME}" 2>/dev/null || true
+sleep 1
+PID_ON_PORT=$(lsof -ti :11434 2>/dev/null || echo "")
+if [[ -n "${PID_ON_PORT}" ]]; then
+  kill "${PID_ON_PORT}" 2>/dev/null || true
+  sleep 1
+fi
+
+# Determine model cache: prefer host ~/.ollama if present (shared with local Ollama)
+OLLAMA_VOLUME=""
+if [ -d "${HOME}/.ollama" ]; then
+  printf "Found local Ollama model cache at %s. Share it with the container? [Y/n] " "${HOME}/.ollama"
+  read -r answer
+  if [ "${answer}" != "n" ] && [ "${answer}" != "N" ]; then
+    OLLAMA_VOLUME="${HOME}/.ollama:/root/.ollama"
+    echo "Using host model cache."
+  fi
+fi
+if [ -z "${OLLAMA_VOLUME}" ]; then
+  OLLAMA_VOLUME="semiont-ollama-models:/root/.ollama"
+  echo "Using named volume semiont-ollama-models for model cache."
+fi
+
+"${RT}" run -d --rm \
+  --name "${OLLAMA_NAME}" \
+  -p 11434:11434 \
+  -v "${OLLAMA_VOLUME}" \
+  ollama/ollama > /dev/null
+
+for i in $(seq 1 30); do
+  if curl -sf http://localhost:11434/api/version > /dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+echo "Pulling nomic-embed-text model (first run may take a minute)..."
+"${RT}" exec "${OLLAMA_NAME}" ollama pull nomic-embed-text
+echo "Ollama running on http://localhost:11434"
+
 # --- PostgreSQL ---
 
 POSTGRES_NAME="semiont-postgres"
@@ -184,9 +241,10 @@ fi
 
 $RT run --publish 4000:4000 \
   --volume "$(pwd)":/kb \
-  --env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-  --env POSTGRES_HOST="$HOST_ADDR" \
-  --env NEO4J_HOST="$HOST_ADDR" \
-  --env QDRANT_HOST="$HOST_ADDR" \
+  --env ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
+  --env POSTGRES_HOST="${HOST_ADDR}" \
+  --env NEO4J_HOST="${HOST_ADDR}" \
+  --env QDRANT_HOST="${HOST_ADDR}" \
+  --env OLLAMA_HOST="${HOST_ADDR}" \
   "${ADMIN_ARGS[@]}" \
   -it semiont-backend
