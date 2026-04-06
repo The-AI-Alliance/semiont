@@ -82,8 +82,8 @@ export class InferenceService extends BaseService {
   }
 
   /**
-   * Returns the union of all models referenced by workers and actors
-   * configured to use this inference provider type.
+   * Returns the union of all models referenced by workers, actors,
+   * and vector embeddings configured to use this inference provider type.
    */
   getModels(): string[] {
     const models = new Set<string>();
@@ -96,6 +96,10 @@ export class InferenceService extends BaseService {
       if (a.inference?.type === this.inferenceType && a.inference.model) {
         models.add(a.inference.model);
       }
+    }
+    const embedding = this.envConfig.services.vectors?.embedding;
+    if (embedding?.type === this.inferenceType && embedding.model) {
+      models.add(embedding.model);
     }
     return [...models];
   }

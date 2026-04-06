@@ -210,6 +210,7 @@ export type {
   InferenceProvidersConfig,
   McpServiceConfig,
   ServicesConfig,
+  VectorsServiceConfig,
   SemiontConfig,
   GraphDatabaseType,
   ServicePlatformConfig
