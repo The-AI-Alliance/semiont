@@ -189,7 +189,7 @@ docker build \
   --build-arg SEMIONT_SITE_NAME="My Company" \
   --build-arg SEMIONT_OAUTH_ALLOWED_DOMAINS=mycompany.com \
   -t semiont-frontend:custom \
-  -f apps/frontend/Dockerfile .
+  -f .semiont/containers/Dockerfile.frontend .
 ```
 
 **Note**: API URL is NOT needed at build time - routing handled by reverse proxy at runtime.
@@ -202,7 +202,7 @@ docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --build-arg SEMIONT_SITE_NAME="Semiont" \
   -t semiont-frontend:multiarch \
-  -f apps/frontend/Dockerfile .
+  -f .semiont/containers/Dockerfile.frontend .
 ```
 
 ## Environment Variable Reference

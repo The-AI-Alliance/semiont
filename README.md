@@ -18,14 +18,14 @@ export ANTHROPIC_API_KEY=<your-api-key>
 
 [Ollama](https://ollama.com/) is also supported for fully local inference. The inference provider is configured in the KB's `.semiont/containers/Dockerfile.backend` — see the [Configuration Guide](docs/administration/CONFIGURATION.md) for details.
 
-### Clone a knowledge base
-
-Pick a KB from the [list below](#semiont-knowledge-bases), or start with gutenberg-kb:
+### Create a knowledge base
 
 ```bash
-git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
-cd gutenberg-kb
+git clone https://github.com/The-AI-Alliance/semiont-empty-kb.git my-kb
+cd my-kb
 ```
+
+To see a pre-populated knowledge base instead, pick one from the [Knowledge Bases](#semiont-knowledge-bases) table below.
 
 ### Start the backend
 
@@ -66,21 +66,11 @@ For the full picture see the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)**
 
 ## Semiont Knowledge Bases
 
-### [gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)
-
-Public domain literature from Project Gutenberg.
-
-```bash
-git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
-```
-
-### [synthetic_family](https://github.com/pingel-org/synthetic_family)
-
-A synthetic family dataset for testing and exploration.
-
-```bash
-git clone https://github.com/pingel-org/synthetic_family.git
-```
+| Knowledge Base | Description |
+| --- | --- |
+| **[semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb)** | Empty template — start here for a new project |
+| **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** | Public domain literature from Project Gutenberg |
+| **[synthetic_family](https://github.com/pingel-org/synthetic_family)** | Synthetic family dataset for testing and exploration |
 
 Each KB repo includes container-based scripts in `.semiont/scripts/` — clone any KB and follow its README to get started.
 

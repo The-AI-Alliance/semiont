@@ -51,7 +51,7 @@ docker run -d \
 
 **Source:** [apps/backend/](../../apps/backend/)
 
-**Dockerfile:** [apps/backend/Dockerfile](../../apps/backend/Dockerfile)
+**Dockerfile:** See [semiont-empty-kb/.semiont/containers/Dockerfile.backend](https://github.com/The-AI-Alliance/semiont-empty-kb/blob/main/.semiont/containers/Dockerfile.backend)
 
 **Workflow:** [.github/workflows/publish-backend.yml](../../.github/workflows/publish-backend.yml)
 
@@ -92,7 +92,7 @@ docker run -d \
 
 **Source:** [apps/frontend/](../../apps/frontend/)
 
-**Dockerfile:** [apps/frontend/Dockerfile](../../apps/frontend/Dockerfile)
+**Dockerfile:** See [semiont-empty-kb/.semiont/containers/Dockerfile.frontend](https://github.com/The-AI-Alliance/semiont-empty-kb/blob/main/.semiont/containers/Dockerfile.frontend)
 
 **Workflow:** [.github/workflows/publish-frontend.yml](../../.github/workflows/publish-frontend.yml)
 

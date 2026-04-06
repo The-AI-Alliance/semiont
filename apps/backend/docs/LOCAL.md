@@ -23,10 +23,7 @@ export ANTHROPIC_API_KEY=<your-key>
 docker compose -f .semiont/compose/backend.yml up
 ```
 
-The authoritative compose file, Dockerfile, and script live in the Semiont repo:
-- [apps/backend/compose/backend.yml](../compose/backend.yml)
-- [apps/backend/Dockerfile](../Dockerfile)
-- [apps/backend/scripts/local_backend.sh](../scripts/local_backend.sh)
+The authoritative compose file, Dockerfile, and script live in the [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb) template repository under `.semiont/`.
 
 ## npm
 

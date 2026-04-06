@@ -36,7 +36,7 @@ The event log: an append-only record of everything that has happened to every re
 
 ### `.semiont/scripts/`, `.semiont/compose/`, `.semiont/containers/` (optional)
 
-These directories are not used by Semiont itself — they are convenience infrastructure that KB authors can include to make it easy for others to run the project. Scripts wrap container commands, compose files define service stacks (PostgreSQL, Neo4j, Qdrant, backend, frontend), and Dockerfiles build the application images. The authoritative versions live in the Semiont monorepo under [apps/backend/](../apps/backend/) and [apps/frontend/](../apps/frontend/); KB repos copy them so users can get started without cloning the Semiont repo.
+These directories are not used by Semiont itself — they are convenience infrastructure that KB authors can include to make it easy for others to run the project. Scripts wrap container commands, compose files define service stacks (PostgreSQL, Neo4j, Qdrant, backend, frontend), and Dockerfiles build the application images. The authoritative versions live in the [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb) template repository; KB repos include them so users can get started without cloning the Semiont repo.
 
 ### Resource files
 

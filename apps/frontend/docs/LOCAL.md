@@ -14,9 +14,7 @@ cd gutenberg-kb
 
 The script builds and runs the frontend in a container. The backend must be running first (see [backend LOCAL.md](../../backend/docs/LOCAL.md)).
 
-The authoritative Dockerfile and script live in the Semiont repo:
-- [apps/frontend/Dockerfile](../Dockerfile)
-- [apps/frontend/scripts/local_frontend.sh](../scripts/local_frontend.sh)
+The authoritative Dockerfile and script live in the [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb) template repository under `.semiont/`.
 
 ## npm
 

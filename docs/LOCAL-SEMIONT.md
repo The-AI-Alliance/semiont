@@ -13,7 +13,7 @@ cd gutenberg-kb
 .semiont/scripts/local_frontend.sh   # terminal 2
 ```
 
-No npm required — everything runs in containers. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites and details. The authoritative Dockerfiles and scripts live in the Semiont repo at [apps/backend/Dockerfile](../apps/backend/Dockerfile), [apps/frontend/Dockerfile](../apps/frontend/Dockerfile), [apps/backend/scripts/local_backend.sh](../apps/backend/scripts/local_backend.sh), and [apps/frontend/scripts/local_frontend.sh](../apps/frontend/scripts/local_frontend.sh).
+No npm required — everything runs in containers. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites and details. The authoritative Dockerfiles and scripts live in the [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb) template repository under `.semiont/`.
 
 **Create a new knowledge base** — start from scratch with your own documents:
 
