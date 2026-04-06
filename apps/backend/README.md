@@ -355,6 +355,20 @@ Features:
 
 ## Common Tasks
 
+### Maintenance
+```bash
+# Rebuild Neo4j graph from event log (clears graph and replays all events)
+SEMIONT_ROOT=/path/to/kb npm run rebuild-graph
+
+# Rebuild a single resource in the graph
+SEMIONT_ROOT=/path/to/kb npm run rebuild-graph -- <resourceId>
+
+# Rebuild vector store from persisted embedding events (no re-embedding)
+SEMIONT_ROOT=/path/to/kb npm run rebuild-vectors
+```
+
+Both commands read `~/.semiontconfig` for database credentials, graph, and vector store settings. Set `SEMIONT_ENV` or pass `--environment <env>` to select a non-default environment.
+
 ### Development
 ```bash
 # Start development environment

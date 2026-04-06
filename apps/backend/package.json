@@ -23,6 +23,7 @@
     "type-check": "tsc --noEmit",
     "rebuild-projections": "tsx src/cli/rebuild-projections.ts",
     "rebuild-graph": "tsx src/cli/rebuild-graph.ts",
+    "rebuild-vectors": "tsx src/cli/rebuild-vectors.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
