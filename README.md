@@ -1,6 +1,6 @@
 # Semiont - Semantic Knowledge Kernel
 
-**Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
+**Semiont is an open-source semantic wiki where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
 ## Quick Start
 
@@ -61,6 +61,15 @@ Enter **http://localhost:4000** as the knowledge base URL. Log in with the email
 </table>
 
 Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Frontend setup](apps/frontend/docs/LOCAL.md)** for details.
+
+### Beyond the GUI
+
+The web UI is one way to interact with a knowledge base. Engineers and agentic coding assistants can drive annotation, linking, and content generation programmatically:
+
+- **[Semiont CLI](apps/cli/README.md)** — `semiont mark`, `semiont gather`, `semiont match`, and other commands for scripting workflows from the terminal
+- **[API Client](packages/api-client/README.md)** — type-safe TypeScript SDK (`@semiont/api-client`) for building integrations and autonomous agents
+
+Every operation available in the GUI is available through the CLI and API. Humans and AI agents share the same interfaces — see [Peer Collaboration](#core-tenets) below.
 
 For the full picture see the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)**.
 
