@@ -4,11 +4,11 @@
 
 ## Quick Start
 
-### Container runtime
+### Install a container runtime
 
-[Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/).
+Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one.
 
-### Inference provider
+### Set up inference
 
 The default configuration uses [Anthropic](https://console.anthropic.com/):
 
@@ -37,7 +37,7 @@ Builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server:
 
 The script stays attached and streams logs. The API is available at **http://localhost:4000**. See **[Backend setup](apps/backend/docs/LOCAL.md)** for npm-based alternatives and configuration.
 
-### Frontend UI
+### Start the frontend
 
 Open a second terminal in the same directory:
 
