@@ -131,7 +131,7 @@ function syncVersions() {
 
     // Sync @semiont/* workspace dependencies for CLI, backend, and frontend
     if ((pkg === '@semiont/cli' || pkg === 'semiont-backend' || pkg === 'semiont-frontend') && pkgJson.dependencies) {
-      const expected = `^${version}`;
+      const expected = version;
       for (const [dep, depVersion] of Object.entries(pkgJson.dependencies)) {
         if (dep.startsWith('@semiont/') && depVersion !== expected) {
           console.log(`    └─ Syncing dependency ${dep}: ${depVersion} → ${expected}`);
@@ -159,7 +159,7 @@ function syncVersions() {
         publishUpdated = true;
       }
       if (publishPkg.dependencies) {
-        const expected = `^${version}`;
+        const expected = version;
         for (const [dep, depVersion] of Object.entries(publishPkg.dependencies)) {
           if (dep.startsWith('@semiont/') && depVersion !== expected) {
             console.log(`    └─ Syncing dependency ${dep}: ${depVersion} → ${expected}`);

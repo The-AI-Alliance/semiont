@@ -76,6 +76,17 @@ update_package_json() {
   jq --arg v "$version" '.version = $v' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
 }
 
+sync_semiont_deps() {
+  local file=$1 version=$2
+  jq --arg v "$version" '
+    if .dependencies then
+      .dependencies |= with_entries(
+        if (.key | startswith("@semiont/")) then .value = $v else . end
+      )
+    else . end
+  ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+}
+
 # --- Main ---
 
 check_deps
@@ -122,11 +133,13 @@ for dir in apps/*/; do
   pkg="${dir}package.json"
   if [[ -f "$pkg" ]]; then
     update_package_json "$pkg" "$NEXT"
+    sync_semiont_deps "$pkg" "$NEXT"
     FILES+=("$pkg")
   fi
   publish="${dir}package.publish.json"
   if [[ -f "$publish" ]]; then
     update_package_json "$publish" "$NEXT"
+    sync_semiont_deps "$publish" "$NEXT"
     FILES+=("$publish")
   fi
 done
