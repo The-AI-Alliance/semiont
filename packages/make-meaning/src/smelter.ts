@@ -16,10 +16,10 @@
 
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import type { EventStore } from '@semiont/event-sourcing';
+import { type EventStore, EventQuery } from '@semiont/event-sourcing';
 import { burstBuffer } from '@semiont/core';
-import type { Logger, StoredEvent, ResourceEvent } from '@semiont/core';
-import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import type { Logger, StoredEvent, ResourceCreatedEvent, ResourceArchivedEvent, AnnotationAddedEvent, AnnotationRemovedEvent } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId, type EmbeddingComputedEvent, type EmbeddingDeletedEvent } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -27,9 +27,6 @@ import type { ChunkingConfig } from '@semiont/vectors';
 import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/vectors';
 import type { WorkingTreeStore } from '@semiont/content';
 import { getExactText, getTargetSelector } from '@semiont/api-client';
-import type { components } from '@semiont/core';
-
-type Annotation = components['schemas']['Annotation'];
 
 export class Smelter {
   private static readonly SMELTER_RELEVANT_EVENTS = new Set([
@@ -106,6 +103,86 @@ export class Smelter {
     this.logger.info('Smelter actor stopped');
   }
 
+  /**
+   * Rebuild the vector store from persisted embedding events in the event log.
+   * Reads all embedding.computed / embedding.deleted events and replays them.
+   * Bypasses the live pipeline — reads directly from the event store.
+   */
+  async rebuildAll(): Promise<void> {
+    this.logger.info('Rebuilding vector store from events');
+
+    const allResourceIds = await this.eventStore.log.getAllResourceIds();
+    this.logger.info('Found resources to scan', { count: allResourceIds.length });
+
+    const query = new EventQuery(this.eventStore.log.storage);
+    let indexed = 0;
+
+    for (const rid of allResourceIds) {
+      const events = await query.getResourceEvents(makeResourceId(rid as string));
+
+      // Collect the final state: last embedding.deleted cancels prior embeddings
+      const embeddingEvents = events.filter(
+        (e) => e.event.type === 'embedding.computed' || e.event.type === 'embedding.deleted'
+      );
+      if (embeddingEvents.length === 0) continue;
+
+      // Check if the resource was deleted (last event is embedding.deleted with no annotationId)
+      const lastEvent = embeddingEvents[embeddingEvents.length - 1];
+      if (lastEvent.event.type === 'embedding.deleted' && !(lastEvent.event as EmbeddingDeletedEvent).payload.annotationId) {
+        continue; // Resource vectors were deleted, skip
+      }
+
+      // Replay computed events, skipping any whose annotation was later deleted
+      const deletedAnnotations = new Set<string>();
+      for (const e of embeddingEvents) {
+        if (e.event.type === 'embedding.deleted') {
+          const payload = (e.event as EmbeddingDeletedEvent).payload;
+          if (payload.annotationId) deletedAnnotations.add(String(payload.annotationId));
+        }
+      }
+
+      const resourceChunks: EmbeddingChunk[] = [];
+      for (const e of embeddingEvents) {
+        if (e.event.type !== 'embedding.computed') continue;
+        const payload = (e.event as EmbeddingComputedEvent).payload;
+
+        if (payload.annotationId) {
+          if (deletedAnnotations.has(String(payload.annotationId))) continue;
+          // Annotation vector
+          await this.vectorStore.upsertAnnotationVector(
+            makeAnnotationId(String(payload.annotationId)),
+            payload.embedding,
+            {
+              annotationId: makeAnnotationId(String(payload.annotationId)),
+              resourceId: makeResourceId(e.event.resourceId as string),
+              motivation: '',
+              entityTypes: [],
+              exactText: payload.chunkText,
+            },
+          );
+        } else {
+          // Resource chunk
+          resourceChunks.push({
+            chunkIndex: payload.chunkIndex,
+            text: payload.chunkText,
+            embedding: payload.embedding,
+          });
+        }
+      }
+
+      if (resourceChunks.length > 0) {
+        await this.vectorStore.upsertResourceVectors(
+          makeResourceId(rid as string),
+          resourceChunks,
+        );
+      }
+
+      indexed++;
+    }
+
+    this.logger.info('Vector store rebuild complete', { resourcesIndexed: indexed });
+  }
+
   private async processBatch(events: StoredEvent[]): Promise<void> {
     for (const event of events) {
       await this.safeProcessEvent(event);
@@ -129,23 +206,23 @@ export class Smelter {
 
     switch (event.type) {
       case 'resource.created':
-        await this.handleResourceCreated(event);
+        await this.handleResourceCreated(event as ResourceCreatedEvent);
         break;
       case 'resource.archived':
-        await this.handleResourceArchived(event);
+        await this.handleResourceArchived(event as ResourceArchivedEvent);
         break;
       case 'annotation.added':
-        await this.handleAnnotationAdded(event);
+        await this.handleAnnotationAdded(event as AnnotationAddedEvent);
         break;
       case 'annotation.removed':
-        await this.handleAnnotationRemoved(event);
+        await this.handleAnnotationRemoved(event as AnnotationRemovedEvent);
         break;
     }
   }
 
-  private async handleResourceCreated(event: ResourceEvent): Promise<void> {
+  private async handleResourceCreated(event: ResourceCreatedEvent): Promise<void> {
     const rid = makeResourceId(event.resourceId!);
-    const storageUri = (event as any).payload?.storageUri ?? (event as any).storageUri;
+    const storageUri = event.payload.storageUri;
 
     if (!storageUri) return;
 
@@ -156,37 +233,34 @@ export class Smelter {
     const text = new TextDecoder().decode(content);
     if (!text.trim()) return;
 
-    // Chunk and embed
+    // Chunk and embed in batch
     const chunks = chunkText(text, this.chunkingConfig);
-    const embeddingChunks: EmbeddingChunk[] = [];
+    if (chunks.length === 0) return;
 
-    for (let i = 0; i < chunks.length; i++) {
-      const embedding = await this.embeddingProvider.embed(chunks[i]);
+    const embeddings = await this.embeddingProvider.embedBatch(chunks);
+    const model = this.embeddingProvider.model();
+    const dimensions = this.embeddingProvider.dimensions();
 
-      // Emit event for Stower to persist
+    const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => {
       this.eventBus.get('embedding:computed').next({
         resourceId: rid,
         chunkIndex: i,
-        chunkText: chunks[i],
-        embedding,
-        model: this.embeddingProvider.model(),
-        dimensions: this.embeddingProvider.dimensions(),
+        chunkText: text,
+        embedding: embeddings[i],
+        model,
+        dimensions,
       });
+      return { chunkIndex: i, text, embedding: embeddings[i] };
+    });
 
-      embeddingChunks.push({ chunkIndex: i, text: chunks[i], embedding });
-    }
-
-    // Index into vector store
-    if (embeddingChunks.length > 0) {
-      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
-      this.logger.debug('Smelter indexed resource', {
-        resourceId: String(rid),
-        chunks: embeddingChunks.length,
-      });
-    }
+    await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
+    this.logger.debug('Smelter indexed resource', {
+      resourceId: String(rid),
+      chunks: embeddingChunks.length,
+    });
   }
 
-  private async handleResourceArchived(event: ResourceEvent): Promise<void> {
+  private async handleResourceArchived(event: ResourceArchivedEvent): Promise<void> {
     const rid = makeResourceId(event.resourceId!);
     await this.vectorStore.deleteResourceVectors(rid);
 
@@ -197,8 +271,8 @@ export class Smelter {
     });
   }
 
-  private async handleAnnotationAdded(event: ResourceEvent): Promise<void> {
-    const annotation = ((event as any).payload?.annotation ?? (event as any).annotation) as Annotation | undefined;
+  private async handleAnnotationAdded(event: AnnotationAddedEvent): Promise<void> {
+    const annotation = event.payload.annotation;
     if (!annotation || !annotation.id) return;
 
     const rid = makeResourceId(event.resourceId!);
@@ -226,7 +300,7 @@ export class Smelter {
       annotationId: aid,
       resourceId: rid,
       motivation: annotation.motivation ?? '',
-      entityTypes: (annotation as any).entityTypes ?? [],
+      entityTypes: ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [],
       exactText,
     };
 
@@ -238,8 +312,8 @@ export class Smelter {
     });
   }
 
-  private async handleAnnotationRemoved(event: ResourceEvent): Promise<void> {
-    const annotationId = ((event as any).payload?.annotationId ?? (event as any).annotationId) as string | undefined;
+  private async handleAnnotationRemoved(event: AnnotationRemovedEvent): Promise<void> {
+    const annotationId = String(event.payload.annotationId);
     if (!annotationId) return;
 
     const rid = makeResourceId(event.resourceId!);
