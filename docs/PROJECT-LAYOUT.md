@@ -8,13 +8,22 @@ A Semiont project is a directory managed by both `git` and Semiont. Your resourc
 my-project/
 ├── .semiont/
 │   ├── config                        # Project name and settings (commit this)
-│   └── events/                       # Event log (commit this)
-│       └── {shard}/{shard}/{id}/
-│           └── events-000001.jsonl
-├── docs/
-│   └── my-document.md                # Your resource files (commit these)
-└── images/
-    └── diagram.png
+│   ├── events/                       # Event log (commit this)
+│   │   └── {shard}/{shard}/{id}/
+│   │       └── events-000001.jsonl
+│   ├── scripts/                      # Optional convenience scripts
+│   │   ├── local_backend.sh
+│   │   └── local_frontend.sh
+│   ├── compose/                      # Optional Docker Compose files
+│   │   ├── backend.yml
+│   │   └── frontend.yml
+│   └── containers/                   # Optional Dockerfiles
+│       ├── Dockerfile.backend
+│       └── Dockerfile.frontend
+├── literature/
+│   └── prometheus-bound.md           # Resource files — any structure you choose
+└── places/
+    └── scythian-steppe.md
 ```
 
 ### `.semiont/config`
@@ -23,7 +32,11 @@ A TOML file containing the project name and local settings. Commit this to git �
 
 ### `.semiont/events/`
 
-The event log: an append-only record of everything that has happened to every resource. Files are sharded by resource ID for performance. Commit this to git alongside your resource files so the full history travels with the repository.
+The event log: an append-only record of everything that has happened to every resource — annotations, content storage, entity bindings, and computed embeddings. Files are sharded by resource ID for performance. Commit this to git alongside your resource files so the full history travels with the repository.
+
+### `.semiont/scripts/`, `.semiont/compose/`, `.semiont/containers/` (optional)
+
+These directories are not used by Semiont itself — they are convenience infrastructure that KB authors can include to make it easy for others to run the project. Scripts wrap container commands, compose files define service stacks (PostgreSQL, Neo4j, Qdrant, backend, frontend), and Dockerfiles build the application images. The authoritative versions live in the Semiont monorepo under [apps/backend/](../apps/backend/) and [apps/frontend/](../apps/frontend/); KB repos copy them so users can get started without cloning the Semiont repo.
 
 ### Resource files
 
