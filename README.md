@@ -68,6 +68,7 @@ The web UI is one way to interact with a knowledge base. Engineers and agentic c
 
 - **[Semiont CLI](apps/cli/README.md)** — `semiont mark`, `semiont gather`, `semiont match`, and other commands for scripting workflows from the terminal
 - **[API Client](packages/api-client/README.md)** — type-safe TypeScript SDK (`@semiont/api-client`) for building integrations and autonomous agents
+- **[Agent Skills](docs/skills/)** — ready-made skill definitions (e.g. `semiont-wiki`, `semiont-highlight`) that agentic coding assistants like Claude Code can use to drive the full annotation and generation pipeline
 
 Every operation available in the GUI is available through the CLI and API. Humans and AI agents share the same interfaces — see [Peer Collaboration](#core-tenets) below.
 
