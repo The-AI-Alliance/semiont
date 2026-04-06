@@ -4,23 +4,32 @@
 
 ## Quick Start
 
-### Prerequisites
+### Container runtime
 
-- **Container runtime** — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/)
-- **Inference provider** — an `ANTHROPIC_API_KEY` ([Anthropic Console](https://console.anthropic.com/)) or [Ollama](https://ollama.com/) running locally
+[Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/).
+
+### Inference provider
+
+The default configuration uses [Anthropic](https://console.anthropic.com/):
 
 ```bash
 export ANTHROPIC_API_KEY=<your-api-key>
 ```
 
-### Clone a knowledge base and start the backend
+[Ollama](https://ollama.com/) is also supported for fully local inference. The inference provider is configured in the KB's `.semiont/containers/Dockerfile.backend` — see the [Configuration Guide](docs/administration/CONFIGURATION.md) for details.
+
+### Clone a knowledge base
+
+Pick a KB from the [list below](#semiont-knowledge-bases), or start with gutenberg-kb:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
 ```
 
-Start the backend (builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server):
+### Start the backend
+
+Builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server:
 
 ```bash
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
