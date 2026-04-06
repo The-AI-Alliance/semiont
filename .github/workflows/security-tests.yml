@@ -181,7 +181,7 @@ jobs:
           pkill -f "node.*server.js" || true
 
       - name: Upload test coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: always()
         with:
           file: ./apps/frontend/coverage/lcov.info
@@ -495,7 +495,7 @@ jobs:
           pkill -f "node.*dist/index.js" || true
 
       - name: Upload test coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: always()
         with:
           file: ./apps/backend/coverage/lcov.info
