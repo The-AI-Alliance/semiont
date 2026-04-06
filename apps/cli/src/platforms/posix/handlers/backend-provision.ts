@@ -10,10 +10,6 @@ import { SemiontProject } from '@semiont/core/node';
 import { checkCommandAvailable, checkEnvVarsInConfig, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, readSecret, writeSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
-// Injected by esbuild at build time via __SEMIONT_VERSION__ define
-declare const __SEMIONT_VERSION__: string;
-const SEMIONT_VERSION: string = __SEMIONT_VERSION__;
-
 /**
  * Provision handler for backend services on POSIX systems
  *
@@ -24,39 +20,19 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const { service, options } = context;
 
   const projectRoot = service.projectRoot!;
+  const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
 
-  // Install (or update) @semiont/backend to the version matching the CLI
-  const packageSpec = `@semiont/backend@${SEMIONT_VERSION}`;
-  if (!service.quiet) {
-    printInfo(`Installing ${packageSpec}...`);
-  }
-  try {
-    execFileSync('npm', ['install', packageSpec, '--prefix', projectRoot], {
-      cwd: projectRoot,
-      stdio: service.verbose ? 'inherit' : 'pipe'
-    });
-    if (!service.quiet) {
-      printSuccess(`Installed ${packageSpec}`);
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: `Failed to install ${packageSpec}: ${error}`,
-      metadata: { serviceType: 'backend' }
-    };
-  }
-
-  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const npmDir = resolveBackendNpmPackage(installPrefix);
   if (!npmDir) {
     return {
       success: false,
-      error: 'Cannot find @semiont/backend after install',
+      error: `@semiont/backend not found in ${installPrefix}. Install it at image build time: npm install @semiont/backend --prefix ${installPrefix}`,
       metadata: { serviceType: 'backend' }
     };
   }
 
-  const entryPoint = resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js');
-  const project = new SemiontProject(projectRoot);
+  const entryPoint = resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js');
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);

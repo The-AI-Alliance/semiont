@@ -5,9 +5,9 @@ import { createRequire } from 'module';
  * Resolve the backend npm package directory from an installed @semiont/backend package.
  * Returns the package directory or null if not installed.
  */
-export function resolveBackendNpmPackage(projectRoot: string): string | null {
+export function resolveBackendNpmPackage(installPrefix: string): string | null {
   try {
-    const require = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
+    const require = createRequire(path.join(installPrefix, 'node_modules', '.package.json'));
     const pkgPath = require.resolve('@semiont/backend/package.json');
     return path.dirname(pkgPath);
   } catch {
@@ -21,9 +21,9 @@ export function resolveBackendNpmPackage(projectRoot: string): string | null {
  * path is derived from the manifest rather than hardcoded.
  * Returns null if not installed.
  */
-export function resolveBackendEntryPoint(projectRoot: string): string | null {
+export function resolveBackendEntryPoint(installPrefix: string): string | null {
   try {
-    const require = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
+    const require = createRequire(path.join(installPrefix, 'node_modules', '.package.json'));
     // @semiont/backend declares `"main": "dist/index.js"` — resolve() follows it directly
     return require.resolve('@semiont/backend');
   } catch {

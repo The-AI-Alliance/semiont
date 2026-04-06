@@ -383,6 +383,11 @@ export class Smelter {
 
     if (!storageUri) return;
 
+    this.logger.info('Smelter handleResourceCreated start', {
+      resourceId: String(rid), storageUri,
+      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    });
+
     // Read content
     const content = await this.contentStore.retrieve(storageUri);
     if (!content) return;
@@ -394,9 +399,19 @@ export class Smelter {
     const chunks = chunkText(text, this.chunkingConfig);
     if (chunks.length === 0) return;
 
+    this.logger.info('Smelter chunked resource', {
+      resourceId: String(rid), textBytes: text.length, chunkCount: chunks.length,
+      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    });
+
     const embeddings = await this.embeddingProvider.embedBatch(chunks);
     const model = this.embeddingProvider.model();
     const dimensions = this.embeddingProvider.dimensions();
+
+    this.logger.info('Smelter embedded resource', {
+      resourceId: String(rid), chunkCount: chunks.length, dimensions,
+      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    });
 
     const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => {
       this.eventBus.get('embedding:computed').next({
@@ -410,10 +425,15 @@ export class Smelter {
       return { chunkIndex: i, text, embedding: embeddings[i] };
     });
 
+    this.logger.info('Smelter emitted events', {
+      resourceId: String(rid), chunkCount: embeddingChunks.length,
+      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    });
+
     await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
-    this.logger.debug('Smelter indexed resource', {
-      resourceId: String(rid),
-      chunks: embeddingChunks.length,
+    this.logger.info('Smelter indexed resource', {
+      resourceId: String(rid), chunks: embeddingChunks.length,
+      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
     });
   }
 
@@ -438,6 +458,11 @@ export class Smelter {
     const selector = getTargetSelector(annotation.target);
     const exactText = getExactText(selector);
     if (!exactText || !exactText.trim()) return;
+
+    this.logger.info('Smelter handleAnnotationAdded start', {
+      annotationId: String(aid), resourceId: String(rid), textLength: exactText.length,
+      heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    });
 
     const embedding = await this.embeddingProvider.embed(exactText);
 

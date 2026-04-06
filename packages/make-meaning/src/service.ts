@@ -114,7 +114,7 @@ async function createKnowledgeSystemFromConfig(
   // Initialize vector search if configured
   let vectorStore: import('@semiont/vectors').VectorStore | undefined;
   let embeddingProvider: import('@semiont/vectors').EmbeddingProvider | undefined;
-  const vectorsConfig = (config.services as any)?.vectors;
+  const vectorsConfig = config.services.vectors;
   if (vectorsConfig) {
     const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
     const embeddingConfig = vectorsConfig.embedding;
@@ -138,7 +138,10 @@ async function createKnowledgeSystemFromConfig(
     vectorStore,
     embeddingProvider,
     eventBus,
-    chunkingConfig: vectorsConfig?.chunking,
+    chunkingConfig: vectorsConfig?.chunking ? {
+      chunkSize: vectorsConfig.chunking.chunkSize ?? 512,
+      overlap: vectorsConfig.chunking.overlap ?? 64,
+    } : undefined,
   });
 
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));

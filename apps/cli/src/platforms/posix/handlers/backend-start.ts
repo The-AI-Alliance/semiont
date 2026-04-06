@@ -22,7 +22,9 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const config = service.config as BackendServiceConfig;
 
   const projectRoot = service.projectRoot!;
-  const npmDir = resolveBackendNpmPackage(projectRoot);
+  const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
+  const npmDir = resolveBackendNpmPackage(installPrefix);
   if (!npmDir) {
     return {
       success: false,
@@ -30,8 +32,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
       metadata: { serviceType: 'backend' }
     };
   }
-  const entryPoint = resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js');
-  const project = new SemiontProject(projectRoot);
+  const entryPoint = resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js');
   const pidFile = project.backendPidFile;
   const logsDir = project.backendLogsDir;
 
@@ -205,7 +206,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
     // Spawn the backend process
     const proc = spawn(command, args, {
-      cwd: path.dirname(entryPoint),
+      cwd: projectRoot,
       env,
       detached: true,
       stdio: ['ignore', appLogFd, errorLogFd]  // Redirect stdout/stderr directly to files
@@ -315,15 +316,16 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
   const projectRoot = context.service.projectRoot!;
-  const npmDir = resolveBackendNpmPackage(projectRoot);
   const project = new SemiontProject(projectRoot);
+  const installPrefix = project.dataHome;
+  const npmDir = resolveBackendNpmPackage(installPrefix);
   const checks = [checkCommandAvailable('node')];
   checks.push(checkConfigPort(config.port, 'backend.port'));
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
   if (npmDir) {
-    checks.push(checkFileExists(resolveBackendEntryPoint(projectRoot) ?? path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
+    checks.push(checkFileExists(resolveBackendEntryPoint(installPrefix) ?? path.join(npmDir, 'dist', 'index.js'), 'backend dist/index.js'));
   } else {
     checks.push({ name: 'backend-npm-package', pass: false, message: '@semiont/backend not installed — run: semiont provision' });
   }
