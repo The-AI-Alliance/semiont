@@ -26,6 +26,7 @@ const PACKAGE_PATHS = {
   '@semiont/event-sourcing': 'packages/event-sourcing/package.json',
   '@semiont/graph': 'packages/graph/package.json',
   '@semiont/inference': 'packages/inference/package.json',
+  '@semiont/vectors': 'packages/vectors/package.json',
   '@semiont/jobs': 'packages/jobs/package.json',
   '@semiont/make-meaning': 'packages/make-meaning/package.json',
   '@semiont/react-ui': 'packages/react-ui/package.json',

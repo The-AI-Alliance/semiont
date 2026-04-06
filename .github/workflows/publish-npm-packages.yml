@@ -69,7 +69,7 @@ jobs:
           echo "**Dist tag:** $TAG" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Library packages:" >> $GITHUB_STEP_SUMMARY
-          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui apps/cli; do
+          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/vectors packages/jobs packages/make-meaning packages/react-ui apps/cli; do
             NAME=$(node -p "require('./$dir/package.json').name")
             echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
           done
@@ -82,7 +82,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Install with:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui; do
+          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/vectors packages/jobs packages/make-meaning packages/react-ui; do
             NAME=$(node -p "require('./$dir/package.json').name")
             echo "npm install $NAME@$TAG" >> $GITHUB_STEP_SUMMARY
           done

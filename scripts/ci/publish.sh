@@ -81,6 +81,7 @@ node -e "
     'packages/event-sourcing',
     'packages/graph',
     'packages/inference',
+    'packages/vectors',
     'packages/jobs',
     'packages/make-meaning',
     'packages/react-ui',
@@ -149,6 +150,7 @@ for dir in \
   packages/content \
   packages/graph \
   packages/inference \
+  packages/vectors \
   packages/jobs \
   packages/make-meaning \
   packages/api-client \
