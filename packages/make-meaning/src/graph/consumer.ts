@@ -26,6 +26,7 @@ import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/core';
 import type { ResourceEvent, StoredEvent, AnnotationAddedEvent, ResourceId, Logger } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
+import { partitionByType } from '../batch-utils.js';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -168,18 +169,7 @@ export class GraphDBConsumer {
    * Partitions into consecutive same-type runs for batch optimization.
    */
   private async processBatch(events: StoredEvent[]): Promise<void> {
-    // Partition into runs of consecutive same-type events
-    const runs: StoredEvent[][] = [];
-    let currentRun: StoredEvent[] = [];
-
-    for (const event of events) {
-      if (currentRun.length > 0 && currentRun[0].event.type !== event.event.type) {
-        runs.push(currentRun);
-        currentRun = [];
-      }
-      currentRun.push(event);
-    }
-    if (currentRun.length > 0) runs.push(currentRun);
+    const runs = partitionByType(events);
 
     for (const run of runs) {
       try {

@@ -27,6 +27,7 @@ import type { ChunkingConfig } from '@semiont/vectors';
 import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/vectors';
 import type { WorkingTreeStore } from '@semiont/content';
 import { getExactText, getTargetSelector } from '@semiont/api-client';
+import { partitionByType } from './batch-utils.js';
 
 export class Smelter {
   private static readonly SMELTER_RELEVANT_EVENTS = new Set([
@@ -184,8 +185,164 @@ export class Smelter {
   }
 
   private async processBatch(events: StoredEvent[]): Promise<void> {
-    for (const event of events) {
-      await this.safeProcessEvent(event);
+    const runs = partitionByType(events);
+
+    for (const run of runs) {
+      try {
+        if (run.length === 1) {
+          await this.safeProcessEvent(run[0]);
+        } else {
+          await this.applyBatchByType(run);
+        }
+      } catch (error) {
+        this.logger.error('Smelter failed to process batch run', {
+          eventType: run[0].event.type,
+          runSize: run.length,
+          error,
+        });
+      }
+    }
+  }
+
+  /**
+   * Batch-optimized processing for consecutive events of the same type.
+   * Collects all texts across events, embeds in a single embedBatch() call,
+   * then distributes results back to their respective resources/annotations.
+   */
+  private async applyBatchByType(events: StoredEvent[]): Promise<void> {
+    const type = events[0].event.type;
+
+    switch (type) {
+      case 'resource.created':
+        await this.batchResourceCreated(events);
+        break;
+      case 'annotation.added':
+        await this.batchAnnotationAdded(events);
+        break;
+      default:
+        for (const event of events) {
+          await this.safeProcessEvent(event);
+        }
+    }
+  }
+
+  /**
+   * Batch-embed chunks from multiple resource.created events in a single
+   * embedBatch() call, then emit events and index per resource.
+   */
+  private async batchResourceCreated(events: StoredEvent[]): Promise<void> {
+    // Phase 1: read and chunk all resources
+    const resourceData: { rid: ReturnType<typeof makeResourceId>; chunks: string[] }[] = [];
+    const allChunks: string[] = [];
+
+    for (const storedEvent of events) {
+      const event = storedEvent.event as ResourceCreatedEvent;
+      const rid = makeResourceId(event.resourceId!);
+      const storageUri = event.payload.storageUri;
+      if (!storageUri) continue;
+
+      const content = await this.contentStore.retrieve(storageUri);
+      if (!content) continue;
+
+      const text = new TextDecoder().decode(content);
+      if (!text.trim()) continue;
+
+      const chunks = chunkText(text, this.chunkingConfig);
+      if (chunks.length === 0) continue;
+
+      resourceData.push({ rid, chunks });
+      allChunks.push(...chunks);
+    }
+
+    if (allChunks.length === 0) return;
+
+    // Phase 2: single batch embed
+    const allEmbeddings = await this.embeddingProvider.embedBatch(allChunks);
+    const model = this.embeddingProvider.model();
+    const dimensions = this.embeddingProvider.dimensions();
+
+    // Phase 3: distribute embeddings back to resources
+    let offset = 0;
+    for (const { rid, chunks } of resourceData) {
+      const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => {
+        const embedding = allEmbeddings[offset + i];
+        this.eventBus.get('embedding:computed').next({
+          resourceId: rid, chunkIndex: i, chunkText: text,
+          embedding, model, dimensions,
+        });
+        return { chunkIndex: i, text, embedding };
+      });
+
+      await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
+      this.logger.debug('Smelter batch-indexed resource', {
+        resourceId: String(rid), chunks: embeddingChunks.length,
+      });
+
+      offset += chunks.length;
+    }
+  }
+
+  /**
+   * Batch-embed exact texts from multiple annotation.added events in a
+   * single embedBatch() call, then emit events and index per annotation.
+   */
+  private async batchAnnotationAdded(events: StoredEvent[]): Promise<void> {
+    // Phase 1: collect all annotation texts
+    const annotationData: {
+      rid: ReturnType<typeof makeResourceId>;
+      aid: ReturnType<typeof makeAnnotationId>;
+      exactText: string;
+      annotation: any;
+    }[] = [];
+
+    for (const storedEvent of events) {
+      const event = storedEvent.event as AnnotationAddedEvent;
+      const annotation = event.payload.annotation;
+      if (!annotation?.id) continue;
+
+      const selector = getTargetSelector(annotation.target);
+      const exactText = getExactText(selector);
+      if (!exactText?.trim()) continue;
+
+      annotationData.push({
+        rid: makeResourceId(event.resourceId!),
+        aid: makeAnnotationId(annotation.id),
+        exactText,
+        annotation,
+      });
+    }
+
+    if (annotationData.length === 0) return;
+
+    // Phase 2: single batch embed
+    const allEmbeddings = await this.embeddingProvider.embedBatch(
+      annotationData.map(a => a.exactText),
+    );
+
+    // Phase 3: emit events and index per annotation
+    for (let i = 0; i < annotationData.length; i++) {
+      const { rid, aid, exactText, annotation } = annotationData[i];
+      const embedding = allEmbeddings[i];
+
+      this.eventBus.get('embedding:computed').next({
+        resourceId: rid, annotationId: aid, chunkIndex: 0,
+        chunkText: exactText, embedding,
+        model: this.embeddingProvider.model(),
+        dimensions: this.embeddingProvider.dimensions(),
+      });
+
+      const payload: AnnotationPayload = {
+        annotationId: aid,
+        resourceId: rid,
+        motivation: annotation.motivation ?? '',
+        entityTypes: ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [],
+        exactText,
+      };
+
+      await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
+      this.logger.debug('Smelter batch-indexed annotation', {
+        annotationId: String(aid), resourceId: String(rid),
+      });
     }
   }
 
