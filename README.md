@@ -57,10 +57,21 @@ For the full picture see the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)**
 
 ## Semiont Knowledge Bases
 
-- **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — Public domain literature from Project Gutenberg
-  `git clone https://github.com/The-AI-Alliance/gutenberg-kb.git`
-- **[synthetic_family](https://github.com/pingel-org/synthetic_family)** — A synthetic family dataset for testing and exploration
-  `git clone https://github.com/pingel-org/synthetic_family.git`
+### [gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)
+
+Public domain literature from Project Gutenberg.
+
+```bash
+git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
+```
+
+### [synthetic_family](https://github.com/pingel-org/synthetic_family)
+
+A synthetic family dataset for testing and exploration.
+
+```bash
+git clone https://github.com/pingel-org/synthetic_family.git
+```
 
 Each KB repo includes container-based scripts in `.semiont/scripts/` — clone any KB and follow its README to get started.
 
