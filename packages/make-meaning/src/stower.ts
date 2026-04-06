@@ -28,13 +28,15 @@
  * - job:report-progress → job.progress
  * - job:complete       → job.completed
  * - job:fail           → job.failed
+ * - embedding:computed  → embedding.computed   (from Smelter)
+ * - embedding:deleted   → embedding.deleted    (from Smelter)
  */
 
 import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { EventMap, Logger } from '@semiont/core';
-import { EventBus, resourceId, annotationId as makeAnnotationId, CREATION_METHODS, generateUuid } from '@semiont/core';
+import { EventBus, resourceId, userId as makeUserId, annotationId as makeAnnotationId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { resolveStorageUri } from '@semiont/event-sourcing';
@@ -81,6 +83,8 @@ export class Stower {
       pipe('job:report-progress', (e) => this.handleJobReportProgress(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
+      pipe('embedding:computed', (e) => this.handleEmbeddingComputed(e)),
+      pipe('embedding:deleted', (e) => this.handleEmbeddingDeleted(e)),
     ).subscribe({
       error: (err: unknown) => this.logger.error('Stower pipeline error', { error: err }),
     });
@@ -430,6 +434,35 @@ export class Stower {
         jobId: event.jobId,
         jobType: event.jobType,
         error: event.error,
+      },
+    });
+  }
+
+  private async handleEmbeddingComputed(event: EventMap['embedding:computed']): Promise<void> {
+    await this.kb.eventStore.appendEvent({
+      type: 'embedding.computed',
+      resourceId: event.resourceId,
+      userId: makeUserId('did:web:system:smelter'),
+      version: 1,
+      payload: {
+        annotationId: event.annotationId,
+        chunkIndex: event.chunkIndex,
+        chunkText: event.chunkText,
+        embedding: event.embedding,
+        model: event.model,
+        dimensions: event.dimensions,
+      },
+    });
+  }
+
+  private async handleEmbeddingDeleted(event: EventMap['embedding:deleted']): Promise<void> {
+    await this.kb.eventStore.appendEvent({
+      type: 'embedding.deleted',
+      resourceId: event.resourceId,
+      userId: makeUserId('did:web:system:smelter'),
+      version: 1,
+      payload: {
+        annotationId: event.annotationId,
       },
     });
   }

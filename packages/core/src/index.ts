@@ -97,6 +97,8 @@ export type {
   BodyItem,
   EntityTagAddedEvent,
   EntityTagRemovedEvent,
+  EmbeddingComputedEvent,
+  EmbeddingDeletedEvent,
   EventMetadata,
   EventSignature,
   StoredEvent,

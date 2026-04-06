@@ -233,6 +233,28 @@ export interface EntityTagRemovedEvent extends BaseEvent {
   };
 }
 
+// Embedding events (computed by Smelter, persisted by Stower)
+export interface EmbeddingComputedEvent extends BaseEvent {
+  type: 'embedding.computed';
+  resourceId: ResourceId;
+  payload: {
+    annotationId?: AnnotationId;
+    chunkIndex: number;
+    chunkText: string;
+    embedding: number[];
+    model: string;
+    dimensions: number;
+  };
+}
+
+export interface EmbeddingDeletedEvent extends BaseEvent {
+  type: 'embedding.deleted';
+  resourceId: ResourceId;
+  payload: {
+    annotationId?: AnnotationId;
+  };
+}
+
 // Entity type events (global collection)
 export interface EntityTypeAddedEvent extends BaseEvent {
   type: 'entitytype.added';
@@ -261,7 +283,9 @@ export type ResourceEvent =
   | JobFailedEvent           // Job progress
   | EntityTagAddedEvent      // Resource-level
   | EntityTagRemovedEvent    // Resource-level
-  | EntityTypeAddedEvent;    // Global collection
+  | EntityTypeAddedEvent    // Global collection
+  | EmbeddingComputedEvent  // Vector projection
+  | EmbeddingDeletedEvent;  // Vector projection
 
 // Extract just the event type strings from the union
 export type ResourceEventType = ResourceEvent['type'];
