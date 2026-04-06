@@ -1,17 +1,6 @@
 # Semiont - Semantic Knowledge Kernel
 
-<table>
-<tr>
-<td width="25%" valign="top">
-
 **Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
-
-</td>
-<td width="75%">
-<img src="website/assets/images/semiont-2026-03-10.png" alt="Semiont screenshot" />
-</td>
-</tr>
-</table>
 
 ## Quick Start
 
@@ -24,7 +13,7 @@
 export ANTHROPIC_API_KEY=<your-api-key>
 ```
 
-### Clone a knowledge base and run
+### Clone a knowledge base and start the backend
 
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
@@ -37,28 +26,43 @@ Start the backend (builds containers, starts PostgreSQL, Neo4j, Qdrant, and the 
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
 ```
 
-The script stays attached and streams logs. Open a second terminal for the frontend:
+The script stays attached and streams logs. The API is available at **http://localhost:4000**. See **[Backend setup](apps/backend/docs/LOCAL.md)** for npm-based alternatives and configuration.
+
+### Frontend UI
+
+Open a second terminal in the same directory:
 
 ```bash
 .semiont/scripts/local_frontend.sh
 ```
 
-Open **http://localhost:3000**. Enter **http://localhost:4000** as the knowledge base URL. Log in with the email and password you provided above.
+<table>
+<tr>
+<td width="25%" valign="top">
 
-The frontend is also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux) — download from the Releases page.
+Open **http://localhost:3000**.
 
-For more details, npm-based alternatives, and configuration: **[Backend setup](apps/backend/docs/LOCAL.md)** | **[Frontend setup](apps/frontend/docs/LOCAL.md)** | **[Overview](docs/LOCAL-SEMIONT.md)**
+Enter **http://localhost:4000** as the knowledge base URL. Log in with the email and password you provided above.
+
+</td>
+<td width="75%">
+<img src="website/assets/images/semiont-2026-03-10.png" alt="Semiont screenshot" />
+</td>
+</tr>
+</table>
+
+Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Frontend setup](apps/frontend/docs/LOCAL.md)** for details.
+
+For the full picture see the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)**.
 
 ## Semiont Knowledge Bases
 
-| Knowledge Base | Description |
-|---|---|
-| **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** | Public domain literature from Project Gutenberg |
-| `git clone https://github.com/The-AI-Alliance/gutenberg-kb.git` | |
-| **[synthetic_family](https://github.com/pingel-org/synthetic_family)** | A synthetic family dataset for testing and exploration |
-| `git clone https://github.com/pingel-org/synthetic_family.git` | |
+- **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — Public domain literature from Project Gutenberg
+  `git clone https://github.com/The-AI-Alliance/gutenberg-kb.git`
+- **[synthetic_family](https://github.com/pingel-org/synthetic_family)** — A synthetic family dataset for testing and exploration
+  `git clone https://github.com/pingel-org/synthetic_family.git`
 
-Each KB repo includes container-based scripts in `.semiont/scripts/` — see the KB README for details.
+Each KB repo includes container-based scripts in `.semiont/scripts/` — clone any KB and follow its README to get started.
 
 ## Why Semiont
 
@@ -74,7 +78,7 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
-**Seven Collaborative Flows** — humans and AI agents work as peers through seven composable workflows:
+**[Seven Collaborative Flows](docs/flows/README.md)** — humans and AI agents work as peers through seven composable workflows:
 
 - **[Yield](docs/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
 - **[Mark](docs/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection

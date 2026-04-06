@@ -1,6 +1,6 @@
 # Local Backend Setup
 
-Run the Semiont backend locally.
+Run the Semiont backend locally. Both paths below use `~/.semiontconfig` for inference providers, database credentials, graph, and vector store settings — see the **[Configuration Guide](../../docs/administration/CONFIGURATION.md)**.
 
 ## Container (no npm required)
 
@@ -12,11 +12,19 @@ cd gutenberg-kb
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
 ```
 
-The script starts Neo4j, PostgreSQL, and the backend in containers. Pass `--email` and `--password` to create an admin user on startup. If omitted, no user is created.
+The script starts Neo4j, Qdrant, PostgreSQL, and the backend in containers. Pass `--email` and `--password` to create an admin user on startup. If omitted, no user is created.
 
 Prerequisites: a container runtime and `ANTHROPIC_API_KEY`. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for details.
 
-The authoritative Dockerfile and script live in the Semiont repo:
+Alternatively, use Docker Compose directly:
+
+```bash
+export ANTHROPIC_API_KEY=<your-key>
+docker compose -f .semiont/compose/backend.yml up
+```
+
+The authoritative compose file, Dockerfile, and script live in the Semiont repo:
+- [apps/backend/compose/backend.yml](../compose/backend.yml)
 - [apps/backend/Dockerfile](../Dockerfile)
 - [apps/backend/scripts/local_backend.sh](../scripts/local_backend.sh)
 
@@ -64,10 +72,6 @@ semiont useradd --email you@example.com --generate-password --admin
 
 The backend runs at **http://localhost:4000**.
 
-### Configuration
-
-Edit `~/.semiontconfig` to set inference providers, database credentials, and graph connection. See the [Configuration Guide](../../docs/administration/CONFIGURATION.md).
-
 ### Service management
 
 ```bash
@@ -94,6 +98,8 @@ semiont provision --service backend
 |---------|------|-----|
 | Backend | 4000 | http://localhost:4000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
+| Neo4j | 7687 | bolt://localhost:7687 |
+| Qdrant | 6333 | http://localhost:6333 |
 
 ## Paths
 

@@ -90,7 +90,7 @@ maxTokens = 16384
 
 ### `$XDG_CONFIG_HOME/semiont/secrets` (mode 0600, never committed)
 
-Stores the JWT shared secret (used as both `JWT_SECRET` in the backend and `NEXTAUTH_SECRET` in the frontend). Created automatically by `semiont provision` if absent.
+Stores the JWT shared secret (`JWT_SECRET`) used by the backend for signing and verifying tokens. Created automatically by `semiont provision` if absent.
 
 Default path: `~/.config/semiont/secrets`
 

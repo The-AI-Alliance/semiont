@@ -96,21 +96,21 @@ Services can run on different platforms:
 ### Development (POSIX)
 - Local processes
 - Filesystem storage
-- In-memory graph
-- SQLite or PostgreSQL
+- Neo4j or in-memory graph
+- Qdrant or in-memory vectors
+- PostgreSQL
 
-### Containers (Docker)
-- Docker Compose
+### Containers (Apple Container / Docker / Podman)
 - Volume mounts
 - Network isolation
-- Container orchestration
+- Neo4j, Qdrant, PostgreSQL as containers
 
 ### Production (AWS)
 - ECS Fargate tasks
 - RDS PostgreSQL
 - S3/EFS storage
 - Neptune graph database
-- Secrets Manager
+- Qdrant (self-hosted or Qdrant Cloud)
 
 ## Service Dependencies
 
@@ -118,8 +118,9 @@ Services can run on different platforms:
 
 ```mermaid
 graph LR
-    DB[Database] --> BE[Backend]
-    GRAPH[Graph] --> BE
+    DB[PostgreSQL] --> BE[Backend]
+    GRAPH[Neo4j] --> BE
+    VECTORS[Qdrant] --> BE
     BE --> FE[Frontend]
     BE --> MCP[MCP Server]
     BE --> JW[Job Worker]
@@ -153,7 +154,7 @@ All services expose health endpoints:
 
 | Service | Health Endpoint | Checks |
 |---------|----------------|---------|
-| Frontend | `/api/health` | Next.js status |
+| Frontend | `/api/health` | Vite SPA status |
 | Backend | `/api/health` | Database, Event Store |
 | MCP Server | `/health` | Backend connectivity |
 
