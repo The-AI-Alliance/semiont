@@ -1,4 +1,4 @@
-# Semiont - Semantic Knowledge Kernel
+# Semiont
 
 **Semiont is an open-source semantic wiki where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
