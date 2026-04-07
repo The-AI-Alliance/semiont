@@ -2,6 +2,7 @@ import React, { useTransition, useEffect, useCallback } from 'react';
 import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
@@ -54,6 +55,8 @@ export function ToolbarPanels({
   hoverDelayMs,
   children
 }: ToolbarPanelsProps) {
+  const { session } = useAuthContext();
+  const isAuthenticated = !!session;
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -108,8 +111,8 @@ export function ToolbarPanels({
           <KnowledgeBasePanel />
         )}
 
-        {/* User Panel - common to all contexts */}
-        {activePanel === 'user' && (
+        {/* User Panel - requires authentication */}
+        {activePanel === 'user' && isAuthenticated && (
           <UserPanel />
         )}
 

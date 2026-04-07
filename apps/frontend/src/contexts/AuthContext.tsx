@@ -23,9 +23,13 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { activeKnowledgeBase } = useKnowledgeBaseContext();
   const [session, setSessionState] = useState<AuthSession | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
+  // Start loading if there's a stored token to validate
   const activeKbId = activeKnowledgeBase?.id ?? null;
+  const [isLoading, setIsLoading] = useState(() => {
+    if (!activeKbId) return false;
+    const token = getKbToken(activeKbId);
+    return !!token && !isTokenExpired(token);
+  });
 
   // When active KB changes, try to restore session from stored token
   useEffect(() => {

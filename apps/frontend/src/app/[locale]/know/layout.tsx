@@ -111,14 +111,6 @@ export default function KnowledgeLayout() {
   const router = useRouter();
   const { activeKnowledgeBase } = useKnowledgeBaseContext();
 
-  if (!activeKnowledgeBase || !authToken) {
-    // No KB or not authenticated — render the layout chrome (sidebar, toolbar)
-    // but show a connect prompt instead of API-dependent content.
-    return (
-      <UnauthenticatedKnowledgeLayout t={(key: string, params?: Record<string, unknown>) => t(key, params as any) as string} keyboardContext={keyboardContext} />
-    );
-  }
-
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -127,6 +119,12 @@ export default function KnowledgeLayout() {
           <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
+    );
+  }
+
+  if (!activeKnowledgeBase || !authToken) {
+    return (
+      <UnauthenticatedKnowledgeLayout t={(key: string, params?: Record<string, unknown>) => t(key, params as any) as string} keyboardContext={keyboardContext} />
     );
   }
 
