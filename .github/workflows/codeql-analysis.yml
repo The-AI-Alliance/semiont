@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'javascript', 'typescript' ]
+        language: [ 'javascript-typescript' ]
 
     steps:
     - name: Checkout repository
@@ -40,17 +40,13 @@ jobs:
         # Override default CodeQL config with custom queries for better security coverage
         config-file: ./.github/codeql/codeql-config.yml
 
-    # Setup Node.js for JavaScript/TypeScript analysis
     - name: Setup Node.js
-      if: matrix.language == 'javascript' || matrix.language == 'typescript'
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24'
         cache: 'npm'
 
-    # Install dependencies for better analysis
     - name: Install all dependencies
-      if: matrix.language == 'javascript' || matrix.language == 'typescript'
       run: npm install --include=optional
       continue-on-error: true
 
