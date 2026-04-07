@@ -30,9 +30,9 @@ describe('Home Page (Splash)', () => {
     expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
   });
 
-  it('should render a continue button', () => {
+  it('should render a begin button', () => {
     render(<Home />);
-    expect(screen.getByText('Continue')).toBeInTheDocument();
+    expect(screen.getByText('Begin')).toBeInTheDocument();
   });
 
   it('should have a main element with role', () => {
