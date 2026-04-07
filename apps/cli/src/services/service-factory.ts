@@ -15,8 +15,9 @@ import { DatabaseService } from './database-service.js';
 import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
 import { InferenceService } from './inference-service.js';
+import { EmbeddingService } from './embedding-service.js';
 
-const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference'] as const;
+const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'graph', 'mcp', 'inference', 'embedding'] as const;
 
 type InferenceProviderConfig = OllamaProviderConfig | AnthropicProviderConfig;
 
@@ -53,6 +54,14 @@ export class ServiceFactory {
 
       case 'mcp':
         return new MCPService(name, platform, envConfig, serviceConfig, runtimeFlags);
+
+      case 'embedding': {
+        const embeddingConfig = envConfig.services.vectors?.embedding;
+        if (!embeddingConfig) {
+          throw new Error('embedding service requires vectors.embedding config');
+        }
+        return new EmbeddingService('embedding', platform, envConfig, embeddingConfig, runtimeFlags);
+      }
 
       case 'inference':
       default: {
@@ -97,6 +106,30 @@ export class ServiceFactory {
         runtimeFlags,
         inferenceType,
       )
+    );
+  }
+
+  /**
+   * Create an EmbeddingService if vectors.embedding is configured.
+   */
+  static createEmbeddingService(
+    platform: PlatformType,
+    config: Config,
+    envConfig: EnvironmentConfig,
+  ): EmbeddingService | null {
+    const embedding = envConfig.services.vectors?.embedding;
+    if (!embedding) return null;
+    return new EmbeddingService(
+      'embedding',
+      platform,
+      envConfig,
+      embedding,
+      {
+        verbose: config.verbose,
+        quiet: config.quiet,
+        dryRun: config.dryRun,
+        forceDiscovery: config.forceDiscovery,
+      },
     );
   }
 }

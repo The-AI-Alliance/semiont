@@ -95,6 +95,19 @@ export function resolveServiceDeployments(
       continue;
     }
 
+    // embedding is derived from config.services.vectors.embedding
+    if (serviceName === 'embedding') {
+      const embedding = config.services?.vectors?.embedding;
+      if (embedding) {
+        platformInfos.push({
+          name: 'embedding',
+          platform: 'external' as PlatformType,
+          config: embedding as ServiceConfig,
+        });
+      }
+      continue;
+    }
+
     const serviceConfig = config.services?.[serviceName];
     if (!serviceConfig) {
       const availableServices = Object.keys(config.services || {});
