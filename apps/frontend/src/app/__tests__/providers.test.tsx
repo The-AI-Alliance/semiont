@@ -50,13 +50,18 @@ vi.mock('@/components/knowledge/NavigationHandler', () => ({
 vi.mock('@/contexts/KnowledgeBaseContext', () => ({
   KnowledgeBaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useKnowledgeBaseContext: () => ({
-    knowledgeBases: [{ id: 'kb-1', label: 'Test', backendUrl: 'http://localhost:4000' }],
+    knowledgeBases: [{ id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' }],
     activeKnowledgeBaseId: 'kb-1',
-    activeKnowledgeBase: { id: 'kb-1', label: 'Test', backendUrl: 'http://localhost:4000' },
+    activeKnowledgeBase: { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
     addKnowledgeBase: vi.fn(),
     removeKnowledgeBase: vi.fn(),
     setActiveKnowledgeBase: vi.fn(),
+    updateKnowledgeBase: vi.fn(),
+    signOut: vi.fn(),
   }),
+  kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
+  getKbToken: () => null,
+  isTokenExpired: () => true,
 }));
 
 // Mock react-query to spy on QueryClient creation
