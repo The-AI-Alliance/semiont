@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { SemiontApiClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
+import { baseUrl, EventBus, accessToken } from '@semiont/core';
 import { useKnowledgeBaseContext, kbBackendUrl, getKbToken, isTokenExpired } from './KnowledgeBaseContext';
 
 type UserInfo = components['schemas']['UserResponse'];
@@ -40,18 +42,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Validate the token by calling /api/users/me
+    // Validate the token by calling getMe via the API client
     setIsLoading(true);
-    const origin = kbBackendUrl(activeKnowledgeBase);
-    fetch(`${origin}/api/users/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('Token invalid');
-        return res.json();
-      })
+    const client = new SemiontApiClient({
+      baseUrl: baseUrl(kbBackendUrl(activeKnowledgeBase)),
+      eventBus: new EventBus(),
+    });
+    client.getMe({ auth: accessToken(token) })
       .then((data) => {
-        setSessionState({ token, user: data });
+        setSessionState({ token, user: data as UserInfo });
       })
       .catch(() => {
         setSessionState(null);

@@ -58,6 +58,7 @@ interface KnowledgeBaseContextValue {
   addKnowledgeBase: (kb: KnowledgeBase) => void;
   removeKnowledgeBase: (id: string) => void;
   setActiveKnowledgeBase: (id: string) => void;
+  updateKnowledgeBase: (id: string, updates: Partial<Pick<KnowledgeBase, 'label'>>) => void;
   signOut: (id: string) => void;
 }
 
@@ -147,6 +148,10 @@ export function KnowledgeBaseProvider({ children }: { children: React.ReactNode 
     setActiveKnowledgeBaseId(id);
   }, []);
 
+  const updateKnowledgeBase = useCallback((id: string, updates: Partial<Pick<KnowledgeBase, 'label'>>) => {
+    setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb, ...updates } : kb));
+  }, []);
+
   const signOut = useCallback((id: string) => {
     clearKbToken(id);
     // Force re-render by updating the KB list (same entries, new reference)
@@ -159,8 +164,8 @@ export function KnowledgeBaseProvider({ children }: { children: React.ReactNode 
   );
 
   const value = useMemo(
-    () => ({ knowledgeBases, activeKnowledgeBaseId, activeKnowledgeBase, addKnowledgeBase, removeKnowledgeBase, setActiveKnowledgeBase, signOut }),
-    [knowledgeBases, activeKnowledgeBaseId, activeKnowledgeBase, addKnowledgeBase, removeKnowledgeBase, setActiveKnowledgeBase, signOut]
+    () => ({ knowledgeBases, activeKnowledgeBaseId, activeKnowledgeBase, addKnowledgeBase, removeKnowledgeBase, setActiveKnowledgeBase, updateKnowledgeBase, signOut }),
+    [knowledgeBases, activeKnowledgeBaseId, activeKnowledgeBase, addKnowledgeBase, removeKnowledgeBase, setActiveKnowledgeBase, updateKnowledgeBase, signOut]
   );
 
   return <KnowledgeBaseContext.Provider value={value}>{children}</KnowledgeBaseContext.Provider>;
