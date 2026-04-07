@@ -112,36 +112,34 @@ async function createKnowledgeSystemFromConfig(
   const graphDb   = await getGraphDatabase(graphConfig);
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
-  // Initialize vector search if configured
+  // Initialize vector search if both vectors and embedding services are configured
   let vectorStore: import('@semiont/vectors').VectorStore | undefined;
   let embeddingProvider: import('@semiont/vectors').EmbeddingProvider | undefined;
   const vectorsConfig = config.services.vectors;
-  if (vectorsConfig) {
+  const embeddingConfig = config.services.embedding;
+  if (vectorsConfig && embeddingConfig) {
     const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
-    const embeddingConfig = vectorsConfig.embedding;
-    if (embeddingConfig) {
-      embeddingProvider = await createEmbeddingProvider(embeddingConfig);
-      vectorStore = await createVectorStore({
-        type: vectorsConfig.type ?? 'qdrant',
-        host: vectorsConfig.host,
-        port: vectorsConfig.port,
-        dimensions: embeddingProvider.dimensions(),
-      });
-      logger.info('Vector search initialized', {
-        store: vectorsConfig.type,
-        embedding: embeddingConfig.type,
-        model: embeddingConfig.model,
-      });
-    }
+    embeddingProvider = await createEmbeddingProvider(embeddingConfig);
+    vectorStore = await createVectorStore({
+      type: vectorsConfig.type ?? 'qdrant',
+      host: vectorsConfig.host,
+      port: vectorsConfig.port,
+      dimensions: embeddingProvider.dimensions(),
+    });
+    logger.info('Vector search initialized', {
+      store: vectorsConfig.type,
+      embedding: embeddingConfig.type,
+      model: embeddingConfig.model,
+    });
   }
 
   const kb = await createKnowledgeBase(eventStore, project, graphDb, logger, {
     vectorStore,
     embeddingProvider,
     eventBus,
-    chunkingConfig: vectorsConfig?.chunking ? {
-      chunkSize: vectorsConfig.chunking.chunkSize ?? 512,
-      overlap: vectorsConfig.chunking.overlap ?? 64,
+    chunkingConfig: embeddingConfig?.chunking ? {
+      chunkSize: embeddingConfig.chunking.chunkSize ?? 512,
+      overlap: embeddingConfig.chunking.overlap ?? 64,
     } : undefined,
     skipRebuild,
   });

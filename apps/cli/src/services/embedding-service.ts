@@ -2,7 +2,7 @@
  * Embedding Service - Handles embedding model providers (Ollama, Voyage)
  *
  * Manages the embedding model lifecycle independently of inference providers.
- * Reads config from environments.<env>.services.vectors.embedding.
+ * Reads config from environments.<env>.embedding.
  *
  * Platform Adaptations:
  * - external: Pull models via HTTP API (Ollama) or validate API key (Voyage)

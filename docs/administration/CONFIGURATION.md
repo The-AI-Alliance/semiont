@@ -232,24 +232,42 @@ database = "neo4j"
 
 ## Vectors Configuration
 
-Vector search enables semantic similarity across resources and annotations. Requires a vector store (Qdrant or in-memory) and an embedding provider (Ollama or Voyage AI).
-
-### Ollama (local, default)
-
-No API key required. Ollama runs locally or in a container.
+The vector store holds pre-computed embedding vectors for semantic similarity search. Configure it separately from the embedding provider.
 
 ```toml
 [environments.local.vectors]
 type = "qdrant"
 host = "localhost"
 port = 6333
+```
 
-[environments.local.vectors.embedding]
+### In-memory vector store (testing)
+
+For development without Qdrant:
+
+```toml
+[environments.local.vectors]
+type = "memory"
+```
+
+The in-memory store loses all vectors on restart.
+
+## Embedding Configuration
+
+The embedding service computes vector embeddings for resources and annotations. It runs independently of the inference providers used for text generation.
+
+### Ollama (local, default)
+
+No API key required. Ollama runs locally or in a container.
+
+```toml
+[environments.local.embedding]
+platform = "external"
 type = "ollama"
 model = "nomic-embed-text"
 baseURL = "http://localhost:11434"
 
-[environments.local.vectors.chunking]
+[environments.local.embedding.chunking]
 chunkSize = 512
 overlap = 64
 ```
@@ -261,38 +279,18 @@ Available Ollama models: `nomic-embed-text` (768 dims), `all-minilm` (384), `mxb
 Requires a Voyage AI API key (separate from Anthropic).
 
 ```toml
-[environments.local.vectors]
-type = "qdrant"
-host = "localhost"
-port = 6333
-
-[environments.local.vectors.embedding]
+[environments.local.embedding]
+platform = "external"
 type = "voyage"
 model = "voyage-3"
 apiKey = "<your-voyage-api-key>"
 
-[environments.local.vectors.chunking]
+[environments.local.embedding.chunking]
 chunkSize = 512
 overlap = 64
 ```
 
 Available Voyage models: `voyage-3` (1024 dims), `voyage-3-lite` (512), `voyage-code-3`, `voyage-finance-2`, `voyage-law-2`.
-
-### In-memory vector store (testing)
-
-For development without Qdrant:
-
-```toml
-[environments.local.vectors]
-type = "memory"
-
-[environments.local.vectors.embedding]
-type = "ollama"
-model = "nomic-embed-text"
-baseURL = "http://localhost:11434"
-```
-
-The in-memory store loses all vectors on restart.
 
 ## Environment Variables
 

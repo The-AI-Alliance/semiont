@@ -161,6 +161,7 @@ interface EnvironmentSection {
     type?: 'qdrant' | 'memory';
     host?: string;
     port?: number;
+    // Legacy: embedding nested under vectors (migrated to top-level)
     embedding?: {
       type?: 'voyage' | 'ollama';
       model?: string;
@@ -168,6 +169,17 @@ interface EnvironmentSection {
       baseURL?: string;
       endpoint?: string;
     };
+    chunking?: {
+      chunkSize?: number;
+      overlap?: number;
+    };
+  };
+  embedding?: {
+    type?: 'voyage' | 'ollama';
+    model?: string;
+    apiKey?: string;
+    baseURL?: string;
+    endpoint?: string;
     chunking?: {
       chunkSize?: number;
       overlap?: number;
@@ -448,18 +460,24 @@ export function loadTomlConfig(
       type: (resolved.vectors.type ?? 'qdrant') as 'qdrant' | 'memory',
       host: resolved.vectors.host,
       port: resolved.vectors.port ?? 6333,
-      embedding: resolved.vectors.embedding ? {
-        type: resolved.vectors.embedding.type!,
-        model: resolved.vectors.embedding.model!,
-        apiKey: resolved.vectors.embedding.apiKey,
-        baseURL: resolved.vectors.embedding.baseURL,
-        endpoint: resolved.vectors.embedding.endpoint,
-      } : undefined,
-      chunking: resolved.vectors.chunking ? {
-        chunkSize: resolved.vectors.chunking.chunkSize ?? 512,
-        overlap: resolved.vectors.chunking.overlap ?? 64,
-      } : undefined,
     } as EnvironmentConfig['services']['vectors'];
+  }
+
+  // Embedding: top-level takes precedence, fall back to legacy vectors.embedding
+  const embeddingSource = resolved.embedding ?? resolved.vectors?.embedding;
+  if (embeddingSource) {
+    services.embedding = {
+      platform: { type: 'external' as PlatformType },
+      type: embeddingSource.type!,
+      model: embeddingSource.model!,
+      apiKey: embeddingSource.apiKey,
+      baseURL: embeddingSource.baseURL,
+      endpoint: embeddingSource.endpoint,
+      chunking: (resolved.embedding?.chunking ?? resolved.vectors?.chunking) ? {
+        chunkSize: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.chunkSize ?? 512,
+        overlap: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.overlap ?? 64,
+      } : undefined,
+    } as EnvironmentConfig['services']['embedding'];
   }
 
   const config: EnvironmentConfig = {

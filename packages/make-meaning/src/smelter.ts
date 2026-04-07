@@ -497,7 +497,7 @@ export class Smelter {
 
     await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
 
-    this.logger.debug('Smelter indexed annotation', {
+    this.logger.info('Smelter indexed annotation', {
       annotationId: String(aid),
       resourceId: String(rid),
     });
