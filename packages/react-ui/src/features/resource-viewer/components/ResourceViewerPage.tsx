@@ -94,7 +94,7 @@ export interface ResourceViewerPageProps {
   /**
    * Name of the active knowledge base (for display in panels)
    */
-  knowledgeBaseName?: string;
+  knowledgeBaseName?: string | undefined;
 }
 
 /**
