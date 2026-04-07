@@ -59,13 +59,8 @@ export class ServiceFactory {
       case 'vectors':
         return new VectorsService(name, platform, envConfig, serviceConfig as import('@semiont/core').VectorsServiceConfig, runtimeFlags);
 
-      case 'embedding': {
-        const embeddingConfig = envConfig.services.vectors?.embedding;
-        if (!embeddingConfig) {
-          throw new Error('embedding service requires vectors.embedding config');
-        }
-        return new EmbeddingService('embedding', platform, envConfig, embeddingConfig, runtimeFlags);
-      }
+      case 'embedding':
+        return new EmbeddingService('embedding', platform, envConfig, serviceConfig as unknown as import('./embedding-service').EmbeddingConfig, runtimeFlags);
 
       case 'inference':
       default: {
@@ -113,27 +108,4 @@ export class ServiceFactory {
     );
   }
 
-  /**
-   * Create an EmbeddingService if vectors.embedding is configured.
-   */
-  static createEmbeddingService(
-    platform: PlatformType,
-    config: Config,
-    envConfig: EnvironmentConfig,
-  ): EmbeddingService | null {
-    const embedding = envConfig.services.vectors?.embedding;
-    if (!embedding) return null;
-    return new EmbeddingService(
-      'embedding',
-      platform,
-      envConfig,
-      embedding,
-      {
-        verbose: config.verbose,
-        quiet: config.quiet,
-        dryRun: config.dryRun,
-        forceDiscovery: config.forceDiscovery,
-      },
-    );
-  }
 }

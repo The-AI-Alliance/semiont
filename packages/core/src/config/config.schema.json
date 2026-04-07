@@ -460,28 +460,32 @@
         "port": {
           "type": "integer",
           "default": 6333
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "EmbeddingServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
         },
-        "embedding": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": ["voyage", "ollama"]
-            },
-            "model": {
-              "type": "string"
-            },
-            "apiKey": {
-              "type": "string"
-            },
-            "baseURL": {
-              "type": "string"
-            },
-            "endpoint": {
-              "type": "string"
-            }
-          },
-          "required": ["type", "model"]
+        "type": {
+          "type": "string",
+          "enum": ["voyage", "ollama"]
+        },
+        "model": {
+          "type": "string"
+        },
+        "apiKey": {
+          "type": "string"
+        },
+        "baseURL": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
         },
         "chunking": {
           "type": "object",
@@ -497,7 +501,7 @@
           }
         }
       },
-      "required": ["type"],
+      "required": ["type", "model"],
       "additionalProperties": false
     },
     "DatabaseServiceConfig": {
@@ -1108,6 +1112,9 @@
         },
         "vectors": {
           "$ref": "#/definitions/VectorsServiceConfig"
+        },
+        "embedding": {
+          "$ref": "#/definitions/EmbeddingServiceConfig"
         }
       },
       "additionalProperties": true

@@ -120,9 +120,6 @@ export async function getServicesWithCapability(
   if (envConfig.inference && Object.keys(envConfig.inference).length > 0) {
     allServices.push('inference');
   }
-  if (envConfig.services?.vectors?.embedding) {
-    allServices.push('embedding');
-  }
 
   // Check if this capability is actually a service command
   const isServiceCommand = await commandRequiresServices(capability);

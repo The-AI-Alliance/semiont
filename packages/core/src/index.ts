@@ -211,6 +211,7 @@ export type {
   McpServiceConfig,
   ServicesConfig,
   VectorsServiceConfig,
+  EmbeddingServiceConfig,
   SemiontConfig,
   GraphDatabaseType,
   ServicePlatformConfig
