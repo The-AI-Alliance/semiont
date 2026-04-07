@@ -5,8 +5,18 @@
  * Manages two collections: 'resources' and 'annotations'.
  */
 
+import { createHash } from 'crypto';
 import type { ResourceId, AnnotationId } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions } from './interface';
+
+/**
+ * Generate a deterministic UUID v5-style ID from an arbitrary string.
+ * Qdrant requires point IDs to be UUIDs or unsigned integers.
+ */
+function toQdrantId(input: string): string {
+  const hex = createHash('md5').update(input).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
 
 export interface QdrantConfig {
   host: string;
@@ -59,7 +69,7 @@ export class QdrantVectorStore implements VectorStore {
     if (chunks.length === 0) return;
 
     const points = chunks.map((chunk) => ({
-      id: `${resourceId}-${chunk.chunkIndex}`,
+      id: toQdrantId(`${resourceId}-${chunk.chunkIndex}`),
       vector: chunk.embedding,
       payload: {
         resourceId: String(resourceId),
@@ -78,7 +88,7 @@ export class QdrantVectorStore implements VectorStore {
   ): Promise<void> {
     await this.client.upsert('annotations', {
       points: [{
-        id: String(annotationId),
+        id: toQdrantId(String(annotationId)),
         vector: embedding,
         payload: {
           annotationId: String(payload.annotationId),
@@ -101,7 +111,7 @@ export class QdrantVectorStore implements VectorStore {
 
   async deleteAnnotationVector(annotationId: AnnotationId): Promise<void> {
     await this.client.delete('annotations', {
-      points: [String(annotationId)],
+      points: [toQdrantId(String(annotationId))],
     });
   }
 
