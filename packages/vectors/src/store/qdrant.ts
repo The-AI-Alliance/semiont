@@ -51,6 +51,13 @@ export class QdrantVectorStore implements VectorStore {
     this.connected = false;
   }
 
+  async clearAll(): Promise<void> {
+    try { await this.client.deleteCollection('resources'); } catch { /* may not exist */ }
+    try { await this.client.deleteCollection('annotations'); } catch { /* may not exist */ }
+    await this.ensureCollection('resources', this.config.dimensions);
+    await this.ensureCollection('annotations', this.config.dimensions);
+  }
+
   isConnected(): boolean {
     return this.connected;
   }

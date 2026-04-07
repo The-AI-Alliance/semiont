@@ -26,7 +26,8 @@ export const SERVICE_TYPES = {
   MCP: 'mcp',              // Model Context Protocol servers
   
   // Vectors
-  VECTORS: 'vectors',     // Vector databases, embedding search (Qdrant, etc.)
+  VECTORS: 'vectors',     // Vector databases (Qdrant, etc.)
+  EMBEDDING: 'embedding', // Embedding model providers (Ollama, Voyage, etc.)
 
   // Infrastructure
   STACK: 'stack',          // Infrastructure stacks (CloudFormation, Terraform)

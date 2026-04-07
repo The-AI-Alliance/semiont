@@ -112,6 +112,8 @@ export class Smelter {
   async rebuildAll(): Promise<void> {
     this.logger.info('Rebuilding vector store from events');
 
+    await this.vectorStore.clearAll();
+
     const allResourceIds = await this.eventStore.log.getAllResourceIds();
     this.logger.info('Found resources to scan', { count: allResourceIds.length });
 

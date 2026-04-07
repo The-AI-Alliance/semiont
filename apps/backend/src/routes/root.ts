@@ -17,9 +17,6 @@ rootRouter.get('/', (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Semiont</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Orbitron:wght@700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     @keyframes fadeIn {
@@ -30,7 +27,7 @@ rootRouter.get('/', (c) => {
       animation: fadeIn 0.4s ease-out;
       background: #ffffff;
       color: #111827;
-      font-family: 'Inter', -apple-system, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -39,14 +36,12 @@ rootRouter.get('/', (c) => {
       gap: 0.75rem;
     }
     h1 {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 3rem;
-      font-weight: 700;
-      letter-spacing: 0.15em;
-      color: #0066cc;
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      color: #0f172a;
     }
     h2 {
-      font-family: 'Inter', sans-serif;
       font-size: 0.9rem;
       font-weight: 500;
       letter-spacing: 0.3em;
@@ -54,7 +49,6 @@ rootRouter.get('/', (c) => {
       text-transform: uppercase;
     }
     .tagline {
-      font-family: 'Inter', sans-serif;
       font-size: 0.85rem;
       font-weight: 400;
       letter-spacing: 0.2em;
@@ -96,7 +90,7 @@ rootRouter.get('/', (c) => {
     }
     @media (prefers-color-scheme: dark) {
       body { background: #111827; color: #f3f4f6; }
-      h1 { color: #60a5fa; }
+      h1 { color: #e2e8f0; }
       h2 { color: #9ca3af; }
       .tagline { color: #6b7280; }
       hr { border-top-color: #374151; }

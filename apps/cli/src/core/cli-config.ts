@@ -28,9 +28,11 @@ export interface Config {
 
 /**
  * Service configuration - uses schema-generated types.
- * OllamaProviderConfig and AnthropicProviderConfig are excluded from this union
- * because they lack the common fields (env, environment) that BaseService accesses.
- * InferenceService handles both provider types internally via its own cast.
+ * OllamaProviderConfig, AnthropicProviderConfig, VectorsServiceConfig, and
+ * EmbeddingConfig are excluded from this union because they lack the common
+ * fields (env, environment, command) that BaseService accesses.
+ * InferenceService, VectorsService, and EmbeddingService handle their
+ * config types internally via their own casts.
  */
 export type ServiceConfig =
   | BackendServiceConfig
