@@ -9,10 +9,10 @@
  * Flow:
  *   1. Receive operations (same format as PUT /body)
  *   2. Open SSE stream
- *   3. Emit mark:update-body on the EventBus
- *   4. Wait for annotation.body.updated domain event via resource-scoped EventBus
- *   5. Send bind:finished and close stream
- *   6. On error or timeout, send bind:failed and close stream
+ *   3. Subscribe to event store for annotation.body.updated
+ *   4. Emit mark:update-body on the core EventBus
+ *   5. When the Stower persists the event, send bind:finished and close
+ *   6. On error or timeout, send bind:failed and close
  */
 
 import { streamSSE } from 'hono/streaming';
@@ -21,7 +21,6 @@ import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { BodyOperation } from '@semiont/core';
 import { resourceId, annotationId, userId, userToDid } from '@semiont/core';
-import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getLogger } from '../../../logger';
 import type { components } from '@semiont/core';
 
@@ -42,6 +41,7 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
       }
 
       const eventBus = c.get('eventBus');
+      const { knowledgeSystem: { kb: { eventStore } } } = c.get('makeMeaning');
 
       const logger = getLogger().child({
         component: 'bind-annotation-stream',
@@ -51,11 +51,14 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
 
       logger.info('Starting bind stream', { operationCount: request.operations.length });
 
+      const rId = resourceId(resourceIdParam);
+      const aid = annotationId(annotationIdParam);
+
       return streamSSE(c, async (stream) => {
         let isStreamClosed = false;
-        const subscriptions: Array<{ unsubscribe: () => void }> = [];
         let closeStreamCallback: (() => void) | null = null;
         let timeoutHandle: NodeJS.Timeout | null = null;
+        let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
 
         const streamPromise = new Promise<void>((resolve) => {
           closeStreamCallback = resolve;
@@ -65,49 +68,37 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
           if (isStreamClosed) return;
           isStreamClosed = true;
           if (timeoutHandle) clearTimeout(timeoutHandle);
-          subscriptions.forEach(sub => sub.unsubscribe());
+          if (subscription) subscription.unsubscribe();
           if (closeStreamCallback) closeStreamCallback();
         };
 
         try {
-          const resourceBus = eventBus.scope(resourceIdParam);
+          // Subscribe to resource events via the legacy EventBus (where domain events arrive)
+          subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+            if (isStreamClosed) return;
+            if (storedEvent.event.type !== 'annotation.body.updated') return;
+            if (storedEvent.event.payload?.annotationId !== annotationIdParam) return;
 
-          // Listen for the domain event confirming the body was updated
-          subscriptions.push(
-            resourceBus.get('annotation:body:updated').subscribe(async (event: any) => {
-              if (isStreamClosed) return;
-              // Match on annotation ID
-              if (event.payload?.annotationId !== annotationIdParam) return;
-
-              logger.info('Bind completed', { annotationId: annotationIdParam });
-              try {
-                await writeTypedSSE(stream, {
-                  data: {
-                    status: 'complete',
-                    annotationId: annotationIdParam,
-                    resourceId: resourceIdParam,
-                  },
-                  event: 'bind:finished',
-                  id: String(Date.now()),
-                });
-              } catch {
-                logger.warn('Client disconnected before bind:finished');
-              }
-              cleanup();
-            })
-          );
+            logger.info('Bind completed', { annotationId: annotationIdParam });
+            try {
+              await stream.writeSSE({
+                data: JSON.stringify({ annotationId: String(aid) }),
+                event: 'bind:finished',
+                id: String(Date.now()),
+              });
+            } catch {
+              logger.warn('Client disconnected before bind:finished');
+            }
+            cleanup();
+          });
 
           // Timeout
           timeoutHandle = setTimeout(async () => {
             if (isStreamClosed) return;
             logger.warn('Bind timed out', { timeoutMs: BIND_TIMEOUT_MS });
             try {
-              await writeTypedSSE(stream, {
-                data: {
-                  status: 'error',
-                  message: 'Bind operation timed out',
-                  annotationId: annotationIdParam,
-                },
+              await stream.writeSSE({
+                data: JSON.stringify({ error: 'Bind operation timed out' }),
                 event: 'bind:failed',
                 id: String(Date.now()),
               });
@@ -123,10 +114,10 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
             cleanup();
           });
 
-          // Emit the update-body command
+          // Emit the update-body command on the core EventBus
           eventBus.get('mark:update-body').next({
-            annotationId: annotationId(annotationIdParam),
-            resourceId: resourceId(resourceIdParam),
+            annotationId: aid,
+            resourceId: rId,
             userId: userId(userToDid(user)),
             operations: request.operations as BodyOperation[],
           });
@@ -136,12 +127,8 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
         } catch (error) {
           logger.error('Bind stream error', { error: error instanceof Error ? error.message : String(error) });
           try {
-            await writeTypedSSE(stream, {
-              data: {
-                status: 'error',
-                message: error instanceof Error ? error.message : 'Bind failed',
-                annotationId: annotationIdParam,
-              },
+            await stream.writeSSE({
+              data: JSON.stringify({ error: error instanceof Error ? error.message : 'Bind failed' }),
               event: 'bind:failed',
               id: String(Date.now()),
             });
