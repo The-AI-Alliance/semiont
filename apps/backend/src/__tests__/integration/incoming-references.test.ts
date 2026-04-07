@@ -7,6 +7,9 @@
  * Uses terminology: "incoming references" for all test names and comments.
  */
 
+// Skip graph/vector rebuild at startup — tests use mocked graph database
+process.env.SEMIONT_SKIP_REBUILD = 'true';
+
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { userId, type EnvironmentConfig } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
