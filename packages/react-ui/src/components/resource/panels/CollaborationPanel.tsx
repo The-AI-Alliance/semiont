@@ -7,12 +7,14 @@ interface Props {
   isConnected: boolean;
   eventCount: number;
   lastEventTimestamp?: string;
+  knowledgeBaseName?: string;
 }
 
 export function CollaborationPanel({
   isConnected,
   eventCount,
-  lastEventTimestamp
+  lastEventTimestamp,
+  knowledgeBaseName
 }: Props) {
   const t = useTranslations('CollaborationPanel');
 
@@ -51,6 +53,12 @@ export function CollaborationPanel({
       <h3 className="semiont-collaboration-panel__title">
         {t('title')}
       </h3>
+
+      {knowledgeBaseName && (
+        <div style={{ padding: '0 0.75rem 0.5rem', fontSize: '0.8rem', color: 'var(--semiont-color-neutral-400)' }}>
+          {knowledgeBaseName}
+        </div>
+      )}
 
       {/* Connection Status Section */}
       <div className="semiont-collaboration-panel__section">
