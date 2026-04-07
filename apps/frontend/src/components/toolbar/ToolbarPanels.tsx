@@ -112,8 +112,23 @@ export function ToolbarPanels({
         )}
 
         {/* User Panel - requires authentication */}
-        {activePanel === 'user' && isAuthenticated && (
-          <UserPanel />
+        {activePanel === 'user' && (
+          isAuthenticated ? (
+            <UserPanel />
+          ) : (
+            <div className="semiont-panel">
+              <div className="semiont-panel-header">
+                <h2 className="semiont-panel-header__title">
+                  <span className="semiont-panel-header__text">Account</span>
+                </h2>
+              </div>
+              <div className="semiont-panel__content" style={{ padding: '1rem', textAlign: 'center' }}>
+                <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                  Sign in to a knowledge base to view your account.
+                </p>
+              </div>
+            </div>
+          )
         )}
 
         {/* Settings Panel - common to all contexts */}
