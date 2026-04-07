@@ -127,18 +127,8 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
 
 function KnowledgeBaseAuthBridge({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
   const { activeKnowledgeBase } = useKnowledgeBaseContext();
-  if (!activeKnowledgeBase) {
-    // No knowledge base configured yet. Render inner providers (routing, i18n, etc.) but skip
-    // AuthProvider — there is no backend URL to authenticate against. KnowledgeLayout will
-    // redirect to /auth/connect when the user navigates to /know.
-    return (
-      <InnerProviders queryClient={queryClient}>
-        {children}
-      </InnerProviders>
-    );
-  }
   return (
-    <AuthProvider key={activeKnowledgeBase.id} backendUrl={activeKnowledgeBase.backendUrl}>
+    <AuthProvider key={activeKnowledgeBase?.id ?? '__none__'}>
       <InnerProviders queryClient={queryClient}>
         {children}
       </InnerProviders>

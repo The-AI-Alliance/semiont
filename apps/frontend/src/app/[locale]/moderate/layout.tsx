@@ -8,7 +8,7 @@ import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
-import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
+import { useKnowledgeBaseContext, kbBackendUrl } from '@/contexts/KnowledgeBaseContext';
 
 export default function ModerateLayout() {
   const { t } = useTranslation();
@@ -24,7 +24,7 @@ export default function ModerateLayout() {
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={activeKnowledgeBase.backendUrl}>
+      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
           <div className="flex flex-1">
             <LeftSidebar

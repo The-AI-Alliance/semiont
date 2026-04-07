@@ -402,3 +402,15 @@
 .semiont-panel-actions--between {
   justify-content: space-between;
 }
+
+/* Login form pulsing border for first-launch nudge */
+@keyframes semiont-pulse-border {
+  0%, 100% { border-color: var(--semiont-color-primary-300, #93c5fd); }
+  50% { border-color: var(--semiont-color-primary-600, #2563eb); }
+}
+
+.semiont-panel__login-form--pulsing {
+  border: 2px solid var(--semiont-color-primary-400, #60a5fa);
+  border-radius: var(--semiont-panel-border-radius, 0.5rem);
+  animation: semiont-pulse-border 2s ease-in-out infinite;
+}

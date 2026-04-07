@@ -10,7 +10,7 @@ import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
-import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
+import { useKnowledgeBaseContext, kbBackendUrl } from '@/contexts/KnowledgeBaseContext';
 import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 
 function GlobalEventsConnector() {
@@ -37,9 +37,12 @@ export default function KnowledgeLayout() {
   const router = useRouter();
   const { activeKnowledgeBase } = useKnowledgeBaseContext();
 
-  if (!activeKnowledgeBase) {
-    router.push('/auth/connect?callbackUrl=/know');
-    return null;
+  if (!activeKnowledgeBase || !authToken) {
+    // No KB or not authenticated — render the layout without an API client.
+    // The Discover page shows an empty state; the KB panel handles login.
+    return (
+      <Outlet />
+    );
   }
 
   if (isLoading) {
@@ -53,15 +56,9 @@ export default function KnowledgeLayout() {
     );
   }
 
-  if (!authToken) {
-    const callbackUrl = encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/know');
-    router.push(`/auth/connect?workspaceId=${activeKnowledgeBase.id}&callbackUrl=${callbackUrl}`);
-    return null;
-  }
-
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={activeKnowledgeBase.backendUrl}>
+      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)}>
         <CacheProvider cacheManager={cacheManager}>
           <OpenResourcesProvider openResourcesManager={openResourcesManager}>
             <ResourceAnnotationsProvider>

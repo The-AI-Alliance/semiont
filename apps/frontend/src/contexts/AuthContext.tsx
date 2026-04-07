@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { SemiontApiClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
-import { baseUrl, EventBus } from '@semiont/core';
+import { useKnowledgeBaseContext, kbBackendUrl, getKbToken, isTokenExpired } from './KnowledgeBaseContext';
 
 type UserInfo = components['schemas']['UserResponse'];
 
@@ -19,17 +18,40 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ backendUrl: backendUrlProp, children }: { backendUrl: string; children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { activeKnowledgeBase } = useKnowledgeBaseContext();
   const [session, setSessionState] = useState<AuthSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
+  const activeKbId = activeKnowledgeBase?.id ?? null;
+
+  // When active KB changes, try to restore session from stored token
   useEffect(() => {
+    if (!activeKbId || !activeKnowledgeBase) {
+      setSessionState(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const token = getKbToken(activeKbId);
+    if (!token || isTokenExpired(token)) {
+      setSessionState(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate the token by calling /api/users/me
     setIsLoading(true);
-    setSessionState(null);
-    const client = new SemiontApiClient({ baseUrl: baseUrl(backendUrlProp), eventBus: new EventBus() });
-    client.getMe()
+    const origin = kbBackendUrl(activeKnowledgeBase);
+    fetch(`${origin}/api/users/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Token invalid');
+        return res.json();
+      })
       .then((data) => {
-        setSessionState({ token: data.token, user: data });
+        setSessionState({ token, user: data });
       })
       .catch(() => {
         setSessionState(null);
@@ -37,7 +59,7 @@ export function AuthProvider({ backendUrl: backendUrlProp, children }: { backend
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, [activeKbId, activeKnowledgeBase]);
 
   const setSession = useCallback((s: AuthSession) => {
     setSessionState(s);
