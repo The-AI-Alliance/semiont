@@ -66,6 +66,7 @@
   },
   "devDependencies": {
     "@redocly/cli": "^2.21.1",
+    "glob": "^11.0.0",
     "@types/node": "^25.5.0",
     "baseline-browser-mapping": "^2.9.6",
     "stylelint": "^17.0.0",
