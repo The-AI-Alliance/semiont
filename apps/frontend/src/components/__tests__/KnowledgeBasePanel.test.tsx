@@ -4,6 +4,34 @@ import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
 import type { KnowledgeBase } from '@/contexts/KnowledgeBaseContext';
 
+const translations: Record<string, string> = {
+  'KnowledgeBasePanel.title': 'Knowledge Bases',
+  'KnowledgeBasePanel.connectTitle': 'Connect to Knowledge Base',
+  'KnowledgeBasePanel.connect': 'Connect',
+  'KnowledgeBasePanel.connecting': 'Connecting...',
+  'KnowledgeBasePanel.signIn': 'Sign in',
+  'KnowledgeBasePanel.signingIn': 'Signing in...',
+  'KnowledgeBasePanel.cancel': 'Cancel',
+  'KnowledgeBasePanel.addKnowledgeBase': 'Add knowledge base',
+  'KnowledgeBasePanel.remove': 'Remove',
+  'KnowledgeBasePanel.signOut': 'Sign out',
+  'KnowledgeBasePanel.statusConnected': 'Connected',
+  'KnowledgeBasePanel.statusExpired': 'Session expired',
+  'KnowledgeBasePanel.statusSignedOut': 'Signed out',
+  'KnowledgeBasePanel.statusUnreachable': 'Unreachable',
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, params?: any) => {
+      let val = translations[key] ?? key;
+      if (params?.label) val = val.replace('{{label}}', params.label);
+      return val;
+    },
+    i18n: { language: 'en' },
+  }),
+}));
+
 const mockSetActiveKnowledgeBase = vi.fn();
 const mockAddKnowledgeBase = vi.fn();
 const mockRemoveKnowledgeBase = vi.fn();
