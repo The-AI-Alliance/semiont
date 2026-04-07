@@ -42,6 +42,7 @@ export interface CreateKnowledgeBaseOptions {
   embeddingProvider?: EmbeddingProvider;
   eventBus?: EventBus;
   chunkingConfig?: ChunkingConfig;
+  skipRebuild?: boolean;
 }
 
 export async function createKnowledgeBase(
@@ -63,6 +64,10 @@ export async function createKnowledgeBase(
   );
   await graphConsumer.initialize();
 
+  if (!options?.skipRebuild) {
+    await graphConsumer.rebuildAll();
+  }
+
   const kb: KnowledgeBase = {
     eventStore, views, content, graph: graphDb, graphConsumer,
     projectionsDir: project.projectionsDir,
@@ -81,6 +86,10 @@ export async function createKnowledgeBase(
       options.chunkingConfig,
     );
     await kb.smelter.initialize();
+
+    if (!options.skipRebuild) {
+      await kb.smelter.rebuildAll();
+    }
   }
 
   return kb;

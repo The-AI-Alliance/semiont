@@ -47,6 +47,11 @@ export class MemoryVectorStore implements VectorStore {
     this.connected = false;
   }
 
+  async clearAll(): Promise<void> {
+    this.resources = [];
+    this.annotations = [];
+  }
+
   isConnected(): boolean {
     return this.connected;
   }

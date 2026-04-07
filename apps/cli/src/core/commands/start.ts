@@ -21,6 +21,7 @@ import { HandlerResult } from '../handlers/types.js';
 
 const StartOptionsSchema = OpsOptionsSchema.extend({
   service: z.string().optional(),
+  skipRebuild: z.boolean().optional(),
 });
 
 export type StartOptions = z.output<typeof StartOptionsSchema>;
@@ -57,6 +58,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
+    skipRebuild: options.skipRebuild,
   }),
 
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
@@ -131,6 +133,11 @@ export const startCommand = new CommandBuilder()
     '--all': {
       type: 'boolean',
       description: 'Start all services',
+      default: false,
+    },
+    '--skip-rebuild': {
+      type: 'boolean',
+      description: 'Skip graph and vector store rebuild at startup',
       default: false,
     },
   }, {

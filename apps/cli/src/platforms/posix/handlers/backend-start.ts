@@ -124,6 +124,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     JWT_SECRET: jwtSecret,
     SEMIONT_ROOT: service.projectRoot!,
     SEMIONT_ENV: service.environment,
+    ...(context.options.skipRebuild ? { SEMIONT_SKIP_REBUILD: 'true' } : {}),
   };
   
   // Ensure logs and pid directories exist

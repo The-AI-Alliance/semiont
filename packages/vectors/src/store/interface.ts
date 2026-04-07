@@ -47,6 +47,9 @@ export interface VectorStore {
   disconnect(): Promise<void>;
   isConnected(): boolean;
 
+  // Lifecycle
+  clearAll(): Promise<void>;
+
   // Write
   upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[]): Promise<void>;
   upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;

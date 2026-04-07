@@ -106,6 +106,7 @@ async function createKnowledgeSystemFromConfig(
   config: MakeMeaningConfig,
   eventBus: EventBus,
   logger: Logger,
+  skipRebuild?: boolean,
 ): Promise<KnowledgeSystem> {
   const graphConfig = config.services!.graph!;
   const graphDb   = await getGraphDatabase(graphConfig);
@@ -142,6 +143,7 @@ async function createKnowledgeSystemFromConfig(
       chunkSize: vectorsConfig.chunking.chunkSize ?? 512,
       overlap: vectorsConfig.chunking.overlap ?? 64,
     } : undefined,
+    skipRebuild,
   });
 
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
@@ -248,13 +250,16 @@ export async function startMakeMeaning(
   config: MakeMeaningConfig,
   eventBus: EventBus,
   logger: Logger,
+  options?: { skipRebuild?: boolean },
 ): Promise<MakeMeaningService> {
   if (!config.services?.graph) {
     throw new Error('services.graph is required for make-meaning service');
   }
 
+  const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
+
   const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
-  const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger);
+  const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
   const contentFetcher  = createContentFetcher(knowledgeSystem);
   const workers         = createWorkers(jobQueue, contentFetcher, eventBus, config, logger);
   startWorkers(workers, logger);
