@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import Home from '@/app/[locale]/page';
 
-// Mock react-ui components that have been migrated
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
@@ -13,121 +12,41 @@ vi.mock('@semiont/react-ui', async () => {
         <h2>Semiont</h2>
       </div>
     ),
-    Footer: () => <div data-testid="footer">Footer</div>,
+    buttonStyles: { primary: { base: 'semiont-button semiont-button--primary' } },
   };
 });
 
-vi.mock('@/components/UserMenu', () => ({
-  UserMenu: () => <div data-testid="user-menu">User Menu</div>
+vi.mock('@/i18n/routing', () => ({
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    isAuthenticated: false,
-    isLoading: false,
-    token: null,
-    user: null,
-    backendUser: null,
-    isFullyAuthenticated: false,
-    hasValidBackendToken: false,
-    userDomain: undefined,
-    displayName: '',
-    avatarUrl: null,
-    isAdmin: false,
-    isModerator: false,
-  }),
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key === 'Home.signIn' ? 'Sign In' : key }),
 }));
 
-describe('Home Page', () => {
-  it('should render the main structure', () => {
+describe('Home Page (Splash)', () => {
+  it('should render the branding', () => {
     render(<Home />);
-    
-    // Check main container structure
-    const mainContainer = screen.getByRole('main');
-    expect(mainContainer).toBeInTheDocument();
-    expect(mainContainer).toHaveClass('flex-1', 'flex', 'flex-col', 'items-center', 'justify-center', 'p-24');
-  });
-
-  it('should render the hero section with proper heading structure', () => {
-    render(<Home />);
-    
-    // Check for screen reader heading (it exists but is sr-only)
-    const srHeading = screen.getByText(/Semiont - AI-Powered Research Platform/i);
-    expect(srHeading).toBeInTheDocument();
-    expect(srHeading).toHaveClass('sr-only');
-    expect(srHeading).toHaveAttribute('id', 'hero-heading');
-    
-    // Check for subtitle/tagline
-    const subtitle = screen.getByText(/open-source.*future-proof.*framework/i);
-    expect(subtitle).toBeInTheDocument();
-    expect(subtitle).toHaveClass('text-xl', 'text-gray-600', 'dark:text-gray-300');
-  });
-
-  it('should render all main components', () => {
-    render(<Home />);
-    
-    // Check that main components are rendered
     expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
-    expect(screen.getByTestId('footer')).toBeInTheDocument();
-    
-    // Check for sign-in button (unauthenticated state)
+  });
+
+  it('should render a sign-in button', () => {
+    render(<Home />);
     expect(screen.getByText('Sign In')).toBeInTheDocument();
   });
 
-  it('should have proper semantic HTML structure', () => {
+  it('should have a main element with role', () => {
     render(<Home />);
-    
-    // Check for main role
-    expect(screen.getByRole('main')).toBeInTheDocument();
-    
-    // Check for section with proper aria-labelledby
-    const heroSection = screen.getByLabelText(/semiont.*ai.*powered.*research.*platform/i);
-    expect(heroSection.tagName).toBe('SECTION');
-    expect(heroSection).toHaveAttribute('aria-labelledby', 'hero-heading');
-  });
-
-  it('should have responsive design classes', () => {
-    render(<Home />);
-    
-    const container = screen.getByRole('main').parentElement;
-    expect(container).toHaveClass('flex', 'flex-col', 'min-h-screen');
-    
-    const innerContainer = screen.getByRole('main').firstElementChild;
-    expect(innerContainer).toHaveClass('z-10', 'max-w-5xl');
-  });
-
-  it('should have proper content spacing and layout', () => {
-    render(<Home />);
-
-    // Check for text center and spacing on content area
-    const contentArea = screen.getByText(/open-source.*future-proof/i).closest('.text-center');
-    expect(contentArea).toBeInTheDocument();
-    expect(contentArea).toHaveClass('text-center', 'space-y-8');
-  });
-
-  it('should render footer at the bottom', () => {
-    render(<Home />);
-    
-    const footer = screen.getByTestId('footer');
-    expect(footer).toBeInTheDocument();
-    
-    // Footer should be outside the main element
     const main = screen.getByRole('main');
-    expect(main.contains(footer)).toBe(false);
+    expect(main).toBeInTheDocument();
   });
 
-  it('should maintain accessibility features', () => {
+  it('should center content vertically', () => {
     render(<Home />);
-    
-    // Check that main has proper role
     const main = screen.getByRole('main');
-    expect(main).toHaveAttribute('role', 'main');
-    
-    // Check for the sr-only h1 heading
-    const h1 = screen.getByText(/Semiont - AI-Powered Research Platform/i);
-    expect(h1).toBeInTheDocument();
-    expect(h1.tagName).toBe('H1');
-    expect(h1).toHaveAttribute('id', 'hero-heading');
-    expect(h1).toHaveClass('sr-only');
+    expect(main.style.display).toBe('flex');
+    expect(main.style.justifyContent).toBe('center');
+    expect(main.style.alignItems).toBe('center');
+    expect(main.style.minHeight).toBe('100vh');
   });
 });
