@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "tworzenie znaczenia",
-    "description": "Otwartoźródłowy, przyszłościowy framework, który umożliwia ludziom i inteligentnym agentom współtworzenie wspólnej wiedzy — zarządzany przez Ciebie i zbudowany na lata.",
-    "continueToKnowledgeBase": "Przejdź do bazy wiedzy",
-    "learnMore": "Dowiedz się więcej",
-    "signUp": "Zarejestruj się",
-    "signIn": "Zaloguj się",
-    "loading": "Ładowanie..."
+    "signIn": "Zaloguj się"
   },
   "About": {
     "pageTitle": "O Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Bazy wiedzy",
+    "connectTitle": "Połącz z bazą wiedzy",
+    "connect": "Połącz",
+    "connecting": "Łączenie...",
+    "signIn": "Zaloguj się",
+    "signingIn": "Logowanie...",
+    "cancel": "Anuluj",
+    "addKnowledgeBase": "Dodaj bazę wiedzy",
+    "removeConfirm": "Usunąć {{label}}?",
+    "remove": "Usuń",
+    "signOut": "Wyloguj się",
+    "statusConnected": "Połączono",
+    "statusExpired": "Sesja wygasła",
+    "statusSignedOut": "Wylogowano",
+    "statusUnreachable": "Niedostępny"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Brak baz wiedzy",
+    "noKnowledgeBasesHint": "Dodaj bazę wiedzy za pomocą panelu po prawej stronie, aby zacząć odkrywać, dodawać adnotacje i łączyć zasoby.",
+    "sessionExpired": "Twoja sesja wygasła.",
+    "signedOut": "Jesteś wylogowany.",
+    "signInHint": "Zaloguj się za pomocą panelu Bazy wiedzy, aby przeglądać zasoby."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Zaloguj się do bazy wiedzy, aby wyświetlić swoje konto."
   }
 }

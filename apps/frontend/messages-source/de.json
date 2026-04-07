@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "Bedeutung schaffen",
-    "description": "Das quelloffene, zukunftssichere Framework, das Menschen und intelligente Agenten befähigt, gemeinsam Wissen zu schaffen — von Ihnen gesteuert und für die Zukunft gebaut.",
-    "continueToKnowledgeBase": "Weiter zur Wissensdatenbank",
-    "learnMore": "Mehr erfahren",
-    "signUp": "Registrieren",
-    "signIn": "Anmelden",
-    "loading": "Wird geladen..."
+    "signIn": "Anmelden"
   },
   "About": {
     "pageTitle": "Über Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Wissensbasen",
+    "connectTitle": "Mit Wissensbasis verbinden",
+    "connect": "Verbinden",
+    "connecting": "Verbinde...",
+    "signIn": "Anmelden",
+    "signingIn": "Anmeldung läuft...",
+    "cancel": "Abbrechen",
+    "addKnowledgeBase": "Wissensbasis hinzufügen",
+    "removeConfirm": "{{label}} entfernen?",
+    "remove": "Entfernen",
+    "signOut": "Abmelden",
+    "statusConnected": "Verbunden",
+    "statusExpired": "Sitzung abgelaufen",
+    "statusSignedOut": "Abgemeldet",
+    "statusUnreachable": "Nicht erreichbar"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Keine Wissensbasen",
+    "noKnowledgeBasesHint": "Fügen Sie eine Wissensbasis über das Panel auf der rechten Seite hinzu, um mit dem Entdecken, Annotieren und Verknüpfen von Ressourcen zu beginnen.",
+    "sessionExpired": "Ihre Sitzung ist abgelaufen.",
+    "signedOut": "Sie sind abgemeldet.",
+    "signInHint": "Melden Sie sich über das Wissensbasis-Panel an, um Ressourcen zu durchsuchen."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Melden Sie sich bei einer Wissensbasis an, um Ihr Konto anzuzeigen."
   }
 }

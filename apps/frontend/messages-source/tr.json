@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "anlam üret",
-    "description": "İnsanların ve akıllı ajanların ortak bilgiyi birlikte oluşturmasını sağlayan, sizin tarafınızdan yönetilen ve kalıcı olmak üzere inşa edilen açık kaynaklı, geleceğe hazır çerçeve.",
-    "continueToKnowledgeBase": "Bilgi Tabanına Devam Et",
-    "learnMore": "Daha Fazla Bilgi",
-    "signUp": "Kayıt Ol",
-    "signIn": "Giriş Yap",
-    "loading": "Yükleniyor..."
+    "signIn": "Giriş Yap"
   },
   "About": {
     "pageTitle": "Semiont Hakkında",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Bilgi Tabanları",
+    "connectTitle": "Bilgi Tabanına Bağlan",
+    "connect": "Bağlan",
+    "connecting": "Bağlanıyor...",
+    "signIn": "Giriş Yap",
+    "signingIn": "Giriş yapılıyor...",
+    "cancel": "İptal",
+    "addKnowledgeBase": "Bilgi tabanı ekle",
+    "removeConfirm": "{{label}} kaldırılsın mı?",
+    "remove": "Kaldır",
+    "signOut": "Çıkış Yap",
+    "statusConnected": "Bağlı",
+    "statusExpired": "Oturum süresi doldu",
+    "statusSignedOut": "Çıkış yapıldı",
+    "statusUnreachable": "Erişilemiyor"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Bilgi tabanı yok",
+    "noKnowledgeBasesHint": "Kaynakları keşfetmeye, not eklemeye ve bağlamaya başlamak için sağdaki paneli kullanarak bir bilgi tabanı ekleyin.",
+    "sessionExpired": "Oturumunuzun süresi doldu.",
+    "signedOut": "Çıkış yaptınız.",
+    "signInHint": "Kaynakları görüntülemek için Bilgi Tabanı panelini kullanarak giriş yapın."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Hesabınızı görüntülemek için bir bilgi tabanında oturum açın."
   }
 }

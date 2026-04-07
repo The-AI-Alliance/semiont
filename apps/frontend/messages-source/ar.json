@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "اصنع المعنى",
-    "description": "الإطار مفتوح المصدر والمُعَدّ للمستقبل الذي يُمكّن البشر والوكلاء الأذكياء من المشاركة في إنشاء المعرفة المشتركة — بإدارتك ومبنيّ ليدوم.",
-    "continueToKnowledgeBase": "المتابعة إلى قاعدة المعرفة",
-    "learnMore": "اعرف المزيد",
-    "signUp": "إنشاء حساب",
-    "signIn": "تسجيل الدخول",
-    "loading": "جارٍ التحميل..."
+    "signIn": "تسجيل الدخول"
   },
   "About": {
     "pageTitle": "حول Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "قواعد المعرفة",
+    "connectTitle": "الاتصال بقاعدة المعرفة",
+    "connect": "اتصال",
+    "connecting": "جارٍ الاتصال...",
+    "signIn": "تسجيل الدخول",
+    "signingIn": "جارٍ تسجيل الدخول...",
+    "cancel": "إلغاء",
+    "addKnowledgeBase": "إضافة قاعدة معرفة",
+    "removeConfirm": "إزالة {{label}}؟",
+    "remove": "إزالة",
+    "signOut": "تسجيل الخروج",
+    "statusConnected": "متصل",
+    "statusExpired": "انتهت صلاحية الجلسة",
+    "statusSignedOut": "تم تسجيل الخروج",
+    "statusUnreachable": "غير قابل للوصول"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "لا توجد قواعد معرفة",
+    "noKnowledgeBasesHint": "أضف قاعدة معرفة باستخدام اللوحة على اليمين لبدء الاكتشاف والتعليق وربط الموارد.",
+    "sessionExpired": "انتهت صلاحية جلستك.",
+    "signedOut": "أنت غير مسجّل الدخول.",
+    "signInHint": "سجّل الدخول باستخدام لوحة قاعدة المعرفة لتصفح الموارد."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "سجّل الدخول إلى قاعدة المعرفة لعرض حسابك."
   }
 }

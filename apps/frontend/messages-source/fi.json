@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "luo merkitystä",
-    "description": "Avoimen lähdekoodin, tulevaisuudenvarma kehys, joka mahdollistaa ihmisten ja älykkäiden agenttien yhteistyön jaetun tiedon luomisessa — sinun hallitsemana ja kestäväksi rakennettu.",
-    "continueToKnowledgeBase": "Jatka tietokantaan",
-    "learnMore": "Lue lisää",
-    "signUp": "Rekisteröidy",
-    "signIn": "Kirjaudu sisään",
-    "loading": "Ladataan..."
+    "signIn": "Kirjaudu sisään"
   },
   "About": {
     "pageTitle": "Tietoja Semiontista",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Tietopankit",
+    "connectTitle": "Yhdistä tietopankkiin",
+    "connect": "Yhdistä",
+    "connecting": "Yhdistetään...",
+    "signIn": "Kirjaudu sisään",
+    "signingIn": "Kirjaudutaan...",
+    "cancel": "Peruuta",
+    "addKnowledgeBase": "Lisää tietopankki",
+    "removeConfirm": "Poistetaanko {{label}}?",
+    "remove": "Poista",
+    "signOut": "Kirjaudu ulos",
+    "statusConnected": "Yhdistetty",
+    "statusExpired": "Istunto vanhentunut",
+    "statusSignedOut": "Kirjautunut ulos",
+    "statusUnreachable": "Ei tavoitettavissa"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Ei tietopankkeja",
+    "noKnowledgeBasesHint": "Lisää tietopankki oikeanpuoleisen paneelin avulla aloittaaksesi resurssien löytämisen, merkitsemisen ja linkittämisen.",
+    "sessionExpired": "Istuntosi on vanhentunut.",
+    "signedOut": "Olet kirjautunut ulos.",
+    "signInHint": "Kirjaudu sisään Tietopankki-paneelin avulla selataksesi resursseja."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Kirjaudu tietopankkiin nähdäksesi tilisi."
   }
 }

@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "意味を創る",
-    "description": "人間とインテリジェントエージェントが共有知識を共創できる、オープンソースで将来にも対応したフレームワーク。あなたが管理し、長く使えるように設計されています。",
-    "continueToKnowledgeBase": "ナレッジベースへ進む",
-    "learnMore": "詳しく見る",
-    "signUp": "サインアップ",
-    "signIn": "サインイン",
-    "loading": "読み込み中..."
+    "signIn": "サインイン"
   },
   "About": {
     "pageTitle": "Semiontについて",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "ナレッジベース",
+    "connectTitle": "ナレッジベースに接続",
+    "connect": "接続",
+    "connecting": "接続中...",
+    "signIn": "サインイン",
+    "signingIn": "サインイン中...",
+    "cancel": "キャンセル",
+    "addKnowledgeBase": "ナレッジベースを追加",
+    "removeConfirm": "{{label}} を削除しますか？",
+    "remove": "削除",
+    "signOut": "サインアウト",
+    "statusConnected": "接続済み",
+    "statusExpired": "セッション期限切れ",
+    "statusSignedOut": "サインアウト済み",
+    "statusUnreachable": "到達不能"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "ナレッジベースがありません",
+    "noKnowledgeBasesHint": "右側のパネルを使用してナレッジベースを追加し、リソースの探索、注釈付け、リンクを開始してください。",
+    "sessionExpired": "セッションが期限切れになりました。",
+    "signedOut": "サインアウトしています。",
+    "signInHint": "ナレッジベースパネルを使用してサインインし、リソースを閲覧してください。"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "アカウントを表示するには、ナレッジベースにサインインしてください。"
   }
 }

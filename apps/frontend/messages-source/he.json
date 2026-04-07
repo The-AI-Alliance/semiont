@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "ליצור משמעות",
-    "description": "המסגרת בקוד פתוח והעמידה לעתיד, המאפשרת לבני אדם ולסוכנים חכמים ליצור ידע משותף — בשליטתכם ובנויה להתמיד.",
-    "continueToKnowledgeBase": "המשך למאגר הידע",
-    "learnMore": "למידע נוסף",
-    "signUp": "הרשמה",
-    "signIn": "התחברות",
-    "loading": "טוען..."
+    "signIn": "התחברות"
   },
   "About": {
     "pageTitle": "אודות Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "בסיסי ידע",
+    "connectTitle": "התחבר לבסיס ידע",
+    "connect": "התחבר",
+    "connecting": "מתחבר...",
+    "signIn": "התחברות",
+    "signingIn": "מתחבר...",
+    "cancel": "ביטול",
+    "addKnowledgeBase": "הוסף בסיס ידע",
+    "removeConfirm": "הסיר את {{label}}?",
+    "remove": "הסר",
+    "signOut": "התנתקות",
+    "statusConnected": "מחובר",
+    "statusExpired": "הפגישה פגה",
+    "statusSignedOut": "מנותק",
+    "statusUnreachable": "לא ניתן להגיע"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "אין בסיסי ידע",
+    "noKnowledgeBasesHint": "הוסף בסיס ידע באמצעות הלוח מימין כדי להתחיל לגלות, להוסיף הערות ולקשר משאבים.",
+    "sessionExpired": "הפגישה שלך פגה.",
+    "signedOut": "אינך מחובר.",
+    "signInHint": "התחבר באמצעות לוח בסיס הידע כדי לעיין במשאבים."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "התחבר לבסיס ידע כדי לצפות בחשבונך."
   }
 }

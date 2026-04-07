@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "skap mening",
-    "description": "Det åpne, fremtidssikre rammeverket som gjør det mulig for mennesker og intelligente agenter å samskape delt kunnskap — styrt av deg og bygget for å vare.",
-    "continueToKnowledgeBase": "Gå til kunnskapsbasen",
-    "learnMore": "Les mer",
-    "signUp": "Registrer deg",
-    "signIn": "Logg inn",
-    "loading": "Laster..."
+    "signIn": "Logg inn"
   },
   "About": {
     "pageTitle": "Om Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Kunnskapsbaser",
+    "connectTitle": "Koble til kunnskapsbase",
+    "connect": "Koble til",
+    "connecting": "Kobler til...",
+    "signIn": "Logg inn",
+    "signingIn": "Logger inn...",
+    "cancel": "Avbryt",
+    "addKnowledgeBase": "Legg til kunnskapsbase",
+    "removeConfirm": "Fjern {{label}}?",
+    "remove": "Fjern",
+    "signOut": "Logg ut",
+    "statusConnected": "Tilkoblet",
+    "statusExpired": "Økt utløpt",
+    "statusSignedOut": "Logget ut",
+    "statusUnreachable": "Ikke tilgjengelig"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Ingen kunnskapsbaser",
+    "noKnowledgeBasesHint": "Legg til en kunnskapsbase ved hjelp av panelet til høyre for å begynne å oppdage, annotere og koble ressurser.",
+    "sessionExpired": "Økten din har utløpt.",
+    "signedOut": "Du er logget ut.",
+    "signInHint": "Logg inn via kunnskapsbase-panelet for å bla gjennom ressurser."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Logg inn på en kunnskapsbase for å se kontoen din."
   }
 }

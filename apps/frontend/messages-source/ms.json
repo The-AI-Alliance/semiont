@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "bina makna",
-    "description": "Rangka kerja sumber terbuka dan kalis masa depan yang membolehkan manusia dan ejen pintar mencipta pengetahuan bersama — ditadbir oleh anda dan dibina untuk berkekalan.",
-    "continueToKnowledgeBase": "Teruskan ke Pangkalan Pengetahuan",
-    "learnMore": "Ketahui Lebih Lanjut",
-    "signUp": "Daftar",
-    "signIn": "Log Masuk",
-    "loading": "Memuatkan..."
+    "signIn": "Log masuk"
   },
   "About": {
     "pageTitle": "Perihal Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Pangkalan Pengetahuan",
+    "connectTitle": "Sambung ke Pangkalan Pengetahuan",
+    "connect": "Sambung",
+    "connecting": "Menyambung...",
+    "signIn": "Log masuk",
+    "signingIn": "Sedang log masuk...",
+    "cancel": "Batal",
+    "addKnowledgeBase": "Tambah pangkalan pengetahuan",
+    "removeConfirm": "Buang {{label}}?",
+    "remove": "Buang",
+    "signOut": "Log keluar",
+    "statusConnected": "Disambungkan",
+    "statusExpired": "Sesi tamat",
+    "statusSignedOut": "Log keluar",
+    "statusUnreachable": "Tidak dapat dicapai"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Tiada pangkalan pengetahuan",
+    "noKnowledgeBasesHint": "Tambah pangkalan pengetahuan menggunakan panel di sebelah kanan untuk mula menemui, membuat anotasi, dan memaut sumber.",
+    "sessionExpired": "Sesi anda telah tamat.",
+    "signedOut": "Anda telah log keluar.",
+    "signInHint": "Log masuk menggunakan panel Pangkalan Pengetahuan untuk melayari sumber."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Log masuk ke pangkalan pengetahuan untuk melihat akaun anda."
   }
 }
