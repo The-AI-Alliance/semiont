@@ -25,6 +25,8 @@ function GlobalEventsConnector() {
  * Shows contextual guidance based on whether any KBs exist.
  */
 function DiscoverEmptyState() {
+  const { t: _t } = useTranslation();
+  const t = (k: string) => _t(`DiscoverEmptyState.${k}`) as string;
   const { knowledgeBases, activeKnowledgeBase } = useKnowledgeBaseContext();
   const status = activeKnowledgeBase
     ? getKbSessionStatus(activeKnowledgeBase.id)
@@ -33,28 +35,26 @@ function DiscoverEmptyState() {
   if (knowledgeBases.length === 0) {
     return (
       <div style={{ textAlign: 'center', maxWidth: '24rem' }}>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>No knowledge bases</h2>
+        <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>{t('noKnowledgeBases')}</h2>
         <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-          Add a knowledge base using the panel on the right to start discovering, annotating, and linking resources.
+          {t('noKnowledgeBasesHint')}
         </p>
       </div>
     );
   }
 
   if (status === 'authenticated') {
-    // Shouldn't reach here — the authenticated path renders the real Discover page.
     return null;
   }
 
-  // KBs exist but the active one isn't authenticated
   return (
     <div style={{ textAlign: 'center', maxWidth: '24rem' }}>
       <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-        {activeKnowledgeBase?.label ?? 'Knowledge Base'}
+        {activeKnowledgeBase?.label ?? ''}
       </h2>
       <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-        {status === 'expired' ? 'Your session has expired.' : 'You are signed out.'}
-        {' '}Sign in using the Knowledge Base panel to browse resources.
+        {status === 'expired' ? t('sessionExpired') : t('signedOut')}
+        {' '}{t('signInHint')}
       </p>
     </div>
   );

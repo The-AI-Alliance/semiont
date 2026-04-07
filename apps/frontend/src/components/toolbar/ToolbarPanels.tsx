@@ -1,4 +1,5 @@
 import React, { useTransition, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
@@ -55,6 +56,7 @@ export function ToolbarPanels({
   hoverDelayMs,
   children
 }: ToolbarPanelsProps) {
+  const { t: _t } = useTranslation();
   const { session } = useAuthContext();
   const isAuthenticated = !!session;
   const locale = useLocale();
@@ -119,12 +121,12 @@ export function ToolbarPanels({
             <div className="semiont-panel">
               <div className="semiont-panel-header">
                 <h2 className="semiont-panel-header__title">
-                  <span className="semiont-panel-header__text">Account</span>
+                  <span className="semiont-panel-header__text">{_t('UserPanel.account')}</span>
                 </h2>
               </div>
               <div className="semiont-panel__content" style={{ padding: '1rem', textAlign: 'center' }}>
                 <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                  Sign in to a knowledge base to view your account.
+                  {_t('AccountPanel.notAuthenticated')}
                 </p>
               </div>
             </div>
