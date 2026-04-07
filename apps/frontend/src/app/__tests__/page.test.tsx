@@ -21,7 +21,7 @@ vi.mock('@/i18n/routing', () => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key === 'Home.signIn' ? 'Sign In' : key }),
+  useTranslation: () => ({ t: (key: string) => key === 'Home.begin' ? 'Begin' : key }),
 }));
 
 describe('Home Page (Splash)', () => {
@@ -30,9 +30,9 @@ describe('Home Page (Splash)', () => {
     expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
   });
 
-  it('should render a sign-in button', () => {
+  it('should render a continue button', () => {
     render(<Home />);
-    expect(screen.getByText('Sign In')).toBeInTheDocument();
+    expect(screen.getByText('Continue')).toBeInTheDocument();
   });
 
   it('should have a main element with role', () => {

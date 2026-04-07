@@ -35,7 +35,7 @@ export default function Home() {
     >
       <SemiontBranding t={t} size="xl" animated={true} />
       <button onClick={goToWorkspace} className={buttonStyles.primary.base}>
-        {t('signIn')}
+        {t('begin')}
       </button>
     </main>
   );
