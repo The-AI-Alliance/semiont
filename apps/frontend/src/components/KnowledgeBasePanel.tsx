@@ -300,33 +300,35 @@ export function KnowledgeBasePanel() {
               <div key={kb.id}>
                 <div
                   className={`semiont-panel-item semiont-panel-item--clickable${isActive ? ' semiont-panel-item--selected' : ''}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem' }}
                   onClick={() => handleKbClick(kb)}
                 >
-                  <StatusDot status={status} />
-                  <span className="semiont-panel-text" style={{ flex: 1 }}>{kb.label}</span>
-                  <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem' }}>
-                    {kb.host}:{kb.port}
-                  </span>
-                  {isActive && (
-                    <CheckIcon style={{ width: '1rem', height: '1rem', color: 'var(--semiont-color-primary-500)', flexShrink: 0 }} />
-                  )}
-                  {status === 'authenticated' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <StatusDot status={status} />
+                    <span className="semiont-panel-text" style={{ flex: 1, fontWeight: 500 }}>{kb.label}</span>
+                    {isActive && (
+                      <CheckIcon style={{ width: '1rem', height: '1rem', color: 'var(--semiont-color-primary-500)', flexShrink: 0 }} />
+                    )}
+                    {status === 'authenticated' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); signOut(kb.id); }}
+                        title="Sign out"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.125rem', color: 'var(--semiont-color-neutral-400)' }}
+                      >
+                        <ArrowRightStartOnRectangleIcon style={{ width: '0.875rem', height: '0.875rem' }} />
+                      </button>
+                    )}
                     <button
-                      onClick={(e) => { e.stopPropagation(); signOut(kb.id); }}
-                      title="Sign out"
+                      onClick={(e) => { e.stopPropagation(); setConfirmRemoveKbId(kb.id); }}
+                      title="Remove"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.125rem', color: 'var(--semiont-color-neutral-400)' }}
                     >
-                      <ArrowRightStartOnRectangleIcon style={{ width: '0.875rem', height: '0.875rem' }} />
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setConfirmRemoveKbId(kb.id); }}
-                    title="Remove"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.125rem', color: 'var(--semiont-color-neutral-400)' }}
-                  >
                     <TrashIcon style={{ width: '0.875rem', height: '0.875rem' }} />
                   </button>
+                  </div>
+                  <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
+                    {kb.host}:{kb.port}
+                  </span>
                 </div>
                 {confirmRemoveKbId === kb.id && (
                   <div style={{
