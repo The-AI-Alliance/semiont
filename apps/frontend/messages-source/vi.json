@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "kiến tạo ý nghĩa",
-    "description": "Nền tảng mã nguồn mở, bền vững cho phép con người và các tác nhân thông minh cùng nhau tạo dựng tri thức chung — được quản trị bởi bạn và được xây dựng để trường tồn.",
-    "continueToKnowledgeBase": "Tiếp tục đến Cơ sở tri thức",
-    "learnMore": "Tìm hiểu thêm",
-    "signUp": "Đăng ký",
-    "signIn": "Đăng nhập",
-    "loading": "Đang tải..."
+    "begin": "Bắt đầu"
   },
   "About": {
     "pageTitle": "Giới thiệu về Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Cơ sở kiến thức",
+    "connectTitle": "Kết nối với cơ sở kiến thức",
+    "connect": "Kết nối",
+    "connecting": "Đang kết nối...",
+    "signIn": "Đăng nhập",
+    "signingIn": "Đang đăng nhập...",
+    "cancel": "Hủy",
+    "addKnowledgeBase": "Thêm cơ sở kiến thức",
+    "removeConfirm": "Xóa {{label}}?",
+    "remove": "Xóa",
+    "signOut": "Đăng xuất",
+    "statusConnected": "Đã kết nối",
+    "statusExpired": "Phiên đã hết hạn",
+    "statusSignedOut": "Đã đăng xuất",
+    "statusUnreachable": "Không thể truy cập"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Không có cơ sở kiến thức",
+    "noKnowledgeBasesHint": "Thêm cơ sở kiến thức bằng bảng điều khiển bên phải để bắt đầu khám phá, chú thích và liên kết tài nguyên.",
+    "sessionExpired": "Phiên của bạn đã hết hạn.",
+    "signedOut": "Bạn đã đăng xuất.",
+    "signInHint": "Đăng nhập bằng bảng Cơ sở kiến thức để duyệt tài nguyên."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Đăng nhập vào cơ sở kiến thức để xem tài khoản của bạn."
   }
 }

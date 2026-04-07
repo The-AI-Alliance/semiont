@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "অর্থ তৈরি করুন",
-    "description": "মুক্ত-উৎস, ভবিষ্যৎ-প্রস্তুত কাঠামো যা মানুষ এবং বুদ্ধিমান এজেন্টদের সম্মিলিত জ্ঞান সহ-সৃষ্টি করতে সক্ষম করে — আপনার দ্বারা পরিচালিত এবং স্থায়ীভাবে নির্মিত।",
-    "continueToKnowledgeBase": "জ্ঞানভাণ্ডারে যান",
-    "learnMore": "আরও জানুন",
-    "signUp": "নিবন্ধন করুন",
-    "signIn": "প্রবেশ করুন",
-    "loading": "লোড হচ্ছে..."
+    "begin": "শুরু করুন"
   },
   "About": {
     "pageTitle": "Semiont সম্পর্কে",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "জ্ঞান ভাণ্ডার",
+    "connectTitle": "জ্ঞান ভাণ্ডারে সংযুক্ত হন",
+    "connect": "সংযুক্ত করুন",
+    "connecting": "সংযুক্ত হচ্ছে...",
+    "signIn": "সাইন ইন",
+    "signingIn": "সাইন ইন হচ্ছে...",
+    "cancel": "বাতিল",
+    "addKnowledgeBase": "জ্ঞান ভাণ্ডার যোগ করুন",
+    "removeConfirm": "{{label}} সরাবেন?",
+    "remove": "সরান",
+    "signOut": "সাইন আউট",
+    "statusConnected": "সংযুক্ত",
+    "statusExpired": "সেশন মেয়াদ শেষ",
+    "statusSignedOut": "সাইন আউট হয়েছে",
+    "statusUnreachable": "পৌঁছানো যাচ্ছে না"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "কোনো জ্ঞান ভাণ্ডার নেই",
+    "noKnowledgeBasesHint": "সম্পদ আবিষ্কার, টীকা এবং সংযুক্ত করা শুরু করতে ডানদিকের প্যানেল ব্যবহার করে একটি জ্ঞান ভাণ্ডার যোগ করুন।",
+    "sessionExpired": "আপনার সেশনের মেয়াদ শেষ হয়েছে।",
+    "signedOut": "আপনি সাইন আউট হয়েছেন।",
+    "signInHint": "সম্পদ ব্রাউজ করতে জ্ঞান ভাণ্ডার প্যানেল ব্যবহার করে সাইন ইন করুন।"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "আপনার অ্যাকাউন্ট দেখতে একটি জ্ঞান ভাণ্ডারে সাইন ইন করুন।"
   }
 }

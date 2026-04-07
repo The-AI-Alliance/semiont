@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "betekenis geven",
-    "description": "Het open-source, toekomstbestendige framework dat mensen en intelligente agenten in staat stelt samen gedeelde kennis te creëren — beheerd door jou en gebouwd om te blijven.",
-    "continueToKnowledgeBase": "Ga naar de Kennisbank",
-    "learnMore": "Meer informatie",
-    "signUp": "Registreren",
-    "signIn": "Inloggen",
-    "loading": "Laden..."
+    "begin": "Beginnen"
   },
   "About": {
     "pageTitle": "Over Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Kennisbases",
+    "connectTitle": "Verbinden met kennisbasis",
+    "connect": "Verbinden",
+    "connecting": "Verbinding maken...",
+    "signIn": "Inloggen",
+    "signingIn": "Inloggen...",
+    "cancel": "Annuleren",
+    "addKnowledgeBase": "Kennisbasis toevoegen",
+    "removeConfirm": "{{label}} verwijderen?",
+    "remove": "Verwijderen",
+    "signOut": "Uitloggen",
+    "statusConnected": "Verbonden",
+    "statusExpired": "Sessie verlopen",
+    "statusSignedOut": "Uitgelogd",
+    "statusUnreachable": "Onbereikbaar"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Geen kennisbases",
+    "noKnowledgeBasesHint": "Voeg een kennisbasis toe via het paneel rechts om te beginnen met het ontdekken, annoteren en koppelen van bronnen.",
+    "sessionExpired": "Uw sessie is verlopen.",
+    "signedOut": "U bent uitgelogd.",
+    "signInHint": "Log in via het kennisbasis-paneel om bronnen te bekijken."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Log in op een kennisbasis om uw account te bekijken."
   }
 }

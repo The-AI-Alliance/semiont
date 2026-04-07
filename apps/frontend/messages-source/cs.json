@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "tvořte význam",
-    "description": "Open-source framework odolný vůči budoucnosti, který umožňuje lidem a inteligentním agentům spoluvytvářet sdílené znalosti — řízený vámi a vytvořený tak, aby vydržel.",
-    "continueToKnowledgeBase": "Pokračovat do znalostní báze",
-    "learnMore": "Zjistit více",
-    "signUp": "Registrace",
-    "signIn": "Přihlášení",
-    "loading": "Načítání..."
+    "begin": "Začít"
   },
   "About": {
     "pageTitle": "O aplikaci Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Znalostní báze",
+    "connectTitle": "Připojit se ke znalostní bázi",
+    "connect": "Připojit",
+    "connecting": "Připojování...",
+    "signIn": "Přihlásit se",
+    "signingIn": "Přihlašování...",
+    "cancel": "Zrušit",
+    "addKnowledgeBase": "Přidat znalostní bázi",
+    "removeConfirm": "Odebrat {{label}}?",
+    "remove": "Odebrat",
+    "signOut": "Odhlásit se",
+    "statusConnected": "Připojeno",
+    "statusExpired": "Relace vypršela",
+    "statusSignedOut": "Odhlášeno",
+    "statusUnreachable": "Nedosažitelné"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Žádné znalostní báze",
+    "noKnowledgeBasesHint": "Přidejte znalostní bázi pomocí panelu vpravo a začněte objevovat, anotovat a propojovat zdroje.",
+    "sessionExpired": "Vaše relace vypršela.",
+    "signedOut": "Jste odhlášeni.",
+    "signInHint": "Přihlaste se pomocí panelu Znalostní báze a procházejte zdroje."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Přihlaste se ke znalostní bázi, abyste zobrazili svůj účet."
   }
 }

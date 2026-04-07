@@ -90,6 +90,11 @@ export interface ResourceViewerPageProps {
    * SSE attention stream connection status for the active workspace
    */
   streamStatus: StreamStatus;
+
+  /**
+   * Name of the active knowledge base (for display in panels)
+   */
+  knowledgeBaseName?: string | undefined;
 }
 
 /**
@@ -128,6 +133,7 @@ export function ResourceViewerPage({
   ToolbarPanels,
   refetchDocument,
   streamStatus,
+  knowledgeBaseName,
 }: ResourceViewerPageProps) {
   // Translations
   const tw = useTranslations('ReferenceWizard');
@@ -628,6 +634,7 @@ export function ResourceViewerPage({
               <CollaborationPanel
                 isConnected={streamStatus === 'connected'}
                 eventCount={0}
+                knowledgeBaseName={knowledgeBaseName}
               />
             )}
 

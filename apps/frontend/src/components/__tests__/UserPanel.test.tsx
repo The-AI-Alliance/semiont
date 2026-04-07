@@ -35,6 +35,20 @@ vi.mock('@/i18n/routing', () => ({
   useRouter: () => ({ push: mockRouterPush }),
 }));
 
+// Mock KnowledgeBaseContext
+vi.mock('@/contexts/KnowledgeBaseContext', () => ({
+  useKnowledgeBaseContext: () => ({
+    activeKnowledgeBase: { id: 'test', label: 'Test KB', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
+    knowledgeBases: [],
+    activeKnowledgeBaseId: 'test',
+    addKnowledgeBase: vi.fn(),
+    removeKnowledgeBase: vi.fn(),
+    setActiveKnowledgeBase: vi.fn(),
+    updateKnowledgeBase: vi.fn(),
+    signOut: vi.fn(),
+  }),
+}));
+
 // Mock react-ui hooks and utilities
 const mockUseSessionExpiry = vi.fn();
 const mockFormatTime = vi.fn();

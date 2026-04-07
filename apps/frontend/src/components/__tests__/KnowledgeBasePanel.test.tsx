@@ -2,26 +2,72 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
+import type { KnowledgeBase } from '@/contexts/KnowledgeBaseContext';
 
-const mockPush = vi.fn();
-const mockSetActiveKnowledgeBase = vi.fn();
+const translations: Record<string, string> = {
+  'KnowledgeBasePanel.title': 'Knowledge Bases',
+  'KnowledgeBasePanel.connectTitle': 'Connect to Knowledge Base',
+  'KnowledgeBasePanel.connect': 'Connect',
+  'KnowledgeBasePanel.connecting': 'Connecting...',
+  'KnowledgeBasePanel.signIn': 'Sign in',
+  'KnowledgeBasePanel.signingIn': 'Signing in...',
+  'KnowledgeBasePanel.cancel': 'Cancel',
+  'KnowledgeBasePanel.addKnowledgeBase': 'Add knowledge base',
+  'KnowledgeBasePanel.remove': 'Remove',
+  'KnowledgeBasePanel.signOut': 'Sign out',
+  'KnowledgeBasePanel.statusConnected': 'Connected',
+  'KnowledgeBasePanel.statusExpired': 'Session expired',
+  'KnowledgeBasePanel.statusSignedOut': 'Signed out',
+  'KnowledgeBasePanel.statusUnreachable': 'Unreachable',
+};
 
-const kb1 = { id: 'kb-1', label: 'Production', backendUrl: 'https://prod.example.com' };
-const kb2 = { id: 'kb-2', label: 'Staging', backendUrl: 'http://staging.example.com' };
-
-let mockKnowledgeBases = [kb1, kb2];
-let mockActiveKnowledgeBase: typeof kb1 | null = kb1;
-
-vi.mock('@/i18n/routing', () => ({
-  useRouter: () => ({ push: mockPush }),
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, params?: any) => {
+      let val = translations[key] ?? key;
+      if (params?.label) val = val.replace('{{label}}', params.label);
+      return val;
+    },
+    i18n: { language: 'en' },
+  }),
 }));
+
+const mockSetActiveKnowledgeBase = vi.fn();
+const mockAddKnowledgeBase = vi.fn();
+const mockRemoveKnowledgeBase = vi.fn();
+const mockUpdateKnowledgeBase = vi.fn();
+const mockSignOut = vi.fn();
+
+const kb1: KnowledgeBase = { id: 'kb-1', label: 'Production', host: 'prod.example.com', port: 4000, protocol: 'https', email: 'admin@prod.com' };
+const kb2: KnowledgeBase = { id: 'kb-2', label: 'Staging', host: 'staging.example.com', port: 4000, protocol: 'http', email: 'admin@staging.com' };
+
+let mockKnowledgeBases: KnowledgeBase[] = [kb1, kb2];
+let mockActiveKnowledgeBase: KnowledgeBase | null = kb1;
 
 vi.mock('@/contexts/KnowledgeBaseContext', () => ({
   useKnowledgeBaseContext: () => ({
     get knowledgeBases() { return mockKnowledgeBases; },
     get activeKnowledgeBase() { return mockActiveKnowledgeBase; },
     setActiveKnowledgeBase: mockSetActiveKnowledgeBase,
+    addKnowledgeBase: mockAddKnowledgeBase,
+    removeKnowledgeBase: mockRemoveKnowledgeBase,
+    updateKnowledgeBase: mockUpdateKnowledgeBase,
+    signOut: mockSignOut,
   }),
+  defaultProtocol: (host: string) => host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https',
+  getKbSessionStatus: (id: string) => id === kb1.id ? 'authenticated' : 'signed-out',
+  setKbToken: vi.fn(),
+}));
+
+vi.mock('@semiont/api-client', () => ({
+  SemiontApiClient: vi.fn(),
+}));
+
+vi.mock('@semiont/core', () => ({
+  baseUrl: (url: string) => url,
+  email: (e: string) => e,
+  accessToken: (t: string) => t,
+  EventBus: vi.fn(),
 }));
 
 describe('KnowledgeBasePanel', () => {
@@ -43,10 +89,10 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByText('Staging')).toBeInTheDocument();
     });
 
-    it('should display backend URLs with protocol stripped', () => {
+    it('should display host:port for each KB', () => {
       render(<KnowledgeBasePanel />);
-      expect(screen.getByText('prod.example.com')).toBeInTheDocument();
-      expect(screen.getByText('staging.example.com')).toBeInTheDocument();
+      expect(screen.getByText('prod.example.com:4000')).toBeInTheDocument();
+      expect(screen.getByText('staging.example.com:4000')).toBeInTheDocument();
     });
 
     it('should render the Add knowledge base button', () => {
@@ -54,97 +100,34 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByText('Add knowledge base')).toBeInTheDocument();
     });
 
-    it('should render without errors when no knowledge bases are configured', () => {
+    it('should auto-open the connect form when no KBs are configured', () => {
       mockKnowledgeBases = [];
       mockActiveKnowledgeBase = null;
       render(<KnowledgeBasePanel />);
       expect(screen.getByRole('heading', { name: /Knowledge Bases/ })).toBeInTheDocument();
-      expect(screen.getByText('Add knowledge base')).toBeInTheDocument();
-    });
-  });
-
-  describe('Active knowledge base indicator', () => {
-    it('should show a checkmark only on the active knowledge base', () => {
-      render(<KnowledgeBasePanel />);
-      const buttons = screen.getAllByRole('button').filter(b =>
-        b.textContent?.includes('Production') || b.textContent?.includes('Staging')
-      );
-      const kb1Button = buttons.find(b => b.textContent?.includes('Production'))!;
-      const kb2Button = buttons.find(b => b.textContent?.includes('Staging'))!;
-
-      // kb1 is active — should have a checkmark svg
-      expect(kb1Button.querySelector('svg')).toBeInTheDocument();
-      // kb2 is not active — should have no checkmark
-      expect(kb2Button.querySelector('svg')).not.toBeInTheDocument();
-    });
-
-    it('should show no checkmark when no knowledge base is active', () => {
-      mockActiveKnowledgeBase = null;
-      render(<KnowledgeBasePanel />);
-      const kbButtons = screen.getAllByRole('button').filter(b =>
-        b.textContent?.includes('Production') || b.textContent?.includes('Staging')
-      );
-      kbButtons.forEach(b => expect(b.querySelector('svg')).not.toBeInTheDocument());
-    });
-  });
-
-  describe('Switching knowledge bases', () => {
-    it('should call setActiveKnowledgeBase with the kb id when clicked', async () => {
-      const user = userEvent.setup();
-      render(<KnowledgeBasePanel />);
-
-      await user.click(screen.getByText('Staging'));
-
-      expect(mockSetActiveKnowledgeBase).toHaveBeenCalledWith('kb-2');
-      expect(mockSetActiveKnowledgeBase).toHaveBeenCalledTimes(1);
-    });
-
-    it('should call setActiveKnowledgeBase when the currently active kb is clicked', async () => {
-      const user = userEvent.setup();
-      render(<KnowledgeBasePanel />);
-
-      await user.click(screen.getByText('Production'));
-
-      expect(mockSetActiveKnowledgeBase).toHaveBeenCalledWith('kb-1');
+      expect(screen.getByText('Connect to Knowledge Base')).toBeInTheDocument();
     });
   });
 
   describe('Add knowledge base', () => {
-    it('should navigate to /auth/connect when clicked', async () => {
+    it('should open the connect form when Add is clicked', async () => {
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
 
       await user.click(screen.getByText('Add knowledge base'));
 
-      expect(mockPush).toHaveBeenCalledWith('/auth/connect');
-      expect(mockPush).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('URL display', () => {
-    it('should strip https:// from backend URLs', () => {
-      render(<KnowledgeBasePanel />);
-      expect(screen.getByText('prod.example.com')).toBeInTheDocument();
-      expect(screen.queryByText('https://prod.example.com')).not.toBeInTheDocument();
-    });
-
-    it('should strip http:// from backend URLs', () => {
-      render(<KnowledgeBasePanel />);
-      expect(screen.getByText('staging.example.com')).toBeInTheDocument();
-      expect(screen.queryByText('http://staging.example.com')).not.toBeInTheDocument();
+      expect(screen.getByText('Connect to Knowledge Base')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Host')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Port')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
     });
   });
 
   describe('Accessibility', () => {
-    it('should render each knowledge base and the add action as buttons', () => {
-      render(<KnowledgeBasePanel />);
-      // kb1 + kb2 + "Add knowledge base"
-      expect(screen.getAllByRole('button')).toHaveLength(3);
-    });
-
     it('should have a heading for the panel', () => {
       render(<KnowledgeBasePanel />);
-      expect(screen.getByRole('heading')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Knowledge Bases/ })).toBeInTheDocument();
     });
   });
 });

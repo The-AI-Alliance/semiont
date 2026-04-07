@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "创造意义",
-    "description": "开源、面向未来的框架，使人类和智能代理能够共同创建共享知识——由您治理，经久耐用。",
-    "continueToKnowledgeBase": "前往知识库",
-    "learnMore": "了解更多",
-    "signUp": "注册",
-    "signIn": "登录",
-    "loading": "加载中..."
+    "begin": "开始"
   },
   "About": {
     "pageTitle": "关于 Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "知识库",
+    "connectTitle": "连接到知识库",
+    "connect": "连接",
+    "connecting": "连接中...",
+    "signIn": "登录",
+    "signingIn": "登录中...",
+    "cancel": "取消",
+    "addKnowledgeBase": "添加知识库",
+    "removeConfirm": "删除 {{label}}？",
+    "remove": "删除",
+    "signOut": "退出登录",
+    "statusConnected": "已连接",
+    "statusExpired": "会话已过期",
+    "statusSignedOut": "已退出",
+    "statusUnreachable": "无法访问"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "没有知识库",
+    "noKnowledgeBasesHint": "使用右侧面板添加知识库，开始发现、注释和链接资源。",
+    "sessionExpired": "您的会话已过期。",
+    "signedOut": "您已退出登录。",
+    "signInHint": "通过知识库面板登录以浏览资源。"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "登录知识库以查看您的帐户。"
   }
 }

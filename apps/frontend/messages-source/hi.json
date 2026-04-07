@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "अर्थ निर्माण करें",
-    "description": "ओपन-सोर्स, भविष्य-सुरक्षित फ्रेमवर्क जो मनुष्यों और बुद्धिमान एजेंटों को साझा ज्ञान का सह-निर्माण करने में सक्षम बनाता है — आपके द्वारा शासित और स्थायी बनाया गया।",
-    "continueToKnowledgeBase": "ज्ञान आधार पर जारी रखें",
-    "learnMore": "और जानें",
-    "signUp": "साइन अप करें",
-    "signIn": "साइन इन करें",
-    "loading": "लोड हो रहा है..."
+    "begin": "शुरू करें"
   },
   "About": {
     "pageTitle": "Semiont के बारे में",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "ज्ञान आधार",
+    "connectTitle": "ज्ञान आधार से जुड़ें",
+    "connect": "जोड़ें",
+    "connecting": "जोड़ा जा रहा है...",
+    "signIn": "साइन इन करें",
+    "signingIn": "साइन इन हो रहा है...",
+    "cancel": "रद्द करें",
+    "addKnowledgeBase": "ज्ञान आधार जोड़ें",
+    "removeConfirm": "{{label}} हटाएं?",
+    "remove": "हटाएं",
+    "signOut": "साइन आउट करें",
+    "statusConnected": "जुड़ा हुआ",
+    "statusExpired": "सत्र समाप्त",
+    "statusSignedOut": "साइन आउट",
+    "statusUnreachable": "अनुपलब्ध"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "कोई ज्ञान आधार नहीं",
+    "noKnowledgeBasesHint": "संसाधनों को खोजने, एनोटेट करने और लिंक करने के लिए दाईं ओर के पैनल का उपयोग करके एक ज्ञान आधार जोड़ें।",
+    "sessionExpired": "आपका सत्र समाप्त हो गया है।",
+    "signedOut": "आप साइन आउट हैं।",
+    "signInHint": "संसाधन ब्राउज़ करने के लिए ज्ञान आधार पैनल का उपयोग करके साइन इन करें।"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "अपना खाता देखने के लिए किसी ज्ञान आधार में साइन इन करें।"
   }
 }

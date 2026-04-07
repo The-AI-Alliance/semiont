@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "crear significado",
-    "description": "El marco de código abierto y a prueba de futuro que permite a humanos y agentes inteligentes co-crear conocimiento compartido — gobernado por ti y construido para durar.",
-    "continueToKnowledgeBase": "Continuar a la Base de Conocimiento",
-    "learnMore": "Conocer más",
-    "signUp": "Registrarse",
-    "signIn": "Iniciar Sesión",
-    "loading": "Cargando..."
+    "begin": "Comenzar"
   },
   "About": {
     "pageTitle": "Acerca de Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Bases de conocimiento",
+    "connectTitle": "Conectar a la base de conocimiento",
+    "connect": "Conectar",
+    "connecting": "Conectando...",
+    "signIn": "Iniciar sesión",
+    "signingIn": "Iniciando sesión...",
+    "cancel": "Cancelar",
+    "addKnowledgeBase": "Agregar base de conocimiento",
+    "removeConfirm": "¿Eliminar {{label}}?",
+    "remove": "Eliminar",
+    "signOut": "Cerrar sesión",
+    "statusConnected": "Conectado",
+    "statusExpired": "Sesión expirada",
+    "statusSignedOut": "Sesión cerrada",
+    "statusUnreachable": "Inaccesible"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Sin bases de conocimiento",
+    "noKnowledgeBasesHint": "Agregue una base de conocimiento usando el panel de la derecha para comenzar a descubrir, anotar y vincular recursos.",
+    "sessionExpired": "Su sesión ha expirado.",
+    "signedOut": "Ha cerrado sesión.",
+    "signInHint": "Inicie sesión usando el panel de Base de conocimiento para explorar recursos."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Inicie sesión en una base de conocimiento para ver su cuenta."
   }
 }

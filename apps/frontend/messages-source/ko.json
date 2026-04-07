@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "의미를 만들다",
-    "description": "인간과 지능형 에이전트가 공유 지식을 함께 창조할 수 있게 해주는 오픈소스 미래지향적 프레임워크 — 당신이 관리하고, 오래 지속되도록 구축되었습니다.",
-    "continueToKnowledgeBase": "지식 베이스로 이동",
-    "learnMore": "더 알아보기",
-    "signUp": "회원가입",
-    "signIn": "로그인",
-    "loading": "로딩 중..."
+    "begin": "시작"
   },
   "About": {
     "pageTitle": "Semiont 소개",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "지식 베이스",
+    "connectTitle": "지식 베이스에 연결",
+    "connect": "연결",
+    "connecting": "연결 중...",
+    "signIn": "로그인",
+    "signingIn": "로그인 중...",
+    "cancel": "취소",
+    "addKnowledgeBase": "지식 베이스 추가",
+    "removeConfirm": "{{label}}을(를) 제거하시겠습니까?",
+    "remove": "제거",
+    "signOut": "로그아웃",
+    "statusConnected": "연결됨",
+    "statusExpired": "세션 만료",
+    "statusSignedOut": "로그아웃됨",
+    "statusUnreachable": "연결 불가"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "지식 베이스 없음",
+    "noKnowledgeBasesHint": "오른쪽 패널을 사용하여 지식 베이스를 추가하고 리소스 검색, 주석 달기 및 연결을 시작하세요.",
+    "sessionExpired": "세션이 만료되었습니다.",
+    "signedOut": "로그아웃되었습니다.",
+    "signInHint": "지식 베이스 패널을 사용하여 로그인하고 리소스를 탐색하세요."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "계정을 보려면 지식 베이스에 로그인하세요."
   }
 }

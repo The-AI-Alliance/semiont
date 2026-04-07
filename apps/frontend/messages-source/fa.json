@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "معنا بسازید",
-    "description": "چارچوب متن‌باز و آینده‌نگر که به انسان‌ها و عوامل هوشمند امکان می‌دهد دانش مشترک را هم‌آفرینی کنند — تحت حاکمیت شما و ساخته‌شده برای ماندگاری.",
-    "continueToKnowledgeBase": "ادامه به پایگاه دانش",
-    "learnMore": "اطلاعات بیشتر",
-    "signUp": "ثبت‌نام",
-    "signIn": "ورود",
-    "loading": "در حال بارگذاری..."
+    "begin": "شروع"
   },
   "About": {
     "pageTitle": "درباره Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "پایگاه‌های دانش",
+    "connectTitle": "اتصال به پایگاه دانش",
+    "connect": "اتصال",
+    "connecting": "در حال اتصال...",
+    "signIn": "ورود",
+    "signingIn": "در حال ورود...",
+    "cancel": "لغو",
+    "addKnowledgeBase": "افزودن پایگاه دانش",
+    "removeConfirm": "آیا {{label}} حذف شود؟",
+    "remove": "حذف",
+    "signOut": "خروج",
+    "statusConnected": "متصل",
+    "statusExpired": "نشست منقضی شده",
+    "statusSignedOut": "خارج شده",
+    "statusUnreachable": "غیرقابل دسترس"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "هیچ پایگاه دانشی وجود ندارد",
+    "noKnowledgeBasesHint": "برای شروع کشف، حاشیه‌نویسی و پیوند منابع، یک پایگاه دانش با استفاده از پنل سمت راست اضافه کنید.",
+    "sessionExpired": "نشست شما منقضی شده است.",
+    "signedOut": "شما خارج شده‌اید.",
+    "signInHint": "برای مرور منابع با استفاده از پنل پایگاه دانش وارد شوید."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "برای مشاهده حساب خود، وارد یک پایگاه دانش شوید."
   }
 }

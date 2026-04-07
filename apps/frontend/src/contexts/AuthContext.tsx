@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { SemiontApiClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
-import { baseUrl, EventBus } from '@semiont/core';
+import { baseUrl, EventBus, accessToken } from '@semiont/core';
+import { useKnowledgeBaseContext, kbBackendUrl, getKbToken, isTokenExpired } from './KnowledgeBaseContext';
 
 type UserInfo = components['schemas']['UserResponse'];
 
@@ -19,17 +20,41 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ backendUrl: backendUrlProp, children }: { backendUrl: string; children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { activeKnowledgeBase } = useKnowledgeBaseContext();
   const [session, setSessionState] = useState<AuthSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Start loading if there's a stored token to validate
+  const activeKbId = activeKnowledgeBase?.id ?? null;
+  const [isLoading, setIsLoading] = useState(() => {
+    if (!activeKbId) return false;
+    const token = getKbToken(activeKbId);
+    return !!token && !isTokenExpired(token);
+  });
 
+  // When active KB changes, try to restore session from stored token
   useEffect(() => {
+    if (!activeKbId || !activeKnowledgeBase) {
+      setSessionState(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const token = getKbToken(activeKbId);
+    if (!token || isTokenExpired(token)) {
+      setSessionState(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate the token by calling getMe via the API client
     setIsLoading(true);
-    setSessionState(null);
-    const client = new SemiontApiClient({ baseUrl: baseUrl(backendUrlProp), eventBus: new EventBus() });
-    client.getMe()
+    const client = new SemiontApiClient({
+      baseUrl: baseUrl(kbBackendUrl(activeKnowledgeBase)),
+      eventBus: new EventBus(),
+    });
+    client.getMe({ auth: accessToken(token) })
       .then((data) => {
-        setSessionState({ token: data.token, user: data });
+        setSessionState({ token, user: data as UserInfo });
       })
       .catch(() => {
         setSessionState(null);
@@ -37,7 +62,7 @@ export function AuthProvider({ backendUrl: backendUrlProp, children }: { backend
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, [activeKbId, activeKnowledgeBase]);
 
   const setSession = useCallback((s: AuthSession) => {
     setSessionState(s);

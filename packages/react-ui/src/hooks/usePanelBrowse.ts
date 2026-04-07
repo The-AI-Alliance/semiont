@@ -41,14 +41,12 @@ export interface PanelBrowseState {
  * @returns Panel navigation state
  */
 export function usePanelBrowse(): PanelBrowseState {
-  // Panel state - load from localStorage, default closed
-  // Desktop app: auto-open KB panel on first launch (no saved state)
+  // Panel state - load from localStorage; first launch opens KB panel
   const [activePanel, setActivePanel] = useState<ToolbarPanelType | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
       if (saved) return saved as ToolbarPanelType;
-      // Desktop app with no saved panel: open KB panel so user can connect
-      if ('__TAURI_INTERNALS__' in window) return 'knowledge-base';
+      return 'knowledge-base';
     }
     return null;
   });

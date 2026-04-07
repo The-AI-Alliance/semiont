@@ -1,7 +1,9 @@
 import React, { useTransition, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
@@ -54,6 +56,9 @@ export function ToolbarPanels({
   hoverDelayMs,
   children
 }: ToolbarPanelsProps) {
+  const { t: _t } = useTranslation();
+  const { session } = useAuthContext();
+  const isAuthenticated = !!session;
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -108,9 +113,24 @@ export function ToolbarPanels({
           <KnowledgeBasePanel />
         )}
 
-        {/* User Panel - common to all contexts */}
+        {/* User Panel - requires authentication */}
         {activePanel === 'user' && (
-          <UserPanel />
+          isAuthenticated ? (
+            <UserPanel />
+          ) : (
+            <div className="semiont-panel">
+              <div className="semiont-panel-header">
+                <h2 className="semiont-panel-header__title">
+                  <span className="semiont-panel-header__text">{_t('UserPanel.account')}</span>
+                </h2>
+              </div>
+              <div className="semiont-panel__content" style={{ padding: '1rem', textAlign: 'center' }}>
+                <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                  {_t('AccountPanel.notAuthenticated')}
+                </p>
+              </div>
+            </div>
+          )
         )}
 
         {/* Settings Panel - common to all contexts */}

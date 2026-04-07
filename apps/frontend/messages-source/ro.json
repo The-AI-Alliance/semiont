@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "creează sens",
-    "description": "Cadrul open-source, pregătit pentru viitor, care permite oamenilor și agenților inteligenți să co-creeze cunoștințe partajate — guvernat de tine și construit să dureze.",
-    "continueToKnowledgeBase": "Continuă la baza de cunoștințe",
-    "learnMore": "Află mai multe",
-    "signUp": "Înregistrare",
-    "signIn": "Autentificare",
-    "loading": "Se încarcă..."
+    "begin": "Începe"
   },
   "About": {
     "pageTitle": "Despre Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Baze de cunoștințe",
+    "connectTitle": "Conectare la baza de cunoștințe",
+    "connect": "Conectare",
+    "connecting": "Se conectează...",
+    "signIn": "Conectați-vă",
+    "signingIn": "Se conectează...",
+    "cancel": "Anulare",
+    "addKnowledgeBase": "Adăugați baza de cunoștințe",
+    "removeConfirm": "Eliminați {{label}}?",
+    "remove": "Eliminare",
+    "signOut": "Deconectare",
+    "statusConnected": "Conectat",
+    "statusExpired": "Sesiune expirată",
+    "statusSignedOut": "Deconectat",
+    "statusUnreachable": "Inaccesibil"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Nicio bază de cunoștințe",
+    "noKnowledgeBasesHint": "Adăugați o bază de cunoștințe folosind panoul din dreapta pentru a începe să descoperiți, să adnotați și să conectați resurse.",
+    "sessionExpired": "Sesiunea dvs. a expirat.",
+    "signedOut": "Ați fost deconectat.",
+    "signInHint": "Conectați-vă prin panoul Baza de cunoștințe pentru a naviga prin resurse."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Conectați-vă la o bază de cunoștințe pentru a vă vizualiza contul."
   }
 }

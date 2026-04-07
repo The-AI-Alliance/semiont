@@ -11,12 +11,12 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
 import type { User } from '@prisma/client';
-import type { components } from '@semiont/core';
+import type { components, EnvironmentConfig } from '@semiont/core';
 
 type StatusResponse = components['schemas']['StatusResponse'];
 
 // Create status router with plain Hono
-export const statusRouter = new Hono<{ Variables: { user: User } }>();
+export const statusRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig } }>();
 
 // Apply auth middleware
 statusRouter.use('/api/status', authMiddleware);
@@ -29,6 +29,8 @@ statusRouter.use('/api/status', authMiddleware);
  */
 statusRouter.get('/api/status', async (c) => {
   const user = c.get('user');
+  const config = c.get('config');
+  const projectName = (config._metadata as Record<string, unknown>)?.projectName as string | undefined;
 
   const response: StatusResponse = {
     status: 'operational',
@@ -40,6 +42,7 @@ statusRouter.get('/api/status', async (c) => {
     },
     message: 'Ready to build the future of knowledge management!',
     authenticatedAs: user?.email,
+    projectName,
   };
 
   return c.json(response, 200);

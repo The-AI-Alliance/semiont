@@ -77,19 +77,6 @@ export function Toolbar<T extends string = string>({
             <span className="semiont-toolbar-icon" aria-hidden="true">📒</span>
           </button>
 
-          {/* Collaboration Icon */}
-          <button
-            onClick={() => handlePanelToggle('collaboration')}
-            className="semiont-toolbar-button"
-            data-active={activePanel === 'collaboration'}
-            data-panel="collaboration"
-            aria-label={t('collaboration')}
-            aria-pressed={activePanel === 'collaboration'}
-            title={t('collaboration')}
-          >
-            <span className="semiont-toolbar-icon" aria-hidden="true">👥</span>
-          </button>
-
           {/* JSON-LD Icon */}
           <button
             onClick={() => handlePanelToggle('jsonld')}
@@ -101,6 +88,19 @@ export function Toolbar<T extends string = string>({
             title="JSON-LD"
           >
             <span className="semiont-toolbar-icon" aria-hidden="true">🌐</span>
+          </button>
+
+          {/* Collaboration Icon */}
+          <button
+            onClick={() => handlePanelToggle('collaboration')}
+            className="semiont-toolbar-button"
+            data-active={activePanel === 'collaboration'}
+            data-panel="collaboration"
+            aria-label={t('collaboration')}
+            aria-pressed={activePanel === 'collaboration'}
+            title={t('collaboration')}
+          >
+            <span className="semiont-toolbar-icon" aria-hidden="true">👥</span>
           </button>
         </>
       )}

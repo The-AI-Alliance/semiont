@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { sanitizeImageURL, useSessionExpiry, formatTime, useApiClient } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
 import { useRouter } from '@/i18n/routing';
 
 // Fallback avatar when image fails to load or is invalid
@@ -13,6 +14,7 @@ export function UserPanel() {
   const t = (k: string, p?: Record<string, unknown>) => _t(`UserPanel.${k}`, p as any) as string;
   const { displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
   const { clearSession } = useAuthContext();
+  const { activeKnowledgeBase } = useKnowledgeBaseContext();
   const apiClient = useApiClient();
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
@@ -49,6 +51,12 @@ export function UserPanel() {
       <h3 className="semiont-user-panel__title">
         {t('account')}
       </h3>
+
+      {activeKnowledgeBase && (
+        <div style={{ padding: '0 0.75rem 0.5rem', fontSize: '0.8rem', color: 'var(--semiont-color-neutral-400)' }}>
+          {activeKnowledgeBase.label}
+        </div>
+      )}
 
       <div className="space-y-4">
         {/* User Profile */}

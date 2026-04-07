@@ -59,13 +59,16 @@ vi.mock('@/lib/env', () => ({
 
 vi.mock('@/contexts/KnowledgeBaseContext', () => ({
   useKnowledgeBaseContext: () => ({
-    activeKnowledgeBase: { id: 'test', label: 'localhost', backendUrl: 'http://localhost:4000' },
+    activeKnowledgeBase: { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
     knowledgeBases: [],
     activeKnowledgeBaseId: 'test',
     addKnowledgeBase: vi.fn(),
     removeKnowledgeBase: vi.fn(),
     setActiveKnowledgeBase: vi.fn(),
+    updateKnowledgeBase: vi.fn(),
+    signOut: vi.fn(),
   }),
+  kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
 }));
 
 /** Render AdminLayout (Outlet-based) with a child component via React Router. */

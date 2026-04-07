@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "ciptakan makna",
-    "description": "Kerangka kerja sumber terbuka dan tahan masa depan yang memungkinkan manusia dan agen cerdas untuk bersama-sama menciptakan pengetahuan bersama — dikelola oleh Anda dan dibangun untuk bertahan lama.",
-    "continueToKnowledgeBase": "Lanjutkan ke Basis Pengetahuan",
-    "learnMore": "Pelajari Lebih Lanjut",
-    "signUp": "Daftar",
-    "signIn": "Masuk",
-    "loading": "Memuat..."
+    "begin": "Mulai"
   },
   "About": {
     "pageTitle": "Tentang Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Basis Pengetahuan",
+    "connectTitle": "Hubungkan ke Basis Pengetahuan",
+    "connect": "Hubungkan",
+    "connecting": "Menghubungkan...",
+    "signIn": "Masuk",
+    "signingIn": "Sedang masuk...",
+    "cancel": "Batal",
+    "addKnowledgeBase": "Tambah basis pengetahuan",
+    "removeConfirm": "Hapus {{label}}?",
+    "remove": "Hapus",
+    "signOut": "Keluar",
+    "statusConnected": "Terhubung",
+    "statusExpired": "Sesi berakhir",
+    "statusSignedOut": "Keluar",
+    "statusUnreachable": "Tidak dapat dijangkau"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Tidak ada basis pengetahuan",
+    "noKnowledgeBasesHint": "Tambahkan basis pengetahuan menggunakan panel di sebelah kanan untuk mulai menemukan, memberi anotasi, dan menautkan sumber daya.",
+    "sessionExpired": "Sesi Anda telah berakhir.",
+    "signedOut": "Anda telah keluar.",
+    "signInHint": "Masuk menggunakan panel Basis Pengetahuan untuk menjelajahi sumber daya."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Masuk ke basis pengetahuan untuk melihat akun Anda."
   }
 }

@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "make meaning",
-    "description": "The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.",
-    "continueToKnowledgeBase": "Continue to Knowledge Base",
-    "learnMore": "Learn More",
-    "signUp": "Sign Up",
-    "signIn": "Sign In",
-    "loading": "Loading..."
+    "begin": "Begin"
   },
   "About": {
     "pageTitle": "About Semiont",
@@ -257,6 +252,33 @@
     "noResourcesAvailable": "No resources available. Create your first document to get started.",
     "composeFirstResource": "Compose First Resource",
     "loadingKnowledgeBase": "Loading knowledge base..."
+  },
+  "KnowledgeBasePanel": {
+    "title": "Knowledge Bases",
+    "connectTitle": "Connect to Knowledge Base",
+    "connect": "Connect",
+    "connecting": "Connecting...",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "cancel": "Cancel",
+    "addKnowledgeBase": "Add knowledge base",
+    "removeConfirm": "Remove {{label}}?",
+    "remove": "Remove",
+    "signOut": "Sign out",
+    "statusConnected": "Connected",
+    "statusExpired": "Session expired",
+    "statusSignedOut": "Signed out",
+    "statusUnreachable": "Unreachable"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "No knowledge bases",
+    "noKnowledgeBasesHint": "Add a knowledge base using the panel on the right to start discovering, annotating, and linking resources.",
+    "sessionExpired": "Your session has expired.",
+    "signedOut": "You are signed out.",
+    "signInHint": "Sign in using the Knowledge Base panel to browse resources."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Sign in to a knowledge base to view your account."
   },
   "Compose": {
     "title": "New Resource",

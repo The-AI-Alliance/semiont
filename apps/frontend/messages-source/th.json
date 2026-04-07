@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "สร้างความหมาย",
-    "description": "เฟรมเวิร์กโอเพนซอร์สที่พร้อมรับอนาคต ช่วยให้มนุษย์และตัวแทนอัจฉริยะร่วมกันสร้างองค์ความรู้ที่ใช้ร่วมกัน — ควบคุมโดยคุณและสร้างขึ้นเพื่อความยั่งยืน",
-    "continueToKnowledgeBase": "ไปยังฐานความรู้",
-    "learnMore": "เรียนรู้เพิ่มเติม",
-    "signUp": "สมัครสมาชิก",
-    "signIn": "เข้าสู่ระบบ",
-    "loading": "กำลังโหลด..."
+    "begin": "เริ่มต้น"
   },
   "About": {
     "pageTitle": "เกี่ยวกับ Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "ฐานความรู้",
+    "connectTitle": "เชื่อมต่อกับฐานความรู้",
+    "connect": "เชื่อมต่อ",
+    "connecting": "กำลังเชื่อมต่อ...",
+    "signIn": "เข้าสู่ระบบ",
+    "signingIn": "กำลังเข้าสู่ระบบ...",
+    "cancel": "ยกเลิก",
+    "addKnowledgeBase": "เพิ่มฐานความรู้",
+    "removeConfirm": "ลบ {{label}}?",
+    "remove": "ลบ",
+    "signOut": "ออกจากระบบ",
+    "statusConnected": "เชื่อมต่อแล้ว",
+    "statusExpired": "เซสชันหมดอายุ",
+    "statusSignedOut": "ออกจากระบบแล้ว",
+    "statusUnreachable": "เข้าถึงไม่ได้"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "ไม่มีฐานความรู้",
+    "noKnowledgeBasesHint": "เพิ่มฐานความรู้โดยใช้แผงด้านขวาเพื่อเริ่มค้นหา ใส่คำอธิบาย และเชื่อมโยงทรัพยากร",
+    "sessionExpired": "เซสชันของคุณหมดอายุแล้ว",
+    "signedOut": "คุณออกจากระบบแล้ว",
+    "signInHint": "เข้าสู่ระบบโดยใช้แผงฐานความรู้เพื่อเรียกดูทรัพยากร"
+  },
+  "AccountPanel": {
+    "notAuthenticated": "เข้าสู่ระบบฐานความรู้เพื่อดูบัญชีของคุณ"
   }
 }

@@ -46,10 +46,10 @@ describe('usePanelBrowse', () => {
     localStorage.clear();
   });
 
-  it('initializes with no active panel', () => {
+  it('initializes with knowledge-base panel on first launch', () => {
     const { getState } = renderPanelBrowse();
 
-    expect(getState().activePanel).toBe(null);
+    expect(getState().activePanel).toBe('knowledge-base');
     expect(getState().scrollToAnnotationId).toBe(null);
     expect(getState().panelInitialTab).toBe(null);
   });

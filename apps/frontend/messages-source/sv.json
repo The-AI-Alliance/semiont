@@ -24,12 +24,7 @@
   },
   "Home": {
     "tagline": "skapa mening",
-    "description": "Det öppna, framtidssäkra ramverket som gör det möjligt för människor och intelligenta agenter att samskapa delad kunskap — styrt av dig och byggt för att bestå.",
-    "continueToKnowledgeBase": "Fortsätt till kunskapsbasen",
-    "learnMore": "Läs mer",
-    "signUp": "Registrera dig",
-    "signIn": "Logga in",
-    "loading": "Laddar..."
+    "begin": "Börja"
   },
   "About": {
     "pageTitle": "Om Semiont",
@@ -580,5 +575,32 @@
     "streams": "Resources",
     "events": "Annotations",
     "blobs": "Entity types"
+  },
+  "KnowledgeBasePanel": {
+    "title": "Kunskapsbaser",
+    "connectTitle": "Anslut till kunskapsbas",
+    "connect": "Anslut",
+    "connecting": "Ansluter...",
+    "signIn": "Logga in",
+    "signingIn": "Loggar in...",
+    "cancel": "Avbryt",
+    "addKnowledgeBase": "Lägg till kunskapsbas",
+    "removeConfirm": "Ta bort {{label}}?",
+    "remove": "Ta bort",
+    "signOut": "Logga ut",
+    "statusConnected": "Ansluten",
+    "statusExpired": "Session utgången",
+    "statusSignedOut": "Utloggad",
+    "statusUnreachable": "Onåbar"
+  },
+  "DiscoverEmptyState": {
+    "noKnowledgeBases": "Inga kunskapsbaser",
+    "noKnowledgeBasesHint": "Lägg till en kunskapsbas med hjälp av panelen till höger för att börja upptäcka, kommentera och länka resurser.",
+    "sessionExpired": "Din session har gått ut.",
+    "signedOut": "Du är utloggad.",
+    "signInHint": "Logga in via kunskapsbasens panel för att bläddra bland resurser."
+  },
+  "AccountPanel": {
+    "notAuthenticated": "Logga in på en kunskapsbas för att visa ditt konto."
   }
 }
