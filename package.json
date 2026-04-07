@@ -1,6 +1,6 @@
 {
   "name": "semiont",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "private": true,
   "description": "Semiont - Semantic Knowledge Platform",
   "workspaces": [
