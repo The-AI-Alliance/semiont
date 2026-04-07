@@ -64,7 +64,8 @@ export function chunkText(text: string, config: ChunkingConfig = DEFAULT_CHUNKIN
     }
 
     chunks.push(text.slice(start, end).trim());
-    start = end - overlapChars;
+    const nextStart = end - overlapChars;
+    start = nextStart > start ? nextStart : end;
     if (start >= text.length) break;
   }
 
