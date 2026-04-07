@@ -11,6 +11,19 @@ queries:
 paths:
   - apps/frontend/src
   - apps/backend/src
+  - apps/cli/src
+  - packages/api-client/src
+  - packages/core/src
+  - packages/content/src
+  - packages/event-sourcing/src
+  - packages/graph/src
+  - packages/inference/src
+  - packages/vectors/src
+  - packages/jobs/src
+  - packages/make-meaning/src
+  - packages/ontology/src
+  - packages/react-ui/src
+  - packages/mcp-server/src
   - cdk/lib
   - scripts/lib
 
