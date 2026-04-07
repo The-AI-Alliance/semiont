@@ -379,6 +379,9 @@ export class Smelter {
   }
 
   private async handleResourceCreated(event: ResourceCreatedEvent): Promise<void> {
+    // Yield the event loop so HTTP requests aren't starved by embedding work
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     const rid = makeResourceId(event.resourceId!);
     const storageUri = event.payload.storageUri;
 
@@ -450,6 +453,9 @@ export class Smelter {
   }
 
   private async handleAnnotationAdded(event: AnnotationAddedEvent): Promise<void> {
+    // Yield the event loop so HTTP requests aren't starved by embedding work
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     const annotation = event.payload.annotation;
     if (!annotation || !annotation.id) return;
 
