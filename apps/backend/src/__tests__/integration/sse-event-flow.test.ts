@@ -55,19 +55,19 @@ describe('SSE Event Flow - End-to-End', () => {
 
     subscriptions.push(scopedBus.get('job:started').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: 'job:started', event });
+        receivedEvents.push(event);
       }
     }));
 
     subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: 'job:progress', event });
+        receivedEvents.push(event);
       }
     }));
 
     subscriptions.push(scopedBus.get('job:completed').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: 'job:completed', event });
+        receivedEvents.push(event);
       }
     }));
 

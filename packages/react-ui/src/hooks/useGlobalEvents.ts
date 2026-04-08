@@ -46,7 +46,8 @@ export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean 
   // Subscribe to system-level domain event types
   useEffect(() => {
     const subscription = eventBus.get('mark:entity-type-added').subscribe((stored) => {
-      handleEvent(stored);
+      const { metadata, signature, ...event } = stored;
+      handleEvent(event as ResourceEvent);
     });
     return () => subscription.unsubscribe();
   }, [eventBus, handleEvent]);
