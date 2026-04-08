@@ -65,7 +65,7 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
   const logger = createCliLogger(options.verbose ?? false);
 
   // Bootstrap read-only stores
-  const eventStore = createEventStore(project, undefined, logger);
+  const eventStore = createEventStore(project, new EventBus(), logger);
   const contentStore = new WorkingTreeStore(
     project,
     logger.child({ component: 'content-store' }),
