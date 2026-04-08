@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import { SemiontProject } from '@semiont/core/node';
-import type { Logger } from '@semiont/core';
+import { EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import { exportLinkedData } from '@semiont/make-meaning';
