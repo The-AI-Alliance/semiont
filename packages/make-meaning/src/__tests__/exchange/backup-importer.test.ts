@@ -155,7 +155,7 @@ describe('backup-importer', () => {
       makeStreamSummary(TEST_RESOURCE, 1),
     ].join('\n') + '\n';
 
-    const resourceEvents = makeStoredEventJson('yield:create-ok', {
+    const resourceEvents = makeStoredEventJson('yield:created', {
       name: 'Test Doc',
       contentChecksum: 'sha-content',
       format: 'text/markdown',
@@ -192,7 +192,7 @@ describe('backup-importer', () => {
       makeStreamSummary(TEST_RESOURCE, 1),
     ].join('\n') + '\n';
 
-    const resourceEvents = makeStoredEventJson('yield:create-ok', {
+    const resourceEvents = makeStoredEventJson('yield:created', {
       name: 'Binary Doc',
       contentChecksum: 'deadbeef1234',
       format: 'application/pdf',
@@ -298,7 +298,7 @@ describe('backup-importer', () => {
     ].join('\n') + '\n';
 
     const systemEvents = makeStoredEventJson('mark:entity-type-added', { entityType: 'Person' }) + '\n';
-    const resourceEvents = makeStoredEventJson('yield:create-ok', {
+    const resourceEvents = makeStoredEventJson('yield:created', {
       name: 'Doc',
       contentChecksum: 'chk1',
       format: 'text/markdown',
@@ -343,11 +343,11 @@ describe('backup-importer', () => {
       makeStoredEventJson('mark:entity-type-added', { entityType: 'B' }),
     ].join('\n') + '\n';
 
-    const res1Events = makeStoredEventJson('yield:create-ok', {
+    const res1Events = makeStoredEventJson('yield:created', {
       name: 'Doc 1', contentChecksum: 'c1', format: 'text/markdown',
     }) + '\n';
 
-    const res2Events = makeStoredEventJson('yield:create-ok', {
+    const res2Events = makeStoredEventJson('yield:created', {
       name: 'Doc 2', contentChecksum: 'c2', format: 'text/markdown',
     }) + '\n';
 

@@ -313,6 +313,7 @@ export function isResourceEvent(event: any): event is ResourceEvent {
   return event &&
     typeof event.id === 'string' &&
     typeof event.timestamp === 'string' &&
+    (event.resourceId === undefined || typeof event.resourceId === 'string') &&
     typeof event.type === 'string' &&
     RESOURCE_EVENT_TYPES.has(event.type);
 }

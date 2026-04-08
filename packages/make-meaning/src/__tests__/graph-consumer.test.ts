@@ -659,7 +659,7 @@ describe('GraphDBConsumer', () => {
     it('should report health metrics', async () => {
       const metrics = consumer.getHealthMetrics();
 
-      expect(metrics.subscriptions).toBe(1);
+      expect(metrics.subscriptions).toBe(9); // One per GRAPH_RELEVANT_EVENTS entry
       expect(metrics.pipelineActive).toBe(true);
       expect(typeof metrics.lastProcessed).toBe('object');
     });

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SSEStream } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
-import type { ResourceEvent, StoredEvent } from '@semiont/core';
+import type { ResourceEvent } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventBus } from '../contexts/EventBusContext';
