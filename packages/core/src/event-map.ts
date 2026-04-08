@@ -560,28 +560,28 @@ export type EventMap = {
     resourceId: ResourceId;
     userId: UserId;
     jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    jobType: components['schemas']['JobType'];
   };
   'job:report-progress': {
     resourceId: ResourceId;
     userId: UserId;
     jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    jobType: components['schemas']['JobType'];
     percentage: number;
-    progress?: any;
+    progress?: Record<string, unknown>;
   };
   'job:complete': {
     resourceId: ResourceId;
     userId: UserId;
     jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
-    result?: any;
+    jobType: components['schemas']['JobType'];
+    result?: Record<string, unknown>;
   };
   'job:fail': {
     resourceId: ResourceId;
     userId: UserId;
     jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    jobType: components['schemas']['JobType'];
     error: string;
   };
 
