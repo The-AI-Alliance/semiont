@@ -178,7 +178,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
 
           // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('job:completed').subscribe(async (stored) => { const event = stored.event;
+            resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
               logger.info('Detection completed');
@@ -206,7 +206,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
 
           // Subscribe to job:failed
           subscriptions.push(
-            resourceBus.get('job:failed').subscribe(async (stored) => { const event = stored.event;
+            resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
               logger.info('Detection failed', { error: event.payload.error });

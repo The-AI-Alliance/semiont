@@ -68,11 +68,11 @@ export class EventLog {
     if (!filter) return events;
 
     return events.filter(e => {
-      if (filter.eventTypes && !filter.eventTypes.includes(e.event.type as any)) return false;
+      if (filter.eventTypes && !filter.eventTypes.includes(e.type as any)) return false;
       if (filter.fromSequence && e.metadata.sequenceNumber < filter.fromSequence) return false;
-      if (filter.fromTimestamp && e.event.timestamp < filter.fromTimestamp) return false;
-      if (filter.toTimestamp && e.event.timestamp > filter.toTimestamp) return false;
-      if (filter.userId && e.event.userId !== filter.userId) return false;
+      if (filter.fromTimestamp && e.timestamp < filter.fromTimestamp) return false;
+      if (filter.toTimestamp && e.timestamp > filter.toTimestamp) return false;
+      if (filter.userId && e.userId !== filter.userId) return false;
       return true;
     });
   }

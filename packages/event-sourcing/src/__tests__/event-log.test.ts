@@ -65,9 +65,9 @@ describe('EventLog', () => {
 
       const stored = await log.append(event, resourceId('doc1'));
 
-      expect(stored.event.id).toBeDefined();
-      expect(stored.event.timestamp).toBeDefined();
-      expect(stored.event.type).toBe('yield:created');
+      expect(stored.id).toBeDefined();
+      expect(stored.timestamp).toBeDefined();
+      expect(stored.type).toBe('yield:created');
       expect(stored.metadata.sequenceNumber).toBe(1);
     });
 
@@ -92,7 +92,7 @@ describe('EventLog', () => {
       const stored = await log.append(event, resourceId('doc1'));
 
       expect(stored).toBeDefined();
-      expect(stored.event.type).toBe('mark:added');
+      expect(stored.type).toBe('mark:added');
     });
   });
 
@@ -133,8 +133,8 @@ describe('EventLog', () => {
       const events = await log.getEvents(rid);
 
       expect(events).toHaveLength(2);
-      expect(events[0].event.type).toBe('yield:created');
-      expect(events[1].event.type).toBe('yield:representation-added');
+      expect(events[0].type).toBe('yield:created');
+      expect(events[1].type).toBe('yield:representation-added');
     });
 
     it('should return empty array for resource with no events', async () => {
@@ -253,7 +253,7 @@ describe('EventLog', () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0].event.type).toBe('mark:added');
+      expect(events[0].type).toBe('mark:added');
     });
 
     it('should filter by multiple event types', async () => {
@@ -262,8 +262,8 @@ describe('EventLog', () => {
       });
 
       expect(events).toHaveLength(2);
-      expect(events[0].event.type).toBe('yield:created');
-      expect(events[1].event.type).toBe('yield:representation-added');
+      expect(events[0].type).toBe('yield:created');
+      expect(events[1].type).toBe('yield:representation-added');
     });
 
     it('should filter by fromSequence', async () => {
@@ -281,31 +281,31 @@ describe('EventLog', () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0].event.userId).toBe(userId('user2'));
+      expect(events[0].userId).toBe(userId('user2'));
     });
 
     it('should filter by fromTimestamp', async () => {
       const allEvents = await log.getEvents(resourceId('doc1'));
-      const midTimestamp = allEvents[1].event.timestamp;
+      const midTimestamp = allEvents[1].timestamp;
 
       const events = await log.queryEvents(resourceId('doc1'), {
         fromTimestamp: midTimestamp,
       });
 
       expect(events.length).toBeGreaterThanOrEqual(1);
-      expect(events.every(e => e.event.timestamp >= midTimestamp)).toBe(true);
+      expect(events.every(e => e.timestamp >= midTimestamp)).toBe(true);
     });
 
     it('should filter by toTimestamp', async () => {
       const allEvents = await log.getEvents(resourceId('doc1'));
-      const midTimestamp = allEvents[1].event.timestamp;
+      const midTimestamp = allEvents[1].timestamp;
 
       const events = await log.queryEvents(resourceId('doc1'), {
         toTimestamp: midTimestamp,
       });
 
       expect(events.length).toBeGreaterThanOrEqual(1);
-      expect(events.every(e => e.event.timestamp <= midTimestamp)).toBe(true);
+      expect(events.every(e => e.timestamp <= midTimestamp)).toBe(true);
     });
 
     it('should combine multiple filters', async () => {
@@ -315,7 +315,7 @@ describe('EventLog', () => {
       });
 
       expect(events).toHaveLength(2);
-      expect(events.every(e => e.event.userId === userId('user1'))).toBe(true);
+      expect(events.every(e => e.userId === userId('user1'))).toBe(true);
     });
   });
 });

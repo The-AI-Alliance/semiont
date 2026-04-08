@@ -11,18 +11,17 @@ import type { AnnotationUri } from './branded-types';
 /**
  * Minimal event shape accepted by event utility functions.
  * Compatible with both the internal `StoredEvent` type and the OpenAPI-derived
- * schema type (`GetEventsResponse['events'][number]`), which lacks `version`
- * on the inner event.
+ * schema type (`GetEventsResponse['events'][number]`), which lacks `version`.
+ *
+ * Flat shape — event fields and metadata are peers (no `event` wrapper).
  */
 export interface StoredEventLike {
-  event: {
-    id: string;
-    type: string; // Intentionally loose — accepts OpenAPI-derived types where type is string
-    timestamp: string;
-    userId: string;
-    resourceId?: string;
-    payload?: unknown;
-  };
+  id: string;
+  type: string; // Intentionally loose — accepts OpenAPI-derived types where type is string
+  timestamp: string;
+  userId: string;
+  resourceId?: string;
+  payload?: unknown;
   metadata: {
     sequenceNumber: number;
     prevEventHash?: string;
@@ -38,25 +37,20 @@ export interface StoredEventLike {
  * Extract annotation ID from event payload
  * Returns null if event is not annotation-related
  *
- * For annotation.added: extracts full URI from payload.annotation.id
- * For annotation.removed/body.updated: constructs full URI from payload.annotationId (UUID) + resourceId
+ * For mark:added: extracts full URI from payload.annotation.id
+ * For mark:removed/mark:body-updated: constructs full URI from payload.annotationId (UUID) + resourceId
  */
 export function getAnnotationUriFromEvent(event: StoredEventLike): AnnotationUri | null {
-  const eventData = event.event;
-  const payload = eventData.payload as Record<string, any> | undefined;
+  const payload = event.payload as Record<string, any> | undefined;
 
-  if (eventData.type === 'mark:added') {
-    // mark:added has the full annotation object with id as full URI
+  if (event.type === 'mark:added') {
     return payload?.annotation?.id as AnnotationUri || null;
   }
 
-  if (eventData.type === 'mark:removed' || eventData.type === 'mark:body-updated') {
-    // These events have annotationId (UUID only), need to construct full URI
-    // Extract base URL from resourceId (format: http://host/resources/id)
-    if (payload?.annotationId && eventData.resourceId) {
+  if (event.type === 'mark:removed' || event.type === 'mark:body-updated') {
+    if (payload?.annotationId && event.resourceId) {
       try {
-        const resourceUri = eventData.resourceId;
-        // Extract base URL by removing the /resources/{id} part
+        const resourceUri = event.resourceId;
         const baseUrl = resourceUri.substring(0, resourceUri.lastIndexOf('/resources/'));
         return `${baseUrl}/annotations/${payload.annotationId}` as AnnotationUri;
       } catch (e) {
@@ -77,15 +71,13 @@ export function isEventRelatedToAnnotation(event: StoredEventLike, annotationUri
 }
 
 /**
- * Type guard to check if event is a resource event
+ * Type guard to check if an object is a StoredEvent (flat shape)
  */
-export function isResourceEvent(event: any): event is StoredEvent {
+export function isStoredEvent(event: any): event is StoredEvent {
   return event &&
-    typeof event.event === 'object' &&
-    typeof event.event.id === 'string' &&
-    typeof event.event.timestamp === 'string' &&
-    typeof event.event.resourceId === 'string' &&
-    typeof event.event.type === 'string' &&
+    typeof event.id === 'string' &&
+    typeof event.timestamp === 'string' &&
+    typeof event.type === 'string' &&
     typeof event.metadata === 'object' &&
     typeof event.metadata.sequenceNumber === 'number';
 }

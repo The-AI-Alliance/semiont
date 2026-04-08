@@ -53,19 +53,19 @@ describe('SSE Event Flow - End-to-End', () => {
     const scopedBus = coreEventBus.scope(String(rId));
     const subscriptions: Subscription[] = [];
 
-    subscriptions.push(scopedBus.get('job:started').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:started').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: 'job:started', event });
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:progress').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: 'job:progress', event });
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:completed').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:completed').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: 'job:completed', event });
       }
@@ -138,9 +138,9 @@ describe('SSE Event Flow - End-to-End', () => {
     expect(receivedEvents).toHaveLength(4);
     expect(receivedEvents[0].type).toBe('job:started');
     expect(receivedEvents[1].type).toBe('job:progress');
-    expect(receivedEvents[1].event.payload.percentage).toBe(33);
+    expect(receivedEvents[1].payload.percentage).toBe(33);
     expect(receivedEvents[2].type).toBe('job:progress');
-    expect(receivedEvents[2].event.payload.percentage).toBe(66);
+    expect(receivedEvents[2].payload.percentage).toBe(66);
     expect(receivedEvents[3].type).toBe('job:completed');
 
     subscriptions.forEach(s => s.unsubscribe());
@@ -154,13 +154,13 @@ describe('SSE Event Flow - End-to-End', () => {
     const scopedBus = coreEventBus.scope(String(rId));
     const subscriptions: Subscription[] = [];
 
-    subscriptions.push(scopedBus.get('job:started').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:started').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: event.type, stage: null, percentage: null });
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:progress').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({
           type: event.type,
@@ -170,7 +170,7 @@ describe('SSE Event Flow - End-to-End', () => {
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:completed').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:completed').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: event.type, stage: null, percentage: null });
       }
@@ -246,19 +246,19 @@ describe('SSE Event Flow - End-to-End', () => {
     const scopedBus = coreEventBus.scope(String(rId));
     const subscriptions: Subscription[] = [];
 
-    subscriptions.push(scopedBus.get('job:started').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:started').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: event.type, error: null });
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:progress').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: event.type, error: null });
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:failed').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:failed').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: event.type, error: event.payload.error });
       }
@@ -327,13 +327,13 @@ describe('SSE Event Flow - End-to-End', () => {
     const scopedBus = coreEventBus.scope(String(rId));
     const subscriptions: Subscription[] = [];
 
-    subscriptions.push(scopedBus.get('job:progress').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
       if (event.payload.jobId === jobId1) {
         receivedJob1Events.push(event);
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:completed').subscribe((stored) => { const event = stored.event;
+    subscriptions.push(scopedBus.get('job:completed').subscribe((event) => {
       if (event.payload.jobId === jobId1) {
         receivedJob1Events.push(event);
       }

@@ -64,7 +64,7 @@ describe('Event Store', () => {
 
     const events = await query.getResourceEvents(docId);
     expect(events).toHaveLength(1);
-    expect(events[0]?.event.type).toBe('yield:created');
+    expect(events[0]?.type).toBe('yield:created');
   });
 
   it('should create event chain with prevEventHash', async () => {

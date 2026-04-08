@@ -68,10 +68,10 @@ describe('ResourceOperations', () => {
 
       // Verify via event store
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
+      const createdEvent = events.find(e => e.type === 'yield:created');
       expect(createdEvent).toBeDefined();
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.name).toBe('Test Resource');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.format).toBe('text/plain');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.name).toBe('Test Resource');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.format).toBe('text/plain');
     });
 
     it('should generate resource ID', async () => {
@@ -105,7 +105,7 @@ describe('ResourceOperations', () => {
 
       // Verify representation was stored via event store
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
+      const createdEvent = events.find(e => e.type === 'yield:created');
       expect(createdEvent).toBeDefined();
       // The representation is stored by Stower — verify the resource was created successfully
       expect(resId).toBeDefined();
@@ -125,11 +125,11 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvents = events.filter(e => e.event.type === 'yield:created');
+      const createdEvents = events.filter(e => e.type === 'yield:created');
       expect(createdEvents).toHaveLength(1);
 
       const createdEvent = createdEvents[0];
-      expect(createdEvent.event).toMatchObject({
+      expect(createdEvent).toMatchObject({
         type: 'yield:created',
         resourceId: resId,
         userId: userId('user-1'),
@@ -156,8 +156,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.format).toBe('text/markdown');
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.format).toBe('text/markdown');
     });
 
     it('should handle html content format', async () => {
@@ -173,8 +173,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.format).toBe('text/html');
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.format).toBe('text/html');
     });
 
     it('should handle optional language parameter', async () => {
@@ -191,8 +191,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.language).toBe('fr');
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.language).toBe('fr');
     });
 
     it('should handle optional entity types', async () => {
@@ -209,8 +209,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.entityTypes).toEqual(['Person', 'Organization', 'Location']);
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.entityTypes).toEqual(['Person', 'Organization', 'Location']);
     });
 
     it('should handle empty entity types array', async () => {
@@ -227,8 +227,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.entityTypes).toEqual([]);
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.entityTypes).toEqual([]);
     });
 
     it('should default to API creation method when not specified', async () => {
@@ -244,8 +244,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.creationMethod).toBe(CREATION_METHODS.API);
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.creationMethod).toBe(CREATION_METHODS.API);
     });
 
     it('should accept valid creation method', async () => {
@@ -262,8 +262,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
-      expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.creationMethod).toBe(CREATION_METHODS.GENERATED);
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.creationMethod).toBe(CREATION_METHODS.GENERATED);
     });
 
     it('should include timestamp in event', async () => {
@@ -279,10 +279,10 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const createdEvent = events.find(e => e.event.type === 'yield:created');
+      const createdEvent = events.find(e => e.type === 'yield:created');
       expect(createdEvent).toBeDefined();
-      expect(createdEvent!.event.timestamp).toBeDefined();
-      expect(new Date(createdEvent!.event.timestamp).getTime()).toBeGreaterThan(0);
+      expect(createdEvent!.timestamp).toBeDefined();
+      expect(new Date(createdEvent!.timestamp).getTime()).toBeGreaterThan(0);
     });
   });
 
@@ -311,10 +311,10 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const archivedEvents = events.filter(e => e.event.type === 'mark:archived');
+      const archivedEvents = events.filter(e => e.type === 'mark:archived');
       expect(archivedEvents).toHaveLength(1);
 
-      expect(archivedEvents[0].event).toMatchObject({
+      expect(archivedEvents[0]).toMatchObject({
         type: 'mark:archived',
         resourceId: resId,
         userId: userId('user-1'),
@@ -355,10 +355,10 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const unarchivedEvents = events.filter(e => e.event.type === 'mark:unarchived');
+      const unarchivedEvents = events.filter(e => e.type === 'mark:unarchived');
       expect(unarchivedEvents).toHaveLength(1);
 
-      expect(unarchivedEvents[0].event).toMatchObject({
+      expect(unarchivedEvents[0]).toMatchObject({
         type: 'mark:unarchived',
         resourceId: resId,
         userId: userId('user-1'),
@@ -423,11 +423,11 @@ describe('ResourceOperations', () => {
       await new Promise(r => setTimeout(r, 100));
 
       const events = await testEventStore.log.getEvents(resId);
-      const addedEvents = events.filter(e => e.event.type === 'mark:entity-tag-added');
+      const addedEvents = events.filter(e => e.type === 'mark:entity-tag-added');
       expect(addedEvents.length).toBeGreaterThanOrEqual(2);
 
       const addedTypes = addedEvents
-        .map(e => e.event.type === 'mark:entity-tag-added' ? e.event.payload.entityType : null)
+        .map(e => e.type === 'mark:entity-tag-added' ? e.payload.entityType : null)
         .filter((t): t is string => t !== null);
       expect(addedTypes).toContain('Location');
       expect(addedTypes).toContain('Organization');
@@ -461,11 +461,11 @@ describe('ResourceOperations', () => {
       await new Promise(r => setTimeout(r, 100));
 
       const events = await testEventStore.log.getEvents(resId);
-      const removedEvents = events.filter(e => e.event.type === 'mark:entity-tag-removed');
+      const removedEvents = events.filter(e => e.type === 'mark:entity-tag-removed');
       expect(removedEvents.length).toBeGreaterThanOrEqual(2);
 
       const removedTypes = removedEvents
-        .map(e => e.event.type === 'mark:entity-tag-removed' ? e.event.payload.entityType : null)
+        .map(e => e.type === 'mark:entity-tag-removed' ? e.payload.entityType : null)
         .filter((t): t is string => t !== null);
       expect(removedTypes).toContain('Location');
       expect(removedTypes).toContain('Organization');
@@ -499,11 +499,11 @@ describe('ResourceOperations', () => {
       await new Promise(r => setTimeout(r, 100));
 
       const events = await testEventStore.log.getEvents(resId);
-      const addedEvents = events.filter(e => e.event.type === 'mark:entity-tag-added');
-      const removedEvents = events.filter(e => e.event.type === 'mark:entity-tag-removed');
+      const addedEvents = events.filter(e => e.type === 'mark:entity-tag-added');
+      const removedEvents = events.filter(e => e.type === 'mark:entity-tag-removed');
 
-      expect(addedEvents.some(e => e.event.type === 'mark:entity-tag-added' && e.event.payload.entityType === 'Organization')).toBe(true);
-      expect(removedEvents.some(e => e.event.type === 'mark:entity-tag-removed' && e.event.payload.entityType === 'Location')).toBe(true);
+      expect(addedEvents.some(e => e.type === 'mark:entity-tag-added' && e.payload.entityType === 'Organization')).toBe(true);
+      expect(removedEvents.some(e => e.type === 'mark:entity-tag-removed' && e.payload.entityType === 'Location')).toBe(true);
     });
 
     it('should not emit events if entity types unchanged', async () => {
@@ -564,8 +564,8 @@ describe('ResourceOperations', () => {
       );
 
       const events = await testEventStore.log.getEvents(resId);
-      const archivedEvents = events.filter(e => e.event.type === 'mark:archived');
-      const entityAddedEvents = events.filter(e => e.event.type === 'mark:entity-tag-added');
+      const archivedEvents = events.filter(e => e.type === 'mark:archived');
+      const entityAddedEvents = events.filter(e => e.type === 'mark:entity-tag-added');
 
       expect(archivedEvents).toHaveLength(1);
       expect(entityAddedEvents.length).toBeGreaterThanOrEqual(1);

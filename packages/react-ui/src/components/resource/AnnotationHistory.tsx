@@ -5,7 +5,7 @@ import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import { useResources } from '../../lib/api-hooks';
 import type { ResourceId } from '@semiont/core';
-import { getAnnotationUriFromEvent } from '@semiont/core';
+import { getAnnotationUriFromEvent, type StoredEventLike } from '@semiont/core';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
@@ -36,11 +36,12 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort events by oldest first (most recent at bottom)
-  // Filter out all job events - they're represented by annotation.body.updated events instead
-  const events = !eventsData?.events ? [] : [...eventsData.events]
+  // Filter out all job events - they're represented by mark:body-updated events instead
+  // Flatten API response shape ({ event: {...}, metadata: {...} }) to StoredEventLike
+  const events: StoredEventLike[] = !eventsData?.events ? [] : eventsData.events
+    .map((e) => ({ ...e.event, metadata: e.metadata }) as StoredEventLike)
     .filter((e) => {
-      const eventType = e.event.type;
-      return eventType !== 'job.started' && eventType !== 'job.progress' && eventType !== 'job.completed';
+      return e.type !== 'job:started' && e.type !== 'job:progress' && e.type !== 'job:completed';
     })
     .sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
@@ -110,7 +111,7 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
 
           return (
             <HistoryEvent
-              key={stored.event.id}
+              key={stored.id}
               event={stored}
               annotations={annotations}
               allEvents={events}

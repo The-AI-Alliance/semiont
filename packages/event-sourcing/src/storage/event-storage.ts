@@ -162,13 +162,12 @@ export class EventStorage {
     const metadata: EventMetadata = {
       sequenceNumber,
       streamPosition: 0,  // Will be set during write
-      timestamp: new Date().toISOString(),
       prevEventHash: prevEventHash || undefined,
       checksum: sha256(completeEvent),
     };
 
     const storedEvent: StoredEvent = {
-      event: completeEvent,
+      ...completeEvent,
       metadata,
     };
 
@@ -264,8 +263,14 @@ export class EventStorage {
         if (trimmed === '') continue;
 
         try {
-          const event = JSON.parse(trimmed) as StoredEvent;
-          events.push(event);
+          const parsed = JSON.parse(trimmed);
+          // Handle both flat (new) and nested (old) JSONL formats
+          if ('event' in parsed && 'metadata' in parsed && !('type' in parsed)) {
+            // Old nested format: { event: {...}, metadata: {...} } → flatten
+            events.push({ ...parsed.event, metadata: parsed.metadata, signature: parsed.signature } as StoredEvent);
+          } else {
+            events.push(parsed as StoredEvent);
+          }
         } catch (parseError) {
           this.logger?.error('[EventStorage] Failed to parse event', { filePath, error: parseError });
           // Skip malformed lines

@@ -71,7 +71,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
 
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
@@ -80,11 +80,11 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
 
       const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
       addedEvents.forEach(event => {
-        expect(event.event.userId).toBe(SYSTEM_USER_ID);
+        expect(event.userId).toBe(SYSTEM_USER_ID);
       });
     });
 
@@ -92,11 +92,11 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
 
       const emittedTypes = addedEvents.map(e => {
-        if (e.event.type === 'mark:entity-type-added') {
-          return e.event.payload.entityType;
+        if (e.type === 'mark:entity-type-added') {
+          return e.payload.entityType;
         }
         throw new Error('Unexpected event type');
       });
@@ -107,14 +107,14 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
 
       addedEvents.forEach(event => {
-        expect(event.event.type).toBe('mark:entity-type-added');
-        if (event.event.type === 'mark:entity-type-added') {
-          expect(event.event.payload).toHaveProperty('entityType');
-          expect(typeof event.event.payload.entityType).toBe('string');
-          expect(event.event.payload.entityType.length).toBeGreaterThan(0);
+        expect(event.type).toBe('mark:entity-type-added');
+        if (event.type === 'mark:entity-type-added') {
+          expect(event.payload).toHaveProperty('entityType');
+          expect(typeof event.payload.entityType).toBe('string');
+          expect(event.payload.entityType.length).toBeGreaterThan(0);
         }
       });
     });
@@ -161,7 +161,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
   });
@@ -231,7 +231,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length * 2);
     });
   });

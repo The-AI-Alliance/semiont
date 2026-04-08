@@ -72,26 +72,26 @@ export class EventStore {
     if (resourceId === '__system__') {
       // System-level view (entity types, etc.)
       await this.views.materializeSystem(
-        storedEvent.event.type,
-        storedEvent.event.payload
+        storedEvent.type,
+        storedEvent.payload
       );
     } else {
       // Resource view
       await this.views.materializeResource(
         resourceId as ResourceId,
-        storedEvent.event,
+        storedEvent,
         () => this.log.getEvents(resourceId as ResourceId)
       );
     }
 
     // 3. Publish full StoredEvent to Core EventBus typed channels
     // Global typed channel (e.g., 'mark:added')
-    this.coreEventBus.get(storedEvent.event.type as any).next(storedEvent);
+    this.coreEventBus.get(storedEvent.type as any).next(storedEvent);
 
     // Resource-scoped typed channel for per-resource subscribers
     if (resourceId !== '__system__') {
       const scopedBus = this.coreEventBus.scope(resourceId as string);
-      scopedBus.get(storedEvent.event.type as any).next(storedEvent);
+      scopedBus.get(storedEvent.type as any).next(storedEvent);
     }
 
     return storedEvent;

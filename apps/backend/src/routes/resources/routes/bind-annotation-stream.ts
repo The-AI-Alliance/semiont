@@ -77,7 +77,7 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
           const scopedBus = eventBus.scope(String(rId));
           subscription = scopedBus.get('mark:body-updated').subscribe(async (storedEvent) => {
             if (isStreamClosed) return;
-            if (storedEvent.event.payload.annotationId !== annotationIdParam) return;
+            if (storedEvent.payload.annotationId !== annotationIdParam) return;
 
             logger.info('Bind completed', { annotationId: annotationIdParam });
             try {

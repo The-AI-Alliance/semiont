@@ -8,7 +8,7 @@ import { ViewMaterializer } from '../../views/view-materializer';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId } from '@semiont/core';
-import type { StoredEvent, EventMetadata, Motivation } from '@semiont/core';
+import type { EventMetadata, Motivation } from '@semiont/core';
 
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -20,10 +20,11 @@ function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMe
   return {
     sequenceNumber,
     streamPosition: sequenceNumber * 100,
-    timestamp: new Date().toISOString(),
     prevEventHash: prevHash,
   };
 }
+
+/** Create a flat StoredEvent from event fields and metadata */
 
 describe('ViewMaterializer', () => {
   let materializer: ViewMaterializer;
@@ -50,9 +51,9 @@ describe('ViewMaterializer', () => {
   describe('materialize() - Full rebuild from events', () => {
     it('should rebuild view from resource.created event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -65,7 +66,7 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
       ];
@@ -82,9 +83,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle multiple representation.added events', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -97,11 +98,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
@@ -118,7 +119,7 @@ describe('ViewMaterializer', () => {
                 rel: 'derived' as const,
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
       ];
@@ -140,9 +141,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle representation.added event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -155,11 +156,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
@@ -175,7 +176,7 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
       ];
@@ -189,9 +190,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle representation.removed event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -204,11 +205,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
@@ -224,11 +225,11 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
         {
-          event: {
+
             id: 'event3',
             type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
@@ -238,7 +239,7 @@ describe('ViewMaterializer', () => {
             payload: {
               checksum: 'checksum1',
             },
-          },
+
           metadata: createEventMetadata(3, 'hash2'),
         },
       ];
@@ -250,9 +251,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle annotation.added event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -265,11 +266,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'mark:added',
             timestamp: new Date().toISOString(),
@@ -286,7 +287,7 @@ describe('ViewMaterializer', () => {
                 target: 'doc1',
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
       ];
@@ -298,9 +299,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle annotation.body.updated event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -313,11 +314,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'mark:added',
             timestamp: new Date().toISOString(),
@@ -334,11 +335,11 @@ describe('ViewMaterializer', () => {
                 target: 'doc1',
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
         {
-          event: {
+
             id: 'event3',
             type: 'mark:body-updated',
             timestamp: new Date().toISOString(),
@@ -358,7 +359,7 @@ describe('ViewMaterializer', () => {
                 },
               ],
             },
-          },
+
           metadata: createEventMetadata(3, 'hash2'),
         },
       ];
@@ -371,9 +372,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle annotation.removed event', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -386,11 +387,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'mark:added',
             timestamp: new Date().toISOString(),
@@ -407,11 +408,11 @@ describe('ViewMaterializer', () => {
                 target: 'doc1',
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
         {
-          event: {
+
             id: 'event3',
             type: 'mark:removed',
             timestamp: new Date().toISOString(),
@@ -421,7 +422,7 @@ describe('ViewMaterializer', () => {
             payload: {
               annotationId: annotationId('anno1'),
             },
-          },
+
           metadata: createEventMetadata(3, 'hash2'),
         },
       ];
@@ -460,11 +461,8 @@ describe('ViewMaterializer', () => {
       };
 
       await materializer.materializeIncremental(rid, createEvent, async () => [
-        {
-          event: createEvent,
-          metadata: createEventMetadata(1),
-        },
-      ]);
+        { ...createEvent, metadata: createEventMetadata(1) },
+      ] as any);
 
       // Add representation incrementally
       const addRepEvent = {
@@ -487,15 +485,9 @@ describe('ViewMaterializer', () => {
       };
 
       await materializer.materializeIncremental(rid, addRepEvent, async () => [
-        {
-          event: createEvent,
-          metadata: createEventMetadata(1),
-        },
-        {
-          event: addRepEvent,
-          metadata: createEventMetadata(2, 'hash1'),
-        },
-      ]);
+        { ...createEvent, metadata: createEventMetadata(1) },
+        { ...addRepEvent, metadata: createEventMetadata(2, 'hash1') },
+      ] as any);
 
       const view = await viewStorage.get(rid);
       expect(view?.resource.name).toBe('Test Document');
@@ -526,11 +518,8 @@ describe('ViewMaterializer', () => {
       };
 
       await materializer.materializeIncremental(rid, event, async () => [
-        {
-          event,
-          metadata: createEventMetadata(1),
-        },
-      ]);
+        { ...event, metadata: createEventMetadata(1) },
+      ] as any);
 
       const view = await viewStorage.get(rid);
       expect(view?.resource.name).toBe('Test Document');
@@ -587,9 +576,9 @@ describe('ViewMaterializer', () => {
   describe('Edge cases', () => {
     it('should handle multiple representations', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -602,11 +591,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
@@ -622,11 +611,11 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
         {
-          event: {
+
             id: 'event3',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
@@ -642,7 +631,7 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
+
           metadata: createEventMetadata(3, 'hash2'),
         },
       ];
@@ -654,9 +643,9 @@ describe('ViewMaterializer', () => {
 
     it('should prevent duplicate representations', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -669,11 +658,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
@@ -689,11 +678,11 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
         {
-          event: {
+
             id: 'event3',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
@@ -709,7 +698,7 @@ describe('ViewMaterializer', () => {
                 created: new Date().toISOString(),
               },
             },
-          },
+
           metadata: createEventMetadata(3, 'hash2'),
         },
       ];
@@ -722,9 +711,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle removing non-existent representation gracefully', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -737,11 +726,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
@@ -751,7 +740,7 @@ describe('ViewMaterializer', () => {
             payload: {
               checksum: 'nonexistent',
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
       ];
@@ -767,9 +756,9 @@ describe('ViewMaterializer', () => {
 
     it('should handle deleting non-existent annotation gracefully', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
+
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -782,11 +771,11 @@ describe('ViewMaterializer', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
+
           metadata: createEventMetadata(1),
         },
         {
-          event: {
+
             id: 'event2',
             type: 'mark:removed',
             timestamp: new Date().toISOString(),
@@ -796,7 +785,7 @@ describe('ViewMaterializer', () => {
             payload: {
               annotationId: annotationId('nonexistent'),
             },
-          },
+
           metadata: createEventMetadata(2, 'hash1'),
         },
       ];

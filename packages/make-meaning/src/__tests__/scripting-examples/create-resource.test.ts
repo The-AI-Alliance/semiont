@@ -96,14 +96,14 @@ describe('Scripting Example: Create Resource', () => {
 
     // Verify via event store
     const events = await makeMeaning.knowledgeSystem.kb.eventStore.log.getEvents(result);
-    const createdEvent = events.find(e => e.event.type === 'yield:created');
+    const createdEvent = events.find(e => e.type === 'yield:created');
     expect(createdEvent).toBeDefined();
-    expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.name).toBe('Test Document');
-    expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.format).toBe('text/plain');
+    expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.name).toBe('Test Document');
+    expect(createdEvent!.type === 'yield:created' && createdEvent!.payload.format).toBe('text/plain');
 
     // Verify content was stored (retrieve by storageUri from event payload)
-    const storageUri = createdEvent!.event.type === 'yield:created'
-      ? createdEvent!.event.payload.storageUri
+    const storageUri = createdEvent!.type === 'yield:created'
+      ? createdEvent!.payload.storageUri
       : undefined;
     expect(storageUri).toBeDefined();
 

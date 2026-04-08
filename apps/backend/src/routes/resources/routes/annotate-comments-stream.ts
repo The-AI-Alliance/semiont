@@ -200,7 +200,7 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
 
           // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('job:completed').subscribe(async (stored) => { const event = stored.event;
+            resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'comment-annotation') return;
               if (isStreamClosed) return;
               logger.info('Detection completed');
@@ -230,7 +230,7 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
 
           // Subscribe to job:failed
           subscriptions.push(
-            resourceBus.get('job:failed').subscribe(async (stored) => { const event = stored.event;
+            resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'comment-annotation') return;
               if (isStreamClosed) return;
               logger.info('Detection failed', { error: event.payload.error });

@@ -81,7 +81,7 @@ export class GraphDBConsumer {
     // Build the RxJS pipeline
     this.pipelineSubscription = this.eventSubject.pipe(
       // Split into one inner Observable per resource (system events grouped under '__system__')
-      groupBy((se: StoredEvent) => se.event.resourceId ?? '__system__'),
+      groupBy((se: StoredEvent) => se.resourceId ?? '__system__'),
 
       mergeMap((group) => {
         if (group.key === '__system__') {
@@ -104,7 +104,7 @@ export class GraphDBConsumer {
             }
             return from(this.safeApplyEvent(eventOrBatch).then(() => {
               this.lastProcessed.set(
-                eventOrBatch.event.resourceId!,
+                eventOrBatch.resourceId!,
                 eventOrBatch.metadata.sequenceNumber
               );
             }));
@@ -130,8 +130,8 @@ export class GraphDBConsumer {
       await this.applyEventToGraph(storedEvent);
     } catch (error) {
       this.logger.error('Failed to apply event to graph', {
-        eventType: storedEvent.event.type,
-        resourceId: storedEvent.event.resourceId,
+        eventType: storedEvent.type,
+        resourceId: storedEvent.resourceId,
         error,
       });
     }
@@ -182,19 +182,19 @@ export class GraphDBConsumer {
         }
       } catch (error) {
         this.logger.error('Failed to process batch run', {
-          eventType: run[0].event.type,
+          eventType: run[0].type,
           runSize: run.length,
           error,
         });
       }
       const last = run[run.length - 1];
-      if (last.event.resourceId) {
-        this.lastProcessed.set(last.event.resourceId, last.metadata.sequenceNumber);
+      if (last.resourceId) {
+        this.lastProcessed.set(last.resourceId, last.metadata.sequenceNumber);
       }
     }
 
     this.logger.debug('Processed batch', {
-      resourceId: events[0]?.event.resourceId,
+      resourceId: events[0]?.resourceId,
       batchSize: events.length,
     });
   }
@@ -205,7 +205,7 @@ export class GraphDBConsumer {
    */
   private async applyBatchByType(events: StoredEvent[]): Promise<void> {
     const graphDb = this.ensureInitialized();
-    const type = events[0].event.type;
+    const type = events[0].type;
 
     switch (type) {
       case 'yield:created': {
@@ -216,7 +216,7 @@ export class GraphDBConsumer {
       }
       case 'mark:added': {
         const inputs = events.map(e => {
-          const event = e.event as AnnotationAddedEvent;
+          const event = e as AnnotationAddedEvent;
           return {
             ...event.payload.annotation,
             creator: didToAgent(event.userId),
@@ -239,7 +239,7 @@ export class GraphDBConsumer {
    * Extracted for reuse by both applyEventToGraph and applyBatchByType.
    */
   private buildResourceDescriptor(storedEvent: StoredEvent): ResourceDescriptor {
-    const event = storedEvent.event;
+    const event = storedEvent;
     if (event.type !== 'yield:created') {
       throw new Error('Expected resource.created event');
     }
@@ -269,7 +269,7 @@ export class GraphDBConsumer {
    */
   protected async applyEventToGraph(storedEvent: StoredEvent): Promise<void> {
     const graphDb = this.ensureInitialized();
-    const event = storedEvent.event;
+    const event = storedEvent;
 
     this.logger.debug('Applying event to GraphDB', {
       eventType: event.type,
@@ -451,7 +451,7 @@ export class GraphDBConsumer {
       const events = await query.getResourceEvents(makeResourceId(resourceId as string));
 
       for (const storedEvent of events) {
-        if (storedEvent.event.type === 'mark:body-updated') {
+        if (storedEvent.type === 'mark:body-updated') {
           continue;
         }
         await this.applyEventToGraph(storedEvent);
@@ -465,7 +465,7 @@ export class GraphDBConsumer {
       const events = await query.getResourceEvents(makeResourceId(resourceId as string));
 
       for (const storedEvent of events) {
-        if (storedEvent.event.type === 'mark:body-updated') {
+        if (storedEvent.type === 'mark:body-updated') {
           await this.applyEventToGraph(storedEvent);
         }
       }

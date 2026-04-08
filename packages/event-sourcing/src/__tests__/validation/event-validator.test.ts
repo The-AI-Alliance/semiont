@@ -60,15 +60,14 @@ describe('EventValidator', () => {
     const checksum = sha256(fullEvent);
 
     return {
-      event: fullEvent,
+      ...fullEvent,
       metadata: {
         sequenceNumber,
         streamPosition: sequenceNumber - 1,
-        timestamp: fullEvent.timestamp,
         checksum,
         prevEventHash: prevChecksum,
       },
-    };
+    } as StoredEvent;
   }
 
   describe('Event Chain Validation', () => {
@@ -117,7 +116,7 @@ describe('EventValidator', () => {
       const e2 = createStoredEvent({ type: 'mark:added' }, 2, e1.metadata.checksum);
 
       // Tamper with event payload but keep old checksum
-      (e2.event as any).payload = { tampered: true };
+      ((e2 as any)).payload = { tampered: true };
 
       const result = validator.validateEventChain([e1, e2]);
 
@@ -132,7 +131,7 @@ describe('EventValidator', () => {
       const e3 = createStoredEvent({ type: 'mark:added' }, 3, 'wrong-hash-2');
 
       // Also tamper with e3's checksum
-      (e3.event as any).payload = { tampered: true };
+      ((e3 as any)).payload = { tampered: true };
 
       const result = validator.validateEventChain([e1, e2, e3]);
 
@@ -182,7 +181,7 @@ describe('EventValidator', () => {
       const event = createStoredEvent({ type: 'yield:created' }, 1);
 
       // Tamper with payload but keep original checksum
-      (event.event as any).payload = { name: 'Tampered', format: 'text/plain', contentChecksum: 'changed', creationMethod: 'api' };
+      ((event as any)).payload = { name: 'Tampered', format: 'text/plain', contentChecksum: 'changed', creationMethod: 'api' };
 
       const isValid = validator.validateEventChecksum(event);
 
@@ -308,7 +307,7 @@ describe('EventValidator', () => {
       const originalChecksum = event.metadata.checksum;
 
       // Subtle modifications that change the checksum
-      (event.event as any).payload = { ...event.event.payload, extra: 'field' };
+      ((event as any)).payload = { ...event.payload, extra: 'field' };
       event.metadata.checksum = originalChecksum;
 
       const isValid = validator.validateEventChecksum(event);

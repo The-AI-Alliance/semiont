@@ -80,9 +80,9 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Event received on colon-notation channel
     expect(receivedEvents).toHaveLength(1);
-    expect(receivedEvents[0].event.type).toBe('job:completed');
-    expect(receivedEvents[0].event.payload.jobId).toBe(testJobId);
-    expect(receivedEvents[0].event.payload.result.totalFound).toBe(5);
+    expect(receivedEvents[0].type).toBe('job:completed');
+    expect(receivedEvents[0].payload.jobId).toBe(testJobId);
+    expect(receivedEvents[0].payload.result.totalFound).toBe(5);
 
     subscription.unsubscribe();
   });
@@ -115,8 +115,8 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Event received on global typed channel
     expect(globalEvents).toHaveLength(1);
-    expect(globalEvents[0].event.type).toBe('job:started');
-    expect(globalEvents[0].event.payload.jobId).toBe(testJobId);
+    expect(globalEvents[0].type).toBe('job:started');
+    expect(globalEvents[0].payload.jobId).toBe(testJobId);
 
     subscription.unsubscribe();
   });
@@ -164,12 +164,12 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Each resource only received its own events
     expect(resource1Events).toHaveLength(1);
-    expect(resource1Events[0].event.payload.jobId).toBe(job1);
-    expect(resource1Events[0].event.payload.result.commentsCreated).toBe(3);
+    expect(resource1Events[0].payload.jobId).toBe(job1);
+    expect(resource1Events[0].payload.result.commentsCreated).toBe(3);
 
     expect(resource2Events).toHaveLength(1);
-    expect(resource2Events[0].event.payload.jobId).toBe(job2);
-    expect(resource2Events[0].event.payload.result.assessmentsCreated).toBe(5);
+    expect(resource2Events[0].payload.jobId).toBe(job2);
+    expect(resource2Events[0].payload.result.assessmentsCreated).toBe(5);
 
     sub1.unsubscribe();
     sub2.unsubscribe();
@@ -220,13 +220,13 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Each channel received only its event type
     expect(startedEvents).toHaveLength(1);
-    expect(startedEvents[0].event.type).toBe('job:started');
+    expect(startedEvents[0].type).toBe('job:started');
 
     expect(progressEvents).toHaveLength(1);
-    expect(progressEvents[0].event.type).toBe('job:progress');
+    expect(progressEvents[0].type).toBe('job:progress');
 
     expect(completedEvents).toHaveLength(1);
-    expect(completedEvents[0].event.type).toBe('job:completed');
+    expect(completedEvents[0].type).toBe('job:completed');
 
     expect(failedEvents).toHaveLength(0); // No failed events emitted
 
@@ -263,8 +263,8 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Failed event received on colon-notation channel
     expect(failedEvents).toHaveLength(1);
-    expect(failedEvents[0].event.type).toBe('job:failed');
-    expect(failedEvents[0].event.payload.error).toBe('AI inference timeout');
+    expect(failedEvents[0].type).toBe('job:failed');
+    expect(failedEvents[0].payload.error).toBe('AI inference timeout');
 
     subscription.unsubscribe();
   });
