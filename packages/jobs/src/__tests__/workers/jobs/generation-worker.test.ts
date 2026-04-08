@@ -10,6 +10,7 @@ import { GenerationWorker } from '../../../workers/generation-worker';
 import { JobQueue, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
 import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId, EventBus, jobId, type Logger } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -33,6 +34,10 @@ const mockLogger: Logger = {
   error: vi.fn(),
   child: vi.fn(() => mockLogger)
 };
+
+const mockContentStore = {
+  store: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
+} as unknown as WorkingTreeStore;
 
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
@@ -77,7 +82,7 @@ describe('GenerationWorker - Event Emission', () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue(new SemiontProject(testDir), mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new GenerationWorker(jobQueue, mockInferenceClient, { '@type': 'SoftwareAgent', name: 'Test Generator' }, eventBus, mockLogger);
+    worker = new GenerationWorker(jobQueue, mockInferenceClient, { '@type': 'SoftwareAgent', name: 'Test Generator' }, eventBus, mockContentStore, mockLogger);
     mockInferenceClient.setResponses(['# Test Title\n\nTest content']);
 
     // Simulate yield handler: when worker emits yield:create, respond with yield:created

@@ -25,6 +25,8 @@ import {
 
 import type { InferenceClient } from '@semiont/inference';
 import type { components } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/content';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 
@@ -36,6 +38,7 @@ export class GenerationWorker extends JobWorker {
     private inferenceClient: InferenceClient,
     private generator: Agent,
     private eventBus: EventBus,
+    private contentStore: WorkingTreeStore,
     logger: Logger
   ) {
     super(jobQueue, undefined, undefined, logger);
@@ -151,18 +154,23 @@ export class GenerationWorker extends JobWorker {
     this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
-    // Create resource via EventBus
+    // Write content to disk, then emit on bus (no Buffer on bus)
+    const format = 'text/markdown' as const;
+    const resolvedUri = job.params.storageUri || deriveStorageUri(resourceName, format);
+    const stored = await this.contentStore.store(Buffer.from(generatedContent.content), resolvedUri);
+
     const createParams = {
       name: resourceName,
-      content: Buffer.from(generatedContent.content),
-      format: 'text/markdown' as const,
+      storageUri: resolvedUri,
+      contentChecksum: stored.checksum,
+      byteSize: stored.byteSize,
+      format,
       userId: userId(job.metadata.userId),
       entityTypes: job.params.entityTypes || annotationEntityTypes,
       language: job.params.language,
       creationMethod: CREATION_METHODS.GENERATED,
       isDraft: true,
       generatedFrom: { resourceId: job.params.sourceResourceId, annotationId: job.params.referenceId },
-      storageUri: job.params.storageUri,
       generator: this.generator,
     };
 

@@ -13,7 +13,7 @@
  */
 
 import type {
-  ResourceEvent,
+  EventInput,
   StoredEvent,
   ResourceId,
   Logger,
@@ -61,7 +61,7 @@ export class EventStore {
    * Append an event to the store
    * Coordinates: persistence → view → notification
    */
-  async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
+  async appendEvent(event: EventInput): Promise<StoredEvent> {
     // System-level events (mark:entity-type-added) have no resourceId - use __system__
     const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 

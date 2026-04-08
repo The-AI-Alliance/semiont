@@ -14,6 +14,7 @@
 import type { Readable } from 'node:stream';
 import type { Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
 import { readTarGz } from './tar';
 import {
   BACKUP_FORMAT,
@@ -26,6 +27,7 @@ import { replayEventStream, type ReplayStats, type ContentBlobResolver } from '.
 
 export interface BackupImporterOptions {
   eventBus: EventBus;
+  contentStore: WorkingTreeStore;
   logger?: Logger;
 }
 
@@ -74,7 +76,7 @@ export async function importBackup(
   archive: Readable,
   options: BackupImporterOptions,
 ): Promise<BackupImportResult> {
-  const { eventBus, logger } = options;
+  const { eventBus, contentStore, logger } = options;
 
   // Stream and decompress archive entries
   const entries = new Map<string, Buffer>();
@@ -119,6 +121,7 @@ export async function importBackup(
       systemData.toString('utf8'),
       eventBus,
       resolveBlob,
+      contentStore,
       logger,
     );
     stats = mergeStats(stats, result.stats);
@@ -139,6 +142,7 @@ export async function importBackup(
       eventData.toString('utf8'),
       eventBus,
       resolveBlob,
+      contentStore,
       logger,
     );
     stats = mergeStats(stats, result.stats);

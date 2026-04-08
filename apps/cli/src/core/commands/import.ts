@@ -123,7 +123,7 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
 
   try {
     const input = fs.createReadStream(filePath);
-    const result = await importLinkedData(input, { eventBus, userId, logger });
+    const result = await importLinkedData(input, { eventBus, contentStore: kb.content, userId, logger });
 
     if (!options.quiet) {
       printSuccess(

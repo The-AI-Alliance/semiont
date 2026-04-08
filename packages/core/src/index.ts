@@ -73,32 +73,38 @@ export type {
   EntityTypeStats,
 } from './graph';
 
-// Event types
+// Stored event types (persistence model)
 export type {
-  BaseEvent,
+  EventBase,
+  ResourceDomainEvent,
+  SystemDomainEvent,
   ResourceEvent,
   ResourceEventType,
   SystemEvent,
   ResourceScopedEvent,
+  EventInput,
   ResourceCreatedEvent,
   ResourceClonedEvent,
-  ResourceArchivedEvent,
-  ResourceUnarchivedEvent,
+  ResourceUpdatedEvent,
+  ResourceMovedEvent,
   RepresentationAddedEvent,
   RepresentationRemovedEvent,
   AnnotationAddedEvent,
   AnnotationRemovedEvent,
   AnnotationBodyUpdatedEvent,
+  ResourceArchivedEvent,
+  ResourceUnarchivedEvent,
+  EntityTagAddedEvent,
+  EntityTagRemovedEvent,
+  EntityTypeAddedEvent,
   JobStartedEvent,
   JobProgressEvent,
   JobCompletedEvent,
   JobFailedEvent,
-  BodyOperation,
-  BodyItem,
-  EntityTagAddedEvent,
-  EntityTagRemovedEvent,
   EmbeddingComputedEvent,
   EmbeddingDeletedEvent,
+  BodyOperation,
+  BodyItem,
   EventMetadata,
   EventSignature,
   StoredEvent,
@@ -111,6 +117,27 @@ export {
   isResourceScopedEvent,
   getEventType,
 } from './stored-events';
+
+// Wire protocol (public contract — domain events, SSE payloads, command results)
+export type {
+  WireProtocol,
+  DomainEventKey,
+  SelectionData,
+  MarkProgress,
+  YieldProgress,
+  Selector,
+  GatheredContext,
+} from './wire-protocol';
+export { DOMAIN_EVENT_KEYS } from './wire-protocol';
+
+// Actor protocol (internal commands and reads between actors)
+export type { ActorProtocol } from './actor-protocol';
+
+// UI events (frontend-only, never cross HTTP)
+export type { UIEvents } from './ui-events';
+
+// Unified event map
+export type { EventMap, EventName } from './event-map';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';
@@ -128,25 +155,6 @@ export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
-
-// Wire protocol (public contract — domain events, SSE payloads, command results)
-export type {
-  WireProtocol,
-  SelectionData,
-  MarkProgress,
-  YieldProgress,
-  Selector,
-  GatheredContext,
-} from './wire-protocol';
-
-// Actor protocol (internal commands and reads between actors)
-export type { ActorProtocol } from './actor-protocol';
-
-// UI events (frontend-only, never cross HTTP)
-export type { UIEvents } from './ui-events';
-
-// Unified event map (merge of all three protocols)
-export type { EventMap, EventName } from './event-map';
 
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';

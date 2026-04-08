@@ -17,6 +17,8 @@ import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
 import { getGraphDatabase } from '@semiont/graph';
+import { deriveStorageUri } from '@semiont/content';
+import type { KnowledgeBase } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
@@ -27,19 +29,37 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
+let fileCounter = 0;
+
 describe('ResourceOperations', () => {
   let project: SemiontProject;
   let teardown: () => Promise<void>;
   let testEventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
+  let kb: KnowledgeBase;
+
+  /** Write content to disk then create resource via EventBus. */
+  async function create(
+    opts: { name: string; content: Buffer; format: 'text/plain' | 'text/markdown' | 'text/html'; language?: string; entityTypes?: string[]; creationMethod?: import('@semiont/core').CreationMethod },
+    uid: import('@semiont/core').UserId,
+  ) {
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes, creationMethod: opts.creationMethod },
+      uid,
+      eventBus,
+    );
+  }
+
   beforeAll(async () => {
     ({ project, teardown } = await createTestProject('resource-ops'));
 
     eventBus = new EventBus();
     testEventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const kb = await createKnowledgeBase(testEventStore, project, graphDb, eventBus, mockLogger);
+    kb = await createKnowledgeBase(testEventStore, project, graphDb, eventBus, mockLogger);
 
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
@@ -53,15 +73,9 @@ describe('ResourceOperations', () => {
 
   describe('createResource', () => {
     it('should create resource with valid text content', async () => {
-      const content = Buffer.from('Test resource content', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Test Resource',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Test Resource', content: Buffer.from('Test resource content', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
       );
 
       expect(resId).toBeDefined();
@@ -75,15 +89,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should generate resource ID', async () => {
-      const content = Buffer.from('Another test', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Resource with ID',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Resource with ID', content: Buffer.from('Another test', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
       );
 
       expect(resId).toBeDefined();
@@ -92,36 +100,21 @@ describe('ResourceOperations', () => {
     });
 
     it('should store representation', async () => {
-      const content = Buffer.from('Content to store', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Stored Resource',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Stored Resource', content: Buffer.from('Content to store', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
       );
 
-      // Verify representation was stored via event store
       const events = await testEventStore.log.getEvents(resId);
       const createdEvent = events.find(e => e.type === 'yield:created');
       expect(createdEvent).toBeDefined();
-      // The representation is stored by Stower — verify the resource was created successfully
       expect(resId).toBeDefined();
     });
 
     it('should emit resource.created event', async () => {
-      const content = Buffer.from('Event test content', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Event Test Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: ['Person', 'Location'],
-        },
+      const resId = await create(
+        { name: 'Event Test Resource', content: Buffer.from('Event test content', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Location'] },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -144,15 +137,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should handle markdown content format', async () => {
-      const content = Buffer.from('# Markdown Title\n\nParagraph content', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Markdown Resource',
-          content,
-          format: 'text/markdown',
-        },
+      const resId = await create(
+        { name: 'Markdown Resource', content: Buffer.from('# Markdown Title\n\nParagraph content', 'utf-8'), format: 'text/markdown' },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -161,15 +148,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should handle html content format', async () => {
-      const content = Buffer.from('<html><body>HTML content</body></html>', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'HTML Resource',
-          content,
-          format: 'text/html',
-        },
+      const resId = await create(
+        { name: 'HTML Resource', content: Buffer.from('<html><body>HTML content</body></html>', 'utf-8'), format: 'text/html' },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -178,16 +159,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should handle optional language parameter', async () => {
-      const content = Buffer.from('Contenu en français', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'French Resource',
-          content,
-          format: 'text/plain',
-          language: 'fr',
-        },
+      const resId = await create(
+        { name: 'French Resource', content: Buffer.from('Contenu en français', 'utf-8'), format: 'text/plain', language: 'fr' },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -196,16 +170,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should handle optional entity types', async () => {
-      const content = Buffer.from('Content with entities', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Entity Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: ['Person', 'Organization', 'Location'],
-        },
+      const resId = await create(
+        { name: 'Entity Resource', content: Buffer.from('Content with entities', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Organization', 'Location'] },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -214,16 +181,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should handle empty entity types array', async () => {
-      const content = Buffer.from('No entities', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'No Entities Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: [],
-        },
+      const resId = await create(
+        { name: 'No Entities Resource', content: Buffer.from('No entities', 'utf-8'), format: 'text/plain', entityTypes: [] },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -232,15 +192,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should default to API creation method when not specified', async () => {
-      const content = Buffer.from('Default creation method', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Default Method Resource',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Default Method Resource', content: Buffer.from('Default creation method', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -249,16 +203,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should accept valid creation method', async () => {
-      const content = Buffer.from('Generated content', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Generated Resource',
-          content,
-          format: 'text/plain',
-          creationMethod: CREATION_METHODS.GENERATED,
-        },
+      const resId = await create(
+        { name: 'Generated Resource', content: Buffer.from('Generated content', 'utf-8'), format: 'text/plain', creationMethod: CREATION_METHODS.GENERATED },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -267,15 +214,9 @@ describe('ResourceOperations', () => {
     });
 
     it('should include timestamp in event', async () => {
-      const content = Buffer.from('Timestamped content', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Timestamped Resource',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Timestamped Resource', content: Buffer.from('Timestamped content', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -288,106 +229,54 @@ describe('ResourceOperations', () => {
 
   describe('updateResource', () => {
     it('should update archived status to true', async () => {
-      const content = Buffer.from('To be archived', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Archive Test Resource',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Archive Test Resource', content: Buffer.from('To be archived', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
       );
 
-
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentArchived: false,
-          updatedArchived: true,
-        },
+        { resourceId: resId, userId: userId('user-1'), currentArchived: false, updatedArchived: true },
         eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
       const archivedEvents = events.filter(e => e.type === 'mark:archived');
       expect(archivedEvents).toHaveLength(1);
-
-      expect(archivedEvents[0]).toMatchObject({
-        type: 'mark:archived',
-        resourceId: resId,
-        userId: userId('user-1'),
-      });
+      expect(archivedEvents[0]).toMatchObject({ type: 'mark:archived', resourceId: resId, userId: userId('user-1') });
     });
 
     it('should update archived status to false (unarchive)', async () => {
-      const content = Buffer.from('To be unarchived', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Unarchive Test Resource',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Unarchive Test Resource', content: Buffer.from('To be unarchived', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
-      );
-
-
-      await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentArchived: false,
-          updatedArchived: true,
-        },
-        eventBus,
       );
 
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentArchived: true,
-          updatedArchived: false,
-        },
+        { resourceId: resId, userId: userId('user-1'), currentArchived: false, updatedArchived: true },
+        eventBus,
+      );
+      await ResourceOperations.updateResource(
+        { resourceId: resId, userId: userId('user-1'), currentArchived: true, updatedArchived: false },
         eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);
       const unarchivedEvents = events.filter(e => e.type === 'mark:unarchived');
       expect(unarchivedEvents).toHaveLength(1);
-
-      expect(unarchivedEvents[0]).toMatchObject({
-        type: 'mark:unarchived',
-        resourceId: resId,
-        userId: userId('user-1'),
-      });
+      expect(unarchivedEvents[0]).toMatchObject({ type: 'mark:unarchived', resourceId: resId, userId: userId('user-1') });
     });
 
     it('should not emit event if archived status unchanged', async () => {
-      const content = Buffer.from('Unchanged archive status', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Unchanged Archive Resource',
-          content,
-          format: 'text/plain',
-        },
+      const resId = await create(
+        { name: 'Unchanged Archive Resource', content: Buffer.from('Unchanged archive status', 'utf-8'), format: 'text/plain' },
         userId('user-1'),
-        eventBus,
       );
-
 
       const eventsBefore = await testEventStore.log.getEvents(resId);
       const countBefore = eventsBefore.length;
 
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentArchived: false,
-          updatedArchived: false,
-        },
+        { resourceId: resId, userId: userId('user-1'), currentArchived: false, updatedArchived: false },
         eventBus,
       );
 
@@ -396,30 +285,16 @@ describe('ResourceOperations', () => {
     });
 
     it('should add entity types', async () => {
-      const content = Buffer.from('Entity type test', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Entity Type Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: ['Person'],
-        },
+      const resId = await create(
+        { name: 'Entity Type Resource', content: Buffer.from('Entity type test', 'utf-8'), format: 'text/plain', entityTypes: ['Person'] },
         userId('user-1'),
-        eventBus,
       );
-
 
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentEntityTypes: ['Person'],
-          updatedEntityTypes: ['Person', 'Location', 'Organization'],
-        },
+        { resourceId: resId, userId: userId('user-1'), currentEntityTypes: ['Person'], updatedEntityTypes: ['Person', 'Location', 'Organization'] },
         eventBus,
       );
 
-      // Wait for Stower to process the async entity type updates via EventBus
       await new Promise(r => setTimeout(r, 100));
 
       const events = await testEventStore.log.getEvents(resId);
@@ -434,30 +309,16 @@ describe('ResourceOperations', () => {
     });
 
     it('should remove entity types', async () => {
-      const content = Buffer.from('Remove entity test', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Remove Entity Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: ['Person', 'Location', 'Organization'],
-        },
+      const resId = await create(
+        { name: 'Remove Entity Resource', content: Buffer.from('Remove entity test', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Location', 'Organization'] },
         userId('user-1'),
-        eventBus,
       );
-
 
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentEntityTypes: ['Person', 'Location', 'Organization'],
-          updatedEntityTypes: ['Person'],
-        },
+        { resourceId: resId, userId: userId('user-1'), currentEntityTypes: ['Person', 'Location', 'Organization'], updatedEntityTypes: ['Person'] },
         eventBus,
       );
 
-      // Wait for Stower to process the async entity type updates via EventBus
       await new Promise(r => setTimeout(r, 100));
 
       const events = await testEventStore.log.getEvents(resId);
@@ -472,30 +333,16 @@ describe('ResourceOperations', () => {
     });
 
     it('should handle both adding and removing entity types', async () => {
-      const content = Buffer.from('Mixed entity update', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Mixed Update Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: ['Person', 'Location'],
-        },
+      const resId = await create(
+        { name: 'Mixed Update Resource', content: Buffer.from('Mixed entity update', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Location'] },
         userId('user-1'),
-        eventBus,
       );
-
 
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentEntityTypes: ['Person', 'Location'],
-          updatedEntityTypes: ['Person', 'Organization'],
-        },
+        { resourceId: resId, userId: userId('user-1'), currentEntityTypes: ['Person', 'Location'], updatedEntityTypes: ['Person', 'Organization'] },
         eventBus,
       );
 
-      // Wait for Stower to process the async entity type updates via EventBus
       await new Promise(r => setTimeout(r, 100));
 
       const events = await testEventStore.log.getEvents(resId);
@@ -507,29 +354,16 @@ describe('ResourceOperations', () => {
     });
 
     it('should not emit events if entity types unchanged', async () => {
-      const content = Buffer.from('Unchanged entity types', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Unchanged Entity Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: ['Person', 'Location'],
-        },
+      const resId = await create(
+        { name: 'Unchanged Entity Resource', content: Buffer.from('Unchanged entity types', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Location'] },
         userId('user-1'),
-        eventBus,
       );
-
 
       const eventsBefore = await testEventStore.log.getEvents(resId);
       const countBefore = eventsBefore.length;
 
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentEntityTypes: ['Person', 'Location'],
-          updatedEntityTypes: ['Person', 'Location'],
-        },
+        { resourceId: resId, userId: userId('user-1'), currentEntityTypes: ['Person', 'Location'], updatedEntityTypes: ['Person', 'Location'] },
         eventBus,
       );
 
@@ -538,28 +372,13 @@ describe('ResourceOperations', () => {
     });
 
     it('should handle multiple simultaneous updates', async () => {
-      const content = Buffer.from('Multiple updates', 'utf-8');
-      const resId = await ResourceOperations.createResource(
-        {
-          name: 'Multiple Updates Resource',
-          content,
-          format: 'text/plain',
-          entityTypes: ['Person'],
-        },
+      const resId = await create(
+        { name: 'Multiple Updates Resource', content: Buffer.from('Multiple updates', 'utf-8'), format: 'text/plain', entityTypes: ['Person'] },
         userId('user-1'),
-        eventBus,
       );
 
-
       await ResourceOperations.updateResource(
-        {
-          resourceId: resId,
-          userId: userId('user-1'),
-          currentArchived: false,
-          updatedArchived: true,
-          currentEntityTypes: ['Person'],
-          updatedEntityTypes: ['Person', 'Location'],
-        },
+        { resourceId: resId, userId: userId('user-1'), currentArchived: false, updatedArchived: true, currentEntityTypes: ['Person'], updatedEntityTypes: ['Person', 'Location'] },
         eventBus,
       );
 

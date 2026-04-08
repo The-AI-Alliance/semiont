@@ -32,12 +32,13 @@ export interface UpdateResourceInput {
 
 export interface CreateResourceInput {
   name: string;
-  content: Buffer;
+  storageUri: string;
+  contentChecksum: string;
+  byteSize: number;
   format: ContentFormat;
   language?: string;
   entityTypes?: string[];
   creationMethod?: CreationMethod;
-  storageUri?: string;
 }
 
 export class ResourceOperations {
@@ -67,13 +68,14 @@ export class ResourceOperations {
     // Emit the command
     eventBus.get('yield:create').next({
       name: input.name,
-      content: input.content,
+      storageUri: input.storageUri,
+      contentChecksum: input.contentChecksum,
+      byteSize: input.byteSize,
       format: input.format,
       userId,
       language: input.language,
       entityTypes: input.entityTypes,
       creationMethod: input.creationMethod,
-      storageUri: input.storageUri,
     });
 
     const outcome = await firstValueFrom(result$);

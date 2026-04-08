@@ -145,7 +145,8 @@ exchangeRouter.post('/api/admin/exchange/restore', async (c) => {
         input.push(null);
 
         send({ phase: 'started', message: 'Restoring backup...' });
-        const result = await importBackup(input, { eventBus });
+        const { knowledgeSystem: { kb: backupKb } } = c.get('makeMeaning');
+        const result = await importBackup(input, { eventBus, contentStore: backupKb.content });
         send({
           phase: 'complete',
           result: {
@@ -265,8 +266,10 @@ exchangeRouter.post('/api/moderate/exchange/import', async (c) => {
         input.push(null);
 
         send({ phase: 'started', message: 'Importing linked data...' });
+        const { knowledgeSystem: { kb } } = c.get('makeMeaning');
         const result = await importLinkedData(input, {
           eventBus,
+          contentStore: kb.content,
           userId: makeUserId(user.id),
         });
         send({

@@ -1,5 +1,5 @@
 /**
- * Wire Event Protocol
+ * Wire Protocol
  *
  * Events that cross HTTP boundaries — domain events delivered via SSE,
  * SSE stream payloads, and command results visible to clients.
@@ -11,7 +11,15 @@
  * For frontend-only UI events, see ui-events.ts.
  */
 
-import type { ResourceEvent, StoredEvent } from './stored-events';
+import type { StoredEvent,
+  ResourceCreatedEvent, ResourceClonedEvent, ResourceUpdatedEvent, ResourceMovedEvent,
+  RepresentationAddedEvent, RepresentationRemovedEvent,
+  AnnotationAddedEvent, AnnotationRemovedEvent, AnnotationBodyUpdatedEvent,
+  ResourceArchivedEvent, ResourceUnarchivedEvent,
+  EntityTagAddedEvent, EntityTagRemovedEvent, EntityTypeAddedEvent,
+  JobStartedEvent, JobProgressEvent, JobCompletedEvent, JobFailedEvent,
+
+} from './stored-events';
 import type { components } from './types';
 import type { ResourceId, AnnotationId } from './identifiers';
 
@@ -28,13 +36,24 @@ export type YieldProgress = components['schemas']['YieldProgress'];
 export type MarkProgress = components['schemas']['MarkProgress'];
 export type SelectionData = components['schemas']['SelectionData'];
 
+// ── Domain event key list ────────────────────────────────────────────────────
+
+/** All persisted domain event type strings. Used for runtime validation. */
+export const DOMAIN_EVENT_KEYS = [
+  'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
+  'yield:representation-added', 'yield:representation-removed',
+  'mark:added', 'mark:removed', 'mark:body-updated',
+  'mark:archived', 'mark:unarchived',
+  'mark:entity-tag-added', 'mark:entity-tag-removed',
+  'mark:entity-type-added',
+  'job:started', 'job:progress', 'job:completed', 'job:failed',
+  'embedding:computed', 'embedding:deleted',
+] as const;
+
+export type DomainEventKey = typeof DOMAIN_EVENT_KEYS[number];
+
 /**
  * Wire protocol events — crosses HTTP via SSE or is visible to API clients.
- *
- * Organized by flow (verb), then by category within each flow:
- * - Domain events (persisted facts, delivered as StoredEvent)
- * - SSE stream payloads (progress, finished, failed)
- * - Command results (acknowledgments visible to clients)
  */
 export type WireProtocol = {
 
@@ -43,12 +62,12 @@ export type WireProtocol = {
   // ========================================================================
 
   // Domain events
-  'yield:created': StoredEvent<Extract<ResourceEvent, { type: 'yield:created' }>>;
-  'yield:cloned': StoredEvent<Extract<ResourceEvent, { type: 'yield:cloned' }>>;
-  'yield:updated': StoredEvent<Extract<ResourceEvent, { type: 'yield:updated' }>>;
-  'yield:moved': StoredEvent<Extract<ResourceEvent, { type: 'yield:moved' }>>;
-  'yield:representation-added': StoredEvent<Extract<ResourceEvent, { type: 'yield:representation-added' }>>;
-  'yield:representation-removed': StoredEvent<Extract<ResourceEvent, { type: 'yield:representation-removed' }>>;
+  'yield:created': StoredEvent<ResourceCreatedEvent>;
+  'yield:cloned': StoredEvent<ResourceClonedEvent>;
+  'yield:updated': StoredEvent<ResourceUpdatedEvent>;
+  'yield:moved': StoredEvent<ResourceMovedEvent>;
+  'yield:representation-added': StoredEvent<RepresentationAddedEvent>;
+  'yield:representation-removed': StoredEvent<RepresentationRemovedEvent>;
 
   // SSE stream payloads (yield-resource-stream)
   'yield:progress': YieldProgress;
@@ -56,10 +75,7 @@ export type WireProtocol = {
   'yield:failed': components['schemas']['YieldStreamError'];
 
   // Command results
-  'yield:create-ok': {
-    resourceId: ResourceId;
-    resource: components['schemas']['ResourceDescriptor'];
-  };
+  'yield:create-ok': { resourceId: ResourceId; resource: components['schemas']['ResourceDescriptor'] };
   'yield:create-failed': { error: Error };
   'yield:update-ok': { resourceId: ResourceId };
   'yield:update-failed': { resourceId: ResourceId; error: Error };
@@ -67,20 +83,11 @@ export type WireProtocol = {
   'yield:move-failed': { fromUri: string; error: Error };
 
   // Clone command results
-  'yield:clone-token-generated': {
-    correlationId: string;
-    response: components['schemas']['CloneResourceWithTokenResponse'];
-  };
+  'yield:clone-token-generated': { correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] };
   'yield:clone-token-failed': { correlationId: string; error: Error };
-  'yield:clone-resource-result': {
-    correlationId: string;
-    response: components['schemas']['GetResourceByTokenResponse'];
-  };
+  'yield:clone-resource-result': { correlationId: string; response: components['schemas']['GetResourceByTokenResponse'] };
   'yield:clone-resource-failed': { correlationId: string; error: Error };
-  'yield:clone-created': {
-    correlationId: string;
-    response: { resourceId: ResourceId };
-  };
+  'yield:clone-created': { correlationId: string; response: { resourceId: ResourceId } };
   'yield:clone-create-failed': { correlationId: string; error: Error };
 
   // ========================================================================
@@ -88,14 +95,14 @@ export type WireProtocol = {
   // ========================================================================
 
   // Domain events
-  'mark:added': StoredEvent<Extract<ResourceEvent, { type: 'mark:added' }>>;
-  'mark:removed': StoredEvent<Extract<ResourceEvent, { type: 'mark:removed' }>>;
-  'mark:body-updated': StoredEvent<Extract<ResourceEvent, { type: 'mark:body-updated' }>>;
-  'mark:entity-tag-added': StoredEvent<Extract<ResourceEvent, { type: 'mark:entity-tag-added' }>>;
-  'mark:entity-tag-removed': StoredEvent<Extract<ResourceEvent, { type: 'mark:entity-tag-removed' }>>;
-  'mark:entity-type-added': StoredEvent<Extract<ResourceEvent, { type: 'mark:entity-type-added' }>>;
-  'mark:archived': StoredEvent<Extract<ResourceEvent, { type: 'mark:archived' }>>;
-  'mark:unarchived': StoredEvent<Extract<ResourceEvent, { type: 'mark:unarchived' }>>;
+  'mark:added': StoredEvent<AnnotationAddedEvent>;
+  'mark:removed': StoredEvent<AnnotationRemovedEvent>;
+  'mark:body-updated': StoredEvent<AnnotationBodyUpdatedEvent>;
+  'mark:entity-tag-added': StoredEvent<EntityTagAddedEvent>;
+  'mark:entity-tag-removed': StoredEvent<EntityTagRemovedEvent>;
+  'mark:entity-type-added': StoredEvent<EntityTypeAddedEvent>;
+  'mark:archived': StoredEvent<ResourceArchivedEvent>;
+  'mark:unarchived': StoredEvent<ResourceUnarchivedEvent>;
 
   // SSE stream payloads (annotate-*-stream)
   'mark:progress': components['schemas']['MarkProgress'];
@@ -139,17 +146,18 @@ export type WireProtocol = {
   // JOB FLOW — domain events
   // ========================================================================
 
-  'job:started': StoredEvent<Extract<ResourceEvent, { type: 'job:started' }>>;
-  'job:progress': StoredEvent<Extract<ResourceEvent, { type: 'job:progress' }>>;
-  'job:completed': StoredEvent<Extract<ResourceEvent, { type: 'job:completed' }>>;
-  'job:failed': StoredEvent<Extract<ResourceEvent, { type: 'job:failed' }>>;
+  'job:started': StoredEvent<JobStartedEvent>;
+  'job:progress': StoredEvent<JobProgressEvent>;
+  'job:completed': StoredEvent<JobCompletedEvent>;
+  'job:failed': StoredEvent<JobFailedEvent>;
 
   // Job status reads (correlation-based)
-  'job:status-result': {
-    correlationId: string;
-    response: components['schemas']['JobStatusResponse'];
-  };
+  'job:status-result': { correlationId: string; response: components['schemas']['JobStatusResponse'] };
   'job:status-failed': { correlationId: string; error: Error };
+
+  // Embedding events are defined in actor-protocol.ts — the Smelter emits
+  // the flat command shape; appendEvent publishes StoredEvent on the same channel.
+  // Keeping them in one place avoids an intersection conflict.
 
   // ========================================================================
   // SSE infrastructure

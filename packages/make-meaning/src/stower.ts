@@ -40,7 +40,6 @@ import { EventBus, resourceId, userId as makeUserId, annotationId as makeAnnotat
 import type { CreationMethod, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { resolveStorageUri } from '@semiont/event-sourcing';
-import { getExtensionForMimeType } from '@semiont/content';
 import type { KnowledgeBase } from './knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -98,28 +97,11 @@ export class Stower {
     try {
       const rId = resourceId(generateUuid());
 
-      // Two paths: API/GUI/AI provides content bytes; CLI provides storageUri + optional checksum
-      let checksum: string;
-      let byteSize: number;
-
-      // Resolve or derive the storageUri
-      const resolvedStorageUri: string = event.storageUri
-        ?? deriveStorageUri(event.name, event.format);
-
-      if (event.content !== undefined) {
-        // API/GUI/AI path: write bytes to disk
-        const stored = await this.kb.content.store(event.content, resolvedStorageUri, { noGit: event.noGit });
-        checksum = stored.checksum;
-        byteSize = stored.byteSize;
-      } else {
-        // CLI path: file already on disk; register it (verifies checksum if provided)
-        if (!event.storageUri) {
-          throw new Error('yield:create without content requires storageUri');
-        }
-        const stored = await this.kb.content.register(resolvedStorageUri, event.contentChecksum, { noGit: event.noGit });
-        checksum = stored.checksum;
-        byteSize = stored.byteSize;
-      }
+      // Content is already on disk at storageUri (callers write before emitting).
+      // Register verifies the file exists and validates the checksum.
+      const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      const checksum = stored.checksum;
+      const byteSize = event.byteSize;
 
       const validCreationMethods = Object.values(CREATION_METHODS) as string[];
       const validatedCreationMethod = event.creationMethod && validCreationMethods.includes(event.creationMethod)
@@ -136,7 +118,7 @@ export class Stower {
           format: event.format,
           contentChecksum: checksum,
           contentByteSize: byteSize,
-          storageUri: resolvedStorageUri,
+          storageUri: event.storageUri,
           creationMethod: validatedCreationMethod,
           entityTypes: event.entityTypes || [],
           language: event.language || undefined,
@@ -179,16 +161,9 @@ export class Stower {
 
   private async handleYieldUpdate(event: EventMap['yield:update']): Promise<void> {
     try {
-      let byteSize: number;
-      if (event.content) {
-        // API/GUI/AI path: write content to disk
-        const stored = await this.kb.content.store(event.content, event.storageUri, { noGit: event.noGit });
-        byteSize = stored.byteSize;
-      } else {
-        // CLI path: file already on disk, just verify checksum
-        const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
-        byteSize = stored.byteSize;
-      }
+      // Content is already on disk at storageUri (callers write before emitting).
+      // register() verifies the file exists and validates the checksum.
+      await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
       await this.kb.eventStore.appendEvent({
         type: 'yield:updated',
         resourceId: event.resourceId,
@@ -196,7 +171,7 @@ export class Stower {
         version: 1,
         payload: {
           contentChecksum: event.contentChecksum,
-          contentByteSize: byteSize,
+          contentByteSize: event.byteSize,
         },
       });
       this.eventBus.get('yield:update-ok').next({ resourceId: event.resourceId });
@@ -472,17 +447,4 @@ export class Stower {
     this.subscription = null;
     this.logger.info('Stower actor stopped');
   }
-}
-
-/**
- * Derive a working-tree storageUri from a resource name and MIME type.
- * e.g. "My Document", "text/markdown" → "file://my-document.md"
- */
-function deriveStorageUri(name: string, format: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const ext = getExtensionForMimeType(format);
-  return `file://${slug}${ext}`;
 }

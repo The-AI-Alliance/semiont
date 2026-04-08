@@ -19,6 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { type SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, userId, entityType } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
+import { deriveStorageUri } from '@semiont/content';
 import { createTestProject } from '../helpers/test-project';
 
 // Mock @semiont/inference for predictable testing
@@ -48,12 +49,28 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
+let fileCounter = 0;
+
 describe('Scripting Example: Entity Detection with Progress', () => {
   let project: SemiontProject;
   let teardown: () => Promise<void>;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: string; language?: string },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const kb = makeMeaning.knowledgeSystem.kb;
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language },
+      uid,
+      eventBus,
+    );
+  }
 
   beforeEach(async () => {
     ({ project, teardown } = await createTestProject('annotate'));
@@ -81,7 +98,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
   it('monitors detection progress events', async () => {
     // Create a resource to analyze
-    const result = await ResourceOperations.createResource(
+    const result = await create(
       {
         name: 'Test Document',
         content: Buffer.from('Alice works at Acme Corp. She is a software engineer.'),
@@ -89,7 +106,6 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     // result is now a ResourceId directly
@@ -170,7 +186,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
   it('demonstrates parallel detection for multiple resources', async () => {
     // Create resources sequentially (createResource uses a global yield:created
     // subject, so parallel calls would race on the same response)
-    const resource1 = await ResourceOperations.createResource(
+    const resource1 = await create(
       {
         name: 'Doc 1',
         content: Buffer.from('Alice works at Google.'),
@@ -178,9 +194,8 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
-    const resource2 = await ResourceOperations.createResource(
+    const resource2 = await create(
       {
         name: 'Doc 2',
         content: Buffer.from('Bob works at Microsoft.'),
@@ -188,7 +203,6 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
     const resources = [resource1, resource2];
 
@@ -250,7 +264,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
   it('demonstrates custom progress tracking', async () => {
     // Create a resource
-    const result = await ResourceOperations.createResource(
+    const result = await create(
       {
         name: 'Progress Test Doc',
         content: Buffer.from('Testing progress tracking for entity detection.'),
@@ -258,7 +272,6 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     const resourceBus = eventBus.scope(result);

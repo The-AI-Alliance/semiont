@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isResourceEvent, isSystemEvent, isResourceScopedEvent, getEventType } from '../stored-events';
-import type { ResourceEvent, SystemEvent } from '../stored-events';
+import type { ResourceEvent } from '../stored-events';
 
 describe('@semiont/core - events', () => {
   describe('isResourceEvent', () => {
@@ -120,7 +120,7 @@ describe('@semiont/core - events', () => {
         payload: {
           entityType: 'Person',
         },
-      } as SystemEvent;
+      } as any;
 
       expect(isSystemEvent(event)).toBe(true);
     });
@@ -203,7 +203,7 @@ describe('@semiont/core - events', () => {
         payload: {
           entityType: 'Person',
         },
-      } as SystemEvent;
+      } as any;
 
       expect(isResourceScopedEvent(event)).toBe(false);
     });
@@ -248,7 +248,7 @@ describe('@semiont/core - events', () => {
         type: 'mark:entity-type-added',
         version: 1,
         payload: {} as any,
-      } as SystemEvent;
+      } as any;
 
       expect(getEventType(event)).toBe('mark:entity-type-added');
     });
@@ -277,7 +277,7 @@ describe('@semiont/core - events', () => {
         type: 'mark:entity-type-added',
         version: 1,
         payload: { entityType: 'Person' },
-      } as SystemEvent;
+      } as any;
 
       const resourceEvent: ResourceEvent = {
         id: 'evt-2',

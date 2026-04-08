@@ -18,6 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, userId } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
+import { deriveStorageUri } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -31,12 +32,28 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
+let fileCounter = 0;
+
 describe('Scripting Example: Create Resource', () => {
   let testDir: string;
   let project: SemiontProject;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: string; language?: string },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const kb = makeMeaning.knowledgeSystem.kb;
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language },
+      uid,
+      eventBus,
+    );
+  }
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-scripting-test-${uuidv4()}`);
@@ -80,7 +97,7 @@ describe('Scripting Example: Create Resource', () => {
 
   it('creates a resource and monitors events', async () => {
     // Create resource directly using ResourceOperations
-    const result = await ResourceOperations.createResource(
+    const result = await create(
       {
         name: 'Test Document',
         content: Buffer.from('Hello, world!'),
@@ -88,7 +105,6 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     // Verify resource was created — result is now a ResourceId directly
@@ -117,7 +133,7 @@ describe('Scripting Example: Create Resource', () => {
     const domainEvents: any[] = [];
 
     // Create resource first to get its ID
-    const result = await ResourceOperations.createResource(
+    const result = await create(
       {
         name: 'Event Test Document',
         content: Buffer.from('Testing event flow'),
@@ -125,7 +141,6 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     // Subscribe to resource-scoped EventBus for domain events
@@ -171,7 +186,7 @@ describe('Scripting Example: Create Resource', () => {
     const created: string[] = [];
 
     for (const doc of resources) {
-      const result = await ResourceOperations.createResource(
+      const result = await create(
         {
           name: doc.name,
           content: Buffer.from(doc.content),
@@ -179,7 +194,6 @@ describe('Scripting Example: Create Resource', () => {
           language: 'en'
         },
         userId('batch-script'),
-        eventBus,
       );
 
       // result is already a ResourceId

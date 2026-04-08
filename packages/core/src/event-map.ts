@@ -2,7 +2,6 @@
  * EventMap — unified event type map
  *
  * Merges the three protocol layers into a single type used by EventBus.get().
- * This file exists to break the circular dependency between event-bus.ts and index.ts.
  */
 
 import type { WireProtocol } from './wire-protocol';

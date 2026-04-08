@@ -17,6 +17,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventBus, type ResourceId, type UserId, type AnnotationId, type ResourceEvent } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
 import { replayEventStream, type ContentBlobResolver } from '../../exchange/replay';
 
 const TEST_USER = 'did:web:localhost:users:test' as UserId;
@@ -105,6 +106,11 @@ function defer(fn: () => void): void {
   queueMicrotask(fn);
 }
 
+const mockContentStore = {
+  store: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
+  register: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
+} as unknown as WorkingTreeStore;
+
 describe('replay', () => {
   let eventBus: EventBus;
 
@@ -126,7 +132,7 @@ describe('replay', () => {
       const jsonl = entityTypeEvent('Person');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(1);
       expect(result.stats.entityTypesAdded).toBe(1);
@@ -140,7 +146,8 @@ describe('replay', () => {
 
       eventBus.get('yield:create').subscribe((msg) => {
         expect(msg.name).toBe('Test Resource');
-        expect(msg.content).toBe(contentBlob);
+        expect(msg.storageUri).toBeDefined();
+        expect(msg.contentChecksum).toBeDefined();
         expect(msg.format).toBe('text/markdown');
         defer(() => eventBus.get('yield:create-ok').next({
           resourceId: TEST_RESOURCE,
@@ -149,7 +156,7 @@ describe('replay', () => {
       });
 
       const jsonl = resourceCreatedEvent('Test Resource', 'sha256-abc');
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(1);
       expect(result.stats.resourcesCreated).toBe(1);
@@ -161,7 +168,7 @@ describe('replay', () => {
       const jsonl = resourceCreatedEvent('Test Resource', 'missing-checksum');
 
       await expect(
-        replayEventStream(jsonl, eventBus, resolver)
+        replayEventStream(jsonl, eventBus, resolver, mockContentStore)
       ).rejects.toThrow(/Missing content blob/);
     });
 
@@ -173,7 +180,7 @@ describe('replay', () => {
       const jsonl = annotationAddedEvent('ann-1');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(1);
       expect(result.stats.annotationsCreated).toBe(1);
@@ -196,7 +203,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
     });
 
@@ -213,7 +220,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
     });
 
@@ -229,7 +236,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
       expect(archiveSpy).toHaveBeenCalledOnce();
     });
@@ -246,7 +253,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
       expect(unarchiveSpy).toHaveBeenCalledOnce();
     });
@@ -263,7 +270,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
       expect(updateSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -285,7 +292,7 @@ describe('replay', () => {
       });
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(1);
       expect(updateSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -309,7 +316,7 @@ describe('replay', () => {
       const jsonl = lines.join('\n');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(4);
       expect(result.stats.resourcesCreated).toBe(0);
       expect(result.stats.annotationsCreated).toBe(0);
@@ -329,7 +336,7 @@ describe('replay', () => {
       const jsonl = lines.join('\n');
       const resolver: ContentBlobResolver = () => undefined;
 
-      const result = await replayEventStream(jsonl, eventBus, resolver);
+      const result = await replayEventStream(jsonl, eventBus, resolver, mockContentStore);
       expect(result.stats.eventsReplayed).toBe(2);
     });
 
@@ -359,7 +366,7 @@ describe('replay', () => {
         annotationAddedEvent('ann-1', { checksum: 'c3', prevEventHash: 'c2' }),
       ];
 
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver);
+      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
 
       expect(result.stats.eventsReplayed).toBe(3);
       expect(result.stats.entityTypesAdded).toBe(1);
@@ -381,7 +388,7 @@ describe('replay', () => {
       ];
 
       const resolver: ContentBlobResolver = () => undefined;
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver);
+      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
 
       expect(result.hashChainValid).toBe(true);
     });
@@ -397,7 +404,7 @@ describe('replay', () => {
       ];
 
       const resolver: ContentBlobResolver = () => undefined;
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver);
+      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
 
       expect(result.hashChainValid).toBe(false);
     });
@@ -412,7 +419,7 @@ describe('replay', () => {
       ];
 
       const resolver: ContentBlobResolver = () => undefined;
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver);
+      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
 
       expect(result.hashChainValid).toBe(true);
     });

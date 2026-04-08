@@ -117,7 +117,7 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
 
   try {
     const input = fs.createReadStream(filePath);
-    const result = await importBackup(input, { eventBus, logger });
+    const result = await importBackup(input, { eventBus, contentStore: kb.content, logger });
 
     if (!options.quiet) {
       printSuccess(

@@ -19,6 +19,7 @@ import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
 import { getGraphDatabase } from '@semiont/graph';
+import { deriveStorageUri } from '@semiont/content';
 import type { GraphServiceConfig } from '@semiont/core';
 import { createTestProject } from './helpers/test-project';
 
@@ -53,6 +54,8 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
+let fileCounter = 0;
+
 describe('AnnotationOperations', () => {
   let teardown: () => Promise<void>;
   let testEventStore: EventStore;
@@ -60,6 +63,19 @@ describe('AnnotationOperations', () => {
   let stower: Stower;
   let kb: KnowledgeBase;
   let testResourceId: string;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: string; language?: string; entityTypes?: string[]; creationMethod?: any },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language, entityTypes: opts.entityTypes, creationMethod: opts.creationMethod },
+      uid,
+      eventBus,
+    );
+  }
 
   beforeAll(async () => {
     const { project, teardown: td } = await createTestProject('annotation-ops');
@@ -77,15 +93,13 @@ describe('AnnotationOperations', () => {
     await stower.initialize();
 
     // Create a test resource for annotations
-    const content = Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8');
-    const resId = await ResourceOperations.createResource(
+    const resId = await create(
       {
         name: 'Annotation Test Resource',
-        content,
+        content: Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8'),
         format: 'text/plain',
       },
       userId('user-1'),
-      eventBus,
     );
 
     testResourceId = resId;

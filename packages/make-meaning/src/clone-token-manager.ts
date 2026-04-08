@@ -18,6 +18,7 @@ import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
 import { type EventBus, CREATION_METHODS, cloneToken as makeCloneToken, type CloneToken } from '@semiont/core';
 import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-client';
+import { deriveStorageUri } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { ResourceOperations } from './resource-operations';
 import type { KnowledgeBase } from './knowledge-base';
@@ -199,11 +200,16 @@ export class CloneTokenManager {
         ? (mediaType as 'text/plain' | 'text/markdown')
         : 'text/plain';
 
-      // Create cloned resource via Stower (yield:create → yield:created)
+      // Write content to disk, then create via EventBus (no Buffer on bus)
+      const resolvedUri = deriveStorageUri(event.name, format);
+      const stored = await this.kb.content.store(Buffer.from(event.content), resolvedUri);
+
       const resourceId = await ResourceOperations.createResource(
         {
           name: event.name,
-          content: Buffer.from(event.content),
+          storageUri: resolvedUri,
+          contentChecksum: stored.checksum,
+          byteSize: stored.byteSize,
           format,
           entityTypes: getResourceEntityTypes(sourceDoc),
           creationMethod: CREATION_METHODS.CLONE,

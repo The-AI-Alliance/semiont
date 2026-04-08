@@ -15,6 +15,8 @@ import { map } from 'rxjs/operators';
 import type { Logger, StoredEvent, ResourceEvent, ResourceId, AnnotationId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/content';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 type Annotation = components['schemas']['Annotation'];
@@ -50,6 +52,7 @@ export async function replayEventStream(
   jsonl: string,
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
+  contentStore: WorkingTreeStore,
   logger?: Logger,
 ): Promise<ReplayResult> {
   const lines = jsonl.trim().split('\n').filter((l) => l.length > 0);
@@ -81,7 +84,7 @@ export async function replayEventStream(
 
   // Replay each event
   for (const stored of storedEvents) {
-    await replayEvent(stored, eventBus, resolveBlob, stats, logger);
+    await replayEvent(stored, eventBus, resolveBlob, contentStore, stats, logger);
     stats.eventsReplayed++;
   }
 
@@ -92,6 +95,7 @@ async function replayEvent(
   event: ResourceEvent,
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
+  contentStore: WorkingTreeStore,
   stats: ReplayStats,
   logger?: Logger,
 ): Promise<void> {
@@ -102,7 +106,7 @@ async function replayEvent(
       break;
 
     case 'yield:created':
-      await replayResourceCreated(event, eventBus, resolveBlob, logger);
+      await replayResourceCreated(event, eventBus, resolveBlob, contentStore, logger);
       stats.resourcesCreated++;
       break;
 
@@ -177,6 +181,7 @@ async function replayResourceCreated(
   event: ResourceEvent & { type: 'yield:created' },
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
+  contentStore: WorkingTreeStore,
   logger?: Logger,
 ): Promise<void> {
   const { payload } = event;
@@ -186,6 +191,10 @@ async function replayResourceCreated(
     throw new Error(`Missing content blob for checksum ${payload.contentChecksum}`);
   }
 
+  // Write content to disk before emitting on bus (no Buffer on bus)
+  const resolvedUri = payload.storageUri || deriveStorageUri(payload.name, payload.format);
+  const stored = await contentStore.store(blob, resolvedUri);
+
   const result$ = race(
     eventBus.get('yield:create-ok').pipe(map((r) => r)),
     eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
@@ -194,7 +203,9 @@ async function replayResourceCreated(
 
   eventBus.get('yield:create').next({
     name: payload.name,
-    content: blob,
+    storageUri: resolvedUri,
+    contentChecksum: stored.checksum,
+    byteSize: stored.byteSize,
     format: payload.format as ContentFormat,
     userId: event.userId,
     language: payload.language,

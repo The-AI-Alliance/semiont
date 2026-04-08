@@ -81,3 +81,4 @@ export function isStoredEvent(event: any): event is StoredEvent {
     typeof event.metadata === 'object' &&
     typeof event.metadata.sequenceNumber === 'number';
 }
+

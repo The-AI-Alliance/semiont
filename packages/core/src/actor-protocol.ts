@@ -46,9 +46,9 @@ export type ActorProtocol = {
 
   'yield:create': {
     name: string;
-    content?: Buffer;
-    storageUri?: string;
-    contentChecksum?: string;
+    storageUri: string;
+    contentChecksum: string;
+    byteSize: number;
     format: components['schemas']['ContentFormat'];
     userId: UserId;
     language?: string;
@@ -64,8 +64,8 @@ export type ActorProtocol = {
   'yield:update': {
     resourceId: ResourceId;
     storageUri: string;
-    content?: Buffer;
     contentChecksum: string;
+    byteSize: number;
     userId: UserId;
     noGit?: boolean;
   };
@@ -296,7 +296,7 @@ export type ActorProtocol = {
   'job:status-requested': { correlationId: string; jobId: JobId };
 
   // ========================================================================
-  // EMBEDDING FLOW — Smelter actor commands
+  // EMBEDDING FLOW — Smelter emits these; Stower persists them as domain events
   // ========================================================================
 
   'embedding:computed': {
