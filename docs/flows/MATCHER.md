@@ -171,4 +171,4 @@ When `useSemanticScoring: true`, scores in the 25–49 range may shift significa
 - **SSE route**: [apps/backend/src/routes/resources/routes/bind-search-stream.ts](../../apps/backend/src/routes/resources/routes/bind-search-stream.ts) — bridges HTTP to EventBus
 - **API client**: `client.sse.bindSearch` and `client.searchResources` in [@semiont/api-client](../../packages/api-client/README.md)
 - **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts) — UI integration
-- **Event definitions**: [packages/core/src/event-protocol.ts](../../packages/core/src/event-protocol.ts) — `RESOLUTION FLOW` section
+- **Event definitions**: [packages/core/src/wire-protocol.ts](../../packages/core/src/wire-protocol.ts) — `RESOLUTION FLOW` section

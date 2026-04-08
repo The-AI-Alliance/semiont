@@ -7,7 +7,7 @@
  */
 
 import { Subject } from 'rxjs';
-import type { EventMap } from './event-protocol';
+import type { EventMap } from './event-map';
 import type { StoredEvent, ResourceEventType } from './stored-events';
 
 /**

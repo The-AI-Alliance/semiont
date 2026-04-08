@@ -129,16 +129,24 @@ export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
 
-// Event protocol (application-level events for event bus)
+// Wire protocol (public contract — domain events, SSE payloads, command results)
 export type {
-  EventMap,
-  EventName,
+  WireProtocol,
   SelectionData,
   MarkProgress,
   YieldProgress,
   Selector,
   GatheredContext,
-} from './event-protocol';
+} from './wire-protocol';
+
+// Actor protocol (internal commands and reads between actors)
+export type { ActorProtocol } from './actor-protocol';
+
+// UI events (frontend-only, never cross HTTP)
+export type { UIEvents } from './ui-events';
+
+// Unified event map (merge of all three protocols)
+export type { EventMap, EventName } from './event-map';
 
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';
