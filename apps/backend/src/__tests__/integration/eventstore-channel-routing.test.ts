@@ -2,13 +2,12 @@
  * EventStore → CoreEventBus Channel Routing Integration Test
  *
  * Verifies that EventStore correctly routes domain events from dot notation to colon notation:
- * - Receives events with dot notation (type: 'job.completed')
+ * - Receives events with dot notation (type: 'job:completed')
  * - Publishes to colon notation channels ('job:completed')
  * - Events are resource-scoped
  * - SSE subscribers receive properly formatted events
  *
- * This test would have caught the bug where EventStore wasn't publishing to
- * specific event type channels, only to the generic 'make-meaning:event' channel.
+ * Verifies typed channel routing — each event type gets its own channel.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -65,7 +64,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit event with dot notation (like workers do)
     await eventStore.appendEvent({
-      type: 'job.completed', // DOT notation
+      type: 'job:completed', // DOT notation
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -81,27 +80,26 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Event received on colon-notation channel
     expect(receivedEvents).toHaveLength(1);
-    expect(receivedEvents[0].type).toBe('job.completed');
-    expect(receivedEvents[0].payload.jobId).toBe(testJobId);
-    expect(receivedEvents[0].payload.result.totalFound).toBe(5);
+    expect(receivedEvents[0].event.type).toBe('job:completed');
+    expect(receivedEvents[0].event.payload.jobId).toBe(testJobId);
+    expect(receivedEvents[0].event.payload.result.totalFound).toBe(5);
 
     subscription.unsubscribe();
   });
 
-  it('should also publish to generic make-meaning:event channel', async () => {
+  it('should publish to global (unscoped) typed channel as well', async () => {
     const rId = resourceId('test-resource-2');
     const testJobId = jobId('job-test-2');
-    const genericEvents: any[] = [];
+    const globalEvents: any[] = [];
 
-    // Subscribe to generic channel
-    const scopedBus = coreEventBus.scope(rId);
-    const subscription = scopedBus.get('make-meaning:event').subscribe((event) => {
-      genericEvents.push(event);
+    // Subscribe to global (unscoped) typed channel
+    const subscription = coreEventBus.get('job:started').subscribe((event) => {
+      globalEvents.push(event);
     });
 
     // Emit event
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -115,57 +113,12 @@ describe('EventStore Channel Routing Integration', () => {
     // Wait for async processing
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    // Assert: Event received on generic channel
-    expect(genericEvents).toHaveLength(1);
-    expect(genericEvents[0].type).toBe('job.started');
-    expect(genericEvents[0].payload.jobId).toBe(testJobId);
+    // Assert: Event received on global typed channel
+    expect(globalEvents).toHaveLength(1);
+    expect(globalEvents[0].event.type).toBe('job:started');
+    expect(globalEvents[0].event.payload.jobId).toBe(testJobId);
 
     subscription.unsubscribe();
-  });
-
-  it('should publish to both specific and generic channels simultaneously', async () => {
-    const rId = resourceId('test-resource-3');
-    const testJobId = jobId('job-test-3');
-    const specificEvents: any[] = [];
-    const genericEvents: any[] = [];
-
-    // Subscribe to both channels
-    const scopedBus = coreEventBus.scope(rId);
-    const specificSub = scopedBus.get('job:completed').subscribe((event) => {
-      specificEvents.push(event);
-    });
-    const genericSub = scopedBus.get('make-meaning:event').subscribe((event) => {
-      genericEvents.push(event);
-    });
-
-    // Emit one event
-    await eventStore.appendEvent({
-      type: 'job.completed',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: testJobId,
-        jobType: 'highlight-annotation',
-        result: { highlightsFound: 10, highlightsCreated: 10 }
-      }
-    });
-
-    // Wait for async processing
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    // Assert: Both channels received the same event
-    expect(specificEvents).toHaveLength(1);
-    expect(genericEvents).toHaveLength(1);
-
-    expect(specificEvents[0].type).toBe('job.completed');
-    expect(genericEvents[0].type).toBe('job.completed');
-
-    expect(specificEvents[0].payload.jobId).toBe(testJobId);
-    expect(genericEvents[0].payload.jobId).toBe(testJobId);
-
-    specificSub.unsubscribe();
-    genericSub.unsubscribe();
   });
 
   it('should isolate events by resource scope', async () => {
@@ -182,7 +135,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit to resource 1
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId1,
       userId: userId('user-1'),
       version: 1,
@@ -195,7 +148,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit to resource 2
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId2,
       userId: userId('user-1'),
       version: 1,
@@ -211,12 +164,12 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Each resource only received its own events
     expect(resource1Events).toHaveLength(1);
-    expect(resource1Events[0].payload.jobId).toBe(job1);
-    expect(resource1Events[0].payload.result.commentsCreated).toBe(3);
+    expect(resource1Events[0].event.payload.jobId).toBe(job1);
+    expect(resource1Events[0].event.payload.result.commentsCreated).toBe(3);
 
     expect(resource2Events).toHaveLength(1);
-    expect(resource2Events[0].payload.jobId).toBe(job2);
-    expect(resource2Events[0].payload.result.assessmentsCreated).toBe(5);
+    expect(resource2Events[0].event.payload.jobId).toBe(job2);
+    expect(resource2Events[0].event.payload.result.assessmentsCreated).toBe(5);
 
     sub1.unsubscribe();
     sub2.unsubscribe();
@@ -239,7 +192,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit multiple event types
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -247,7 +200,7 @@ describe('EventStore Channel Routing Integration', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -255,7 +208,7 @@ describe('EventStore Channel Routing Integration', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -267,13 +220,13 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Each channel received only its event type
     expect(startedEvents).toHaveLength(1);
-    expect(startedEvents[0].type).toBe('job.started');
+    expect(startedEvents[0].event.type).toBe('job:started');
 
     expect(progressEvents).toHaveLength(1);
-    expect(progressEvents[0].type).toBe('job.progress');
+    expect(progressEvents[0].event.type).toBe('job:progress');
 
     expect(completedEvents).toHaveLength(1);
-    expect(completedEvents[0].type).toBe('job.completed');
+    expect(completedEvents[0].event.type).toBe('job:completed');
 
     expect(failedEvents).toHaveLength(0); // No failed events emitted
 
@@ -294,7 +247,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit job.failed event (dot notation)
     await eventStore.appendEvent({
-      type: 'job.failed',
+      type: 'job:failed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -310,8 +263,8 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Failed event received on colon-notation channel
     expect(failedEvents).toHaveLength(1);
-    expect(failedEvents[0].type).toBe('job.failed');
-    expect(failedEvents[0].payload.error).toBe('AI inference timeout');
+    expect(failedEvents[0].event.type).toBe('job:failed');
+    expect(failedEvents[0].event.payload.error).toBe('AI inference timeout');
 
     subscription.unsubscribe();
   });

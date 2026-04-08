@@ -37,7 +37,7 @@ async function createAnnotationAndAwait(
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus);
   // Wait for THIS annotation's mark:created (filter by ID to avoid picking up a stale event)
   const expectedId = annotationId(result.annotation.id);
-  await firstValueFrom(eventBus.get('mark:created').pipe(
+  await firstValueFrom(eventBus.get('mark:create-ok').pipe(
     filter(e => e.annotationId === expectedId),
     take(1),
   ));
@@ -310,16 +310,16 @@ describe('AnnotationOperations', () => {
 
       // Check event was emitted
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const addedEvents = events.filter(e => e.event.type === 'annotation.added');
+      const addedEvents = events.filter(e => e.event.type === 'mark:added');
       expect(addedEvents.length).toBeGreaterThan(0);
 
       // Find the event for this specific annotation
       const thisAnnotationEvent = addedEvents.find(
-        e => e.event.type === 'annotation.added' && e.event.payload.annotation.id === result.annotation.id
+        e => e.event.type === 'mark:added' && e.event.payload.annotation.id === result.annotation.id
       );
       expect(thisAnnotationEvent).toBeDefined();
       expect(thisAnnotationEvent!.event).toMatchObject({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: resourceId(testResourceId),
         userId: userId('user-1'),
       });
@@ -725,7 +725,7 @@ describe('AnnotationOperations', () => {
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const updatedEvents = events.filter(e => e.event.type === 'annotation.body.updated');
+      const updatedEvents = events.filter(e => e.event.type === 'mark:body-updated');
       expect(updatedEvents.length).toBeGreaterThan(0);
     });
 
@@ -783,7 +783,7 @@ describe('AnnotationOperations', () => {
       const annotationIdStr = createResult.annotation.id;
 
       // Delete and await Stower persistence
-      const deleted$ = firstValueFrom(eventBus.get('mark:deleted').pipe(take(1)));
+      const deleted$ = firstValueFrom(eventBus.get('mark:delete-ok').pipe(take(1)));
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
         testResourceId,
@@ -795,7 +795,7 @@ describe('AnnotationOperations', () => {
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const removedEvents = events.filter(e => e.event.type === 'annotation.removed');
+      const removedEvents = events.filter(e => e.event.type === 'mark:removed');
       expect(removedEvents.length).toBeGreaterThan(0);
     });
 

@@ -59,7 +59,7 @@ export class ViewManager {
    * @param payload - Event payload
    */
   async materializeSystem(eventType: string, payload: any): Promise<void> {
-    if (eventType === 'entitytype.added') {
+    if (eventType === 'mark:entity-type-added') {
       await this.materializer.materializeEntityTypes(payload.entityType);
     }
     // Future system views can be added here

@@ -92,12 +92,12 @@ Each stream summary records the first and last event checksums, enabling hash ch
 
 Each file is a JSONL stream of `StoredEvent` objects. Events are stored in their original order.
 
-- `__system__.jsonl` — System-level events (e.g., `entitytype.added`)
-- `{resourceId}.jsonl` — Per-resource events (e.g., `resource.created`, `annotation.added`, `annotation.body.updated`, `resource.archived`)
+- `__system__.jsonl` — System-level events (e.g., `mark:entity-type-added`)
+- `{resourceId}.jsonl` — Per-resource events (e.g., `yield:created`, `mark:added`, `mark:body-updated`, `mark:archived`)
 
 ### Content Blobs (root level)
 
-Content-addressed files stored at the archive root: `{checksum}.{ext}` (e.g., `519d39ca.md`, `a1b2c3d4.pdf`). The checksum and media type are extracted from `resource.created` event payloads. The file extension is derived from the content's MIME type.
+Content-addressed files stored at the archive root: `{checksum}.{ext}` (e.g., `519d39ca.md`, `a1b2c3d4.pdf`). The checksum and media type are extracted from `yield:created` event payloads. The file extension is derived from the content's MIME type.
 
 ## Hash Chain Verification
 
@@ -134,13 +134,13 @@ The replay handles these event types:
 
 | Event | Replay Action |
 |-------|---------------|
-| `entitytype.added` | `mark:add-entity-type` → await `mark:entity-type-added` |
-| `resource.created` | Resolve content blob, `yield:create` → await `yield:created` |
-| `annotation.added` | `mark:create` → await `mark:created` |
-| `annotation.body.updated` | `mark:update-body` → await `mark:body-updated` |
-| `annotation.removed` | `mark:delete` → await `mark:deleted` |
-| `resource.archived` | `mark:archive` |
-| `resource.unarchived` | `mark:unarchive` |
-| `entitytag.added/removed` | `mark:update-entity-types` |
+| `mark:entity-type-added` | `mark:add-entity-type` → await `mark:entity-type-added` |
+| `yield:created` | Resolve content blob, `yield:create` → await `yield:created` |
+| `mark:added` | `mark:create` → await `mark:created` |
+| `mark:body-updated` | `mark:update-body` → await `mark:body-updated` |
+| `mark:removed` | `mark:delete` → await `mark:deleted` |
+| `mark:archived` | `mark:archive` |
+| `mark:unarchived` | `mark:unarchive` |
+| `mark:entity-tag-added/removed` | `mark:update-entity-types` |
 | Job events | Skipped (transient) |
-| Representation events | Skipped (content stored via `resource.created`) |
+| Representation events | Skipped (content stored via `yield:created`) |

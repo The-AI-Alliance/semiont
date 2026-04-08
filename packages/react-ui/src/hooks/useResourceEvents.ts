@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceId } from '@semiont/core';
 import { accessToken } from '@semiont/core';
-import type { ResourceEvent } from '@semiont/core';
+import type { ResourceEvent, StoredEvent, ResourceEventType } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -16,13 +16,13 @@ export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 interface UseResourceEventsOptions {
   rUri: ResourceId;
   onEvent?: (event: ResourceEvent) => void;
-  onAnnotationAdded?: (event: Extract<ResourceEvent, { type: 'annotation.added' }>) => void;
-  onAnnotationRemoved?: (event: Extract<ResourceEvent, { type: 'annotation.removed' }>) => void;
-  onAnnotationBodyUpdated?: (event: Extract<ResourceEvent, { type: 'annotation.body.updated' }>) => void;
-  onEntityTagAdded?: (event: Extract<ResourceEvent, { type: 'entitytag.added' }>) => void;
-  onEntityTagRemoved?: (event: Extract<ResourceEvent, { type: 'entitytag.removed' }>) => void;
-  onDocumentArchived?: (event: Extract<ResourceEvent, { type: 'resource.archived' }>) => void;
-  onDocumentUnarchived?: (event: Extract<ResourceEvent, { type: 'resource.unarchived' }>) => void;
+  onAnnotationAdded?: (event: Extract<ResourceEvent, { type: 'mark:added' }>) => void;
+  onAnnotationRemoved?: (event: Extract<ResourceEvent, { type: 'mark:removed' }>) => void;
+  onAnnotationBodyUpdated?: (event: Extract<ResourceEvent, { type: 'mark:body-updated' }>) => void;
+  onEntityTagAdded?: (event: Extract<ResourceEvent, { type: 'mark:entity-tag-added' }>) => void;
+  onEntityTagRemoved?: (event: Extract<ResourceEvent, { type: 'mark:entity-tag-removed' }>) => void;
+  onDocumentArchived?: (event: Extract<ResourceEvent, { type: 'mark:archived' }>) => void;
+  onDocumentUnarchived?: (event: Extract<ResourceEvent, { type: 'mark:unarchived' }>) => void;
   onError?: (error: string) => void;
   autoConnect?: boolean; // Default: true
 }
@@ -96,36 +96,43 @@ export function useResourceEvents({
     onEventRef.current?.(event);
 
     switch (event.type) {
-      case 'annotation.added':
+      case 'mark:added':
         onAnnotationAddedRef.current?.(event);
         break;
-      case 'annotation.removed':
+      case 'mark:removed':
         onAnnotationRemovedRef.current?.(event);
         break;
-      case 'annotation.body.updated':
+      case 'mark:body-updated':
         onAnnotationBodyUpdatedRef.current?.(event);
         break;
-      case 'entitytag.added':
+      case 'mark:entity-tag-added':
         onEntityTagAddedRef.current?.(event);
         break;
-      case 'entitytag.removed':
+      case 'mark:entity-tag-removed':
         onEntityTagRemovedRef.current?.(event);
         break;
-      case 'resource.archived':
+      case 'mark:archived':
         onDocumentArchivedRef.current?.(event);
         break;
-      case 'resource.unarchived':
+      case 'mark:unarchived':
         onDocumentUnarchivedRef.current?.(event);
         break;
     }
   }, []); // Empty deps - stable reference prevents reconnection!
 
-  // Subscribe to EventBus for resource events
+  // Subscribe to each domain event type (StoredEvent wraps ResourceEvent)
   useEffect(() => {
-    const subscription = eventBus.get('make-meaning:event').subscribe((event: ResourceEvent) => {
-      handleEvent(event);
-    });
-    return () => subscription.unsubscribe();
+    const eventTypes: ResourceEventType[] = [
+      'mark:added', 'mark:removed', 'mark:body-updated',
+      'mark:archived', 'mark:unarchived',
+      'mark:entity-tag-added', 'mark:entity-tag-removed',
+    ];
+    const subs = eventTypes.map(type =>
+      eventBus.get(type as any).subscribe((stored: StoredEvent) => {
+        handleEvent(stored.event);
+      })
+    );
+    return () => subs.forEach(s => s.unsubscribe());
   }, [eventBus, handleEvent]);
 
   const subRef = useRef<{ unsubscribe: () => void } | null>(null);

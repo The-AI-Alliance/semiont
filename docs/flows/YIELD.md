@@ -357,7 +357,7 @@ stream.onProgress((progress) => {
 stream.onComplete((result) => {
   toast.success('Resource generated successfully');
   // Generation progress SSE closes
-  // Document viewer's resource events SSE receives annotation.body.updated
+  // Document viewer's resource events SSE receives mark:body-updated
   // React Query cache invalidates and refetches
   // UI updates: ❓ → 🔗
 });

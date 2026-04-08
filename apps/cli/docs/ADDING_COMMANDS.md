@@ -174,12 +174,17 @@ else { /* bar */ }
 ### SSE long-lived streams (listen-style)
 
 ```typescript
-import { EventBus } from '@semiont/core';
+import { EventBus, type ResourceEventType } from '@semiont/core';
 
 const eventBus = new EventBus();
-eventBus.get('make-meaning:event').subscribe((event) => {
-  process.stdout.write(JSON.stringify(event) + '\n');
-});
+
+// Subscribe to specific typed channels
+const eventTypes: ResourceEventType[] = ['mark:added', 'mark:removed', 'job:completed'];
+for (const type of eventTypes) {
+  eventBus.get(type as any).subscribe((event) => {
+    process.stdout.write(JSON.stringify(event) + '\n');
+  });
+}
 
 const stream = client.sse.resourceEvents(resourceId, { auth: token, eventBus });
 

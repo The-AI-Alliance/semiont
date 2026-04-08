@@ -101,7 +101,7 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
     'mark:select-assessment': (s) => handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'assessing' }),
     'mark:select-reference': (s) => handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'linking' }),
     'mark:cancel-pending': () => setPendingAnnotation(null),
-    'mark:created': () => setPendingAnnotation(null),
+    'mark:create-ok': () => setPendingAnnotation(null),
     'mark:assist-request': (event) => {
       if (progressDismissTimeoutRef.current) { clearTimeout(progressDismissTimeoutRef.current); progressDismissTimeoutRef.current = null; }
       setAssistingMotivation(event.motivation);

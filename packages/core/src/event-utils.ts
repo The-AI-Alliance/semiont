@@ -17,7 +17,7 @@ import type { AnnotationUri } from './branded-types';
 export interface StoredEventLike {
   event: {
     id: string;
-    type: string;
+    type: string; // Intentionally loose — accepts OpenAPI-derived types where type is string
     timestamp: string;
     userId: string;
     resourceId?: string;
@@ -45,12 +45,12 @@ export function getAnnotationUriFromEvent(event: StoredEventLike): AnnotationUri
   const eventData = event.event;
   const payload = eventData.payload as Record<string, any> | undefined;
 
-  if (eventData.type === 'annotation.added') {
-    // annotation.added has the full annotation object with id as full URI
+  if (eventData.type === 'mark:added') {
+    // mark:added has the full annotation object with id as full URI
     return payload?.annotation?.id as AnnotationUri || null;
   }
 
-  if (eventData.type === 'annotation.removed' || eventData.type === 'annotation.body.updated') {
+  if (eventData.type === 'mark:removed' || eventData.type === 'mark:body-updated') {
     // These events have annotationId (UUID only), need to construct full URI
     // Extract base URL from resourceId (format: http://host/resources/id)
     if (payload?.annotationId && eventData.resourceId) {

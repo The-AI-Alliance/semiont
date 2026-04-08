@@ -20,7 +20,7 @@ sequenceDiagram
     Client->>API: POST /resources
     API->>RepStore: store(content)
     RepStore-->>API: checksum
-    API->>EventStore: appendEvent(resource.created)
+    API->>EventStore: appendEvent(yield:created)
     EventStore->>ViewMgr: materialize(event)
     ViewMgr-->>EventStore: view saved
     EventStore->>GraphDB: notify(event)
@@ -39,7 +39,7 @@ sequenceDiagram
     participant GraphDB
 
     Client->>API: POST /resources/:id/annotations
-    API->>EventStore: appendEvent(annotation.added)
+    API->>EventStore: appendEvent(mark:added)
     EventStore->>ViewMgr: materialize(event)
     ViewMgr-->>EventStore: view updated
     EventStore->>GraphDB: notify(event)
@@ -110,10 +110,10 @@ async appendEvent(event: ResourceEvent): Promise<StoredEvent> {
 class GraphDBConsumer {
   async handleEvent(event: StoredEvent) {
     switch (event.event.type) {
-      case 'resource.created':
+      case 'yield:created':
         await this.createDocument(event);
         break;
-      case 'annotation.added':
+      case 'mark:added':
         await this.createAnnotation(event);
         break;
       // ... other event types
@@ -143,7 +143,7 @@ sequenceDiagram
     Worker->>Inference: detectEntities(text)
     Inference-->>Worker: entities
     loop For each entity
-        Worker->>EventStore: appendEvent(annotation.added)
+        Worker->>EventStore: appendEvent(mark:added)
     end
     Worker->>JobQueue: completeJob(result)
     API-->>Client: SSE: job complete
@@ -170,7 +170,7 @@ sequenceDiagram
     Inference-->>Worker: generated content
     Worker->>RepStore: store(content)
     RepStore-->>Worker: checksum
-    Worker->>EventStore: appendEvent(resource.created)
+    Worker->>EventStore: appendEvent(yield:created)
     Worker->>JobQueue: completeJob(resourceId)
     API-->>Client: SSE: job complete
 ```

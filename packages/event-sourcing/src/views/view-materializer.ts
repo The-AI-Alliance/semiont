@@ -108,15 +108,15 @@ export class ViewMaterializer {
   /**
    * Update the storage-uri index in response to an event.
    *
-   * Only resource.created (with storageUri), resource.moved, need index changes.
+   * Only yield:created (with storageUri), yield:moved, need index changes.
    * resource.archived / resource.unarchived do NOT modify the index.
    */
   private async materializeStorageUriIndex(resourceId: ResourceId, event: ResourceEvent): Promise<void> {
     const projectionsDir = path.join(this.config.basePath, 'projections');
 
-    if (event.type === 'resource.created' && event.payload.storageUri) {
+    if (event.type === 'yield:created' && event.payload.storageUri) {
       await writeStorageUriEntry(projectionsDir, event.payload.storageUri, resourceId as string);
-    } else if (event.type === 'resource.moved') {
+    } else if (event.type === 'yield:moved') {
       // Remove old URI, add new URI
       await removeStorageUriEntry(projectionsDir, event.payload.fromUri);
       await writeStorageUriEntry(projectionsDir, event.payload.toUri, resourceId as string);
@@ -165,7 +165,7 @@ export class ViewMaterializer {
    */
   private applyEventToResource(resource: ResourceDescriptor, event: ResourceEvent): void {
     switch (event.type) {
-      case 'resource.created':
+      case 'yield:created':
         resource.name = event.payload.name;
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
@@ -196,7 +196,7 @@ export class ViewMaterializer {
         resource.currentChecksum = event.payload.contentChecksum;
         break;
 
-      case 'resource.cloned':
+      case 'yield:cloned':
         resource.name = event.payload.name;
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
@@ -217,25 +217,25 @@ export class ViewMaterializer {
         resource.representations = reps2;
         break;
 
-      case 'resource.updated':
+      case 'yield:updated':
         resource.currentChecksum = event.payload.contentChecksum;
         resource.dateModified = event.timestamp;
         break;
 
-      case 'resource.moved':
+      case 'yield:moved':
         resource.storageUri = event.payload.toUri;
         resource.dateModified = event.timestamp;
         break;
 
-      case 'resource.archived':
+      case 'mark:archived':
         resource.archived = true;
         break;
 
-      case 'resource.unarchived':
+      case 'mark:unarchived':
         resource.archived = false;
         break;
 
-      case 'representation.added': {
+      case 'yield:representation-added': {
         const { representation } = event.payload;
 
         // Add to representations array (avoid duplicates by checksum)
@@ -255,7 +255,7 @@ export class ViewMaterializer {
         break;
       }
 
-      case 'representation.removed': {
+      case 'yield:representation-removed': {
         const { checksum } = event.payload;
 
         if (resource.representations) {
@@ -268,14 +268,14 @@ export class ViewMaterializer {
         break;
       }
 
-      case 'entitytag.added':
+      case 'mark:entity-tag-added':
         if (!resource.entityTypes) resource.entityTypes = [];
         if (!resource.entityTypes.includes(event.payload.entityType)) {
           resource.entityTypes.push(event.payload.entityType);
         }
         break;
 
-      case 'entitytag.removed':
+      case 'mark:entity-tag-removed':
         if (resource.entityTypes) {
           resource.entityTypes = resource.entityTypes.filter(
             (t: string) => t !== event.payload.entityType
@@ -284,20 +284,20 @@ export class ViewMaterializer {
         break;
 
       // Annotation events don't affect resource metadata
-      case 'annotation.added':
-      case 'annotation.removed':
-      case 'annotation.body.updated':
+      case 'mark:added':
+      case 'mark:removed':
+      case 'mark:body-updated':
         break;
 
       // Job events don't affect resource metadata
-      case 'job.started':
-      case 'job.progress':
-      case 'job.completed':
-      case 'job.failed':
+      case 'job:started':
+      case 'job:progress':
+      case 'job:completed':
+      case 'job:failed':
         break;
 
       // System events don't affect resource metadata
-      case 'entitytype.added':
+      case 'mark:entity-type-added':
         break;
     }
   }
@@ -307,17 +307,17 @@ export class ViewMaterializer {
    */
   private applyEventToAnnotations(annotations: ResourceAnnotations, event: ResourceEvent): void {
     switch (event.type) {
-      case 'annotation.added':
+      case 'mark:added':
         annotations.annotations.push(event.payload.annotation);
         break;
 
-      case 'annotation.removed':
+      case 'mark:removed':
         annotations.annotations = annotations.annotations.filter(
           (a: Annotation) => a.id !== event.payload.annotationId
         );
         break;
 
-      case 'annotation.body.updated':
+      case 'mark:body-updated':
         const annotation = annotations.annotations.find((a: Annotation) =>
           a.id === event.payload.annotationId
         );
@@ -356,27 +356,27 @@ export class ViewMaterializer {
         break;
 
       // Resource metadata events don't affect annotations
-      case 'resource.created':
-      case 'resource.cloned':
-      case 'resource.updated':
-      case 'resource.moved':
-      case 'resource.archived':
-      case 'resource.unarchived':
-      case 'representation.added':
-      case 'representation.removed':
-      case 'entitytag.added':
-      case 'entitytag.removed':
+      case 'yield:created':
+      case 'yield:cloned':
+      case 'yield:updated':
+      case 'yield:moved':
+      case 'mark:archived':
+      case 'mark:unarchived':
+      case 'yield:representation-added':
+      case 'yield:representation-removed':
+      case 'mark:entity-tag-added':
+      case 'mark:entity-tag-removed':
         break;
 
       // Job events don't affect annotations
-      case 'job.started':
-      case 'job.progress':
-      case 'job.completed':
-      case 'job.failed':
+      case 'job:started':
+      case 'job:progress':
+      case 'job:completed':
+      case 'job:failed':
         break;
 
       // System events don't affect annotations
-      case 'entitytype.added':
+      case 'mark:entity-type-added':
         break;
     }
   }

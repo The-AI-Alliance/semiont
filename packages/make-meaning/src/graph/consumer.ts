@@ -21,7 +21,7 @@
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { EventQuery, type EventStore } from '@semiont/event-sourcing';
-import { didToAgent, burstBuffer } from '@semiont/core';
+import { didToAgent, burstBuffer, EventBus } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/core';
 import type { ResourceEvent, StoredEvent, AnnotationAddedEvent, ResourceId, Logger } from '@semiont/core';
@@ -33,10 +33,10 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
   // Event types that produce GraphDB mutations — filter everything else
-  private static readonly GRAPH_RELEVANT_EVENTS = new Set([
-    'resource.created', 'resource.archived', 'resource.unarchived',
-    'annotation.added', 'annotation.removed', 'annotation.body.updated',
-    'entitytag.added', 'entitytag.removed', 'entitytype.added',
+  private static readonly GRAPH_RELEVANT_EVENTS: Set<ResourceEvent['type']> = new Set([
+    'yield:created', 'mark:archived', 'mark:unarchived',
+    'mark:added', 'mark:removed', 'mark:body-updated',
+    'mark:entity-tag-added', 'mark:entity-tag-removed', 'mark:entity-type-added',
   ]);
 
   // Burst buffer thresholds — see class doc and BATCH-GRAPH-CONSUMER-RX.md
@@ -44,7 +44,7 @@ export class GraphDBConsumer {
   private static readonly MAX_BATCH_SIZE = 500;
   private static readonly IDLE_TIMEOUT_MS = 200;
 
-  private _globalSubscription: any = null;
+  private _globalSubscriptions: Subscription[] = [];
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private lastProcessed: Map<string, number> = new Map();
@@ -53,7 +53,8 @@ export class GraphDBConsumer {
   constructor(
     private eventStore: EventStore,
     private graphDb: GraphDatabase,
-    logger: Logger
+    private coreEventBus: EventBus,
+    logger: Logger,
   ) {
     this.logger = logger;
   }
@@ -68,13 +69,14 @@ export class GraphDBConsumer {
    * and wire through the RxJS burst-buffered pipeline.
    */
   private async subscribeToGlobalEvents() {
-    // Bridge: callback-based EventBus subscription → RxJS Subject
-    this._globalSubscription = this.eventStore.bus.subscriptions.subscribeGlobal(
-      (storedEvent: StoredEvent) => {
-        if (!GraphDBConsumer.GRAPH_RELEVANT_EVENTS.has(storedEvent.event.type)) return;
-        this.eventSubject.next(storedEvent);
-      }
-    );
+    // Subscribe to each graph-relevant event type on the Core EventBus
+    for (const eventType of GraphDBConsumer.GRAPH_RELEVANT_EVENTS) {
+      this._globalSubscriptions.push(
+        this.coreEventBus.get(eventType as any).subscribe(
+          (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
+        )
+      );
+    }
 
     // Build the RxJS pipeline
     this.pipelineSubscription = this.eventSubject.pipe(
@@ -122,6 +124,8 @@ export class GraphDBConsumer {
    * Wrap applyEventToGraph in try/catch so one failed event doesn't kill the pipeline.
    */
   private async safeApplyEvent(storedEvent: StoredEvent): Promise<void> {
+    // Yield the event loop so HTTP requests aren't starved by graph work
+    await new Promise(resolve => setTimeout(resolve, 0));
     try {
       await this.applyEventToGraph(storedEvent);
     } catch (error) {
@@ -144,10 +148,8 @@ export class GraphDBConsumer {
     this.logger.info('Stopping GraphDB consumer');
 
     // Unsubscribe from event source (stops feeding the Subject)
-    if (this._globalSubscription && typeof this._globalSubscription.unsubscribe === 'function') {
-      this._globalSubscription.unsubscribe();
-    }
-    this._globalSubscription = null;
+    for (const sub of this._globalSubscriptions) sub.unsubscribe();
+    this._globalSubscriptions = [];
 
     // Complete the Subject — this triggers burst buffer flush of remaining events
     this.eventSubject.complete();
@@ -206,13 +208,13 @@ export class GraphDBConsumer {
     const type = events[0].event.type;
 
     switch (type) {
-      case 'resource.created': {
+      case 'yield:created': {
         const resources = events.map(e => this.buildResourceDescriptor(e));
         await graphDb.batchCreateResources(resources);
         this.logger.info('Batch created resources in graph', { count: events.length });
         break;
       }
-      case 'annotation.added': {
+      case 'mark:added': {
         const inputs = events.map(e => {
           const event = e.event as AnnotationAddedEvent;
           return {
@@ -238,11 +240,11 @@ export class GraphDBConsumer {
    */
   private buildResourceDescriptor(storedEvent: StoredEvent): ResourceDescriptor {
     const event = storedEvent.event;
-    if (event.type !== 'resource.created') {
+    if (event.type !== 'yield:created') {
       throw new Error('Expected resource.created event');
     }
     if (!event.resourceId) {
-      throw new Error('resource.created requires resourceId');
+      throw new Error('yield:created requires resourceId');
     }
 
     return {
@@ -275,7 +277,7 @@ export class GraphDBConsumer {
     });
 
     switch (event.type) {
-      case 'resource.created': {
+      case 'yield:created': {
         const resource = this.buildResourceDescriptor(storedEvent);
         this.logger.debug('Creating resource in graph', { resourceUri: resource['@id'] });
         await graphDb.createResource(resource);
@@ -283,21 +285,21 @@ export class GraphDBConsumer {
         break;
       }
 
-      case 'resource.archived':
-        if (!event.resourceId) throw new Error('resource.archived requires resourceId');
+      case 'mark:archived':
+        if (!event.resourceId) throw new Error('mark:archived requires resourceId');
         await graphDb.updateResource(makeResourceId(event.resourceId), {
           archived: true,
         });
         break;
 
-      case 'resource.unarchived':
-        if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
+      case 'mark:unarchived':
+        if (!event.resourceId) throw new Error('mark:unarchived requires resourceId');
         await graphDb.updateResource(makeResourceId(event.resourceId), {
           archived: false,
         });
         break;
 
-      case 'annotation.added':
+      case 'mark:added':
         this.logger.debug('Processing annotation.added event', {
           annotationId: event.payload.annotation.id
         });
@@ -310,11 +312,11 @@ export class GraphDBConsumer {
         });
         break;
 
-      case 'annotation.removed':
+      case 'mark:removed':
         await graphDb.deleteAnnotation(makeAnnotationId(event.payload.annotationId));
         break;
 
-      case 'annotation.body.updated':
+      case 'mark:body-updated':
         this.logger.debug('Processing annotation.body.updated event', {
           annotationId: event.payload.annotationId,
           payload: event.payload
@@ -367,8 +369,8 @@ export class GraphDBConsumer {
         }
         break;
 
-      case 'entitytag.added':
-        if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
+      case 'mark:entity-tag-added':
+        if (!event.resourceId) throw new Error('mark:entity-tag-added requires resourceId');
         {
           const rid = makeResourceId(event.resourceId);
           const doc = await graphDb.getResource(rid);
@@ -380,8 +382,8 @@ export class GraphDBConsumer {
         }
         break;
 
-      case 'entitytag.removed':
-        if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
+      case 'mark:entity-tag-removed':
+        if (!event.resourceId) throw new Error('mark:entity-tag-removed requires resourceId');
         {
           const rid = makeResourceId(event.resourceId);
           const doc = await graphDb.getResource(rid);
@@ -393,7 +395,7 @@ export class GraphDBConsumer {
         }
         break;
 
-      case 'entitytype.added':
+      case 'mark:entity-type-added':
         await graphDb.addEntityType(event.payload.entityType);
         break;
 
@@ -449,7 +451,7 @@ export class GraphDBConsumer {
       const events = await query.getResourceEvents(makeResourceId(resourceId as string));
 
       for (const storedEvent of events) {
-        if (storedEvent.event.type === 'annotation.body.updated') {
+        if (storedEvent.event.type === 'mark:body-updated') {
           continue;
         }
         await this.applyEventToGraph(storedEvent);
@@ -463,7 +465,7 @@ export class GraphDBConsumer {
       const events = await query.getResourceEvents(makeResourceId(resourceId as string));
 
       for (const storedEvent of events) {
-        if (storedEvent.event.type === 'annotation.body.updated') {
+        if (storedEvent.event.type === 'mark:body-updated') {
           await this.applyEventToGraph(storedEvent);
         }
       }
@@ -482,7 +484,7 @@ export class GraphDBConsumer {
     pipelineActive: boolean;
   } {
     return {
-      subscriptions: this._globalSubscription ? 1 : 0,
+      subscriptions: this._globalSubscriptions.length,
       lastProcessed: Object.fromEntries(this.lastProcessed),
       pipelineActive: !!this.pipelineSubscription,
     };

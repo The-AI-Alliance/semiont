@@ -14,13 +14,13 @@ import { FilesystemViewStorage } from './storage/view-storage';
  * Create and initialize an EventStore instance
  *
  * @param project - SemiontProject instance
- * @param eventBus - Optional @semiont/core EventBus for publishing domain events
+ * @param eventBus - @semiont/core EventBus for publishing domain events
  * @param logger - Optional logger for structured logging
  * @returns Configured EventStore instance ready for use
  */
 export function createEventStore(
   project: SemiontProject,
-  eventBus?: CoreEventBus,
+  eventBus: CoreEventBus,
   logger?: Logger
 ): EventStore {
   const viewStorage = new FilesystemViewStorage(project, logger?.child({ component: 'view-storage' }));

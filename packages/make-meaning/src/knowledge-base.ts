@@ -40,7 +40,6 @@ export interface KnowledgeBase {
 export interface CreateKnowledgeBaseOptions {
   vectorStore?: VectorStore;
   embeddingProvider?: EmbeddingProvider;
-  eventBus?: EventBus;
   chunkingConfig?: ChunkingConfig;
   skipRebuild?: boolean;
 }
@@ -49,6 +48,7 @@ export async function createKnowledgeBase(
   eventStore: EventStore,
   project: SemiontProject,
   graphDb: GraphDatabase,
+  eventBus: EventBus,
   logger: Logger,
   options?: CreateKnowledgeBaseOptions,
 ): Promise<KnowledgeBase> {
@@ -60,6 +60,7 @@ export async function createKnowledgeBase(
   const graphConsumer = new GraphDBConsumer(
     eventStore,
     graphDb,
+    eventBus,
     logger.child({ component: 'graph-consumer' }),
   );
   await graphConsumer.initialize();
@@ -74,11 +75,11 @@ export async function createKnowledgeBase(
   };
 
   // Initialize vector search if configured
-  if (options?.vectorStore && options?.embeddingProvider && options?.eventBus) {
+  if (options?.vectorStore && options?.embeddingProvider) {
     kb.vectors = options.vectorStore;
     kb.smelter = new Smelter(
       eventStore,
-      options.eventBus,
+      eventBus,
       options.vectorStore,
       options.embeddingProvider,
       content,

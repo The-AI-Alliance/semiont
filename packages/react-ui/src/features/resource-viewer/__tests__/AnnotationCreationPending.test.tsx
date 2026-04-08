@@ -248,7 +248,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     const createdListener = vi.fn();
     // Set listener after first render so eventBus is captured
     await waitFor(() => expect(getEventBus()).toBeDefined());
-    const subscription = getEventBus().get('mark:created').subscribe(createdListener);
+    const subscription = getEventBus().get('mark:create-ok').subscribe(createdListener);
 
     act(() => {
       emit('mark:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });

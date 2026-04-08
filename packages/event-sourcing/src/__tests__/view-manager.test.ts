@@ -62,7 +62,7 @@ describe('ViewManager', () => {
       const rid = resourceId('doc1');
       const event = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -90,7 +90,7 @@ describe('ViewManager', () => {
       const rid = resourceId('doc1');
       const event = {
         id: 'event1',
-        type: 'representation.added' as const,
+        type: 'yield:representation-added' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -110,7 +110,7 @@ describe('ViewManager', () => {
         {
           event: {
             id: 'event0',
-            type: 'resource.created' as const,
+            type: 'yield:created' as const,
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -150,7 +150,7 @@ describe('ViewManager', () => {
       // Spy on materializer method
       const materializeEntityTypesSpy = vi.spyOn(manager.materializer, 'materializeEntityTypes');
 
-      await manager.materializeSystem('entitytype.added', payload);
+      await manager.materializeSystem('mark:entity-type-added', payload);
 
       expect(materializeEntityTypesSpy).toHaveBeenCalledWith(payload.entityType);
     });
@@ -182,7 +182,7 @@ describe('ViewManager', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -236,7 +236,7 @@ describe('ViewManager', () => {
       const rid = resourceId('doc1');
       const event = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -271,7 +271,7 @@ describe('ViewManager', () => {
 
       const materializeEntityTypesSpy = vi.spyOn(manager.materializer, 'materializeEntityTypes');
 
-      await manager.materializeSystem('entitytype.added', payload);
+      await manager.materializeSystem('mark:entity-type-added', payload);
 
       expect(materializeEntityTypesSpy).toHaveBeenCalledWith(entityType);
     });

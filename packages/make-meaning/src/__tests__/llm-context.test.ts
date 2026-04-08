@@ -152,7 +152,7 @@ describe('LLM Context', () => {
   describe('annotation inclusion', () => {
     it('should include annotations in context', async () => {
       // Create an annotation on the resource and await Stower persistence
-      const created$ = firstValueFrom(eventBus.get('mark:created').pipe(take(1)));
+      const created$ = firstValueFrom(eventBus.get('mark:create-ok').pipe(take(1)));
       const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
       await AnnotationOperations.createAnnotation(
         {

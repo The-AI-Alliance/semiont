@@ -14,9 +14,10 @@ import { streamSSE } from 'hono/streaming';
 import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
-import type { EventBus } from '@semiont/core';
+import type { EventBus, StoredEvent } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { getLogger } from '../logger';
+import type { Subscription } from 'rxjs';
 
 const getRouteLogger = () => getLogger().child({ component: 'global-events-stream' });
 
@@ -36,8 +37,6 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
   const logger = getRouteLogger();
 
   logger.info('Client connecting to global events stream');
-
-  const { knowledgeSystem: { kb: { eventStore } } } = c.get('makeMeaning');
 
   return streamSSE(c, async (stream) => {
     // Send initial connection message
@@ -76,11 +75,12 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
       }
     };
 
-    // Subscribe globally — receives all domain events across all resources
+    // Subscribe to system-level event types on the Core EventBus
+    const eventBus = c.get('eventBus');
     const streamId = `global-${Math.random().toString(36).substring(2, 9)}`;
     logger.info('Subscribing to global events', { streamId });
 
-    const subscription = eventStore.bus.subscribeGlobal(async (storedEvent) => {
+    const handleEvent = async (storedEvent: StoredEvent) => {
       if (isStreamClosed) return;
 
       try {
@@ -111,7 +111,10 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
         });
         cleanup();
       }
-    });
+    };
+
+    // Subscribe to system-level event types
+    const subscription: Subscription = eventBus.get('mark:entity-type-added').subscribe(handleEvent);
 
     // Keep-alive ping every 30 seconds
     keepAliveInterval = setInterval(async () => {

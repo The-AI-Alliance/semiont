@@ -96,13 +96,13 @@ describe('Scripting Example: Create Resource', () => {
 
     // Verify via event store
     const events = await makeMeaning.knowledgeSystem.kb.eventStore.log.getEvents(result);
-    const createdEvent = events.find(e => e.event.type === 'resource.created');
+    const createdEvent = events.find(e => e.event.type === 'yield:created');
     expect(createdEvent).toBeDefined();
-    expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.name).toBe('Test Document');
-    expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.format).toBe('text/plain');
+    expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.name).toBe('Test Document');
+    expect(createdEvent!.event.type === 'yield:created' && createdEvent!.event.payload.format).toBe('text/plain');
 
     // Verify content was stored (retrieve by storageUri from event payload)
-    const storageUri = createdEvent!.event.type === 'resource.created'
+    const storageUri = createdEvent!.event.type === 'yield:created'
       ? createdEvent!.event.payload.storageUri
       : undefined;
     expect(storageUri).toBeDefined();
@@ -132,10 +132,10 @@ describe('Scripting Example: Create Resource', () => {
     // result is already a ResourceId
     const resourceBus = eventBus.scope(result);
 
-    // Subscribe to the generic domain event channel BEFORE creating the update event
-    const sub = resourceBus.get('make-meaning:event').subscribe(event => {
-      domainEvents.push(event);
-    });
+    // Subscribe to typed domain event channels BEFORE creating the update event
+    const subs = (['yield:updated', 'mark:archived', 'mark:unarchived'] as const).map(type =>
+      resourceBus.get(type).subscribe(event => { domainEvents.push(event); })
+    );
 
     // Now create another event (like archiving the resource)
     await ResourceOperations.updateResource(
@@ -153,10 +153,10 @@ describe('Scripting Example: Create Resource', () => {
 
     // Verify we received the archive event
     expect(domainEvents.length).toBeGreaterThan(0);
-    const archiveEvent = domainEvents.find(e => e.type === 'resource.archived');
+    const archiveEvent = domainEvents.find(e => e.event?.type === 'mark:archived');
     expect(archiveEvent).toBeDefined();
 
-    sub.unsubscribe();
+    subs.forEach(s => s.unsubscribe());
   });
 
   it('demonstrates typical script pattern', async () => {

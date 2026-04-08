@@ -14,6 +14,11 @@ import type { AnnotationsListResponse, AnnotationDetail } from '../annotation-st
 
 type Annotation = components['schemas']['Annotation'];
 
+/** Wrap a partial event in StoredEvent shape for domain event channels */
+function stored(event: Record<string, any>): any {
+  return { event, metadata: { sequenceNumber: 1, timestamp: new Date().toISOString() } };
+}
+
 function mockAnnotation(id: string): Annotation {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -137,7 +142,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.get(RID, AID));
       expect(http.browseAnnotation).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:deleted').next({ annotationId: AID } as any);
+      eventBus.get('mark:delete-ok').next({ annotationId: AID } as any);
 
       // mark:deleted removes from cache without re-fetching; next get() re-fetches
       await firstDefined(store.get(RID, AID));
@@ -148,7 +153,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:added').next({ resourceId: RID } as any);
+      eventBus.get('mark:added').next(stored({ resourceId: RID }) as any);
 
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
@@ -158,7 +163,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:added').next({} as any);
+      eventBus.get('mark:added').next(stored({}) as any);
 
       // Cache still populated; second subscribe returns cached value, no re-fetch
       await firstDefined(store.listForResource(RID));
@@ -169,7 +174,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:removed').next({ resourceId: RID, payload: { annotationId: AID } } as any);
+      eventBus.get('mark:removed').next(stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
 
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
@@ -179,7 +184,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:body-updated').next({ resourceId: RID, payload: { annotationId: AID } } as any);
+      eventBus.get('mark:body-updated').next(stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
 
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
@@ -189,7 +194,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:entity-tag-added').next({ resourceId: RID } as any);
+      eventBus.get('mark:entity-tag-added').next(stored({ resourceId: RID }) as any);
 
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
@@ -199,7 +204,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:entity-tag-removed').next({ resourceId: RID } as any);
+      eventBus.get('mark:entity-tag-removed').next(stored({ resourceId: RID }) as any);
 
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
@@ -209,7 +214,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:entity-tag-added').next({} as any);
+      eventBus.get('mark:entity-tag-added').next(stored({}) as any);
 
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);

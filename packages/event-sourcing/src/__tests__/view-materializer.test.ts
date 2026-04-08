@@ -67,7 +67,7 @@ describe('ViewMaterializer', () => {
     it('should build projection from resource.created event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           resourceId: resourceId('doc1'),
           userId: userId('user1'),
           payload: {
@@ -96,11 +96,11 @@ describe('ViewMaterializer', () => {
     it('should apply resource.archived event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'resource.archived',
+          type: 'mark:archived',
           payload: {},
         }, 2),
       ];
@@ -114,15 +114,15 @@ describe('ViewMaterializer', () => {
     it('should apply resource.unarchived event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'resource.archived',
+          type: 'mark:archived',
           payload: {},
         }, 2),
         createStoredEvent({
-          type: 'resource.unarchived',
+          type: 'mark:unarchived',
           payload: {},
         }, 3),
       ];
@@ -136,15 +136,15 @@ describe('ViewMaterializer', () => {
     it('should apply entitytag.added event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
         createStoredEvent({
-          type: 'entitytag.added',
+          type: 'mark:entity-tag-added',
           payload: { entityType: 'Person' },
         }, 2),
         createStoredEvent({
-          type: 'entitytag.added',
+          type: 'mark:entity-tag-added',
           payload: { entityType: 'Organization' },
         }, 3),
       ];
@@ -158,11 +158,11 @@ describe('ViewMaterializer', () => {
     it('should apply entitytag.removed event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: ['Person', 'Organization'] },
         }, 1),
         createStoredEvent({
-          type: 'entitytag.removed',
+          type: 'mark:entity-tag-removed',
           payload: { entityType: 'Person' },
         }, 2),
       ];
@@ -201,11 +201,11 @@ describe('ViewMaterializer', () => {
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
       ];
@@ -232,15 +232,15 @@ describe('ViewMaterializer', () => {
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.removed',
+          type: 'mark:removed',
           payload: { annotationId: annotationId('anno1') },
         }, 3),
       ];
@@ -264,15 +264,15 @@ describe('ViewMaterializer', () => {
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.body.updated',
+          type: 'mark:body-updated',
           payload: {
             annotationId: annotationId('anno1'),
             operations: [
@@ -311,15 +311,15 @@ describe('ViewMaterializer', () => {
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.body.updated',
+          type: 'mark:body-updated',
           payload: {
             annotationId: annotationId('anno1'),
             operations: [
@@ -355,15 +355,15 @@ describe('ViewMaterializer', () => {
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.body.updated',
+          type: 'mark:body-updated',
           payload: {
             annotationId: annotationId('anno1'),
             operations: [
@@ -391,11 +391,11 @@ describe('ViewMaterializer', () => {
     it('should handle multiple annotations', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -409,7 +409,7 @@ describe('ViewMaterializer', () => {
           },
         }, 2),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -440,7 +440,7 @@ describe('ViewMaterializer', () => {
     it('should perform full rebuild when no projection exists', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
       ];
@@ -462,7 +462,7 @@ describe('ViewMaterializer', () => {
       // Create initial projection
       const initialEvents = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
       ];
@@ -472,7 +472,7 @@ describe('ViewMaterializer', () => {
 
       // Apply incremental update
       const newEvent = createStoredEvent({
-        type: 'entitytag.added',
+        type: 'mark:entity-tag-added',
         payload: { entityType: 'Person' },
       }, 2);
 
@@ -489,7 +489,7 @@ describe('ViewMaterializer', () => {
     it('should increment version on each update', async () => {
       const initialEvents = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
       ];
@@ -499,9 +499,9 @@ describe('ViewMaterializer', () => {
 
       // Apply 3 incremental updates
       const events = [
-        createStoredEvent({ type: 'entitytag.added', payload: { entityType: 'Person' } }, 2),
-        createStoredEvent({ type: 'entitytag.added', payload: { entityType: 'Organization' } }, 3),
-        createStoredEvent({ type: 'resource.archived', payload: {} }, 4),
+        createStoredEvent({ type: 'mark:entity-tag-added', payload: { entityType: 'Person' } }, 2),
+        createStoredEvent({ type: 'mark:entity-tag-added', payload: { entityType: 'Organization' } }, 3),
+        createStoredEvent({ type: 'mark:archived', payload: {} }, 4),
       ];
 
       for (const event of events) {
@@ -559,7 +559,7 @@ describe('ViewMaterializer', () => {
       // Events out of order
       const events = [
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -573,7 +573,7 @@ describe('ViewMaterializer', () => {
           },
         }, 2),
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
       ];

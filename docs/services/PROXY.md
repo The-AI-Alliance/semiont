@@ -83,7 +83,7 @@ For AWS ALB, configure:
 Without proper SSE timeout configuration:
 1. SSE connections disconnect after the default timeout (typically 30s)
 2. Frontend loses real-time updates during long operations
-3. AI generation events are missed (e.g., `annotation.body.updated`)
+3. AI generation events are missed (e.g., `mark:body-updated`)
 4. Users see stale data until manual refresh
 
 With proper configuration:

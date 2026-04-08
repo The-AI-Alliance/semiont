@@ -37,18 +37,17 @@ export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean 
   // Handle incoming global domain events — invalidate relevant queries
   const handleEvent = useCallback((event: ResourceEvent) => {
     switch (event.type) {
-      case 'entitytype.added':
+      case 'mark:entity-type-added':
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
         break;
     }
   }, [queryClient]);
 
-  // Subscribe to EventBus for global domain events
+  // Subscribe to system-level domain event types (StoredEvent wraps ResourceEvent)
   useEffect(() => {
-    const subscription = eventBus.get('make-meaning:event').subscribe((event: ResourceEvent) => {
-      handleEvent(event);
+    const subscription = eventBus.get('mark:entity-type-added').subscribe((stored) => {
+      handleEvent(stored.event);
     });
-
     return () => subscription.unsubscribe();
   }, [eventBus, handleEvent]);
 

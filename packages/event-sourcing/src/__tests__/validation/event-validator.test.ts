@@ -26,9 +26,9 @@ describe('EventValidator', () => {
   ): StoredEvent {
     // Provide default payloads based on event type
     let payload: any;
-    if (event.type === 'resource.created' || event.type === 'resource.cloned') {
+    if (event.type === 'yield:created' || event.type === 'yield:cloned') {
       payload = event.payload || { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum', creationMethod: 'api' as const };
-    } else if (event.type === 'annotation.added') {
+    } else if (event.type === 'mark:added') {
       payload = event.payload || {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -39,9 +39,9 @@ describe('EventValidator', () => {
           body: []
         }
       };
-    } else if (event.type === 'annotation.removed') {
+    } else if (event.type === 'mark:removed') {
       payload = event.payload || { annotationId: `anno-${sequenceNumber}` };
-    } else if (event.type === 'entitytype.added') {
+    } else if (event.type === 'mark:entity-type-added') {
       payload = event.payload || { entityType: 'Test' };
     } else {
       payload = event.payload || {};
@@ -73,9 +73,9 @@ describe('EventValidator', () => {
 
   describe('Event Chain Validation', () => {
     it('should validate a valid event chain', () => {
-      const e1 = createStoredEvent({ type: 'resource.created' }, 1);
-      const e2 = createStoredEvent({ type: 'annotation.added' }, 2, e1.metadata.checksum);
-      const e3 = createStoredEvent({ type: 'annotation.added' }, 3, e2.metadata.checksum);
+      const e1 = createStoredEvent({ type: 'yield:created' }, 1);
+      const e2 = createStoredEvent({ type: 'mark:added' }, 2, e1.metadata.checksum);
+      const e3 = createStoredEvent({ type: 'mark:added' }, 3, e2.metadata.checksum);
 
       const result = validator.validateEventChain([e1, e2, e3]);
 
@@ -84,7 +84,7 @@ describe('EventValidator', () => {
     });
 
     it('should validate single event (no prevEventHash)', () => {
-      const e1 = createStoredEvent({ type: 'resource.created' }, 1);
+      const e1 = createStoredEvent({ type: 'yield:created' }, 1);
 
       const result = validator.validateEventChain([e1]);
 
@@ -100,9 +100,9 @@ describe('EventValidator', () => {
     });
 
     it('should detect broken chain (wrong prevEventHash)', () => {
-      const e1 = createStoredEvent({ type: 'resource.created' }, 1);
-      const e2 = createStoredEvent({ type: 'annotation.added' }, 2, 'wrong-hash');
-      const e3 = createStoredEvent({ type: 'annotation.added' }, 3, e2.metadata.checksum);
+      const e1 = createStoredEvent({ type: 'yield:created' }, 1);
+      const e2 = createStoredEvent({ type: 'mark:added' }, 2, 'wrong-hash');
+      const e3 = createStoredEvent({ type: 'mark:added' }, 3, e2.metadata.checksum);
 
       const result = validator.validateEventChain([e1, e2, e3]);
 
@@ -113,8 +113,8 @@ describe('EventValidator', () => {
     });
 
     it('should detect tampered checksum', () => {
-      const e1 = createStoredEvent({ type: 'resource.created' }, 1);
-      const e2 = createStoredEvent({ type: 'annotation.added' }, 2, e1.metadata.checksum);
+      const e1 = createStoredEvent({ type: 'yield:created' }, 1);
+      const e2 = createStoredEvent({ type: 'mark:added' }, 2, e1.metadata.checksum);
 
       // Tamper with event payload but keep old checksum
       (e2.event as any).payload = { tampered: true };
@@ -127,9 +127,9 @@ describe('EventValidator', () => {
     });
 
     it('should detect multiple errors in chain', () => {
-      const e1 = createStoredEvent({ type: 'resource.created' }, 1);
-      const e2 = createStoredEvent({ type: 'annotation.added' }, 2, 'wrong-hash-1');
-      const e3 = createStoredEvent({ type: 'annotation.added' }, 3, 'wrong-hash-2');
+      const e1 = createStoredEvent({ type: 'yield:created' }, 1);
+      const e2 = createStoredEvent({ type: 'mark:added' }, 2, 'wrong-hash-1');
+      const e3 = createStoredEvent({ type: 'mark:added' }, 3, 'wrong-hash-2');
 
       // Also tamper with e3's checksum
       (e3.event as any).payload = { tampered: true };
@@ -146,7 +146,7 @@ describe('EventValidator', () => {
       // Create chain of 100 events
       for (let i = 1; i <= 100; i++) {
         const prevChecksum = i > 1 ? events[i - 2]!.metadata.checksum : undefined;
-        events.push(createStoredEvent({ type: 'annotation.added' }, i, prevChecksum));
+        events.push(createStoredEvent({ type: 'mark:added' }, i, prevChecksum));
       }
 
       const start = Date.now();
@@ -160,7 +160,7 @@ describe('EventValidator', () => {
 
   describe('Single Event Checksum Validation', () => {
     it('should validate correct checksum', () => {
-      const event = createStoredEvent({ type: 'resource.created' }, 1);
+      const event = createStoredEvent({ type: 'yield:created' }, 1);
 
       const isValid = validator.validateEventChecksum(event);
 
@@ -168,7 +168,7 @@ describe('EventValidator', () => {
     });
 
     it('should detect incorrect checksum', () => {
-      const event = createStoredEvent({ type: 'resource.created' }, 1);
+      const event = createStoredEvent({ type: 'yield:created' }, 1);
 
       // Tamper with checksum
       event.metadata.checksum = 'incorrect-checksum';
@@ -179,7 +179,7 @@ describe('EventValidator', () => {
     });
 
     it('should detect tampered event payload', () => {
-      const event = createStoredEvent({ type: 'resource.created' }, 1);
+      const event = createStoredEvent({ type: 'yield:created' }, 1);
 
       // Tamper with payload but keep original checksum
       (event.event as any).payload = { name: 'Tampered', format: 'text/plain', contentChecksum: 'changed', creationMethod: 'api' };
@@ -191,11 +191,11 @@ describe('EventValidator', () => {
 
     it('should validate different event types', () => {
       const events = [
-        createStoredEvent({ type: 'resource.created' }, 1),
-        createStoredEvent({ type: 'resource.archived' }, 2),
-        createStoredEvent({ type: 'annotation.added' }, 3),
-        createStoredEvent({ type: 'annotation.removed' }, 4),
-        createStoredEvent({ type: 'entitytype.added' }, 5),
+        createStoredEvent({ type: 'yield:created' }, 1),
+        createStoredEvent({ type: 'mark:archived' }, 2),
+        createStoredEvent({ type: 'mark:added' }, 3),
+        createStoredEvent({ type: 'mark:removed' }, 4),
+        createStoredEvent({ type: 'mark:entity-type-added' }, 5),
       ];
 
       events.forEach(event => {
@@ -206,7 +206,7 @@ describe('EventValidator', () => {
 
   describe('Event Link Validation', () => {
     it('should validate first event (no previous)', () => {
-      const event = createStoredEvent({ type: 'resource.created' }, 1);
+      const event = createStoredEvent({ type: 'yield:created' }, 1);
 
       const isValid = validator.validateEventLink(event, null);
 
@@ -214,8 +214,8 @@ describe('EventValidator', () => {
     });
 
     it('should validate correctly linked events', () => {
-      const prev = createStoredEvent({ type: 'resource.created' }, 1);
-      const current = createStoredEvent({ type: 'annotation.added' }, 2, prev.metadata.checksum);
+      const prev = createStoredEvent({ type: 'yield:created' }, 1);
+      const current = createStoredEvent({ type: 'mark:added' }, 2, prev.metadata.checksum);
 
       const isValid = validator.validateEventLink(current, prev);
 
@@ -223,8 +223,8 @@ describe('EventValidator', () => {
     });
 
     it('should detect incorrectly linked events', () => {
-      const prev = createStoredEvent({ type: 'resource.created' }, 1);
-      const current = createStoredEvent({ type: 'annotation.added' }, 2, 'wrong-hash');
+      const prev = createStoredEvent({ type: 'yield:created' }, 1);
+      const current = createStoredEvent({ type: 'mark:added' }, 2, 'wrong-hash');
 
       const isValid = validator.validateEventLink(current, prev);
 
@@ -232,7 +232,7 @@ describe('EventValidator', () => {
     });
 
     it('should reject first event with prevEventHash', () => {
-      const event = createStoredEvent({ type: 'resource.created' }, 1, 'unexpected-hash');
+      const event = createStoredEvent({ type: 'yield:created' }, 1, 'unexpected-hash');
 
       const isValid = validator.validateEventLink(event, null);
 
@@ -240,8 +240,8 @@ describe('EventValidator', () => {
     });
 
     it('should reject event without prevEventHash when previous exists', () => {
-      const prev = createStoredEvent({ type: 'resource.created' }, 1);
-      const current = createStoredEvent({ type: 'annotation.added' }, 2); // No prevEventHash
+      const prev = createStoredEvent({ type: 'yield:created' }, 1);
+      const current = createStoredEvent({ type: 'mark:added' }, 2); // No prevEventHash
 
       const isValid = validator.validateEventLink(current, prev);
 
@@ -251,8 +251,8 @@ describe('EventValidator', () => {
 
   describe('Edge Cases', () => {
     it('should handle events with identical payloads but different IDs', () => {
-      const e1 = createStoredEvent({ type: 'annotation.added' }, 1);
-      const e2 = createStoredEvent({ type: 'annotation.added' }, 2, e1.metadata.checksum);
+      const e1 = createStoredEvent({ type: 'mark:added' }, 1);
+      const e2 = createStoredEvent({ type: 'mark:added' }, 2, e1.metadata.checksum);
 
       // Different IDs mean different checksums
       expect(e1.metadata.checksum).not.toBe(e2.metadata.checksum);
@@ -262,7 +262,7 @@ describe('EventValidator', () => {
     });
 
     it('should handle events with large payloads', () => {
-      const event = createStoredEvent({ type: 'annotation.added' }, 1);
+      const event = createStoredEvent({ type: 'mark:added' }, 1);
 
       const isValid = validator.validateEventChecksum(event);
       expect(isValid).toBe(true);
@@ -296,14 +296,14 @@ describe('EventValidator', () => {
         },
       };
 
-      const event = createStoredEvent({ type: 'annotation.added', payload: complexPayload }, 1);
+      const event = createStoredEvent({ type: 'mark:added', payload: complexPayload }, 1);
 
       const isValid = validator.validateEventChecksum(event);
       expect(isValid).toBe(true);
     });
 
     it('should detect subtle payload modifications', () => {
-      const event = createStoredEvent({ type: 'annotation.added' }, 1);
+      const event = createStoredEvent({ type: 'mark:added' }, 1);
 
       const originalChecksum = event.metadata.checksum;
 

@@ -78,18 +78,18 @@ The single write path to the Knowledge Base. No other code calls `eventStore.app
 
 | Command | Domain Event | Result Event |
 |---------|-------------|-------------|
-| `yield:create` | `resource.created` + content store | `yield:created` / `yield:create-failed` |
-| `mark:create` | `annotation.added` | `mark:created` / `mark:create-failed` |
-| `mark:delete` | `annotation.removed` | `mark:deleted` / `mark:delete-failed` |
-| `mark:update-body` | `annotation.body.updated` | `mark:body-updated` |
-| `mark:archive` | `resource.archived` | — |
-| `mark:unarchive` | `resource.unarchived` | — |
-| `mark:add-entity-type` | `entitytype.added` | `mark:entity-type-added` |
-| `mark:update-entity-types` | `entitytag.added` / `entitytag.removed` | — |
-| `job:start` | `job.started` | — |
-| `job:report-progress` | `job.progress` | — |
-| `job:complete` | `job.completed` | — |
-| `job:fail` | `job.failed` | — |
+| `yield:create` | `yield:created` + content store | `yield:created` / `yield:create-failed` |
+| `mark:create` | `mark:added` | `mark:created` / `mark:create-failed` |
+| `mark:delete` | `mark:removed` | `mark:deleted` / `mark:delete-failed` |
+| `mark:update-body` | `mark:body-updated` | `mark:body-updated` |
+| `mark:archive` | `mark:archived` | — |
+| `mark:unarchive` | `mark:unarchived` | — |
+| `mark:add-entity-type` | `mark:entity-type-added` | `mark:entity-type-added` |
+| `mark:update-entity-types` | `mark:entity-tag-added` / `mark:entity-tag-removed` | — |
+| `job:start` | `job:started` | — |
+| `job:report-progress` | `job:progress` | — |
+| `job:complete` | `job:completed` | — |
+| `job:fail` | `job:failed` | — |
 
 ### Gatherer (Read Actor)
 

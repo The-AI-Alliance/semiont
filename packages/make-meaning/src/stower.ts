@@ -127,7 +127,7 @@ export class Stower {
         : CREATION_METHODS.API;
 
       await this.kb.eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: rId,
         userId: event.userId,
         version: 1,
@@ -168,7 +168,7 @@ export class Stower {
         ],
       };
 
-      this.eventBus.get('yield:created').next({ resourceId: rId, resource });
+      this.eventBus.get('yield:create-ok').next({ resourceId: rId, resource });
     } catch (error) {
       this.logger.error('Failed to create resource', { error });
       this.eventBus.get('yield:create-failed').next({
@@ -190,7 +190,7 @@ export class Stower {
         byteSize = stored.byteSize;
       }
       await this.kb.eventStore.appendEvent({
-        type: 'resource.updated',
+        type: 'yield:updated',
         resourceId: event.resourceId,
         userId: event.userId,
         version: 1,
@@ -199,7 +199,7 @@ export class Stower {
           contentByteSize: byteSize,
         },
       });
-      this.eventBus.get('yield:updated').next({ resourceId: event.resourceId });
+      this.eventBus.get('yield:update-ok').next({ resourceId: event.resourceId });
     } catch (error) {
       this.logger.error('Failed to update resource', { error });
       this.eventBus.get('yield:update-failed').next({
@@ -226,7 +226,7 @@ export class Stower {
     try {
       await this.kb.content.move(event.fromUri, event.toUri, { noGit: event.noGit });
       await this.kb.eventStore.appendEvent({
-        type: 'resource.moved',
+        type: 'yield:moved',
         resourceId: rId,
         userId: event.userId,
         version: 1,
@@ -235,7 +235,7 @@ export class Stower {
           toUri: event.toUri,
         },
       });
-      this.eventBus.get('yield:moved').next({ resourceId: rId });
+      this.eventBus.get('yield:move-ok').next({ resourceId: rId });
     } catch (error) {
       this.logger.error('Failed to move resource', { error });
       this.eventBus.get('yield:move-failed').next({
@@ -249,13 +249,13 @@ export class Stower {
     try {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
       await this.kb.eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: event.resourceId,
         userId: event.userId,
         version: 1,
         payload: { annotation: event.annotation },
       });
-      this.eventBus.get('mark:created').next({ annotationId: makeAnnotationId(event.annotation.id) });
+      this.eventBus.get('mark:create-ok').next({ annotationId: makeAnnotationId(event.annotation.id) });
     } catch (error) {
       this.logger.error('Failed to create annotation', { error });
       this.eventBus.get('mark:create-failed').next({
@@ -271,13 +271,13 @@ export class Stower {
 
     try {
       await this.kb.eventStore.appendEvent({
-        type: 'annotation.removed',
+        type: 'mark:removed',
         resourceId: event.resourceId,
         userId: event.userId,
         version: 1,
         payload: { annotationId: event.annotationId },
       });
-      this.eventBus.get('mark:deleted').next({ annotationId: event.annotationId });
+      this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
     } catch (error) {
       this.logger.error('Failed to delete annotation', { error });
       this.eventBus.get('mark:delete-failed').next({
@@ -288,14 +288,14 @@ export class Stower {
 
   private async handleMarkUpdateBody(event: EventMap['mark:update-body']): Promise<void> {
     try {
-      const stored = await this.kb.eventStore.appendEvent({
-        type: 'annotation.body.updated',
+      await this.kb.eventStore.appendEvent({
+        type: 'mark:body-updated',
         resourceId: event.resourceId,
         userId: event.userId,
         version: 1,
         payload: { annotationId: event.annotationId, operations: event.operations },
       });
-      this.eventBus.get('mark:body-updated').next(stored.event as EventMap['mark:body-updated']);
+      // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error });
       this.eventBus.get('mark:body-update-failed').next({
@@ -312,7 +312,7 @@ export class Stower {
       await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
     }
     await this.kb.eventStore.appendEvent({
-      type: 'resource.archived',
+      type: 'mark:archived',
       resourceId: event.resourceId,
       userId: event.userId,
       version: 1,
@@ -335,7 +335,7 @@ export class Stower {
       }
     }
     await this.kb.eventStore.appendEvent({
-      type: 'resource.unarchived',
+      type: 'mark:unarchived',
       resourceId: event.resourceId,
       userId: event.userId,
       version: 1,
@@ -346,12 +346,12 @@ export class Stower {
   private async handleAddEntityType(event: EventMap['mark:add-entity-type']): Promise<void> {
     try {
       await this.kb.eventStore.appendEvent({
-        type: 'entitytype.added',
+        type: 'mark:entity-type-added',
         userId: event.userId,
         version: 1,
         payload: { entityType: event.tag },
       });
-      this.eventBus.get('mark:entity-type-added').next({ tag: event.tag });
+      // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
       this.logger.error('Failed to add entity type', { error });
       this.eventBus.get('mark:entity-type-add-failed').next({
@@ -366,7 +366,7 @@ export class Stower {
 
     for (const entityType of added) {
       await this.kb.eventStore.appendEvent({
-        type: 'entitytag.added',
+        type: 'mark:entity-tag-added',
         resourceId: event.resourceId,
         userId: event.userId,
         version: 1,
@@ -376,7 +376,7 @@ export class Stower {
 
     for (const entityType of removed) {
       await this.kb.eventStore.appendEvent({
-        type: 'entitytag.removed',
+        type: 'mark:entity-tag-removed',
         resourceId: event.resourceId,
         userId: event.userId,
         version: 1,
@@ -387,7 +387,7 @@ export class Stower {
 
   private async handleJobStart(event: EventMap['job:start']): Promise<void> {
     await this.kb.eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: event.resourceId,
       userId: event.userId,
       version: 1,
@@ -397,7 +397,7 @@ export class Stower {
 
   private async handleJobReportProgress(event: EventMap['job:report-progress']): Promise<void> {
     await this.kb.eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: event.resourceId,
       userId: event.userId,
       version: 1,
@@ -412,7 +412,7 @@ export class Stower {
 
   private async handleJobComplete(event: EventMap['job:complete']): Promise<void> {
     await this.kb.eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: event.resourceId,
       userId: event.userId,
       version: 1,
@@ -426,7 +426,7 @@ export class Stower {
 
   private async handleJobFail(event: EventMap['job:fail']): Promise<void> {
     await this.kb.eventStore.appendEvent({
-      type: 'job.failed',
+      type: 'job:failed',
       resourceId: event.resourceId,
       userId: event.userId,
       version: 1,
@@ -440,7 +440,7 @@ export class Stower {
 
   private async handleEmbeddingComputed(event: EventMap['embedding:computed']): Promise<void> {
     await this.kb.eventStore.appendEvent({
-      type: 'embedding.computed',
+      type: 'embedding:computed',
       resourceId: event.resourceId,
       userId: makeUserId('did:web:system:smelter'),
       version: 1,
@@ -457,7 +457,7 @@ export class Stower {
 
   private async handleEmbeddingDeleted(event: EventMap['embedding:deleted']): Promise<void> {
     await this.kb.eventStore.appendEvent({
-      type: 'embedding.deleted',
+      type: 'embedding:deleted',
       resourceId: event.resourceId,
       userId: makeUserId('did:web:system:smelter'),
       version: 1,

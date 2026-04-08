@@ -14,6 +14,11 @@ import type { ResourceDetail, ResourceListResponse } from '../resource-store';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
+/** Wrap a partial event in StoredEvent shape for domain event channels */
+function stored(event: Record<string, any>): any {
+  return { event, metadata: { sequenceNumber: 1, timestamp: new Date().toISOString() } };
+}
+
 function mockResource(id: string): ResourceDescriptor {
   return {
     '@context': 'http://schema.org',
@@ -128,7 +133,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.list()); // populate list cache
       const listCallsBefore = (http.browseResources as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('yield:created').next({ resourceId: RID, resource: mockResource('res-1') as any });
+      eventBus.get('yield:create-ok').next({ resourceId: RID, resource: mockResource('res-1') as any });
 
       // The detail fetch triggered by yield:created should complete
       await firstDefined(store.get(RID));
@@ -142,7 +147,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.get(RID));
       const callsBefore = (http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('yield:updated').next({ resourceId: RID });
+      eventBus.get('yield:update-ok').next({ resourceId: RID });
 
       await firstDefined(store.get(RID));
       expect((http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsBefore);
@@ -152,7 +157,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.get(RID));
       const callsBefore = (http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('mark:archived').next({ resourceId: RID } as any);
+      eventBus.get('mark:archived').next(stored({ resourceId: RID }) as any);
 
       await firstDefined(store.get(RID));
       expect((http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsBefore);
@@ -162,7 +167,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.get(RID));
       const callsBefore = (http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('mark:archived').next({} as any);
+      eventBus.get('mark:archived').next(stored({}) as any);
 
       // No invalidation: second subscribe still returns cached value without re-fetching
       await firstDefined(store.get(RID));
@@ -173,7 +178,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.get(RID));
       const callsBefore = (http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('mark:unarchived').next({ resourceId: RID } as any);
+      eventBus.get('mark:unarchived').next(stored({ resourceId: RID }) as any);
 
       await firstDefined(store.get(RID));
       expect((http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsBefore);
@@ -185,7 +190,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.get(RID));
       const detailCallsBefore = (http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('mark:entity-tag-added').next({ resourceId: RID } as any);
+      eventBus.get('mark:entity-tag-added').next(stored({ resourceId: RID }) as any);
 
       await firstDefined(store.get(RID));
       expect((http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(detailCallsBefore);
@@ -197,7 +202,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.get(RID));
       const callsBefore = (http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('mark:entity-tag-removed').next({ resourceId: RID } as any);
+      eventBus.get('mark:entity-tag-removed').next(stored({ resourceId: RID }) as any);
 
       await firstDefined(store.get(RID));
       expect((http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsBefore);

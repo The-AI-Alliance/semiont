@@ -379,12 +379,12 @@ type AnyJob = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentD
 ```typescript
 function processJob(job: AnyJob) {
   if (job.status === 'running') {
-    console.log(job.progress);      // Available
+    console.log(job:progress);      // Available
     // console.log(job.result);     // Compile error
   }
   if (job.status === 'complete') {
     console.log(job.result);        // Available
-    // console.log(job.progress);   // Compile error
+    // console.log(job:progress);   // Compile error
   }
 }
 ```
@@ -400,6 +400,6 @@ function isRunningGenerationJob(
 
 if (isRunningGenerationJob(job)) {
   console.log(job.params.title);     // GenerationParams
-  console.log(job.progress.stage);   // YieldProgress
+  console.log(job:progress.stage);   // YieldProgress
 }
 ```

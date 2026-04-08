@@ -41,11 +41,11 @@ describe('EventBus scoping', () => {
     const events1: any[] = [];
     const events2: any[] = [];
 
-    resource1.get('mark:created').subscribe(e => events1.push(e));
-    resource2.get('mark:created').subscribe(e => events2.push(e));
+    resource1.get('mark:create-ok').subscribe(e => events1.push(e));
+    resource2.get('mark:create-ok').subscribe(e => events2.push(e));
 
     // Emit to resource1 only
-    resource1.get('mark:created').next({ annotationId: 'ann-1' as any });
+    resource1.get('mark:create-ok').next({ annotationId: 'ann-1' as any });
 
     expect(events1).toHaveLength(1);
     expect(events1[0].annotationId).toBe('ann-1');

@@ -422,7 +422,7 @@ const events = await client.getResourceEvents(rId);
 console.log(`Total events: ${events.events.length}`);
 
 // Example: Find when resource was archived
-const archivedEvent = events.events.find(e => e.type === 'resource.archived');
+const archivedEvent = events.events.find(e => e.type === 'mark:archived');
 if (archivedEvent) {
   console.log('Archived at:', archivedEvent.timestamp);
 }
@@ -811,8 +811,8 @@ stream.onError((error) => {
 
 **Event Types You'll Receive:**
 
-- `resource.created` - Resource was created
-- `resource.updated` - Resource metadata changed
+- `yield:created` - Resource was created
+- `yield:updated` - Resource metadata changed
 - `annotation.created` - New annotation added
 - `annotation.updated` - Annotation modified
 - `annotation.deleted` - Annotation deleted
@@ -1126,7 +1126,7 @@ test('should archive a resource', async () => {
     archived: true,
   });
 
-  expect(result.resource.archived).toBe(true);
+  expect(result.mark:archived).toBe(true);
 });
 ```
 

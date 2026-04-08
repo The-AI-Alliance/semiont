@@ -123,7 +123,7 @@ describe('useMarkFlow', () => {
     await waitFor(() => expect(result.current.flow.pendingAnnotation).not.toBeNull());
 
     act(() => {
-      result.current.bus.get('mark:created').next({ annotationId: 'ann-1' } as any);
+      result.current.bus.get('mark:create-ok').next({ annotationId: 'ann-1' } as any);
     });
     await waitFor(() => expect(result.current.flow.pendingAnnotation).toBeNull());
   });

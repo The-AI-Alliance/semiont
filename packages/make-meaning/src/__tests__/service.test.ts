@@ -87,7 +87,7 @@ describe('Make-Meaning Service', () => {
       expect(kb.eventStore).toBeDefined();
       expect(typeof kb.eventStore.appendEvent).toBe('function');
       expect(kb.eventStore.log).toBeDefined();
-      expect(kb.eventStore.bus).toBeDefined();
+      expect(kb.eventStore.coreEventBus).toBeDefined();
       expect(kb.eventStore.views).toBeDefined();
     });
 

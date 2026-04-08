@@ -32,13 +32,13 @@ const STUB_RESOURCE: components['schemas']['ResourceDescriptor'] = {
 };
 
 /** Minimal AnnotationBodyUpdatedEvent stub for mark:body-updated test emissions. */
-function stubBodyUpdatedEvent(): Extract<ResourceEvent, { type: 'annotation.body.updated' }> {
+function stubBodyUpdatedEvent(): Extract<ResourceEvent, { type: 'mark:body-updated' }> {
   return {
     id: 'stub',
     timestamp: '2026-03-12T00:00:00Z',
     userId: TEST_USER,
     version: 1,
-    type: 'annotation.body.updated',
+    type: 'mark:body-updated',
     resourceId: TEST_RESOURCE,
     payload: { annotationId: TEST_ANNOTATION, operations: [] },
   };
@@ -59,7 +59,7 @@ function makeStoredEvent(event: Record<string, unknown>, opts: { checksum?: stri
 
 function entityTypeEvent(entityType: string, opts: { checksum?: string; prevEventHash?: string } = {}): string {
   return makeStoredEvent({
-    type: 'entitytype.added',
+    type: 'mark:entity-type-added',
     payload: { entityType },
     userId: TEST_USER,
   }, opts);
@@ -67,7 +67,7 @@ function entityTypeEvent(entityType: string, opts: { checksum?: string; prevEven
 
 function resourceCreatedEvent(name: string, contentChecksum: string, opts: { checksum?: string; prevEventHash?: string } = {}): string {
   return makeStoredEvent({
-    type: 'resource.created',
+    type: 'yield:created',
     resourceId: TEST_RESOURCE,
     userId: TEST_USER,
     payload: {
@@ -83,7 +83,7 @@ function resourceCreatedEvent(name: string, contentChecksum: string, opts: { che
 
 function annotationAddedEvent(annotationId: string, opts: { checksum?: string; prevEventHash?: string } = {}): string {
   return makeStoredEvent({
-    type: 'annotation.added',
+    type: 'mark:added',
     resourceId: TEST_RESOURCE,
     userId: TEST_USER,
     payload: {
@@ -121,7 +121,7 @@ describe('replay', () => {
     it('replays an entitytype.added event', async () => {
       eventBus.get('mark:add-entity-type').subscribe((msg) => {
         expect(msg.tag).toBe('Person');
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' }));
+        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' } as any));
       });
 
       const jsonl = entityTypeEvent('Person');
@@ -143,7 +143,7 @@ describe('replay', () => {
         expect(msg.name).toBe('Test Resource');
         expect(msg.content).toBe(contentBlob);
         expect(msg.format).toBe('text/markdown');
-        defer(() => eventBus.get('yield:created').next({
+        defer(() => eventBus.get('yield:create-ok').next({
           resourceId: TEST_RESOURCE,
           resource: STUB_RESOURCE,
         }));
@@ -168,7 +168,7 @@ describe('replay', () => {
 
     it('replays an annotation.added event', async () => {
       eventBus.get('mark:create').subscribe(() => {
-        defer(() => eventBus.get('mark:created').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:create-ok').next({ annotationId: TEST_ANNOTATION }));
       });
 
       const jsonl = annotationAddedEvent('ann-1');
@@ -183,11 +183,11 @@ describe('replay', () => {
     it('replays an annotation.body.updated event', async () => {
       eventBus.get('mark:update-body').subscribe((msg) => {
         expect(msg.annotationId).toBe(TEST_ANNOTATION);
-        defer(() => eventBus.get('mark:body-updated').next(stubBodyUpdatedEvent()));
+        defer(() => eventBus.get('mark:body-updated').next(stubBodyUpdatedEvent() as any));
       });
 
       const jsonl = makeStoredEvent({
-        type: 'annotation.body.updated',
+        type: 'mark:body-updated',
         resourceId: TEST_RESOURCE,
         userId: TEST_USER,
         payload: {
@@ -203,11 +203,11 @@ describe('replay', () => {
 
     it('replays an annotation.removed event', async () => {
       eventBus.get('mark:delete').subscribe(() => {
-        defer(() => eventBus.get('mark:deleted').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:delete-ok').next({ annotationId: TEST_ANNOTATION }));
       });
 
       const jsonl = makeStoredEvent({
-        type: 'annotation.removed',
+        type: 'mark:removed',
         resourceId: TEST_RESOURCE,
         userId: TEST_USER,
         payload: { annotationId: TEST_ANNOTATION },
@@ -223,7 +223,7 @@ describe('replay', () => {
       eventBus.get('mark:archive').subscribe(archiveSpy);
 
       const jsonl = makeStoredEvent({
-        type: 'resource.archived',
+        type: 'mark:archived',
         resourceId: TEST_RESOURCE,
         userId: TEST_USER,
         payload: {},
@@ -240,7 +240,7 @@ describe('replay', () => {
       eventBus.get('mark:unarchive').subscribe(unarchiveSpy);
 
       const jsonl = makeStoredEvent({
-        type: 'resource.unarchived',
+        type: 'mark:unarchived',
         resourceId: TEST_RESOURCE,
         userId: TEST_USER,
         payload: {},
@@ -257,7 +257,7 @@ describe('replay', () => {
       eventBus.get('mark:update-entity-types').subscribe(updateSpy);
 
       const jsonl = makeStoredEvent({
-        type: 'entitytag.added',
+        type: 'mark:entity-tag-added',
         resourceId: TEST_RESOURCE,
         userId: TEST_USER,
         payload: { entityType: 'Person' },
@@ -279,7 +279,7 @@ describe('replay', () => {
       eventBus.get('mark:update-entity-types').subscribe(updateSpy);
 
       const jsonl = makeStoredEvent({
-        type: 'entitytag.removed',
+        type: 'mark:entity-tag-removed',
         resourceId: TEST_RESOURCE,
         userId: TEST_USER,
         payload: { entityType: 'Location' },
@@ -297,7 +297,7 @@ describe('replay', () => {
     });
 
     it('skips job events without error', async () => {
-      const jobTypes = ['job.started', 'job.progress', 'job.completed', 'job.failed'];
+      const jobTypes = ['job:started', 'job:progress', 'job:completed', 'job:failed'];
       const lines = jobTypes.map((type) =>
         makeStoredEvent({
           type,
@@ -317,7 +317,7 @@ describe('replay', () => {
     });
 
     it('skips representation events without error', async () => {
-      const repTypes = ['representation.added', 'representation.removed'];
+      const repTypes = ['yield:representation-added', 'yield:representation-removed'];
       const lines = repTypes.map((type) =>
         makeStoredEvent({
           type,
@@ -336,7 +336,7 @@ describe('replay', () => {
 
     it('replays multiple events and accumulates stats', async () => {
       eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' }));
+        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' } as any));
       });
 
       const contentBlob = Buffer.from('test content');
@@ -344,14 +344,14 @@ describe('replay', () => {
         checksum === 'sha-1' ? contentBlob : undefined;
 
       eventBus.get('yield:create').subscribe(() => {
-        defer(() => eventBus.get('yield:created').next({
+        defer(() => eventBus.get('yield:create-ok').next({
           resourceId: TEST_RESOURCE,
           resource: STUB_RESOURCE,
         }));
       });
 
       eventBus.get('mark:create').subscribe(() => {
-        defer(() => eventBus.get('mark:created').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:create-ok').next({ annotationId: TEST_ANNOTATION }));
       });
 
       const lines = [
@@ -373,7 +373,7 @@ describe('replay', () => {
   describe('hash chain validation', () => {
     it('detects a valid hash chain', async () => {
       eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' }));
+        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' } as any));
       });
 
       const lines = [
@@ -389,7 +389,7 @@ describe('replay', () => {
 
     it('detects a broken hash chain', async () => {
       eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' }));
+        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' } as any));
       });
 
       const lines = [
@@ -405,7 +405,7 @@ describe('replay', () => {
 
     it('treats missing prevEventHash as valid (first event in stream)', async () => {
       eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' }));
+        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' } as any));
       });
 
       const lines = [
