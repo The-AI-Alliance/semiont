@@ -246,6 +246,7 @@
         "upload",
         "ui",
         "reference",
+        "cli",
         "clone",
         "generated"
       ],

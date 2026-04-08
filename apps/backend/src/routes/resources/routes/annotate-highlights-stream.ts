@@ -203,7 +203,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
               if (isStreamClosed) return;
               logger.info('Detection completed');
               try {
-                const result = event.payload.result;
+                const result = event.payload.result as Record<string, any> | undefined;
                 await writeTypedSSE(stream, {
                   data: {
                     motivation: 'highlighting',

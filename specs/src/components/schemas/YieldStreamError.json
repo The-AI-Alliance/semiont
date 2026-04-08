@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "description": "Error payload emitted on yield:failed SSE channel when resource generation fails.",
+  "properties": {
+    "error": {
+      "type": "string",
+      "description": "Error message"
+    },
+    "status": {
+      "type": "string"
+    },
+    "referenceId": {
+      "type": "string"
+    },
+    "percentage": {
+      "type": "number"
+    },
+    "message": {
+      "type": "string"
+    }
+  }
+}

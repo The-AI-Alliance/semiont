@@ -11,15 +11,11 @@
  * - Optional signatures for cross-org verification
  */
 
-import type { CreationMethod } from './creation-methods';
 import type { components } from './types';
-import type { AnnotationUri, JobId } from './branded-types';
-import type { ResourceId, AnnotationId, UserId } from './identifiers';
+import type { ResourceId, UserId } from './identifiers';
 
-// Import OpenAPI types
+// OpenAPI type used in ResourceAnnotations
 type Annotation = components['schemas']['Annotation'];
-type ContentFormat = components['schemas']['ContentFormat'];
-type Motivation = components['schemas']['Motivation'];
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -30,238 +26,131 @@ export interface BaseEvent {
   version: number;                // Event schema version
 }
 
-// Resource lifecycle events
+// Resource lifecycle events — payloads derived from OpenAPI schemas
 export interface ResourceCreatedEvent extends BaseEvent {
   type: 'yield:created';
-  payload: {
-    name: string;
-    format: ContentFormat;       // MIME type (validated enum)
-    contentChecksum: string;     // SHA-256 of content (should match resourceId)
-    contentByteSize?: number;    // Size of content in bytes
-    creationMethod: CreationMethod;  // How the resource was created
-    entityTypes?: string[];
-    storageUri?: string;         // Working-tree URI (e.g. file://docs/overview.md)
-
-    // First-class fields (promoted from metadata)
-    language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
-    isDraft?: boolean;           // Draft status for generated resources
-    generatedFrom?: { resourceId: string; annotationId: string };  // Source resource and annotation that triggered generation
-    generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Resource)
-    generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];  // Software agent that produced this resource
-  };
+  payload: components['schemas']['ResourceCreatedPayload'];
 }
 
 export interface ResourceClonedEvent extends BaseEvent {
   type: 'yield:cloned';
-  payload: {
-    name: string;
-    format: ContentFormat;       // MIME type (validated enum)
-    contentChecksum: string;     // SHA-256 of new content
-    contentByteSize?: number;    // Size of content in bytes
-    parentResourceId: string;   // Content hash of parent resource
-    creationMethod: CreationMethod;  // How the resource was created
-    entityTypes?: string[];
-
-    // First-class fields (promoted from metadata)
-    language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
-  };
+  payload: components['schemas']['ResourceClonedPayload'];
 }
 
 export interface ResourceArchivedEvent extends BaseEvent {
   type: 'mark:archived';
-  payload: {
-    reason?: string;
-  };
+  payload: components['schemas']['ResourceArchivedPayload'];
 }
 
 export interface ResourceUnarchivedEvent extends BaseEvent {
   type: 'mark:unarchived';
-  payload: Record<string, never>;  // Empty payload
+  payload: components['schemas']['ResourceUnarchivedPayload'];
 }
 
 export interface ResourceUpdatedEvent extends BaseEvent {
   type: 'yield:updated';
-  resourceId: ResourceId;  // Required - resource-scoped event
-  payload: {
-    contentChecksum: string;   // SHA-256 of new content
-    contentByteSize?: number;  // Size of content in bytes
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['ResourceUpdatedPayload'];
 }
 
 export interface ResourceMovedEvent extends BaseEvent {
   type: 'yield:moved';
-  resourceId: ResourceId;  // Required - resource-scoped event
-  payload: {
-    fromUri: string;  // Previous file:// URI
-    toUri: string;    // New file:// URI
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['ResourceMovedPayload'];
 }
 
-// Representation events (multi-format support)
 export interface RepresentationAddedEvent extends BaseEvent {
   type: 'yield:representation-added';
-  resourceId: ResourceId;  // Required - resource-scoped event
-  payload: {
-    representation: {
-      '@id': string;           // Unique ID (content hash)
-      mediaType: string;       // MIME type (e.g., 'text/markdown', 'application/pdf')
-      byteSize: number;        // Size in bytes
-      checksum: string;        // Content hash (SHA-256)
-      created: string;         // ISO 8601 timestamp
-      rel?: 'original' | 'thumbnail' | 'preview' | 'optimized' | 'derived' | 'other';
-      storageUri?: string;     // Where bytes are stored (optional)
-      filename?: string;       // Original filename (optional)
-      language?: string;       // IETF BCP 47 language tag (optional, for translations)
-      width?: number;          // Pixels (images/video)
-      height?: number;         // Pixels (images/video)
-      duration?: number;       // Seconds (audio/video)
-    };
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['RepresentationAddedPayload'];
 }
 
 export interface RepresentationRemovedEvent extends BaseEvent {
   type: 'yield:representation-removed';
-  resourceId: ResourceId;  // Required - resource-scoped event
-  payload: {
-    checksum: string;  // Which representation to remove
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['RepresentationRemovedPayload'];
 }
 
-// Unified annotation events
-// Single principle: An annotation is an annotation. The motivation field tells you what kind it is.
+// Annotation events — payloads derived from OpenAPI schemas
 export interface AnnotationAddedEvent extends BaseEvent {
   type: 'mark:added';
-  payload: {
-    annotation: Annotation;
-    contentChecksum?: string;  // SHA-256 of resource content at annotation time (for future staleness detection)
-  };
+  payload: components['schemas']['AnnotationAddedPayload'];
 }
 
 export interface AnnotationRemovedEvent extends BaseEvent {
   type: 'mark:removed';
-  payload: {
-    annotationId: AnnotationId;     // Branded type for compile-time safety
-  };
+  payload: components['schemas']['AnnotationRemovedPayload'];
 }
 
-// Body operation types for fine-grained annotation body modifications
-export type BodyItem =
-  | { type: 'TextualBody'; value: string; purpose?: Motivation; format?: string; language?: string }
-  | { type: 'SpecificResource'; source: string; purpose?: Motivation };
+// Body operation types — derived from OpenAPI schemas
+export type BodyItem = components['schemas']['TextualBody'] | components['schemas']['SpecificResource'];
 
 export type BodyOperation =
-  | { op: 'add'; item: BodyItem }
-  | { op: 'remove'; item: BodyItem }
-  | { op: 'replace'; oldItem: BodyItem; newItem: BodyItem };
+  | components['schemas']['BodyOperationAdd']
+  | components['schemas']['BodyOperationRemove']
+  | components['schemas']['BodyOperationReplace'];
 
 export interface AnnotationBodyUpdatedEvent extends BaseEvent {
   type: 'mark:body-updated';
-  payload: {
-    annotationId: AnnotationId;      // Branded type for compile-time safety
-    operations: BodyOperation[];
-  };
+  payload: components['schemas']['AnnotationBodyUpdatedPayload'];
 }
 
-// Job progress events (resource-level)
-// Emitted by background workers for real-time progress updates
+// Job events — payloads derived from OpenAPI schemas
 export interface JobStartedEvent extends BaseEvent {
   type: 'job:started';
-  resourceId: ResourceId;  // Required - job is scoped to a resource
-  payload: {
-    jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
-    totalSteps?: number;  // Optional - total number of steps if known
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['JobStartedPayload'];
 }
 
 export interface JobProgressEvent extends BaseEvent {
   type: 'job:progress';
-  resourceId: ResourceId;  // Required - job is scoped to a resource
-  payload: {
-    jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
-    percentage: number;  // 0-100
-    currentStep?: string;  // Human-readable current step (e.g., "Scanning for Person")
-    processedSteps?: number;  // Number of steps completed
-    totalSteps?: number;  // Total number of steps
-    foundCount?: number;  // For detection: number of entities found so far
-    message?: string;  // Optional status message
-    progress?: any;  // For new job types: full progress object
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['JobProgressPayload'];
 }
 
 export interface JobCompletedEvent extends BaseEvent {
   type: 'job:completed';
-  resourceId: ResourceId;  // Required - job is scoped to a resource
-  payload: {
-    jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
-    totalSteps?: number;  // Total steps completed
-    foundCount?: number;  // For detection: total entities found
-    resultResourceId?: ResourceId;  // For generation: ID of generated resource (branded type)
-    annotationUri?: AnnotationUri;  // For generation: URI of annotation that triggered generation
-    message?: string;  // Optional completion message
-    result?: any;  // For new job types: full result object
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['JobCompletedPayload'];
 }
 
 export interface JobFailedEvent extends BaseEvent {
   type: 'job:failed';
-  resourceId: ResourceId;  // Required - job is scoped to a resource
-  payload: {
-    jobId: JobId;
-    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
-    error: string;  // Error message
-    details?: string;  // Optional detailed error information
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['JobFailedPayload'];
 }
 
-// Entity tag events (resource-level)
+// Entity tag events — payloads derived from OpenAPI schemas
 export interface EntityTagAddedEvent extends BaseEvent {
   type: 'mark:entity-tag-added';
-  resourceId: ResourceId;  // Required - resource-scoped event
-  payload: {
-    entityType: string;
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['EntityTagChangedPayload'];
 }
 
 export interface EntityTagRemovedEvent extends BaseEvent {
   type: 'mark:entity-tag-removed';
-  resourceId: ResourceId;  // Required - resource-scoped event
-  payload: {
-    entityType: string;
-  };
+  resourceId: ResourceId;
+  payload: components['schemas']['EntityTagChangedPayload'];
 }
 
-// Embedding events (computed by Smelter, persisted by Stower)
+// Embedding events — payloads derived from OpenAPI schemas
 export interface EmbeddingComputedEvent extends BaseEvent {
   type: 'embedding:computed';
   resourceId: ResourceId;
-  payload: {
-    annotationId?: AnnotationId;
-    chunkIndex: number;
-    chunkText: string;
-    embedding: number[];
-    model: string;
-    dimensions: number;
-  };
+  payload: components['schemas']['EmbeddingComputedPayload'];
 }
 
 export interface EmbeddingDeletedEvent extends BaseEvent {
   type: 'embedding:deleted';
   resourceId: ResourceId;
-  payload: {
-    annotationId?: AnnotationId;
-  };
+  payload: components['schemas']['EmbeddingDeletedPayload'];
 }
 
-// Entity type events (global collection)
+// Entity type events (global collection) — payload derived from OpenAPI schema
 export interface EntityTypeAddedEvent extends BaseEvent {
   type: 'mark:entity-type-added';
   resourceId?: undefined;  // System-level event - no resource scope
-  payload: {
-    entityType: string;  // The entity type being added to global collection
-  };
+  payload: components['schemas']['EntityTypeAddedPayload'];
 }
 
 // Union type of all events

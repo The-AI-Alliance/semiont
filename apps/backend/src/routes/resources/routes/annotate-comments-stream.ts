@@ -205,7 +205,7 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               logger.info('Detection completed');
               try {
-                const result = event.payload.result;
+                const result = event.payload.result as Record<string, any> | undefined;
                 await writeTypedSSE(stream, {
                   data: {
                     motivation: 'commenting',

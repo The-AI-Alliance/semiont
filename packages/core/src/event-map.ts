@@ -23,18 +23,8 @@ export type GatheredContext = components['schemas']['GatheredContext'];
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 
-/**
- * Progress state for resource yield workflow
- */
-export interface YieldProgress {
-  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
-  referenceId: string;
-  resourceName?: string;
-  resourceId?: string;
-  sourceResourceId?: string;
-  percentage: number;
-  message?: string;
-}
+/** OpenAPI-derived type for yield progress SSE payloads */
+export type YieldProgress = components['schemas']['YieldProgress'];
 
 /**
  * Selection data for user-initiated annotations
@@ -50,29 +40,8 @@ export interface SelectionData {
   suffix?: string;
 }
 
-/**
- * Progress state for mark workflows (manual and assisted)
- *
- * Unified progress interface supporting different annotation strategies:
- * - Reference annotation: entity-type steps
- * - Other motivations: percentage-based progress
- */
-export interface MarkProgress {
-  status: string;
-  message?: string;
-  /** Reference annotation: currently scanning entity type */
-  currentEntityType?: string;
-  /** Reference annotation: completed entity types with counts (frontend-only) */
-  completedEntityTypes?: Array<{ entityType: string; foundCount: number }>;
-  /** Percentage-based motivations (highlight, assessment, comment, tag) */
-  percentage?: number;
-  /** Category-based motivations (tag) */
-  currentCategory?: string;
-  processedCategories?: number;
-  totalCategories?: number;
-  /** Request parameters for display in progress UI (frontend-only, added by annotation-registry) */
-  requestParams?: Array<{ label: string; value: string }>;
-}
+/** OpenAPI-derived type for mark progress SSE payloads */
+export type MarkProgress = components['schemas']['MarkProgress'];
 
 /**
  * Unified event map for all application events
@@ -110,7 +79,7 @@ export type EventMap = {
   };
   'yield:progress': YieldProgress;
   'yield:finished': YieldProgress;
-  'yield:failed': { error?: Error | string; status?: string; referenceId?: string; percentage?: number; message?: string };
+  'yield:failed': components['schemas']['YieldStreamError'];
 
   // Domain Events (from backend event store) — published as StoredEvent (includes metadata)
   'yield:created': StoredEvent<Extract<ResourceEvent, { type: 'yield:created' }>>;
@@ -267,9 +236,9 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'mark:progress': MarkProgress & { resourceId?: ResourceId };
-  'mark:assist-finished': { motivation?: Motivation; resourceId?: ResourceId; status?: string; percentage?: number; foundCount?: number; createdCount?: number; byCategory?: Record<string, number>; message?: string; progress?: MarkProgress };
-  'mark:assist-failed': { resourceId?: ResourceId; message?: string };
+  'mark:progress': components['schemas']['MarkProgress'];
+  'mark:assist-finished': components['schemas']['MarkAssistFinished'];
+  'mark:assist-failed': components['schemas']['MarkAssistFailed'];
   'mark:assist-cancelled': void;
   'mark:progress-dismiss': void;
 
@@ -340,8 +309,8 @@ export type EventMap = {
   };
   'bind:body-updated': { annotationId: AnnotationId };
   'bind:body-update-failed': { error: Error };
-  'bind:finished': { annotationId: AnnotationId };
-  'bind:failed': { error: Error };
+  'bind:finished': components['schemas']['BindStreamFinished'];
+  'bind:failed': components['schemas']['BindStreamFailed'];
 
   // ========================================================================
   // MATCHER FLOW
@@ -355,19 +324,8 @@ export type EventMap = {
     limit?: number;
     useSemanticScoring?: boolean;
   };
-  'match:search-results': {
-    correlationId: string;
-    referenceId: string;
-    response: Array<components['schemas']['ResourceDescriptor'] & {
-      score?: number;
-      matchReason?: string;
-    }>;
-  };
-  'match:search-failed': {
-    correlationId: string;
-    referenceId: string;
-    error: string;
-  };
+  'match:search-results': components['schemas']['MatchSearchResult'];
+  'match:search-failed': components['schemas']['MatchSearchFailed'];
 
   // ========================================================================
   // GATHER FLOW
@@ -397,15 +355,8 @@ export type EventMap = {
   };
 
   // Annotation-level gather SSE events (streaming transport)
-  'gather:annotation-progress': {
-    message?: string;
-    percentage?: number;
-  };
-  'gather:annotation-finished': {
-    correlationId: string;
-    annotationId: AnnotationId;
-    response: components['schemas']['AnnotationLLMContextResponse'];
-  };
+  'gather:annotation-progress': components['schemas']['GatherProgress'];
+  'gather:annotation-finished': components['schemas']['GatherAnnotationFinished'];
 
   // Resource-level context (for LLM context endpoint)
   'gather:resource-requested': {
@@ -430,15 +381,8 @@ export type EventMap = {
   };
 
   // Resource-level gather SSE events (streaming transport)
-  'gather:progress': {
-    message?: string;
-    percentage?: number;
-  };
-  'gather:finished': {
-    correlationId: string;
-    resourceId: ResourceId;
-    response: components['schemas']['ResourceLLMContextResponse'];
-  };
+  'gather:progress': components['schemas']['GatherProgress'];
+  'gather:finished': components['schemas']['GatherFinished'];
 
   // ========================================================================
   // BROWSE FLOW

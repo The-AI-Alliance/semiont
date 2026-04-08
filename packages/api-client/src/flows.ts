@@ -253,7 +253,7 @@ export class FlowEngine {
         failedSub.unsubscribe();
         this.eventBus.get('gather:complete').next({
           correlationId,
-          annotationId: finishedEvent.annotationId,
+          annotationId: makeAnnotationId(finishedEvent.annotationId),
           response: finishedEvent.response,
         });
       });

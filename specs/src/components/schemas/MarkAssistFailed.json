@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "Error payload emitted on mark:assist-failed SSE channel when AI-assisted annotation fails.",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    }
+  }
+}

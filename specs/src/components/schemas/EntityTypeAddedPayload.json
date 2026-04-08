@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "description": "Payload for mark:entity-type-added domain event",
+  "properties": {
+    "entityType": { "type": "string" }
+  },
+  "required": ["entityType"]
+}

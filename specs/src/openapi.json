@@ -294,6 +294,102 @@
       "BindAnnotationStreamRequest": {
         "$ref": "components/schemas/BindAnnotationStreamRequest.json"
       },
+      "BindStreamFinished": {
+        "$ref": "components/schemas/BindStreamFinished.json"
+      },
+      "BindStreamFailed": {
+        "$ref": "components/schemas/BindStreamFailed.json"
+      },
+      "GatherProgress": {
+        "$ref": "components/schemas/GatherProgress.json"
+      },
+      "GatherAnnotationFinished": {
+        "$ref": "components/schemas/GatherAnnotationFinished.json"
+      },
+      "GatherFinished": {
+        "$ref": "components/schemas/GatherFinished.json"
+      },
+      "MarkProgress": {
+        "$ref": "components/schemas/MarkProgress.json"
+      },
+      "MarkAssistFinished": {
+        "$ref": "components/schemas/MarkAssistFinished.json"
+      },
+      "MarkAssistFailed": {
+        "$ref": "components/schemas/MarkAssistFailed.json"
+      },
+      "MatchSearchResult": {
+        "$ref": "components/schemas/MatchSearchResult.json"
+      },
+      "MatchSearchFailed": {
+        "$ref": "components/schemas/MatchSearchFailed.json"
+      },
+      "YieldProgress": {
+        "$ref": "components/schemas/YieldProgress.json"
+      },
+      "YieldStreamError": {
+        "$ref": "components/schemas/YieldStreamError.json"
+      },
+      "ResourceCreatedPayload": {
+        "$ref": "components/schemas/ResourceCreatedPayload.json"
+      },
+      "ResourceClonedPayload": {
+        "$ref": "components/schemas/ResourceClonedPayload.json"
+      },
+      "ResourceUpdatedPayload": {
+        "$ref": "components/schemas/ResourceUpdatedPayload.json"
+      },
+      "ResourceMovedPayload": {
+        "$ref": "components/schemas/ResourceMovedPayload.json"
+      },
+      "ResourceArchivedPayload": {
+        "$ref": "components/schemas/ResourceArchivedPayload.json"
+      },
+      "ResourceUnarchivedPayload": {
+        "$ref": "components/schemas/ResourceUnarchivedPayload.json"
+      },
+      "RepresentationAddedPayload": {
+        "$ref": "components/schemas/RepresentationAddedPayload.json"
+      },
+      "RepresentationRemovedPayload": {
+        "$ref": "components/schemas/RepresentationRemovedPayload.json"
+      },
+      "AnnotationAddedPayload": {
+        "$ref": "components/schemas/AnnotationAddedPayload.json"
+      },
+      "AnnotationRemovedPayload": {
+        "$ref": "components/schemas/AnnotationRemovedPayload.json"
+      },
+      "AnnotationBodyUpdatedPayload": {
+        "$ref": "components/schemas/AnnotationBodyUpdatedPayload.json"
+      },
+      "EntityTypeAddedPayload": {
+        "$ref": "components/schemas/EntityTypeAddedPayload.json"
+      },
+      "EntityTagChangedPayload": {
+        "$ref": "components/schemas/EntityTagChangedPayload.json"
+      },
+      "JobType": {
+        "$ref": "components/schemas/JobType.json"
+      },
+      "JobStartedPayload": {
+        "$ref": "components/schemas/JobStartedPayload.json"
+      },
+      "JobProgressPayload": {
+        "$ref": "components/schemas/JobProgressPayload.json"
+      },
+      "JobCompletedPayload": {
+        "$ref": "components/schemas/JobCompletedPayload.json"
+      },
+      "JobFailedPayload": {
+        "$ref": "components/schemas/JobFailedPayload.json"
+      },
+      "EmbeddingComputedPayload": {
+        "$ref": "components/schemas/EmbeddingComputedPayload.json"
+      },
+      "EmbeddingDeletedPayload": {
+        "$ref": "components/schemas/EmbeddingDeletedPayload.json"
+      },
       "AnnotateHighlightsStreamRequest": {
         "$ref": "components/schemas/AnnotateHighlightsStreamRequest.json"
       },

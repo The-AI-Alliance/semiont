@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "description": "Payload for mark:archived domain event",
+  "properties": {
+    "reason": { "type": "string" }
+  }
+}
