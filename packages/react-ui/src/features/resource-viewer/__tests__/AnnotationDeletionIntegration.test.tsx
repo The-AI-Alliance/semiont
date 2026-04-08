@@ -138,7 +138,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const deletedListener = vi.fn();
 
     // Subscribe to success event
-    eventBus.get('mark:deleted').subscribe(deletedListener);
+    eventBus.get('mark:delete-ok').subscribe(deletedListener);
 
     emitDelete('annotation-789');
 
