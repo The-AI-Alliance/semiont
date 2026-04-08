@@ -67,28 +67,28 @@ export class ResourceStore {
 
     // Domain events are now StoredEvent — access inner ResourceEvent via .event
     eventBus.get('mark:archived').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateDetail(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateDetail(stored.resourceId);
         this.invalidateLists();
       }
     });
 
     eventBus.get('mark:unarchived').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateDetail(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateDetail(stored.resourceId);
         this.invalidateLists();
       }
     });
 
     eventBus.get('mark:entity-tag-added').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateDetail(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateDetail(stored.resourceId);
       }
     });
 
     eventBus.get('mark:entity-tag-removed').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateDetail(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateDetail(stored.resourceId);
       }
     });
   }

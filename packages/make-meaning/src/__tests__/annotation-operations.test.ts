@@ -310,15 +310,15 @@ describe('AnnotationOperations', () => {
 
       // Check event was emitted
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const addedEvents = events.filter(e => e.event.type === 'mark:added');
+      const addedEvents = events.filter(e => e.type === 'mark:added');
       expect(addedEvents.length).toBeGreaterThan(0);
 
       // Find the event for this specific annotation
       const thisAnnotationEvent = addedEvents.find(
-        e => e.event.type === 'mark:added' && e.event.payload.annotation.id === result.annotation.id
+        e => e.type === 'mark:added' && e.payload.annotation.id === result.annotation.id
       );
       expect(thisAnnotationEvent).toBeDefined();
-      expect(thisAnnotationEvent!.event).toMatchObject({
+      expect(thisAnnotationEvent).toMatchObject({
         type: 'mark:added',
         resourceId: resourceId(testResourceId),
         userId: userId('user-1'),
@@ -725,7 +725,7 @@ describe('AnnotationOperations', () => {
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const updatedEvents = events.filter(e => e.event.type === 'mark:body-updated');
+      const updatedEvents = events.filter(e => e.type === 'mark:body-updated');
       expect(updatedEvents.length).toBeGreaterThan(0);
     });
 
@@ -795,7 +795,7 @@ describe('AnnotationOperations', () => {
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const removedEvents = events.filter(e => e.event.type === 'mark:removed');
+      const removedEvents = events.filter(e => e.type === 'mark:removed');
       expect(removedEvents.length).toBeGreaterThan(0);
     });
 

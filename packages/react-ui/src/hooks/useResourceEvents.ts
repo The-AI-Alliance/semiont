@@ -129,7 +129,8 @@ export function useResourceEvents({
     ];
     const subs = eventTypes.map(type =>
       eventBus.get(type as any).subscribe((stored: StoredEvent) => {
-        handleEvent(stored.event);
+        const { metadata, signature, ...event } = stored;
+        handleEvent(event as ResourceEvent);
       })
     );
     return () => subs.forEach(s => s.unsubscribe());

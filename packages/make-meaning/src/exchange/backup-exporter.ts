@@ -166,8 +166,8 @@ function collectContentRefs(
 
   for (const [, events] of streamData) {
     for (const stored of events) {
-      if (stored.event.type === 'yield:created') {
-        const payload = stored.event.payload as {
+      if (stored.type === 'yield:created') {
+        const payload = stored.payload as {
           storageUri?: string;
           format?: string;
         };

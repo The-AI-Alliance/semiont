@@ -57,12 +57,12 @@ function createMockEmbeddingProvider(): EmbeddingProvider {
 describe('partitionByType', () => {
   it('partitions consecutive same-type events into runs', () => {
     const events = [
-      { event: { type: 'a' } },
-      { event: { type: 'a' } },
-      { event: { type: 'b' } },
-      { event: { type: 'b' } },
-      { event: { type: 'b' } },
-      { event: { type: 'a' } },
+      { type: 'a' },
+      { type: 'a' },
+      { type: 'b' },
+      { type: 'b' },
+      { type: 'b' },
+      { type: 'a' },
     ] as any;
 
     const runs = partitionByType(events);

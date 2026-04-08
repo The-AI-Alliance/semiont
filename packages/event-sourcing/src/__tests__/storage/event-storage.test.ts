@@ -47,10 +47,10 @@ describe('EventStorage', () => {
         payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
       }, resourceId('doc1'));
 
-      expect(stored.event.id).toBeDefined();
-      expect(stored.event.id).toHaveLength(36); // UUID format
-      expect(stored.event.timestamp).toBeDefined();
-      expect(new Date(stored.event.timestamp)).toBeInstanceOf(Date);
+      expect(stored.id).toBeDefined();
+      expect(stored.id).toHaveLength(36); // UUID format
+      expect(stored.timestamp).toBeDefined();
+      expect(new Date(stored.timestamp)).toBeInstanceOf(Date);
     });
 
     it('should calculate checksums for events', async () => {
@@ -386,7 +386,7 @@ describe('EventStorage', () => {
 
       const events = await storage.getAllEvents(resourceId('__system__'));
       expect(events).toHaveLength(2);
-      expect(events[0]?.event.type).toBe('mark:entity-type-added');
+      expect(events[0]?.type).toBe('mark:entity-type-added');
     });
   });
 
@@ -430,8 +430,8 @@ describe('EventStorage', () => {
     it('should get all events for resource', async () => {
       const events = await storage.getAllEvents(resourceId('doc1'));
       expect(events).toHaveLength(2);
-      expect(events[0]?.event.type).toBe('yield:created');
-      expect(events[1]?.event.type).toBe('mark:added');
+      expect(events[0]?.type).toBe('yield:created');
+      expect(events[1]?.type).toBe('mark:added');
     });
 
     it('should return empty array for nonexistent resource', async () => {
@@ -452,7 +452,7 @@ describe('EventStorage', () => {
     it('should get last event from file', async () => {
       const last = await storage.getLastEvent(resourceId('doc1'), 'events-000001.jsonl');
       expect(last).not.toBeNull();
-      expect(last?.event.type).toBe('mark:added');
+      expect(last?.type).toBe('mark:added');
       expect(last?.metadata.sequenceNumber).toBe(2);
     });
 
@@ -502,9 +502,10 @@ describe('EventStorage', () => {
       const json1 = JSON.parse(lines[0]!);
       const json2 = JSON.parse(lines[1]!);
 
-      expect(json1.event).toBeDefined();
+      // Flat shape: event fields + metadata at same level (no .event wrapper)
+      expect(json1.type).toBeDefined();
       expect(json1.metadata).toBeDefined();
-      expect(json2.event).toBeDefined();
+      expect(json2.type).toBeDefined();
       expect(json2.metadata).toBeDefined();
     });
 

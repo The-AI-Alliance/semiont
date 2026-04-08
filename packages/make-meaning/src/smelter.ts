@@ -72,7 +72,7 @@ export class Smelter {
 
     // Build the RxJS pipeline
     this.pipelineSubscription = this.eventSubject.pipe(
-      groupBy((se: StoredEvent) => se.event.resourceId ?? '__unknown__'),
+      groupBy((se: StoredEvent) => se.resourceId ?? '__unknown__'),
       mergeMap((group) =>
         group.pipe(
           burstBuffer<StoredEvent>({
@@ -124,29 +124,29 @@ export class Smelter {
 
       // Collect the final state: last embedding:deleted cancels prior embeddings
       const embeddingEvents = events.filter(
-        (e) => e.event.type === 'embedding:computed' || e.event.type === 'embedding:deleted'
+        (e) => e.type === 'embedding:computed' || e.type === 'embedding:deleted'
       );
       if (embeddingEvents.length === 0) continue;
 
       // Check if the resource was deleted (last event is embedding:deleted with no annotationId)
       const lastEvent = embeddingEvents[embeddingEvents.length - 1];
-      if (lastEvent.event.type === 'embedding:deleted' && !(lastEvent.event as EmbeddingDeletedEvent).payload.annotationId) {
+      if (lastEvent.type === 'embedding:deleted' && !(lastEvent as EmbeddingDeletedEvent).payload.annotationId) {
         continue; // Resource vectors were deleted, skip
       }
 
       // Replay computed events, skipping any whose annotation was later deleted
       const deletedAnnotations = new Set<string>();
       for (const e of embeddingEvents) {
-        if (e.event.type === 'embedding:deleted') {
-          const payload = (e.event as EmbeddingDeletedEvent).payload;
+        if (e.type === 'embedding:deleted') {
+          const payload = (e as EmbeddingDeletedEvent).payload;
           if (payload.annotationId) deletedAnnotations.add(String(payload.annotationId));
         }
       }
 
       const resourceChunks: EmbeddingChunk[] = [];
       for (const e of embeddingEvents) {
-        if (e.event.type !== 'embedding:computed') continue;
-        const payload = (e.event as EmbeddingComputedEvent).payload;
+        if (e.type !== 'embedding:computed') continue;
+        const payload = (e as EmbeddingComputedEvent).payload;
 
         if (payload.annotationId) {
           if (deletedAnnotations.has(String(payload.annotationId))) continue;
@@ -156,7 +156,7 @@ export class Smelter {
             payload.embedding,
             {
               annotationId: makeAnnotationId(String(payload.annotationId)),
-              resourceId: makeResourceId(e.event.resourceId as string),
+              resourceId: makeResourceId(e.resourceId as string),
               motivation: '',
               entityTypes: [],
               exactText: payload.chunkText,
@@ -197,7 +197,7 @@ export class Smelter {
         }
       } catch (error) {
         this.logger.error('Smelter failed to process batch run', {
-          eventType: run[0].event.type,
+          eventType: run[0].type,
           runSize: run.length,
           error,
         });
@@ -211,7 +211,7 @@ export class Smelter {
    * then distributes results back to their respective resources/annotations.
    */
   private async applyBatchByType(events: StoredEvent[]): Promise<void> {
-    const type = events[0].event.type;
+    const type = events[0].type;
 
     switch (type) {
       case 'yield:created':
@@ -237,7 +237,7 @@ export class Smelter {
     const allChunks: string[] = [];
 
     for (const storedEvent of events) {
-      const event = storedEvent.event as ResourceCreatedEvent;
+      const event = storedEvent as ResourceCreatedEvent;
       const rid = makeResourceId(event.resourceId!);
       const storageUri = event.payload.storageUri;
       if (!storageUri) continue;
@@ -297,7 +297,7 @@ export class Smelter {
     }[] = [];
 
     for (const storedEvent of events) {
-      const event = storedEvent.event as AnnotationAddedEvent;
+      const event = storedEvent as AnnotationAddedEvent;
       const annotation = event.payload.annotation;
       if (!annotation?.id) continue;
 
@@ -352,8 +352,8 @@ export class Smelter {
       await this.processEvent(storedEvent);
     } catch (err) {
       this.logger.error('Smelter failed to process event', {
-        type: storedEvent.event.type,
-        resourceId: storedEvent.event.resourceId,
+        type: storedEvent.type,
+        resourceId: storedEvent.resourceId,
         error: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
       });
@@ -361,7 +361,7 @@ export class Smelter {
   }
 
   private async processEvent(storedEvent: StoredEvent): Promise<void> {
-    const event = storedEvent.event;
+    const event = storedEvent;
 
     switch (event.type) {
       case 'yield:created':

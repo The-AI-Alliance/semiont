@@ -134,9 +134,9 @@ describe('Scripting Example: Batch Entity Detection', () => {
         console.log(`✓ [${rId}] Detection complete (${processedCount}/${resources.length})`);
       });
       resourceBus.get('job:failed').subscribe((stored) => {
-        completions.set(rId, { success: false, message: stored.event.payload.error });
+        completions.set(rId, { success: false, message: stored.payload.error });
         processedCount++;
-        console.log(`✗ [${rId}] Detection failed: ${stored.event.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
+        console.log(`✗ [${rId}] Detection failed: ${stored.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
       });
     }
 

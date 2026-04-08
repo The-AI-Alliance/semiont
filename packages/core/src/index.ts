@@ -117,7 +117,7 @@ export type { StoredEventLike } from './event-utils';
 export {
   getAnnotationUriFromEvent,
   isEventRelatedToAnnotation,
-  isResourceEvent as isStoredEvent,
+  isStoredEvent,
 } from './event-utils';
 
 // Event bus (RxJS-based, framework-agnostic)

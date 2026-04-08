@@ -5,16 +5,24 @@
  * - prevEventHash links to previous event's checksum
  * - Each event's checksum is verified against its payload
  * - Detects broken chains and tampered events
- *
- * @see docs/EVENT-STORE.md#eventvalidator for architecture details
  */
 
-import type { StoredEvent } from '@semiont/core';
+import type { StoredEvent, ResourceEvent } from '@semiont/core';
 import { sha256 } from '../storage/shard-utils';
 
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
+}
+
+/**
+ * Extract the ResourceEvent fields from a flat StoredEvent.
+ * Used for checksum computation — the hash covers only the event fields,
+ * not the metadata or signature.
+ */
+function extractResourceEvent(stored: StoredEvent): ResourceEvent {
+  const { metadata, signature, ...event } = stored;
+  return event as ResourceEvent;
 }
 
 /**
@@ -43,8 +51,8 @@ export class EventValidator {
         );
       }
 
-      // Verify checksum of current event
-      const calculated = sha256(curr.event);
+      // Verify checksum of current event (hash covers ResourceEvent fields only)
+      const calculated = sha256(extractResourceEvent(curr));
       if (calculated !== curr.metadata.checksum) {
         errors.push(
           `Checksum mismatch at sequence ${curr.metadata.sequenceNumber}: ` +
@@ -64,7 +72,7 @@ export class EventValidator {
    * Useful for validating events before writing them
    */
   validateEventChecksum(event: StoredEvent): boolean {
-    const calculated = sha256(event.event);
+    const calculated = sha256(extractResourceEvent(event));
     return calculated === event.metadata.checksum;
   }
 

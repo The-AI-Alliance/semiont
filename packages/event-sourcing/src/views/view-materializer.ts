@@ -151,10 +151,10 @@ export class ViewMaterializer {
     events.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
     for (const storedEvent of events) {
-      this.applyEventToResource(resource, storedEvent.event);
-      this.applyEventToAnnotations(annotations, storedEvent.event);
+      this.applyEventToResource(resource, storedEvent);
+      this.applyEventToAnnotations(annotations, storedEvent);
       annotations.version++;
-      annotations.updatedAt = storedEvent.event.timestamp;
+      annotations.updatedAt = storedEvent.timestamp;
     }
 
     return { resource, annotations };

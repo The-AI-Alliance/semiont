@@ -81,7 +81,7 @@ export async function replayEventStream(
 
   // Replay each event
   for (const stored of storedEvents) {
-    await replayEvent(stored.event, eventBus, resolveBlob, stats, logger);
+    await replayEvent(stored, eventBus, resolveBlob, stats, logger);
     stats.eventsReplayed++;
   }
 

@@ -95,8 +95,8 @@ describe('EventQuery', () => {
       const events = await query.getResourceEvents(resourceId('doc1'));
 
       expect(events).toHaveLength(5);
-      expect(events[0]?.event.type).toBe('yield:created');
-      expect(events[4]?.event.type).toBe('mark:entity-tag-added');
+      expect(events[0]?.type).toBe('yield:created');
+      expect(events[4]?.type).toBe('mark:entity-tag-added');
     });
 
     it('should return empty array for nonexistent resource', async () => {
@@ -123,7 +123,7 @@ describe('EventQuery', () => {
       const latest = await query.getLatestEvent(resourceId('doc1'));
 
       expect(latest).not.toBeNull();
-      expect(latest?.event.type).toBe('mark:entity-tag-added');
+      expect(latest?.type).toBe('mark:entity-tag-added');
       expect(latest?.metadata.sequenceNumber).toBe(5);
     });
 
@@ -143,7 +143,7 @@ describe('EventQuery', () => {
 
       expect(events).toHaveLength(3);
       events.forEach(e => {
-        expect(e.event.userId).toBe('user1');
+        expect(e.userId).toBe('user1');
       });
     });
 
@@ -155,7 +155,7 @@ describe('EventQuery', () => {
 
       expect(events).toHaveLength(2);
       events.forEach(e => {
-        expect(e.event.userId).toBe('user2');
+        expect(e.userId).toBe('user2');
       });
     });
 
@@ -178,7 +178,7 @@ describe('EventQuery', () => {
 
       expect(events).toHaveLength(2);
       events.forEach(e => {
-        expect(e.event.type).toBe('mark:added');
+        expect(e.type).toBe('mark:added');
       });
     });
 
@@ -190,7 +190,7 @@ describe('EventQuery', () => {
 
       expect(events).toHaveLength(3);
       events.forEach(e => {
-        expect(['mark:added', 'mark:removed']).toContain(e.event.type);
+        expect(['mark:added', 'mark:removed']).toContain(e.type);
       });
     });
 
@@ -216,7 +216,7 @@ describe('EventQuery', () => {
   describe('Filter by Timestamp', () => {
     it('should filter by fromTimestamp', async () => {
       const allEvents = await query.getResourceEvents(resourceId('doc1'));
-      const cutoff = allEvents[2]?.event.timestamp!;
+      const cutoff = allEvents[2]?.timestamp!;
 
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
@@ -225,13 +225,13 @@ describe('EventQuery', () => {
 
       expect(events.length).toBeGreaterThanOrEqual(3);
       events.forEach(e => {
-        expect(e.event.timestamp >= cutoff).toBe(true);
+        expect(e.timestamp >= cutoff).toBe(true);
       });
     });
 
     it('should filter by toTimestamp', async () => {
       const allEvents = await query.getResourceEvents(resourceId('doc1'));
-      const cutoff = allEvents[1]?.event.timestamp!;
+      const cutoff = allEvents[1]?.timestamp!;
 
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
@@ -239,19 +239,19 @@ describe('EventQuery', () => {
       });
 
       events.forEach(e => {
-        expect(e.event.timestamp <= cutoff).toBe(true);
+        expect(e.timestamp <= cutoff).toBe(true);
       });
 
       const sequences = events.map(e => e.metadata.sequenceNumber).sort();
       expect(sequences).toContain(1);
       expect(sequences).toContain(2);
-      expect(events.every(e => e.event.timestamp <= cutoff)).toBe(true);
+      expect(events.every(e => e.timestamp <= cutoff)).toBe(true);
     });
 
     it('should filter by timestamp range', async () => {
       const allEvents = await query.getResourceEvents(resourceId('doc1'));
-      const from = allEvents[1]?.event.timestamp!;
-      const to = allEvents[3]?.event.timestamp!;
+      const from = allEvents[1]?.timestamp!;
+      const to = allEvents[3]?.timestamp!;
 
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
@@ -261,8 +261,8 @@ describe('EventQuery', () => {
 
       expect(events.length).toBeGreaterThanOrEqual(2);
       events.forEach(e => {
-        expect(e.event.timestamp >= from).toBe(true);
-        expect(e.event.timestamp <= to).toBe(true);
+        expect(e.timestamp >= from).toBe(true);
+        expect(e.timestamp <= to).toBe(true);
       });
     });
 
@@ -327,7 +327,7 @@ describe('EventQuery', () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.event.type).toBe('yield:created');
+      expect(events[0]?.type).toBe('yield:created');
     });
 
     it('should handle limit larger than result set', async () => {
@@ -367,8 +367,8 @@ describe('EventQuery', () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.event.userId).toBe('user1');
-      expect(events[0]?.event.type).toBe('mark:added');
+      expect(events[0]?.userId).toBe('user1');
+      expect(events[0]?.type).toBe('mark:added');
     });
 
     it('should combine userId + limit', async () => {
@@ -380,7 +380,7 @@ describe('EventQuery', () => {
 
       expect(events).toHaveLength(2);
       events.forEach(e => {
-        expect(e.event.userId).toBe('user1');
+        expect(e.userId).toBe('user1');
       });
     });
 
@@ -394,7 +394,7 @@ describe('EventQuery', () => {
 
       expect(events.length).toBeLessThanOrEqual(2);
       events.forEach(e => {
-        expect(['mark:added', 'mark:removed']).toContain(e.event.type);
+        expect(['mark:added', 'mark:removed']).toContain(e.type);
         expect(e.metadata.sequenceNumber >= 2).toBe(true);
       });
     });
@@ -406,15 +406,15 @@ describe('EventQuery', () => {
         resourceId: resourceId('doc1'),
         userId: userId('user1'),
         eventTypes: ['mark:added', 'mark:removed'],
-        fromTimestamp: allEvents[0]?.event.timestamp!,
-        toTimestamp: allEvents[4]?.event.timestamp!,
+        fromTimestamp: allEvents[0]?.timestamp!,
+        toTimestamp: allEvents[4]?.timestamp!,
         fromSequence: 1,
         limit: 10,
       });
 
       events.forEach(e => {
-        expect(e.event.userId).toBe('user1');
-        expect(['mark:added', 'mark:removed']).toContain(e.event.type);
+        expect(e.userId).toBe('user1');
+        expect(['mark:added', 'mark:removed']).toContain(e.type);
       });
     });
   });
@@ -428,7 +428,7 @@ describe('EventQuery', () => {
       const events = await query.getResourceEvents(resourceId('doc2'));
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.event.type).toBe('yield:created');
+      expect(events[0]?.type).toBe('yield:created');
     });
 
     it('should handle getLastEvent for resource with one file', async () => {

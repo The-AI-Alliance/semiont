@@ -365,7 +365,7 @@ export function ResourceViewerPage({
   }, [triggerSparkleAnimation]);
 
   const handleAnnotationAdded = useCallback((stored: EventMap['mark:added']) => {
-    triggerSparkleAnimation(stored.event.payload.annotation.id);
+    triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
   const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);

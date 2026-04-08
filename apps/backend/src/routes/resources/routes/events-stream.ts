@@ -109,23 +109,23 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
       const handleEvent = async (storedEvent: StoredEvent) => {
         if (isStreamClosed) {
-          logger.info('Stream already closed, ignoring event', { streamId, eventType: storedEvent.event.type });
+          logger.info('Stream already closed, ignoring event', { streamId, eventType: storedEvent.type });
           return;
         }
 
         logger.info('Received event, attempting to write to SSE stream', {
           streamId,
-          eventType: storedEvent.event.type
+          eventType: storedEvent.type
         });
 
         try {
           const eventData = {
-            id: storedEvent.event.id,
-            type: storedEvent.event.type,
-            timestamp: storedEvent.event.timestamp,
-            userId: storedEvent.event.userId,
-            resourceId: storedEvent.event.resourceId,
-            payload: storedEvent.event.payload,
+            id: storedEvent.id,
+            type: storedEvent.type,
+            timestamp: storedEvent.timestamp,
+            userId: storedEvent.userId,
+            resourceId: storedEvent.resourceId,
+            payload: storedEvent.payload,
             metadata: {
               sequenceNumber: storedEvent.metadata.sequenceNumber,
               prevEventHash: storedEvent.metadata.prevEventHash,
@@ -145,17 +145,17 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
           await stream.writeSSE({
             data: jsonData,
-            event: storedEvent.event.type,
+            event: storedEvent.type,
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
           logger.info('Successfully wrote event to SSE stream', {
             streamId,
-            eventType: storedEvent.event.type,
+            eventType: storedEvent.type,
           });
         } catch (error) {
           logger.error('Error writing event to SSE stream', {
             streamId,
-            eventType: storedEvent.event.type,
+            eventType: storedEvent.type,
             error
           });
           cleanup();

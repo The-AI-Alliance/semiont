@@ -36,7 +36,6 @@ type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
 type DirEntry       = components['schemas']['DirEntry'];
 type Annotation     = components['schemas']['Annotation'];
-type StoredEvent    = { event: any; metadata: any };
 
 export class Browser {
   private subscriptions: Subscription[] = [];
@@ -235,21 +234,13 @@ export class Browser {
 
       const storedEvents = await eventQuery.queryEvents(filters);
 
-      const events = storedEvents.map((stored: StoredEvent) => ({
-        event: {
-          id: stored.event.id,
-          type: stored.event.type,
-          timestamp: stored.event.timestamp,
-          userId: stored.event.userId,
-          resourceId: stored.event.resourceId,
-          payload: stored.event.payload,
-        },
-        metadata: {
-          sequenceNumber: stored.metadata.sequenceNumber,
-          prevEventHash: stored.metadata.prevEventHash,
-          checksum: stored.metadata.checksum,
-        },
-      }));
+      const events = storedEvents.map((stored) => {
+        const { metadata, signature, ...event } = stored;
+        return {
+          event: { id: event.id, type: event.type as string, timestamp: event.timestamp, userId: event.userId as string, resourceId: event.resourceId as string, payload: event.payload },
+          metadata: { sequenceNumber: metadata.sequenceNumber, prevEventHash: metadata.prevEventHash, checksum: metadata.checksum },
+        };
+      });
 
       this.eventBus.get('browse:events-result').next({
         correlationId: event.correlationId,
@@ -284,26 +275,20 @@ export class Browser {
       const allEvents = await eventQuery.queryEvents({ resourceId: event.resourceId });
 
       // Filter events related to this annotation
-      const annotationEvents = allEvents.filter((stored: StoredEvent) => {
-        const ev = stored.event;
-        if ('highlightId' in ev.payload && ev.payload.highlightId === event.annotationId) return true;
-        if ('referenceId' in ev.payload && ev.payload.referenceId === event.annotationId) return true;
+      const annotationEvents = allEvents.filter((stored) => {
+        const p = stored.payload as any;
+        if (p?.highlightId === event.annotationId) return true;
+        if (p?.referenceId === event.annotationId) return true;
         return false;
       });
 
-      const events = annotationEvents.map((stored: StoredEvent) => ({
-        id: stored.event.id,
-        type: stored.event.type,
-        timestamp: stored.event.timestamp,
-        userId: stored.event.userId,
-        resourceId: stored.event.resourceId,
-        payload: stored.event.payload,
-        metadata: {
-          sequenceNumber: stored.metadata.sequenceNumber,
-          prevEventHash: stored.metadata.prevEventHash,
-          checksum: stored.metadata.checksum,
-        },
-      }));
+      const events = annotationEvents.map((stored) => {
+        const { metadata, signature, ...event } = stored;
+        return {
+          id: event.id, type: event.type as string, timestamp: event.timestamp, userId: event.userId as string, resourceId: event.resourceId as string, payload: event.payload as any,
+          metadata: { sequenceNumber: metadata.sequenceNumber, prevEventHash: metadata.prevEventHash, checksum: metadata.checksum },
+        };
+      });
 
       // Sort by sequence number
       events.sort((a: any, b: any) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);

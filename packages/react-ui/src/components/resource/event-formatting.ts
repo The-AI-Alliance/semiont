@@ -148,7 +148,7 @@ export function getEventDisplayContent(
   annotations: Annotation[], // Unified annotations array (all types)
   allEvents: StoredEventLike[]
 ): { exact: string; isQuoted: boolean; isTag: boolean } | null {
-  const eventData = event.event;
+  const eventData = event;
   const payload = eventData.payload as any;
 
   // Use type discriminators for proper narrowing
@@ -184,12 +184,12 @@ export function getEventDisplayContent(
       // Find the original annotation.added event to get the text
       // payload.annotationId is just the UUID, but annotation.id in the added event is the full URI
       const addedEvent = allEvents.find(e =>
-        e.event.type === 'mark:added' &&
-        (e.event.payload as any).annotation.id.endsWith(`/annotations/${payload.annotationId}`)
+        e.type === 'mark:added' &&
+        (e.payload as any).annotation.id.endsWith(`/annotations/${payload.annotationId}`)
       );
-      if (addedEvent && addedEvent.event.type === 'mark:added') {
+      if (addedEvent && addedEvent.type === 'mark:added') {
         try {
-          const target = (addedEvent.event.payload as any).annotation.target;
+          const target = (addedEvent.payload as any).annotation.target;
           if (typeof target !== 'string' && target.selector) {
             const exact = getExactText(target.selector);
             if (exact) {
@@ -262,7 +262,7 @@ export function getEventDisplayContent(
  * Get entity types from event payload
  */
 export function getEventEntityTypes(event: StoredEventLike): string[] {
-  const eventData = event.event;
+  const eventData = event;
   const payload = eventData.payload as any;
 
   if (eventData.type === 'mark:added') {
@@ -292,7 +292,7 @@ export interface ResourceCreationDetails {
  * Get resource creation details from event
  */
 export function getResourceCreationDetails(event: StoredEventLike): ResourceCreationDetails | null {
-  const eventData = event.event;
+  const eventData = event;
   const payload = eventData.payload as any;
 
   if (eventData.type === 'yield:created') {

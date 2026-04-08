@@ -50,9 +50,9 @@ function makeEvent<T extends ResourceEvent['type']>(
   return { type, payload } as Extract<ResourceEvent, { type: T }>;
 }
 
-// Wrap a ResourceEvent in a StoredEvent shape for the typed channel
+// Create flat StoredEvent shape for typed channels
 function wrapStored(event: any): any {
-  return { event, metadata: { sequenceNumber: 1, timestamp: new Date().toISOString() } };
+  return { ...event, metadata: { sequenceNumber: 1, streamPosition: 0 } };
 }
 
 describe('useResourceEvents', () => {

@@ -138,54 +138,42 @@ describe('event-formatting', () => {
 
   describe('getEventDisplayContent', () => {
     it('returns resource name for yield:created', () => {
-      const event = {
-        event: { type: 'yield:created' as const, payload: { name: 'My Document' }, userId: 'u1', timestamp: '' },
-      } as any;
+      const event = { type: 'yield:created' as const, payload: { name: 'My Document' }, userId: 'u1', timestamp: '' } as any;
       const result = getEventDisplayContent(event, [], []);
       expect(result).toEqual({ exact: 'My Document', isQuoted: false, isTag: false });
     });
 
     it('returns resource name for yield:cloned', () => {
-      const event = {
-        event: { type: 'yield:cloned' as const, payload: { name: 'Cloned Doc' }, userId: 'u1', timestamp: '' },
-      } as any;
+      const event = { type: 'yield:cloned' as const, payload: { name: 'Cloned Doc' }, userId: 'u1', timestamp: '' } as any;
       const result = getEventDisplayContent(event, [], []);
       expect(result).toEqual({ exact: 'Cloned Doc', isQuoted: false, isTag: false });
     });
 
     it('returns entity type for entitytag events', () => {
-      const event = {
-        event: { type: 'mark:entity-tag-added' as const, payload: { entityType: 'Person' }, userId: 'u1', timestamp: '' },
-      } as any;
+      const event = { type: 'mark:entity-tag-added' as const, payload: { entityType: 'Person' }, userId: 'u1', timestamp: '' } as any;
       const result = getEventDisplayContent(event, [], []);
       expect(result).toEqual({ exact: 'Person', isQuoted: false, isTag: true });
     });
 
     it('returns null for job:started', () => {
-      const event = {
-        event: { type: 'job:started' as const, payload: {}, userId: 'u1', timestamp: '' },
-      } as any;
+      const event = { type: 'job:started' as const, payload: {}, userId: 'u1', timestamp: '' } as any;
       expect(getEventDisplayContent(event, [], [])).toBeNull();
     });
 
     it('returns null for yield:representation events', () => {
-      const event = {
-        event: { type: 'yield:representation-added' as const, payload: {}, userId: 'u1', timestamp: '' },
-      } as any;
+      const event = { type: 'yield:representation-added' as const, payload: {}, userId: 'u1', timestamp: '' } as any;
       expect(getEventDisplayContent(event, [], [])).toBeNull();
     });
   });
 
   describe('getEventEntityTypes', () => {
-    it('returns entity types from annotation.added with linking motivation', () => {
+    it('returns entity types from mark:added with linking motivation', () => {
       const event = {
-        event: {
-          type: 'mark:added' as const,
-          payload: {
-            annotation: {
-              motivation: 'linking',
-              body: { entityTypes: ['Person', 'Place'] },
-            },
+        type: 'mark:added' as const,
+        payload: {
+          annotation: {
+            motivation: 'linking',
+            body: { entityTypes: ['Person', 'Place'] },
           },
         },
       } as any;
@@ -194,20 +182,16 @@ describe('event-formatting', () => {
 
     it('returns empty array for non-linking annotations', () => {
       const event = {
-        event: {
-          type: 'mark:added' as const,
-          payload: {
-            annotation: { motivation: 'highlighting', body: null },
-          },
+        type: 'mark:added' as const,
+        payload: {
+          annotation: { motivation: 'highlighting', body: null },
         },
       } as any;
       expect(getEventEntityTypes(event)).toEqual([]);
     });
 
     it('returns empty array for non-annotation events', () => {
-      const event = {
-        event: { type: 'yield:created' as const, payload: { name: 'test' } },
-      } as any;
+      const event = { type: 'yield:created' as const, payload: { name: 'test' } } as any;
       expect(getEventEntityTypes(event)).toEqual([]);
     });
   });
@@ -215,12 +199,10 @@ describe('event-formatting', () => {
   describe('getResourceCreationDetails', () => {
     it('returns created details for yield:created', () => {
       const event = {
-        event: {
-          type: 'yield:created' as const,
-          payload: { name: 'Doc', creationMethod: 'upload' },
-          userId: 'user-1',
-          timestamp: '',
-        },
+        type: 'yield:created' as const,
+        payload: { name: 'Doc', creationMethod: 'upload' },
+        userId: 'user-1',
+        timestamp: '',
       } as any;
       const result = getResourceCreationDetails(event);
       expect(result).toEqual({
@@ -233,12 +215,10 @@ describe('event-formatting', () => {
 
     it('returns cloned details for yield:cloned', () => {
       const event = {
-        event: {
-          type: 'yield:cloned' as const,
-          payload: { name: 'Clone', creationMethod: 'clone', parentResourceId: 'parent-1' },
-          userId: 'user-2',
-          timestamp: '',
-        },
+        type: 'yield:cloned' as const,
+        payload: { name: 'Clone', creationMethod: 'clone', parentResourceId: 'parent-1' },
+        userId: 'user-2',
+        timestamp: '',
       } as any;
       const result = getResourceCreationDetails(event);
       expect(result).toEqual({
@@ -253,20 +233,16 @@ describe('event-formatting', () => {
 
     it('uses fallback method when creationMethod missing', () => {
       const event = {
-        event: {
-          type: 'yield:created' as const,
-          payload: { name: 'Doc' },
-          userId: 'u1',
-          timestamp: '',
-        },
+        type: 'yield:created' as const,
+        payload: { name: 'Doc' },
+        userId: 'u1',
+        timestamp: '',
       } as any;
       expect(getResourceCreationDetails(event)?.method).toBe('unknown');
     });
 
     it('returns null for non-creation events', () => {
-      const event = {
-        event: { type: 'mark:added' as const, payload: {} },
-      } as any;
+      const event = { type: 'mark:added' as const, payload: {} } as any;
       expect(getResourceCreationDetails(event)).toBeNull();
     });
   });

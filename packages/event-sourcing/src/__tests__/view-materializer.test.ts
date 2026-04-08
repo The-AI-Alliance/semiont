@@ -52,15 +52,14 @@ describe('ViewMaterializer', () => {
     } as ResourceEvent;
 
     return {
-      event: fullEvent,
+      ...fullEvent,
       metadata: {
         sequenceNumber,
         streamPosition: sequenceNumber - 1,
-        timestamp: fullEvent.timestamp,
         checksum: `checksum-${sequenceNumber}`,
         prevEventHash: sequenceNumber > 1 ? `checksum-${sequenceNumber - 1}` : undefined,
       },
-    };
+    } as StoredEvent;
   }
 
   describe('Full Projection Rebuild', () => {
@@ -448,7 +447,7 @@ describe('ViewMaterializer', () => {
       const getAllEvents = async () => events;
 
       await projector.materializeIncremental(resourceId('doc1'),
-        events[0]!.event,
+        events[0]!,
         getAllEvents
       );
 
@@ -477,7 +476,7 @@ describe('ViewMaterializer', () => {
       }, 2);
 
       await projector.materializeIncremental(resourceId('doc1'),
-        newEvent.event,
+        newEvent,
         async () => [...initialEvents, newEvent]
       );
 
@@ -506,7 +505,7 @@ describe('ViewMaterializer', () => {
 
       for (const event of events) {
         await projector.materializeIncremental(resourceId('doc1'),
-          event.event,
+          event,
           async () => [...initialEvents, ...events.slice(0, event.metadata.sequenceNumber)]
         );
       }

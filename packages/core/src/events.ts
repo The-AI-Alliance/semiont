@@ -344,7 +344,6 @@ export function getEventType<T extends ResourceEvent>(
 export interface EventMetadata {
   sequenceNumber: number;  // Position in the event log (source of truth for ordering)
   streamPosition: number;  // Byte position in JSONL file
-  timestamp: string;       // When stored (for humans, not ordering)
   prevEventHash?: string;  // SHA-256 of previous event (chain integrity, null for first event)
   checksum?: string;       // SHA-256 of this event for integrity
 }
@@ -357,12 +356,11 @@ export interface EventSignature {
   keyId?: string;          // Key identifier for rotation
 }
 
-// Event with metadata (as stored)
-export interface StoredEvent<T extends ResourceEvent = ResourceEvent> {
-  event: T;
+// Event with metadata (as persisted in JSONL and published on EventBus)
+export type StoredEvent<T extends ResourceEvent = ResourceEvent> = T & {
   metadata: EventMetadata;
   signature?: EventSignature;  // Optional, for federation (unused in MVP)
-}
+};
 
 // Query filters for event retrieval
 export interface EventQuery {

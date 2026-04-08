@@ -85,11 +85,10 @@ function makeStreamSummary(stream: string, eventCount: number) {
 
 function makeStoredEventJson(type: string, payload: Record<string, unknown>) {
   return JSON.stringify({
-    event: { type, resourceId: TEST_RESOURCE, userId: TEST_USER, payload },
+    type, resourceId: TEST_RESOURCE, userId: TEST_USER, payload,
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      timestamp: '2026-03-12T00:00:00Z',
       checksum: 'abc123',
       prevEventHash: null,
     },

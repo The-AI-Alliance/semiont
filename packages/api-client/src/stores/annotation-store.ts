@@ -62,34 +62,34 @@ export class AnnotationStore {
 
     // Domain events are now StoredEvent — access inner ResourceEvent via .event
     eventBus.get('mark:added').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateList(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateList(stored.resourceId);
       }
     });
 
     eventBus.get('mark:removed').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateList(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateList(stored.resourceId);
       }
-      this.invalidateDetail(stored.event.payload.annotationId);
+      this.invalidateDetail(stored.payload.annotationId);
     });
 
     eventBus.get('mark:body-updated').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateList(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateList(stored.resourceId);
       }
-      this.invalidateDetail(stored.event.payload.annotationId);
+      this.invalidateDetail(stored.payload.annotationId);
     });
 
     eventBus.get('mark:entity-tag-added').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateList(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateList(stored.resourceId);
       }
     });
 
     eventBus.get('mark:entity-tag-removed').subscribe((stored) => {
-      if (stored.event.resourceId) {
-        this.invalidateList(stored.event.resourceId);
+      if (stored.resourceId) {
+        this.invalidateList(stored.resourceId);
       }
     });
   }

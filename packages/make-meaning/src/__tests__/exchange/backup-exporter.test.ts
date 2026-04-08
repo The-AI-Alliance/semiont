@@ -45,19 +45,16 @@ function collectWritable(): { writable: Writable; promise: Promise<Buffer> } {
 
 function makeStoredEvent(type: string, payload: Record<string, unknown>, checksum: string): StoredEvent {
   return {
-    event: {
-      id: 'evt-1',
-      type,
-      resourceId: 'resource-1' as ResourceId,
-      userId: 'did:web:localhost:users:test' as UserId,
-      timestamp: '2026-03-12T00:00:00Z',
-      version: 1,
-      payload,
-    },
+    id: 'evt-1',
+    type,
+    resourceId: 'resource-1' as ResourceId,
+    userId: 'did:web:localhost:users:test' as UserId,
+    timestamp: '2026-03-12T00:00:00Z',
+    version: 1,
+    payload,
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      timestamp: '2026-03-12T00:00:00Z',
       checksum,
       prevEventHash: undefined,
     },
@@ -187,7 +184,7 @@ describe('backup-exporter', () => {
     const systemData = entryDataMap.get('.semiont/events/__system__.jsonl')!.toString('utf8');
     const parsedSysEvents = systemData.trim().split('\n').map((l) => JSON.parse(l));
     expect(parsedSysEvents).toHaveLength(1);
-    expect(parsedSysEvents[0].event.type).toBe('mark:entity-type-added');
+    expect(parsedSysEvents[0].type).toBe('mark:entity-type-added');
 
     // Verify content blob
     const contentData = entryDataMap.get('sha-content.md')!;

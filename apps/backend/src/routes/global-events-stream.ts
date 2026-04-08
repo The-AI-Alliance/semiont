@@ -85,12 +85,12 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
 
       try {
         const eventData = {
-          id: storedEvent.event.id,
-          type: storedEvent.event.type,
-          timestamp: storedEvent.event.timestamp,
-          userId: storedEvent.event.userId,
-          resourceId: storedEvent.event.resourceId,
-          payload: storedEvent.event.payload,
+          id: storedEvent.id,
+          type: storedEvent.type,
+          timestamp: storedEvent.timestamp,
+          userId: storedEvent.userId,
+          resourceId: storedEvent.resourceId,
+          payload: storedEvent.payload,
           metadata: {
             sequenceNumber: storedEvent.metadata.sequenceNumber,
             prevEventHash: storedEvent.metadata.prevEventHash,
@@ -100,13 +100,13 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
 
         await stream.writeSSE({
           data: JSON.stringify(eventData),
-          event: storedEvent.event.type,
+          event: storedEvent.type,
           id: storedEvent.metadata.sequenceNumber.toString(),
         });
       } catch (error) {
         logger.error('Error writing event to global SSE stream', {
           streamId,
-          eventType: storedEvent.event.type,
+          eventType: storedEvent.type,
           error,
         });
         cleanup();

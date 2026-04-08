@@ -230,7 +230,7 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
 
           // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('job:completed').subscribe(async (stored) => { const event = stored.event;
+            resourceBus.get('job:completed').subscribe(async (event) => {
               if (isStreamClosed) return;
               logger.info('Generation completed');
               try {

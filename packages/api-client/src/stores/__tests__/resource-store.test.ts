@@ -14,9 +14,9 @@ import type { ResourceDetail, ResourceListResponse } from '../resource-store';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-/** Wrap a partial event in StoredEvent shape for domain event channels */
+/** Create flat StoredEvent shape for domain event channels */
 function stored(event: Record<string, any>): any {
-  return { event, metadata: { sequenceNumber: 1, timestamp: new Date().toISOString() } };
+  return { ...event, metadata: { sequenceNumber: 1, streamPosition: 0 } };
 }
 
 function mockResource(id: string): ResourceDescriptor {

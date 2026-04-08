@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ViewManager } from '../view-manager';
 import type { ViewStorage, ResourceView } from '../storage/view-storage';
 import { resourceId, userId } from '@semiont/core';
-import type { StoredEvent, EventMetadata } from '@semiont/core';
+import type { EventMetadata } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -18,7 +18,6 @@ function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMe
   return {
     sequenceNumber,
     streamPosition: sequenceNumber * 100,
-    timestamp: new Date().toISOString(),
     prevEventHash: prevHash,
   };
 }
@@ -108,7 +107,6 @@ describe('ViewManager', () => {
 
       const getAllEvents = vi.fn().mockResolvedValue([
         {
-          event: {
             id: 'event0',
             type: 'yield:created' as const,
             timestamp: new Date().toISOString(),
@@ -121,14 +119,13 @@ describe('ViewManager', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
-          metadata: createEventMetadata(1),
+            metadata: createEventMetadata(1),
         },
         {
-          event,
+          ...event,
           metadata: createEventMetadata(2, 'hash0'),
         },
-      ]);
+      ] as any);
 
       await manager.materializeResource(rid, event, getAllEvents);
 
@@ -178,9 +175,8 @@ describe('ViewManager', () => {
 
     it('should materialize view from events if not cached', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
@@ -193,8 +189,7 @@ describe('ViewManager', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
-          metadata: createEventMetadata(1),
+            metadata: createEventMetadata(1),
         },
       ];
 
