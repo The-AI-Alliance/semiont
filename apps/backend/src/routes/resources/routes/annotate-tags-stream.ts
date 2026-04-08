@@ -219,7 +219,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
 
           // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('job:completed').subscribe(async (event) => {
+            resourceBus.get('job:completed').subscribe(async (stored) => { const event = stored.event;
       if (event.payload.jobType !== 'tag-annotation') return;
               if (isStreamClosed) return;
               logger.info('Detection completed');
@@ -250,7 +250,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
 
           // Subscribe to job:failed
           subscriptions.push(
-            resourceBus.get('job:failed').subscribe(async (event) => {
+            resourceBus.get('job:failed').subscribe(async (stored) => { const event = stored.event;
       if (event.payload.jobType !== 'tag-annotation') return;
               if (isStreamClosed) return;
               logger.info('Detection failed', { error: event.payload.error });

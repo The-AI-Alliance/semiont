@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, EventBus } from '@semiont/core';
+import { resourceId as toResourceId, EventBus, type ResourceEventType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -53,11 +53,23 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
   const eventBus = new EventBus();
   let eventCount = 0;
 
-  // Print every domain event as NDJSON
-  eventBus.get('make-meaning:event').subscribe((event) => {
-    eventCount++;
-    process.stdout.write(JSON.stringify(event) + '\n');
-  });
+  // Print every domain event as NDJSON — subscribe to all event types
+  const allEventTypes: ResourceEventType[] = [
+    'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
+    'yield:representation-added', 'yield:representation-removed',
+    'mark:added', 'mark:removed', 'mark:body-updated',
+    'mark:archived', 'mark:unarchived',
+    'mark:entity-tag-added', 'mark:entity-tag-removed',
+    'mark:entity-type-added',
+    'job:started', 'job:progress', 'job:completed', 'job:failed',
+    'embedding:computed', 'embedding:deleted',
+  ];
+  for (const eventType of allEventTypes) {
+    eventBus.get(eventType as any).subscribe((event) => {
+      eventCount++;
+      process.stdout.write(JSON.stringify(event) + '\n');
+    });
+  }
 
   const label = isResourceScoped
     ? `Listening for events on resource ${rawResourceId}`

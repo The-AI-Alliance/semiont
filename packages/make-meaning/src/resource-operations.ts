@@ -51,7 +51,7 @@ export class ResourceOperations {
   ): Promise<ResourceId> {
     // Set up listeners before emitting
     const result$ = race(
-      eventBus.get('yield:created').pipe(
+      eventBus.get('yield:create-ok').pipe(
         take(1),
         map((result) => ({ ok: true as const, result })),
       ),

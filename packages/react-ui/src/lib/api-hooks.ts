@@ -158,7 +158,7 @@ export function useResources() {
             return client.updateResource(id, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_data, variables) => {
-            eventBus.get('yield:updated').next({ resourceId: variables.id });
+            eventBus.get('yield:update-ok').next({ resourceId: variables.id });
           },
         });
       },

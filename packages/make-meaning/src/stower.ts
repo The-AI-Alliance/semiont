@@ -168,7 +168,7 @@ export class Stower {
         ],
       };
 
-      this.eventBus.get('yield:created').next({ resourceId: rId, resource });
+      this.eventBus.get('yield:create-ok').next({ resourceId: rId, resource });
     } catch (error) {
       this.logger.error('Failed to create resource', { error });
       this.eventBus.get('yield:create-failed').next({
@@ -199,7 +199,7 @@ export class Stower {
           contentByteSize: byteSize,
         },
       });
-      this.eventBus.get('yield:updated').next({ resourceId: event.resourceId });
+      this.eventBus.get('yield:update-ok').next({ resourceId: event.resourceId });
     } catch (error) {
       this.logger.error('Failed to update resource', { error });
       this.eventBus.get('yield:update-failed').next({
@@ -235,7 +235,7 @@ export class Stower {
           toUri: event.toUri,
         },
       });
-      this.eventBus.get('yield:moved').next({ resourceId: rId });
+      this.eventBus.get('yield:move-ok').next({ resourceId: rId });
     } catch (error) {
       this.logger.error('Failed to move resource', { error });
       this.eventBus.get('yield:move-failed').next({
@@ -255,7 +255,7 @@ export class Stower {
         version: 1,
         payload: { annotation: event.annotation },
       });
-      this.eventBus.get('mark:created').next({ annotationId: makeAnnotationId(event.annotation.id) });
+      this.eventBus.get('mark:create-ok').next({ annotationId: makeAnnotationId(event.annotation.id) });
     } catch (error) {
       this.logger.error('Failed to create annotation', { error });
       this.eventBus.get('mark:create-failed').next({
@@ -277,7 +277,7 @@ export class Stower {
         version: 1,
         payload: { annotationId: event.annotationId },
       });
-      this.eventBus.get('mark:deleted').next({ annotationId: event.annotationId });
+      this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
     } catch (error) {
       this.logger.error('Failed to delete annotation', { error });
       this.eventBus.get('mark:delete-failed').next({

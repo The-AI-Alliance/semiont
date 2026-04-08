@@ -12,10 +12,10 @@ import { EventQuery } from '@semiont/event-sourcing';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { resourceId, type StoredEvent } from '@semiont/core';
+import { resourceId, type StoredEvent, type ResourceEventType } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import { getLogger } from '../../../logger';
-import type { Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -75,7 +75,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
       // Track if stream is closed to prevent double cleanup
       let isStreamClosed = false;
-      let subscription: Subscription | null = null;
+      const subscriptions: Subscription[] = [];
       let keepAliveInterval: NodeJS.Timeout | null = null;
       let closeStreamCallback: (() => void) | null = null;
 
@@ -94,9 +94,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
           clearInterval(keepAliveInterval);
         }
 
-        if (subscription) {
-          subscription.unsubscribe();
-        }
+        for (const sub of subscriptions) sub.unsubscribe();
 
         // Close the stream by resolving the promise
         if (closeStreamCallback) {
@@ -104,11 +102,12 @@ export function registerGetEventStream(router: ResourcesRouterType) {
         }
       };
 
-      // Subscribe to resource-scoped domain events via Core EventBus
+      // Subscribe to each domain event type on the resource-scoped Core EventBus
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
       logger.info('Subscribing to events for resource', { streamId, resourceId: rId });
       const scopedBus = eventBus.scope(String(rId));
-      subscription = scopedBus.get('make-meaning:event').subscribe(async (storedEvent: StoredEvent) => {
+
+      const handleEvent = async (storedEvent: StoredEvent) => {
         if (isStreamClosed) {
           logger.info('Stream already closed, ignoring event', { streamId, eventType: storedEvent.event.type });
           return;
@@ -161,7 +160,23 @@ export function registerGetEventStream(router: ResourcesRouterType) {
           });
           cleanup();
         }
-      });
+      };
+
+      // Subscribe to all resource-scoped event types
+      const eventTypes: ResourceEventType[] = [
+        'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
+        'yield:representation-added', 'yield:representation-removed',
+        'mark:added', 'mark:removed', 'mark:body-updated',
+        'mark:archived', 'mark:unarchived',
+        'mark:entity-tag-added', 'mark:entity-tag-removed',
+        'job:started', 'job:progress', 'job:completed', 'job:failed',
+        'embedding:computed', 'embedding:deleted',
+      ];
+      for (const eventType of eventTypes) {
+        subscriptions.push(
+          scopedBus.get(eventType as any).subscribe(handleEvent)
+        );
+      }
 
       // Keep-alive ping every 30 seconds
       keepAliveInterval = setInterval(async () => {

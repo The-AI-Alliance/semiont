@@ -132,10 +132,10 @@ describe('Scripting Example: Create Resource', () => {
     // result is already a ResourceId
     const resourceBus = eventBus.scope(result);
 
-    // Subscribe to the generic domain event channel BEFORE creating the update event
-    const sub = resourceBus.get('make-meaning:event').subscribe(event => {
-      domainEvents.push(event);
-    });
+    // Subscribe to typed domain event channels BEFORE creating the update event
+    const subs = (['yield:updated', 'mark:archived', 'mark:unarchived'] as const).map(type =>
+      resourceBus.get(type).subscribe(event => { domainEvents.push(event); })
+    );
 
     // Now create another event (like archiving the resource)
     await ResourceOperations.updateResource(
@@ -156,7 +156,7 @@ describe('Scripting Example: Create Resource', () => {
     const archiveEvent = domainEvents.find(e => e.type === 'mark:archived');
     expect(archiveEvent).toBeDefined();
 
-    sub.unsubscribe();
+    subs.forEach(s => s.unsubscribe());
   });
 
   it('demonstrates typical script pattern', async () => {

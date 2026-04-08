@@ -718,7 +718,7 @@ export class SSEClient {
     const url = `${this.baseUrl}/resources/${resourceId}/events/stream`;
 
     // Events auto-route to EventBus:
-    // - Domain events (annotation.added, job.completed, etc.) emit to both their specific channel and 'make-meaning:event'
+    // - Domain events (mark:added, job:completed, etc.) emit to their typed channel
     // - stream-connected emits to 'stream-connected' channel (subscribers can handle or ignore)
     // No manual .on() registration needed - declarative auto-routing based on Event Map
     const stream = createSSEStream(
@@ -759,11 +759,9 @@ export class SSEClient {
    * ```typescript
    * const stream = sseClient.globalEvents({ auth: 'your-token', eventBus });
    *
-   * // Events auto-emit to EventBus — subscribe there
-   * eventBus.get('make-meaning:event').subscribe((event) => {
-   *   if (event.type === 'mark:entity-type-added') {
-   *     // Invalidate entity types query
-   *   }
+   * // Events auto-emit to EventBus typed channels — subscribe there
+   * eventBus.get('mark:entity-type-added').subscribe((stored) => {
+   *   // Invalidate entity types query
    * });
    *
    * // Close when no longer needed

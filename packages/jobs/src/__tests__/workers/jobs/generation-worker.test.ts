@@ -84,7 +84,7 @@ describe('GenerationWorker - Event Emission', () => {
     // Must be async so the response arrives after firstValueFrom subscribes to the race
     eventBus.get('yield:create').subscribe(() => {
       setTimeout(() => {
-        eventBus.get('yield:created').next({
+        eventBus.get('yield:create-ok').next({
           resourceId: resourceId(`generated-${Date.now()}`),
           resource: {} as any, // Worker only reads resourceId
         } as any);

@@ -158,7 +158,7 @@ export class FlowEngine {
             target: { source: rUri, selector: event.selector as Selector },
             body: event.body,
           }, { auth: getToken() });
-          this.eventBus.get('mark:created').next({ annotationId: makeAnnotationId(result.annotationId) });
+          this.eventBus.get('mark:create-ok').next({ annotationId: makeAnnotationId(result.annotationId) });
         } catch (error) {
           this.eventBus.get('mark:create-failed').next({ error: error as Error });
         }
@@ -169,7 +169,7 @@ export class FlowEngine {
       this.eventBus.get('mark:delete').subscribe(async (event: EventMap['mark:delete']) => {
         try {
           await this.http.deleteAnnotation(rUri, event.annotationId, { auth: getToken() });
-          this.eventBus.get('mark:deleted').next({ annotationId: event.annotationId });
+          this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
         } catch (error) {
           this.eventBus.get('mark:delete-failed').next({ error: error as Error });
         }

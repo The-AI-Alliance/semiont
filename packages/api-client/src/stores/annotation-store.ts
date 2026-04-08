@@ -56,7 +56,7 @@ export class AnnotationStore {
     private readonly http: SemiontApiClient,
     eventBus: EventBus,
   ) {
-    eventBus.get('mark:deleted').subscribe((event: EventMap['mark:deleted']) => {
+    eventBus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
       this.removeFromDetailCache(event.annotationId);
     });
 

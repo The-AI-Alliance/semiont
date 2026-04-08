@@ -234,12 +234,9 @@ export function createSSEStream(
       });
 
       // Auto-route domain events: Events with 'metadata' field are StoredEvents from event store
-      // Emit to the event-type channel and the generic firehose channel
+      // Emit to the typed event channel (e.g., 'mark:added')
       if (typeof parsed === 'object' && parsed !== null && 'metadata' in parsed) {
-        // Emit to specific domain event channel (e.g., 'mark:added')
         config.eventBus.get(eventType as EventName).next(parsed);
-        // Also emit to generic domain event channel for broad subscribers
-        config.eventBus.get('make-meaning:event').next(parsed);
         return; // Domain events don't need prefix mapping
       }
 

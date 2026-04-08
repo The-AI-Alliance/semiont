@@ -144,7 +144,7 @@ describe('backup-importer', () => {
     eventBus.get('yield:create').subscribe((msg) => {
       expect(msg.name).toBe('Test Doc');
       expect(msg.content!.toString('utf8')).toBe('# Hello World');
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -155,7 +155,7 @@ describe('backup-importer', () => {
       makeStreamSummary(TEST_RESOURCE, 1),
     ].join('\n') + '\n';
 
-    const resourceEvents = makeStoredEventJson('yield:created', {
+    const resourceEvents = makeStoredEventJson('yield:create-ok', {
       name: 'Test Doc',
       contentChecksum: 'sha-content',
       format: 'text/markdown',
@@ -181,7 +181,7 @@ describe('backup-importer', () => {
     let receivedContent: Buffer | undefined;
     eventBus.get('yield:create').subscribe((msg) => {
       receivedContent = msg.content;
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -192,7 +192,7 @@ describe('backup-importer', () => {
       makeStreamSummary(TEST_RESOURCE, 1),
     ].join('\n') + '\n';
 
-    const resourceEvents = makeStoredEventJson('yield:created', {
+    const resourceEvents = makeStoredEventJson('yield:create-ok', {
       name: 'Binary Doc',
       contentChecksum: 'deadbeef1234',
       format: 'application/pdf',
@@ -285,7 +285,7 @@ describe('backup-importer', () => {
 
     eventBus.get('yield:create').subscribe(() => {
       order.push('resource-created');
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -298,7 +298,7 @@ describe('backup-importer', () => {
     ].join('\n') + '\n';
 
     const systemEvents = makeStoredEventJson('mark:entity-type-added', { entityType: 'Person' }) + '\n';
-    const resourceEvents = makeStoredEventJson('yield:created', {
+    const resourceEvents = makeStoredEventJson('yield:create-ok', {
       name: 'Doc',
       contentChecksum: 'chk1',
       format: 'text/markdown',
@@ -322,7 +322,7 @@ describe('backup-importer', () => {
     });
 
     eventBus.get('yield:create').subscribe(() => {
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -343,11 +343,11 @@ describe('backup-importer', () => {
       makeStoredEventJson('mark:entity-type-added', { entityType: 'B' }),
     ].join('\n') + '\n';
 
-    const res1Events = makeStoredEventJson('yield:created', {
+    const res1Events = makeStoredEventJson('yield:create-ok', {
       name: 'Doc 1', contentChecksum: 'c1', format: 'text/markdown',
     }) + '\n';
 
-    const res2Events = makeStoredEventJson('yield:created', {
+    const res2Events = makeStoredEventJson('yield:create-ok', {
       name: 'Doc 2', contentChecksum: 'c2', format: 'text/markdown',
     }) + '\n';
 

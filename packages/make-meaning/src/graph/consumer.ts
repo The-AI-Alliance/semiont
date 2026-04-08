@@ -44,7 +44,7 @@ export class GraphDBConsumer {
   private static readonly MAX_BATCH_SIZE = 500;
   private static readonly IDLE_TIMEOUT_MS = 200;
 
-  private _globalSubscription: Subscription | null = null;
+  private _globalSubscriptions: Subscription[] = [];
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private lastProcessed: Map<string, number> = new Map();
@@ -69,13 +69,14 @@ export class GraphDBConsumer {
    * and wire through the RxJS burst-buffered pipeline.
    */
   private async subscribeToGlobalEvents() {
-    // Subscribe to the Core EventBus firehose — all domain events as StoredEvent
-    this._globalSubscription = this.coreEventBus.get('make-meaning:event').subscribe(
-      (storedEvent: StoredEvent) => {
-        if (!GraphDBConsumer.GRAPH_RELEVANT_EVENTS.has(storedEvent.event.type)) return;
-        this.eventSubject.next(storedEvent);
-      }
-    );
+    // Subscribe to each graph-relevant event type on the Core EventBus
+    for (const eventType of GraphDBConsumer.GRAPH_RELEVANT_EVENTS) {
+      this._globalSubscriptions.push(
+        this.coreEventBus.get(eventType as any).subscribe(
+          (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
+        )
+      );
+    }
 
     // Build the RxJS pipeline
     this.pipelineSubscription = this.eventSubject.pipe(
@@ -147,8 +148,8 @@ export class GraphDBConsumer {
     this.logger.info('Stopping GraphDB consumer');
 
     // Unsubscribe from event source (stops feeding the Subject)
-    this._globalSubscription?.unsubscribe();
-    this._globalSubscription = null;
+    for (const sub of this._globalSubscriptions) sub.unsubscribe();
+    this._globalSubscriptions = [];
 
     // Complete the Subject — this triggers burst buffer flush of remaining events
     this.eventSubject.complete();
@@ -483,7 +484,7 @@ export class GraphDBConsumer {
     pipelineActive: boolean;
   } {
     return {
-      subscriptions: this._globalSubscription ? 1 : 0,
+      subscriptions: this._globalSubscriptions.length,
       lastProcessed: Object.fromEntries(this.lastProcessed),
       pipelineActive: !!this.pipelineSubscription,
     };

@@ -167,7 +167,7 @@ describe('linked-data-importer', () => {
       expect(msg.name).toBe('Test Document');
       expect(msg.format).toBe('text/markdown');
       expect(msg.language).toBe('en');
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -193,7 +193,7 @@ describe('linked-data-importer', () => {
 
   it('imports annotations for a resource', async () => {
     eventBus.get('yield:create').subscribe(() => {
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -202,7 +202,7 @@ describe('linked-data-importer', () => {
     const annotationIds: string[] = [];
     eventBus.get('mark:create').subscribe((msg) => {
       annotationIds.push(msg.annotation.id);
-      defer(() => eventBus.get('mark:created').next({
+      defer(() => eventBus.get('mark:create-ok').next({
         annotationId: msg.annotation.id as AnnotationId,
       }));
     });
@@ -247,7 +247,7 @@ describe('linked-data-importer', () => {
     const createdNames: string[] = [];
     eventBus.get('yield:create').subscribe((msg) => {
       createdNames.push(msg.name);
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: `res-${createdNames.length}` as ResourceId,
         resource: STUB_RESOURCE,
       }));
@@ -328,7 +328,7 @@ describe('linked-data-importer', () => {
 
   it('throws when content blob is missing for a resource', async () => {
     eventBus.get('yield:create').subscribe(() => {
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -355,7 +355,7 @@ describe('linked-data-importer', () => {
 
     eventBus.get('yield:create').subscribe((msg) => {
       expect(msg.userId).toBe(customUser);
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -377,7 +377,7 @@ describe('linked-data-importer', () => {
   it('handles PDF content blobs', async () => {
     eventBus.get('yield:create').subscribe((msg) => {
       expect(msg.format).toBe('application/pdf');
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));

@@ -127,18 +127,16 @@ describe('Scripting Example: Batch Entity Detection', () => {
         console.log(`[${rId}] ${progress.status}: ${progress.message || ''}`);
       });
 
-      // Track completion and failures
-      // Subscribe to domain event 'make-meaning:event' and filter for job.completed/job.failed
-      resourceBus.get('make-meaning:event').subscribe((event) => {
-        if (event.event.type === 'job:completed') {
-          completions.set(rId, { success: true });
-          processedCount++;
-          console.log(`✓ [${rId}] Detection complete (${processedCount}/${resources.length})`);
-        } else if (event.event.type === 'job:failed') {
-          completions.set(rId, { success: false, message: event.event.payload.error });
-          processedCount++;
-          console.log(`✗ [${rId}] Detection failed: ${event.event.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
-        }
+      // Track completion and failures via typed channels
+      resourceBus.get('job:completed').subscribe(() => {
+        completions.set(rId, { success: true });
+        processedCount++;
+        console.log(`✓ [${rId}] Detection complete (${processedCount}/${resources.length})`);
+      });
+      resourceBus.get('job:failed').subscribe((stored) => {
+        completions.set(rId, { success: false, message: stored.event.payload.error });
+        processedCount++;
+        console.log(`✗ [${rId}] Detection failed: ${stored.event.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
       });
     }
 
@@ -232,13 +230,12 @@ describe('Scripting Example: Batch Entity Detection', () => {
     for (const rId of resources) {
       const resourceBus = eventBus.scope(rId);
 
-      // Subscribe to domain event 'make-meaning:event' and filter for job.completed/job.failed
-      resourceBus.get('make-meaning:event').subscribe((event) => {
-        if (event.event.type === 'job:completed') {
-          completions.set(rId, { success: true });
-        } else if (event.event.type === 'job:failed') {
-          completions.set(rId, { success: false });
-        }
+      // Subscribe to typed channels for job completion/failure
+      resourceBus.get('job:completed').subscribe(() => {
+        completions.set(rId, { success: true });
+      });
+      resourceBus.get('job:failed').subscribe(() => {
+        completions.set(rId, { success: false });
       });
     }
 

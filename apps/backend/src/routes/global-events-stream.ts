@@ -38,8 +38,6 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
 
   logger.info('Client connecting to global events stream');
 
-  const { knowledgeSystem: { kb: { eventStore } } } = c.get('makeMeaning');
-
   return streamSSE(c, async (stream) => {
     // Send initial connection message
     await stream.writeSSE({
@@ -77,12 +75,12 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
       }
     };
 
-    // Subscribe globally via Core EventBus firehose — all domain events as StoredEvent
+    // Subscribe to system-level event types on the Core EventBus
     const eventBus = c.get('eventBus');
     const streamId = `global-${Math.random().toString(36).substring(2, 9)}`;
     logger.info('Subscribing to global events', { streamId });
 
-    const subscription: Subscription = eventBus.get('make-meaning:event').subscribe(async (storedEvent: StoredEvent) => {
+    const handleEvent = async (storedEvent: StoredEvent) => {
       if (isStreamClosed) return;
 
       try {
@@ -113,7 +111,10 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
         });
         cleanup();
       }
-    });
+    };
+
+    // Subscribe to system-level event types
+    const subscription: Subscription = eventBus.get('mark:entity-type-added').subscribe(handleEvent);
 
     // Keep-alive ping every 30 seconds
     keepAliveInterval = setInterval(async () => {

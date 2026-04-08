@@ -50,6 +50,11 @@ function makeEvent<T extends ResourceEvent['type']>(
   return { type, payload } as Extract<ResourceEvent, { type: T }>;
 }
 
+// Wrap a ResourceEvent in a StoredEvent shape for the typed channel
+function wrapStored(event: any): any {
+  return { event, metadata: { sequenceNumber: 1, timestamp: new Date().toISOString() } };
+}
+
 describe('useResourceEvents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -126,14 +131,14 @@ describe('useResourceEvents', () => {
       );
     }
 
-    it('dispatches annotation.added to onAnnotationAdded', async () => {
+    it('dispatches mark:added to onAnnotationAdded', async () => {
       const onAnnotationAdded = vi.fn();
       const { result } = renderWithHandlers({ onAnnotationAdded });
 
-      const event = makeEvent('annotation.added', { annotation: { id: 'ann-1' } } as any);
+      const event = makeEvent('mark:added', { annotation: { id: 'ann-1' } } as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:added' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -141,14 +146,14 @@ describe('useResourceEvents', () => {
       });
     });
 
-    it('dispatches annotation.removed to onAnnotationRemoved', async () => {
+    it('dispatches mark:removed to onAnnotationRemoved', async () => {
       const onAnnotationRemoved = vi.fn();
       const { result } = renderWithHandlers({ onAnnotationRemoved });
 
-      const event = makeEvent('annotation.removed', { annotationId: 'ann-1' } as any);
+      const event = makeEvent('mark:removed', { annotationId: 'ann-1' } as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:removed' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -156,14 +161,14 @@ describe('useResourceEvents', () => {
       });
     });
 
-    it('dispatches annotation.body.updated to onAnnotationBodyUpdated', async () => {
+    it('dispatches mark:body-updated to onAnnotationBodyUpdated', async () => {
       const onAnnotationBodyUpdated = vi.fn();
       const { result } = renderWithHandlers({ onAnnotationBodyUpdated });
 
-      const event = makeEvent('annotation.body.updated', { annotationId: 'ann-1' } as any);
+      const event = makeEvent('mark:body-updated', { annotationId: 'ann-1' } as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:body-updated' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -171,14 +176,14 @@ describe('useResourceEvents', () => {
       });
     });
 
-    it('dispatches entitytag.added to onEntityTagAdded', async () => {
+    it('dispatches mark:entity-tag-added to onEntityTagAdded', async () => {
       const onEntityTagAdded = vi.fn();
       const { result } = renderWithHandlers({ onEntityTagAdded });
 
-      const event = makeEvent('entitytag.added', { entityType: 'Animal' } as any);
+      const event = makeEvent('mark:entity-tag-added', { entityType: 'Animal' } as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:entity-tag-added' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -186,14 +191,14 @@ describe('useResourceEvents', () => {
       });
     });
 
-    it('dispatches entitytag.removed to onEntityTagRemoved', async () => {
+    it('dispatches mark:entity-tag-removed to onEntityTagRemoved', async () => {
       const onEntityTagRemoved = vi.fn();
       const { result } = renderWithHandlers({ onEntityTagRemoved });
 
-      const event = makeEvent('entitytag.removed', { entityType: 'Animal' } as any);
+      const event = makeEvent('mark:entity-tag-removed', { entityType: 'Animal' } as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:entity-tag-removed' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -201,14 +206,14 @@ describe('useResourceEvents', () => {
       });
     });
 
-    it('dispatches resource.archived to onDocumentArchived', async () => {
+    it('dispatches mark:archived to onDocumentArchived', async () => {
       const onDocumentArchived = vi.fn();
       const { result } = renderWithHandlers({ onDocumentArchived });
 
-      const event = makeEvent('resource.archived', {} as any);
+      const event = makeEvent('mark:archived', {} as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:archived' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -216,14 +221,14 @@ describe('useResourceEvents', () => {
       });
     });
 
-    it('dispatches resource.unarchived to onDocumentUnarchived', async () => {
+    it('dispatches mark:unarchived to onDocumentUnarchived', async () => {
       const onDocumentUnarchived = vi.fn();
       const { result } = renderWithHandlers({ onDocumentUnarchived });
 
-      const event = makeEvent('resource.unarchived', {} as any);
+      const event = makeEvent('mark:unarchived', {} as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:unarchived' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -235,10 +240,10 @@ describe('useResourceEvents', () => {
       const onEvent = vi.fn();
       const { result } = renderWithHandlers({ onEvent });
 
-      const event = makeEvent('annotation.added', { annotation: { id: 'ann-1' } } as any);
+      const event = makeEvent('mark:added', { annotation: { id: 'ann-1' } } as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:added' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {
@@ -250,16 +255,16 @@ describe('useResourceEvents', () => {
       const { result } = renderWithHandlers({});
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(
-          makeEvent('annotation.added', { annotation: { id: 'ann-1' } } as any)
+        result.current.bus.get('mark:added' as any).next(
+          wrapStored(makeEvent('mark:added', { annotation: { id: 'ann-1' } } as any))
         );
       });
 
       await waitFor(() => expect(result.current.events.eventCount).toBe(1));
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(
-          makeEvent('annotation.removed', { annotationId: 'ann-1' } as any)
+        result.current.bus.get('mark:removed' as any).next(
+          wrapStored(makeEvent('mark:removed', { annotationId: 'ann-1' } as any))
         );
       });
 
@@ -269,10 +274,10 @@ describe('useResourceEvents', () => {
     it('updates lastEvent on each event', async () => {
       const { result } = renderWithHandlers({});
 
-      const event = makeEvent('annotation.added', { annotation: { id: 'ann-1' } } as any);
+      const event = makeEvent('mark:added', { annotation: { id: 'ann-1' } } as any);
 
       act(() => {
-        result.current.bus.get('make-meaning:event').next(event);
+        result.current.bus.get('mark:added' as any).next(wrapStored(event));
       });
 
       await waitFor(() => {

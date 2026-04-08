@@ -55,12 +55,12 @@ export class ResourceStore {
     private readonly http: SemiontApiClient,
     eventBus: EventBus,
   ) {
-    eventBus.get('yield:created').subscribe((event: EventMap['yield:created']) => {
+    eventBus.get('yield:create-ok').subscribe((event: EventMap['yield:create-ok']) => {
       this.fetchDetail(event.resourceId);
       this.invalidateLists();
     });
 
-    eventBus.get('yield:updated').subscribe((event: EventMap['yield:updated']) => {
+    eventBus.get('yield:update-ok').subscribe((event: EventMap['yield:update-ok']) => {
       this.invalidateDetail(event.resourceId);
       this.invalidateLists();
     });

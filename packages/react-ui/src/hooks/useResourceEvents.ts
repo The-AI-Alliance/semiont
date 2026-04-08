@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceId } from '@semiont/core';
 import { accessToken } from '@semiont/core';
-import type { ResourceEvent, StoredEvent } from '@semiont/core';
+import type { ResourceEvent, StoredEvent, ResourceEventType } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -120,12 +120,19 @@ export function useResourceEvents({
     }
   }, []); // Empty deps - stable reference prevents reconnection!
 
-  // Subscribe to EventBus for resource events (StoredEvent wraps ResourceEvent)
+  // Subscribe to each domain event type (StoredEvent wraps ResourceEvent)
   useEffect(() => {
-    const subscription = eventBus.get('make-meaning:event').subscribe((stored: StoredEvent) => {
-      handleEvent(stored.event);
-    });
-    return () => subscription.unsubscribe();
+    const eventTypes: ResourceEventType[] = [
+      'mark:added', 'mark:removed', 'mark:body-updated',
+      'mark:archived', 'mark:unarchived',
+      'mark:entity-tag-added', 'mark:entity-tag-removed',
+    ];
+    const subs = eventTypes.map(type =>
+      eventBus.get(type as any).subscribe((stored: StoredEvent) => {
+        handleEvent(stored.event);
+      })
+    );
+    return () => subs.forEach(s => s.unsubscribe());
   }, [eventBus, handleEvent]);
 
   const subRef = useRef<{ unsubscribe: () => void } | null>(null);

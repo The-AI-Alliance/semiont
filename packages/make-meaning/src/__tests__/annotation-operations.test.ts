@@ -37,7 +37,7 @@ async function createAnnotationAndAwait(
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus);
   // Wait for THIS annotation's mark:created (filter by ID to avoid picking up a stale event)
   const expectedId = annotationId(result.annotation.id);
-  await firstValueFrom(eventBus.get('mark:created').pipe(
+  await firstValueFrom(eventBus.get('mark:create-ok').pipe(
     filter(e => e.annotationId === expectedId),
     take(1),
   ));
@@ -783,7 +783,7 @@ describe('AnnotationOperations', () => {
       const annotationIdStr = createResult.annotation.id;
 
       // Delete and await Stower persistence
-      const deleted$ = firstValueFrom(eventBus.get('mark:deleted').pipe(take(1)));
+      const deleted$ = firstValueFrom(eventBus.get('mark:delete-ok').pipe(take(1)));
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
         testResourceId,

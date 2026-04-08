@@ -143,7 +143,7 @@ describe('replay', () => {
         expect(msg.name).toBe('Test Resource');
         expect(msg.content).toBe(contentBlob);
         expect(msg.format).toBe('text/markdown');
-        defer(() => eventBus.get('yield:created').next({
+        defer(() => eventBus.get('yield:create-ok').next({
           resourceId: TEST_RESOURCE,
           resource: STUB_RESOURCE,
         }));
@@ -168,7 +168,7 @@ describe('replay', () => {
 
     it('replays an annotation.added event', async () => {
       eventBus.get('mark:create').subscribe(() => {
-        defer(() => eventBus.get('mark:created').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:create-ok').next({ annotationId: TEST_ANNOTATION }));
       });
 
       const jsonl = annotationAddedEvent('ann-1');
@@ -203,7 +203,7 @@ describe('replay', () => {
 
     it('replays an annotation.removed event', async () => {
       eventBus.get('mark:delete').subscribe(() => {
-        defer(() => eventBus.get('mark:deleted').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:delete-ok').next({ annotationId: TEST_ANNOTATION }));
       });
 
       const jsonl = makeStoredEvent({
@@ -344,14 +344,14 @@ describe('replay', () => {
         checksum === 'sha-1' ? contentBlob : undefined;
 
       eventBus.get('yield:create').subscribe(() => {
-        defer(() => eventBus.get('yield:created').next({
+        defer(() => eventBus.get('yield:create-ok').next({
           resourceId: TEST_RESOURCE,
           resource: STUB_RESOURCE,
         }));
       });
 
       eventBus.get('mark:create').subscribe(() => {
-        defer(() => eventBus.get('mark:created').next({ annotationId: TEST_ANNOTATION }));
+        defer(() => eventBus.get('mark:create-ok').next({ annotationId: TEST_ANNOTATION }));
       });
 
       const lines = [

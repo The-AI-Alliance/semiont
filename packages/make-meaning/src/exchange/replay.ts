@@ -187,9 +187,9 @@ async function replayResourceCreated(
   }
 
   const result$ = race(
-    eventBus.get('yield:created').pipe(map((r) => r)),
+    eventBus.get('yield:create-ok').pipe(map((r) => r)),
     eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:created'); })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
   );
 
   eventBus.get('yield:create').next({
@@ -215,9 +215,9 @@ async function replayAnnotationAdded(
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
-    eventBus.get('mark:created').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
     eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:created'); })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
   );
 
   eventBus.get('mark:create').next({
@@ -258,9 +258,9 @@ async function replayAnnotationRemoved(
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
-    eventBus.get('mark:deleted').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:delete-ok').pipe(map(() => 'ok' as const)),
     eventBus.get('mark:delete-failed').pipe(map((e) => { throw e.error; })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:deleted'); })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:delete-ok'); })),
   );
 
   eventBus.get('mark:delete').next({

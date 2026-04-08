@@ -269,9 +269,9 @@ async function importResource(
 
   // Create resource via EventBus
   const createResult$ = race(
-    eventBus.get('yield:created').pipe(map((r) => r)),
+    eventBus.get('yield:create-ok').pipe(map((r) => r)),
     eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:created'); })),
+    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
   );
 
   eventBus.get('yield:create').next({
@@ -309,9 +309,9 @@ async function createAnnotation(
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
-    eventBus.get('mark:created').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
     eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:created'); })),
+    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
   );
 
   eventBus.get('mark:create').next({

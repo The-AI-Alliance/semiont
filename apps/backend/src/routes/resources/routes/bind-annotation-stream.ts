@@ -20,7 +20,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { BodyOperation } from '@semiont/core';
-import { resourceId, annotationId, userId, userToDid, type StoredEvent } from '@semiont/core';
+import { resourceId, annotationId, userId, userToDid } from '@semiont/core';
 import { getLogger } from '../../../logger';
 import type { components } from '@semiont/core';
 import type { Subscription } from 'rxjs';
@@ -42,7 +42,6 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
       }
 
       const eventBus = c.get('eventBus');
-      const { knowledgeSystem: { kb: { eventStore } } } = c.get('makeMeaning');
 
       const logger = getLogger().child({
         component: 'bind-annotation-stream',
@@ -76,9 +75,9 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
         try {
           // Subscribe to resource-scoped domain events via Core EventBus
           const scopedBus = eventBus.scope(String(rId));
-          subscription = scopedBus.get('mark:body-updated').subscribe(async (storedEvent: StoredEvent) => {
+          subscription = scopedBus.get('mark:body-updated').subscribe(async (storedEvent) => {
             if (isStreamClosed) return;
-            if (storedEvent.event.payload?.annotationId !== annotationIdParam) return;
+            if (storedEvent.event.payload.annotationId !== annotationIdParam) return;
 
             logger.info('Bind completed', { annotationId: annotationIdParam });
             try {

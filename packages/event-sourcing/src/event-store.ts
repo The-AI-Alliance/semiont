@@ -1,14 +1,15 @@
 /**
  * EventStore - Orchestration Layer
  *
- * Coordinates event sourcing operations across 3 focused components:
+ * Coordinates event sourcing operations:
  * - EventLog: Event persistence (append, retrieve, query)
- * - EventBus: Pub/sub notifications (publish, subscribe)
- * - ViewManager: View updates (resource and system)
+ * - ViewManager: View materialization (resource and system)
+ * - Core EventBus: Publishes StoredEvent to typed channels after persistence
  *
- * Thin coordination layer - delegates all work to specialized components.
- *
- * @see docs/EVENT-STORE.md for complete architecture documentation
+ * appendEvent() is the single write path:
+ *   1. Persist to EventLog
+ *   2. Materialize views
+ *   3. Publish StoredEvent to global and resource-scoped typed channels
  */
 
 import type {

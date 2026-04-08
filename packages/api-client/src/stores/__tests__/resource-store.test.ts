@@ -128,7 +128,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.list()); // populate list cache
       const listCallsBefore = (http.browseResources as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('yield:created').next({ resourceId: RID, resource: mockResource('res-1') as any });
+      eventBus.get('yield:create-ok').next({ resourceId: RID, resource: mockResource('res-1') as any });
 
       // The detail fetch triggered by yield:created should complete
       await firstDefined(store.get(RID));
@@ -142,7 +142,7 @@ describe('ResourceStore', () => {
       await firstDefined(store.get(RID));
       const callsBefore = (http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      eventBus.get('yield:updated').next({ resourceId: RID });
+      eventBus.get('yield:update-ok').next({ resourceId: RID });
 
       await firstDefined(store.get(RID));
       expect((http.browseResource as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsBefore);

@@ -137,7 +137,7 @@ describe('AnnotationStore', () => {
       await firstDefined(store.get(RID, AID));
       expect(http.browseAnnotation).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:deleted').next({ annotationId: AID } as any);
+      eventBus.get('mark:delete-ok').next({ annotationId: AID } as any);
 
       // mark:deleted removes from cache without re-fetching; next get() re-fetches
       await firstDefined(store.get(RID, AID));

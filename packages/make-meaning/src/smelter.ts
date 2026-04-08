@@ -39,7 +39,7 @@ export class Smelter {
   private static readonly MAX_BATCH_SIZE = 100;
   private static readonly IDLE_TIMEOUT_MS = 200;
 
-  private _globalSubscription: Subscription | null = null;
+  private _globalSubscriptions: Subscription[] = [];
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private readonly logger: Logger;
@@ -61,13 +61,14 @@ export class Smelter {
   async initialize(): Promise<void> {
     this.logger.info('Smelter actor initializing');
 
-    // Subscribe to the Core EventBus firehose — all domain events as StoredEvent
-    this._globalSubscription = this.eventBus.get('make-meaning:event').subscribe(
-      (storedEvent: StoredEvent) => {
-        if (!Smelter.SMELTER_RELEVANT_EVENTS.has(storedEvent.event.type)) return;
-        this.eventSubject.next(storedEvent);
-      }
-    );
+    // Subscribe to each smelter-relevant event type on the Core EventBus
+    for (const eventType of Smelter.SMELTER_RELEVANT_EVENTS) {
+      this._globalSubscriptions.push(
+        this.eventBus.get(eventType as any).subscribe(
+          (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
+        )
+      );
+    }
 
     // Build the RxJS pipeline
     this.pipelineSubscription = this.eventSubject.pipe(
@@ -95,8 +96,8 @@ export class Smelter {
   }
 
   async stop(): Promise<void> {
-    this._globalSubscription?.unsubscribe();
-    this._globalSubscription = null;
+    for (const sub of this._globalSubscriptions) sub.unsubscribe();
+    this._globalSubscriptions = [];
     this.pipelineSubscription?.unsubscribe();
     this.eventSubject.complete();
     this.logger.info('Smelter actor stopped');

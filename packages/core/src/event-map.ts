@@ -91,16 +91,6 @@ export interface MarkProgress {
 export type EventMap = {
 
   // ========================================================================
-  // DOMAIN EVENTS
-  // (Backend Event Sourcing)
-  // Generic wrapper for all backend domain events (dot notation)
-  // Streamed via SSE from /resources/:id/events/stream endpoint
-  // Specific typed domain events are defined within their respective flow sections below
-  // ========================================================================
-
-  'make-meaning:event': StoredEvent;
-
-  // ========================================================================
   // YIELD FLOW
   // ========================================================================
   // Resource generation from reference annotations
@@ -123,6 +113,10 @@ export type EventMap = {
   'yield:failed': { error?: Error | string; status?: string; referenceId?: string; percentage?: number; message?: string };
 
   // Domain Events (from backend event store) — published as StoredEvent (includes metadata)
+  'yield:created': StoredEvent<Extract<ResourceEvent, { type: 'yield:created' }>>;
+  'yield:cloned': StoredEvent<Extract<ResourceEvent, { type: 'yield:cloned' }>>;
+  'yield:updated': StoredEvent<Extract<ResourceEvent, { type: 'yield:updated' }>>;
+  'yield:moved': StoredEvent<Extract<ResourceEvent, { type: 'yield:moved' }>>;
   'yield:representation-added': StoredEvent<Extract<ResourceEvent, { type: 'yield:representation-added' }>>;
   'yield:representation-removed': StoredEvent<Extract<ResourceEvent, { type: 'yield:representation-removed' }>>;
 
@@ -143,7 +137,7 @@ export type EventMap = {
     generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
     noGit?: boolean;            // Skip git operations even when gitSync is configured
   };
-  'yield:created': {
+  'yield:create-ok': {
     resourceId: ResourceId;
     resource: components['schemas']['ResourceDescriptor'];
   };
@@ -157,7 +151,7 @@ export type EventMap = {
     userId: UserId;
     noGit?: boolean;             // Skip git operations even when gitSync is configured
   };
-  'yield:updated': { resourceId: ResourceId };
+  'yield:update-ok': { resourceId: ResourceId };
   'yield:update-failed': { resourceId: ResourceId; error: Error };
 
   'yield:mv': {
@@ -166,7 +160,7 @@ export type EventMap = {
     userId: UserId;
     noGit?: boolean;   // Skip git mv even when .git/ exists
   };
-  'yield:moved': { resourceId: ResourceId };
+  'yield:move-ok': { resourceId: ResourceId };
   'yield:move-failed': { fromUri: string; error: Error };
 
   'yield:clone': void;
@@ -246,10 +240,10 @@ export type EventMap = {
     userId: UserId;
     resourceId: ResourceId;
   };
-  'mark:created': { annotationId: AnnotationId };
+  'mark:create-ok': { annotationId: AnnotationId };
   'mark:create-failed': { error: Error };
   'mark:delete': { annotationId: AnnotationId; userId?: UserId; resourceId?: ResourceId };
-  'mark:deleted': { annotationId: AnnotationId };
+  'mark:delete-ok': { annotationId: AnnotationId };
   'mark:delete-failed': { error: Error };
   'mark:update-body': {
     annotationId: AnnotationId;
