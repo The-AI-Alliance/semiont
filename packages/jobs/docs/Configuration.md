@@ -142,7 +142,7 @@ const running = await queue.listJobs({ status: 'running' });
 const fiveMinutesAgo = Date.now() - 300000;
 
 for (const job of running) {
-  if (job.status === 'running' && new Date(job.startedAt).getTime() < fiveMinutesAgo) {
+  if (job.status === 'running' && new Date(job:startedAt).getTime() < fiveMinutesAgo) {
     logger.info(`Resetting stuck job: ${job.metadata.id}`);
     const pendingJob: PendingJob<any> = {
       status: 'pending',

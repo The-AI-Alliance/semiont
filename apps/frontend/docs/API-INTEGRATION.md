@@ -475,7 +475,7 @@ export function EntityDetectionProgress({ resourceId }: { resourceId: string }) 
     eventSource.onmessage = (event) => {
       const job = JSON.parse(event.data);
 
-      setProgress(job.progress);
+      setProgress(job:progress);
       setStatus(job.status);
 
       if (job.status === 'complete' || job.status === 'failed') {
@@ -528,7 +528,7 @@ export function ResourceGenerationProgress({
 
     eventSource.onmessage = (event) => {
       const job = JSON.parse(event.data);
-      setProgress(job.progress);
+      setProgress(job:progress);
 
       if (job.status === 'complete') {
         eventSource.close();

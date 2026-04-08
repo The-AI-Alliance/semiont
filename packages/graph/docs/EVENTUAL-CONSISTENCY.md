@@ -29,7 +29,7 @@ This means:
 
 ### Per-Resource Sequential Processing
 
-The GraphDBConsumer (`packages/make-meaning/src/graph/consumer.ts`) subscribes globally and pre-filters events to only the 9 graph-relevant types (`resource.created`, `annotation.added`, etc.) before any processing. Irrelevant events (`job.*`, `detection.*`, `generation.*`) are discarded immediately.
+The GraphDBConsumer (`packages/make-meaning/src/graph/consumer.ts`) subscribes globally and pre-filters events to only the 9 graph-relevant types (`yield:created`, `mark:added`, etc.) before any processing. Irrelevant events (`job.*`, `detection.*`, `generation.*`) are discarded immediately.
 
 Relevant events are piped through an RxJS pipeline with adaptive burst buffering:
 
@@ -53,8 +53,8 @@ The `burstBuffer` operator passes the first event through immediately (zero late
 
 When creating a new resource and immediately linking it via annotation:
 
-1. Frontend creates new resource → `resource.created` event (Resource B)
-2. Frontend updates annotation → `annotation.body.updated` event (Resource A)
+1. Frontend creates new resource → `yield:created` event (Resource B)
+2. Frontend updates annotation → `mark:body-updated` event (Resource A)
 3. Both events published via fire-and-forget
 4. Events process in parallel (different resources)
 
@@ -121,25 +121,25 @@ MERGE (a)-[:REFERENCES]->(target)
 **Benefits**:
 - Creates **stub node** if target doesn't exist yet
 - Marks incomplete nodes with `stub = true`
-- Stub enriched when `resource.created` arrives
+- Stub enriched when `yield:created` arrives
 - Idempotent (MERGE finds existing edge)
 
 ## How It Works: Two Scenarios
 
 ### Scenario 1: Edge Created First (Race Condition)
 
-1. `annotation.body.updated` processes first
+1. `mark:body-updated` processes first
 2. MERGE creates stub Resource node `{id: "xyz", stub: true}`
 3. MERGE creates REFERENCES edge
-4. `resource.created` processes later
+4. `yield:created` processes later
 5. MERGE finds existing stub, SET enriches it `{id: "xyz", name: "...", stub: false}`
 6. **Final state**: Complete Resource node + REFERENCES edge ✓
 
 ### Scenario 2: Resource Created First (Normal Order)
 
-1. `resource.created` processes first
+1. `yield:created` processes first
 2. MERGE creates full Resource node `{id: "xyz", name: "...", stub: false}`
-3. `annotation.body.updated` processes later
+3. `mark:body-updated` processes later
 4. MERGE finds existing Resource node (not a stub)
 5. MERGE creates REFERENCES edge
 6. **Final state**: Complete Resource node + REFERENCES edge ✓
@@ -152,10 +152,10 @@ Running events multiple times produces the same result:
 
 | Event | Runs | Result |
 |-------|------|--------|
-| `resource.created` | 1x | Full node created |
-| `resource.created` | 2x | SET overwrites with same values (idempotent) |
-| `annotation.body.updated` | 1x | Edge + stub created |
-| `annotation.body.updated` | 2x | MERGE finds existing edge (idempotent) |
+| `yield:created` | 1x | Full node created |
+| `yield:created` | 2x | SET overwrites with same values (idempotent) |
+| `mark:body-updated` | 1x | Edge + stub created |
+| `mark:body-updated` | 2x | MERGE finds existing edge (idempotent) |
 | Both | Any order, any count | Same final graph |
 
 ## Temporary Inconsistency
@@ -180,7 +180,7 @@ RETURN r.id, r
 ```
 
 **Stub nodes should be transient**. If they persist, it indicates:
-- Missing `resource.created` event (bug in event emission)
+- Missing `yield:created` event (bug in event emission)
 - Event processing failure
 - Consumer crashed before processing
 
@@ -252,7 +252,7 @@ await session.run(
 **Cons**:
 - Temporary incomplete Resource nodes (stub state)
 - Queries during inconsistency window see incomplete data
-- If `resource.created` never arrives (bug), stub persists
+- If `yield:created` never arrives (bug), stub persists
 - Relies on rebuild to detect/fix orphaned stubs
 
 ## Rebuild Operations
@@ -277,8 +277,8 @@ await consumer.rebuildAll();
 ```
 
 **Process**:
-1. **Pass 1**: Create all nodes (skip `annotation.body.updated`)
-2. **Pass 2**: Create all edges (process only `annotation.body.updated`)
+1. **Pass 1**: Create all nodes (skip `mark:body-updated`)
+2. **Pass 2**: Create all edges (process only `mark:body-updated`)
 
 This guarantees all resource nodes exist before any REFERENCES edges are created.
 

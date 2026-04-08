@@ -79,9 +79,9 @@ graph LR
     ES --> GC[GraphDBConsumer<br/>Event Processor]
     GC --> GDB[Graph Database]
 
-    ES -->|resource.created| GC
-    ES -->|annotation.added| GC
-    ES -->|entitytag.added| GC
+    ES -->|yield:created| GC
+    ES -->|mark:added| GC
+    ES -->|mark:entity-tag-added| GC
 
     GC -->|createResource| GDB
     GC -->|createAnnotation| GDB

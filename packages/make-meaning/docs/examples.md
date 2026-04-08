@@ -45,7 +45,7 @@ import { ResourceContext } from '@semiont/make-meaning';
 const resource = await ResourceContext.getResourceMetadata(resourceId, kb);
 if (resource) {
   console.log(`Resource: ${resource.name}`);
-  console.log(`Created: ${resource.created}`);
+  console.log(`Created: ${yield:created}`);
   console.log(`Format: ${resource.format}`);
 }
 ```

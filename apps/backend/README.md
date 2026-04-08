@@ -190,7 +190,7 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 **Current Status**: Prototype implementation embedded in backend process (not yet a standalone CLI-managed service)
 
 **Job Types**:
-- **Annotation Detection**: Detect annotations in documents using AI inference (highlights, assessments, comments, tags, entity references), emit `annotation.added` events
+- **Annotation Detection**: Detect annotations in documents using AI inference (highlights, assessments, comments, tags, entity references), emit `mark:added` events
 - **Document Generation**: Create new documents from annotations using AI, emit `document.created` events
 
 **Architecture**:

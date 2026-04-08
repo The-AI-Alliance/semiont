@@ -19,7 +19,7 @@ Resolution can happen in two ways:
 1. **Link to existing resource** — Search for and select a resource already in the system
 2. **Create new resource** — Navigate to the compose page with pre-filled parameters, or use the [Yield flow](./YIELD.md) to have an AI agent create the resource
 
-Both paths result in an `annotation.body.updated` event that adds the `SpecificResource` link.
+Both paths result in an `mark:body-updated` event that adds the `SpecificResource` link.
 
 ## Using the API Client
 
@@ -135,7 +135,7 @@ Navigate to /know/compose?annotationUri=...&name=...&entityTypes=...
     |
 User composes and saves the new resource
     |
-annotation.body.updated event links the reference
+mark:body-updated event links the reference
 ```
 
 ### Unlinking

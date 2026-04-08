@@ -104,9 +104,9 @@ stream.onAbort(() => {
 **Example Event Emission**:
 
 ```typescript
-// Worker emits annotation.body.updated
+// Worker emits mark:body-updated
 await eventStore.append({
-  type: 'annotation.body.updated',
+  type: 'mark:body-updated',
   resourceId: sourceResourceId,
   payload: {
     annotationId: referenceId,
@@ -175,10 +175,10 @@ useEffect(() => {
 const handleEvent = useCallback((event: ResourceEvent) => {
   // Use refs - always calls latest handler
   switch (event.type) {
-    case 'annotation.added':
+    case 'mark:added':
       onAnnotationAddedRef.current?.(event);
       break;
-    case 'annotation.body.updated':
+    case 'mark:body-updated':
       onAnnotationBodyUpdatedRef.current?.(event);
       break;
   }
@@ -266,10 +266,10 @@ const disconnect = useCallback(() => {
 
 ### Annotation Events
 
-**`annotation.added`**: New annotation created
+**`mark:added`**: New annotation created
 ```json
 {
-  "type": "annotation.added",
+  "type": "mark:added",
   "resourceId": "doc-123",
   "payload": {
     "annotationId": "/annotations/abc123",
@@ -278,10 +278,10 @@ const disconnect = useCallback(() => {
 }
 ```
 
-**`annotation.removed`**: Annotation deleted
+**`mark:removed`**: Annotation deleted
 ```json
 {
-  "type": "annotation.removed",
+  "type": "mark:removed",
   "resourceId": "doc-123",
   "payload": {
     "annotationId": "/annotations/abc123"
@@ -289,10 +289,10 @@ const disconnect = useCallback(() => {
 }
 ```
 
-**`annotation.body.updated`**: Annotation body modified
+**`mark:body-updated`**: Annotation body modified
 ```json
 {
-  "type": "annotation.body.updated",
+  "type": "mark:body-updated",
   "resourceId": "doc-123",
   "payload": {
     "annotationId": "/annotations/abc123",
@@ -305,10 +305,10 @@ const disconnect = useCallback(() => {
 
 ### Job Events
 
-**`job.started`**: Long-running job initiated
+**`job:started`**: Long-running job initiated
 ```json
 {
-  "type": "job.started",
+  "type": "job:started",
   "resourceId": "doc-123",
   "payload": {
     "jobId": "job-456",
@@ -317,10 +317,10 @@ const disconnect = useCallback(() => {
 }
 ```
 
-**`job.progress`**: Job progress update
+**`job:progress`**: Job progress update
 ```json
 {
-  "type": "job.progress",
+  "type": "job:progress",
   "resourceId": "doc-123",
   "payload": {
     "jobId": "job-456",
@@ -330,10 +330,10 @@ const disconnect = useCallback(() => {
 }
 ```
 
-**`job.completed`**: Job finished successfully
+**`job:completed`**: Job finished successfully
 ```json
 {
-  "type": "job.completed",
+  "type": "job:completed",
   "resourceId": "doc-123",
   "payload": {
     "jobId": "job-456",
@@ -346,8 +346,8 @@ const disconnect = useCallback(() => {
 
 **`document.archived`**: Document archived
 **`document.unarchived`**: Document restored
-**`entitytag.added`**: Entity type tag added
-**`entitytag.removed`**: Entity type tag removed
+**`mark:entity-tag-added`**: Entity type tag added
+**`mark:entity-tag-removed`**: Entity type tag removed
 
 ## Two-Stream Architecture
 
@@ -365,14 +365,14 @@ Some features use **two SSE streams** working together:
    - Endpoint: `GET /resources/{id}/events/stream`
    - Purpose: All resource events (annotations, tags, jobs)
    - Lifecycle: Long-lived, stays open while document is viewed
-   - Events: `annotation.body.updated`, `annotation.added`, etc.
+   - Events: `mark:body-updated`, `mark:added`, etc.
 
 **Why Two Streams?**
 - Progress stream provides job-specific updates for modal UI
 - Resource events stream updates document viewer in real-time
 - When generation completes:
   - Progress stream sends `generation-complete` → modal closes
-  - Resource events stream sends `annotation.body.updated` → reference icon updates
+  - Resource events stream sends `mark:body-updated` → reference icon updates
 
 **Critical**: Both streams must stay alive during generation for real-time updates to work.
 
@@ -452,7 +452,7 @@ Filter by `[ResourceEvents]` to see connection lifecycle:
 ```
 [ResourceEvents] Connecting to SSE stream for resource doc-123
 [ResourceEvents] Stream connected event received
-[ResourceEvents] Received event: annotation.body.updated
+[ResourceEvents] Received event: mark:body-updated
 ```
 
 ### Backend Logs
@@ -466,7 +466,7 @@ tail -f apps/backend/logs/app.log | grep EventStream
 Expected output:
 ```
 [EventStream:stream-123] New SSE connection established for resource doc-123
-[EventStream:stream-123] Received event annotation.body.updated, attempting to write
+[EventStream:stream-123] Received event mark:body-updated, attempting to write
 [EventStream:stream-123] Successfully wrote event to SSE stream in 2ms
 [EventStream] Client disconnected
 ```

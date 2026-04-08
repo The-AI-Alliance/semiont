@@ -137,7 +137,7 @@ const annotation: Annotation = {
 
 // 3. Emit event to Event Store
 await eventStore.emit({
-  type: 'annotation.added',
+  type: 'mark:added',
   documentId: targetDocId,
   userId: currentUser.id,
   payload: { annotation }
@@ -154,7 +154,7 @@ await eventStore.emit({
 ```json
 {
   "id": "event-uuid-123",
-  "type": "annotation.added",
+  "type": "mark:added",
   "documentId": "doc-sha256:abc123",
   "userId": "user-456",
   "timestamp": "2025-10-24T10:30:00Z",
@@ -187,8 +187,8 @@ data/events/shards/
 
 - `document.created`
 - `document.archived` / `document.unarchived`
-- `annotation.added`
-- `annotation.removed`
+- `mark:added`
+- `mark:removed`
 - `annotation.body_updated`
 - `entity_tag.added` / `entity_tag.removed`
 
@@ -201,10 +201,10 @@ data/events/shards/
 class GraphConsumer {
   async processEvent(event: StoredEvent) {
     switch (event.event.type) {
-      case 'annotation.added':
+      case 'mark:added':
         await this.projector.applyAnnotationAdded(event);
         break;
-      case 'annotation.removed':
+      case 'mark:removed':
         await this.projector.applyAnnotationRemoved(event);
         break;
       // ...
@@ -355,7 +355,7 @@ Response:
 {
   "events": [
     { "sequenceNumber": 1, "type": "document.created", "timestamp": "..." },
-    { "sequenceNumber": 2, "type": "annotation.added", "timestamp": "..." },
+    { "sequenceNumber": 2, "type": "mark:added", "timestamp": "..." },
     { "sequenceNumber": 3, "type": "annotation.body_updated", "timestamp": "..." }
   ],
   "total": 3

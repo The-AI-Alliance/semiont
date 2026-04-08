@@ -650,8 +650,8 @@ onUnmount(() => stream.close());
 
 **Event Types You'll Receive**:
 - `stream-connected` - Initial connection established (special event, not a resource event)
-- `resource.created` - Resource was created
-- `resource.updated` - Resource metadata changed
+- `yield:created` - Resource was created
+- `yield:updated` - Resource metadata changed
 - `annotation.created` - New annotation added
 - `annotation.updated` - Annotation modified
 - `annotation.deleted` - Annotation deleted
@@ -942,7 +942,7 @@ Get resource event history.
 
 ```typescript
 const result = await client.getEvents(resourceId('doc-123'), {
-  type: 'annotation.added',
+  type: 'mark:added',
   limit: 50,
 });
 ```

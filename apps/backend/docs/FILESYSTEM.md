@@ -33,8 +33,8 @@ Events are stored as append-only JSONL files — the system of record for all do
 
 ### File Structure
 ```jsonl
-{"event":{"id":"evt-123","type":"resource.created",...},"metadata":{...}}
-{"event":{"id":"evt-124","type":"annotation.added",...},"metadata":{...}}
+{"event":{"id":"evt-123","type":"yield:created",...},"metadata":{...}}
+{"event":{"id":"evt-124","type":"mark:added",...},"metadata":{...}}
 ```
 
 ### Sharding Strategy
