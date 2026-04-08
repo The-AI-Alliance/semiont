@@ -112,6 +112,6 @@ Current consumers:
 ## Implementation
 
 - **Hook**: [packages/react-ui/src/hooks/useContextGatherFlow.ts](../../packages/react-ui/src/hooks/useContextGatherFlow.ts)
-- **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `CONTEXT CORRELATION FLOW` section
+- **Event definitions**: [packages/core/src/event-protocol.ts](../../packages/core/src/event-protocol.ts) — `CONTEXT CORRELATION FLOW` section
 - **API**: `getAnnotationLLMContext` in [@semiont/api-client](../../packages/api-client/README.md)
 - **Backend**: Context assembly in [@semiont/make-meaning](../../packages/make-meaning/docs/api-reference.md)

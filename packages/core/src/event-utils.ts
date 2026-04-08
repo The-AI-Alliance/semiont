@@ -5,7 +5,7 @@
  * No React dependencies - safe to use in any JavaScript environment.
  */
 
-import type { StoredEvent } from './events';
+import type { StoredEvent } from './stored-events';
 import type { AnnotationUri } from './branded-types';
 
 /**

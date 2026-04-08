@@ -5,7 +5,7 @@
  * Single source of truth for all EventBus event types.
  */
 
-import type { ResourceEvent, BodyOperation, StoredEvent } from './events';
+import type { ResourceEvent, BodyOperation, StoredEvent } from './stored-events';
 import type { components } from './types';
 import type { ResourceId, AnnotationId, UserId } from './identifiers';
 import type { JobId } from './branded-types';

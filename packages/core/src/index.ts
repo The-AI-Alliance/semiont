@@ -104,13 +104,13 @@ export type {
   StoredEvent,
   EventQuery,
   ResourceAnnotations,
-} from './events';
+} from './stored-events';
 export {
   isResourceEvent,
   isSystemEvent,
   isResourceScopedEvent,
   getEventType,
-} from './events';
+} from './stored-events';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';
@@ -138,7 +138,7 @@ export type {
   YieldProgress,
   Selector,
   GatheredContext,
-} from './event-map';
+} from './event-protocol';
 
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';
