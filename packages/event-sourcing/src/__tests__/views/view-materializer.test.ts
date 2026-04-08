@@ -54,7 +54,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -86,7 +86,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -103,7 +103,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -144,7 +144,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -161,7 +161,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -193,7 +193,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -210,7 +210,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -230,7 +230,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event3',
-            type: 'representation.removed',
+            type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -254,7 +254,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -271,7 +271,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'annotation.added',
+            type: 'mark:added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -302,7 +302,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -319,7 +319,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'annotation.added',
+            type: 'mark:added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -340,7 +340,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event3',
-            type: 'annotation.body.updated',
+            type: 'mark:body-updated',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -375,7 +375,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -392,7 +392,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'annotation.added',
+            type: 'mark:added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -413,7 +413,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event3',
-            type: 'annotation.removed',
+            type: 'mark:removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -446,7 +446,7 @@ describe('ViewMaterializer', () => {
       // Create initial view
       const createEvent = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -469,7 +469,7 @@ describe('ViewMaterializer', () => {
       // Add representation incrementally
       const addRepEvent = {
         id: 'event2',
-        type: 'representation.added' as const,
+        type: 'yield:representation-added' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -512,7 +512,7 @@ describe('ViewMaterializer', () => {
 
       const event = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -591,7 +591,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -608,7 +608,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -628,7 +628,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event3',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -658,7 +658,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -675,7 +675,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -695,7 +695,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event3',
-            type: 'representation.added',
+            type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -726,7 +726,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -743,7 +743,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'representation.removed',
+            type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -771,7 +771,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -788,7 +788,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'annotation.removed',
+            type: 'mark:removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,

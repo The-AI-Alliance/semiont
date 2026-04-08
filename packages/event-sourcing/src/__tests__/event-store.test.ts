@@ -8,7 +8,7 @@ import { EventQuery } from '../query/event-query';
 import { EventValidator } from '../validation/event-validator';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
-import { CREATION_METHODS, resourceId, userId } from '@semiont/core';
+import { CREATION_METHODS, resourceId, userId, EventBus } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -32,6 +32,7 @@ describe('Event Store', () => {
       project,
       testDir,
       viewStorage,
+      new EventBus(),
     );
 
     query = new EventQuery(eventStore.log.storage);
@@ -47,7 +48,7 @@ describe('Event Store', () => {
     const docId = resourceId('doc-test1');
 
     const event1 = await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: docId,
       userId: userId('user1'),
       version: 1,
@@ -63,14 +64,14 @@ describe('Event Store', () => {
 
     const events = await query.getResourceEvents(docId);
     expect(events).toHaveLength(1);
-    expect(events[0]?.event.type).toBe('resource.created');
+    expect(events[0]?.event.type).toBe('yield:created');
   });
 
   it('should create event chain with prevEventHash', async () => {
     const docId = resourceId('doc-test2');
 
     const e1 = await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: docId,
       userId: userId('user1'),
       version: 1,
@@ -78,7 +79,7 @@ describe('Event Store', () => {
     });
 
     const e2 = await eventStore.appendEvent({
-      type: 'annotation.added',
+      type: 'mark:added',
       resourceId: docId,
       userId: userId('user1'),
       version: 1,
@@ -120,7 +121,7 @@ describe('Event Store', () => {
     const docId = resourceId('doc-test3');
 
     await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: docId,
       userId: userId('user1'),
       version: 1,
@@ -128,7 +129,7 @@ describe('Event Store', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'entitytag.added',
+      type: 'mark:entity-tag-added',
       resourceId: docId,
       userId: userId('user1'),
       version: 1,

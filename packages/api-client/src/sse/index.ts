@@ -761,7 +761,7 @@ export class SSEClient {
    *
    * // Events auto-emit to EventBus — subscribe there
    * eventBus.get('make-meaning:event').subscribe((event) => {
-   *   if (event.type === 'entitytype.added') {
+   *   if (event.type === 'mark:entity-type-added') {
    *     // Invalidate entity types query
    *   }
    * });

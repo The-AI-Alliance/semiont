@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SSEStream } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
-import type { ResourceEvent } from '@semiont/core';
+import type { ResourceEvent, StoredEvent } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -37,16 +37,16 @@ export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean 
   // Handle incoming global domain events — invalidate relevant queries
   const handleEvent = useCallback((event: ResourceEvent) => {
     switch (event.type) {
-      case 'entitytype.added':
+      case 'mark:entity-type-added':
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
         break;
     }
   }, [queryClient]);
 
-  // Subscribe to EventBus for global domain events
+  // Subscribe to EventBus for global domain events (StoredEvent wraps ResourceEvent)
   useEffect(() => {
-    const subscription = eventBus.get('make-meaning:event').subscribe((event: ResourceEvent) => {
-      handleEvent(event);
+    const subscription = eventBus.get('make-meaning:event').subscribe((stored: StoredEvent) => {
+      handleEvent(stored.event);
     });
 
     return () => subscription.unsubscribe();

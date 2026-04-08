@@ -22,7 +22,6 @@ import type { SemiontProject } from '@semiont/core/node';
 import type { ViewStorage } from './storage/view-storage';
 // Import focused components
 import { EventLog } from './event-log';
-import { EventBus } from './event-bus';
 import { ViewManager, type ViewManagerConfig } from './view-manager';
 
 /**
@@ -33,16 +32,15 @@ import { ViewManager, type ViewManagerConfig } from './view-manager';
 export class EventStore {
   // Focused components - each with single responsibility
   readonly log: EventLog;
-  readonly bus: EventBus;
   readonly views: ViewManager;
   readonly viewStorage: ViewStorage;
-  readonly coreEventBus?: CoreEventBus;
+  readonly coreEventBus: CoreEventBus;
 
   constructor(
     project: SemiontProject,
     stateDir: string,
     viewStorage: ViewStorage,
-    coreEventBus?: CoreEventBus,
+    coreEventBus: CoreEventBus,
     logger?: Logger
   ) {
     // Store viewStorage for direct access
@@ -51,8 +49,6 @@ export class EventStore {
 
     // Initialize focused components
     this.log = new EventLog({ project }, logger?.child({ component: 'EventLog' }));
-
-    this.bus = new EventBus(logger?.child({ component: 'EventBus' }));
 
     const viewConfig: ViewManagerConfig = {
       basePath: stateDir,
@@ -65,7 +61,7 @@ export class EventStore {
    * Coordinates: persistence → view → notification
    */
   async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
-    // System-level events (entitytype.added) have no resourceId - use __system__
+    // System-level events (mark:entity-type-added) have no resourceId - use __system__
     const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 
     // 1. Persist event to log
@@ -87,21 +83,14 @@ export class EventStore {
       );
     }
 
-    // 3. Notify subscribers (legacy event bus)
-    await this.bus.publish(storedEvent);
+    // 3. Publish full StoredEvent to Core EventBus typed channels
+    // Global typed channel (e.g., 'mark:added')
+    this.coreEventBus.get(storedEvent.event.type as any).next(storedEvent);
 
-    // 4. Publish to @semiont/core EventBus if provided (domain events)
-    if (this.coreEventBus && resourceId !== '__system__') {
-      // Use resource-scoped bus for isolation
+    // Resource-scoped typed channel for per-resource subscribers
+    if (resourceId !== '__system__') {
       const scopedBus = this.coreEventBus.scope(resourceId as string);
-
-      // Publish to specific event type channel (convert dot notation to colon notation)
-      // e.g., type: 'job.completed' → channel 'job:completed'
-      const eventChannel = storedEvent.event.type.replace(/\./g, ':') as any;
-      scopedBus.get(eventChannel).next(storedEvent.event);
-
-      // Also publish to generic 'make-meaning:event' channel for broad subscribers
-      scopedBus.get('make-meaning:event').next(storedEvent.event);
+      scopedBus.get(storedEvent.event.type as any).next(storedEvent);
     }
 
     return storedEvent;

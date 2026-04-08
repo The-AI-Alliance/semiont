@@ -12,9 +12,10 @@ import { EventQuery } from '@semiont/event-sourcing';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { resourceId } from '@semiont/core';
+import { resourceId, type StoredEvent } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import { getLogger } from '../../../logger';
+import type { Subscription } from 'rxjs';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -46,6 +47,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
     logger.info('Client connecting to resource events stream', { resourceId: rId });
 
     // Verify resource exists in event store (Event Store - source of truth)
+    const eventBus = c.get('eventBus');
     const { knowledgeSystem: { kb: { eventStore } } } = c.get('makeMeaning');
     const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(rId);
@@ -73,7 +75,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
       // Track if stream is closed to prevent double cleanup
       let isStreamClosed = false;
-      let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
+      let subscription: Subscription | null = null;
       let keepAliveInterval: NodeJS.Timeout | null = null;
       let closeStreamCallback: (() => void) | null = null;
 
@@ -102,10 +104,11 @@ export function registerGetEventStream(router: ResourcesRouterType) {
         }
       };
 
-      // Subscribe to events for this resource using bare ResourceId
+      // Subscribe to resource-scoped domain events via Core EventBus
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
       logger.info('Subscribing to events for resource', { streamId, resourceId: rId });
-      subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+      const scopedBus = eventBus.scope(String(rId));
+      subscription = scopedBus.get('make-meaning:event').subscribe(async (storedEvent: StoredEvent) => {
         if (isStreamClosed) {
           logger.info('Stream already closed, ignoring event', { streamId, eventType: storedEvent.event.type });
           return;

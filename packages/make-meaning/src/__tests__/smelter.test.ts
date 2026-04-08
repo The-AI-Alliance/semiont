@@ -148,7 +148,7 @@ describe('Smelter', () => {
     await contentStore.store(content, uri, { noGit: true });
 
     await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: resourceId('res-lincoln'),
       userId: userId('user-1'),
       version: 1,
@@ -175,7 +175,7 @@ describe('Smelter', () => {
     eventBus.get('embedding:computed').subscribe(e => received.push(e));
 
     await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: resourceId('res-embed'),
       userId: userId('user-1'),
       version: 1,
@@ -204,7 +204,7 @@ describe('Smelter', () => {
     await contentStore.store(content, uri, { noGit: true });
 
     await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: resourceId('res-fox'),
       userId: userId('user-1'),
       version: 1,
@@ -226,7 +226,7 @@ describe('Smelter', () => {
 
   it('indexes annotation text into vector store', async () => {
     await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: resourceId('res-1'),
       userId: userId('user-1'),
       version: 1,
@@ -235,7 +235,7 @@ describe('Smelter', () => {
     await tick();
 
     await eventStore.appendEvent({
-      type: 'annotation.added',
+      type: 'mark:added',
       resourceId: resourceId('res-1'),
       userId: userId('user-1'),
       version: 1,
@@ -273,7 +273,7 @@ describe('Smelter', () => {
     await contentStore.store(content, uri, { noGit: true });
 
     await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: resourceId('res-archive'),
       userId: userId('user-1'),
       version: 1,
@@ -294,7 +294,7 @@ describe('Smelter', () => {
 
     // Archive
     await eventStore.appendEvent({
-      type: 'resource.archived',
+      type: 'mark:archived',
       resourceId: resourceId('res-archive'),
       userId: userId('user-1'),
       version: 1,
@@ -314,7 +314,7 @@ describe('Smelter', () => {
 
     // Simulate what the Stower would persist: an embedding.computed event
     await eventStore.appendEvent({
-      type: 'embedding.computed',
+      type: 'embedding:computed',
       resourceId: rid,
       userId: userId('did:web:system:smelter'),
       version: 1,

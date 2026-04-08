@@ -10,20 +10,6 @@
 import type { SSEStream } from './types';
 import type { Logger, EventBus, EventName } from '@semiont/core';
 
-/**
- * Map domain event types (from the event store) to their UI EventBus channel names.
- * The AnnotationStore and other stores subscribe to the UI names (e.g. 'mark:added'),
- * but the SSE stream receives events with the domain type (e.g. 'annotation.added').
- */
-const DOMAIN_EVENT_TO_UI_CHANNEL: Record<string, EventName> = {
-  'annotation.added': 'mark:added',
-  'annotation.removed': 'mark:removed',
-  'annotation.body.updated': 'mark:body-updated',
-  'resource.archived': 'mark:archived',
-  'resource.unarchived': 'mark:unarchived',
-  'entitytag.added': 'mark:entity-tag-added',
-  'entitytag.removed': 'mark:entity-tag-removed',
-};
 
 /**
  * Configuration for SSE stream event handling
@@ -247,16 +233,11 @@ export function createSSEStream(
         hasData: !!data
       });
 
-      // Auto-route domain events: Events with 'type' field are domain events from event store
-      // Emit them to their specific channel, the mapped UI channel, and 'make-meaning:event'
-      if (typeof parsed === 'object' && parsed !== null && 'type' in parsed) {
-        // Emit to specific domain event channel (e.g., 'annotation.added')
+      // Auto-route domain events: Events with 'metadata' field are StoredEvents from event store
+      // Emit to the event-type channel and the generic firehose channel
+      if (typeof parsed === 'object' && parsed !== null && 'metadata' in parsed) {
+        // Emit to specific domain event channel (e.g., 'mark:added')
         config.eventBus.get(eventType as EventName).next(parsed);
-        // Emit to mapped UI channel (e.g., 'mark:added') for store cache invalidation
-        const uiChannel = DOMAIN_EVENT_TO_UI_CHANNEL[parsed.type as string];
-        if (uiChannel) {
-          config.eventBus.get(uiChannel).next(parsed);
-        }
         // Also emit to generic domain event channel for broad subscribers
         config.eventBus.get('make-meaning:event').next(parsed);
         return; // Domain events don't need prefix mapping

@@ -47,7 +47,7 @@ describe('Entity Types Bootstrap', () => {
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    kb = await createKnowledgeBase(eventStore, project, graphDb, mockLogger);
+    kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger);
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
   });
@@ -71,7 +71,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
 
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
@@ -80,7 +80,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
 
       const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
       addedEvents.forEach(event => {
@@ -92,10 +92,10 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
 
       const emittedTypes = addedEvents.map(e => {
-        if (e.event.type === 'entitytype.added') {
+        if (e.event.type === 'mark:entity-type-added') {
           return e.event.payload.entityType;
         }
         throw new Error('Unexpected event type');
@@ -107,11 +107,11 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
 
       addedEvents.forEach(event => {
-        expect(event.event.type).toBe('entitytype.added');
-        if (event.event.type === 'entitytype.added') {
+        expect(event.event.type).toBe('mark:entity-type-added');
+        if (event.event.type === 'mark:entity-type-added') {
           expect(event.event.payload).toHaveProperty('entityType');
           expect(typeof event.event.payload.entityType).toBe('string');
           expect(event.event.payload.entityType.length).toBeGreaterThan(0);
@@ -161,7 +161,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
   });
@@ -183,7 +183,7 @@ describe('Entity Types Bootstrap', () => {
       const altEventBus = new EventBus();
       const altEventStore = createEventStore(altProject, altEventBus, mockLogger);
       const altGraphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const altKb = await createKnowledgeBase(altEventStore, altProject, altGraphDb, mockLogger);
+      const altKb = await createKnowledgeBase(altEventStore, altProject, altGraphDb, altEventBus, mockLogger);
       const altStower = new Stower(altKb, altEventBus, mockLogger);
       await altStower.initialize();
 
@@ -231,7 +231,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, project);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'mark:entity-type-added');
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length * 2);
     });
   });

@@ -5,7 +5,7 @@
  * Single source of truth for all EventBus event types.
  */
 
-import type { ResourceEvent, BodyOperation } from './events';
+import type { ResourceEvent, BodyOperation, StoredEvent } from './events';
 import type { components } from './types';
 import type { ResourceId, AnnotationId, UserId } from './identifiers';
 import type { JobId } from './branded-types';
@@ -98,7 +98,7 @@ export type EventMap = {
   // Specific typed domain events are defined within their respective flow sections below
   // ========================================================================
 
-  'make-meaning:event': ResourceEvent;
+  'make-meaning:event': StoredEvent;
 
   // ========================================================================
   // YIELD FLOW
@@ -122,9 +122,9 @@ export type EventMap = {
   'yield:finished': YieldProgress;
   'yield:failed': { error?: Error | string; status?: string; referenceId?: string; percentage?: number; message?: string };
 
-  // Domain Events (from backend event store)
-  'yield:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
-  'yield:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
+  // Domain Events (from backend event store) — published as StoredEvent (includes metadata)
+  'yield:representation-added': StoredEvent<Extract<ResourceEvent, { type: 'yield:representation-added' }>>;
+  'yield:representation-removed': StoredEvent<Extract<ResourceEvent, { type: 'yield:representation-removed' }>>;
 
   // Resource operations
   'yield:create': {
@@ -285,12 +285,12 @@ export type EventMap = {
   'mark:click-changed': { action: string };
   'mark:shape-changed': { shape: string };
 
-  // Domain Events (from backend event store)
-  'mark:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'mark:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
-  'mark:body-updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
-  'mark:entity-tag-added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
-  'mark:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
+  // Domain Events (from backend event store) — published as StoredEvent (includes metadata)
+  'mark:added': StoredEvent<Extract<ResourceEvent, { type: 'mark:added' }>>;
+  'mark:removed': StoredEvent<Extract<ResourceEvent, { type: 'mark:removed' }>>;
+  'mark:body-updated': StoredEvent<Extract<ResourceEvent, { type: 'mark:body-updated' }>>;
+  'mark:entity-tag-added': StoredEvent<Extract<ResourceEvent, { type: 'mark:entity-tag-added' }>>;
+  'mark:entity-tag-removed': StoredEvent<Extract<ResourceEvent, { type: 'mark:entity-tag-removed' }>>;
 
   // Entity type update commands (resource-scoped)
   'mark:update-entity-types': {
@@ -305,7 +305,7 @@ export type EventMap = {
     tag: string;
     userId: UserId;
   };
-  'mark:entity-type-added': { tag: string };
+  'mark:entity-type-added': StoredEvent<Extract<ResourceEvent, { type: 'mark:entity-type-added' }>>;
   'mark:entity-type-add-failed': { error: Error };
 
   // Resource management
@@ -315,12 +315,12 @@ export type EventMap = {
   // Frontend emits void (undefined); backend route enriches with userId + resourceId + storageUri
   // keepFile: if true, use git rm --cached (remove from index only, keep file on disk)
   'mark:archive': void | { userId: UserId; resourceId?: ResourceId; storageUri?: string; keepFile?: boolean; noGit?: boolean };
-  'mark:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
+  'mark:archived': StoredEvent<Extract<ResourceEvent, { type: 'mark:archived' }>>;
 
   // Unarchive command (UI) → unarchived event (backend confirmation via SSE)
   // Frontend emits void (undefined); backend route enriches with userId + resourceId
   'mark:unarchive': void | { userId: UserId; resourceId?: ResourceId; storageUri?: string };
-  'mark:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
+  'mark:unarchived': StoredEvent<Extract<ResourceEvent, { type: 'mark:unarchived' }>>;
 
   // ========================================================================
   // BIND FLOW
@@ -647,11 +647,11 @@ export type EventMap = {
     error: string;
   };
 
-  // Domain Events (from backend event store)
-  'job:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'job:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
-  'job:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'job:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  // Domain Events (from backend event store) — published as StoredEvent (includes metadata)
+  'job:started': StoredEvent<Extract<ResourceEvent, { type: 'job:started' }>>;
+  'job:progress': StoredEvent<Extract<ResourceEvent, { type: 'job:progress' }>>;
+  'job:completed': StoredEvent<Extract<ResourceEvent, { type: 'job:completed' }>>;
+  'job:failed': StoredEvent<Extract<ResourceEvent, { type: 'job:failed' }>>;
 
   // Job operations
   'job:queued': { jobId: string; jobType: string; resourceId: string };

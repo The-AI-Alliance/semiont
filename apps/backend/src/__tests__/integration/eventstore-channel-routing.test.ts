@@ -2,7 +2,7 @@
  * EventStore → CoreEventBus Channel Routing Integration Test
  *
  * Verifies that EventStore correctly routes domain events from dot notation to colon notation:
- * - Receives events with dot notation (type: 'job.completed')
+ * - Receives events with dot notation (type: 'job:completed')
  * - Publishes to colon notation channels ('job:completed')
  * - Events are resource-scoped
  * - SSE subscribers receive properly formatted events
@@ -65,7 +65,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit event with dot notation (like workers do)
     await eventStore.appendEvent({
-      type: 'job.completed', // DOT notation
+      type: 'job:completed', // DOT notation
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -81,7 +81,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Event received on colon-notation channel
     expect(receivedEvents).toHaveLength(1);
-    expect(receivedEvents[0].type).toBe('job.completed');
+    expect(receivedEvents[0].type).toBe('job:completed');
     expect(receivedEvents[0].payload.jobId).toBe(testJobId);
     expect(receivedEvents[0].payload.result.totalFound).toBe(5);
 
@@ -101,7 +101,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit event
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -117,7 +117,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Event received on generic channel
     expect(genericEvents).toHaveLength(1);
-    expect(genericEvents[0].type).toBe('job.started');
+    expect(genericEvents[0].type).toBe('job:started');
     expect(genericEvents[0].payload.jobId).toBe(testJobId);
 
     subscription.unsubscribe();
@@ -140,7 +140,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit one event
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -158,8 +158,8 @@ describe('EventStore Channel Routing Integration', () => {
     expect(specificEvents).toHaveLength(1);
     expect(genericEvents).toHaveLength(1);
 
-    expect(specificEvents[0].type).toBe('job.completed');
-    expect(genericEvents[0].type).toBe('job.completed');
+    expect(specificEvents[0].type).toBe('job:completed');
+    expect(genericEvents[0].type).toBe('job:completed');
 
     expect(specificEvents[0].payload.jobId).toBe(testJobId);
     expect(genericEvents[0].payload.jobId).toBe(testJobId);
@@ -182,7 +182,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit to resource 1
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId1,
       userId: userId('user-1'),
       version: 1,
@@ -195,7 +195,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit to resource 2
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId2,
       userId: userId('user-1'),
       version: 1,
@@ -239,7 +239,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit multiple event types
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -247,7 +247,7 @@ describe('EventStore Channel Routing Integration', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -255,7 +255,7 @@ describe('EventStore Channel Routing Integration', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -267,13 +267,13 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Each channel received only its event type
     expect(startedEvents).toHaveLength(1);
-    expect(startedEvents[0].type).toBe('job.started');
+    expect(startedEvents[0].type).toBe('job:started');
 
     expect(progressEvents).toHaveLength(1);
-    expect(progressEvents[0].type).toBe('job.progress');
+    expect(progressEvents[0].type).toBe('job:progress');
 
     expect(completedEvents).toHaveLength(1);
-    expect(completedEvents[0].type).toBe('job.completed');
+    expect(completedEvents[0].type).toBe('job:completed');
 
     expect(failedEvents).toHaveLength(0); // No failed events emitted
 
@@ -294,7 +294,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Emit job.failed event (dot notation)
     await eventStore.appendEvent({
-      type: 'job.failed',
+      type: 'job:failed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -310,7 +310,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Assert: Failed event received on colon-notation channel
     expect(failedEvents).toHaveLength(1);
-    expect(failedEvents[0].type).toBe('job.failed');
+    expect(failedEvents[0].type).toBe('job:failed');
     expect(failedEvents[0].payload.error).toBe('AI inference timeout');
 
     subscription.unsubscribe();

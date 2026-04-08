@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } 
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { GraphDBConsumer } from '../graph/consumer';
-import { resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
+import { resourceId, userId, annotationId, CREATION_METHODS, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
@@ -79,6 +79,7 @@ describe('GraphDBConsumer', () => {
   let testDir: string;
   let project: SemiontProject;
   let eventStore: EventStore;
+  let coreEventBus: EventBus;
   let graphDb: GraphDatabase;
   let consumer: GraphDBConsumer;
 
@@ -88,11 +89,13 @@ describe('GraphDBConsumer', () => {
 
     project = new SemiontProject(testDir);
     const viewStorage = new FilesystemViewStorage(project);
+    coreEventBus = new EventBus();
 
     eventStore = new EventStore(
       project,
       testDir,
       viewStorage,
+      coreEventBus,
     );
   });
 
@@ -103,7 +106,7 @@ describe('GraphDBConsumer', () => {
 
   beforeEach(async () => {
     graphDb = createMockGraphDb();
-    consumer = new GraphDBConsumer(eventStore, graphDb, mockLogger);
+    consumer = new GraphDBConsumer(eventStore, graphDb, coreEventBus, mockLogger);
     await consumer.initialize();
     vi.clearAllMocks();
   });
@@ -117,7 +120,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`filter-relevant-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -134,7 +137,7 @@ describe('GraphDBConsumer', () => {
 
       // First create the resource so the stream is initialized
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -145,7 +148,7 @@ describe('GraphDBConsumer', () => {
 
       // Now emit a non-graph event
       await eventStore.appendEvent({
-        type: 'job.started',
+        type: 'job:started',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -165,7 +168,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`filter-progress-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -175,7 +178,7 @@ describe('GraphDBConsumer', () => {
       vi.clearAllMocks();
 
       await eventStore.appendEvent({
-        type: 'job.progress',
+        type: 'job:progress',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -194,7 +197,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-created-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -213,7 +216,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-archived-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -223,7 +226,7 @@ describe('GraphDBConsumer', () => {
       vi.clearAllMocks();
 
       await eventStore.appendEvent({
-        type: 'resource.archived',
+        type: 'mark:archived',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -242,7 +245,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-unarchived-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -252,7 +255,7 @@ describe('GraphDBConsumer', () => {
       vi.clearAllMocks();
 
       await eventStore.appendEvent({
-        type: 'resource.unarchived',
+        type: 'mark:unarchived',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -271,7 +274,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-ann-added-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -281,7 +284,7 @@ describe('GraphDBConsumer', () => {
       vi.clearAllMocks();
 
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -316,7 +319,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-ann-removed-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -326,7 +329,7 @@ describe('GraphDBConsumer', () => {
       vi.clearAllMocks();
 
       await eventStore.appendEvent({
-        type: 'annotation.removed',
+        type: 'mark:removed',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -345,7 +348,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-body-updated-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -366,7 +369,7 @@ describe('GraphDBConsumer', () => {
       });
 
       await eventStore.appendEvent({
-        type: 'annotation.body.updated',
+        type: 'mark:body-updated',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -390,7 +393,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-entitytag-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -410,7 +413,7 @@ describe('GraphDBConsumer', () => {
       });
 
       await eventStore.appendEvent({
-        type: 'entitytag.added',
+        type: 'mark:entity-tag-added',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -430,7 +433,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`apply-entitytag-rm-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -449,7 +452,7 @@ describe('GraphDBConsumer', () => {
       });
 
       await eventStore.appendEvent({
-        type: 'entitytag.removed',
+        type: 'mark:entity-tag-removed',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -466,7 +469,7 @@ describe('GraphDBConsumer', () => {
 
     it('should handle entitytype.added (system event, no resourceId)', async () => {
       await eventStore.appendEvent({
-        type: 'entitytype.added',
+        type: 'mark:entity-type-added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'organization' },
@@ -483,7 +486,7 @@ describe('GraphDBConsumer', () => {
       const docId = resourceId(`unknown-type-${Date.now()}`);
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -497,7 +500,7 @@ describe('GraphDBConsumer', () => {
       vi.clearAllMocks();
 
       await eventStore.appendEvent({
-        type: 'representation.added' as any,
+        type: 'yield:representation-added' as any,
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -532,7 +535,7 @@ describe('GraphDBConsumer', () => {
       });
 
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -540,7 +543,7 @@ describe('GraphDBConsumer', () => {
       });
 
       await eventStore.appendEvent({
-        type: 'resource.archived',
+        type: 'mark:archived',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -563,7 +566,7 @@ describe('GraphDBConsumer', () => {
 
       // Create the resource first and wait for full cycle
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -575,7 +578,7 @@ describe('GraphDBConsumer', () => {
       // Rapidly emit multiple annotation.added events (simulating bulk inference)
       for (let i = 0; i < 5; i++) {
         await eventStore.appendEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           resourceId: docId,
           userId: userId('user1'),
           version: 1,
@@ -619,14 +622,14 @@ describe('GraphDBConsumer', () => {
   describe('lifecycle', () => {
     it('should unsubscribe on stop', async () => {
       const localGraphDb = createMockGraphDb();
-      const localConsumer = new GraphDBConsumer(eventStore, localGraphDb, mockLogger);
+      const localConsumer = new GraphDBConsumer(eventStore, localGraphDb, coreEventBus, mockLogger);
       await localConsumer.initialize();
 
       const docId = resourceId(`lifecycle-stop-${Date.now()}`);
 
       // Verify events are received before stop
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId,
         userId: userId('user1'),
         version: 1,
@@ -642,7 +645,7 @@ describe('GraphDBConsumer', () => {
       // Events after stop should not be processed
       const docId2 = resourceId(`lifecycle-after-stop-${Date.now()}`);
       await eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: docId2,
         userId: userId('user1'),
         version: 1,

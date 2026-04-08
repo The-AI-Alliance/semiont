@@ -10,7 +10,7 @@ describe('@semiont/core - events', () => {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
         userId: 'did:web:example.com:users:alice',
-        type: 'resource.created',
+        type: 'yield:created',
         version: 1,
         payload: {},
       };
@@ -23,7 +23,7 @@ describe('@semiont/core - events', () => {
         id: 'evt-123',
         timestamp: '2024-01-01T00:00:00Z',
         userId: 'did:web:example.com:users:alice',
-        type: 'entitytype.added',
+        type: 'mark:entity-type-added',
         version: 1,
         payload: {},
       };
@@ -35,7 +35,7 @@ describe('@semiont/core - events', () => {
       const event = {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
-        type: 'resource.created',
+        type: 'yield:created',
       };
 
       expect(isResourceEvent(event)).toBe(false);
@@ -45,7 +45,7 @@ describe('@semiont/core - events', () => {
       const event = {
         id: 'evt-123',
         resourceId: 'doc-abc',
-        type: 'resource.created',
+        type: 'yield:created',
       };
 
       expect(isResourceEvent(event)).toBe(false);
@@ -91,7 +91,7 @@ describe('@semiont/core - events', () => {
         id: 123,
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
-        type: 'resource.created',
+        type: 'yield:created',
       };
 
       expect(isResourceEvent(event)).toBe(false);
@@ -102,7 +102,7 @@ describe('@semiont/core - events', () => {
         id: 'evt-123',
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 123,
-        type: 'resource.created',
+        type: 'yield:created',
       };
 
       expect(isResourceEvent(event)).toBe(false);
@@ -115,7 +115,7 @@ describe('@semiont/core - events', () => {
         id: 'evt-123',
         timestamp: '2024-01-01T00:00:00Z',
         userId: 'did:web:example.com:users:alice',
-        type: 'entitytype.added',
+        type: 'mark:entity-type-added',
         version: 1,
         payload: {
           entityType: 'Person',
@@ -131,7 +131,7 @@ describe('@semiont/core - events', () => {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
         userId: 'did:web:example.com:users:alice',
-        type: 'resource.created',
+        type: 'yield:created',
         version: 1,
         payload: {
           name: 'Test',
@@ -166,7 +166,7 @@ describe('@semiont/core - events', () => {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
         userId: 'did:web:example.com:users:alice',
-        type: 'resource.created',
+        type: 'yield:created',
         version: 1,
         payload: {
           name: 'Test',
@@ -198,7 +198,7 @@ describe('@semiont/core - events', () => {
         id: 'evt-123',
         timestamp: '2024-01-01T00:00:00Z',
         userId: 'did:web:example.com:users:alice',
-        type: 'entitytype.added',
+        type: 'mark:entity-type-added',
         version: 1,
         payload: {
           entityType: 'Person',
@@ -214,7 +214,7 @@ describe('@semiont/core - events', () => {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
         userId: 'did:web:example.com:users:alice',
-        type: 'resource.archived',
+        type: 'mark:archived',
         version: 1,
         payload: {
           reason: undefined,
@@ -232,12 +232,12 @@ describe('@semiont/core - events', () => {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
         userId: 'did:web:example.com:users:alice',
-        type: 'resource.created',
+        type: 'yield:created',
         version: 1,
         payload: {} as any,
       } as any;
 
-      expect(getEventType(event)).toBe('resource.created');
+      expect(getEventType(event)).toBe('yield:created');
     });
 
     it('should extract type from entitytype.added event', () => {
@@ -245,12 +245,12 @@ describe('@semiont/core - events', () => {
         id: 'evt-123',
         timestamp: '2024-01-01T00:00:00Z',
         userId: 'did:web:example.com:users:alice',
-        type: 'entitytype.added',
+        type: 'mark:entity-type-added',
         version: 1,
         payload: {} as any,
       } as SystemEvent;
 
-      expect(getEventType(event)).toBe('entitytype.added');
+      expect(getEventType(event)).toBe('mark:entity-type-added');
     });
 
     it('should extract type from annotation event', () => {
@@ -259,12 +259,12 @@ describe('@semiont/core - events', () => {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
         userId: 'did:web:example.com:users:alice',
-        type: 'annotation.body.updated',
+        type: 'mark:body-updated',
         version: 1,
         payload: {} as any,
       } as any;
 
-      expect(getEventType(event)).toBe('annotation.body.updated');
+      expect(getEventType(event)).toBe('mark:body-updated');
     });
   });
 
@@ -274,7 +274,7 @@ describe('@semiont/core - events', () => {
         id: 'evt-1',
         timestamp: '2024-01-01T00:00:00Z',
         userId: 'did:web:example.com:users:alice',
-        type: 'entitytype.added',
+        type: 'mark:entity-type-added',
         version: 1,
         payload: { entityType: 'Person' },
       } as SystemEvent;
@@ -284,7 +284,7 @@ describe('@semiont/core - events', () => {
         timestamp: '2024-01-01T00:00:00Z',
         resourceId: 'doc-abc',
         userId: 'did:web:example.com:users:alice',
-        type: 'resource.created',
+        type: 'yield:created',
         version: 1,
         payload: {} as any,
       } as any;

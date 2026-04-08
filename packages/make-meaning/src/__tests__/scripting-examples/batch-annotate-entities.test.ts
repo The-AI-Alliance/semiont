@@ -130,14 +130,14 @@ describe('Scripting Example: Batch Entity Detection', () => {
       // Track completion and failures
       // Subscribe to domain event 'make-meaning:event' and filter for job.completed/job.failed
       resourceBus.get('make-meaning:event').subscribe((event) => {
-        if (event.type === 'job.completed') {
+        if (event.event.type === 'job:completed') {
           completions.set(rId, { success: true });
           processedCount++;
           console.log(`✓ [${rId}] Detection complete (${processedCount}/${resources.length})`);
-        } else if (event.type === 'job.failed') {
-          completions.set(rId, { success: false, message: event.payload.error });
+        } else if (event.event.type === 'job:failed') {
+          completions.set(rId, { success: false, message: event.event.payload.error });
           processedCount++;
-          console.log(`✗ [${rId}] Detection failed: ${event.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
+          console.log(`✗ [${rId}] Detection failed: ${event.event.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
         }
       });
     }
@@ -234,9 +234,9 @@ describe('Scripting Example: Batch Entity Detection', () => {
 
       // Subscribe to domain event 'make-meaning:event' and filter for job.completed/job.failed
       resourceBus.get('make-meaning:event').subscribe((event) => {
-        if (event.type === 'job.completed') {
+        if (event.event.type === 'job:completed') {
           completions.set(rId, { success: true });
-        } else if (event.type === 'job.failed') {
+        } else if (event.event.type === 'job:failed') {
           completions.set(rId, { success: false });
         }
       });

@@ -3,7 +3,7 @@
  *
  * Replays parsed JSONL event streams through the EventBus.
  * Each domain event is translated to the corresponding command event
- * (e.g. resource.created → yield:create), emitted, and the result
+ * (e.g. yield:created → yield:create), emitted, and the result
  * event is awaited before proceeding (backpressure).
  *
  * Content blobs are resolved lazily via a lookup function so that
@@ -96,53 +96,53 @@ async function replayEvent(
   logger?: Logger,
 ): Promise<void> {
   switch (event.type) {
-    case 'entitytype.added':
+    case 'mark:entity-type-added':
       await replayEntityTypeAdded(event, eventBus, logger);
       stats.entityTypesAdded++;
       break;
 
-    case 'resource.created':
+    case 'yield:created':
       await replayResourceCreated(event, eventBus, resolveBlob, logger);
       stats.resourcesCreated++;
       break;
 
-    case 'annotation.added':
+    case 'mark:added':
       await replayAnnotationAdded(event, eventBus, logger);
       stats.annotationsCreated++;
       break;
 
-    case 'annotation.body.updated':
+    case 'mark:body-updated':
       await replayAnnotationBodyUpdated(event, eventBus, logger);
       break;
 
-    case 'annotation.removed':
+    case 'mark:removed':
       await replayAnnotationRemoved(event, eventBus, logger);
       break;
 
-    case 'resource.archived':
+    case 'mark:archived':
       await replayResourceArchived(event, eventBus, logger);
       break;
 
-    case 'resource.unarchived':
+    case 'mark:unarchived':
       await replayResourceUnarchived(event, eventBus, logger);
       break;
 
-    case 'entitytag.added':
-    case 'entitytag.removed':
+    case 'mark:entity-tag-added':
+    case 'mark:entity-tag-removed':
       await replayEntityTagChange(event, eventBus, logger);
       break;
 
     // Job events are transient — skip during replay
-    case 'job.started':
-    case 'job.progress':
-    case 'job.completed':
-    case 'job.failed':
+    case 'job:started':
+    case 'job:progress':
+    case 'job:completed':
+    case 'job:failed':
       logger?.debug('Skipping job event during replay', { type: event.type });
       break;
 
-    // Representation events — content is already stored via resource.created replay
-    case 'representation.added':
-    case 'representation.removed':
+    // Representation events — content is already stored via yield:created replay
+    case 'yield:representation-added':
+    case 'yield:representation-removed':
       logger?.debug('Skipping representation event during replay', { type: event.type });
       break;
 
@@ -154,7 +154,7 @@ async function replayEvent(
 // ── Individual event replay handlers ──
 
 async function replayEntityTypeAdded(
-  event: ResourceEvent & { type: 'entitytype.added' },
+  event: ResourceEvent & { type: 'mark:entity-type-added' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -174,7 +174,7 @@ async function replayEntityTypeAdded(
 }
 
 async function replayResourceCreated(
-  event: ResourceEvent & { type: 'resource.created' },
+  event: ResourceEvent & { type: 'yield:created' },
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
   logger?: Logger,
@@ -210,7 +210,7 @@ async function replayResourceCreated(
 }
 
 async function replayAnnotationAdded(
-  event: ResourceEvent & { type: 'annotation.added' },
+  event: ResourceEvent & { type: 'mark:added' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -231,7 +231,7 @@ async function replayAnnotationAdded(
 }
 
 async function replayAnnotationBodyUpdated(
-  event: ResourceEvent & { type: 'annotation.body.updated' },
+  event: ResourceEvent & { type: 'mark:body-updated' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -253,7 +253,7 @@ async function replayAnnotationBodyUpdated(
 }
 
 async function replayAnnotationRemoved(
-  event: ResourceEvent & { type: 'annotation.removed' },
+  event: ResourceEvent & { type: 'mark:removed' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -274,7 +274,7 @@ async function replayAnnotationRemoved(
 }
 
 async function replayResourceArchived(
-  event: ResourceEvent & { type: 'resource.archived' },
+  event: ResourceEvent & { type: 'mark:archived' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -286,7 +286,7 @@ async function replayResourceArchived(
 }
 
 async function replayResourceUnarchived(
-  event: ResourceEvent & { type: 'resource.unarchived' },
+  event: ResourceEvent & { type: 'mark:unarchived' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -298,14 +298,14 @@ async function replayResourceUnarchived(
 }
 
 async function replayEntityTagChange(
-  event: ResourceEvent & { type: 'entitytag.added' | 'entitytag.removed' },
+  event: ResourceEvent & { type: 'mark:entity-tag-added' | 'mark:entity-tag-removed' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
   const resourceId = event.resourceId as ResourceId;
   const entityType = event.payload.entityType;
 
-  if (event.type === 'entitytag.added') {
+  if (event.type === 'mark:entity-tag-added') {
     eventBus.get('mark:update-entity-types').next({
       resourceId,
       userId: event.userId,

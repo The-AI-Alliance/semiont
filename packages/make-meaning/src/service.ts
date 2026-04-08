@@ -133,10 +133,9 @@ async function createKnowledgeSystemFromConfig(
     });
   }
 
-  const kb = await createKnowledgeBase(eventStore, project, graphDb, logger, {
+  const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, {
     vectorStore,
     embeddingProvider,
-    eventBus,
     chunkingConfig: embeddingConfig?.chunking ? {
       chunkSize: embeddingConfig.chunking.chunkSize ?? 512,
       overlap: embeddingConfig.chunking.overlap ?? 64,

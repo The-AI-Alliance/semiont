@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceId, ResourceEvent, GatheredContext } from '@semiont/core';
+import type { components, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import { annotationId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getMimeCategory } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
@@ -364,8 +364,8 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(annotationId);
   }, [triggerSparkleAnimation]);
 
-  const handleAnnotationAdded = useCallback((event: Extract<ResourceEvent, { type: 'annotation.added' }>) => {
-    triggerSparkleAnimation(event.payload.annotation.id);
+  const handleAnnotationAdded = useCallback((stored: EventMap['mark:added']) => {
+    triggerSparkleAnimation(stored.event.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
   const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);

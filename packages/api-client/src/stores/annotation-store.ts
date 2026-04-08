@@ -60,39 +60,36 @@ export class AnnotationStore {
       this.removeFromDetailCache(event.annotationId);
     });
 
-    // AnnotationAddedEvent: resourceId is optional on BaseEvent (present for resource-scoped events)
-    eventBus.get('mark:added').subscribe((event: EventMap['mark:added']) => {
-      if (event.resourceId) {
-        this.invalidateList(event.resourceId);
+    // Domain events are now StoredEvent — access inner ResourceEvent via .event
+    eventBus.get('mark:added').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateList(stored.event.resourceId);
       }
     });
 
-    // AnnotationRemovedEvent: resourceId on BaseEvent (optional), payload.annotationId
-    eventBus.get('mark:removed').subscribe((event: EventMap['mark:removed']) => {
-      if (event.resourceId) {
-        this.invalidateList(event.resourceId);
+    eventBus.get('mark:removed').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateList(stored.event.resourceId);
       }
-      this.invalidateDetail(event.payload.annotationId);
+      this.invalidateDetail(stored.event.payload.annotationId);
     });
 
-    // AnnotationBodyUpdatedEvent: resourceId on BaseEvent (optional), payload.annotationId
-    eventBus.get('mark:body-updated').subscribe((event: EventMap['mark:body-updated']) => {
-      if (event.resourceId) {
-        this.invalidateList(event.resourceId);
+    eventBus.get('mark:body-updated').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateList(stored.event.resourceId);
       }
-      this.invalidateDetail(event.payload.annotationId);
+      this.invalidateDetail(stored.event.payload.annotationId);
     });
 
-    // EntityTagAddedEvent / EntityTagRemovedEvent: resourceId is a required top-level field
-    eventBus.get('mark:entity-tag-added').subscribe((event: EventMap['mark:entity-tag-added']) => {
-      if (event.resourceId) {
-        this.invalidateList(event.resourceId);
+    eventBus.get('mark:entity-tag-added').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateList(stored.event.resourceId);
       }
     });
 
-    eventBus.get('mark:entity-tag-removed').subscribe((event: EventMap['mark:entity-tag-removed']) => {
-      if (event.resourceId) {
-        this.invalidateList(event.resourceId);
+    eventBus.get('mark:entity-tag-removed').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateList(stored.event.resourceId);
       }
     });
   }

@@ -65,31 +65,30 @@ export class ResourceStore {
       this.invalidateLists();
     });
 
-    // resourceId is optional on BaseEvent — present for resource-scoped events
-    eventBus.get('mark:archived').subscribe((event: EventMap['mark:archived']) => {
-      if (event.resourceId) {
-        this.invalidateDetail(event.resourceId);
+    // Domain events are now StoredEvent — access inner ResourceEvent via .event
+    eventBus.get('mark:archived').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateDetail(stored.event.resourceId);
         this.invalidateLists();
       }
     });
 
-    eventBus.get('mark:unarchived').subscribe((event: EventMap['mark:unarchived']) => {
-      if (event.resourceId) {
-        this.invalidateDetail(event.resourceId);
+    eventBus.get('mark:unarchived').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateDetail(stored.event.resourceId);
         this.invalidateLists();
       }
     });
 
-    // EntityTagAddedEvent / EntityTagRemovedEvent have resourceId as a top-level field
-    eventBus.get('mark:entity-tag-added').subscribe((event: EventMap['mark:entity-tag-added']) => {
-      if (event.resourceId) {
-        this.invalidateDetail(event.resourceId);
+    eventBus.get('mark:entity-tag-added').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateDetail(stored.event.resourceId);
       }
     });
 
-    eventBus.get('mark:entity-tag-removed').subscribe((event: EventMap['mark:entity-tag-removed']) => {
-      if (event.resourceId) {
-        this.invalidateDetail(event.resourceId);
+    eventBus.get('mark:entity-tag-removed').subscribe((stored) => {
+      if (stored.event.resourceId) {
+        this.invalidateDetail(stored.event.resourceId);
       }
     });
   }

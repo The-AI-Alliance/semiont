@@ -18,7 +18,7 @@ import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { type EventStore, EventQuery } from '@semiont/event-sourcing';
 import { burstBuffer } from '@semiont/core';
-import type { Logger, StoredEvent, ResourceCreatedEvent, ResourceArchivedEvent, AnnotationAddedEvent, AnnotationRemovedEvent } from '@semiont/core';
+import type { Logger, StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceArchivedEvent, AnnotationAddedEvent, AnnotationRemovedEvent } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, type EmbeddingComputedEvent, type EmbeddingDeletedEvent } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
@@ -30,16 +30,16 @@ import { getExactText, getTargetSelector } from '@semiont/api-client';
 import { partitionByType } from './batch-utils.js';
 
 export class Smelter {
-  private static readonly SMELTER_RELEVANT_EVENTS = new Set([
-    'resource.created', 'resource.archived',
-    'annotation.added', 'annotation.removed',
+  private static readonly SMELTER_RELEVANT_EVENTS: Set<ResourceEvent['type']> = new Set([
+    'yield:created', 'mark:archived',
+    'mark:added', 'mark:removed',
   ]);
 
   private static readonly BURST_WINDOW_MS = 50;
   private static readonly MAX_BATCH_SIZE = 100;
   private static readonly IDLE_TIMEOUT_MS = 200;
 
-  private _globalSubscription: any = null;
+  private _globalSubscription: Subscription | null = null;
   private eventSubject = new Subject<StoredEvent>();
   private pipelineSubscription: Subscription | null = null;
   private readonly logger: Logger;
@@ -61,8 +61,8 @@ export class Smelter {
   async initialize(): Promise<void> {
     this.logger.info('Smelter actor initializing');
 
-    // Bridge: callback-based EventBus subscription → RxJS Subject
-    this._globalSubscription = this.eventStore.bus.subscriptions.subscribeGlobal(
+    // Subscribe to the Core EventBus firehose — all domain events as StoredEvent
+    this._globalSubscription = this.eventBus.get('make-meaning:event').subscribe(
       (storedEvent: StoredEvent) => {
         if (!Smelter.SMELTER_RELEVANT_EVENTS.has(storedEvent.event.type)) return;
         this.eventSubject.next(storedEvent);
@@ -95,9 +95,7 @@ export class Smelter {
   }
 
   async stop(): Promise<void> {
-    if (this._globalSubscription && typeof this._globalSubscription.unsubscribe === 'function') {
-      this._globalSubscription.unsubscribe();
-    }
+    this._globalSubscription?.unsubscribe();
     this._globalSubscription = null;
     this.pipelineSubscription?.unsubscribe();
     this.eventSubject.complete();
@@ -106,7 +104,7 @@ export class Smelter {
 
   /**
    * Rebuild the vector store from persisted embedding events in the event log.
-   * Reads all embedding.computed / embedding.deleted events and replays them.
+   * Reads all embedding:computed / embedding:deleted events and replays them.
    * Bypasses the live pipeline — reads directly from the event store.
    */
   async rebuildAll(): Promise<void> {
@@ -123,22 +121,22 @@ export class Smelter {
     for (const rid of allResourceIds) {
       const events = await query.getResourceEvents(makeResourceId(rid as string));
 
-      // Collect the final state: last embedding.deleted cancels prior embeddings
+      // Collect the final state: last embedding:deleted cancels prior embeddings
       const embeddingEvents = events.filter(
-        (e) => e.event.type === 'embedding.computed' || e.event.type === 'embedding.deleted'
+        (e) => e.event.type === 'embedding:computed' || e.event.type === 'embedding:deleted'
       );
       if (embeddingEvents.length === 0) continue;
 
-      // Check if the resource was deleted (last event is embedding.deleted with no annotationId)
+      // Check if the resource was deleted (last event is embedding:deleted with no annotationId)
       const lastEvent = embeddingEvents[embeddingEvents.length - 1];
-      if (lastEvent.event.type === 'embedding.deleted' && !(lastEvent.event as EmbeddingDeletedEvent).payload.annotationId) {
+      if (lastEvent.event.type === 'embedding:deleted' && !(lastEvent.event as EmbeddingDeletedEvent).payload.annotationId) {
         continue; // Resource vectors were deleted, skip
       }
 
       // Replay computed events, skipping any whose annotation was later deleted
       const deletedAnnotations = new Set<string>();
       for (const e of embeddingEvents) {
-        if (e.event.type === 'embedding.deleted') {
+        if (e.event.type === 'embedding:deleted') {
           const payload = (e.event as EmbeddingDeletedEvent).payload;
           if (payload.annotationId) deletedAnnotations.add(String(payload.annotationId));
         }
@@ -146,7 +144,7 @@ export class Smelter {
 
       const resourceChunks: EmbeddingChunk[] = [];
       for (const e of embeddingEvents) {
-        if (e.event.type !== 'embedding.computed') continue;
+        if (e.event.type !== 'embedding:computed') continue;
         const payload = (e.event as EmbeddingComputedEvent).payload;
 
         if (payload.annotationId) {
@@ -215,10 +213,10 @@ export class Smelter {
     const type = events[0].event.type;
 
     switch (type) {
-      case 'resource.created':
+      case 'yield:created':
         await this.batchResourceCreated(events);
         break;
-      case 'annotation.added':
+      case 'mark:added':
         await this.batchAnnotationAdded(events);
         break;
       default:
@@ -365,16 +363,16 @@ export class Smelter {
     const event = storedEvent.event;
 
     switch (event.type) {
-      case 'resource.created':
+      case 'yield:created':
         await this.handleResourceCreated(event as ResourceCreatedEvent);
         break;
-      case 'resource.archived':
+      case 'mark:archived':
         await this.handleResourceArchived(event as ResourceArchivedEvent);
         break;
-      case 'annotation.added':
+      case 'mark:added':
         await this.handleAnnotationAdded(event as AnnotationAddedEvent);
         break;
-      case 'annotation.removed':
+      case 'mark:removed':
         await this.handleAnnotationRemoved(event as AnnotationRemovedEvent);
         break;
     }

@@ -113,7 +113,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     // Subscribe to detection lifecycle events
     // Subscribe to domain event for job.started
     resourceBus.get('make-meaning:event').subscribe(event => {
-      if (event.type === 'job.started') {
+      if (event.event.type === 'job:started') {
         detectionStartedEvents.push(event);
         console.log(`[${result}] Detection started`);
       }
@@ -128,7 +128,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     // Subscribe to domain event 'make-meaning:event' and filter for job.completed
     const completionPromise = new Promise(resolve => {
       resourceBus.get('make-meaning:event').subscribe(event => {
-        if (event.type === 'job.completed') {
+        if (event.event.type === 'job:completed') {
           detectionCompletedEvents.push(event);
           console.log(`[${result}] Detection complete`);
           resolve(event);
@@ -205,7 +205,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     for (const rId of resources) {
       const resourceBus = eventBus.scope(rId);
       resourceBus.get('make-meaning:event').subscribe((event) => {
-        if (event.type === 'job.completed') {
+        if (event.event.type === 'job:completed') {
           completions.set(rId, true);
           console.log(`✓ Completed: ${rId}`);
         }
@@ -284,7 +284,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     // Subscribe to domain event 'make-meaning:event' and filter for job.completed
     const completionPromise = new Promise(resolve => {
       resourceBus.get('make-meaning:event').subscribe((event) => {
-        if (event.type === 'job.completed') {
+        if (event.event.type === 'job:completed') {
           resolve(event);
         }
       });

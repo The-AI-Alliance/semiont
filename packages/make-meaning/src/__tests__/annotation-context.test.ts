@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
-import { resourceId, annotationId, userId, type Logger } from '@semiont/core';
+import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
@@ -70,7 +70,7 @@ describe('AnnotationContext', () => {
     ({ project, teardown } = await createTestProject('annotation-context'));
 
     mockGraphDb = createMockGraphDb();
-    const eventStore = createEventStore(project, undefined, mockLogger);
+    const eventStore = createEventStore(project, new EventBus(), mockLogger);
     kb = {
       eventStore,
       views: eventStore.viewStorage,
@@ -91,10 +91,10 @@ describe('AnnotationContext', () => {
     const storageUri = `file://test-resources/${id}.txt`;
     const { checksum } = await kb.content.store(testContent, storageUri);
 
-    const eventStore = createEventStore(project, undefined, mockLogger);
+    const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
     await eventStore.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: resourceId(id),
       userId: userId('user-1'),
       version: 1,
@@ -129,10 +129,10 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(project, undefined, mockLogger);
+    const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
     await eventStore.appendEvent({
-      type: 'annotation.added',
+      type: 'mark:added',
       resourceId: resourceId(resId),
       userId: userId('user-1'),
       version: 1,
@@ -310,11 +310,11 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(project, undefined, mockLogger);
+    const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
-      type: 'annotation.added',
+      type: 'mark:added',
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       version: 1,
@@ -473,9 +473,9 @@ describe('AnnotationContext', () => {
       await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
 
       // Add a sibling annotation with entity types
-      const eventStore = createEventStore(project, undefined, mockLogger);
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: resourceId(testResourceId),
         userId: userId('user-1'),
         version: 1,

@@ -20,9 +20,10 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { BodyOperation } from '@semiont/core';
-import { resourceId, annotationId, userId, userToDid } from '@semiont/core';
+import { resourceId, annotationId, userId, userToDid, type StoredEvent } from '@semiont/core';
 import { getLogger } from '../../../logger';
 import type { components } from '@semiont/core';
+import type { Subscription } from 'rxjs';
 
 type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRequest'];
 
@@ -58,7 +59,7 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
         let isStreamClosed = false;
         let closeStreamCallback: (() => void) | null = null;
         let timeoutHandle: NodeJS.Timeout | null = null;
-        let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
+        let subscription: Subscription | null = null;
 
         const streamPromise = new Promise<void>((resolve) => {
           closeStreamCallback = resolve;
@@ -73,10 +74,10 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
         };
 
         try {
-          // Subscribe to resource events via the legacy EventBus (where domain events arrive)
-          subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+          // Subscribe to resource-scoped domain events via Core EventBus
+          const scopedBus = eventBus.scope(String(rId));
+          subscription = scopedBus.get('mark:body-updated').subscribe(async (storedEvent: StoredEvent) => {
             if (isStreamClosed) return;
-            if (storedEvent.event.type !== 'annotation.body.updated') return;
             if (storedEvent.event.payload?.annotationId !== annotationIdParam) return;
 
             logger.info('Bind completed', { annotationId: annotationIdParam });

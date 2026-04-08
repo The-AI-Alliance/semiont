@@ -36,7 +36,7 @@ describe('EventQuery', () => {
 
     // Create test events for doc1
     await storage.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       userId: userId('user1'),
       resourceId: resourceId('doc1'),
       version: 1,
@@ -44,7 +44,7 @@ describe('EventQuery', () => {
     }, resourceId('doc1'));
 
     await storage.appendEvent({
-      type: 'annotation.added',
+      type: 'mark:added',
       userId: userId('user1'),
       resourceId: resourceId('doc1'),
       version: 1,
@@ -52,7 +52,7 @@ describe('EventQuery', () => {
     }, resourceId('doc1'));
 
     await storage.appendEvent({
-      type: 'annotation.added',
+      type: 'mark:added',
       userId: userId('user2'),
       resourceId: resourceId('doc1'),
       version: 1,
@@ -60,7 +60,7 @@ describe('EventQuery', () => {
     }, resourceId('doc1'));
 
     await storage.appendEvent({
-      type: 'annotation.removed',
+      type: 'mark:removed',
       userId: userId('user1'),
       resourceId: resourceId('doc1'),
       version: 1,
@@ -68,7 +68,7 @@ describe('EventQuery', () => {
     }, resourceId('doc1'));
 
     await storage.appendEvent({
-      type: 'entitytag.added',
+      type: 'mark:entity-tag-added',
       userId: userId('user2'),
       resourceId: resourceId('doc1'),
       version: 1,
@@ -77,7 +77,7 @@ describe('EventQuery', () => {
 
     // Create events for doc2
     await storage.appendEvent({
-      type: 'resource.created',
+      type: 'yield:created',
       userId: userId('user1'),
       resourceId: resourceId('doc2'),
       version: 1,
@@ -95,8 +95,8 @@ describe('EventQuery', () => {
       const events = await query.getResourceEvents(resourceId('doc1'));
 
       expect(events).toHaveLength(5);
-      expect(events[0]?.event.type).toBe('resource.created');
-      expect(events[4]?.event.type).toBe('entitytag.added');
+      expect(events[0]?.event.type).toBe('yield:created');
+      expect(events[4]?.event.type).toBe('mark:entity-tag-added');
     });
 
     it('should return empty array for nonexistent resource', async () => {
@@ -123,7 +123,7 @@ describe('EventQuery', () => {
       const latest = await query.getLatestEvent(resourceId('doc1'));
 
       expect(latest).not.toBeNull();
-      expect(latest?.event.type).toBe('entitytag.added');
+      expect(latest?.event.type).toBe('mark:entity-tag-added');
       expect(latest?.metadata.sequenceNumber).toBe(5);
     });
 
@@ -173,24 +173,24 @@ describe('EventQuery', () => {
     it('should filter by single event type', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        eventTypes: ['annotation.added'],
+        eventTypes: ['mark:added'],
       });
 
       expect(events).toHaveLength(2);
       events.forEach(e => {
-        expect(e.event.type).toBe('annotation.added');
+        expect(e.event.type).toBe('mark:added');
       });
     });
 
     it('should filter by multiple event types', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        eventTypes: ['annotation.added', 'annotation.removed'],
+        eventTypes: ['mark:added', 'mark:removed'],
       });
 
       expect(events).toHaveLength(3);
       events.forEach(e => {
-        expect(['annotation.added', 'annotation.removed']).toContain(e.event.type);
+        expect(['mark:added', 'mark:removed']).toContain(e.event.type);
       });
     });
 
@@ -327,7 +327,7 @@ describe('EventQuery', () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.event.type).toBe('resource.created');
+      expect(events[0]?.event.type).toBe('yield:created');
     });
 
     it('should handle limit larger than result set', async () => {
@@ -363,12 +363,12 @@ describe('EventQuery', () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
         userId: userId('user1'),
-        eventTypes: ['annotation.added'],
+        eventTypes: ['mark:added'],
       });
 
       expect(events).toHaveLength(1);
       expect(events[0]?.event.userId).toBe('user1');
-      expect(events[0]?.event.type).toBe('annotation.added');
+      expect(events[0]?.event.type).toBe('mark:added');
     });
 
     it('should combine userId + limit', async () => {
@@ -387,14 +387,14 @@ describe('EventQuery', () => {
     it('should combine eventTypes + fromSequence + limit', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        eventTypes: ['annotation.added', 'annotation.removed'],
+        eventTypes: ['mark:added', 'mark:removed'],
         fromSequence: 2,
         limit: 2,
       });
 
       expect(events.length).toBeLessThanOrEqual(2);
       events.forEach(e => {
-        expect(['annotation.added', 'annotation.removed']).toContain(e.event.type);
+        expect(['mark:added', 'mark:removed']).toContain(e.event.type);
         expect(e.metadata.sequenceNumber >= 2).toBe(true);
       });
     });
@@ -405,7 +405,7 @@ describe('EventQuery', () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
         userId: userId('user1'),
-        eventTypes: ['annotation.added', 'annotation.removed'],
+        eventTypes: ['mark:added', 'mark:removed'],
         fromTimestamp: allEvents[0]?.event.timestamp!,
         toTimestamp: allEvents[4]?.event.timestamp!,
         fromSequence: 1,
@@ -414,7 +414,7 @@ describe('EventQuery', () => {
 
       events.forEach(e => {
         expect(e.event.userId).toBe('user1');
-        expect(['annotation.added', 'annotation.removed']).toContain(e.event.type);
+        expect(['mark:added', 'mark:removed']).toContain(e.event.type);
       });
     });
   });
@@ -428,7 +428,7 @@ describe('EventQuery', () => {
       const events = await query.getResourceEvents(resourceId('doc2'));
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.event.type).toBe('resource.created');
+      expect(events[0]?.event.type).toBe('yield:created');
     });
 
     it('should handle getLastEvent for resource with one file', async () => {
@@ -462,7 +462,7 @@ describe('EventQuery', () => {
     it('should handle large result sets efficiently', async () => {
       for (let i = 0; i < 100; i++) {
         await storage.appendEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           userId: userId('user1'),
           resourceId: resourceId('doc-perf'),
           version: 1,
@@ -490,7 +490,7 @@ describe('EventQuery', () => {
     it('should apply filters efficiently on large sets', async () => {
       for (let i = 0; i < 100; i++) {
         await storage.appendEvent({
-          type: i % 2 === 0 ? 'annotation.added' : 'annotation.removed',
+          type: i % 2 === 0 ? 'mark:added' : 'mark:removed',
           userId: i % 3 === 0 ? userId('user1') : userId('user2'),
           resourceId: resourceId('doc-filter'),
           version: 1,
@@ -513,7 +513,7 @@ describe('EventQuery', () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc-filter'),
         userId: userId('user1'),
-        eventTypes: ['annotation.added'],
+        eventTypes: ['mark:added'],
         limit: 10,
       });
       const duration = Date.now() - start;

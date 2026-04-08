@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import type { components, ResourceCreatedEvent, Logger } from '@semiont/core';
-import { resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
+import { resourceId, userId, annotationId, CREATION_METHODS, EventBus } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type AnnotationBody = components['schemas']['AnnotationBody'];
@@ -38,10 +38,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     kb = { eventStore: {} as any, views: viewStorage, content: {} as any, graph: {} as any, projectionsDir: '', graphConsumer: {} as any };
 
     // Create test resources in event store
-    const eventStore = createEventStore(project, undefined, mockLogger);
+    const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
     const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: testDocId,
       userId: userId('test-user'),
       version: 1,
@@ -54,7 +54,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     };
 
     const docEvent2: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
-      type: 'resource.created',
+      type: 'yield:created',
       resourceId: testDocId2,
       userId: userId('test-user'),
       version: 1,
@@ -80,7 +80,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
       // Use SAME path from beforeAll
-      const eventStore = createEventStore(project, undefined, mockLogger);
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -106,7 +106,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       };
 
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -126,7 +126,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should create annotation with TextualBody entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = createEventStore(project, undefined, mockLogger);
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -161,7 +161,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       };
 
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -198,7 +198,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Resolve Annotation (add SpecificResource)', () => {
     it('should add SpecificResource to existing entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = createEventStore(project, undefined, mockLogger);
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
       // Create stub annotation with entity tags
       const stubId = annotationId('test-resolve-stub-' + Date.now());
@@ -232,7 +232,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       };
 
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -244,7 +244,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Resolve annotation (add SpecificResource)
       await eventStore.appendEvent({
-        type: 'annotation.body.updated',
+        type: 'mark:body-updated',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -298,7 +298,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should resolve annotation with empty body to have only SpecificResource', async () => {
       // Use SAME path from beforeAll
-      const eventStore = createEventStore(project, undefined, mockLogger);
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
       // Create stub with empty body
       const stubId = annotationId('test-resolve-empty-' + Date.now());
@@ -326,7 +326,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       };
 
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -337,7 +337,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Resolve
       await eventStore.appendEvent({
-        type: 'annotation.body.updated',
+        type: 'mark:body-updated',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -409,7 +409,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Delete Annotation', () => {
     it('should delete annotation with multi-body', async () => {
       // Use SAME path from beforeAll
-      const eventStore = createEventStore(project, undefined, mockLogger);
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
       // Create annotation
       const deleteId = annotationId('test-delete-' + Date.now());
@@ -448,7 +448,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       };
 
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -463,7 +463,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Delete
       await eventStore.appendEvent({
-        type: 'annotation.removed',
+        type: 'mark:removed',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,
@@ -483,7 +483,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('W3C Compliance in Integration', () => {
     it('should maintain W3C structure through event sourcing', async () => {
       // Use SAME path from beforeAll
-      const eventStore = createEventStore(project, undefined, mockLogger);
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
       const w3cId = 'test-w3c-' + Date.now();
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
@@ -509,7 +509,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       };
 
       await eventStore.appendEvent({
-        type: 'annotation.added',
+        type: 'mark:added',
         resourceId: testDocId,
         userId: userId('test-user'),
         version: 1,

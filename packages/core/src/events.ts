@@ -32,7 +32,7 @@ export interface BaseEvent {
 
 // Resource lifecycle events
 export interface ResourceCreatedEvent extends BaseEvent {
-  type: 'resource.created';
+  type: 'yield:created';
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
@@ -52,7 +52,7 @@ export interface ResourceCreatedEvent extends BaseEvent {
 }
 
 export interface ResourceClonedEvent extends BaseEvent {
-  type: 'resource.cloned';
+  type: 'yield:cloned';
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
@@ -68,19 +68,19 @@ export interface ResourceClonedEvent extends BaseEvent {
 }
 
 export interface ResourceArchivedEvent extends BaseEvent {
-  type: 'resource.archived';
+  type: 'mark:archived';
   payload: {
     reason?: string;
   };
 }
 
 export interface ResourceUnarchivedEvent extends BaseEvent {
-  type: 'resource.unarchived';
+  type: 'mark:unarchived';
   payload: Record<string, never>;  // Empty payload
 }
 
 export interface ResourceUpdatedEvent extends BaseEvent {
-  type: 'resource.updated';
+  type: 'yield:updated';
   resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     contentChecksum: string;   // SHA-256 of new content
@@ -89,7 +89,7 @@ export interface ResourceUpdatedEvent extends BaseEvent {
 }
 
 export interface ResourceMovedEvent extends BaseEvent {
-  type: 'resource.moved';
+  type: 'yield:moved';
   resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     fromUri: string;  // Previous file:// URI
@@ -99,7 +99,7 @@ export interface ResourceMovedEvent extends BaseEvent {
 
 // Representation events (multi-format support)
 export interface RepresentationAddedEvent extends BaseEvent {
-  type: 'representation.added';
+  type: 'yield:representation-added';
   resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     representation: {
@@ -120,7 +120,7 @@ export interface RepresentationAddedEvent extends BaseEvent {
 }
 
 export interface RepresentationRemovedEvent extends BaseEvent {
-  type: 'representation.removed';
+  type: 'yield:representation-removed';
   resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     checksum: string;  // Which representation to remove
@@ -130,7 +130,7 @@ export interface RepresentationRemovedEvent extends BaseEvent {
 // Unified annotation events
 // Single principle: An annotation is an annotation. The motivation field tells you what kind it is.
 export interface AnnotationAddedEvent extends BaseEvent {
-  type: 'annotation.added';
+  type: 'mark:added';
   payload: {
     annotation: Annotation;
     contentChecksum?: string;  // SHA-256 of resource content at annotation time (for future staleness detection)
@@ -138,7 +138,7 @@ export interface AnnotationAddedEvent extends BaseEvent {
 }
 
 export interface AnnotationRemovedEvent extends BaseEvent {
-  type: 'annotation.removed';
+  type: 'mark:removed';
   payload: {
     annotationId: AnnotationId;     // Branded type for compile-time safety
   };
@@ -155,7 +155,7 @@ export type BodyOperation =
   | { op: 'replace'; oldItem: BodyItem; newItem: BodyItem };
 
 export interface AnnotationBodyUpdatedEvent extends BaseEvent {
-  type: 'annotation.body.updated';
+  type: 'mark:body-updated';
   payload: {
     annotationId: AnnotationId;      // Branded type for compile-time safety
     operations: BodyOperation[];
@@ -165,7 +165,7 @@ export interface AnnotationBodyUpdatedEvent extends BaseEvent {
 // Job progress events (resource-level)
 // Emitted by background workers for real-time progress updates
 export interface JobStartedEvent extends BaseEvent {
-  type: 'job.started';
+  type: 'job:started';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
@@ -175,7 +175,7 @@ export interface JobStartedEvent extends BaseEvent {
 }
 
 export interface JobProgressEvent extends BaseEvent {
-  type: 'job.progress';
+  type: 'job:progress';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
@@ -191,7 +191,7 @@ export interface JobProgressEvent extends BaseEvent {
 }
 
 export interface JobCompletedEvent extends BaseEvent {
-  type: 'job.completed';
+  type: 'job:completed';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
@@ -206,7 +206,7 @@ export interface JobCompletedEvent extends BaseEvent {
 }
 
 export interface JobFailedEvent extends BaseEvent {
-  type: 'job.failed';
+  type: 'job:failed';
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
@@ -218,7 +218,7 @@ export interface JobFailedEvent extends BaseEvent {
 
 // Entity tag events (resource-level)
 export interface EntityTagAddedEvent extends BaseEvent {
-  type: 'entitytag.added';
+  type: 'mark:entity-tag-added';
   resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     entityType: string;
@@ -226,7 +226,7 @@ export interface EntityTagAddedEvent extends BaseEvent {
 }
 
 export interface EntityTagRemovedEvent extends BaseEvent {
-  type: 'entitytag.removed';
+  type: 'mark:entity-tag-removed';
   resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     entityType: string;
@@ -235,7 +235,7 @@ export interface EntityTagRemovedEvent extends BaseEvent {
 
 // Embedding events (computed by Smelter, persisted by Stower)
 export interface EmbeddingComputedEvent extends BaseEvent {
-  type: 'embedding.computed';
+  type: 'embedding:computed';
   resourceId: ResourceId;
   payload: {
     annotationId?: AnnotationId;
@@ -248,7 +248,7 @@ export interface EmbeddingComputedEvent extends BaseEvent {
 }
 
 export interface EmbeddingDeletedEvent extends BaseEvent {
-  type: 'embedding.deleted';
+  type: 'embedding:deleted';
   resourceId: ResourceId;
   payload: {
     annotationId?: AnnotationId;
@@ -257,7 +257,7 @@ export interface EmbeddingDeletedEvent extends BaseEvent {
 
 // Entity type events (global collection)
 export interface EntityTypeAddedEvent extends BaseEvent {
-  type: 'entitytype.added';
+  type: 'mark:entity-type-added';
   resourceId?: undefined;  // System-level event - no resource scope
   payload: {
     entityType: string;  // The entity type being added to global collection
@@ -303,7 +303,7 @@ export function isResourceEvent(event: any): event is ResourceEvent {
     typeof event.timestamp === 'string' &&
     (event.resourceId === undefined || typeof event.resourceId === 'string') &&  // resourceId now optional
     typeof event.type === 'string' &&
-    event.type.includes('.');
+    event.type.includes(':');
 }
 
 /**
@@ -311,7 +311,7 @@ export function isResourceEvent(event: any): event is ResourceEvent {
  * System events affect global state, not individual resources
  */
 export function isSystemEvent(event: ResourceEvent): event is SystemEvent {
-  return event.type === 'entitytype.added';
+  return event.type === 'mark:entity-type-added';
 }
 
 /**

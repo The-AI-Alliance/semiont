@@ -7,12 +7,13 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
-import { resourceId, userId, jobId, type Logger } from '@semiont/core';
+import { resourceId, userId, jobId, EventBus, type Logger } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import type { Subscription } from 'rxjs';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -26,6 +27,7 @@ let testDir: string;
 
 describe('SSE Event Flow - End-to-End', () => {
   let eventStore: EventStore;
+  const coreEventBus = new EventBus();
 
   beforeAll(async () => {
     testDir = path.join(tmpdir(), `semiont-test-e2e-${uuidv4()}`);
@@ -34,7 +36,7 @@ describe('SSE Event Flow - End-to-End', () => {
     // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
     const { createEventStore } = await import('@semiont/event-sourcing');
     const project = new SemiontProject(testDir);
-    eventStore = createEventStore(project, undefined, mockLogger);
+    eventStore = createEventStore(project, coreEventBus, mockLogger);
 
   });
 
@@ -48,24 +50,24 @@ describe('SSE Event Flow - End-to-End', () => {
     const receivedEvents: any[] = [];
 
     // Simulate SSE endpoint subscribing to Event Store
-    const subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+    const subscription: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe((storedEvent) => {
       const event = storedEvent.event;
 
       // Filter for this specific job (like SSE endpoint does)
-      if (event.type === 'job.started' && event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: 'job.started', event: event });
+      if (event.type === 'job:started' && event.payload.jobId === testJobId) {
+        receivedEvents.push({ type: 'job:started', event: event });
       }
-      if (event.type === 'job.progress' && event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: 'job.progress', event: event });
+      if (event.type === 'job:progress' && event.payload.jobId === testJobId) {
+        receivedEvents.push({ type: 'job:progress', event: event });
       }
-      if (event.type === 'job.completed' && event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: 'job.completed', event: event });
+      if (event.type === 'job:completed' && event.payload.jobId === testJobId) {
+        receivedEvents.push({ type: 'job:completed', event: event });
       }
     });
 
     // Simulate worker emitting events
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -77,7 +79,7 @@ describe('SSE Event Flow - End-to-End', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -94,7 +96,7 @@ describe('SSE Event Flow - End-to-End', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -111,7 +113,7 @@ describe('SSE Event Flow - End-to-End', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -128,12 +130,12 @@ describe('SSE Event Flow - End-to-End', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     expect(receivedEvents).toHaveLength(4);
-    expect(receivedEvents[0].type).toBe('job.started');
-    expect(receivedEvents[1].type).toBe('job.progress');
+    expect(receivedEvents[0].type).toBe('job:started');
+    expect(receivedEvents[1].type).toBe('job:progress');
     expect(receivedEvents[1].event.payload.percentage).toBe(33);
-    expect(receivedEvents[2].type).toBe('job.progress');
+    expect(receivedEvents[2].type).toBe('job:progress');
     expect(receivedEvents[2].event.payload.percentage).toBe(66);
-    expect(receivedEvents[3].type).toBe('job.completed');
+    expect(receivedEvents[3].type).toBe('job:completed');
 
     subscription.unsubscribe();
   });
@@ -143,22 +145,22 @@ describe('SSE Event Flow - End-to-End', () => {
     const testJobId = jobId('job-e2e-2');
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+    const subscription: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe((storedEvent) => {
       const event = storedEvent.event;
 
-      if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.completed')
+      if ((event.type === 'job:started' || event.type === 'job:progress' || event.type === 'job:completed')
           && event.payload.jobId === testJobId) {
         receivedEvents.push({
           type: event.type,
-          stage: event.type === 'job.progress' ? event.payload.currentStep : null,
-          percentage: event.type === 'job.progress' ? event.payload.percentage : null
+          stage: event.type === 'job:progress' ? event.payload.currentStep : null,
+          percentage: event.type === 'job:progress' ? event.payload.percentage : null
         });
       }
     });
 
     // Simulate generation worker emitting events
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -178,7 +180,7 @@ describe('SSE Event Flow - End-to-End', () => {
 
     for (const stage of stages) {
       await eventStore.appendEvent({
-        type: 'job.progress',
+        type: 'job:progress',
         resourceId: rId,
         userId: userId('user-1'),
         version: 1,
@@ -193,7 +195,7 @@ describe('SSE Event Flow - End-to-End', () => {
     }
 
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -208,12 +210,12 @@ describe('SSE Event Flow - End-to-End', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     expect(receivedEvents).toHaveLength(6); // 1 started + 4 progress + 1 completed
-    expect(receivedEvents[0].type).toBe('job.started');
+    expect(receivedEvents[0].type).toBe('job:started');
     expect(receivedEvents[1].stage).toBe('fetching');
     expect(receivedEvents[2].stage).toBe('generating');
     expect(receivedEvents[3].stage).toBe('creating');
     expect(receivedEvents[4].stage).toBe('linking');
-    expect(receivedEvents[5].type).toBe('job.completed');
+    expect(receivedEvents[5].type).toBe('job:completed');
 
     subscription.unsubscribe();
   });
@@ -223,21 +225,21 @@ describe('SSE Event Flow - End-to-End', () => {
     const testJobId = jobId('job-e2e-3');
     const receivedEvents: any[] = [];
 
-    const subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+    const subscription: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe((storedEvent) => {
       const event = storedEvent.event;
 
-      if ((event.type === 'job.started' || event.type === 'job.progress' || event.type === 'job.failed')
+      if ((event.type === 'job:started' || event.type === 'job:progress' || event.type === 'job:failed')
           && event.payload.jobId === testJobId) {
         receivedEvents.push({
           type: event.type,
-          error: event.type === 'job.failed' ? event.payload.error : null
+          error: event.type === 'job:failed' ? event.payload.error : null
         });
       }
     });
 
     // Simulate worker starting job
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -250,7 +252,7 @@ describe('SSE Event Flow - End-to-End', () => {
 
     // Simulate progress
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -265,7 +267,7 @@ describe('SSE Event Flow - End-to-End', () => {
 
     // Simulate failure
     await eventStore.appendEvent({
-      type: 'job.failed',
+      type: 'job:failed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -280,9 +282,9 @@ describe('SSE Event Flow - End-to-End', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     expect(receivedEvents).toHaveLength(3);
-    expect(receivedEvents[0].type).toBe('job.started');
-    expect(receivedEvents[1].type).toBe('job.progress');
-    expect(receivedEvents[2].type).toBe('job.failed');
+    expect(receivedEvents[0].type).toBe('job:started');
+    expect(receivedEvents[1].type).toBe('job:progress');
+    expect(receivedEvents[2].type).toBe('job:failed');
     expect(receivedEvents[2].error).toBe('AI service unavailable');
 
     subscription.unsubscribe();
@@ -295,10 +297,10 @@ describe('SSE Event Flow - End-to-End', () => {
     const receivedJob1Events: any[] = [];
 
     // Subscribe to events for jobId1 only
-    const subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+    const subscription: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe((storedEvent) => {
       const event = storedEvent.event;
 
-      if ((event.type === 'job.progress' || event.type === 'job.completed')
+      if ((event.type === 'job:progress' || event.type === 'job:completed')
           && event.payload.jobId === jobId1) {
         receivedJob1Events.push(event);
       }
@@ -306,7 +308,7 @@ describe('SSE Event Flow - End-to-End', () => {
 
     // Emit events for both jobs
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -318,7 +320,7 @@ describe('SSE Event Flow - End-to-End', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -330,7 +332,7 @@ describe('SSE Event Flow - End-to-End', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -357,21 +359,21 @@ describe('SSE Event Flow - End-to-End', () => {
     const subscriber3Events: any[] = [];
 
     // Create multiple subscribers (simulating multiple SSE clients)
-    const sub1 = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+    const sub1: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe((storedEvent) => {
       subscriber1Events.push(storedEvent.event);
     });
 
-    const sub2 = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+    const sub2: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe((storedEvent) => {
       subscriber2Events.push(storedEvent.event);
     });
 
-    const sub3 = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
+    const sub3: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe((storedEvent) => {
       subscriber3Events.push(storedEvent.event);
     });
 
     // Emit events
     await eventStore.appendEvent({
-      type: 'job.started',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -383,7 +385,7 @@ describe('SSE Event Flow - End-to-End', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job.completed',
+      type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
@@ -410,13 +412,13 @@ describe('SSE Event Flow - End-to-End', () => {
     const testJobId = jobId('job-e2e-6');
     let notifyTime: number | null = null;
 
-    const subscription = eventStore.bus.subscriptions.subscribe(rId, async () => {
+    const subscription: Subscription = coreEventBus.scope(String(rId)).get('make-meaning:event').subscribe(() => {
       notifyTime = Date.now();
     });
 
     const emitTime = Date.now();
     await eventStore.appendEvent({
-      type: 'job.progress',
+      type: 'job:progress',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
