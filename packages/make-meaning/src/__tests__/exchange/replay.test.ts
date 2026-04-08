@@ -46,11 +46,10 @@ function stubBodyUpdatedEvent(): Extract<ResourceEvent, { type: 'mark:body-updat
 
 function makeStoredEvent(event: Record<string, unknown>, opts: { checksum?: string; prevEventHash?: string } = {}): string {
   return JSON.stringify({
-    event,
+    ...event,
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      timestamp: '2026-03-12T00:00:00Z',
       checksum: opts.checksum || 'abc123',
       prevEventHash: opts.prevEventHash || null,
     },

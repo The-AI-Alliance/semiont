@@ -14,9 +14,9 @@ import type { AnnotationsListResponse, AnnotationDetail } from '../annotation-st
 
 type Annotation = components['schemas']['Annotation'];
 
-/** Wrap a partial event in StoredEvent shape for domain event channels */
+/** Create flat StoredEvent shape for domain event channels */
 function stored(event: Record<string, any>): any {
-  return { event, metadata: { sequenceNumber: 1, timestamp: new Date().toISOString() } };
+  return { ...event, metadata: { sequenceNumber: 1, streamPosition: 0 } };
 }
 
 function mockAnnotation(id: string): Annotation {

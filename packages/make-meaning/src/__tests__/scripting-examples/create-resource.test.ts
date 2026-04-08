@@ -153,7 +153,7 @@ describe('Scripting Example: Create Resource', () => {
 
     // Verify we received the archive event
     expect(domainEvents.length).toBeGreaterThan(0);
-    const archiveEvent = domainEvents.find(e => e.event?.type === 'mark:archived');
+    const archiveEvent = domainEvents.find(e => e.type === 'mark:archived');
     expect(archiveEvent).toBeDefined();
 
     subs.forEach(s => s.unsubscribe());
