@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "A persisted domain event with metadata. Flat shape — event fields and metadata are peers.",
+  "properties": {
+    "id": { "type": "string", "description": "Unique event ID (UUID)" },
+    "type": { "type": "string", "description": "Event type (flow verb name, e.g. mark:added)" },
+    "timestamp": { "type": "string", "format": "date-time", "description": "When the event occurred" },
+    "userId": { "type": "string", "description": "DID of the user who triggered the event" },
+    "resourceId": { "type": "string", "description": "Resource this event affects (absent for system events)" },
+    "version": { "type": "integer", "description": "Event schema version" },
+    "payload": { "type": "object", "additionalProperties": true, "description": "Event-type-specific payload" },
+    "metadata": { "$ref": "EventMetadata.json" }
+  },
+  "required": ["id", "type", "timestamp", "userId", "version", "payload", "metadata"]
+}

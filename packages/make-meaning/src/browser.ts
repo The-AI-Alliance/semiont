@@ -234,19 +234,11 @@ export class Browser {
 
       const storedEvents = await eventQuery.queryEvents(filters);
 
-      const events = storedEvents.map((stored) => {
-        const { metadata, signature, ...event } = stored;
-        return {
-          event: { id: event.id, type: event.type as string, timestamp: event.timestamp, userId: event.userId as string, resourceId: event.resourceId as string, payload: event.payload },
-          metadata: { sequenceNumber: metadata.sequenceNumber, prevEventHash: metadata.prevEventHash, checksum: metadata.checksum },
-        };
-      });
-
       this.eventBus.get('browse:events-result').next({
         correlationId: event.correlationId,
         response: {
-          events,
-          total: events.length,
+          events: storedEvents,
+          total: storedEvents.length,
           resourceId: event.resourceId,
         },
       });
@@ -282,22 +274,14 @@ export class Browser {
         return false;
       });
 
-      const events = annotationEvents.map((stored) => {
-        const { metadata, signature, ...event } = stored;
-        return {
-          id: event.id, type: event.type as string, timestamp: event.timestamp, userId: event.userId as string, resourceId: event.resourceId as string, payload: event.payload as any,
-          metadata: { sequenceNumber: metadata.sequenceNumber, prevEventHash: metadata.prevEventHash, checksum: metadata.checksum },
-        };
-      });
-
       // Sort by sequence number
-      events.sort((a: any, b: any) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+      annotationEvents.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
       this.eventBus.get('browse:annotation-history-result').next({
         correlationId: event.correlationId,
         response: {
-          events,
-          total: events.length,
+          events: annotationEvents,
+          total: annotationEvents.length,
           annotationId: event.annotationId,
           resourceId: event.resourceId,
         },

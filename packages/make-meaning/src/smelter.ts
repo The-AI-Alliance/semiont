@@ -18,7 +18,7 @@ import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { type EventStore, EventQuery } from '@semiont/event-sourcing';
 import { burstBuffer } from '@semiont/core';
-import type { Logger, StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceArchivedEvent, AnnotationAddedEvent, AnnotationRemovedEvent } from '@semiont/core';
+import type { Logger, StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceArchivedEvent, AnnotationAddedEvent, AnnotationRemovedEvent} from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, type EmbeddingComputedEvent, type EmbeddingDeletedEvent } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
@@ -64,7 +64,7 @@ export class Smelter {
     // Subscribe to each smelter-relevant event type on the Core EventBus
     for (const eventType of Smelter.SMELTER_RELEVANT_EVENTS) {
       this._globalSubscriptions.push(
-        this.eventBus.get(eventType as any).subscribe(
+        this.eventBus.getDomainEvent(eventType).subscribe(
           (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
         )
       );

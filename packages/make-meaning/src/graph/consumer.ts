@@ -24,7 +24,7 @@ import { EventQuery, type EventStore } from '@semiont/event-sourcing';
 import { didToAgent, burstBuffer, EventBus } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/core';
-import type { ResourceEvent, StoredEvent, AnnotationAddedEvent, ResourceId, Logger } from '@semiont/core';
+import type { ResourceEvent, StoredEvent, AnnotationAddedEvent, ResourceId, Logger} from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from '../batch-utils.js';
 
@@ -72,7 +72,7 @@ export class GraphDBConsumer {
     // Subscribe to each graph-relevant event type on the Core EventBus
     for (const eventType of GraphDBConsumer.GRAPH_RELEVANT_EVENTS) {
       this._globalSubscriptions.push(
-        this.coreEventBus.get(eventType as any).subscribe(
+        this.coreEventBus.getDomainEvent(eventType).subscribe(
           (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
         )
       );

@@ -36,10 +36,8 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort events by oldest first (most recent at bottom)
-  // Filter out all job events - they're represented by mark:body-updated events instead
-  // Flatten API response shape ({ event: {...}, metadata: {...} }) to StoredEventLike
-  const events: StoredEventLike[] = !eventsData?.events ? [] : eventsData.events
-    .map((e) => ({ ...e.event, metadata: e.metadata }) as StoredEventLike)
+  // Filter out job events - they're represented by mark:body-updated events instead
+  const events: StoredEventLike[] = !eventsData?.events ? [] : (eventsData.events as StoredEventLike[])
     .filter((e) => {
       return e.type !== 'job:started' && e.type !== 'job:progress' && e.type !== 'job:completed';
     })

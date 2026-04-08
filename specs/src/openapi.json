@@ -330,6 +330,12 @@
       "YieldStreamError": {
         "$ref": "components/schemas/YieldStreamError.json"
       },
+      "EventMetadata": {
+        "$ref": "components/schemas/EventMetadata.json"
+      },
+      "StoredEventResponse": {
+        "$ref": "components/schemas/StoredEventResponse.json"
+      },
       "ResourceCreatedPayload": {
         "$ref": "components/schemas/ResourceCreatedPayload.json"
       },

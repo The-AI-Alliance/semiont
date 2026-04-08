@@ -128,7 +128,7 @@ export function useResourceEvents({
       'mark:entity-tag-added', 'mark:entity-tag-removed',
     ];
     const subs = eventTypes.map(type =>
-      eventBus.get(type as any).subscribe((stored: StoredEvent) => {
+      eventBus.getDomainEvent(type).subscribe((stored: StoredEvent) => {
         const { metadata, signature, ...event } = stored;
         handleEvent(event as ResourceEvent);
       })

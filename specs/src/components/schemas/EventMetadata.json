@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "description": "Metadata added at persistence time. Part of every StoredEvent.",
+  "properties": {
+    "sequenceNumber": {
+      "type": "integer",
+      "description": "Monotonic position in the event log (ordering authority)"
+    },
+    "streamPosition": {
+      "type": "integer",
+      "description": "Byte offset in the JSONL file"
+    },
+    "prevEventHash": {
+      "type": "string",
+      "description": "SHA-256 of the previous event (hash chain)"
+    },
+    "checksum": {
+      "type": "string",
+      "description": "SHA-256 of this event (integrity verification)"
+    }
+  },
+  "required": ["sequenceNumber", "streamPosition"]
+}

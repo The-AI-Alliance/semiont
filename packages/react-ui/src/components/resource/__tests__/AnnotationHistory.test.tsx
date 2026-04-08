@@ -54,19 +54,17 @@ const mockGetAnnotationUri = getAnnotationUriFromEvent as ReturnType<typeof vi.f
 
 const testRId = 'res-1' as ResourceId;
 
-/** Returns API response shape (nested) — AnnotationHistory component flattens it */
+/** Returns flat StoredEventResponse shape (matches API response) */
 function makeStoredEvent(id: string, type: string, seq: number, overrides: Record<string, any> = {}): any {
   return {
-    event: {
-      id,
-      type,
-      timestamp: '2026-03-06T12:00:00Z',
-      resourceId: 'res-1',
-      userId: 'user-1',
-      version: 1,
-      payload: {},
-      ...overrides,
-    },
+    id,
+    type,
+    timestamp: '2026-03-06T12:00:00Z',
+    resourceId: 'res-1',
+    userId: 'user-1',
+    version: 1,
+    payload: {},
+    ...overrides,
     metadata: {
       sequenceNumber: seq,
       streamPosition: 0,

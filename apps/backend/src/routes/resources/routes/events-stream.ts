@@ -174,7 +174,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
       ];
       for (const eventType of eventTypes) {
         subscriptions.push(
-          scopedBus.get(eventType as any).subscribe(handleEvent)
+          scopedBus.getDomainEvent(eventType).subscribe(handleEvent)
         );
       }
 

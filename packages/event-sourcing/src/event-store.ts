@@ -86,12 +86,12 @@ export class EventStore {
 
     // 3. Publish full StoredEvent to Core EventBus typed channels
     // Global typed channel (e.g., 'mark:added')
-    this.coreEventBus.get(storedEvent.type as any).next(storedEvent);
+    this.coreEventBus.getDomainEvent(storedEvent.type).next(storedEvent);
 
     // Resource-scoped typed channel for per-resource subscribers
     if (resourceId !== '__system__') {
       const scopedBus = this.coreEventBus.scope(resourceId as string);
-      scopedBus.get(storedEvent.type as any).next(storedEvent);
+      scopedBus.getDomainEvent(storedEvent.type).next(storedEvent);
     }
 
     return storedEvent;
