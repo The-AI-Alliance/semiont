@@ -290,6 +290,18 @@ export type ResourceEvent =
 // Extract just the event type strings from the union
 export type ResourceEventType = ResourceEvent['type'];
 
+/** All valid event type strings — derived from the ResourceEvent union at compile time */
+const RESOURCE_EVENT_TYPES: Set<string> = new Set<ResourceEventType>([
+  'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
+  'yield:representation-added', 'yield:representation-removed',
+  'mark:added', 'mark:removed', 'mark:body-updated',
+  'mark:archived', 'mark:unarchived',
+  'mark:entity-tag-added', 'mark:entity-tag-removed',
+  'mark:entity-type-added',
+  'job:started', 'job:progress', 'job:completed', 'job:failed',
+  'embedding:computed', 'embedding:deleted',
+]);
+
 // System-level events (no resource scope)
 export type SystemEvent = EntityTypeAddedEvent;
 
@@ -301,9 +313,8 @@ export function isResourceEvent(event: any): event is ResourceEvent {
   return event &&
     typeof event.id === 'string' &&
     typeof event.timestamp === 'string' &&
-    (event.resourceId === undefined || typeof event.resourceId === 'string') &&  // resourceId now optional
     typeof event.type === 'string' &&
-    event.type.includes(':');
+    RESOURCE_EVENT_TYPES.has(event.type);
 }
 
 /**
