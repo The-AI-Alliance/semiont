@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "description": "Selection data for user-initiated annotations. Captures the text range and optional selector information from a user's highlight in the UI.",
+  "properties": {
+    "exact": {
+      "type": "string",
+      "description": "The exact selected text"
+    },
+    "start": {
+      "type": "integer",
+      "description": "Start character offset"
+    },
+    "end": {
+      "type": "integer",
+      "description": "End character offset"
+    },
+    "svgSelector": {
+      "type": "string",
+      "description": "SVG selector for non-text selections (e.g. PDF regions)"
+    },
+    "fragmentSelector": {
+      "type": "string",
+      "description": "Fragment selector (e.g. page=2)"
+    },
+    "conformsTo": {
+      "type": "string",
+      "description": "Specification the fragment selector conforms to"
+    },
+    "prefix": {
+      "type": "string",
+      "description": "Text before the selection (for disambiguation)"
+    },
+    "suffix": {
+      "type": "string",
+      "description": "Text after the selection (for disambiguation)"
+    }
+  },
+  "required": ["exact", "start", "end"]
+}

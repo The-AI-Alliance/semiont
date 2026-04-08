@@ -333,6 +333,9 @@
       "EventMetadata": {
         "$ref": "components/schemas/EventMetadata.json"
       },
+      "SelectionData": {
+        "$ref": "components/schemas/SelectionData.json"
+      },
       "StoredEventResponse": {
         "$ref": "components/schemas/StoredEventResponse.json"
       },

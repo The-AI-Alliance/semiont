@@ -26,19 +26,8 @@ type Motivation = components['schemas']['Motivation'];
 /** OpenAPI-derived type for yield progress SSE payloads */
 export type YieldProgress = components['schemas']['YieldProgress'];
 
-/**
- * Selection data for user-initiated annotations
- */
-export interface SelectionData {
-  exact: string;
-  start: number;
-  end: number;
-  svgSelector?: string;
-  fragmentSelector?: string;
-  conformsTo?: string;
-  prefix?: string;
-  suffix?: string;
-}
+/** OpenAPI-derived type for user selection data */
+export type SelectionData = components['schemas']['SelectionData'];
 
 /** OpenAPI-derived type for mark progress SSE payloads */
 export type MarkProgress = components['schemas']['MarkProgress'];
