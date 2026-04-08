@@ -502,9 +502,10 @@ describe('EventStorage', () => {
       const json1 = JSON.parse(lines[0]!);
       const json2 = JSON.parse(lines[1]!);
 
-      expect(json1.event).toBeDefined();
+      // Flat shape: event fields + metadata at same level (no .event wrapper)
+      expect(json1.type).toBeDefined();
       expect(json1.metadata).toBeDefined();
-      expect(json2.event).toBeDefined();
+      expect(json2.type).toBeDefined();
       expect(json2.metadata).toBeDefined();
     });
 

@@ -40,8 +40,8 @@ vi.mock('../../../lib/api-hooks', () => ({
 
 // Mock HistoryEvent to avoid deep rendering and mocking all its dependencies
 const MockHistoryEvent = vi.fn(({ event }: any) => (
-  <div data-testid={`history-event-${event.event.id}`}>
-    {event.event.type}
+  <div data-testid={`history-event-${event.id}`}>
+    {event.type}
   </div>
 ));
 
@@ -54,7 +54,8 @@ const mockGetAnnotationUri = getAnnotationUriFromEvent as ReturnType<typeof vi.f
 
 const testRId = 'res-1' as ResourceId;
 
-function makeStoredEvent(id: string, type: string, seq: number, overrides: Record<string, any> = {}): StoredEvent {
+/** Returns API response shape (nested) — AnnotationHistory component flattens it */
+function makeStoredEvent(id: string, type: string, seq: number, overrides: Record<string, any> = {}): any {
   return {
     event: {
       id,
@@ -68,9 +69,9 @@ function makeStoredEvent(id: string, type: string, seq: number, overrides: Recor
     },
     metadata: {
       sequenceNumber: seq,
-      storedAt: '2026-03-06T12:00:00Z',
+      streamPosition: 0,
     },
-  } as StoredEvent;
+  };
 }
 
 const MockLink = ({ href, children, ...props }: any) => <a href={href} {...props}>{children}</a>;
@@ -130,9 +131,9 @@ describe('AnnotationHistory', () => {
 
   it('renders events sorted by sequence number', () => {
     const events = [
-      makeStoredEvent('evt-3', 'annotation.added', 3),
-      makeStoredEvent('evt-1', 'resource.created', 1),
-      makeStoredEvent('evt-2', 'annotation.added', 2),
+      makeStoredEvent('evt-3', 'mark:added', 3),
+      makeStoredEvent('evt-1', 'yield:created', 1),
+      makeStoredEvent('evt-2', 'mark:added', 2),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -152,18 +153,18 @@ describe('AnnotationHistory', () => {
 
     // Verify HistoryEvent was called with events in sequence order
     const calls = MockHistoryEvent.mock.calls;
-    expect(calls[0][0].event.event.id).toBe('evt-1');
-    expect(calls[1][0].event.event.id).toBe('evt-2');
-    expect(calls[2][0].event.event.id).toBe('evt-3');
+    expect(calls[0][0].event.id).toBe('evt-1');  // .event is the React prop name
+    expect(calls[1][0].event.id).toBe('evt-2');
+    expect(calls[2][0].event.id).toBe('evt-3');
   });
 
   it('filters out job events', () => {
     const events = [
-      makeStoredEvent('evt-1', 'resource.created', 1),
-      makeStoredEvent('evt-2', 'job.started', 2),
-      makeStoredEvent('evt-3', 'job.progress', 3),
-      makeStoredEvent('evt-4', 'job.completed', 4),
-      makeStoredEvent('evt-5', 'annotation.added', 5),
+      makeStoredEvent('evt-1', 'yield:created', 1),
+      makeStoredEvent('evt-2', 'job:started', 2),
+      makeStoredEvent('evt-3', 'job:progress', 3),
+      makeStoredEvent('evt-4', 'job:completed', 4),
+      makeStoredEvent('evt-5', 'mark:added', 5),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -188,7 +189,7 @@ describe('AnnotationHistory', () => {
     mockGetAnnotationUri.mockReturnValue(annotationUri);
 
     const events = [
-      makeStoredEvent('evt-1', 'annotation.added', 1),
+      makeStoredEvent('evt-1', 'mark:added', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -209,7 +210,7 @@ describe('AnnotationHistory', () => {
     mockGetAnnotationUri.mockReturnValue('http://localhost/annotations/ann-other');
 
     const events = [
-      makeStoredEvent('evt-1', 'annotation.added', 1),
+      makeStoredEvent('evt-1', 'mark:added', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -228,7 +229,7 @@ describe('AnnotationHistory', () => {
 
   it('passes isRelated=false when no hoveredAnnotationId', () => {
     const events = [
-      makeStoredEvent('evt-1', 'annotation.added', 1),
+      makeStoredEvent('evt-1', 'mark:added', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -249,7 +250,7 @@ describe('AnnotationHistory', () => {
     const onEventHover = vi.fn();
 
     const events = [
-      makeStoredEvent('evt-1', 'resource.created', 1),
+      makeStoredEvent('evt-1', 'yield:created', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -270,7 +271,7 @@ describe('AnnotationHistory', () => {
 
   it('does not pass onEventClick/onEventHover when not provided', () => {
     const events = [
-      makeStoredEvent('evt-1', 'resource.created', 1),
+      makeStoredEvent('evt-1', 'yield:created', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -292,7 +293,7 @@ describe('AnnotationHistory', () => {
     mockAnnotationsUseQuery.mockReturnValue({ data: { annotations: mockAnnotations } });
 
     const events = [
-      makeStoredEvent('evt-1', 'resource.created', 1),
+      makeStoredEvent('evt-1', 'yield:created', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -312,7 +313,7 @@ describe('AnnotationHistory', () => {
     mockAnnotationsUseQuery.mockReturnValue({ data: undefined });
 
     const events = [
-      makeStoredEvent('evt-1', 'resource.created', 1),
+      makeStoredEvent('evt-1', 'yield:created', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
@@ -330,7 +331,7 @@ describe('AnnotationHistory', () => {
 
   it('renders history panel structure with title and list', () => {
     const events = [
-      makeStoredEvent('evt-1', 'resource.created', 1),
+      makeStoredEvent('evt-1', 'yield:created', 1),
     ];
     mockEventsUseQuery.mockReturnValue({ data: { events }, isLoading: false, isError: false });
 
