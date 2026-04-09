@@ -1,12 +1,17 @@
 # Storage Layout
 
-Event sourcing data lives under the `.semiont/` directory (the project's `stateDir`).
+Event sourcing data is split between **two directories** with different durability guarantees:
+
+- **Event log** (`<projectRoot>/.semiont/events/`) — durable, source of truth, committed to repo
+- **Materialized views and projections** (`<stateDir>`, e.g. `$XDG_STATE_HOME/semiont/<project>/`) — ephemeral, derived state, safe to wipe
+
+The materialized layer is rebuildable from the event log at any time via `ViewManager.rebuildAll(eventLog)`, which runs once during `createKnowledgeBase` at process start. See [Ephemerality and rebuild](#ephemerality-and-rebuild) below.
 
 ## Directory Structure
 
 ```
-.semiont/
-  events/                          # Append-only event log
+<projectRoot>/.semiont/
+  events/                          # Append-only event log (DURABLE)
     shard-00/                      # Jump-consistent hash shards
       doc-sha256-abc123.jsonl      # One file per resource
       doc-sha256-def456.jsonl
@@ -14,10 +19,11 @@ Event sourcing data lives under the `.semiont/` directory (the project's `stateD
       doc-sha256-789xyz.jsonl
     __system__.jsonl               # System-level events (entity types)
 
-  views/                           # Materialized resource views
-    doc-sha256-abc123.json         # ResourceView (descriptor + annotations)
-    doc-sha256-def456.json
-
+<stateDir>/                        # Materialized layer (EPHEMERAL)
+  resources/                       # Materialized resource views
+    ab/                            # 4-hex jump-consistent hash sharding
+      cd/
+        doc-sha256-abc123.json     # ResourceView (descriptor + annotations)
   projections/                     # System projections
     __system__/
       entitytypes.json             # Global entity type collection
@@ -48,9 +54,9 @@ Resource JSONL files are distributed across shards using jump-consistent hashing
 
 Events without a `resourceId` (e.g., `mark:entity-type-added`) are stored in `__system__.jsonl` at the events root.
 
-## Resource Views (.semiont/views/)
+## Resource Views (`<stateDir>/resources/`)
 
-Each resource has a materialized JSON view built by the ViewMaterializer. The view is rebuilt from events on each write and contains:
+Each resource has a materialized JSON view built by the ViewMaterializer, sharded into `ab/cd/` directories by 4-hex jump-consistent hash. The view is rebuilt from events on each write and contains:
 
 ```json
 {
@@ -72,9 +78,26 @@ Each resource has a materialized JSON view built by the ViewMaterializer. The vi
 }
 ```
 
-## Storage URI Index (.semiont/projections/storage-uri-index.json)
+## Storage URI Index (`<stateDir>/projections/storage-uri-index.json`)
 
 Maps `file://` URIs to resource IDs, enabling lookup of resources by their filesystem path. Used by the CLI and file-watcher integrations.
+
+## Ephemerality and rebuild
+
+The split between `<projectRoot>/.semiont/events/` and `<stateDir>/` is deliberate:
+
+- **Event log** is the **single source of truth**. It is durable, append-only, hash-chained, and committed to the repository. Nothing else in the system holds state that can't be reconstructed from these JSONL files.
+- **Materialized views and projections** under `<stateDir>` are **derived state**. They are a fast read model layered over the event log. The directory is ephemeral by design — `SemiontProject.destroy()` wipes it, container recreation wipes it, dev cleanup wipes it. None of that loses data, because it can all be rebuilt.
+
+The rebuild step that makes "ephemeral" safe is `ViewManager.rebuildAll(eventLog)`, called once from `createKnowledgeBase` before the HTTP server begins accepting requests. It walks every event in the log and writes:
+
+1. The system projections (currently `entitytypes.json`).
+2. Each resource view file under `resources/<ab>/<cd>/`.
+3. The storage-uri index entries.
+
+It is idempotent: existing files are overwritten, not appended. Running it on every startup is safe and is in fact the design — startup rebuild + live incremental update is the same pattern used by the graph (`GraphDBConsumer.rebuildAll()` + per-event consumer) and the vectors (`Smelter.rebuildAll()` + per-event smelter), giving all three derived read models the same lifecycle treatment.
+
+If you wipe `<stateDir>` manually for debugging, the next process restart will repopulate it. The `<projectRoot>/.semiont/events/` directory is the only thing you must not delete.
 
 ## Integrity Verification
 
