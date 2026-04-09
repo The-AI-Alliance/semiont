@@ -58,6 +58,7 @@ vi.mock('@/lib/env', () => ({
 }));
 
 vi.mock('@/contexts/KnowledgeBaseContext', () => ({
+  KnowledgeBaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useKnowledgeBaseContext: () => ({
     activeKnowledgeBase: { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
     knowledgeBases: [],
@@ -69,6 +70,14 @@ vi.mock('@/contexts/KnowledgeBaseContext', () => ({
     signOut: vi.fn(),
   }),
   kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
+  getKbToken: () => 'test-token',
+  clearKbToken: vi.fn(),
+  isTokenExpired: () => false,
+  getKbSessionStatus: () => 'authenticated',
+}));
+
+vi.mock('@/contexts/AuthShell', () => ({
+  AuthShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 /** Render AdminLayout (Outlet-based) with a child component via React Router. */

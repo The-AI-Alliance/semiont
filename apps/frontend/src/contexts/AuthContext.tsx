@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, APIError } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 import { baseUrl, EventBus, accessToken } from '@semiont/core';
-import { useKnowledgeBaseContext, kbBackendUrl, getKbToken, isTokenExpired } from './KnowledgeBaseContext';
+import { dispatch401Error } from '@semiont/react-ui';
+import { useKnowledgeBaseContext, kbBackendUrl, getKbToken, clearKbToken, isTokenExpired } from './KnowledgeBaseContext';
 
 type UserInfo = components['schemas']['UserResponse'];
 
@@ -56,8 +57,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then((data) => {
         setSessionState({ token, user: data as UserInfo });
       })
-      .catch(() => {
+      .catch((error) => {
         setSessionState(null);
+        if (error instanceof APIError && error.status === 401) {
+          // Clear the dead token so subsequent mounts don't re-validate it
+          clearKbToken(activeKbId);
+          dispatch401Error('Your session has expired. Please sign in again.');
+        }
       })
       .finally(() => {
         setIsLoading(false);
