@@ -18,5 +18,5 @@
       "type": "boolean"
     }
   },
-  "required": ["userId"]
+  "required": ["resourceId"]
 }

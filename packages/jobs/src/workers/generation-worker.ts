@@ -19,6 +19,7 @@ import {
   CREATION_METHODS,
   type BodyOperation,
   annotationId,
+  resourceId as makeResourceId,
   userId,
   jobId,
 } from '@semiont/core';
@@ -182,7 +183,7 @@ export class GenerationWorker extends JobWorker {
     this.eventBus.get('yield:create').next(createParams);
     const outcome = await firstValueFrom(result$);
     if (!outcome.ok) throw outcome.error;
-    const rId = outcome.result.resourceId;
+    const rId = makeResourceId(outcome.result.resourceId);
     this.logger?.info('Resource created via EventBus', { resourceId: rId });
 
     // Update progress: linking

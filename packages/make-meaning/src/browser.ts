@@ -22,7 +22,7 @@ import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus, resourceId } from '@semiont/core';
+import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { getExactText, getTargetSource, getTargetSelector, getResourceEntityTypes, getBodySource } from '@semiont/api-client';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
@@ -83,8 +83,8 @@ export class Browser {
     try {
       // Materialize from event store (matches get-uri.ts JSON-LD path)
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
-      const events = await eventQuery.getResourceEvents(event.resourceId);
-      const stored = await this.kb.eventStore.views.materializer.materialize(events, event.resourceId);
+      const events = await eventQuery.getResourceEvents(resourceId(event.resourceId));
+      const stored = await this.kb.eventStore.views.materializer.materialize(events, resourceId(event.resourceId));
 
       if (!stored) {
         this.eventBus.get('browse:resource-failed').next({
@@ -159,7 +159,7 @@ export class Browser {
 
   private async handleBrowseAnnotations(event: EventMap['browse:annotations-requested']): Promise<void> {
     try {
-      const annotations = await AnnotationContext.getAllAnnotations(event.resourceId, this.kb);
+      const annotations = await AnnotationContext.getAllAnnotations(resourceId(event.resourceId), this.kb);
 
       this.eventBus.get('browse:annotations-result').next({
         correlationId: event.correlationId,
@@ -179,7 +179,7 @@ export class Browser {
 
   private async handleBrowseAnnotation(event: EventMap['browse:annotation-requested']): Promise<void> {
     try {
-      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
+      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
 
       if (!annotation) {
         this.eventBus.get('browse:annotation-failed').next({
@@ -189,7 +189,7 @@ export class Browser {
         return;
       }
 
-      const resource = await ResourceContext.getResourceMetadata(event.resourceId, this.kb);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.kb);
 
       // Resolve linked resource if annotation body contains a link
       let resolvedResource = null;
@@ -219,7 +219,7 @@ export class Browser {
     try {
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
       const filters: any = {
-        resourceId: event.resourceId,
+        resourceId: resourceId(event.resourceId),
       };
 
       if (event.type) {
@@ -254,7 +254,7 @@ export class Browser {
   private async handleBrowseAnnotationHistory(event: EventMap['browse:annotation-history-requested']): Promise<void> {
     try {
       // Verify annotation exists
-      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
+      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
       if (!annotation) {
         this.eventBus.get('browse:annotation-history-failed').next({
           correlationId: event.correlationId,
@@ -264,7 +264,7 @@ export class Browser {
       }
 
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
-      const allEvents = await eventQuery.queryEvents({ resourceId: event.resourceId });
+      const allEvents = await eventQuery.queryEvents({ resourceId: resourceId(event.resourceId) });
 
       // Filter events related to this annotation
       const annotationEvents = allEvents.filter((stored) => {
@@ -304,7 +304,7 @@ export class Browser {
         motivation: event.motivation || 'all',
       });
 
-      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
+      const references = await this.kb.graph.getResourceReferencedBy(resourceId(event.resourceId), event.motivation);
 
       const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
       const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));

@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
-import { accessToken } from '@semiont/core';
+import { accessToken, annotationId } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -57,7 +57,7 @@ export function useContextGatherFlow(
       setGatherLoading(true);
       setGatherError(null);
       setGatherContext(null);
-      setGatherAnnotationId(event.annotationId);
+      setGatherAnnotationId(annotationId(event.annotationId));
     },
     'gather:complete': (event) => {
       setGatherContext(event.response.context ?? null);

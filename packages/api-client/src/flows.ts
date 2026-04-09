@@ -44,13 +44,13 @@ export class FlowEngine {
 
     sub.add(
       this.eventBus.get('bind:update-body').subscribe((event: EventMap['bind:update-body']) => {
-        const annotationId = event.annotationId;
+        const annotationId = makeAnnotationId(event.annotationId);
 
         const finishedSub = this.eventBus.get('bind:finished').subscribe((finishedEvent) => {
-          if (finishedEvent.annotationId !== annotationId) return;
+          if (finishedEvent.annotationId !== event.annotationId) return;
           finishedSub.unsubscribe();
           failedSub.unsubscribe();
-          this.eventBus.get('bind:body-updated').next({ annotationId });
+          this.eventBus.get('bind:body-updated').next({ annotationId: event.annotationId });
         });
 
         const failedSub = this.eventBus.get('bind:failed').subscribe(() => {
@@ -100,10 +100,12 @@ export class FlowEngine {
       this.eventBus.get('yield:request').subscribe((event: EventMap['yield:request']) => {
         abortController?.abort();
         abortController = new AbortController();
+        const { context, ...rest } = event.options;
+        if (!context) throw new Error('yield:request requires gathered context');
         this.sse.yieldResource(
-          event.resourceId,
-          event.annotationId,
-          event.options,
+          makeResourceId(event.resourceId),
+          makeAnnotationId(event.annotationId),
+          { ...rest, context },
           { auth: getToken(), eventBus: this.eventBus },
         );
       }),
@@ -168,7 +170,7 @@ export class FlowEngine {
     sub.add(
       this.eventBus.get('mark:delete').subscribe(async (event: EventMap['mark:delete']) => {
         try {
-          await this.http.deleteAnnotation(rUri, event.annotationId, { auth: getToken() });
+          await this.http.deleteAnnotation(rUri, makeAnnotationId(event.annotationId), { auth: getToken() });
           this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
         } catch (error) {
           this.eventBus.get('mark:delete-failed').next({ message: error instanceof Error ? error.message : String(error) });
@@ -267,7 +269,7 @@ export class FlowEngine {
 
       this.sse.gatherAnnotation(
         rUri,
-        event.annotationId,
+        makeAnnotationId(event.annotationId),
         { contextWindow, correlationId },
         { auth: getToken(), eventBus: this.eventBus },
       );

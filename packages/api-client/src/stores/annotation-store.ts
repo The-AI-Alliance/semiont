@@ -58,7 +58,7 @@ export class AnnotationStore {
     eventBus: EventBus,
   ) {
     eventBus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
-      this.removeFromDetailCache(event.annotationId);
+      this.removeFromDetailCache(makeAnnotationId(event.annotationId));
     });
 
     // Domain events are now StoredEvent — access inner ResourceEvent via .event

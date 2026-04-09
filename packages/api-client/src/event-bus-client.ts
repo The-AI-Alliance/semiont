@@ -25,6 +25,7 @@ import { filter, map, take, timeout } from 'rxjs/operators';
 import type { EventBus, EventMap, EventName, components } from '@semiont/core';
 import type { ResourceId, AnnotationId, UserId } from '@semiont/core';
 import type { JobId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 type CorrelatedRequestEvent = {
   [K in EventName]: EventMap[K] extends { correlationId: string } ? K : never;
@@ -259,7 +260,7 @@ export class EventBusClient {
     userId: UserId;
     archiveOriginal?: boolean;
   }): Promise<{ resourceId: ResourceId }> {
-    return eventBusRequest(
+    const result = await eventBusRequest(
       this.eventBus,
       'yield:clone-create',
       { correlationId: crypto.randomUUID(), ...options },
@@ -267,6 +268,8 @@ export class EventBusClient {
       'yield:clone-create-failed',
       this.timeoutMs,
     );
+    if (!result.resourceId) throw new Error('clone-created response missing resourceId');
+    return { resourceId: makeResourceId(result.resourceId) };
   }
 
   // ========================================================================

@@ -13,6 +13,23 @@ import type { components } from './types';
 import type { ResourceId, UserId } from './identifiers';
 import type { ResourceEvent } from './event-catalog';
 
+// ── Branding utility ─────────────────────────────────────────────────────────
+
+/**
+ * Narrow an OpenAPI-generated type by overriding specific fields with branded types.
+ *
+ * OpenAPI schemas use plain `string` for identifiers. TypeScript branded types
+ * (ResourceId, AnnotationId, UserId, JobId) add compile-time safety. Brand<T, B>
+ * takes the OpenAPI type T and replaces the fields listed in B with their branded
+ * counterparts, preserving all other fields from the schema.
+ *
+ * @example
+ * type MyCommand = Brand<components['schemas']['YieldCreateCommand'], { userId: UserId }>;
+ * // Result: YieldCreateCommand with userId narrowed from string to UserId
+ */
+export type Brand<T, Overrides> =
+  Omit<T, keyof Overrides> & Overrides;
+
 // ── Core event shape ─────────────────────────────────────────────────────────
 
 /** Fields common to ALL domain events (system and resource-scoped). */

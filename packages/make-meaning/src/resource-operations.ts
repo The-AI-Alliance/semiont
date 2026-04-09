@@ -17,7 +17,7 @@ import type {
   ResourceId,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 
@@ -83,7 +83,7 @@ export class ResourceOperations {
       throw outcome.error;
     }
 
-    return outcome.result.resourceId;
+    return makeResourceId(outcome.result.resourceId);
   }
 
   /**

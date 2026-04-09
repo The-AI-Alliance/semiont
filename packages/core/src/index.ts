@@ -75,6 +75,7 @@ export type {
 
 // Event base types (persistence model foundations)
 export type {
+  Brand,
   EventBase,
   EventMetadata,
   EventSignature,

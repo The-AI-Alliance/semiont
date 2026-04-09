@@ -8,7 +8,7 @@
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, type Logger, type ResourceId, jobId } from '@semiont/core';
 import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
 import { inferenceConfigToGenerator } from './agent-utils';
 import { Readable } from 'stream';
@@ -68,7 +68,7 @@ async function createJobQueue(
   const jobStatusSubscription = eventBus.get('job:status-requested').pipe(
     mergeMap((event) => from((async () => {
       try {
-        const job = await jobQueue.getJob(event.jobId);
+        const job = await jobQueue.getJob(jobId(event.jobId));
         if (!job) {
           eventBus.get('job:status-failed').next({ correlationId: event.correlationId, message: 'Job not found' });
           return;

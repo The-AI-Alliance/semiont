@@ -387,7 +387,7 @@ No explanations.`;
         motivation: event.motivation || 'all',
       });
 
-      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
+      const references = await this.kb.graph.getResourceReferencedBy(resourceId(event.resourceId), event.motivation);
 
       // Get unique source resource IDs from annotation targets
       const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];

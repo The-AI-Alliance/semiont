@@ -108,10 +108,15 @@ export class Stower {
         ? (event.creationMethod as CreationMethod)
         : CREATION_METHODS.API;
 
+      // generatedFrom on the bus command has optional fields; the domain event requires both
+      const generatedFrom = event.generatedFrom?.resourceId && event.generatedFrom?.annotationId
+        ? { resourceId: event.generatedFrom.resourceId, annotationId: event.generatedFrom.annotationId }
+        : undefined;
+
       await this.kb.eventStore.appendEvent({
         type: 'yield:created',
         resourceId: rId,
-        userId: event.userId,
+        userId: makeUserId(event.userId),
         version: 1,
         payload: {
           name: event.name,
@@ -123,7 +128,7 @@ export class Stower {
           entityTypes: event.entityTypes || [],
           language: event.language || undefined,
           isDraft: event.isDraft ?? false,
-          generatedFrom: event.generatedFrom,
+          generatedFrom,
           generationPrompt: event.generationPrompt,
           generator: event.generator,
         },
@@ -166,8 +171,8 @@ export class Stower {
       await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
       await this.kb.eventStore.appendEvent({
         type: 'yield:updated',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: {
           contentChecksum: event.contentChecksum,
@@ -203,7 +208,7 @@ export class Stower {
       await this.kb.eventStore.appendEvent({
         type: 'yield:moved',
         resourceId: rId,
-        userId: event.userId,
+        userId: makeUserId(event.userId),
         version: 1,
         payload: {
           fromUri: event.fromUri,
@@ -225,8 +230,8 @@ export class Stower {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
       await this.kb.eventStore.appendEvent({
         type: 'mark:added',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { annotation: event.annotation },
       });
@@ -247,8 +252,8 @@ export class Stower {
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:removed',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { annotationId: event.annotationId },
       });
@@ -265,8 +270,8 @@ export class Stower {
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:body-updated',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { annotationId: event.annotationId, operations: event.operations },
       });
@@ -280,24 +285,26 @@ export class Stower {
   }
 
   private async handleMarkArchive(event: EventMap['mark:archive']): Promise<void> {
-    if (!event || typeof event !== 'object' || !('userId' in event) || !('resourceId' in event) || !event.resourceId) {
-      return; // Frontend-only event (void) — not for Stower
+    if (!event.userId) {
+      this.logger.warn('mark:archive missing userId — skipping (frontend-only event?)');
+      return;
     }
     if (event.storageUri) {
       await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
     }
     await this.kb.eventStore.appendEvent({
       type: 'mark:archived',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: { reason: undefined },
     });
   }
 
   private async handleMarkUnarchive(event: EventMap['mark:unarchive']): Promise<void> {
-    if (!event || typeof event !== 'object' || !('userId' in event) || !('resourceId' in event) || !event.resourceId) {
-      return; // Frontend-only event (void) — not for Stower
+    if (!event.userId) {
+      this.logger.warn('mark:unarchive missing userId — skipping (frontend-only event?)');
+      return;
     }
     // If storageUri is provided, verify the file exists before emitting the event
     if (event.storageUri) {
@@ -311,8 +318,8 @@ export class Stower {
     }
     await this.kb.eventStore.appendEvent({
       type: 'mark:unarchived',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {},
     });
@@ -322,7 +329,7 @@ export class Stower {
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-type-added',
-        userId: event.userId,
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { entityType: event.tag },
       });
@@ -342,8 +349,8 @@ export class Stower {
     for (const entityType of added) {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-tag-added',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { entityType },
       });
@@ -352,8 +359,8 @@ export class Stower {
     for (const entityType of removed) {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-tag-removed',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { entityType },
       });
@@ -363,8 +370,8 @@ export class Stower {
   private async handleJobStart(event: EventMap['job:start']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:started',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: { jobId: event.jobId, jobType: event.jobType },
     });
@@ -373,8 +380,8 @@ export class Stower {
   private async handleJobReportProgress(event: EventMap['job:report-progress']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:progress',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -388,8 +395,8 @@ export class Stower {
   private async handleJobComplete(event: EventMap['job:complete']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:completed',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -402,8 +409,8 @@ export class Stower {
   private async handleJobFail(event: EventMap['job:fail']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:failed',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -416,7 +423,7 @@ export class Stower {
   private async handleEmbeddingComputed(event: EventMap['embedding:compute']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'embedding:computed',
-      resourceId: event.resourceId,
+      resourceId: resourceId(event.resourceId),
       userId: makeUserId('did:web:system:smelter'),
       version: 1,
       payload: {
@@ -433,7 +440,7 @@ export class Stower {
   private async handleEmbeddingDeleted(event: EventMap['embedding:delete']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'embedding:deleted',
-      resourceId: event.resourceId,
+      resourceId: resourceId(event.resourceId),
       userId: makeUserId('did:web:system:smelter'),
       version: 1,
       payload: {

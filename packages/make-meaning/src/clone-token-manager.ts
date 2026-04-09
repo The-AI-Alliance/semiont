@@ -16,7 +16,7 @@
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
-import { type EventBus, CREATION_METHODS, cloneToken as makeCloneToken, type CloneToken } from '@semiont/core';
+import { type EventBus, CREATION_METHODS, cloneToken as makeCloneToken, type CloneToken, resourceId, userId as makeUserId } from '@semiont/core';
 import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-client';
 import { deriveStorageUri } from '@semiont/content';
 import { ResourceContext } from './resource-context';
@@ -62,7 +62,7 @@ export class CloneTokenManager {
 
   private async handleGenerateToken(event: EventMap['yield:clone-token-requested']): Promise<void> {
     try {
-      const resource = await ResourceContext.getResourceMetadata(event.resourceId, this.kb);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.kb);
       if (!resource) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
@@ -95,7 +95,7 @@ export class CloneTokenManager {
       const token = makeCloneToken(tokenStr);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      this.tokens.set(token, { resourceId: event.resourceId, expiresAt });
+      this.tokens.set(token, { resourceId: resourceId(event.resourceId), expiresAt });
 
       this.eventBus.get('yield:clone-token-generated').next({
         correlationId: event.correlationId,
@@ -204,7 +204,7 @@ export class CloneTokenManager {
       const resolvedUri = deriveStorageUri(event.name, format);
       const stored = await this.kb.content.store(Buffer.from(event.content), resolvedUri);
 
-      const resourceId = await ResourceOperations.createResource(
+      const newResourceId = await ResourceOperations.createResource(
         {
           name: event.name,
           storageUri: resolvedUri,
@@ -214,7 +214,7 @@ export class CloneTokenManager {
           entityTypes: getResourceEntityTypes(sourceDoc),
           creationMethod: CREATION_METHODS.CLONE,
         },
-        event.userId,
+        makeUserId(event.userId),
         this.eventBus,
       );
 
@@ -223,7 +223,7 @@ export class CloneTokenManager {
         ResourceOperations.updateResource(
           {
             resourceId: tokenData.resourceId,
-            userId: event.userId,
+            userId: makeUserId(event.userId),
             currentArchived: sourceDoc.archived,
             updatedArchived: true,
           },
@@ -236,7 +236,7 @@ export class CloneTokenManager {
 
       this.eventBus.get('yield:clone-created').next({
         correlationId: event.correlationId,
-        response: { resourceId },
+        response: { resourceId: newResourceId },
       });
     } catch (error) {
       this.logger.error('Clone create failed', { token: event.token, error });

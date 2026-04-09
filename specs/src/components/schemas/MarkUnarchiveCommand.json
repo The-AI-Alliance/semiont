@@ -12,5 +12,5 @@
       "type": "string"
     }
   },
-  "required": ["userId"]
+  "required": ["resourceId"]
 }

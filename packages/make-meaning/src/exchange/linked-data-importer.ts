@@ -14,7 +14,7 @@ import type { Readable } from 'node:stream';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, ResourceId, UserId, CreationMethod } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
@@ -295,7 +295,7 @@ async function importResource(
   });
 
   const created = await firstValueFrom(createResult$);
-  const resourceId = created.resourceId;
+  const resourceId = makeResourceId(created.resourceId);
 
   logger?.debug('Created resource from JSON-LD', { name, resourceId });
 
