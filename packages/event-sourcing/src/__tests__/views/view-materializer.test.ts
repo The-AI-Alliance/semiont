@@ -795,4 +795,164 @@ describe('ViewMaterializer', () => {
       expect(view?.annotations.annotations).toHaveLength(0);
     });
   });
+
+  describe('rebuildAll() - full startup rebuild', () => {
+    /**
+     * Build a fake RebuildEventSource (mirrors the EventLog interface that
+     * rebuildAll consumes) backed by an in-memory map. We don't construct a
+     * real EventLog here because the test is about the materializer's batching
+     * behavior, not the storage layer's iteration semantics.
+     */
+    function fakeEventSource(streams: Record<string, any[]>) {
+      return {
+        async getEvents(rid: any) {
+          return streams[rid as string] ?? [];
+        },
+        async getAllResourceIds() {
+          return Object.keys(streams) as any[];
+        },
+      };
+    }
+
+    function createdEvent(rid: any, name: string, seq: number) {
+      return {
+        id: `evt-${rid}-${seq}`,
+        type: 'yield:created',
+        timestamp: new Date().toISOString(),
+        userId: userId('user1'),
+        resourceId: rid,
+        version: 1,
+        payload: {
+          name,
+          format: 'text/plain' as const,
+          contentChecksum: `chk-${rid}`,
+          creationMethod: 'api' as const,
+        },
+        metadata: createEventMetadata(seq),
+      };
+    }
+
+    function entityTypeAddedEvent(entityType: string, seq: number) {
+      return {
+        id: `sys-evt-${seq}`,
+        type: 'mark:entity-type-added',
+        timestamp: new Date().toISOString(),
+        userId: userId('user1'),
+        version: 1,
+        payload: { entityType },
+        metadata: createEventMetadata(seq),
+      };
+    }
+
+    it('rebuilds resource views and entity-types projection from a populated event log into an empty stateDir', async () => {
+      const r1 = resourceId('doc1');
+      const r2 = resourceId('doc2');
+
+      const source = fakeEventSource({
+        __system__: [
+          entityTypeAddedEvent('Person', 1),
+          entityTypeAddedEvent('Organization', 2),
+          entityTypeAddedEvent('Location', 3),
+        ],
+        [r1 as string]: [createdEvent(r1, 'Doc One', 1)],
+        [r2 as string]: [createdEvent(r2, 'Doc Two', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      // Both resource views materialized
+      const view1 = await viewStorage.get(r1);
+      const view2 = await viewStorage.get(r2);
+      expect(view1?.resource.name).toBe('Doc One');
+      expect(view2?.resource.name).toBe('Doc Two');
+
+      // Entity-types projection materialized
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projection = JSON.parse(await fs.readFile(entityTypesPath, 'utf-8'));
+      expect(projection.entityTypes).toEqual(['Location', 'Organization', 'Person']);
+    });
+
+    it('is idempotent: running twice produces the same state', async () => {
+      const r1 = resourceId('doc1');
+      const source = fakeEventSource({
+        __system__: [entityTypeAddedEvent('Person', 1)],
+        [r1 as string]: [createdEvent(r1, 'Doc One', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+      await materializer.rebuildAll(source);
+
+      const view = await viewStorage.get(r1);
+      expect(view?.resource.name).toBe('Doc One');
+
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projection = JSON.parse(await fs.readFile(entityTypesPath, 'utf-8'));
+      expect(projection.entityTypes).toEqual(['Person']);
+    });
+
+    it('overwrites stale resource views from a prior state', async () => {
+      const r1 = resourceId('doc1');
+
+      // Seed a stale view directly (simulates an earlier rebuild that no
+      // longer matches the current event log)
+      await viewStorage.save(r1, {
+        resource: {
+          '@context': 'https://schema.org/',
+          '@id': r1 as string,
+          name: 'Stale Name',
+          representations: [],
+          archived: false,
+          entityTypes: [],
+          creationMethod: 'api',
+        },
+        annotations: {
+          resourceId: r1,
+          annotations: [],
+          version: 0,
+          updatedAt: '',
+        },
+      });
+
+      const source = fakeEventSource({
+        [r1 as string]: [createdEvent(r1, 'Fresh Name', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      const view = await viewStorage.get(r1);
+      expect(view?.resource.name).toBe('Fresh Name');
+    });
+
+    it('handles a system-events-only log (no resource views to write)', async () => {
+      const source = fakeEventSource({
+        __system__: [entityTypeAddedEvent('Person', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const projection = JSON.parse(await fs.readFile(entityTypesPath, 'utf-8'));
+      expect(projection.entityTypes).toEqual(['Person']);
+    });
+
+    it('handles a resource-events-only log (no entity-types projection written)', async () => {
+      const r1 = resourceId('doc1');
+      const source = fakeEventSource({
+        [r1 as string]: [createdEvent(r1, 'Doc One', 1)],
+      });
+
+      await materializer.rebuildAll(source);
+
+      const view = await viewStorage.get(r1);
+      expect(view?.resource.name).toBe('Doc One');
+
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      await expect(fs.access(entityTypesPath)).rejects.toThrow();
+    });
+
+    it('handles an empty event log without crashing', async () => {
+      const source = fakeEventSource({});
+      await expect(materializer.rebuildAll(source)).resolves.toBeUndefined();
+    });
+  });
 });

@@ -27,7 +27,9 @@ export async function readEntityTypesProjection(project: SemiontProject): Promis
     return projection.entityTypes || [];
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      // File doesn't exist yet - return empty array
+      // Projection file doesn't exist. After ViewManager.rebuildAll() runs at
+      // startup (see createKnowledgeBase), this is the genuine "no entity-type
+      // events have been recorded yet" case — empty event log → empty result.
       return [];
     }
     throw error;
