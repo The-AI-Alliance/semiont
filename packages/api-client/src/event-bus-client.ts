@@ -35,7 +35,7 @@ type CorrelatedResponseEvent = {
 }[EventName];
 
 type CorrelatedFailureEvent = {
-  [K in EventName]: EventMap[K] extends { correlationId: string; error: Error } ? K : never;
+  [K in EventName]: EventMap[K] extends { correlationId: string; message: string } ? K : never;
 }[EventName];
 
 /**
@@ -62,7 +62,7 @@ async function eventBusRequest<
     ),
     eventBus.get(failureEvent).pipe(
       filter((e) => e.correlationId === correlationId),
-      map((e) => ({ ok: false as const, error: e.error })),
+      map((e) => ({ ok: false as const, error: new Error(e.message) })),
     ),
   ).pipe(take(1), timeout(timeoutMs));
 
@@ -308,7 +308,7 @@ export class EventBusClient {
       ),
       this.eventBus.get('gather:failed').pipe(
         filter((e) => e.correlationId === correlationId),
-        map((e) => ({ ok: false as const, error: e.error })),
+        map((e) => ({ ok: false as const, error: new Error(e.message) })),
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 
@@ -346,7 +346,7 @@ export class EventBusClient {
       ),
       this.eventBus.get('gather:resource-failed').pipe(
         filter((e) => e.correlationId === correlationId),
-        map((e) => ({ ok: false as const, error: e.error })),
+        map((e) => ({ ok: false as const, error: new Error(e.message) })),
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 

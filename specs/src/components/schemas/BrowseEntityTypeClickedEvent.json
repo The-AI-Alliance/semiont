@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Emitted when an entity type is clicked in the browse panel",
+  "properties": {
+    "entityType": {
+      "type": "string"
+    }
+  },
+  "required": ["entityType"]
+}

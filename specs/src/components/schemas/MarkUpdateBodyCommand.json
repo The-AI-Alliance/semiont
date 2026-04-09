@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "description": "Bus command to update an annotation's body with patch operations.",
+  "properties": {
+    "annotationId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "./BodyOperationAdd.json" },
+          { "$ref": "./BodyOperationRemove.json" },
+          { "$ref": "./BodyOperationReplace.json" }
+        ]
+      }
+    }
+  },
+  "required": ["annotationId", "userId", "resourceId", "operations"]
+}

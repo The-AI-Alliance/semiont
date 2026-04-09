@@ -136,7 +136,7 @@ describe('Gatherer', () => {
 
       const result = await resultPromise;
       expect(result!.annotationId).toBe('ann-2');
-      expect(result!.error.message).toBe('Annotation not found');
+      expect(result!.message).toBe('Annotation not found');
     });
   });
 
@@ -184,7 +184,7 @@ describe('Gatherer', () => {
 
       const result = await resultPromise;
       expect(result!.resourceId).toBe('res-2');
-      expect(result!.error.message).toBe('Resource not found');
+      expect(result!.message).toBe('Resource not found');
     });
   });
 

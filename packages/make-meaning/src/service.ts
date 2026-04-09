@@ -70,7 +70,7 @@ async function createJobQueue(
       try {
         const job = await jobQueue.getJob(event.jobId);
         if (!job) {
-          eventBus.get('job:status-failed').next({ correlationId: event.correlationId, error: new Error('Job not found') });
+          eventBus.get('job:status-failed').next({ correlationId: event.correlationId, message: 'Job not found' });
           return;
         }
         eventBus.get('job:status-result').next({
@@ -91,7 +91,7 @@ async function createJobQueue(
       } catch (error) {
         eventBus.get('job:status-failed').next({
           correlationId: event.correlationId,
-          error: error instanceof Error ? error : new Error(String(error)),
+          message: error instanceof Error ? error.message : String(error),
         });
       }
     })())),

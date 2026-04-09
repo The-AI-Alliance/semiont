@@ -105,7 +105,7 @@ export class Gatherer {
       this.eventBus.get('gather:failed').next({
         correlationId: event.correlationId,
         annotationId: event.annotationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -136,7 +136,7 @@ export class Gatherer {
       this.eventBus.get('gather:resource-failed').next({
         correlationId: event.correlationId,
         resourceId: event.resourceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

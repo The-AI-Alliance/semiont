@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "description": "Event indicating a job has been queued",
+  "properties": {
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "jobId",
+    "jobType",
+    "resourceId"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "description": "Bus command to request yield (generation) of a new resource from an annotation.",
+  "properties": {
+    "annotationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "maxTokens": {
+          "type": "integer"
+        },
+        "context": {
+          "$ref": "./GatheredContext.json"
+        },
+        "storageUri": {
+          "type": "string"
+        }
+      },
+      "required": ["title", "storageUri"]
+    }
+  },
+  "required": ["annotationId", "resourceId", "options"]
+}

@@ -221,7 +221,7 @@ async function addEntityType(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
   );
 
@@ -278,7 +278,7 @@ async function importResource(
   // Create resource via EventBus
   const createResult$ = race(
     eventBus.get('yield:create-ok').pipe(map((r) => r)),
-    eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('yield:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
   );
 
@@ -320,7 +320,7 @@ async function createAnnotation(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
   );
 

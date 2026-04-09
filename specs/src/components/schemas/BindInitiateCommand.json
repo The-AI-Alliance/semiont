@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "Command payload sent on the bind:initiate bus channel to start a bind flow.",
+  "properties": {
+    "annotationId": {
+      "type": "string",
+      "description": "Branded AnnotationId of the annotation being bound"
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "Branded ResourceId of the resource being bound to"
+    },
+    "defaultTitle": {
+      "type": "string",
+      "description": "Default title for the bound annotation"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Entity types to associate with the annotation"
+    }
+  },
+  "required": ["annotationId", "resourceId", "defaultTitle", "entityTypes"]
+}

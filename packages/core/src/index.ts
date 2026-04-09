@@ -73,9 +73,20 @@ export type {
   EntityTypeStats,
 } from './graph';
 
-// Stored event types (persistence model)
+// Event base types (persistence model foundations)
 export type {
   EventBase,
+  EventMetadata,
+  EventSignature,
+  StoredEvent,
+  BodyOperation,
+  BodyItem,
+  EventQuery,
+  ResourceAnnotations,
+} from './event-base';
+
+// Event catalog (domain event types, union, type guards)
+export type {
   ResourceDomainEvent,
   SystemDomainEvent,
   ResourceEvent,
@@ -83,6 +94,7 @@ export type {
   SystemEvent,
   ResourceScopedEvent,
   EventInput,
+  DomainEventKey,
   ResourceCreatedEvent,
   ResourceClonedEvent,
   ResourceUpdatedEvent,
@@ -103,41 +115,25 @@ export type {
   JobFailedEvent,
   EmbeddingComputedEvent,
   EmbeddingDeletedEvent,
-  BodyOperation,
-  BodyItem,
-  EventMetadata,
-  EventSignature,
-  StoredEvent,
-  EventQuery,
-  ResourceAnnotations,
-} from './stored-events';
+} from './event-catalog';
 export {
+  DOMAIN_EVENT_KEYS,
   isResourceEvent,
   isSystemEvent,
   isResourceScopedEvent,
   getEventType,
-} from './stored-events';
+} from './event-catalog';
 
-// Wire protocol (public contract — domain events, SSE payloads, command results)
+// Bus protocol (unified EventMap — all channels on the EventBus)
 export type {
-  WireProtocol,
-  DomainEventKey,
-  SelectionData,
-  MarkProgress,
-  YieldProgress,
+  EventMap,
+  EventName,
   Selector,
   GatheredContext,
-} from './wire-protocol';
-export { DOMAIN_EVENT_KEYS } from './wire-protocol';
-
-// Actor protocol (internal commands and reads between actors)
-export type { ActorProtocol } from './actor-protocol';
-
-// UI events (frontend-only, never cross HTTP)
-export type { UIEvents } from './ui-events';
-
-// Unified event map
-export type { EventMap, EventName } from './event-map';
+  YieldProgress,
+  MarkProgress,
+  SelectionData,
+} from './bus-protocol';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';

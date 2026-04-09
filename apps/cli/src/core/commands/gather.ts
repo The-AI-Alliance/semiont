@@ -48,7 +48,7 @@ function waitForGatherResourceFinished(eventBus: EventBus): Promise<components['
     const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
       doneSub.unsubscribe();
       failSub.unsubscribe();
-      reject(event.error ?? new Error('Gather resource failed'));
+      reject(new Error(event.message ?? 'Gather resource failed'));
     });
   });
 }
@@ -63,7 +63,7 @@ function waitForGatherAnnotationFinished(eventBus: EventBus): Promise<components
     const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
       doneSub.unsubscribe();
       failSub.unsubscribe();
-      reject(event.error ?? new Error('Gather annotation failed'));
+      reject(new Error(event.message ?? 'Gather annotation failed'));
     });
   });
 }

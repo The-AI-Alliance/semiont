@@ -89,7 +89,7 @@ export class Browser {
       if (!stored) {
         this.eventBus.get('browse:resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource not found'),
+          message: 'Resource not found',
         });
         return;
       }
@@ -112,7 +112,7 @@ export class Browser {
       this.logger.error('Browse resource failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:resource-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -152,7 +152,7 @@ export class Browser {
       this.logger.error('Browse resources failed', { error });
       this.eventBus.get('browse:resources-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -172,7 +172,7 @@ export class Browser {
       this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:annotations-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -184,7 +184,7 @@ export class Browser {
       if (!annotation) {
         this.eventBus.get('browse:annotation-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Annotation not found'),
+          message: 'Annotation not found',
         });
         return;
       }
@@ -210,7 +210,7 @@ export class Browser {
       this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
       this.eventBus.get('browse:annotation-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -246,7 +246,7 @@ export class Browser {
       this.logger.error('Browse events failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:events-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -258,7 +258,7 @@ export class Browser {
       if (!annotation) {
         this.eventBus.get('browse:annotation-history-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Annotation not found'),
+          message: 'Annotation not found',
         });
         return;
       }
@@ -290,7 +290,7 @@ export class Browser {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
       this.eventBus.get('browse:annotation-history-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -340,7 +340,7 @@ export class Browser {
       this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:referenced-by-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -356,7 +356,7 @@ export class Browser {
       this.logger.error('Entity types read failed', { error });
       this.eventBus.get('browse:entity-types-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -378,7 +378,7 @@ export class Browser {
       this.eventBus.get('browse:directory-failed').next({
         correlationId,
         path: reqPath,
-        error: new Error('path escapes project root'),
+        message: 'path escapes project root',
       });
       return;
     }
@@ -391,7 +391,7 @@ export class Browser {
       this.eventBus.get('browse:directory-failed').next({
         correlationId,
         path: reqPath,
-        error: new Error(msg),
+        message: msg,
       });
       return;
     }

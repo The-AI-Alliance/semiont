@@ -429,7 +429,7 @@ No explanations.`;
       });
       this.eventBus.get('browse:referenced-by-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

@@ -28,8 +28,8 @@
  * - job:report-progress → job.progress
  * - job:complete       → job.completed
  * - job:fail           → job.failed
- * - embedding:computed  → embedding.computed   (from Smelter)
- * - embedding:deleted   → embedding.deleted    (from Smelter)
+ * - embedding:compute   → embedding.computed   (from Smelter)
+ * - embedding:delete    → embedding.deleted    (from Smelter)
  */
 
 import { promises as fs } from 'fs';
@@ -82,8 +82,8 @@ export class Stower {
       pipe('job:report-progress', (e) => this.handleJobReportProgress(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
-      pipe('embedding:computed', (e) => this.handleEmbeddingComputed(e)),
-      pipe('embedding:deleted', (e) => this.handleEmbeddingDeleted(e)),
+      pipe('embedding:compute', (e) => this.handleEmbeddingComputed(e)),
+      pipe('embedding:delete', (e) => this.handleEmbeddingDeleted(e)),
     ).subscribe({
       error: (err: unknown) => this.logger.error('Stower pipeline error', { error: err }),
     });
@@ -154,7 +154,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to create resource', { error });
       this.eventBus.get('yield:create-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -179,7 +179,7 @@ export class Stower {
       this.logger.error('Failed to update resource', { error });
       this.eventBus.get('yield:update-failed').next({
         resourceId: event.resourceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -193,7 +193,7 @@ export class Stower {
       this.logger.error('Failed to resolve resource for move', { fromUri: event.fromUri, error });
       this.eventBus.get('yield:move-failed').next({
         fromUri: event.fromUri,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
       return;
     }
@@ -215,7 +215,7 @@ export class Stower {
       this.logger.error('Failed to move resource', { error });
       this.eventBus.get('yield:move-failed').next({
         fromUri: event.fromUri,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -234,7 +234,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to create annotation', { error });
       this.eventBus.get('mark:create-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -256,7 +256,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to delete annotation', { error });
       this.eventBus.get('mark:delete-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -274,7 +274,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error });
       this.eventBus.get('mark:body-update-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -330,7 +330,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to add entity type', { error });
       this.eventBus.get('mark:entity-type-add-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -413,7 +413,7 @@ export class Stower {
     });
   }
 
-  private async handleEmbeddingComputed(event: EventMap['embedding:computed']): Promise<void> {
+  private async handleEmbeddingComputed(event: EventMap['embedding:compute']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'embedding:computed',
       resourceId: event.resourceId,
@@ -430,7 +430,7 @@ export class Stower {
     });
   }
 
-  private async handleEmbeddingDeleted(event: EventMap['embedding:deleted']): Promise<void> {
+  private async handleEmbeddingDeleted(event: EventMap['embedding:delete']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'embedding:deleted',
       resourceId: event.resourceId,

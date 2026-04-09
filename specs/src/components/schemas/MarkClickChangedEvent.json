@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Emitted when the mark click action changes",
+  "properties": {
+    "action": {
+      "type": "string"
+    }
+  },
+  "required": ["action"]
+}

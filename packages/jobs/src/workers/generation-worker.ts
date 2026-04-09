@@ -176,7 +176,7 @@ export class GenerationWorker extends JobWorker {
 
     const result$ = race(
       this.eventBus.get('yield:create-ok').pipe(take(1), map(r => ({ ok: true as const, result: r }))),
-      this.eventBus.get('yield:create-failed').pipe(take(1), map(f => ({ ok: false as const, error: f.error }))),
+      this.eventBus.get('yield:create-failed').pipe(take(1), map(f => ({ ok: false as const, error: new Error(f.message) }))),
       timer(30_000).pipe(map(() => ({ ok: false as const, error: new Error('Resource creation timed out') }))),
     );
     this.eventBus.get('yield:create').next(createParams);

@@ -94,7 +94,7 @@ export function registerGatherAnnotationStream(router: ResourcesRouterType) {
               if (isStreamClosed) return;
               try {
                 await writeTypedSSE(stream, {
-                  data: { correlationId: event.correlationId, annotationId: event.annotationId, error: event.error },
+                  data: { correlationId: event.correlationId, annotationId: event.annotationId, message: event.message },
                   event: 'gather:failed',
                   id: String(Date.now()),
                 });

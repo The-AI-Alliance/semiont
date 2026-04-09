@@ -64,7 +64,7 @@ export function useContextGatherFlow(
       setGatherLoading(false);
     },
     'gather:failed': (event) => {
-      setGatherError(event.error);
+      setGatherError(new Error(event.message));
       setGatherLoading(false);
     },
   });

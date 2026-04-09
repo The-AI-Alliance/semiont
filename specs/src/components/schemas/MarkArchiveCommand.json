@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "description": "Bus command to archive a resource and optionally remove its file.",
+  "properties": {
+    "userId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "storageUri": {
+      "type": "string"
+    },
+    "keepFile": {
+      "type": "boolean"
+    },
+    "noGit": {
+      "type": "boolean"
+    }
+  },
+  "required": ["userId"]
+}

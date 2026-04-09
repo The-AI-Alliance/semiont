@@ -104,7 +104,7 @@ function waitForYieldFinished(eventBus: EventBus): Promise<{ resourceId?: string
     const failSub = eventBus.get('yield:failed').subscribe((event: any) => {
       doneSub.unsubscribe();
       failSub.unsubscribe();
-      reject(event.error ?? new Error('Generation failed'));
+      reject(new Error(event.error ?? 'Generation failed'));
     });
   });
 }
@@ -126,7 +126,7 @@ function waitForGatherAnnotationFinished(eventBus: EventBus, annotationId: strin
       if (event.annotationId !== annotationId) return;
       doneSub.unsubscribe();
       failSub.unsubscribe();
-      reject(event.error ?? new Error('Gather annotation failed'));
+      reject(new Error(event.message ?? 'Gather annotation failed'));
     });
   });
 }

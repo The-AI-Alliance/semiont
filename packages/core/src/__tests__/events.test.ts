@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isResourceEvent, isSystemEvent, isResourceScopedEvent, getEventType } from '../stored-events';
-import type { ResourceEvent } from '../stored-events';
+import { isResourceEvent, isSystemEvent, isResourceScopedEvent, getEventType } from '../event-catalog';
+import type { ResourceEvent } from '../event-catalog';
 
 describe('@semiont/core - events', () => {
   describe('isResourceEvent', () => {

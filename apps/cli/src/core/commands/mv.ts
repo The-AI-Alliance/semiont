@@ -122,7 +122,7 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
     // Emit yield:mv — Stower resolves resourceId via storage-uri-index, moves file, appends resource.moved
     const movedPromise = new Promise<void>((resolve, reject) => {
       const sub = eventBus.get('yield:moved').subscribe(() => { sub.unsubscribe(); resolve(); });
-      eventBus.get('yield:move-failed').subscribe((e) => { reject(new Error(e.error?.message ?? 'Move failed')); });
+      eventBus.get('yield:move-failed').subscribe((e) => { reject(new Error(e.message ?? 'Move failed')); });
     });
 
     const userId = `did:web:localhost:users:${process.env.USER ?? 'cli'}` as UserId;

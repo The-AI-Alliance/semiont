@@ -165,7 +165,7 @@ describe('useYieldFlow — progress state', () => {
     // Now fail
     act(() => {
       result.current.eventBus.get('yield:failed').next({
-        error: new Error('Generation failed'),
+        error: 'Generation failed',
       });
     });
 
@@ -195,7 +195,7 @@ describe('useYieldFlow — progress state', () => {
 
     act(() => {
       result.current.eventBus.get('yield:failed').next({
-        error: new Error('Unexpected failure'),
+        error: 'Unexpected failure',
       });
     });
 

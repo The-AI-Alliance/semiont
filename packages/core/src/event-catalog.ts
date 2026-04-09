@@ -1,61 +1,18 @@
 /**
- * Stored Event Types
+ * Event Catalog
  *
- * Core types for the event-sourced persistence model.
- * Defines EventBase, StoredEvent, EventMetadata, domain event helpers,
- * the ResourceEvent union, and type guards.
+ * Defines all persisted domain event types. Each event is a one-liner
+ * that pairs a type string with its OpenAPI-derived payload schema.
  *
- * The EventMap entries (wire-protocol.ts, actor-protocol.ts, ui-events.ts)
- * reference types from this file. This file has no dependency on EventMap.
+ * The ResourceEvent union, type guards, and DOMAIN_EVENT_KEYS array
+ * all derive from these definitions — single source of truth.
  */
 
 import type { components } from './types';
-import type { ResourceId, UserId } from './identifiers';
-import { DOMAIN_EVENT_KEYS } from './wire-protocol';
+import type { ResourceId } from './identifiers';
+import type { EventBase, StoredEvent } from './event-base';
 
-// ── Core event shape ─────────────────────────────────────────────────────────
-
-/** Fields common to ALL events (system and resource-scoped) */
-export interface EventBase {
-  id: string;                    // Unique event ID (UUID)
-  timestamp: string;             // ISO 8601 timestamp (for humans, NOT for ordering)
-  resourceId?: ResourceId;       // Present for resource-scoped events, absent for system events
-  userId: UserId;                // DID format: did:web:org.com:users:alice
-  version: number;               // Event schema version
-}
-
-export interface EventMetadata {
-  sequenceNumber: number;        // Position in event log (ordering authority)
-  streamPosition: number;        // Byte offset in JSONL file
-  prevEventHash?: string;        // SHA-256 of previous event (hash chain)
-  checksum?: string;             // SHA-256 of this event (integrity)
-}
-
-export interface EventSignature {
-  algorithm: 'ed25519';
-  publicKey: string;
-  signature: string;
-  keyId?: string;
-}
-
-// ── StoredEvent: flat intersection of event + metadata ───────────────────────
-
-export type StoredEvent<T extends EventBase = ResourceEvent> = T & {
-  metadata: EventMetadata;
-  signature?: EventSignature;
-};
-
-// ── Domain event helpers ─────────────────────────────────────────────────────
-
-/** A resource-scoped domain event. Has a required resourceId. */
-export type ResourceDomainEvent<Type extends string, Payload> =
-  StoredEvent<EventBase & { type: Type; payload: Payload; resourceId: ResourceId }>;
-
-/** A system-level domain event. No resourceId field. */
-export type SystemDomainEvent<Type extends string, Payload> =
-  StoredEvent<EventBase & { type: Type; payload: Payload }>;
-
-// ── Resource event interfaces (one per persisted event type) ─────────────────
+// ── Domain event interfaces (one per persisted event type) ─────────────────
 
 // Yield flow
 export interface ResourceCreatedEvent extends EventBase { type: 'yield:created'; resourceId: ResourceId; payload: components['schemas']['ResourceCreatedPayload']; }
@@ -100,17 +57,30 @@ export type ResourceEventType = ResourceEvent['type'];
 export type SystemEvent = EntityTypeAddedEvent;
 export type ResourceScopedEvent = Exclude<ResourceEvent, SystemEvent>;
 
+/** Helpers for building events generically */
+export type ResourceDomainEvent<Type extends string, Payload> =
+  StoredEvent<EventBase & { type: Type; payload: Payload; resourceId: ResourceId }>;
+export type SystemDomainEvent<Type extends string, Payload> =
+  StoredEvent<EventBase & { type: Type; payload: Payload }>;
+
 /** Input type for appendEvent — ResourceEvent without id/timestamp (assigned at persistence time) */
 export type EventInput = Omit<ResourceEvent, 'id' | 'timestamp'>;
 
-// ── Body operation types (OpenAPI-derived) ───────────────────────────────────
+// ── Domain event key list ────────────────────────────────────────────────────
 
-export type BodyItem = components['schemas']['TextualBody'] | components['schemas']['SpecificResource'];
+/** All persisted domain event type strings. Used for runtime validation. */
+export const DOMAIN_EVENT_KEYS = [
+  'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
+  'yield:representation-added', 'yield:representation-removed',
+  'mark:added', 'mark:removed', 'mark:body-updated',
+  'mark:archived', 'mark:unarchived',
+  'mark:entity-tag-added', 'mark:entity-tag-removed',
+  'mark:entity-type-added',
+  'job:started', 'job:progress', 'job:completed', 'job:failed',
+  'embedding:computed', 'embedding:deleted',
+] as const;
 
-export type BodyOperation =
-  | components['schemas']['BodyOperationAdd']
-  | components['schemas']['BodyOperationRemove']
-  | components['schemas']['BodyOperationReplace'];
+export type DomainEventKey = typeof DOMAIN_EVENT_KEYS[number];
 
 // ── Type guards ──────────────────────────────────────────────────────────────
 
@@ -138,25 +108,4 @@ export function isResourceScopedEvent(event: ResourceEvent): boolean {
 
 export function getEventType<T extends ResourceEvent>(event: ResourceEvent): T['type'] {
   return event.type as T['type'];
-}
-
-// ── Query and view types ─────────────────────────────────────────────────────
-
-type Annotation = components['schemas']['Annotation'];
-
-export interface EventQuery {
-  resourceId?: ResourceId;
-  userId?: string;
-  eventTypes?: ResourceEvent['type'][];
-  fromTimestamp?: string;
-  toTimestamp?: string;
-  fromSequence?: number;
-  limit?: number;
-}
-
-export interface ResourceAnnotations {
-  resourceId: ResourceId;
-  annotations: Annotation[];
-  version: number;
-  updatedAt: string;
 }

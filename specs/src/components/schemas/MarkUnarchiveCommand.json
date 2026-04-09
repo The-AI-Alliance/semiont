@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Bus command to unarchive a previously archived resource.",
+  "properties": {
+    "userId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "storageUri": {
+      "type": "string"
+    }
+  },
+  "required": ["userId"]
+}

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Request to cancel a job",
+  "properties": {
+    "jobType": {
+      "type": "string",
+      "enum": [
+        "annotation",
+        "generation"
+      ]
+    }
+  },
+  "required": [
+    "jobType"
+  ]
+}

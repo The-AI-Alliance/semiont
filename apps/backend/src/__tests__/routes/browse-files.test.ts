@@ -35,13 +35,13 @@ vi.mock('@semiont/make-meaning', () => ({
         eventBus.get('browse:directory-failed').next({
           correlationId: e.correlationId,
           path: e.path,
-          error: new Error('path escapes project root'),
+          message: 'path escapes project root',
         });
       } else if (e.path === 'missing-dir') {
         eventBus.get('browse:directory-failed').next({
           correlationId: e.correlationId,
           path: e.path,
-          error: new Error('path not found'),
+          message: 'path not found',
         });
       } else {
         eventBus.get('browse:directory-result').next({

@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "description": "Bus command to create a cloned resource from a clone token.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "token": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "archiveOriginal": {
+      "type": "boolean"
+    }
+  },
+  "required": ["correlationId", "token", "name", "content", "userId"]
+}

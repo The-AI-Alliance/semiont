@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "description": "Request to browse the history of an annotation",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "annotationId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "correlationId",
+    "resourceId",
+    "annotationId"
+  ]
+}

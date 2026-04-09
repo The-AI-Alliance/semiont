@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "description": "Emitted when the user requests AI assistance for a mark",
+  "properties": {
+    "motivation": {
+      "$ref": "./Motivation.json"
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "instructions": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "scholarly",
+            "explanatory",
+            "conversational",
+            "technical",
+            "analytical",
+            "critical",
+            "balanced",
+            "constructive"
+          ]
+        },
+        "density": {
+          "type": "number"
+        },
+        "language": {
+          "type": "string"
+        },
+        "entityTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "includeDescriptiveReferences": {
+          "type": "boolean"
+        },
+        "schemaId": {
+          "type": "string"
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": ["motivation", "options"]
+}

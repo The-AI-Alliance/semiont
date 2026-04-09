@@ -47,7 +47,7 @@ function waitForBindFinished(eventBus: EventBus): Promise<void> {
     const failSub = eventBus.get('bind:failed').subscribe((event: any) => {
       doneSub.unsubscribe();
       failSub.unsubscribe();
-      reject(event.error ?? new Error('Bind failed'));
+      reject(new Error(event.error ?? 'Bind failed'));
     });
   });
 }

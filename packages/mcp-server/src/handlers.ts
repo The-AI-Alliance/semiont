@@ -191,10 +191,10 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
       gatherBus.destroy();
       resolveCtx(e.response);
     });
-    gatherBus.get('gather:failed').subscribe((e: any) => {
+    gatherBus.get('gather:failed').subscribe((e) => {
       if (e.annotationId !== aId) return;
       gatherBus.destroy();
-      rejectCtx(e.error ?? new Error('gather failed'));
+      rejectCtx(new Error(e.message ?? 'gather failed'));
     });
     client.sse.gatherAnnotation(rId, aId, { contextWindow: 2000 }, { auth, eventBus: gatherBus });
   });

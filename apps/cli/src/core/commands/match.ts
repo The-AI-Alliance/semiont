@@ -89,7 +89,7 @@ async function gatherContext(
       if (event.annotationId !== annotationId) return;
       doneSub.unsubscribe();
       failSub.unsubscribe();
-      reject(event.error ?? new Error('Gather annotation failed'));
+      reject(new Error(event.message ?? 'Gather annotation failed'));
     });
   });
   client.sse.gatherAnnotation(

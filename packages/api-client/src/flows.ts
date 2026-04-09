@@ -56,7 +56,7 @@ export class FlowEngine {
         const failedSub = this.eventBus.get('bind:failed').subscribe(() => {
           finishedSub.unsubscribe();
           failedSub.unsubscribe();
-          this.eventBus.get('bind:body-update-failed').next({ error: new Error('Bind failed') });
+          this.eventBus.get('bind:body-update-failed').next({ message: 'Bind failed' });
         });
 
         this.sse.bindAnnotation(
@@ -160,7 +160,7 @@ export class FlowEngine {
           }, { auth: getToken() });
           this.eventBus.get('mark:create-ok').next({ annotationId: makeAnnotationId(result.annotationId) });
         } catch (error) {
-          this.eventBus.get('mark:create-failed').next({ error: error as Error });
+          this.eventBus.get('mark:create-failed').next({ message: error instanceof Error ? error.message : String(error) });
         }
       }),
     );
@@ -171,7 +171,7 @@ export class FlowEngine {
           await this.http.deleteAnnotation(rUri, event.annotationId, { auth: getToken() });
           this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
         } catch (error) {
-          this.eventBus.get('mark:delete-failed').next({ error: error as Error });
+          this.eventBus.get('mark:delete-failed').next({ message: error instanceof Error ? error.message : String(error) });
         }
       }),
     );

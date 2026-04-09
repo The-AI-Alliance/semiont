@@ -295,7 +295,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('yield:failed').next({ error: new Error('Network error') });
+      getEventBus().get('yield:failed').next({ error: 'Network error' });
     });
 
     // Verify: progress cleared and not generating

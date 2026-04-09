@@ -58,7 +58,7 @@ export class ResourceOperations {
       ),
       eventBus.get('yield:create-failed').pipe(
         take(1),
-        map((failure) => ({ ok: false as const, error: failure.error })),
+        map((failure) => ({ ok: false as const, error: new Error(failure.message) })),
       ),
       timer(30_000).pipe(
         map(() => ({ ok: false as const, error: new Error('Resource creation timed out') })),

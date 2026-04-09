@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Result of browsing events for a resource",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "./GetEventsResponse.json"
+    }
+  },
+  "required": [
+    "correlationId",
+    "response"
+  ]
+}

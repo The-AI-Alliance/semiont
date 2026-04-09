@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Emitted when the browse panel requests a router navigation",
+  "properties": {
+    "path": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "required": ["path"]
+}

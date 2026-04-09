@@ -35,6 +35,6 @@ export function useBindFlow(rUri: ResourceId): void {
   }, [rUri, client]);
 
   useEventSubscriptions({
-    'bind:body-update-failed': ({ error }) => showError(`Failed to update reference: ${error.message}`),
+    'bind:body-update-failed': ({ message }) => showError(`Failed to update reference: ${message}`),
   });
 }

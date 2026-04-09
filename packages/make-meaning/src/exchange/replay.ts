@@ -164,7 +164,7 @@ async function replayEntityTypeAdded(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
   );
 
@@ -197,7 +197,7 @@ async function replayResourceCreated(
 
   const result$ = race(
     eventBus.get('yield:create-ok').pipe(map((r) => r)),
-    eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('yield:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
   );
 
@@ -227,7 +227,7 @@ async function replayAnnotationAdded(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
   );
 
@@ -248,7 +248,7 @@ async function replayAnnotationBodyUpdated(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:body-updated').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:body-update-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:body-update-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:body-updated'); })),
   );
 
@@ -270,7 +270,7 @@ async function replayAnnotationRemoved(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:delete-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:delete-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:delete-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:delete-ok'); })),
   );
 

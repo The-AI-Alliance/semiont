@@ -154,7 +154,7 @@ describe('useContextGatherFlow', () => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
     act(() => {
-      result.current.bus.get('gather:failed').next({ error: new Error('first fail') } as any);
+      result.current.bus.get('gather:failed').next({ message: 'first fail' } as any);
     });
     await waitFor(() => expect(result.current.flow.gatherError).not.toBeNull());
 

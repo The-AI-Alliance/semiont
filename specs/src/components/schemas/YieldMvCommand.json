@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "description": "Bus command to move (rename) a yielded resource.",
+  "properties": {
+    "fromUri": {
+      "type": "string"
+    },
+    "toUri": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "noGit": {
+      "type": "boolean"
+    }
+  },
+  "required": ["fromUri", "toUri", "userId"]
+}

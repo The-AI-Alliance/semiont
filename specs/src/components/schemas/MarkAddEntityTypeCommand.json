@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Bus command to add a new entity type tag.",
+  "properties": {
+    "tag": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    }
+  },
+  "required": ["tag", "userId"]
+}

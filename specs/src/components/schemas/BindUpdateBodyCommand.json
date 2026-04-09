@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "description": "Command payload sent on the bind:update-body bus channel to modify annotation bodies.",
+  "properties": {
+    "annotationId": {
+      "type": "string",
+      "description": "Branded AnnotationId of the annotation whose body is being updated"
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "Branded ResourceId of the resource the annotation belongs to"
+    },
+    "userId": {
+      "type": "string",
+      "description": "Branded UserId of the user performing the update"
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": ["add", "remove", "replace"],
+            "description": "The type of body operation"
+          },
+          "item": {
+            "$ref": "./AnnotationBody.json",
+            "description": "Body item for add operations"
+          },
+          "oldItem": {
+            "$ref": "./AnnotationBody.json",
+            "description": "Previous body item for replace operations"
+          },
+          "newItem": {
+            "$ref": "./AnnotationBody.json",
+            "description": "Replacement body item for replace operations"
+          }
+        },
+        "required": ["op"]
+      },
+      "description": "List of body mutation operations to apply"
+    }
+  },
+  "required": ["annotationId", "resourceId", "operations"]
+}

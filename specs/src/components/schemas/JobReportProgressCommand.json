@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "description": "Command to report progress on a job",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "percentage": {
+      "type": "number"
+    },
+    "progress": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "resourceId",
+    "userId",
+    "jobId",
+    "jobType",
+    "percentage"
+  ]
+}

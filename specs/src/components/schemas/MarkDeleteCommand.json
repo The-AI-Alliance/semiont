@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Bus command to delete an annotation.",
+  "properties": {
+    "annotationId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": ["annotationId"]
+}

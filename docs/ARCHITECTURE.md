@@ -139,7 +139,7 @@ graph TB
     STOWER -->|store| CONTENT
 
     SMELTER -->|embed| VECTORS
-    SMELTER -->|"emit embedding:computed"| STOWER
+    SMELTER -->|"emit embedding:compute"| STOWER
 
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record (git-tracked)"]
@@ -203,7 +203,7 @@ The Browser is the read actor for navigation and content retrieval. It handles d
 
 ### Smelter
 
-The Smelter is the vector projection actor. When a resource is created or an annotation is added, the Smelter receives the event, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store (Qdrant). It also emits `embedding:computed` events on the bus so the Stower can persist the embeddings in `.semiont/events/` — making them part of the system of record. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
+The Smelter is the vector projection actor. When a resource is created or an annotation is added, the Smelter receives the event, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store (Qdrant). It emits `embedding:compute` commands on the bus so the Stower can persist them as `embedding:computed` domain events in `.semiont/events/` — making them part of the system of record. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
 
 ### Feeder and Content Streams
 
@@ -227,7 +227,7 @@ The actor model makes three things visible that the layered architecture obscure
 
 2. **The knowledge base is inert.** It records; it does not decide. All intelligence lives in the actors. This means the knowledge base can be simple, append-only, and rebuildable — properties that are hard to maintain when "smart" behavior leaks into the data layer.
 
-3. **Flows are composable.** A Marker Agent does mark + browse + beckon. A Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event map](../packages/core/src/wire-protocol.ts).
+3. **Flows are composable.** A Marker Agent does mark + browse + beckon. A Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event map](../packages/core/src/bus-protocol.ts).
 
 ## Package Architecture
 

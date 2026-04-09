@@ -66,7 +66,7 @@ export class CloneTokenManager {
       if (!resource) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource not found'),
+          message: 'Resource not found',
         });
         return;
       }
@@ -75,7 +75,7 @@ export class CloneTokenManager {
       if (!resource.storageUri) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource content not found'),
+          message: 'Resource content not found',
         });
         return;
       }
@@ -85,7 +85,7 @@ export class CloneTokenManager {
       } catch {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource content not found'),
+          message: 'Resource content not found',
         });
         return;
       }
@@ -109,7 +109,7 @@ export class CloneTokenManager {
       this.logger.error('Generate clone token failed', { resourceId: event.resourceId, error });
       this.eventBus.get('yield:clone-token-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -122,7 +122,7 @@ export class CloneTokenManager {
       if (!tokenData) {
         this.eventBus.get('yield:clone-resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Invalid or expired token'),
+          message: 'Invalid or expired token',
         });
         return;
       }
@@ -131,7 +131,7 @@ export class CloneTokenManager {
         this.tokens.delete(token);
         this.eventBus.get('yield:clone-resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Token expired'),
+          message: 'Token expired',
         });
         return;
       }
@@ -140,7 +140,7 @@ export class CloneTokenManager {
       if (!sourceResource) {
         this.eventBus.get('yield:clone-resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Source resource not found'),
+          message: 'Source resource not found',
         });
         return;
       }
@@ -156,7 +156,7 @@ export class CloneTokenManager {
       this.logger.error('Get clone resource failed', { token: event.token, error });
       this.eventBus.get('yield:clone-resource-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -169,7 +169,7 @@ export class CloneTokenManager {
       if (!tokenData) {
         this.eventBus.get('yield:clone-create-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Invalid or expired token'),
+          message: 'Invalid or expired token',
         });
         return;
       }
@@ -178,7 +178,7 @@ export class CloneTokenManager {
         this.tokens.delete(token);
         this.eventBus.get('yield:clone-create-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Token expired'),
+          message: 'Token expired',
         });
         return;
       }
@@ -187,7 +187,7 @@ export class CloneTokenManager {
       if (!sourceDoc) {
         this.eventBus.get('yield:clone-create-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Source resource not found'),
+          message: 'Source resource not found',
         });
         return;
       }
@@ -242,7 +242,7 @@ export class CloneTokenManager {
       this.logger.error('Clone create failed', { token: event.token, error });
       this.eventBus.get('yield:clone-create-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

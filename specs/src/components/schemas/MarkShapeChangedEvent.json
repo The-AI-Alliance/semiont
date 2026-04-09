@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Emitted when the mark shape changes",
+  "properties": {
+    "shape": {
+      "type": "string"
+    }
+  },
+  "required": ["shape"]
+}

@@ -267,7 +267,7 @@ export class Smelter {
     for (const { rid, chunks } of resourceData) {
       const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => {
         const embedding = allEmbeddings[offset + i];
-        this.eventBus.get('embedding:computed').next({
+        this.eventBus.get('embedding:compute').next({
           resourceId: rid, chunkIndex: i, chunkText: text,
           embedding, model, dimensions,
         });
@@ -325,7 +325,7 @@ export class Smelter {
       const { rid, aid, exactText, annotation } = annotationData[i];
       const embedding = allEmbeddings[i];
 
-      this.eventBus.get('embedding:computed').next({
+      this.eventBus.get('embedding:compute').next({
         resourceId: rid, annotationId: aid, chunkIndex: 0,
         chunkText: exactText, embedding,
         model: this.embeddingProvider.model(),
@@ -419,7 +419,7 @@ export class Smelter {
     });
 
     const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => {
-      this.eventBus.get('embedding:computed').next({
+      this.eventBus.get('embedding:compute').next({
         resourceId: rid,
         chunkIndex: i,
         chunkText: text,
@@ -446,7 +446,7 @@ export class Smelter {
     const rid = makeResourceId(event.resourceId!);
     await this.vectorStore.deleteResourceVectors(rid);
 
-    this.eventBus.get('embedding:deleted').next({ resourceId: rid });
+    this.eventBus.get('embedding:delete').next({ resourceId: rid });
 
     this.logger.debug('Smelter deleted resource vectors', {
       resourceId: String(rid),
@@ -475,7 +475,7 @@ export class Smelter {
     const embedding = await this.embeddingProvider.embed(exactText);
 
     // Emit event for Stower to persist
-    this.eventBus.get('embedding:computed').next({
+    this.eventBus.get('embedding:compute').next({
       resourceId: rid,
       annotationId: aid,
       chunkIndex: 0,
@@ -511,7 +511,7 @@ export class Smelter {
 
     await this.vectorStore.deleteAnnotationVector(aid);
 
-    this.eventBus.get('embedding:deleted').next({
+    this.eventBus.get('embedding:delete').next({
       resourceId: rid,
       annotationId: aid,
     });

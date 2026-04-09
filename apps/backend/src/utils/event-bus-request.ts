@@ -47,7 +47,7 @@ export async function eventBusRequest<
     ),
     eventBus.get(failureEvent).pipe(
       filter((e: any) => e.correlationId === correlationId),
-      map((e: any) => ({ ok: false as const, error: e.error as Error })),
+      map((e: any) => ({ ok: false as const, error: new Error(e.message) })),
     ),
   ).pipe(take(1), timeout(timeoutMs));
 

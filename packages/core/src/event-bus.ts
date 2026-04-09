@@ -7,9 +7,9 @@
  */
 
 import { Subject } from 'rxjs';
-import type { EventMap } from './event-map';
-import type { StoredEvent } from './stored-events';
-import type { ResourceEventType } from './stored-events';
+import type { EventMap } from './bus-protocol';
+import type { StoredEvent } from './event-base';
+import type { ResourceEventType } from './event-catalog';
 
 /**
  * RxJS-based event bus

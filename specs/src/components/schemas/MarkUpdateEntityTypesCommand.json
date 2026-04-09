@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "description": "Bus command to replace the entity types on a resource.",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "currentEntityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "updatedEntityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["resourceId", "userId", "currentEntityTypes", "updatedEntityTypes"]
+}

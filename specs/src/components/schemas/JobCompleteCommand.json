@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "description": "Command to mark a job as complete",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "resourceId",
+    "userId",
+    "jobId",
+    "jobType"
+  ]
+}
