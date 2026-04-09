@@ -86,13 +86,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-const NO_AUTH: AuthContextValue = {
-  session: null,
-  isLoading: false,
-  setSession: () => {},
-  clearSession: () => {},
-};
-
 export function useAuthContext(): AuthContextValue {
-  return useContext(AuthContext) ?? NO_AUTH;
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error(
+      'useAuthContext requires AuthShell. ' +
+      'This component is rendered outside the auth boundary. ' +
+      'Move it into a protected layout or stop using useAuthContext.'
+    );
+  }
+  return ctx;
 }
