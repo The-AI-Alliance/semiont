@@ -1,69 +1,91 @@
 /**
  * Event Catalog
  *
- * Defines all persisted domain event types. Each event is a one-liner
- * that pairs a type string with its OpenAPI-derived payload schema.
- *
+ * Maps every persisted domain event type to its OpenAPI payload schema.
  * The ResourceEvent union, type guards, and DOMAIN_EVENT_KEYS array
- * all derive from these definitions — single source of truth.
+ * all derive from this single catalog — one source of truth.
+ *
+ * Named event interfaces (AnnotationAddedEvent, etc.) are gone.
+ * Use EventOfType<'mark:added'> instead.
  */
 
 import type { components } from './types';
 import type { ResourceId } from './identifiers';
-import type { EventBase, StoredEvent } from './event-base';
+import type { EventBase } from './event-base';
 
-// ── Domain event interfaces (one per persisted event type) ─────────────────
+// ── The Catalog ──────────────────────────────────────────────────────────────
 
-// Yield flow
-export interface ResourceCreatedEvent extends EventBase { type: 'yield:created'; resourceId: ResourceId; payload: components['schemas']['ResourceCreatedPayload']; }
-export interface ResourceClonedEvent extends EventBase { type: 'yield:cloned'; resourceId: ResourceId; payload: components['schemas']['ResourceClonedPayload']; }
-export interface ResourceUpdatedEvent extends EventBase { type: 'yield:updated'; resourceId: ResourceId; payload: components['schemas']['ResourceUpdatedPayload']; }
-export interface ResourceMovedEvent extends EventBase { type: 'yield:moved'; resourceId: ResourceId; payload: components['schemas']['ResourceMovedPayload']; }
-export interface RepresentationAddedEvent extends EventBase { type: 'yield:representation-added'; resourceId: ResourceId; payload: components['schemas']['RepresentationAddedPayload']; }
-export interface RepresentationRemovedEvent extends EventBase { type: 'yield:representation-removed'; resourceId: ResourceId; payload: components['schemas']['RepresentationRemovedPayload']; }
+/**
+ * Maps each domain event type string to its OpenAPI payload schema.
+ * This is the single source of truth for "what events exist and what they carry."
+ */
+type EventCatalog = {
+  // Yield flow
+  'yield:created': components['schemas']['ResourceCreatedPayload'];
+  'yield:cloned': components['schemas']['ResourceClonedPayload'];
+  'yield:updated': components['schemas']['ResourceUpdatedPayload'];
+  'yield:moved': components['schemas']['ResourceMovedPayload'];
+  'yield:representation-added': components['schemas']['RepresentationAddedPayload'];
+  'yield:representation-removed': components['schemas']['RepresentationRemovedPayload'];
 
-// Mark flow
-export interface AnnotationAddedEvent extends EventBase { type: 'mark:added'; resourceId: ResourceId; payload: components['schemas']['AnnotationAddedPayload']; }
-export interface AnnotationRemovedEvent extends EventBase { type: 'mark:removed'; resourceId: ResourceId; payload: components['schemas']['AnnotationRemovedPayload']; }
-export interface AnnotationBodyUpdatedEvent extends EventBase { type: 'mark:body-updated'; resourceId: ResourceId; payload: components['schemas']['AnnotationBodyUpdatedPayload']; }
-export interface ResourceArchivedEvent extends EventBase { type: 'mark:archived'; resourceId: ResourceId; payload: components['schemas']['ResourceArchivedPayload']; }
-export interface ResourceUnarchivedEvent extends EventBase { type: 'mark:unarchived'; resourceId: ResourceId; payload: components['schemas']['ResourceUnarchivedPayload']; }
-export interface EntityTagAddedEvent extends EventBase { type: 'mark:entity-tag-added'; resourceId: ResourceId; payload: components['schemas']['EntityTagChangedPayload']; }
-export interface EntityTagRemovedEvent extends EventBase { type: 'mark:entity-tag-removed'; resourceId: ResourceId; payload: components['schemas']['EntityTagChangedPayload']; }
-export interface EntityTypeAddedEvent extends EventBase { type: 'mark:entity-type-added'; payload: components['schemas']['EntityTypeAddedPayload']; }
+  // Mark flow
+  'mark:added': components['schemas']['AnnotationAddedPayload'];
+  'mark:removed': components['schemas']['AnnotationRemovedPayload'];
+  'mark:body-updated': components['schemas']['AnnotationBodyUpdatedPayload'];
+  'mark:archived': components['schemas']['ResourceArchivedPayload'];
+  'mark:unarchived': components['schemas']['ResourceUnarchivedPayload'];
+  'mark:entity-tag-added': components['schemas']['EntityTagChangedPayload'];
+  'mark:entity-tag-removed': components['schemas']['EntityTagChangedPayload'];
+  'mark:entity-type-added': components['schemas']['EntityTypeAddedPayload'];
 
-// Job flow
-export interface JobStartedEvent extends EventBase { type: 'job:started'; resourceId: ResourceId; payload: components['schemas']['JobStartedPayload']; }
-export interface JobProgressEvent extends EventBase { type: 'job:progress'; resourceId: ResourceId; payload: components['schemas']['JobProgressPayload']; }
-export interface JobCompletedEvent extends EventBase { type: 'job:completed'; resourceId: ResourceId; payload: components['schemas']['JobCompletedPayload']; }
-export interface JobFailedEvent extends EventBase { type: 'job:failed'; resourceId: ResourceId; payload: components['schemas']['JobFailedPayload']; }
+  // Job flow
+  'job:started': components['schemas']['JobStartedPayload'];
+  'job:progress': components['schemas']['JobProgressPayload'];
+  'job:completed': components['schemas']['JobCompletedPayload'];
+  'job:failed': components['schemas']['JobFailedPayload'];
 
-// Embedding flow
-export interface EmbeddingComputedEvent extends EventBase { type: 'embedding:computed'; resourceId: ResourceId; payload: components['schemas']['EmbeddingComputedPayload']; }
-export interface EmbeddingDeletedEvent extends EventBase { type: 'embedding:deleted'; resourceId: ResourceId; payload: components['schemas']['EmbeddingDeletedPayload']; }
+  // Embedding flow
+  'embedding:computed': components['schemas']['EmbeddingComputedPayload'];
+  'embedding:deleted': components['schemas']['EmbeddingDeletedPayload'];
+};
 
-// ── ResourceEvent union ──────────────────────────────────────────────────────
+// ── Derived types ────────────────────────────────────────────────────────────
 
-export type ResourceEvent =
-  | ResourceCreatedEvent | ResourceClonedEvent | ResourceUpdatedEvent | ResourceMovedEvent
-  | RepresentationAddedEvent | RepresentationRemovedEvent
-  | AnnotationAddedEvent | AnnotationRemovedEvent | AnnotationBodyUpdatedEvent
-  | ResourceArchivedEvent | ResourceUnarchivedEvent
-  | EntityTagAddedEvent | EntityTagRemovedEvent | EntityTypeAddedEvent
-  | JobStartedEvent | JobProgressEvent | JobCompletedEvent | JobFailedEvent
-  | EmbeddingComputedEvent | EmbeddingDeletedEvent;
+/** A resource-scoped domain event: EventBase + type discriminant + payload. */
+type ResourceScopedEventOf<K extends keyof EventCatalog> =
+  EventBase & { type: K; resourceId: ResourceId; payload: EventCatalog[K] };
+
+/** A system-level domain event (no resourceId). Currently only mark:entity-type-added. */
+type SystemEventOf<K extends keyof EventCatalog> =
+  EventBase & { type: K; payload: EventCatalog[K] };
+
+/** System event types — events that have no resourceId. */
+type SystemEventType = 'mark:entity-type-added';
+
+/**
+ * Extract the concrete event type for a given event type string.
+ *
+ * @example
+ * type Added = EventOfType<'mark:added'>;
+ * // = EventBase & { type: 'mark:added'; resourceId: ResourceId; payload: AnnotationAddedPayload }
+ */
+export type EventOfType<K extends keyof EventCatalog> =
+  K extends SystemEventType ? SystemEventOf<K> : ResourceScopedEventOf<K>;
+
+/** The union of all persisted domain events. Discriminated on `type`. */
+export type ResourceEvent = {
+  [K in keyof EventCatalog]: EventOfType<K>
+}[keyof EventCatalog];
 
 export type ResourceEventType = ResourceEvent['type'];
-export type SystemEvent = EntityTypeAddedEvent;
+
+/** System events — no resourceId. */
+export type SystemEvent = EventOfType<'mark:entity-type-added'>;
+
+/** Resource-scoped events — have a required resourceId. */
 export type ResourceScopedEvent = Exclude<ResourceEvent, SystemEvent>;
 
-/** Helpers for building events generically */
-export type ResourceDomainEvent<Type extends string, Payload> =
-  StoredEvent<EventBase & { type: Type; payload: Payload; resourceId: ResourceId }>;
-export type SystemDomainEvent<Type extends string, Payload> =
-  StoredEvent<EventBase & { type: Type; payload: Payload }>;
-
-/** Input type for appendEvent — ResourceEvent without id/timestamp (assigned at persistence time) */
+/** Input type for appendEvent — ResourceEvent without id/timestamp (assigned at persistence time). */
 export type EventInput = Omit<ResourceEvent, 'id' | 'timestamp'>;
 
 // ── Domain event key list ────────────────────────────────────────────────────

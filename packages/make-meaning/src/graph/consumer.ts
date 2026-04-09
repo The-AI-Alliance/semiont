@@ -24,7 +24,7 @@ import { EventQuery, type EventStore } from '@semiont/event-sourcing';
 import { didToAgent, burstBuffer, EventBus } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/core';
-import type { ResourceEvent, StoredEvent, AnnotationAddedEvent, ResourceId, Logger} from '@semiont/core';
+import type { ResourceEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from '../batch-utils.js';
 
@@ -216,7 +216,7 @@ export class GraphDBConsumer {
       }
       case 'mark:added': {
         const inputs = events.map(e => {
-          const event = e as AnnotationAddedEvent;
+          const event = e as EventOfType<'mark:added'>;
           return {
             ...event.payload.annotation,
             creator: didToAgent(event.userId),

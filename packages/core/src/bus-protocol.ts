@@ -18,14 +18,7 @@
 
 import type { components } from './types';
 import type { StoredEvent } from './event-base';
-import type {
-  ResourceCreatedEvent, ResourceClonedEvent, ResourceUpdatedEvent, ResourceMovedEvent,
-  RepresentationAddedEvent, RepresentationRemovedEvent,
-  AnnotationAddedEvent, AnnotationRemovedEvent, AnnotationBodyUpdatedEvent,
-  ResourceArchivedEvent, ResourceUnarchivedEvent,
-  EntityTagAddedEvent, EntityTagRemovedEvent, EntityTypeAddedEvent,
-  JobStartedEvent, JobProgressEvent, JobCompletedEvent, JobFailedEvent,
-} from './event-catalog';
+import type { EventOfType } from './event-catalog';
 
 // ── Shared type aliases (re-exported for convenience) ────────────────────────
 
@@ -55,12 +48,12 @@ export type EventMap = {
   // ========================================================================
 
   // Domain events (branded — system of record)
-  'yield:created': StoredEvent<ResourceCreatedEvent>;
-  'yield:cloned': StoredEvent<ResourceClonedEvent>;
-  'yield:updated': StoredEvent<ResourceUpdatedEvent>;
-  'yield:moved': StoredEvent<ResourceMovedEvent>;
-  'yield:representation-added': StoredEvent<RepresentationAddedEvent>;
-  'yield:representation-removed': StoredEvent<RepresentationRemovedEvent>;
+  'yield:created': StoredEvent<EventOfType<'yield:created'>>;
+  'yield:cloned': StoredEvent<EventOfType<'yield:cloned'>>;
+  'yield:updated': StoredEvent<EventOfType<'yield:updated'>>;
+  'yield:moved': StoredEvent<EventOfType<'yield:moved'>>;
+  'yield:representation-added': StoredEvent<EventOfType<'yield:representation-added'>>;
+  'yield:representation-removed': StoredEvent<EventOfType<'yield:representation-removed'>>;
 
   // SSE stream payloads
   'yield:progress': components['schemas']['YieldProgress'];
@@ -96,14 +89,14 @@ export type EventMap = {
   // ========================================================================
 
   // Domain events (branded — system of record)
-  'mark:added': StoredEvent<AnnotationAddedEvent>;
-  'mark:removed': StoredEvent<AnnotationRemovedEvent>;
-  'mark:body-updated': StoredEvent<AnnotationBodyUpdatedEvent>;
-  'mark:entity-tag-added': StoredEvent<EntityTagAddedEvent>;
-  'mark:entity-tag-removed': StoredEvent<EntityTagRemovedEvent>;
-  'mark:entity-type-added': StoredEvent<EntityTypeAddedEvent>;
-  'mark:archived': StoredEvent<ResourceArchivedEvent>;
-  'mark:unarchived': StoredEvent<ResourceUnarchivedEvent>;
+  'mark:added': StoredEvent<EventOfType<'mark:added'>>;
+  'mark:removed': StoredEvent<EventOfType<'mark:removed'>>;
+  'mark:body-updated': StoredEvent<EventOfType<'mark:body-updated'>>;
+  'mark:entity-tag-added': StoredEvent<EventOfType<'mark:entity-tag-added'>>;
+  'mark:entity-tag-removed': StoredEvent<EventOfType<'mark:entity-tag-removed'>>;
+  'mark:entity-type-added': StoredEvent<EventOfType<'mark:entity-type-added'>>;
+  'mark:archived': StoredEvent<EventOfType<'mark:archived'>>;
+  'mark:unarchived': StoredEvent<EventOfType<'mark:unarchived'>>;
 
   // SSE stream payloads
   'mark:progress': components['schemas']['MarkProgress'];
@@ -247,10 +240,10 @@ export type EventMap = {
   // ========================================================================
 
   // Domain events (branded — system of record)
-  'job:started': StoredEvent<JobStartedEvent>;
-  'job:progress': StoredEvent<JobProgressEvent>;
-  'job:completed': StoredEvent<JobCompletedEvent>;
-  'job:failed': StoredEvent<JobFailedEvent>;
+  'job:started': StoredEvent<EventOfType<'job:started'>>;
+  'job:progress': StoredEvent<EventOfType<'job:progress'>>;
+  'job:completed': StoredEvent<EventOfType<'job:completed'>>;
+  'job:failed': StoredEvent<EventOfType<'job:failed'>>;
 
   // Commands
   'job:start': components['schemas']['JobStartCommand'];
