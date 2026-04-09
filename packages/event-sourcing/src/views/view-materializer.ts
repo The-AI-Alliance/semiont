@@ -19,7 +19,7 @@ type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 import type {
-  ResourceEvent,
+  PersistedEvent,
   StoredEvent,
   ResourceAnnotations,
   ResourceId,
@@ -75,7 +75,7 @@ export class ViewMaterializer {
    */
   async materializeIncremental(
     resourceId: ResourceId,
-    event: ResourceEvent,
+    event: PersistedEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
     this.logger?.info('[ViewMaterializer] Updating view for resource with event', { resourceId, eventType: event.type });
@@ -111,7 +111,7 @@ export class ViewMaterializer {
    * Only yield:created (with storageUri), yield:moved, need index changes.
    * resource.archived / resource.unarchived do NOT modify the index.
    */
-  private async materializeStorageUriIndex(resourceId: ResourceId, event: ResourceEvent): Promise<void> {
+  private async materializeStorageUriIndex(resourceId: ResourceId, event: PersistedEvent): Promise<void> {
     const projectionsDir = path.join(this.config.basePath, 'projections');
 
     if (event.type === 'yield:created' && event.payload.storageUri) {
@@ -163,7 +163,7 @@ export class ViewMaterializer {
   /**
    * Apply an event to ResourceDescriptor state (metadata only)
    */
-  private applyEventToResource(resource: ResourceDescriptor, event: ResourceEvent): void {
+  private applyEventToResource(resource: ResourceDescriptor, event: PersistedEvent): void {
     switch (event.type) {
       case 'yield:created':
         resource.name = event.payload.name;
@@ -305,7 +305,7 @@ export class ViewMaterializer {
   /**
    * Apply an event to ResourceAnnotations (annotation collections only)
    */
-  private applyEventToAnnotations(annotations: ResourceAnnotations, event: ResourceEvent): void {
+  private applyEventToAnnotations(annotations: ResourceAnnotations, event: PersistedEvent): void {
     switch (event.type) {
       case 'mark:added':
         annotations.annotations.push(event.payload.annotation);

@@ -18,7 +18,7 @@
 
 import type { components } from './types';
 import type { StoredEvent } from './event-base';
-import type { EventOfType } from './event-catalog';
+import type { EventOfType } from './persisted-events';
 
 // ── Shared type aliases (re-exported for convenience) ────────────────────────
 

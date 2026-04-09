@@ -12,7 +12,7 @@
 
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
-import type { Logger, StoredEvent, ResourceEvent, ResourceId, AnnotationId } from '@semiont/core';
+import type { Logger, StoredEvent, PersistedEvent, ResourceId, AnnotationId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
@@ -92,7 +92,7 @@ export async function replayEventStream(
 }
 
 async function replayEvent(
-  event: ResourceEvent,
+  event: PersistedEvent,
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
   contentStore: WorkingTreeStore,
@@ -151,14 +151,14 @@ async function replayEvent(
       break;
 
     default:
-      logger?.warn('Unknown event type during replay', { type: (event as ResourceEvent).type });
+      logger?.warn('Unknown event type during replay', { type: (event as PersistedEvent).type });
   }
 }
 
 // ── Individual event replay handlers ──
 
 async function replayEntityTypeAdded(
-  event: ResourceEvent & { type: 'mark:entity-type-added' },
+  event: PersistedEvent & { type: 'mark:entity-type-added' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -178,7 +178,7 @@ async function replayEntityTypeAdded(
 }
 
 async function replayResourceCreated(
-  event: ResourceEvent & { type: 'yield:created' },
+  event: PersistedEvent & { type: 'yield:created' },
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
   contentStore: WorkingTreeStore,
@@ -221,7 +221,7 @@ async function replayResourceCreated(
 }
 
 async function replayAnnotationAdded(
-  event: ResourceEvent & { type: 'mark:added' },
+  event: PersistedEvent & { type: 'mark:added' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -242,7 +242,7 @@ async function replayAnnotationAdded(
 }
 
 async function replayAnnotationBodyUpdated(
-  event: ResourceEvent & { type: 'mark:body-updated' },
+  event: PersistedEvent & { type: 'mark:body-updated' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -264,7 +264,7 @@ async function replayAnnotationBodyUpdated(
 }
 
 async function replayAnnotationRemoved(
-  event: ResourceEvent & { type: 'mark:removed' },
+  event: PersistedEvent & { type: 'mark:removed' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -285,7 +285,7 @@ async function replayAnnotationRemoved(
 }
 
 async function replayResourceArchived(
-  event: ResourceEvent & { type: 'mark:archived' },
+  event: PersistedEvent & { type: 'mark:archived' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -297,7 +297,7 @@ async function replayResourceArchived(
 }
 
 async function replayResourceUnarchived(
-  event: ResourceEvent & { type: 'mark:unarchived' },
+  event: PersistedEvent & { type: 'mark:unarchived' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -309,7 +309,7 @@ async function replayResourceUnarchived(
 }
 
 async function replayEntityTagChange(
-  event: ResourceEvent & { type: 'mark:entity-tag-added' | 'mark:entity-tag-removed' },
+  event: PersistedEvent & { type: 'mark:entity-tag-added' | 'mark:entity-tag-removed' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {

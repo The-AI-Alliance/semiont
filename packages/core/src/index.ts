@@ -86,13 +86,13 @@ export type {
   ResourceAnnotations,
 } from './event-base';
 
-// Event catalog (domain event types, union)
+// Persisted events (the 20 event types written to the log)
 export type {
   EventOfType,
-  ResourceEvent,
-  ResourceEventType,
+  PersistedEvent,
+  PersistedEventType,
   EventInput,
-} from './event-catalog';
+} from './persisted-events';
 
 // Bus protocol (unified EventMap — all channels on the EventBus)
 export type {

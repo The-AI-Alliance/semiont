@@ -9,7 +9,7 @@
 import { Subject } from 'rxjs';
 import type { EventMap } from './bus-protocol';
 import type { StoredEvent } from './event-base';
-import type { ResourceEventType } from './event-catalog';
+import type { PersistedEventType } from './persisted-events';
 
 /**
  * RxJS-based event bus
@@ -84,13 +84,13 @@ export class EventBus {
   }
 
   /**
-   * Get the RxJS Subject for a domain event type (ResourceEventType).
+   * Get the RxJS Subject for a domain event type (PersistedEventType).
    *
    * Domain event channels carry `StoredEvent`. This method avoids the need
    * for `as keyof EventMap` casts when subscribing to domain event channels
-   * using runtime `ResourceEventType` strings.
+   * using runtime `PersistedEventType` strings.
    */
-  getDomainEvent(eventType: ResourceEventType): Subject<StoredEvent> {
+  getDomainEvent(eventType: PersistedEventType): Subject<StoredEvent> {
     return this.get(eventType as keyof EventMap) as unknown as Subject<StoredEvent>;
   }
 
@@ -179,7 +179,7 @@ export class ScopedEventBus {
   }
 
   /** Get the RxJS Subject for a domain event type on this scoped bus. */
-  getDomainEvent(eventType: ResourceEventType): Subject<StoredEvent> {
+  getDomainEvent(eventType: PersistedEventType): Subject<StoredEvent> {
     return this.get(eventType as keyof EventMap) as unknown as Subject<StoredEvent>;
   }
 

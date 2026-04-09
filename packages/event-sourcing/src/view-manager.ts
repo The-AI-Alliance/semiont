@@ -11,7 +11,7 @@
  * - Pub/sub notifications (see EventBus)
  */
 
-import { type ResourceId, type ResourceEvent, type StoredEvent, type Logger } from '@semiont/core';
+import { type ResourceId, type PersistedEvent, type StoredEvent, type Logger } from '@semiont/core';
 import { ViewMaterializer, type ViewMaterializerConfig } from './views/view-materializer';
 import type { ViewStorage, ResourceView } from './storage/view-storage';
 
@@ -47,7 +47,7 @@ export class ViewManager {
    */
   async materializeResource(
     resourceId: ResourceId,
-    event: ResourceEvent,
+    event: PersistedEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
     await this.materializer.materializeIncremental(resourceId, event, getAllEvents);

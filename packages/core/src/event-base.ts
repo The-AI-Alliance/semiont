@@ -11,7 +11,7 @@
 
 import type { components } from './types';
 import type { ResourceId, UserId } from './identifiers';
-import type { ResourceEvent } from './event-catalog';
+import type { PersistedEvent } from './persisted-events';
 
 // ── Branding utility ─────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ export interface EventSignature {
  * A domain event with persistence metadata.
  * Flat intersection — no nesting (event.type, not event.event.type).
  */
-export type StoredEvent<T extends EventBase = ResourceEvent> = T & {
+export type StoredEvent<T extends EventBase = PersistedEvent> = T & {
   metadata: EventMetadata;
   signature?: EventSignature;
 };

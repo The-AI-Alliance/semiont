@@ -1,8 +1,9 @@
 /**
- * Event Catalog
+ * Persisted Events
  *
- * Maps every persisted domain event type to its OpenAPI payload schema.
- * The ResourceEvent union derives from this single catalog.
+ * The 20 event types that get appended to the JSONL event log.
+ * Each maps a type string to its OpenAPI payload schema.
+ * The PersistedEvent union derives from this catalog.
  */
 
 import type { components } from './types';
@@ -12,10 +13,10 @@ import type { EventBase } from './event-base';
 // ── The Catalog ──────────────────────────────────────────────────────────────
 
 /**
- * Maps each domain event type string to its OpenAPI payload schema.
- * Single source of truth for "what events exist and what they carry."
+ * Maps each persisted event type string to its OpenAPI payload schema.
+ * Single source of truth for "what events get written to the log."
  */
-type EventCatalog = {
+type PersistedEventCatalog = {
   'yield:created': components['schemas']['ResourceCreatedPayload'];
   'yield:cloned': components['schemas']['ResourceClonedPayload'];
   'yield:updated': components['schemas']['ResourceUpdatedPayload'];
@@ -40,21 +41,21 @@ type EventCatalog = {
 
 // ── Derived types ────────────────────────────────────────────────────────────
 
-/** System event types — events that have no resourceId. */
+/** System event types — persisted events that have no resourceId. */
 type SystemEventType = 'mark:entity-type-added';
 
-/** Extract the concrete event type for a given event type string. */
-export type EventOfType<K extends keyof EventCatalog> =
+/** Extract the concrete persisted event type for a given type string. */
+export type EventOfType<K extends keyof PersistedEventCatalog> =
   K extends SystemEventType
-    ? EventBase & { type: K; payload: EventCatalog[K] }
-    : EventBase & { type: K; resourceId: ResourceId; payload: EventCatalog[K] };
+    ? EventBase & { type: K; payload: PersistedEventCatalog[K] }
+    : EventBase & { type: K; resourceId: ResourceId; payload: PersistedEventCatalog[K] };
 
-/** The union of all persisted domain events. Discriminated on `type`. */
-export type ResourceEvent = {
-  [K in keyof EventCatalog]: EventOfType<K>
-}[keyof EventCatalog];
+/** The union of all 20 persisted event types. Discriminated on `type`. */
+export type PersistedEvent = {
+  [K in keyof PersistedEventCatalog]: EventOfType<K>
+}[keyof PersistedEventCatalog];
 
-export type ResourceEventType = ResourceEvent['type'];
+export type PersistedEventType = PersistedEvent['type'];
 
-/** Input type for appendEvent — ResourceEvent without id/timestamp (assigned at persistence time). */
-export type EventInput = Omit<ResourceEvent, 'id' | 'timestamp'>;
+/** Input type for appendEvent — PersistedEvent without id/timestamp (assigned at persistence time). */
+export type EventInput = Omit<PersistedEvent, 'id' | 'timestamp'>;

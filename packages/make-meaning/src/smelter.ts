@@ -18,7 +18,7 @@ import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { type EventStore, EventQuery } from '@semiont/event-sourcing';
 import { burstBuffer } from '@semiont/core';
-import type { Logger, StoredEvent, ResourceEvent, EventOfType } from '@semiont/core';
+import type { Logger, StoredEvent, PersistedEvent, EventOfType } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
@@ -30,7 +30,7 @@ import { getExactText, getTargetSelector } from '@semiont/api-client';
 import { partitionByType } from './batch-utils.js';
 
 export class Smelter {
-  private static readonly SMELTER_RELEVANT_EVENTS: Set<ResourceEvent['type']> = new Set([
+  private static readonly SMELTER_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
     'yield:created', 'mark:archived',
     'mark:added', 'mark:removed',
   ]);

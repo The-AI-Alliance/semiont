@@ -5,7 +5,7 @@
  * No React dependencies - safe to use in any JavaScript environment.
  */
 
-import type { StoredEventLike, ResourceEventType } from '@semiont/core';
+import type { StoredEventLike, PersistedEventType } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { getExactText, getTargetSelector } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -20,7 +20,7 @@ type TranslateFn = (key: string, params?: Record<string, string | number>) => st
 /**
  * Format event type for display with i18n support
  */
-export function formatEventType(type: ResourceEventType, t: TranslateFn, payload?: any): string {
+export function formatEventType(type: PersistedEventType, t: TranslateFn, payload?: any): string {
   switch (type) {
     case 'yield:created':
       return t('resourceCreated');
@@ -69,7 +69,7 @@ export function formatEventType(type: ResourceEventType, t: TranslateFn, payload
  * Get emoji for event type
  * For unified annotation events, pass the payload to determine motivation
  */
-export function getEventEmoji(type: ResourceEventType, payload?: any): string {
+export function getEventEmoji(type: PersistedEventType, payload?: any): string {
   switch (type) {
     case 'yield:created':
     case 'yield:cloned':

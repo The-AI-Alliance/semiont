@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, EventBus, type ResourceEventType } from '@semiont/core';
+import { resourceId as toResourceId, EventBus, type PersistedEventType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -54,7 +54,7 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
   let eventCount = 0;
 
   // Print every domain event as NDJSON — subscribe to all event types
-  const allEventTypes: ResourceEventType[] = [
+  const allEventTypes: PersistedEventType[] = [
     'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
     'yield:representation-added', 'yield:representation-removed',
     'mark:added', 'mark:removed', 'mark:body-updated',

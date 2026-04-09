@@ -24,7 +24,7 @@ import { EventQuery, type EventStore } from '@semiont/event-sourcing';
 import { didToAgent, burstBuffer, EventBus } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/core';
-import type { ResourceEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
+import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from '../batch-utils.js';
 
@@ -33,7 +33,7 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
   // Event types that produce GraphDB mutations — filter everything else
-  private static readonly GRAPH_RELEVANT_EVENTS: Set<ResourceEvent['type']> = new Set([
+  private static readonly GRAPH_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
     'yield:created', 'mark:archived', 'mark:unarchived',
     'mark:added', 'mark:removed', 'mark:body-updated',
     'mark:entity-tag-added', 'mark:entity-tag-removed', 'mark:entity-type-added',
@@ -400,7 +400,7 @@ export class GraphDBConsumer {
         break;
 
       default:
-        this.logger.warn('Unknown event type', { eventType: (event as ResourceEvent).type });
+        this.logger.warn('Unknown event type', { eventType: (event as PersistedEvent).type });
     }
   }
 

@@ -7,7 +7,7 @@
  * - Detects broken chains and tampered events
  */
 
-import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import type { StoredEvent, PersistedEvent } from '@semiont/core';
 import { sha256 } from '../storage/shard-utils';
 
 export interface ValidationResult {
@@ -16,13 +16,13 @@ export interface ValidationResult {
 }
 
 /**
- * Extract the ResourceEvent fields from a flat StoredEvent.
+ * Extract the PersistedEvent fields from a flat StoredEvent.
  * Used for checksum computation — the hash covers only the event fields,
  * not the metadata or signature.
  */
-function extractResourceEvent(stored: StoredEvent): ResourceEvent {
+function extractPersistedEvent(stored: StoredEvent): PersistedEvent {
   const { metadata, signature, ...event } = stored;
-  return event as ResourceEvent;
+  return event as PersistedEvent;
 }
 
 /**
@@ -51,8 +51,8 @@ export class EventValidator {
         );
       }
 
-      // Verify checksum of current event (hash covers ResourceEvent fields only)
-      const calculated = sha256(extractResourceEvent(curr));
+      // Verify checksum of current event (hash covers PersistedEvent fields only)
+      const calculated = sha256(extractPersistedEvent(curr));
       if (calculated !== curr.metadata.checksum) {
         errors.push(
           `Checksum mismatch at sequence ${curr.metadata.sequenceNumber}: ` +
@@ -72,7 +72,7 @@ export class EventValidator {
    * Useful for validating events before writing them
    */
   validateEventChecksum(event: StoredEvent): boolean {
-    const calculated = sha256(extractResourceEvent(event));
+    const calculated = sha256(extractPersistedEvent(event));
     return calculated === event.metadata.checksum;
   }
 
