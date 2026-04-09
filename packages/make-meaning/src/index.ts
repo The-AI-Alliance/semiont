@@ -10,7 +10,7 @@ export type { KnowledgeSystem } from './knowledge-system';
 export { stopKnowledgeSystem } from './knowledge-system';
 
 // Bootstrap
-export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
+export { bootstrapEntityTypes } from './bootstrap/entity-types';
 
 // Views
 export { readEntityTypesProjection } from './views/entity-types-reader';

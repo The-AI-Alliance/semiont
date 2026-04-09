@@ -1,57 +1,53 @@
 /**
- * Entity Types Bootstrap Service
+ * Entity Types Bootstrap
  *
- * On startup, checks if the entity types projection exists.
- * If not, emits mark:add-entity-type for each DEFAULT_ENTITY_TYPES entry.
- * This ensures the system has entity types available immediately after first deployment.
+ * On startup, seeds the KB with DEFAULT_ENTITY_TYPES by emitting
+ * mark:add-entity-type for each missing type. Reads the __system__ event
+ * stream (the durable source of truth in .semiont/events/) to determine
+ * which types already exist.
+ *
+ * Idempotent: safe to call on every startup. Only emits events for types
+ * not already in the log.
+ *
+ * Future: evolve toward a migration-based model where a `system:bootstrapped`
+ * sentinel event records that first-time init completed, and `system:migrated`
+ * events record schema version upgrades (e.g., adding new default entity types
+ * in a future release). For now, scanning the small __system__ stream is simple
+ * and correct.
  */
 
-import { promises as fs } from 'fs';
-import * as path from 'path';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { SemiontProject } from '@semiont/core/node';
-import { EventBus, userId, type Logger } from '@semiont/core';
+import { EventBus, userId, resourceId, type Logger } from '@semiont/core';
+import type { EventStore } from '@semiont/event-sourcing';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 
-// Singleton flag to ensure bootstrap only runs once per process
-let bootstrapCompleted = false;
-
 /**
- * Bootstrap entity types projection if it doesn't exist.
- * Uses a system user ID (00000000-0000-0000-0000-000000000000) for bootstrap events.
+ * Bootstrap entity types if any are missing from the event log.
+ * Reads the __system__ stream to find existing mark:entity-type-added events,
+ * then emits only the missing ones.
  */
-export async function bootstrapEntityTypes(eventBus: EventBus, project: SemiontProject, logger?: Logger): Promise<void> {
-  if (bootstrapCompleted) {
-    logger?.debug('Entity types bootstrap already completed, skipping');
-    return;
-  }
-
-  const projectionPath = path.join(
-    project.stateDir,
-    'projections',
-    '__system__',
-    'entitytypes.json'
+export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: EventStore, logger?: Logger): Promise<void> {
+  // Read the __system__ event stream — the durable source of truth
+  const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
+  const existingTypes = new Set(
+    systemEvents
+      .filter(e => e.type === 'mark:entity-type-added')
+      .map(e => (e.payload as { entityType: string }).entityType)
   );
 
-  try {
-    // Check if projection exists
-    await fs.access(projectionPath);
-    logger?.info('Entity types projection already exists, skipping bootstrap');
-    bootstrapCompleted = true;
+  const missing = DEFAULT_ENTITY_TYPES.filter(t => !existingTypes.has(t));
+
+  if (missing.length === 0) {
+    logger?.info('All entity types already in event log, skipping bootstrap', { count: existingTypes.size });
     return;
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error;
-    }
-    // File doesn't exist - proceed with bootstrap
-    logger?.info('Entity types projection does not exist, bootstrapping with DEFAULT_ENTITY_TYPES');
   }
+
+  logger?.info('Bootstrapping missing entity types', { missing: missing.length, existing: existingTypes.size });
 
   const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
 
-  // Emit mark:add-entity-type for each default entity type, awaiting confirmation
-  for (const entityType of DEFAULT_ENTITY_TYPES) {
+  for (const entityType of missing) {
     logger?.debug('Adding entity type via EventBus', { entityType });
 
     const result$ = race(
@@ -68,13 +64,5 @@ export async function bootstrapEntityTypes(eventBus: EventBus, project: SemiontP
     }
   }
 
-  logger?.info('Entity types bootstrap completed', { count: DEFAULT_ENTITY_TYPES.length });
-  bootstrapCompleted = true;
-}
-
-/**
- * Reset the bootstrap flag (used for testing)
- */
-export function resetBootstrap(): void {
-  bootstrapCompleted = false;
+  logger?.info('Entity types bootstrap completed', { added: missing.length, total: DEFAULT_ENTITY_TYPES.length });
 }

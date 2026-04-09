@@ -147,7 +147,7 @@ async function createKnowledgeSystemFromConfig(
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
-  await bootstrapEntityTypes(eventBus, project, logger.child({ component: 'entity-types-bootstrap' }));
+  await bootstrapEntityTypes(eventBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
 
   const gatherer = new Gatherer(
     kb, eventBus,
