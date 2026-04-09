@@ -158,7 +158,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
       // Emit generation failed event
       act(() => {
         eventBusInstance.get('yield:failed').next({
-          error: new Error('Failed to generate document'),
+          error: 'Failed to generate document',
         });
       });
 

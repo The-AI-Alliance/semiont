@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "description": "Bus command to update a yielded resource's storage content.",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "storageUri": {
+      "type": "string"
+    },
+    "contentChecksum": {
+      "type": "string"
+    },
+    "byteSize": {
+      "type": "integer"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "noGit": {
+      "type": "boolean"
+    }
+  },
+  "required": ["resourceId", "storageUri", "contentChecksum", "byteSize", "userId"]
+}

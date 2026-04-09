@@ -13,7 +13,7 @@
  */
 
 import type {
-  ResourceEvent,
+  EventInput,
   StoredEvent,
   ResourceId,
   Logger,
@@ -61,7 +61,7 @@ export class EventStore {
    * Append an event to the store
    * Coordinates: persistence → view → notification
    */
-  async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>): Promise<StoredEvent> {
+  async appendEvent(event: EventInput): Promise<StoredEvent> {
     // System-level events (mark:entity-type-added) have no resourceId - use __system__
     const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 
@@ -86,12 +86,12 @@ export class EventStore {
 
     // 3. Publish full StoredEvent to Core EventBus typed channels
     // Global typed channel (e.g., 'mark:added')
-    this.coreEventBus.get(storedEvent.type as any).next(storedEvent);
+    this.coreEventBus.getDomainEvent(storedEvent.type).next(storedEvent);
 
     // Resource-scoped typed channel for per-resource subscribers
     if (resourceId !== '__system__') {
       const scopedBus = this.coreEventBus.scope(resourceId as string);
-      scopedBus.get(storedEvent.type as any).next(storedEvent);
+      scopedBus.getDomainEvent(storedEvent.type).next(storedEvent);
     }
 
     return storedEvent;

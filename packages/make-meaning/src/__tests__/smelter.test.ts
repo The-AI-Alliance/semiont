@@ -74,8 +74,8 @@ describe('partitionByType', () => {
 
   it('returns single run for uniform events', () => {
     const events = [
-      { event: { type: 'x' } },
-      { event: { type: 'x' } },
+      { type: 'x' },
+      { type: 'x' },
     ] as any;
 
     const runs = partitionByType(events);
@@ -171,8 +171,8 @@ describe('Smelter', () => {
     const uri = 'file://embed-test.txt';
     await contentStore.store(content, uri, { noGit: true });
 
-    const received: EventMap['embedding:computed'][] = [];
-    eventBus.get('embedding:computed').subscribe(e => received.push(e));
+    const received: EventMap['embedding:compute'][] = [];
+    eventBus.get('embedding:compute').subscribe(e => received.push(e));
 
     await eventStore.appendEvent({
       type: 'yield:created',

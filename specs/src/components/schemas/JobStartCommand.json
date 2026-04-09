@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "Command to start a job",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    }
+  },
+  "required": [
+    "resourceId",
+    "userId",
+    "jobId",
+    "jobType"
+  ]
+}

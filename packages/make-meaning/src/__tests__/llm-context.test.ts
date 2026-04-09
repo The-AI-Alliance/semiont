@@ -21,7 +21,7 @@ import { AnnotationOperations } from '../annotation-operations';
 import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
 import type { GraphServiceConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { WorkingTreeStore } from '@semiont/content';
+import { WorkingTreeStore, deriveStorageUri } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
 import { createTestProject } from './helpers/test-project';
@@ -45,6 +45,8 @@ vi.mock('@semiont/inference', async () => {
   };
 });
 
+let fileCounter = 0;
+
 describe('LLM Context', () => {
   let teardown: () => Promise<void>;
   let eventStore: EventStore;
@@ -53,6 +55,19 @@ describe('LLM Context', () => {
   let graphConfig: GraphServiceConfig;
   let kb: KnowledgeBase;
   let testResourceId: string;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: string; language?: string },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language },
+      uid,
+      eventBus,
+    );
+  }
 
   beforeAll(async () => {
     // Initialize mock client
@@ -82,14 +97,13 @@ describe('LLM Context', () => {
 
     // Create a test resource
     const content = Buffer.from('This is test content for LLM context building.', 'utf-8');
-    const resId = await ResourceOperations.createResource(
+    const resId = await create(
       {
         name: 'LLM Context Test Resource',
         content,
         format: 'text/plain',
       },
       userId('user-1'),
-      eventBus,
     );
 
     testResourceId = resId;

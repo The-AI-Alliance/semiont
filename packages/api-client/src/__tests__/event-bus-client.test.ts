@@ -94,7 +94,7 @@ describe('EventBusClient', () => {
         respondAsync(() => {
           eventBus.get('browse:resource-failed').next({
             correlationId: e.correlationId,
-            error: new Error('Resource not found'),
+            message: 'Resource not found',
           });
         });
       });
@@ -521,7 +521,7 @@ describe('EventBusClient', () => {
           eventBus.get('gather:failed').next({
             correlationId: e.correlationId,
             annotationId: e.annotationId,
-            error: new Error('Context assembly failed'),
+            message: 'Context assembly failed',
           });
         });
       });
@@ -566,7 +566,7 @@ describe('EventBusClient', () => {
           eventBus.get('gather:resource-failed').next({
             correlationId: e.correlationId,
             resourceId: e.resourceId,
-            error: new Error('Graph traversal failed'),
+            message: 'Graph traversal failed',
           });
         });
       });

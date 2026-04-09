@@ -334,12 +334,12 @@ const result = await client.updateAnnotationBody(resourceId, annotationId, {
 console.log('Updated annotation:', result.annotation.id);
 ```
 
-### `generateResourceFromAnnotation(resourceId: ResourceId, annotationId: AnnotationId, data)`
+### `yieldResource(resourceId: ResourceId, annotationId: AnnotationId, data)`
 
 Generate a new resource from an annotation using AI.
 
 ```typescript
-const result = await client.generateResourceFromAnnotation(resourceId, annotationId, {
+const result = await client.yieldResource(resourceId, annotationId, {
   name: 'Generated Resource',
   prompt: 'Explain this concept in detail',
   entityTypes: ['explanation']
@@ -486,7 +486,7 @@ The `client.sse.*` namespace provides Server-Sent Events (SSE) streaming for rea
 - All events are type-safe with TypeScript interfaces
 - Request bodies are validated via OpenAPI schemas; responses are not validated
 
-### `client.sse.detectAnnotations(resourceId, options)`
+### `client.sse.markReferences(resourceId, options)`
 
 Stream real-time entity detection progress via Server-Sent Events.
 
@@ -495,7 +495,7 @@ import { resourceId } from '@semiont/api-client';
 
 const rId = resourceId('resource-123');
 
-const stream = client.sse.detectAnnotations(rId, {
+const stream = client.sse.markReferences(rId, {
   entityTypes: ['Person', 'Organization']
 });
 
@@ -542,7 +542,7 @@ interface DetectionProgress {
 }
 ```
 
-### `client.sse.generateResourceFromAnnotation(resourceId, annotationId, options)`
+### `client.sse.yieldResource(resourceId, annotationId, options)`
 
 Stream real-time resource generation progress via Server-Sent Events.
 
@@ -552,7 +552,7 @@ import { resourceId, annotationId } from '@semiont/api-client';
 const rId = resourceId('resource-123');
 const annId = annotationId('annotation-456');
 
-const stream = client.sse.generateResourceFromAnnotation(rId, annId, {
+const stream = client.sse.yieldResource(rId, annId, {
   title: 'Albert Einstein',
   prompt: 'Write a biography',
   language: 'en'
@@ -659,9 +659,9 @@ onUnmount(() => stream.close());
 - `comment.updated` - Comment modified
 - `comment.deleted` - Comment deleted
 
-**Event Interface**:
+**Event Interface** (from `@semiont/core`):
 ```typescript
-interface ResourceEvent {
+interface PersistedEvent {
   id: string;
   type: string;
   timestamp: string;
@@ -708,7 +708,7 @@ interface SSEStream<TProgress, TComplete> {
 ```typescript
 // React example
 useEffect(() => {
-  const stream = client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
+  const stream = client.sse.markReferences(resourceId, { entityTypes: ['Person'] });
 
   stream.onProgress((p) => setProgress(p));
   stream.onComplete((r) => setResult(r));

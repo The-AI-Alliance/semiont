@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "description": "Command to mark a job as failed",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "resourceId",
+    "userId",
+    "jobId",
+    "jobType",
+    "error"
+  ]
+}

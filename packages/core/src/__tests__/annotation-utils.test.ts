@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { findBodyItem } from '../annotation-utils';
-import type { BodyItem } from '../events';
+import type { BodyItem } from '../event-base';
 
 describe('@semiont/core - annotation-utils', () => {
   describe('findBodyItem', () => {

@@ -160,7 +160,7 @@ await expect(runGather(makeGatherOptions({ args: ['thing', 'doc-1'] }))).rejects
   it('rejects when gather:failed fires', async () => {
     mockSse.gatherResource.mockReset();
     mockSse.gatherResource.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => eventBus.get('gather:failed').next({ error: new Error('Gather timed out') }));
+      queueMicrotask(() => eventBus.get('gather:failed').next({ message: 'Gather timed out' }));
     });
 await expect(runGather(makeGatherOptions())).rejects.toThrow('Gather timed out');
   });
@@ -223,7 +223,7 @@ const result = await runBind(makeBindOptions());
   it('rejects when bind:failed fires', async () => {
     mockSse.bindAnnotation.mockReset();
     mockSse.bindAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => eventBus.get('bind:failed').next({ error: new Error('Target not found') }));
+      queueMicrotask(() => eventBus.get('bind:failed').next({ error: 'Target not found' }));
     });
 await expect(runBind(makeBindOptions())).rejects.toThrow('Target not found');
   });
@@ -323,7 +323,7 @@ await runMatch(makeMatchOptions({ userHint: 'look for Paris papers' }));
     mockSse.gatherAnnotation.mockReset();
     mockSse.gatherAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => {
-        eventBus.get('gather:failed').next({ annotationId: _aid, error: new Error('Context unavailable') });
+        eventBus.get('gather:failed').next({ annotationId: _aid, message: 'Context unavailable' });
       });
     });
 await expect(runMatch(makeMatchOptions())).rejects.toThrow('Context unavailable');

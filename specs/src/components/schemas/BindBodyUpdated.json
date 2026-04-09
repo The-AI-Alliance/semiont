@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "description": "Event payload emitted on the bind:body-updated bus channel after annotation bodies are modified.",
+  "properties": {
+    "annotationId": {
+      "type": "string",
+      "description": "Branded AnnotationId of the annotation whose body was updated"
+    }
+  },
+  "required": ["annotationId"]
+}

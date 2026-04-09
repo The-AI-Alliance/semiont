@@ -115,8 +115,8 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
       setProgress(null);
     },
     'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
-    'mark:create-failed': ({ error }) => showError(`Failed to create annotation: ${error.message}`),
-    'mark:delete-failed': ({ error }) => showError(`Failed to delete annotation: ${error.message}`),
+    'mark:create-failed': ({ message }) => showError(`Failed to create annotation: ${message}`),
+    'mark:delete-failed': ({ message }) => showError(`Failed to delete annotation: ${message}`),
   });
 
   useEffect(() => () => { if (progressDismissTimeoutRef.current) clearTimeout(progressDismissTimeoutRef.current); }, []);

@@ -615,6 +615,7 @@ export function ResourceViewerPage({
             {/* Document Info Panel */}
             {activePanel === 'info' && (
               <ResourceInfoPanel
+                resourceId={rUri}
                 documentEntityTypes={documentEntityTypes}
                 documentLocale={getLanguage(resource)}
                 primaryMediaType={primaryMediaType}

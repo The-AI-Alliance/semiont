@@ -22,7 +22,7 @@ import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus, resourceId } from '@semiont/core';
+import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { getExactText, getTargetSource, getTargetSelector, getResourceEntityTypes, getBodySource } from '@semiont/api-client';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
@@ -83,13 +83,13 @@ export class Browser {
     try {
       // Materialize from event store (matches get-uri.ts JSON-LD path)
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
-      const events = await eventQuery.getResourceEvents(event.resourceId);
-      const stored = await this.kb.eventStore.views.materializer.materialize(events, event.resourceId);
+      const events = await eventQuery.getResourceEvents(resourceId(event.resourceId));
+      const stored = await this.kb.eventStore.views.materializer.materialize(events, resourceId(event.resourceId));
 
       if (!stored) {
         this.eventBus.get('browse:resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource not found'),
+          message: 'Resource not found',
         });
         return;
       }
@@ -112,7 +112,7 @@ export class Browser {
       this.logger.error('Browse resource failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:resource-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -152,14 +152,14 @@ export class Browser {
       this.logger.error('Browse resources failed', { error });
       this.eventBus.get('browse:resources-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleBrowseAnnotations(event: EventMap['browse:annotations-requested']): Promise<void> {
     try {
-      const annotations = await AnnotationContext.getAllAnnotations(event.resourceId, this.kb);
+      const annotations = await AnnotationContext.getAllAnnotations(resourceId(event.resourceId), this.kb);
 
       this.eventBus.get('browse:annotations-result').next({
         correlationId: event.correlationId,
@@ -172,24 +172,24 @@ export class Browser {
       this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:annotations-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleBrowseAnnotation(event: EventMap['browse:annotation-requested']): Promise<void> {
     try {
-      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
+      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
 
       if (!annotation) {
         this.eventBus.get('browse:annotation-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Annotation not found'),
+          message: 'Annotation not found',
         });
         return;
       }
 
-      const resource = await ResourceContext.getResourceMetadata(event.resourceId, this.kb);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.kb);
 
       // Resolve linked resource if annotation body contains a link
       let resolvedResource = null;
@@ -210,7 +210,7 @@ export class Browser {
       this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
       this.eventBus.get('browse:annotation-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -219,7 +219,7 @@ export class Browser {
     try {
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
       const filters: any = {
-        resourceId: event.resourceId,
+        resourceId: resourceId(event.resourceId),
       };
 
       if (event.type) {
@@ -234,19 +234,11 @@ export class Browser {
 
       const storedEvents = await eventQuery.queryEvents(filters);
 
-      const events = storedEvents.map((stored) => {
-        const { metadata, signature, ...event } = stored;
-        return {
-          event: { id: event.id, type: event.type as string, timestamp: event.timestamp, userId: event.userId as string, resourceId: event.resourceId as string, payload: event.payload },
-          metadata: { sequenceNumber: metadata.sequenceNumber, prevEventHash: metadata.prevEventHash, checksum: metadata.checksum },
-        };
-      });
-
       this.eventBus.get('browse:events-result').next({
         correlationId: event.correlationId,
         response: {
-          events,
-          total: events.length,
+          events: storedEvents,
+          total: storedEvents.length,
           resourceId: event.resourceId,
         },
       });
@@ -254,7 +246,7 @@ export class Browser {
       this.logger.error('Browse events failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:events-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -262,17 +254,17 @@ export class Browser {
   private async handleBrowseAnnotationHistory(event: EventMap['browse:annotation-history-requested']): Promise<void> {
     try {
       // Verify annotation exists
-      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
+      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
       if (!annotation) {
         this.eventBus.get('browse:annotation-history-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Annotation not found'),
+          message: 'Annotation not found',
         });
         return;
       }
 
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
-      const allEvents = await eventQuery.queryEvents({ resourceId: event.resourceId });
+      const allEvents = await eventQuery.queryEvents({ resourceId: resourceId(event.resourceId) });
 
       // Filter events related to this annotation
       const annotationEvents = allEvents.filter((stored) => {
@@ -282,22 +274,14 @@ export class Browser {
         return false;
       });
 
-      const events = annotationEvents.map((stored) => {
-        const { metadata, signature, ...event } = stored;
-        return {
-          id: event.id, type: event.type as string, timestamp: event.timestamp, userId: event.userId as string, resourceId: event.resourceId as string, payload: event.payload as any,
-          metadata: { sequenceNumber: metadata.sequenceNumber, prevEventHash: metadata.prevEventHash, checksum: metadata.checksum },
-        };
-      });
-
       // Sort by sequence number
-      events.sort((a: any, b: any) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
+      annotationEvents.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
       this.eventBus.get('browse:annotation-history-result').next({
         correlationId: event.correlationId,
         response: {
-          events,
-          total: events.length,
+          events: annotationEvents,
+          total: annotationEvents.length,
           annotationId: event.annotationId,
           resourceId: event.resourceId,
         },
@@ -306,7 +290,7 @@ export class Browser {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
       this.eventBus.get('browse:annotation-history-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -320,7 +304,7 @@ export class Browser {
         motivation: event.motivation || 'all',
       });
 
-      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
+      const references = await this.kb.graph.getResourceReferencedBy(resourceId(event.resourceId), event.motivation);
 
       const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
       const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
@@ -356,7 +340,7 @@ export class Browser {
       this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error });
       this.eventBus.get('browse:referenced-by-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -372,7 +356,7 @@ export class Browser {
       this.logger.error('Entity types read failed', { error });
       this.eventBus.get('browse:entity-types-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -394,7 +378,7 @@ export class Browser {
       this.eventBus.get('browse:directory-failed').next({
         correlationId,
         path: reqPath,
-        error: new Error('path escapes project root'),
+        message: 'path escapes project root',
       });
       return;
     }
@@ -407,7 +391,7 @@ export class Browser {
       this.eventBus.get('browse:directory-failed').next({
         correlationId,
         path: reqPath,
-        error: new Error(msg),
+        message: msg,
       });
       return;
     }

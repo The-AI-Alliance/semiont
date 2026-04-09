@@ -17,7 +17,7 @@ import type {
   ResourceId,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 
@@ -32,12 +32,13 @@ export interface UpdateResourceInput {
 
 export interface CreateResourceInput {
   name: string;
-  content: Buffer;
+  storageUri: string;
+  contentChecksum: string;
+  byteSize: number;
   format: ContentFormat;
   language?: string;
   entityTypes?: string[];
   creationMethod?: CreationMethod;
-  storageUri?: string;
 }
 
 export class ResourceOperations {
@@ -57,7 +58,7 @@ export class ResourceOperations {
       ),
       eventBus.get('yield:create-failed').pipe(
         take(1),
-        map((failure) => ({ ok: false as const, error: failure.error })),
+        map((failure) => ({ ok: false as const, error: new Error(failure.message) })),
       ),
       timer(30_000).pipe(
         map(() => ({ ok: false as const, error: new Error('Resource creation timed out') })),
@@ -67,13 +68,14 @@ export class ResourceOperations {
     // Emit the command
     eventBus.get('yield:create').next({
       name: input.name,
-      content: input.content,
+      storageUri: input.storageUri,
+      contentChecksum: input.contentChecksum,
+      byteSize: input.byteSize,
       format: input.format,
       userId,
       language: input.language,
       entityTypes: input.entityTypes,
       creationMethod: input.creationMethod,
-      storageUri: input.storageUri,
     });
 
     const outcome = await firstValueFrom(result$);
@@ -81,7 +83,7 @@ export class ResourceOperations {
       throw outcome.error;
     }
 
-    return outcome.result.resourceId;
+    return makeResourceId(outcome.result.resourceId);
   }
 
   /**

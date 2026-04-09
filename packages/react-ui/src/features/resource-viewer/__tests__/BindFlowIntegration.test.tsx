@@ -139,7 +139,7 @@ describe('Bind Flow - Body Update Integration', () => {
 
   it('bind:update-body emits bind:body-update-failed on API error', async () => {
     bindAnnotationSpy.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
-      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: new Error('Update failed') }));
+      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: 'Update failed' }));
       return { close: vi.fn() };
     });
 
@@ -161,7 +161,7 @@ describe('Bind Flow - Body Update Integration', () => {
     subscription.unsubscribe();
 
     expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
-      error: expect.any(Error),
+      message: expect.any(String),
     });
   });
 

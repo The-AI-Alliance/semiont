@@ -17,6 +17,7 @@
 
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+import { resourceId as makeResourceId } from '@semiont/core';
 import type { EventBus, EventMap, ResourceId, AccessToken } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
 import type { paths } from '@semiont/core';
@@ -56,12 +57,12 @@ export class ResourceStore {
     eventBus: EventBus,
   ) {
     eventBus.get('yield:create-ok').subscribe((event: EventMap['yield:create-ok']) => {
-      this.fetchDetail(event.resourceId);
+      this.fetchDetail(makeResourceId(event.resourceId));
       this.invalidateLists();
     });
 
     eventBus.get('yield:update-ok').subscribe((event: EventMap['yield:update-ok']) => {
-      this.invalidateDetail(event.resourceId);
+      this.invalidateDetail(makeResourceId(event.resourceId));
       this.invalidateLists();
     });
 

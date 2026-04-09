@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Emitted when navigation to a reference resource is requested",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": ["resourceId"]
+}

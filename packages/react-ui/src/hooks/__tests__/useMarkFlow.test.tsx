@@ -96,7 +96,7 @@ describe('useMarkFlow', () => {
       // Emit mark:create-failed event
       act(() => {
         getEventBus().get('mark:create-failed').next({
-          error: new Error('Network connection failed')
+          message: 'Network connection failed'
         });
       });
 
@@ -109,7 +109,7 @@ describe('useMarkFlow', () => {
 
       act(() => {
         getEventBus().get('mark:delete-failed').next({
-          error: new Error('Annotation not found')
+          message: 'Annotation not found'
         });
       });
 

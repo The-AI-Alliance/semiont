@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Bus command to create an annotation on a resource.",
+  "properties": {
+    "annotation": {
+      "$ref": "./Annotation.json"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": ["annotation", "userId", "resourceId"]
+}

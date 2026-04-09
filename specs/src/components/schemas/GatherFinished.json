@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Completion payload emitted on gather:finished SSE channel for resource-level context gathering.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "ResourceLLMContextResponse.json"
+    }
+  },
+  "required": ["correlationId", "resourceId", "response"]
+}

@@ -259,7 +259,7 @@ describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
       expect(completeEvents[0]).toMatchObject({
         jobId: jobId('job-completion-1'),
         jobType: 'reference-annotation',
-        result: { result: { totalFound: 5, totalEmitted: 5, errors: 0 } }
+        result: { totalFound: 5, totalEmitted: 5, errors: 0 }
       });
     });
 
@@ -294,7 +294,7 @@ describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
       sub.unsubscribe();
 
       expect(completeEvents.length).toBe(1);
-      expect(completeEvents[0].result.result).toEqual({ totalFound: 10, totalEmitted: 8, errors: 2 });
+      expect(completeEvents[0].result).toEqual({ totalFound: 10, totalEmitted: 8, errors: 2 });
     });
   });
 
@@ -336,7 +336,7 @@ describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
 
       // Verify completion event was emitted
       expect(completeEvents.length).toBe(1);
-      expect(completeEvents[0].result).toEqual({ result });
+      expect(completeEvents[0].result).toEqual(result);
     });
 
     it('should handle worker methods via canProcessJob', async () => {

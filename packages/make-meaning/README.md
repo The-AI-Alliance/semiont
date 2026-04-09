@@ -14,7 +14,7 @@ This package implements the actor model from [ARCHITECTURE.md](../../docs/ARCHIT
 - **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type listing, and directory browse (merging filesystem listings with KB metadata)
 - **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
 - **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
-- **Smelter** (embed) — subscribes to resource/annotation events, chunks text, embeds via `@semiont/vectors`, persists `embedding:computed` events, and indexes into vector store (Qdrant)
+- **Smelter** (embed) — subscribes to resource/annotation events, chunks text, embeds via `@semiont/vectors`, emits `embedding:compute` commands (persisted by Stower as `embedding:computed` events), and indexes into vector store (Qdrant)
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
@@ -126,7 +126,7 @@ graph TB
     BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:directory-result"| BUS
     GATHERER -->|"gather:complete, gather:failed<br/>gather:resource-complete, gather:resource-failed"| BUS
     MATCHER -->|"match:search-results, match:search-failed"| BUS
-    SMELTER -->|"embedding:computed,<br/>embedding:deleted"| BUS
+    SMELTER -->|"embedding:compute,<br/>embedding:delete"| BUS
     CTM -->|"yield:clone-token-generated<br/>yield:clone-resource-result<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold

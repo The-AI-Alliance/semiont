@@ -14,8 +14,10 @@ import type { Readable } from 'node:stream';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, ResourceId, UserId, CreationMethod } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/content';
 import { readTarGz } from './tar';
 import {
   LINKED_DATA_FORMAT,
@@ -29,6 +31,7 @@ type Annotation = components['schemas']['Annotation'];
 
 export interface LinkedDataImporterOptions {
   eventBus: EventBus;
+  contentStore: WorkingTreeStore;
   userId: UserId;
   logger?: Logger;
 }
@@ -139,7 +142,7 @@ export async function importLinkedData(
   archive: Readable,
   options: LinkedDataImporterOptions,
 ): Promise<LinkedDataImportResult> {
-  const { eventBus, userId, logger } = options;
+  const { eventBus, contentStore, userId, logger } = options;
 
   // Stream and decompress archive entries
   const entries = new Map<string, Buffer>();
@@ -189,7 +192,7 @@ export async function importLinkedData(
   for (const entryName of resourceEntries) {
     const resourceDoc = JSON.parse(entries.get(entryName)!.toString('utf8'));
 
-    const result = await importResource(resourceDoc, userId, eventBus, resolveBlob, logger);
+    const result = await importResource(resourceDoc, userId, eventBus, contentStore, resolveBlob, logger);
     resourcesCreated++;
     annotationsCreated += result.annotationsCreated;
   }
@@ -218,7 +221,7 @@ async function addEntityType(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
   );
 
@@ -235,6 +238,7 @@ async function importResource(
   doc: Record<string, unknown>,
   userId: UserId,
   eventBus: EventBus,
+  contentStore: WorkingTreeStore,
   resolveBlob: (checksum: string) => Buffer | undefined,
   logger?: Logger,
 ): Promise<{ annotationsCreated: number }> {
@@ -267,16 +271,22 @@ async function importResource(
     throw new Error(`Missing content blob for checksum ${contentChecksum} (resource "${name}")`);
   }
 
+  // Write content to disk before emitting on bus (no Buffer on bus)
+  const resolvedUri = deriveStorageUri(name, format);
+  const stored = await contentStore.store(blob, resolvedUri);
+
   // Create resource via EventBus
   const createResult$ = race(
     eventBus.get('yield:create-ok').pipe(map((r) => r)),
-    eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('yield:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
   );
 
   eventBus.get('yield:create').next({
     name,
-    content: blob,
+    storageUri: resolvedUri,
+    contentChecksum: stored.checksum,
+    byteSize: stored.byteSize,
     format,
     userId,
     language,
@@ -285,7 +295,7 @@ async function importResource(
   });
 
   const created = await firstValueFrom(createResult$);
-  const resourceId = created.resourceId;
+  const resourceId = makeResourceId(created.resourceId);
 
   logger?.debug('Created resource from JSON-LD', { name, resourceId });
 
@@ -310,7 +320,7 @@ async function createAnnotation(
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
   );
 

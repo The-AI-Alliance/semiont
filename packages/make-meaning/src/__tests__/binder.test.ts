@@ -340,7 +340,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.correlationId).toBe('corr-7');
-      expect(result!.error.message).toBe('Graph unavailable');
+      expect(result!.message).toBe('Graph unavailable');
     });
 
     it('should emit referenced-by-failed when getResource throws', async () => {
@@ -357,7 +357,7 @@ describe('Binder', () => {
 
       const result = await resultPromise;
       expect(result!.correlationId).toBe('corr-8');
-      expect(result!.error.message).toBe('Resource lookup failed');
+      expect(result!.message).toBe('Resource lookup failed');
     });
   });
 

@@ -12,9 +12,11 @@
 
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
-import type { Logger, StoredEvent, ResourceEvent, ResourceId, AnnotationId } from '@semiont/core';
+import type { Logger, StoredEvent, PersistedEvent, ResourceId, AnnotationId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/content';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 type Annotation = components['schemas']['Annotation'];
@@ -50,6 +52,7 @@ export async function replayEventStream(
   jsonl: string,
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
+  contentStore: WorkingTreeStore,
   logger?: Logger,
 ): Promise<ReplayResult> {
   const lines = jsonl.trim().split('\n').filter((l) => l.length > 0);
@@ -81,7 +84,7 @@ export async function replayEventStream(
 
   // Replay each event
   for (const stored of storedEvents) {
-    await replayEvent(stored, eventBus, resolveBlob, stats, logger);
+    await replayEvent(stored, eventBus, resolveBlob, contentStore, stats, logger);
     stats.eventsReplayed++;
   }
 
@@ -89,9 +92,10 @@ export async function replayEventStream(
 }
 
 async function replayEvent(
-  event: ResourceEvent,
+  event: PersistedEvent,
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
+  contentStore: WorkingTreeStore,
   stats: ReplayStats,
   logger?: Logger,
 ): Promise<void> {
@@ -102,7 +106,7 @@ async function replayEvent(
       break;
 
     case 'yield:created':
-      await replayResourceCreated(event, eventBus, resolveBlob, logger);
+      await replayResourceCreated(event, eventBus, resolveBlob, contentStore, logger);
       stats.resourcesCreated++;
       break;
 
@@ -147,20 +151,20 @@ async function replayEvent(
       break;
 
     default:
-      logger?.warn('Unknown event type during replay', { type: (event as ResourceEvent).type });
+      logger?.warn('Unknown event type during replay', { type: (event as PersistedEvent).type });
   }
 }
 
 // ── Individual event replay handlers ──
 
 async function replayEntityTypeAdded(
-  event: ResourceEvent & { type: 'mark:entity-type-added' },
+  event: PersistedEvent & { type: 'mark:entity-type-added' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
   );
 
@@ -174,9 +178,10 @@ async function replayEntityTypeAdded(
 }
 
 async function replayResourceCreated(
-  event: ResourceEvent & { type: 'yield:created' },
+  event: PersistedEvent & { type: 'yield:created' },
   eventBus: EventBus,
   resolveBlob: ContentBlobResolver,
+  contentStore: WorkingTreeStore,
   logger?: Logger,
 ): Promise<void> {
   const { payload } = event;
@@ -186,15 +191,21 @@ async function replayResourceCreated(
     throw new Error(`Missing content blob for checksum ${payload.contentChecksum}`);
   }
 
+  // Write content to disk before emitting on bus (no Buffer on bus)
+  const resolvedUri = payload.storageUri || deriveStorageUri(payload.name, payload.format);
+  const stored = await contentStore.store(blob, resolvedUri);
+
   const result$ = race(
     eventBus.get('yield:create-ok').pipe(map((r) => r)),
-    eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('yield:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:create-ok'); })),
   );
 
   eventBus.get('yield:create').next({
     name: payload.name,
-    content: blob,
+    storageUri: resolvedUri,
+    contentChecksum: stored.checksum,
+    byteSize: stored.byteSize,
     format: payload.format as ContentFormat,
     userId: event.userId,
     language: payload.language,
@@ -210,13 +221,13 @@ async function replayResourceCreated(
 }
 
 async function replayAnnotationAdded(
-  event: ResourceEvent & { type: 'mark:added' },
+  event: PersistedEvent & { type: 'mark:added' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:create-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:create-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:create-ok'); })),
   );
 
@@ -231,13 +242,13 @@ async function replayAnnotationAdded(
 }
 
 async function replayAnnotationBodyUpdated(
-  event: ResourceEvent & { type: 'mark:body-updated' },
+  event: PersistedEvent & { type: 'mark:body-updated' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:body-updated').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:body-update-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:body-update-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:body-updated'); })),
   );
 
@@ -253,13 +264,13 @@ async function replayAnnotationBodyUpdated(
 }
 
 async function replayAnnotationRemoved(
-  event: ResourceEvent & { type: 'mark:removed' },
+  event: PersistedEvent & { type: 'mark:removed' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
     eventBus.get('mark:delete-ok').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:delete-failed').pipe(map((e) => { throw e.error; })),
+    eventBus.get('mark:delete-failed').pipe(map((e) => { throw new Error(e.message); })),
     timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:delete-ok'); })),
   );
 
@@ -274,7 +285,7 @@ async function replayAnnotationRemoved(
 }
 
 async function replayResourceArchived(
-  event: ResourceEvent & { type: 'mark:archived' },
+  event: PersistedEvent & { type: 'mark:archived' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -286,7 +297,7 @@ async function replayResourceArchived(
 }
 
 async function replayResourceUnarchived(
-  event: ResourceEvent & { type: 'mark:unarchived' },
+  event: PersistedEvent & { type: 'mark:unarchived' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
@@ -298,7 +309,7 @@ async function replayResourceUnarchived(
 }
 
 async function replayEntityTagChange(
-  event: ResourceEvent & { type: 'mark:entity-tag-added' | 'mark:entity-tag-removed' },
+  event: PersistedEvent & { type: 'mark:entity-tag-added' | 'mark:entity-tag-removed' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {

@@ -3,7 +3,7 @@
  */
 
 import type { components } from './types';
-import type { BodyItem } from './events';
+import type { BodyItem } from './event-base';
 
 type Annotation = components['schemas']['Annotation'];
 

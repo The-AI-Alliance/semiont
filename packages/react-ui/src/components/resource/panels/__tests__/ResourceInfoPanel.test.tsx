@@ -122,6 +122,7 @@ const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<
 
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
+    resourceId: 'test-resource-id',
     documentEntityTypes: [],
     documentLocale: undefined,
     primaryMediaType: undefined,

@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Emitted when a browse panel is toggled",
+  "properties": {
+    "panel": {
+      "type": "string"
+    }
+  },
+  "required": ["panel"]
+}

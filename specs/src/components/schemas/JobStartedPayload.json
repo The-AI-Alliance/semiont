@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Payload for job:started domain event",
+  "properties": {
+    "jobId": { "type": "string" },
+    "jobType": { "$ref": "JobType.json" },
+    "totalSteps": { "type": "integer" }
+  },
+  "required": ["jobId", "jobType"]
+}

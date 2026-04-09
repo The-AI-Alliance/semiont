@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceId } from '@semiont/core';
 import { accessToken } from '@semiont/core';
-import type { ResourceEvent, StoredEvent, ResourceEventType } from '@semiont/core';
+import type { PersistedEvent, StoredEvent, PersistedEventType } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -15,14 +15,14 @@ export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 interface UseResourceEventsOptions {
   rUri: ResourceId;
-  onEvent?: (event: ResourceEvent) => void;
-  onAnnotationAdded?: (event: Extract<ResourceEvent, { type: 'mark:added' }>) => void;
-  onAnnotationRemoved?: (event: Extract<ResourceEvent, { type: 'mark:removed' }>) => void;
-  onAnnotationBodyUpdated?: (event: Extract<ResourceEvent, { type: 'mark:body-updated' }>) => void;
-  onEntityTagAdded?: (event: Extract<ResourceEvent, { type: 'mark:entity-tag-added' }>) => void;
-  onEntityTagRemoved?: (event: Extract<ResourceEvent, { type: 'mark:entity-tag-removed' }>) => void;
-  onDocumentArchived?: (event: Extract<ResourceEvent, { type: 'mark:archived' }>) => void;
-  onDocumentUnarchived?: (event: Extract<ResourceEvent, { type: 'mark:unarchived' }>) => void;
+  onEvent?: (event: PersistedEvent) => void;
+  onAnnotationAdded?: (event: Extract<PersistedEvent, { type: 'mark:added' }>) => void;
+  onAnnotationRemoved?: (event: Extract<PersistedEvent, { type: 'mark:removed' }>) => void;
+  onAnnotationBodyUpdated?: (event: Extract<PersistedEvent, { type: 'mark:body-updated' }>) => void;
+  onEntityTagAdded?: (event: Extract<PersistedEvent, { type: 'mark:entity-tag-added' }>) => void;
+  onEntityTagRemoved?: (event: Extract<PersistedEvent, { type: 'mark:entity-tag-removed' }>) => void;
+  onDocumentArchived?: (event: Extract<PersistedEvent, { type: 'mark:archived' }>) => void;
+  onDocumentUnarchived?: (event: Extract<PersistedEvent, { type: 'mark:unarchived' }>) => void;
   onError?: (error: string) => void;
   autoConnect?: boolean; // Default: true
 }
@@ -59,7 +59,7 @@ export function useResourceEvents({
   const token = useAuthToken();
   const eventBus = useEventBus();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
-  const [lastEvent, setLastEvent] = useState<ResourceEvent | null>(null);
+  const [lastEvent, setLastEvent] = useState<PersistedEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
   const tokenRef = useRef(token);
 
@@ -89,7 +89,7 @@ export function useResourceEvents({
     onErrorRef.current = onError;
   });
 
-  const handleEvent = useCallback((event: ResourceEvent) => {
+  const handleEvent = useCallback((event: PersistedEvent) => {
     setLastEvent(event);
     setEventCount(prev => prev + 1);
 
@@ -120,17 +120,17 @@ export function useResourceEvents({
     }
   }, []); // Empty deps - stable reference prevents reconnection!
 
-  // Subscribe to each domain event type (StoredEvent wraps ResourceEvent)
+  // Subscribe to each domain event type (StoredEvent wraps PersistedEvent)
   useEffect(() => {
-    const eventTypes: ResourceEventType[] = [
+    const eventTypes: PersistedEventType[] = [
       'mark:added', 'mark:removed', 'mark:body-updated',
       'mark:archived', 'mark:unarchived',
       'mark:entity-tag-added', 'mark:entity-tag-removed',
     ];
     const subs = eventTypes.map(type =>
-      eventBus.get(type as any).subscribe((stored: StoredEvent) => {
+      eventBus.getDomainEvent(type).subscribe((stored: StoredEvent) => {
         const { metadata, signature, ...event } = stored;
-        handleEvent(event as ResourceEvent);
+        handleEvent(event as PersistedEvent);
       })
     );
     return () => subs.forEach(s => s.unsubscribe());

@@ -11,7 +11,7 @@
  * - View updates (see ViewManager)
  */
 
-import { type ResourceId, type StoredEvent, type ResourceEvent, type EventQuery, type Logger } from '@semiont/core';
+import { type ResourceId, type StoredEvent, type EventQuery, type EventInput, type Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { EventStorage } from './storage/event-storage';
 
@@ -38,7 +38,7 @@ export class EventLog {
    * @param resourceId - Branded ResourceId (from @semiont/core)
    * @returns Stored event with metadata (sequence number, timestamp, checksum)
    */
-  async append(event: Omit<ResourceEvent, 'id' | 'timestamp'>, resourceId: ResourceId): Promise<StoredEvent> {
+  async append(event: EventInput, resourceId: ResourceId): Promise<StoredEvent> {
     return this.storage.appendEvent(event, resourceId);
   }
 

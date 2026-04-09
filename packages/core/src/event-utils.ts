@@ -5,7 +5,7 @@
  * No React dependencies - safe to use in any JavaScript environment.
  */
 
-import type { StoredEvent } from './events';
+import type { StoredEvent } from './event-base';
 import type { AnnotationUri } from './branded-types';
 
 /**
@@ -81,3 +81,4 @@ export function isStoredEvent(event: any): event is StoredEvent {
     typeof event.metadata === 'object' &&
     typeof event.metadata.sequenceNumber === 'number';
 }
+

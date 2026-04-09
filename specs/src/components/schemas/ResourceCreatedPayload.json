@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "description": "Payload for yield:created domain event",
+  "properties": {
+    "name": { "type": "string" },
+    "format": { "$ref": "ContentFormat.json" },
+    "contentChecksum": { "type": "string", "description": "SHA-256 of content" },
+    "contentByteSize": { "type": "integer" },
+    "creationMethod": { "type": "string", "enum": ["api", "upload", "ui", "reference", "cli", "clone", "generated"] },
+    "entityTypes": { "type": "array", "items": { "type": "string" } },
+    "storageUri": { "type": "string", "description": "Working-tree URI (e.g. file://docs/overview.md)" },
+    "language": { "type": "string" },
+    "isDraft": { "type": "boolean" },
+    "generatedFrom": {
+      "type": "object",
+      "properties": {
+        "resourceId": { "type": "string" },
+        "annotationId": { "type": "string" }
+      },
+      "required": ["resourceId", "annotationId"]
+    },
+    "generationPrompt": { "type": "string" },
+    "generator": {
+      "oneOf": [
+        { "$ref": "Agent.json" },
+        { "type": "array", "items": { "$ref": "Agent.json" } }
+      ]
+    }
+  },
+  "required": ["name", "format", "contentChecksum", "creationMethod"]
+}

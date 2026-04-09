@@ -586,7 +586,7 @@ SSE streaming uses a **separate namespace** (`client.sse.*`) to distinguish it f
 await client.createResource({ ... });
 
 // SSE streaming (fetch-based, EventBus-native)
-client.sse.detectReferences(..., { auth, eventBus });
+client.sse.markReferences(..., { auth, eventBus });
 ```
 
 **2. Not ky-Based**
@@ -681,7 +681,7 @@ eventBus.get('detection:failed').subscribe(({ error }) => {
 });
 
 // Start detection stream - events auto-emit to EventBus
-const stream = client.sse.detectReferences(rId, {
+const stream = client.sse.markReferences(rId, {
   entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
 }, {
   auth: accessToken('your-token'),
@@ -737,7 +737,7 @@ eventBus.get('generation:failed').subscribe(({ error }) => {
 });
 
 // Start generation stream - events auto-emit to EventBus
-const stream = client.sse.generateResourceFromAnnotation(rId, annId, {
+const stream = client.sse.yieldResource(rId, annId, {
   title: 'Spanish Summary',
   language: 'es',
   prompt: 'Create a concise summary focusing on key findings'
@@ -842,7 +842,7 @@ useEffect(() => {
   const sub3 = eventBus.get('detection:failed').subscribe(({ error }) => setError(error));
 
   // Start stream - events auto-emit to EventBus
-  const stream = client.sse.detectReferences(rId, {
+  const stream = client.sse.markReferences(rId, {
     entityTypes: [entityType('Person')]
   }, {
     auth: accessToken(token),
@@ -906,7 +906,7 @@ eventBus.get('detection:failed').subscribe(({ error }) => {
 });
 
 // Start stream
-const stream = client.sse.detectReferences(rId, {
+const stream = client.sse.markReferences(rId, {
   entityTypes: [entityType('Person')]
 }, {
   auth: accessToken(token),
@@ -961,7 +961,7 @@ eventBus.get('detection:failed').subscribe(({ error }) => {
 });
 
 // Start detection - events auto-emit to EventBus
-const stream = client.sse.detectReferences(rId, {
+const stream = client.sse.markReferences(rId, {
   entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
 }, {
   auth: accessToken('your-token'),

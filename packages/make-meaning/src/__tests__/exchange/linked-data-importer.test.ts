@@ -11,6 +11,7 @@ import { Readable, Writable } from 'node:stream';
 import type { Logger, ResourceId, UserId, AnnotationId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { EventBus } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
 import { importLinkedData } from '../../exchange/linked-data-importer';
 import { writeTarGz, type TarEntry } from '../../exchange/tar';
 import { LINKED_DATA_FORMAT } from '../../exchange/manifest';
@@ -123,6 +124,11 @@ function defer(fn: () => void): void {
   queueMicrotask(fn);
 }
 
+const mockContentStore = {
+  store: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
+  register: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
+} as unknown as WorkingTreeStore;
+
 describe('linked-data-importer', () => {
   let eventBus: EventBus;
 
@@ -149,6 +155,7 @@ describe('linked-data-importer', () => {
       eventBus,
       userId: TEST_USER,
       logger: mockLogger,
+      contentStore: mockContentStore,
     });
 
     expect(result.entityTypesAdded).toBe(2);
@@ -161,12 +168,12 @@ describe('linked-data-importer', () => {
       defer(() => eventBus.get('mark:entity-type-added').next({ tag: msg.tag } as any));
     });
 
-    let receivedContent: Buffer | undefined;
+    let receivedChecksum: string | undefined;
     eventBus.get('yield:create').subscribe((msg) => {
-      receivedContent = msg.content;
+      receivedChecksum = msg.contentChecksum;
       expect(msg.name).toBe('Test Document');
       expect(msg.format).toBe('text/markdown');
-      expect(msg.language).toBe('en');
+      expect(msg.storageUri).toBeDefined();
       defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
@@ -183,12 +190,12 @@ describe('linked-data-importer', () => {
       eventBus,
       userId: TEST_USER,
       logger: mockLogger,
+      contentStore: mockContentStore,
     });
 
     expect(result.resourcesCreated).toBe(1);
     expect(result.entityTypesAdded).toBe(1);
-    expect(receivedContent).toBeDefined();
-    expect(receivedContent!.toString('utf8')).toBe('# Test Content\n');
+    expect(receivedChecksum).toBeDefined();
   });
 
   it('imports annotations for a resource', async () => {
@@ -236,6 +243,7 @@ describe('linked-data-importer', () => {
       eventBus,
       userId: TEST_USER,
       logger: mockLogger,
+      contentStore: mockContentStore,
     });
 
     expect(result.resourcesCreated).toBe(1);
@@ -268,6 +276,7 @@ describe('linked-data-importer', () => {
       eventBus,
       userId: TEST_USER,
       logger: mockLogger,
+      contentStore: mockContentStore,
     });
 
     expect(result.resourcesCreated).toBe(2);
@@ -280,7 +289,7 @@ describe('linked-data-importer', () => {
     ]);
 
     await expect(
-      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER }),
+      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER, contentStore: mockContentStore }),
     ).rejects.toThrow(/missing \.semiont\/manifest\.jsonld/);
   });
 
@@ -301,7 +310,7 @@ describe('linked-data-importer', () => {
     ]);
 
     await expect(
-      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER }),
+      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER, contentStore: mockContentStore }),
     ).rejects.toThrow(/expected format/);
   });
 
@@ -322,7 +331,7 @@ describe('linked-data-importer', () => {
     ]);
 
     await expect(
-      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER }),
+      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER, contentStore: mockContentStore }),
     ).rejects.toThrow(/Unsupported format version/);
   });
 
@@ -341,7 +350,7 @@ describe('linked-data-importer', () => {
     ]);
 
     await expect(
-      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER }),
+      importLinkedData(bufferToReadable(archive), { eventBus, userId: TEST_USER, contentStore: mockContentStore }),
     ).rejects.toThrow(/Missing content blob/);
   });
 
@@ -371,6 +380,7 @@ describe('linked-data-importer', () => {
       eventBus,
       userId: customUser,
       logger: mockLogger,
+      contentStore: mockContentStore,
     });
   });
 
@@ -397,6 +407,7 @@ describe('linked-data-importer', () => {
       eventBus,
       userId: TEST_USER,
       logger: mockLogger,
+      contentStore: mockContentStore,
     });
 
     expect(result.resourcesCreated).toBe(1);

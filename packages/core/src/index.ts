@@ -73,44 +73,37 @@ export type {
   EntityTypeStats,
 } from './graph';
 
-// Event types
+// Event base types (persistence model foundations)
 export type {
-  BaseEvent,
-  ResourceEvent,
-  ResourceEventType,
-  SystemEvent,
-  ResourceScopedEvent,
-  ResourceCreatedEvent,
-  ResourceClonedEvent,
-  ResourceArchivedEvent,
-  ResourceUnarchivedEvent,
-  RepresentationAddedEvent,
-  RepresentationRemovedEvent,
-  AnnotationAddedEvent,
-  AnnotationRemovedEvent,
-  AnnotationBodyUpdatedEvent,
-  JobStartedEvent,
-  JobProgressEvent,
-  JobCompletedEvent,
-  JobFailedEvent,
-  BodyOperation,
-  BodyItem,
-  EntityTagAddedEvent,
-  EntityTagRemovedEvent,
-  EmbeddingComputedEvent,
-  EmbeddingDeletedEvent,
+  Brand,
+  EventBase,
   EventMetadata,
   EventSignature,
   StoredEvent,
+  BodyOperation,
+  BodyItem,
   EventQuery,
   ResourceAnnotations,
-} from './events';
-export {
-  isResourceEvent,
-  isSystemEvent,
-  isResourceScopedEvent,
-  getEventType,
-} from './events';
+} from './event-base';
+
+// Persisted events (the 20 event types written to the log)
+export type {
+  EventOfType,
+  PersistedEvent,
+  PersistedEventType,
+  EventInput,
+} from './persisted-events';
+
+// Bus protocol (unified EventMap — all channels on the EventBus)
+export type {
+  EventMap,
+  EventName,
+  Selector,
+  GatheredContext,
+  YieldProgress,
+  MarkProgress,
+  SelectionData,
+} from './bus-protocol';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';
@@ -128,17 +121,6 @@ export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
-
-// Event protocol (application-level events for event bus)
-export type {
-  EventMap,
-  EventName,
-  SelectionData,
-  MarkProgress,
-  YieldProgress,
-  Selector,
-  GatheredContext,
-} from './event-map';
 
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';

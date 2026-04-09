@@ -12,7 +12,7 @@ import { EventQuery } from '@semiont/event-sourcing';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { resourceId, type StoredEvent, type ResourceEventType } from '@semiont/core';
+import { resourceId, type StoredEvent, type PersistedEventType } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import { getLogger } from '../../../logger';
 import { Subscription } from 'rxjs';
@@ -163,7 +163,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
       };
 
       // Subscribe to all resource-scoped event types
-      const eventTypes: ResourceEventType[] = [
+      const eventTypes: PersistedEventType[] = [
         'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
         'yield:representation-added', 'yield:representation-removed',
         'mark:added', 'mark:removed', 'mark:body-updated',
@@ -174,7 +174,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
       ];
       for (const eventType of eventTypes) {
         subscriptions.push(
-          scopedBus.get(eventType as any).subscribe(handleEvent)
+          scopedBus.getDomainEvent(eventType).subscribe(handleEvent)
         );
       }
 

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Emitted when a browse panel is opened",
+  "properties": {
+    "panel": {
+      "type": "string"
+    },
+    "scrollToAnnotationId": {
+      "type": "string"
+    },
+    "motivation": {
+      "type": "string"
+    }
+  },
+  "required": ["panel"]
+}

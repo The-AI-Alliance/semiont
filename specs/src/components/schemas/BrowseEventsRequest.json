@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "description": "Request to browse events for a resource",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "limit": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "correlationId",
+    "resourceId"
+  ]
+}

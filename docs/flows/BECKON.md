@@ -90,6 +90,6 @@ ephemeral semantics as all other beckon events.
 ## Implementation
 
 - **Hook**: [packages/react-ui/src/hooks/useBeckonFlow.ts](../../packages/react-ui/src/hooks/useBeckonFlow.ts)
-- **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `ATTENTION FLOW` section
+- **Event definitions**: [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — `BECKON FLOW` section
 - **CLI command**: [apps/cli/src/core/commands/beckon.ts](../../apps/cli/src/core/commands/beckon.ts)
 - **Backend route**: [apps/backend/src/routes/participants/](../../apps/backend/src/routes/participants/)

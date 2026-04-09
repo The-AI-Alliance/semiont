@@ -52,7 +52,7 @@ graph TB
     STOWER -->|"yield:created,<br/>mark:created, ..."| BUS
     GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
     MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
-    SMELTER -->|"embedding:computed,<br/>embedding:deleted"| BUS
+    SMELTER -->|"embedding:compute,<br/>embedding:delete"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -128,14 +128,14 @@ Searches KB stores to resolve entity references and discover relationships. When
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts)
 
-Subscribes to resource and annotation events, chunks text content, computes embeddings via `@semiont/vectors` (Voyage or Ollama), persists `embedding:computed` events on the EventBus, and indexes vectors into the VectorStore (Qdrant or memory).
+Subscribes to resource and annotation events, chunks text content, computes embeddings via `@semiont/vectors` (Voyage or Ollama), emits `embedding:compute` commands on the EventBus (persisted by Stower as `embedding:computed` domain events), and indexes vectors into the VectorStore (Qdrant or memory).
 
-| Request Event | Handler | Result Event |
-|--------------|---------|-------------|
-| `yield:created` | Chunk resource text, embed, index into VectorStore | `embedding:computed` |
-| `mark:created` | Chunk annotation text, embed, index into VectorStore | `embedding:computed` |
-| `mark:body-updated` | Re-chunk and re-embed annotation text | `embedding:computed` |
-| `yield:moved` / resource deleted | Remove vectors from index | `embedding:deleted` |
+| Request Event | Handler | Command Emitted |
+|--------------|---------|----------------|
+| `yield:created` | Chunk resource text, embed, index into VectorStore | `embedding:compute` |
+| `mark:created` | Chunk annotation text, embed, index into VectorStore | `embedding:compute` |
+| `mark:body-updated` | Re-chunk and re-embed annotation text | `embedding:compute` |
+| `yield:moved` / resource deleted | Remove vectors from index | `embedding:delete` |
 
 ### CloneTokenManager (Clone Token Actor)
 

@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
-import type { components, ResourceCreatedEvent, Logger } from '@semiont/core';
+import type { components, EventOfType, Logger } from '@semiont/core';
 import { resourceId, userId, annotationId, CREATION_METHODS, EventBus } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -40,7 +40,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     // Create test resources in event store
     const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
-    const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
+    const docEvent1: Omit<EventOfType<'yield:created'>, 'id' | 'timestamp'> = {
       type: 'yield:created',
       resourceId: testDocId,
       userId: userId('test-user'),
@@ -53,7 +53,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       },
     };
 
-    const docEvent2: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
+    const docEvent2: Omit<EventOfType<'yield:created'>, 'id' | 'timestamp'> = {
       type: 'yield:created',
       resourceId: testDocId2,
       userId: userId('test-user'),

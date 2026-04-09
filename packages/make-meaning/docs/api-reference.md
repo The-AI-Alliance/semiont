@@ -63,7 +63,7 @@ Responds to:
 
 ### Smelter
 
-Embedding pipeline actor. Subscribes to resource and annotation events, chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), persists `embedding:computed` events, and indexes vectors into the VectorStore (Qdrant or memory).
+Embedding pipeline actor. Subscribes to resource and annotation events, chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), emits `embedding:compute` commands (persisted by Stower as `embedding:computed` domain events), and indexes vectors into the VectorStore (Qdrant or memory).
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts)
 
@@ -76,10 +76,10 @@ await smelter.stop();
 ```
 
 Responds to:
-- `yield:created` → chunks and embeds resource text, indexes into VectorStore → emits `embedding:computed`
-- `mark:created` → chunks and embeds annotation text → emits `embedding:computed`
-- `mark:body-updated` → re-chunks and re-embeds annotation text → emits `embedding:computed`
-- `yield:moved` / resource deleted → removes vectors from index → emits `embedding:deleted`
+- `yield:created` → chunks and embeds resource text, indexes into VectorStore → emits `embedding:compute`
+- `mark:created` → chunks and embeds annotation text → emits `embedding:compute`
+- `mark:body-updated` → re-chunks and re-embeds annotation text → emits `embedding:compute`
+- `yield:moved` / resource deleted → removes vectors from index → emits `embedding:delete`
 
 ### CloneTokenManager
 

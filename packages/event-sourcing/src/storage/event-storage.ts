@@ -16,7 +16,7 @@ import * as path from 'path';
 import { createReadStream } from 'fs';
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
-import type { StoredEvent, ResourceEvent, EventMetadata, ResourceId, Logger } from '@semiont/core';
+import type { StoredEvent, PersistedEvent, EventMetadata, EventInput, ResourceId, Logger } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { jumpConsistentHash, sha256 } from './shard-utils';
@@ -142,18 +142,18 @@ export class EventStorage {
    * Append an event - handles EVERYTHING for event creation
    * Creates ID, timestamp, metadata, checksum, sequence tracking, and writes to disk
    */
-  async appendEvent(event: Omit<ResourceEvent, 'id' | 'timestamp'>, resourceId: ResourceId): Promise<StoredEvent> {
+  async appendEvent(event: EventInput, resourceId: ResourceId): Promise<StoredEvent> {
     // Ensure resource stream is initialized
     if (this.getSequenceNumber(resourceId) === 0) {
       await this.initializeResourceStream(resourceId);
     }
 
     // Create complete event with ID and timestamp
-    const completeEvent: ResourceEvent = {
+    const completeEvent: PersistedEvent = {
       ...event,
       id: uuidv4(),
       timestamp: new Date().toISOString(),
-    } as ResourceEvent;
+    } as PersistedEvent;
 
     // Calculate metadata
     const sequenceNumber = this.getNextSequenceNumber(resourceId);

@@ -133,10 +133,10 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
       jobType: 'reference-annotation',
       percentage: expect.any(Number),
       progress: expect.objectContaining({
-        currentStep: 'Person',
-        processedSteps: 1,
-        totalSteps: 3,
-        foundCount: expect.any(Number)
+        currentEntityType: 'Person',
+        processedEntityTypes: 1,
+        totalEntityTypes: 3,
+        entitiesFound: expect.any(Number)
       })
     });
   });
@@ -157,10 +157,8 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
       jobId: jobId('job-test-3'),
       jobType: 'reference-annotation',
       result: expect.objectContaining({
-        result: expect.objectContaining({
-          totalFound: expect.any(Number),
-          totalEmitted: expect.any(Number)
-        })
+        totalFound: expect.any(Number),
+        totalEmitted: expect.any(Number)
       })
     });
   });
@@ -238,8 +236,8 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
     for (const event of progressEvents) {
       expect(event).toHaveProperty('percentage');
       expect(typeof event.percentage).toBe('number');
-      expect(event.progress).toHaveProperty('foundCount');
-      expect(typeof event.progress.foundCount).toBe('number');
+      expect(event.progress).toHaveProperty('entitiesFound');
+      expect(typeof event.progress.entitiesFound).toBe('number');
     }
   });
 });

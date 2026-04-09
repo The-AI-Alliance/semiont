@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "description": "Command to store a computed embedding for a resource chunk",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "annotationId": {
+      "type": "string"
+    },
+    "chunkIndex": {
+      "type": "integer"
+    },
+    "chunkText": {
+      "type": "string"
+    },
+    "embedding": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "model": {
+      "type": "string"
+    },
+    "dimensions": {
+      "type": "integer"
+    }
+  },
+  "required": ["resourceId", "chunkIndex", "chunkText", "embedding", "model", "dimensions"]
+}

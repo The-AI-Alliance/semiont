@@ -240,7 +240,7 @@ export interface TagDetectionProgress {
  * eventBus.get('detection:failed').subscribe(({ error }) => console.error(error));
  *
  * // Start stream - eventBus is required (TypeScript enforced)
- * const stream = client.sse.detectReferences(resourceId, request, { auth, eventBus });
+ * const stream = client.sse.markReferences(resourceId, request, { auth, eventBus });
  *
  * // Cleanup when done
  * stream.close();
@@ -257,7 +257,7 @@ export interface SSEStream {
    * ```typescript
    * // React cleanup
    * useEffect(() => {
-   *   const stream = client.sse.detectReferences(..., { auth, eventBus });
+   *   const stream = client.sse.markReferences(..., { auth, eventBus });
    *   return () => stream.close();
    * }, []);
    * ```

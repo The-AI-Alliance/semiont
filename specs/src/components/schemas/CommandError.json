@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.",
+  "properties": {
+    "message": {
+      "type": "string",
+      "description": "Human-readable error message"
+    },
+    "details": {
+      "type": "string",
+      "description": "Optional additional context (stack trace, field name, etc.)"
+    }
+  },
+  "required": ["message"]
+}

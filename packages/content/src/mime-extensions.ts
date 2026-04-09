@@ -116,6 +116,21 @@ export function getExtensionForMimeType(mediaType: string): string {
 }
 
 /**
+ * Derive a file:// storage URI from a resource name and MIME type.
+ *
+ * @example
+ * deriveStorageUri("My Document", "text/markdown") // => "file://my-document.md"
+ */
+export function deriveStorageUri(name: string, format: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  const ext = getExtensionForMimeType(format);
+  return `file://${slug}${ext}`;
+}
+
+/**
  * Check if a MIME type has a known extension mapping
  *
  * @param mediaType - MIME type to check

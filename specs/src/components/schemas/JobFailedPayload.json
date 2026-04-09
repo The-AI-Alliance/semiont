@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "description": "Payload for job:failed domain event",
+  "properties": {
+    "jobId": { "type": "string" },
+    "jobType": { "$ref": "JobType.json" },
+    "error": { "type": "string" },
+    "details": { "type": "string" }
+  },
+  "required": ["jobId", "jobType", "error"]
+}

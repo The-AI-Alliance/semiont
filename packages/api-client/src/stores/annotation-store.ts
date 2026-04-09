@@ -18,6 +18,7 @@
 
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+import { annotationId as makeAnnotationId } from '@semiont/core';
 import type { EventBus, EventMap, ResourceId, AnnotationId, AccessToken } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
 import type { paths } from '@semiont/core';
@@ -57,7 +58,7 @@ export class AnnotationStore {
     eventBus: EventBus,
   ) {
     eventBus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
-      this.removeFromDetailCache(event.annotationId);
+      this.removeFromDetailCache(makeAnnotationId(event.annotationId));
     });
 
     // Domain events are now StoredEvent — access inner ResourceEvent via .event
@@ -71,14 +72,14 @@ export class AnnotationStore {
       if (stored.resourceId) {
         this.invalidateList(stored.resourceId);
       }
-      this.invalidateDetail(stored.payload.annotationId);
+      this.invalidateDetail(makeAnnotationId(stored.payload.annotationId));
     });
 
     eventBus.get('mark:body-updated').subscribe((stored) => {
       if (stored.resourceId) {
         this.invalidateList(stored.resourceId);
       }
-      this.invalidateDetail(stored.payload.annotationId);
+      this.invalidateDetail(makeAnnotationId(stored.payload.annotationId));
     });
 
     eventBus.get('mark:entity-tag-added').subscribe((stored) => {

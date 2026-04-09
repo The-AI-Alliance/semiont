@@ -19,12 +19,15 @@ import {
   CREATION_METHODS,
   type BodyOperation,
   annotationId,
+  resourceId as makeResourceId,
   userId,
   jobId,
 } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { components } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/content';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 
@@ -36,6 +39,7 @@ export class GenerationWorker extends JobWorker {
     private inferenceClient: InferenceClient,
     private generator: Agent,
     private eventBus: EventBus,
+    private contentStore: WorkingTreeStore,
     logger: Logger
   ) {
     super(jobQueue, undefined, undefined, logger);
@@ -151,30 +155,35 @@ export class GenerationWorker extends JobWorker {
     this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
-    // Create resource via EventBus
+    // Write content to disk, then emit on bus (no Buffer on bus)
+    const format = 'text/markdown' as const;
+    const resolvedUri = job.params.storageUri || deriveStorageUri(resourceName, format);
+    const stored = await this.contentStore.store(Buffer.from(generatedContent.content), resolvedUri);
+
     const createParams = {
       name: resourceName,
-      content: Buffer.from(generatedContent.content),
-      format: 'text/markdown' as const,
+      storageUri: resolvedUri,
+      contentChecksum: stored.checksum,
+      byteSize: stored.byteSize,
+      format,
       userId: userId(job.metadata.userId),
       entityTypes: job.params.entityTypes || annotationEntityTypes,
       language: job.params.language,
       creationMethod: CREATION_METHODS.GENERATED,
       isDraft: true,
       generatedFrom: { resourceId: job.params.sourceResourceId, annotationId: job.params.referenceId },
-      storageUri: job.params.storageUri,
       generator: this.generator,
     };
 
     const result$ = race(
       this.eventBus.get('yield:create-ok').pipe(take(1), map(r => ({ ok: true as const, result: r }))),
-      this.eventBus.get('yield:create-failed').pipe(take(1), map(f => ({ ok: false as const, error: f.error }))),
+      this.eventBus.get('yield:create-failed').pipe(take(1), map(f => ({ ok: false as const, error: new Error(f.message) }))),
       timer(30_000).pipe(map(() => ({ ok: false as const, error: new Error('Resource creation timed out') }))),
     );
     this.eventBus.get('yield:create').next(createParams);
     const outcome = await firstValueFrom(result$);
     if (!outcome.ok) throw outcome.error;
-    const rId = outcome.result.resourceId;
+    const rId = makeResourceId(outcome.result.resourceId);
     this.logger?.info('Resource created via EventBus', { resourceId: rId });
 
     // Update progress: linking
@@ -244,8 +253,8 @@ export class GenerationWorker extends JobWorker {
       jobId: jobId(job.metadata.id),
       jobType: 'generation',
       result: {
-        resultResourceId: result.resourceId,
-        annotationId: job.params.referenceId,
+        resourceId: result.resourceId as string,
+        resourceName: result.resourceName,
       },
     });
   }
@@ -308,8 +317,9 @@ export class GenerationWorker extends JobWorker {
         jobType: genJob.metadata.type,
         percentage: genJob.progress.percentage,
         progress: {
-          currentStep: genJob.progress.stage,
-          message: genJob.progress.message,
+          stage: genJob.progress.stage,
+          percentage: genJob.progress.percentage,
+          message: genJob.progress.message || '',
         },
       });
       resourceBus.get('yield:progress').next({

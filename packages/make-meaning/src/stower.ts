@@ -28,8 +28,8 @@
  * - job:report-progress → job.progress
  * - job:complete       → job.completed
  * - job:fail           → job.failed
- * - embedding:computed  → embedding.computed   (from Smelter)
- * - embedding:deleted   → embedding.deleted    (from Smelter)
+ * - embedding:compute   → embedding.computed   (from Smelter)
+ * - embedding:delete    → embedding.deleted    (from Smelter)
  */
 
 import { promises as fs } from 'fs';
@@ -40,7 +40,6 @@ import { EventBus, resourceId, userId as makeUserId, annotationId as makeAnnotat
 import type { CreationMethod, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { resolveStorageUri } from '@semiont/event-sourcing';
-import { getExtensionForMimeType } from '@semiont/content';
 import type { KnowledgeBase } from './knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -83,8 +82,8 @@ export class Stower {
       pipe('job:report-progress', (e) => this.handleJobReportProgress(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
-      pipe('embedding:computed', (e) => this.handleEmbeddingComputed(e)),
-      pipe('embedding:deleted', (e) => this.handleEmbeddingDeleted(e)),
+      pipe('embedding:compute', (e) => this.handleEmbeddingComputed(e)),
+      pipe('embedding:delete', (e) => this.handleEmbeddingDeleted(e)),
     ).subscribe({
       error: (err: unknown) => this.logger.error('Stower pipeline error', { error: err }),
     });
@@ -98,50 +97,38 @@ export class Stower {
     try {
       const rId = resourceId(generateUuid());
 
-      // Two paths: API/GUI/AI provides content bytes; CLI provides storageUri + optional checksum
-      let checksum: string;
-      let byteSize: number;
-
-      // Resolve or derive the storageUri
-      const resolvedStorageUri: string = event.storageUri
-        ?? deriveStorageUri(event.name, event.format);
-
-      if (event.content !== undefined) {
-        // API/GUI/AI path: write bytes to disk
-        const stored = await this.kb.content.store(event.content, resolvedStorageUri, { noGit: event.noGit });
-        checksum = stored.checksum;
-        byteSize = stored.byteSize;
-      } else {
-        // CLI path: file already on disk; register it (verifies checksum if provided)
-        if (!event.storageUri) {
-          throw new Error('yield:create without content requires storageUri');
-        }
-        const stored = await this.kb.content.register(resolvedStorageUri, event.contentChecksum, { noGit: event.noGit });
-        checksum = stored.checksum;
-        byteSize = stored.byteSize;
-      }
+      // Content is already on disk at storageUri (callers write before emitting).
+      // Register verifies the file exists and validates the checksum.
+      const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      const checksum = stored.checksum;
+      const byteSize = event.byteSize;
 
       const validCreationMethods = Object.values(CREATION_METHODS) as string[];
       const validatedCreationMethod = event.creationMethod && validCreationMethods.includes(event.creationMethod)
         ? (event.creationMethod as CreationMethod)
         : CREATION_METHODS.API;
 
+      // generatedFrom on the bus command has optional fields; the domain event requires both
+      const generatedFrom = event.generatedFrom?.resourceId && event.generatedFrom?.annotationId
+        ? { resourceId: event.generatedFrom.resourceId, annotationId: event.generatedFrom.annotationId }
+        : undefined;
+
       await this.kb.eventStore.appendEvent({
         type: 'yield:created',
         resourceId: rId,
-        userId: event.userId,
+        userId: makeUserId(event.userId),
         version: 1,
         payload: {
           name: event.name,
           format: event.format,
           contentChecksum: checksum,
           contentByteSize: byteSize,
-          storageUri: resolvedStorageUri,
+          storageUri: event.storageUri,
           creationMethod: validatedCreationMethod,
           entityTypes: event.entityTypes || [],
           language: event.language || undefined,
           isDraft: event.isDraft ?? false,
-          generatedFrom: event.generatedFrom,
+          generatedFrom,
           generationPrompt: event.generationPrompt,
           generator: event.generator,
         },
@@ -172,31 +159,24 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to create resource', { error });
       this.eventBus.get('yield:create-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleYieldUpdate(event: EventMap['yield:update']): Promise<void> {
     try {
-      let byteSize: number;
-      if (event.content) {
-        // API/GUI/AI path: write content to disk
-        const stored = await this.kb.content.store(event.content, event.storageUri, { noGit: event.noGit });
-        byteSize = stored.byteSize;
-      } else {
-        // CLI path: file already on disk, just verify checksum
-        const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
-        byteSize = stored.byteSize;
-      }
+      // Content is already on disk at storageUri (callers write before emitting).
+      // register() verifies the file exists and validates the checksum.
+      await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
       await this.kb.eventStore.appendEvent({
         type: 'yield:updated',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: {
           contentChecksum: event.contentChecksum,
-          contentByteSize: byteSize,
+          contentByteSize: event.byteSize,
         },
       });
       this.eventBus.get('yield:update-ok').next({ resourceId: event.resourceId });
@@ -204,7 +184,7 @@ export class Stower {
       this.logger.error('Failed to update resource', { error });
       this.eventBus.get('yield:update-failed').next({
         resourceId: event.resourceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -218,7 +198,7 @@ export class Stower {
       this.logger.error('Failed to resolve resource for move', { fromUri: event.fromUri, error });
       this.eventBus.get('yield:move-failed').next({
         fromUri: event.fromUri,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
       return;
     }
@@ -228,7 +208,7 @@ export class Stower {
       await this.kb.eventStore.appendEvent({
         type: 'yield:moved',
         resourceId: rId,
-        userId: event.userId,
+        userId: makeUserId(event.userId),
         version: 1,
         payload: {
           fromUri: event.fromUri,
@@ -240,7 +220,7 @@ export class Stower {
       this.logger.error('Failed to move resource', { error });
       this.eventBus.get('yield:move-failed').next({
         fromUri: event.fromUri,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -250,8 +230,8 @@ export class Stower {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
       await this.kb.eventStore.appendEvent({
         type: 'mark:added',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { annotation: event.annotation },
       });
@@ -259,7 +239,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to create annotation', { error });
       this.eventBus.get('mark:create-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -272,8 +252,8 @@ export class Stower {
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:removed',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { annotationId: event.annotationId },
       });
@@ -281,7 +261,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to delete annotation', { error });
       this.eventBus.get('mark:delete-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -290,8 +270,8 @@ export class Stower {
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:body-updated',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { annotationId: event.annotationId, operations: event.operations },
       });
@@ -299,30 +279,32 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error });
       this.eventBus.get('mark:body-update-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleMarkArchive(event: EventMap['mark:archive']): Promise<void> {
-    if (!event || typeof event !== 'object' || !('userId' in event) || !('resourceId' in event) || !event.resourceId) {
-      return; // Frontend-only event (void) — not for Stower
+    if (!event.userId) {
+      this.logger.warn('mark:archive missing userId — skipping (frontend-only event?)');
+      return;
     }
     if (event.storageUri) {
       await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
     }
     await this.kb.eventStore.appendEvent({
       type: 'mark:archived',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: { reason: undefined },
     });
   }
 
   private async handleMarkUnarchive(event: EventMap['mark:unarchive']): Promise<void> {
-    if (!event || typeof event !== 'object' || !('userId' in event) || !('resourceId' in event) || !event.resourceId) {
-      return; // Frontend-only event (void) — not for Stower
+    if (!event.userId) {
+      this.logger.warn('mark:unarchive missing userId — skipping (frontend-only event?)');
+      return;
     }
     // If storageUri is provided, verify the file exists before emitting the event
     if (event.storageUri) {
@@ -336,8 +318,8 @@ export class Stower {
     }
     await this.kb.eventStore.appendEvent({
       type: 'mark:unarchived',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {},
     });
@@ -347,7 +329,7 @@ export class Stower {
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-type-added',
-        userId: event.userId,
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { entityType: event.tag },
       });
@@ -355,7 +337,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to add entity type', { error });
       this.eventBus.get('mark:entity-type-add-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -367,8 +349,8 @@ export class Stower {
     for (const entityType of added) {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-tag-added',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { entityType },
       });
@@ -377,8 +359,8 @@ export class Stower {
     for (const entityType of removed) {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-tag-removed',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event.userId),
         version: 1,
         payload: { entityType },
       });
@@ -388,8 +370,8 @@ export class Stower {
   private async handleJobStart(event: EventMap['job:start']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:started',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: { jobId: event.jobId, jobType: event.jobType },
     });
@@ -398,8 +380,8 @@ export class Stower {
   private async handleJobReportProgress(event: EventMap['job:report-progress']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:progress',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -413,8 +395,8 @@ export class Stower {
   private async handleJobComplete(event: EventMap['job:complete']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:completed',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -427,8 +409,8 @@ export class Stower {
   private async handleJobFail(event: EventMap['job:fail']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'job:failed',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event.userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -438,10 +420,10 @@ export class Stower {
     });
   }
 
-  private async handleEmbeddingComputed(event: EventMap['embedding:computed']): Promise<void> {
+  private async handleEmbeddingComputed(event: EventMap['embedding:compute']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'embedding:computed',
-      resourceId: event.resourceId,
+      resourceId: resourceId(event.resourceId),
       userId: makeUserId('did:web:system:smelter'),
       version: 1,
       payload: {
@@ -455,10 +437,10 @@ export class Stower {
     });
   }
 
-  private async handleEmbeddingDeleted(event: EventMap['embedding:deleted']): Promise<void> {
+  private async handleEmbeddingDeleted(event: EventMap['embedding:delete']): Promise<void> {
     await this.kb.eventStore.appendEvent({
       type: 'embedding:deleted',
-      resourceId: event.resourceId,
+      resourceId: resourceId(event.resourceId),
       userId: makeUserId('did:web:system:smelter'),
       version: 1,
       payload: {
@@ -472,17 +454,4 @@ export class Stower {
     this.subscription = null;
     this.logger.info('Stower actor stopped');
   }
-}
-
-/**
- * Derive a working-tree storageUri from a resource name and MIME type.
- * e.g. "My Document", "text/markdown" → "file://my-document.md"
- */
-function deriveStorageUri(name: string, format: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const ext = getExtensionForMimeType(format);
-  return `file://${slug}${ext}`;
 }

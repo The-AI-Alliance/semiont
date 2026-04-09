@@ -56,7 +56,7 @@ export async function bootstrapEntityTypes(eventBus: EventBus, project: SemiontP
 
     const result$ = race(
       eventBus.get('mark:entity-type-added').pipe(take(1), map(() => ({ ok: true as const }))),
-      eventBus.get('mark:entity-type-add-failed').pipe(take(1), map((f) => ({ ok: false as const, error: f.error }))),
+      eventBus.get('mark:entity-type-add-failed').pipe(take(1), map((f) => ({ ok: false as const, error: new Error(f.message) }))),
       timer(10_000).pipe(map(() => ({ ok: false as const, error: new Error(`Timeout adding entity type: ${entityType}`) }))),
     );
 

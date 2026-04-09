@@ -69,7 +69,7 @@ export class CommentAnnotationWorker extends JobWorker {
       userId: userId(job.metadata.userId),
       jobId: jobId(job.metadata.id),
       jobType: 'comment-annotation',
-      result: { result },
+      result,
     });
   }
 
@@ -106,7 +106,7 @@ export class CommentAnnotationWorker extends JobWorker {
         jobId: jobId(cdJob.metadata.id),
         jobType: cdJob.metadata.type,
         percentage: cdJob.progress.percentage,
-        progress: { progress: cdJob.progress },
+        progress: { stage: cdJob.progress.stage, percentage: cdJob.progress.percentage, message: cdJob.progress.message || '' },
       });
       // Ephemeral progress for real-time UI updates
       const resourceBus = this.eventBus.scope(cdJob.params.resourceId);

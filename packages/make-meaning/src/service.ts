@@ -8,7 +8,7 @@
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, type Logger, type ResourceId, jobId } from '@semiont/core';
 import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
 import { inferenceConfigToGenerator } from './agent-utils';
 import { Readable } from 'stream';
@@ -25,6 +25,7 @@ import {
   TagAnnotationWorker,
   type ContentFetcher,
 } from '@semiont/jobs';
+import type { WorkingTreeStore } from '@semiont/content';
 import { createKnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
@@ -67,9 +68,9 @@ async function createJobQueue(
   const jobStatusSubscription = eventBus.get('job:status-requested').pipe(
     mergeMap((event) => from((async () => {
       try {
-        const job = await jobQueue.getJob(event.jobId);
+        const job = await jobQueue.getJob(jobId(event.jobId));
         if (!job) {
-          eventBus.get('job:status-failed').next({ correlationId: event.correlationId, error: new Error('Job not found') });
+          eventBus.get('job:status-failed').next({ correlationId: event.correlationId, message: 'Job not found' });
           return;
         }
         eventBus.get('job:status-result').next({
@@ -90,7 +91,7 @@ async function createJobQueue(
       } catch (error) {
         eventBus.get('job:status-failed').next({
           correlationId: event.correlationId,
-          error: error instanceof Error ? error : new Error(String(error)),
+          message: error instanceof Error ? error.message : String(error),
         });
       }
     })())),
@@ -187,6 +188,7 @@ function createContentFetcher(ks: KnowledgeSystem): ContentFetcher {
 function createWorkers(
   jobQueue: JobQueue,
   contentFetcher: ContentFetcher,
+  contentStore: WorkingTreeStore,
   eventBus: EventBus,
   config: MakeMeaningConfig,
   logger: Logger,
@@ -198,7 +200,7 @@ function createWorkers(
 
   const generation = (() => {
     const cfg = resolveWorkerInference(config, 'generation');
-    return new GenerationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-generation' })), inferenceConfigToGenerator('Generation Worker', cfg), eventBus, logger.child({ component: 'generation-worker' }));
+    return new GenerationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-generation' })), inferenceConfigToGenerator('Generation Worker', cfg), eventBus, contentStore, logger.child({ component: 'generation-worker' }));
   })();
 
   const highlight = (() => {
@@ -258,7 +260,7 @@ export async function startMakeMeaning(
   const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
   const contentFetcher  = createContentFetcher(knowledgeSystem);
-  const workers         = createWorkers(jobQueue, contentFetcher, eventBus, config, logger);
+  const workers         = createWorkers(jobQueue, contentFetcher, knowledgeSystem.kb.content, eventBus, config, logger);
   startWorkers(workers, logger);
 
   return {

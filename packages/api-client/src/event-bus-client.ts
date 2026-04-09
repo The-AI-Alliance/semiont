@@ -25,6 +25,7 @@ import { filter, map, take, timeout } from 'rxjs/operators';
 import type { EventBus, EventMap, EventName, components } from '@semiont/core';
 import type { ResourceId, AnnotationId, UserId } from '@semiont/core';
 import type { JobId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 type CorrelatedRequestEvent = {
   [K in EventName]: EventMap[K] extends { correlationId: string } ? K : never;
@@ -35,7 +36,7 @@ type CorrelatedResponseEvent = {
 }[EventName];
 
 type CorrelatedFailureEvent = {
-  [K in EventName]: EventMap[K] extends { correlationId: string; error: Error } ? K : never;
+  [K in EventName]: EventMap[K] extends { correlationId: string; message: string } ? K : never;
 }[EventName];
 
 /**
@@ -62,7 +63,7 @@ async function eventBusRequest<
     ),
     eventBus.get(failureEvent).pipe(
       filter((e) => e.correlationId === correlationId),
-      map((e) => ({ ok: false as const, error: e.error })),
+      map((e) => ({ ok: false as const, error: new Error(e.message) })),
     ),
   ).pipe(take(1), timeout(timeoutMs));
 
@@ -259,7 +260,7 @@ export class EventBusClient {
     userId: UserId;
     archiveOriginal?: boolean;
   }): Promise<{ resourceId: ResourceId }> {
-    return eventBusRequest(
+    const result = await eventBusRequest(
       this.eventBus,
       'yield:clone-create',
       { correlationId: crypto.randomUUID(), ...options },
@@ -267,6 +268,8 @@ export class EventBusClient {
       'yield:clone-create-failed',
       this.timeoutMs,
     );
+    if (!result.resourceId) throw new Error('clone-created response missing resourceId');
+    return { resourceId: makeResourceId(result.resourceId) };
   }
 
   // ========================================================================
@@ -308,7 +311,7 @@ export class EventBusClient {
       ),
       this.eventBus.get('gather:failed').pipe(
         filter((e) => e.correlationId === correlationId),
-        map((e) => ({ ok: false as const, error: e.error })),
+        map((e) => ({ ok: false as const, error: new Error(e.message) })),
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 
@@ -346,7 +349,7 @@ export class EventBusClient {
       ),
       this.eventBus.get('gather:resource-failed').pipe(
         filter((e) => e.correlationId === correlationId),
-        map((e) => ({ ok: false as const, error: e.error })),
+        map((e) => ({ ok: false as const, error: new Error(e.message) })),
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 

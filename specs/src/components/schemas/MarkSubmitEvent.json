@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "description": "Emitted when a mark is submitted with its annotation body",
+  "properties": {
+    "motivation": {
+      "$ref": "./Motivation.json"
+    },
+    "selector": {
+      "description": "One or more W3C selectors",
+      "oneOf": [
+        { "$ref": "./TextPositionSelector.json" },
+        { "$ref": "./TextQuoteSelector.json" },
+        { "$ref": "./SvgSelector.json" },
+        { "$ref": "./FragmentSelector.json" },
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "./TextPositionSelector.json" },
+              { "$ref": "./TextQuoteSelector.json" },
+              { "$ref": "./SvgSelector.json" },
+              { "$ref": "./FragmentSelector.json" }
+            ]
+          }
+        }
+      ]
+    },
+    "body": {
+      "type": "array",
+      "items": {
+        "$ref": "./AnnotationBody.json"
+      }
+    }
+  },
+  "required": ["motivation", "selector", "body"]
+}

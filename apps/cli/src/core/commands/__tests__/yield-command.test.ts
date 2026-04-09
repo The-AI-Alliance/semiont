@@ -247,7 +247,7 @@ const result = await runYield(makeDelegateOptions());
     it('rejects when yield:failed fires', async () => {
       mockSse.yieldResource.mockReset();
       mockSse.yieldResource.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-        queueMicrotask(() => eventBus.get('yield:failed').next({ error: new Error('Generation failed') }));
+        queueMicrotask(() => eventBus.get('yield:failed').next({ error: 'Generation failed' }));
       });
 await expect(runYield(makeDelegateOptions())).rejects.toThrow('Generation failed');
     });

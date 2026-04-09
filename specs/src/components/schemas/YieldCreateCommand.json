@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "description": "Bus command to create a yielded resource in the knowledge base.",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "storageUri": {
+      "type": "string"
+    },
+    "contentChecksum": {
+      "type": "string"
+    },
+    "byteSize": {
+      "type": "integer"
+    },
+    "format": {
+      "$ref": "./ContentFormat.json"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "creationMethod": {
+      "type": "string"
+    },
+    "isDraft": {
+      "type": "boolean"
+    },
+    "generatedFrom": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "type": "string"
+        },
+        "annotationId": {
+          "type": "string"
+        }
+      }
+    },
+    "generationPrompt": {
+      "type": "string"
+    },
+    "generator": {
+      "oneOf": [
+        { "$ref": "./Agent.json" },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./Agent.json"
+          }
+        }
+      ]
+    },
+    "noGit": {
+      "type": "boolean"
+    }
+  },
+  "required": ["name", "storageUri", "contentChecksum", "byteSize", "format", "userId"]
+}

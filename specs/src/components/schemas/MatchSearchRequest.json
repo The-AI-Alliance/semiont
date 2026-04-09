@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "description": "Request payload sent on the match:search-request bus channel to find candidate matches.",
+  "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Client-generated correlation ID to thread the response back to the originating request"
+    },
+    "referenceId": {
+      "type": "string",
+      "description": "Annotation ID of the reference to search candidates for"
+    },
+    "context": {
+      "$ref": "./GatheredContext.json",
+      "description": "Gathered context for the reference annotation"
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of candidate results to return"
+    },
+    "useSemanticScoring": {
+      "type": "boolean",
+      "description": "Enable semantic similarity scoring in addition to keyword matching"
+    }
+  },
+  "required": ["correlationId", "referenceId", "context"]
+}

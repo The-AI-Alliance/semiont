@@ -71,7 +71,7 @@ export class TagAnnotationWorker extends JobWorker {
       userId: userId(job.metadata.userId),
       jobId: jobId(job.metadata.id),
       jobType: 'tag-annotation',
-      result: { result },
+      result,
     });
   }
 
@@ -108,7 +108,7 @@ export class TagAnnotationWorker extends JobWorker {
         jobId: jobId(tdJob.metadata.id),
         jobType: tdJob.metadata.type,
         percentage: tdJob.progress.percentage,
-        progress: { progress: tdJob.progress },
+        progress: { stage: tdJob.progress.stage, percentage: tdJob.progress.percentage, message: tdJob.progress.message || '', currentCategory: tdJob.progress.currentCategory, processedCategories: tdJob.progress.processedCategories, totalCategories: tdJob.progress.totalCategories },
       });
       // Ephemeral progress for real-time UI updates
       const resourceBus = this.eventBus.scope(tdJob.params.resourceId);

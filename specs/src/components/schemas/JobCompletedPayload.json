@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Payload for job:completed domain event",
+  "properties": {
+    "jobId": { "type": "string" },
+    "jobType": { "$ref": "JobType.json" },
+    "totalSteps": { "type": "integer" },
+    "foundCount": { "type": "integer", "description": "For detection: total entities found" },
+    "resultResourceId": { "type": "string", "description": "For generation: ID of generated resource" },
+    "annotationUri": { "type": "string", "description": "For generation: URI of annotation that triggered generation" },
+    "message": { "type": "string" },
+    "result": { "type": "object", "additionalProperties": true, "description": "Full result object for extensibility" }
+  },
+  "required": ["jobId", "jobType"]
+}

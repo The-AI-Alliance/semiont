@@ -16,8 +16,9 @@
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
-import { type EventBus, CREATION_METHODS, cloneToken as makeCloneToken, type CloneToken } from '@semiont/core';
+import { type EventBus, CREATION_METHODS, cloneToken as makeCloneToken, type CloneToken, resourceId, userId as makeUserId } from '@semiont/core';
 import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-client';
+import { deriveStorageUri } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { ResourceOperations } from './resource-operations';
 import type { KnowledgeBase } from './knowledge-base';
@@ -61,11 +62,11 @@ export class CloneTokenManager {
 
   private async handleGenerateToken(event: EventMap['yield:clone-token-requested']): Promise<void> {
     try {
-      const resource = await ResourceContext.getResourceMetadata(event.resourceId, this.kb);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.kb);
       if (!resource) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource not found'),
+          message: 'Resource not found',
         });
         return;
       }
@@ -74,7 +75,7 @@ export class CloneTokenManager {
       if (!resource.storageUri) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource content not found'),
+          message: 'Resource content not found',
         });
         return;
       }
@@ -84,7 +85,7 @@ export class CloneTokenManager {
       } catch {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Resource content not found'),
+          message: 'Resource content not found',
         });
         return;
       }
@@ -94,7 +95,7 @@ export class CloneTokenManager {
       const token = makeCloneToken(tokenStr);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      this.tokens.set(token, { resourceId: event.resourceId, expiresAt });
+      this.tokens.set(token, { resourceId: resourceId(event.resourceId), expiresAt });
 
       this.eventBus.get('yield:clone-token-generated').next({
         correlationId: event.correlationId,
@@ -108,7 +109,7 @@ export class CloneTokenManager {
       this.logger.error('Generate clone token failed', { resourceId: event.resourceId, error });
       this.eventBus.get('yield:clone-token-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -121,7 +122,7 @@ export class CloneTokenManager {
       if (!tokenData) {
         this.eventBus.get('yield:clone-resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Invalid or expired token'),
+          message: 'Invalid or expired token',
         });
         return;
       }
@@ -130,7 +131,7 @@ export class CloneTokenManager {
         this.tokens.delete(token);
         this.eventBus.get('yield:clone-resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Token expired'),
+          message: 'Token expired',
         });
         return;
       }
@@ -139,7 +140,7 @@ export class CloneTokenManager {
       if (!sourceResource) {
         this.eventBus.get('yield:clone-resource-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Source resource not found'),
+          message: 'Source resource not found',
         });
         return;
       }
@@ -155,7 +156,7 @@ export class CloneTokenManager {
       this.logger.error('Get clone resource failed', { token: event.token, error });
       this.eventBus.get('yield:clone-resource-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -168,7 +169,7 @@ export class CloneTokenManager {
       if (!tokenData) {
         this.eventBus.get('yield:clone-create-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Invalid or expired token'),
+          message: 'Invalid or expired token',
         });
         return;
       }
@@ -177,7 +178,7 @@ export class CloneTokenManager {
         this.tokens.delete(token);
         this.eventBus.get('yield:clone-create-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Token expired'),
+          message: 'Token expired',
         });
         return;
       }
@@ -186,7 +187,7 @@ export class CloneTokenManager {
       if (!sourceDoc) {
         this.eventBus.get('yield:clone-create-failed').next({
           correlationId: event.correlationId,
-          error: new Error('Source resource not found'),
+          message: 'Source resource not found',
         });
         return;
       }
@@ -199,16 +200,21 @@ export class CloneTokenManager {
         ? (mediaType as 'text/plain' | 'text/markdown')
         : 'text/plain';
 
-      // Create cloned resource via Stower (yield:create → yield:created)
-      const resourceId = await ResourceOperations.createResource(
+      // Write content to disk, then create via EventBus (no Buffer on bus)
+      const resolvedUri = deriveStorageUri(event.name, format);
+      const stored = await this.kb.content.store(Buffer.from(event.content), resolvedUri);
+
+      const newResourceId = await ResourceOperations.createResource(
         {
           name: event.name,
-          content: Buffer.from(event.content),
+          storageUri: resolvedUri,
+          contentChecksum: stored.checksum,
+          byteSize: stored.byteSize,
           format,
           entityTypes: getResourceEntityTypes(sourceDoc),
           creationMethod: CREATION_METHODS.CLONE,
         },
-        event.userId,
+        makeUserId(event.userId),
         this.eventBus,
       );
 
@@ -217,7 +223,7 @@ export class CloneTokenManager {
         ResourceOperations.updateResource(
           {
             resourceId: tokenData.resourceId,
-            userId: event.userId,
+            userId: makeUserId(event.userId),
             currentArchived: sourceDoc.archived,
             updatedArchived: true,
           },
@@ -230,13 +236,13 @@ export class CloneTokenManager {
 
       this.eventBus.get('yield:clone-created').next({
         correlationId: event.correlationId,
-        response: { resourceId },
+        response: { resourceId: newResourceId },
       });
     } catch (error) {
       this.logger.error('Clone create failed', { token: event.token, error });
       this.eventBus.get('yield:clone-create-failed').next({
         correlationId: event.correlationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

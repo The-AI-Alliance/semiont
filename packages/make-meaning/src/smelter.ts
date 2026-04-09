@@ -18,8 +18,8 @@ import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { type EventStore, EventQuery } from '@semiont/event-sourcing';
 import { burstBuffer } from '@semiont/core';
-import type { Logger, StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceArchivedEvent, AnnotationAddedEvent, AnnotationRemovedEvent } from '@semiont/core';
-import { resourceId as makeResourceId, annotationId as makeAnnotationId, type EmbeddingComputedEvent, type EmbeddingDeletedEvent } from '@semiont/core';
+import type { Logger, StoredEvent, PersistedEvent, EventOfType } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -30,7 +30,7 @@ import { getExactText, getTargetSelector } from '@semiont/api-client';
 import { partitionByType } from './batch-utils.js';
 
 export class Smelter {
-  private static readonly SMELTER_RELEVANT_EVENTS: Set<ResourceEvent['type']> = new Set([
+  private static readonly SMELTER_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
     'yield:created', 'mark:archived',
     'mark:added', 'mark:removed',
   ]);
@@ -64,7 +64,7 @@ export class Smelter {
     // Subscribe to each smelter-relevant event type on the Core EventBus
     for (const eventType of Smelter.SMELTER_RELEVANT_EVENTS) {
       this._globalSubscriptions.push(
-        this.eventBus.get(eventType as any).subscribe(
+        this.eventBus.getDomainEvent(eventType).subscribe(
           (storedEvent: StoredEvent) => this.eventSubject.next(storedEvent)
         )
       );
@@ -130,7 +130,7 @@ export class Smelter {
 
       // Check if the resource was deleted (last event is embedding:deleted with no annotationId)
       const lastEvent = embeddingEvents[embeddingEvents.length - 1];
-      if (lastEvent.type === 'embedding:deleted' && !(lastEvent as EmbeddingDeletedEvent).payload.annotationId) {
+      if (lastEvent.type === 'embedding:deleted' && !(lastEvent as EventOfType<'embedding:deleted'>).payload.annotationId) {
         continue; // Resource vectors were deleted, skip
       }
 
@@ -138,7 +138,7 @@ export class Smelter {
       const deletedAnnotations = new Set<string>();
       for (const e of embeddingEvents) {
         if (e.type === 'embedding:deleted') {
-          const payload = (e as EmbeddingDeletedEvent).payload;
+          const payload = (e as EventOfType<'embedding:deleted'>).payload;
           if (payload.annotationId) deletedAnnotations.add(String(payload.annotationId));
         }
       }
@@ -146,7 +146,7 @@ export class Smelter {
       const resourceChunks: EmbeddingChunk[] = [];
       for (const e of embeddingEvents) {
         if (e.type !== 'embedding:computed') continue;
-        const payload = (e as EmbeddingComputedEvent).payload;
+        const payload = (e as EventOfType<'embedding:computed'>).payload;
 
         if (payload.annotationId) {
           if (deletedAnnotations.has(String(payload.annotationId))) continue;
@@ -237,7 +237,7 @@ export class Smelter {
     const allChunks: string[] = [];
 
     for (const storedEvent of events) {
-      const event = storedEvent as ResourceCreatedEvent;
+      const event = storedEvent as EventOfType<'yield:created'>;
       const rid = makeResourceId(event.resourceId!);
       const storageUri = event.payload.storageUri;
       if (!storageUri) continue;
@@ -267,7 +267,7 @@ export class Smelter {
     for (const { rid, chunks } of resourceData) {
       const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => {
         const embedding = allEmbeddings[offset + i];
-        this.eventBus.get('embedding:computed').next({
+        this.eventBus.get('embedding:compute').next({
           resourceId: rid, chunkIndex: i, chunkText: text,
           embedding, model, dimensions,
         });
@@ -297,7 +297,7 @@ export class Smelter {
     }[] = [];
 
     for (const storedEvent of events) {
-      const event = storedEvent as AnnotationAddedEvent;
+      const event = storedEvent as EventOfType<'mark:added'>;
       const annotation = event.payload.annotation;
       if (!annotation?.id) continue;
 
@@ -325,7 +325,7 @@ export class Smelter {
       const { rid, aid, exactText, annotation } = annotationData[i];
       const embedding = allEmbeddings[i];
 
-      this.eventBus.get('embedding:computed').next({
+      this.eventBus.get('embedding:compute').next({
         resourceId: rid, annotationId: aid, chunkIndex: 0,
         chunkText: exactText, embedding,
         model: this.embeddingProvider.model(),
@@ -365,21 +365,21 @@ export class Smelter {
 
     switch (event.type) {
       case 'yield:created':
-        await this.handleResourceCreated(event as ResourceCreatedEvent);
+        await this.handleResourceCreated(event as EventOfType<'yield:created'>);
         break;
       case 'mark:archived':
-        await this.handleResourceArchived(event as ResourceArchivedEvent);
+        await this.handleResourceArchived(event as EventOfType<'mark:archived'>);
         break;
       case 'mark:added':
-        await this.handleAnnotationAdded(event as AnnotationAddedEvent);
+        await this.handleAnnotationAdded(event as EventOfType<'mark:added'>);
         break;
       case 'mark:removed':
-        await this.handleAnnotationRemoved(event as AnnotationRemovedEvent);
+        await this.handleAnnotationRemoved(event as EventOfType<'mark:removed'>);
         break;
     }
   }
 
-  private async handleResourceCreated(event: ResourceCreatedEvent): Promise<void> {
+  private async handleResourceCreated(event: EventOfType<'yield:created'>): Promise<void> {
     // Yield the event loop so HTTP requests aren't starved by embedding work
     await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -419,7 +419,7 @@ export class Smelter {
     });
 
     const embeddingChunks: EmbeddingChunk[] = chunks.map((text, i) => {
-      this.eventBus.get('embedding:computed').next({
+      this.eventBus.get('embedding:compute').next({
         resourceId: rid,
         chunkIndex: i,
         chunkText: text,
@@ -442,18 +442,18 @@ export class Smelter {
     });
   }
 
-  private async handleResourceArchived(event: ResourceArchivedEvent): Promise<void> {
+  private async handleResourceArchived(event: EventOfType<'mark:archived'>): Promise<void> {
     const rid = makeResourceId(event.resourceId!);
     await this.vectorStore.deleteResourceVectors(rid);
 
-    this.eventBus.get('embedding:deleted').next({ resourceId: rid });
+    this.eventBus.get('embedding:delete').next({ resourceId: rid });
 
     this.logger.debug('Smelter deleted resource vectors', {
       resourceId: String(rid),
     });
   }
 
-  private async handleAnnotationAdded(event: AnnotationAddedEvent): Promise<void> {
+  private async handleAnnotationAdded(event: EventOfType<'mark:added'>): Promise<void> {
     // Yield the event loop so HTTP requests aren't starved by embedding work
     await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -475,7 +475,7 @@ export class Smelter {
     const embedding = await this.embeddingProvider.embed(exactText);
 
     // Emit event for Stower to persist
-    this.eventBus.get('embedding:computed').next({
+    this.eventBus.get('embedding:compute').next({
       resourceId: rid,
       annotationId: aid,
       chunkIndex: 0,
@@ -502,7 +502,7 @@ export class Smelter {
     });
   }
 
-  private async handleAnnotationRemoved(event: AnnotationRemovedEvent): Promise<void> {
+  private async handleAnnotationRemoved(event: EventOfType<'mark:removed'>): Promise<void> {
     const annotationId = String(event.payload.annotationId);
     if (!annotationId) return;
 
@@ -511,7 +511,7 @@ export class Smelter {
 
     await this.vectorStore.deleteAnnotationVector(aid);
 
-    this.eventBus.get('embedding:deleted').next({
+    this.eventBus.get('embedding:delete').next({
       resourceId: rid,
       annotationId: aid,
     });

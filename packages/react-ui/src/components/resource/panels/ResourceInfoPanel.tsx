@@ -3,12 +3,13 @@
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
-import type { components } from '@semiont/core';
+import { resourceId as makeResourceId, type components } from '@semiont/core';
 import './ResourceInfoPanel.css';
 
 type Agent = components['schemas']['Agent'];
 
 interface Props {
+  resourceId: string;
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
   primaryMediaType?: string | undefined;
@@ -25,11 +26,12 @@ interface Props {
 /**
  * Panel for displaying resource metadata and management actions
  *
- * @emits yield:clone - Clone this resource. Payload: undefined
- * @emits mark:unarchive - Unarchive this resource. Payload: undefined
- * @emits mark:archive - Archive this resource. Payload: undefined
+ * @emits yield:clone - Clone this resource
+ * @emits mark:unarchive - Unarchive this resource
+ * @emits mark:archive - Archive this resource
  */
 export function ResourceInfoPanel({
+  resourceId,
   documentEntityTypes,
   documentLocale,
   primaryMediaType,
@@ -194,7 +196,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => eventBus.get('mark:unarchive').next(undefined)}
+              onClick={() => eventBus.get('mark:unarchive').next({ resourceId: makeResourceId(resourceId) })}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -206,7 +208,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => eventBus.get('mark:archive').next(undefined)}
+              onClick={() => eventBus.get('mark:archive').next({ resourceId: makeResourceId(resourceId) })}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}

@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Command to delete embeddings for a resource or annotation",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "annotationId": {
+      "type": "string"
+    }
+  },
+  "required": ["resourceId"]
+}

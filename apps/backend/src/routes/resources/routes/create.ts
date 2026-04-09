@@ -2,6 +2,7 @@
  * Create Resource Route
  *
  * Handles binary content upload via multipart/form-data.
+ * Writes content to disk first, then emits yield:create with storageUri.
  * Returns 202 with { resourceId } — frontend navigates using the ID
  * and reconciles full state via SSE domain events.
  */
@@ -11,6 +12,7 @@ import { userId, userToDid, type CreationMethod } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
+import { deriveStorageUri } from '@semiont/content';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 
@@ -47,21 +49,25 @@ export function registerCreateResource(router: ResourcesRouterType) {
     // Parse entityTypes from JSON string
     const entityTypes = entityTypesStr ? JSON.parse(entityTypesStr) : [];
 
-    // Convert File to Buffer
+    // Write content to disk before emitting on the bus (no Buffer on bus)
     const arrayBuffer = await file.arrayBuffer();
     const contentBuffer = Buffer.from(arrayBuffer);
+    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+    const resolvedUri = storageUri || deriveStorageUri(name, format);
+    const stored = await kb.content.store(contentBuffer, resolvedUri);
 
     // Delegate to make-meaning for resource creation (via EventBus)
     const eventBus = c.get('eventBus');
     const resourceId = await ResourceOperations.createResource(
       {
         name,
-        content: contentBuffer,
+        storageUri: resolvedUri,
+        contentChecksum: stored.checksum,
+        byteSize: stored.byteSize,
         format,
         language: language || undefined,
         entityTypes,
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
-        storageUri: storageUri || undefined,
       },
       userId(userToDid(user)),
       eventBus,

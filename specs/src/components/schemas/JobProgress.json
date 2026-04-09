@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present.",
+  "properties": {
+    "stage": { "type": "string", "description": "Current processing stage" },
+    "percentage": { "type": "number", "description": "Completion percentage (0-100)" },
+    "message": { "type": "string", "description": "Human-readable progress message" },
+    "totalEntityTypes": { "type": "integer", "description": "Total entity types to process (reference-annotation)" },
+    "processedEntityTypes": { "type": "integer", "description": "Entity types processed so far (reference-annotation)" },
+    "entitiesFound": { "type": "integer", "description": "Entities found so far (reference-annotation)" },
+    "entitiesEmitted": { "type": "integer", "description": "Annotations emitted so far (reference-annotation)" },
+    "currentEntityType": { "type": "string", "description": "Entity type currently being processed" },
+    "processedCategories": { "type": "integer", "description": "Categories processed (tag-annotation)" },
+    "totalCategories": { "type": "integer", "description": "Total categories (tag-annotation)" },
+    "currentCategory": { "type": "string", "description": "Category currently being processed (tag-annotation)" }
+  },
+  "required": ["stage", "percentage", "message"]
+}

@@ -19,7 +19,7 @@
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
-import { EventBus, annotationId as makeAnnotationId } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
@@ -84,7 +84,7 @@ export class Gatherer {
 
       const response = await AnnotationContext.buildLLMContext(
         makeAnnotationId(event.annotationId),
-        event.resourceId,
+        resourceId(event.resourceId),
         this.kb,
         event.options ?? {},
         this.inferenceClient,
@@ -105,7 +105,7 @@ export class Gatherer {
       this.eventBus.get('gather:failed').next({
         correlationId: event.correlationId,
         annotationId: event.annotationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -117,7 +117,7 @@ export class Gatherer {
       });
 
       const result = await LLMContext.getResourceContext(
-        event.resourceId,
+        resourceId(event.resourceId),
         event.options,
         this.kb,
         this.inferenceClient,
@@ -136,7 +136,7 @@ export class Gatherer {
       this.eventBus.get('gather:resource-failed').next({
         correlationId: event.correlationId,
         resourceId: event.resourceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

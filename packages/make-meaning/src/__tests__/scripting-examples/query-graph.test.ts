@@ -18,6 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, userId, resourceId as makeResourceId } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
+import { deriveStorageUri } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -44,12 +45,28 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
+let fileCounter = 0;
+
 describe('Scripting Example: Query Graph Database', () => {
   let testDir: string;
   let project: SemiontProject;
   let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: string; language?: string },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const kb = makeMeaning.knowledgeSystem.kb;
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language },
+      uid,
+      eventBus,
+    );
+  }
 
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-graph-test-${uuidv4()}`);
@@ -93,7 +110,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
   it('queries resources in the graph', async () => {
     // Create a test resource
-    const result = await ResourceOperations.createResource(
+    const result = await create(
       {
         name: 'Test Document',
         content: Buffer.from('Sample content for graph queries.'),
@@ -101,7 +118,6 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     const rId = makeResourceId(result);
@@ -123,7 +139,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
   it('queries annotations and their relationships', async () => {
     // Create a resource
-    const resourceResult = await ResourceOperations.createResource(
+    const resourceResult = await create(
       {
         name: 'Document with Annotation',
         content: Buffer.from('This is a test document with annotations.'),
@@ -131,7 +147,6 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     const rId = resourceResult;
@@ -172,7 +187,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
   it('demonstrates complex graph traversal', async () => {
     // Create multiple resources
-    await ResourceOperations.createResource(
+    await create(
       {
         name: 'Document 1',
         content: Buffer.from('First document'),
@@ -180,10 +195,9 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
-    await ResourceOperations.createResource(
+    await create(
       {
         name: 'Document 2',
         content: Buffer.from('Second document'),
@@ -191,7 +205,6 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
@@ -217,7 +230,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
   it('demonstrates graph statistics query', async () => {
     // Create resources and annotations
-    const resource = await ResourceOperations.createResource(
+    const resource = await create(
       {
         name: 'Stats Test Doc',
         content: Buffer.from('Document for statistics'),
@@ -225,7 +238,6 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     const rId = resource;
@@ -273,7 +285,7 @@ describe('Scripting Example: Query Graph Database', () => {
     // This shows you have full access to the graph database
     // via the GraphDatabase interface methods
 
-    await ResourceOperations.createResource(
+    await create(
       {
         name: 'Custom Query Test',
         content: Buffer.from('Testing graph database queries'),
@@ -281,7 +293,6 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      eventBus,
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription

@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Error payload emitted on bind:failed SSE channel.",
+  "properties": {
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": ["error"]
+}

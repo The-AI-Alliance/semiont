@@ -97,7 +97,7 @@ export function useYieldFlow(
     'yield:failed': ({ error, message }) => {
       setYieldProgress(null);
       setIsGenerating(false);
-      const msg = message || (error instanceof Error ? error.message : error) || 'Generation failed';
+      const msg = message || error || 'Generation failed';
       showError(`Resource generation failed: ${msg}`);
     },
   });

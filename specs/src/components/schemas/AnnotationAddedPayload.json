@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "description": "Payload for mark:added domain event",
+  "properties": {
+    "annotation": { "$ref": "Annotation.json" },
+    "contentChecksum": { "type": "string", "description": "SHA-256 of resource content at annotation time" }
+  },
+  "required": ["annotation"]
+}
