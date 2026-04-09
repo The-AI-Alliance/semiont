@@ -52,6 +52,7 @@ export const defaultMockKnowledgeBaseSession: KnowledgeBaseSessionValue = {
   updateKnowledgeBase: vi.fn(),
   signIn: vi.fn(),
   signOut: vi.fn(),
+  refreshActive: vi.fn(async () => null),
   acknowledgeSessionExpired: vi.fn(),
   acknowledgePermissionDenied: vi.fn(),
 };

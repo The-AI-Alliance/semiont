@@ -9,7 +9,7 @@
  * Uses ky for HTTP requests with built-in retry, timeout, and error handling.
  */
 
-import ky, { type KyInstance } from 'ky';
+import ky, { HTTPError, type KyInstance } from 'ky';
 import type { paths } from '@semiont/core';
 import type {
   ResourceId,
@@ -56,6 +56,19 @@ export class APIError extends Error {
   }
 }
 
+/**
+ * Optional callback invoked when a request fails with HTTP 401. If it
+ * resolves to a non-null token, the failed request is retried once with
+ * the new Bearer token. If it resolves to null (or throws), the original
+ * 401 propagates as an APIError.
+ *
+ * Implementations must dedupe concurrent calls so that simultaneous 401s
+ * don't fire multiple parallel refresh requests. The frontend's
+ * KnowledgeBaseSessionProvider provides this via an in-flight Promise map
+ * keyed by KB id.
+ */
+export type TokenRefresher = () => Promise<string | null>;
+
 export interface SemiontApiClientConfig {
   baseUrl: BaseUrl;
   /** Per-workspace EventBus. Required — one bus per workspace, constructed externally. */
@@ -63,6 +76,8 @@ export interface SemiontApiClientConfig {
   timeout?: number;
   retry?: number;
   logger?: Logger;
+  /** Optional 401-recovery hook. See {@link TokenRefresher}. */
+  tokenRefresher?: TokenRefresher;
 }
 
 /**
@@ -111,7 +126,7 @@ export class SemiontApiClient {
   };
 
   constructor(config: SemiontApiClientConfig) {
-    const { baseUrl, eventBus, timeout = 30000, retry = 2, logger } = config;
+    const { baseUrl, eventBus, timeout = 30000, retry = 2, logger, tokenRefresher } = config;
 
     this.eventBus = eventBus;
 
@@ -121,10 +136,22 @@ export class SemiontApiClient {
     // Remove trailing slash for consistent URL construction
     this.baseUrl = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
 
+    // When a tokenRefresher is configured, expand ky's retry policy to also
+    // retry 401 once on POST/PATCH/etc. The beforeRetry hook below decides
+    // whether to actually proceed with the retry (only on 401 and only if
+    // the refresher returns a fresh token).
+    const retryConfig = tokenRefresher
+      ? {
+          limit: typeof retry === 'number' ? Math.max(retry, 1) : 1,
+          methods: ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'],
+          statusCodes: [401, 408, 413, 429, 500, 502, 503, 504],
+        }
+      : retry;
+
     // Don't use prefixUrl - we'll construct full URLs or use provided full URIs
     this.http = ky.create({
       timeout,
-      retry,
+      retry: retryConfig,
       credentials: 'include',
       hooks: {
         beforeRequest: [
@@ -141,6 +168,24 @@ export class SemiontApiClient {
             }
           },
         ],
+        beforeRetry: tokenRefresher
+          ? [
+              async ({ request, error }) => {
+                // Only intercept 401s — let ky retry the rest with default behavior
+                if (!(error instanceof HTTPError) || error.response.status !== 401) {
+                  return undefined;
+                }
+                try {
+                  const newToken = await tokenRefresher();
+                  if (!newToken) return ky.stop;
+                  request.headers.set('Authorization', `Bearer ${newToken}`);
+                  return undefined;
+                } catch {
+                  return ky.stop;
+                }
+              },
+            ]
+          : [],
         afterResponse: [
           (request, _options, response) => {
             // Log HTTP response

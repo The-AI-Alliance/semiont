@@ -119,13 +119,15 @@ function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
   );
 }
 
-async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; label: string }> {
+async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; label: string }> {
   const origin = `${protocol}://${host}:${port}`;
   const client = new SemiontApiClient({ baseUrl: baseUrl(origin), eventBus: new EventBus() });
 
   const authResult = await client.authenticatePassword(makeEmail(emailStr), password);
   const token = (authResult as any).token ?? (authResult as any).accessToken;
-  if (!token) throw new Error('No token received');
+  const refreshToken = (authResult as any).refreshToken;
+  if (!token) throw new Error('No access token received');
+  if (!refreshToken) throw new Error('No refresh token received');
 
   let label = `${host}:${port}`;
   try {
@@ -133,7 +135,7 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
     if ((status as any).projectName) label = (status as any).projectName;
   } catch { /* use default label */ }
 
-  return { token, label };
+  return { token, refreshToken, label };
 }
 
 export function KnowledgeBasePanel() {
@@ -180,8 +182,8 @@ export function KnowledgeBasePanel() {
     const existing = knowledgeBases.find(kb => kb.host === host && kb.port === port);
     if (existing) {
       try {
-        const { token } = await authenticateWithBackend(host, port, protocol, email, password);
-        signIn(existing.id, token);
+        const { token, refreshToken } = await authenticateWithBackend(host, port, protocol, email, password);
+        signIn(existing.id, token, refreshToken);
         setShowAddForm(false);
       } catch (err) {
         setAddError(err instanceof Error ? err.message : String(err));
@@ -191,8 +193,8 @@ export function KnowledgeBasePanel() {
       return;
     }
     try {
-      const { token, label } = await authenticateWithBackend(host, port, protocol, email, password);
-      addKnowledgeBase({ label, host, port, protocol, email }, token);
+      const { token, refreshToken, label } = await authenticateWithBackend(host, port, protocol, email, password);
+      addKnowledgeBase({ label, host, port, protocol, email }, token, refreshToken);
       setShowAddForm(false);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
@@ -207,9 +209,9 @@ export function KnowledgeBasePanel() {
     setReauthError(null);
     setReauthSubmitting(true);
     try {
-      const { token, label } = await authenticateWithBackend(kb.host, kb.port, kb.protocol, kb.email, password);
+      const { token, refreshToken, label } = await authenticateWithBackend(kb.host, kb.port, kb.protocol, kb.email, password);
       updateKnowledgeBase(kbId, { label });
-      signIn(kbId, token);
+      signIn(kbId, token, refreshToken);
       setReauthKbId(null);
     } catch (err) {
       setReauthError(err instanceof Error ? err.message : String(err));

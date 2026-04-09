@@ -12,6 +12,7 @@
  */
 
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   KnowledgeBaseSessionProvider,
   ProtectedErrorBoundary,
@@ -20,9 +21,12 @@ import {
 } from '@semiont/react-ui';
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
   return (
     <KnowledgeBaseSessionProvider>
-      <ProtectedErrorBoundary>
+      {/* Reset the boundary on navigation so a render crash on one page
+          recovers automatically when the user navigates away. */}
+      <ProtectedErrorBoundary resetKeys={[location.pathname]}>
         <SessionExpiredModal />
         <PermissionDeniedModal />
         {children}

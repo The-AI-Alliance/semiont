@@ -122,7 +122,7 @@ function KnowledgeLayoutBody() {
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const openResourcesManager = useOpenResourcesManager();
   const cacheManager = useCacheManager();
-  const { token: authToken, isLoading, activeKnowledgeBase } = useKnowledgeBaseSession();
+  const { token: authToken, isLoading, activeKnowledgeBase, refreshActive } = useKnowledgeBaseSession();
 
   if (isLoading) {
     return (
@@ -143,7 +143,7 @@ function KnowledgeLayoutBody() {
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)}>
+      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
         <CacheProvider cacheManager={cacheManager}>
           <OpenResourcesProvider openResourcesManager={openResourcesManager}>
             <ResourceAnnotationsProvider>
