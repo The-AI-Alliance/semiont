@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
 import { useKnowledgeBaseContext, kbBackendUrl, getKbSessionStatus } from '@/contexts/KnowledgeBaseContext';
 import { StreamStatusContext } from '@/contexts/StreamStatusContext';
+import { AuthShell } from '@/contexts/AuthShell';
 
 function GlobalEventsConnector() {
   useStoreTokenSync();
@@ -102,7 +103,7 @@ function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function KnowledgeLayout() {
+function KnowledgeLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const openResourcesManager = useOpenResourcesManager();
@@ -160,5 +161,13 @@ export default function KnowledgeLayout() {
         </CacheProvider>
       </ApiClientProvider>
     </AuthTokenProvider>
+  );
+}
+
+export default function KnowledgeLayout() {
+  return (
+    <AuthShell>
+      <KnowledgeLayoutBody />
+    </AuthShell>
   );
 }

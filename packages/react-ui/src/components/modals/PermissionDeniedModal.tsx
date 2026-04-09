@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useRouter } from '@/i18n/routing';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { AUTH_EVENTS, onAuthEvent, type AuthEventDetail } from '@semiont/react-ui';
+'use client';
 
+import { useState, useEffect } from 'react';
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
+import { AUTH_EVENTS, onAuthEvent, type AuthEventDetail } from '../../lib/auth-events';
+
+/**
+ * Modal that surfaces when a 403 forbidden event is dispatched.
+ * Listens for the `auth:forbidden` event.
+ *
+ * Should be mounted inside the auth shell — i.e., the part of the tree where
+ * authentication is required.
+ */
 export function PermissionDeniedModal() {
   const [showModal, setShowModal] = useState(false);
   const [deniedAction, setDeniedAction] = useState<string>('');
-  const router = useRouter();
-  const { session } = useAuthContext();
 
   useEffect(() => {
     // Listen for 403 forbidden events
@@ -22,12 +27,12 @@ export function PermissionDeniedModal() {
 
   const handleGoBack = () => {
     setShowModal(false);
-    router.back();
+    window.history.back();
   };
 
   const handleGoHome = () => {
     setShowModal(false);
-    router.push('/');
+    window.location.href = '/';
   };
 
   const handleSwitchAccount = () => {
@@ -106,17 +111,6 @@ export function PermissionDeniedModal() {
                     <li>Your account type doesn't include this feature</li>
                   </ul>
                 </div>
-
-                {/* Current user */}
-                {session?.user?.email && (
-                  <p style={{
-                    fontSize: 'var(--semiont-text-xs, 0.75rem)',
-                    color: 'var(--semiont-text-tertiary)',
-                    marginBottom: '1rem',
-                  }}>
-                    Currently signed in as: <span style={{ fontWeight: 500 }}>{session.user.email}</span>
-                  </p>
-                )}
 
                 {/* Actions */}
                 <div className="semiont-modal__actions">

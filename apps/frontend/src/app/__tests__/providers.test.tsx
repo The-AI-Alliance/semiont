@@ -94,16 +94,17 @@ describe('Providers', () => {
     expect(screen.getByText('Test Content')).toBeInTheDocument();
   });
 
-  it('should wrap children with AuthProvider', () => {
+  it('should render children (auth-independent providers only)', () => {
     const TestChild = () => <div data-testid="test-child">Test Content</div>;
-    
+
     render(
       <Providers>
         <TestChild />
       </Providers>
     );
-    
-    expect(screen.getByTestId('auth-provider')).toBeInTheDocument();
+
+    // After the AuthShell extraction, root Providers no longer mounts AuthProvider.
+    // Auth-dependent providers are mounted in protected layouts via AuthShell.
     expect(screen.getByTestId('test-child')).toBeInTheDocument();
   });
 
@@ -205,19 +206,19 @@ describe('Providers', () => {
       // This would fail if providers are not properly nested
       return <div data-testid="nested-child">Nested Content</div>;
     };
-    
+
     render(
       <Providers>
         <TestChild />
       </Providers>
     );
-    
-    const sessionProvider = screen.getByTestId('auth-provider');
+
     const queryProvider = screen.getByTestId('query-client-provider');
     const child = screen.getByTestId('nested-child');
-    
-    // Verify nesting structure exists
-    expect(sessionProvider).toBeInTheDocument();
+
+    // Verify root provider hierarchy renders children.
+    // AuthProvider is no longer in root Providers — it's mounted in AuthShell
+    // inside protected layouts.
     expect(queryProvider).toBeInTheDocument();
     expect(child).toBeInTheDocument();
   });

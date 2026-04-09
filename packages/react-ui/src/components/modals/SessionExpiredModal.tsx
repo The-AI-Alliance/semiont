@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useSessionContext } from '@semiont/react-ui';
-import { AUTH_EVENTS, onAuthEvent } from '@semiont/react-ui';
+'use client';
 
+import { useState, useEffect } from 'react';
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
+import { useSessionContext } from '../../contexts/SessionContext';
+import { AUTH_EVENTS, onAuthEvent } from '../../lib/auth-events';
+
+/**
+ * Modal that surfaces when the user's session expires or a 401 is dispatched.
+ * Listens for the `auth:unauthorized` event AND for transitions in `useSessionContext`.
+ *
+ * Should be mounted inside the auth shell — i.e., the part of the tree where
+ * authentication is required. Mounting it on pre-app routes (landing page, OAuth flow)
+ * causes confusing flashes.
+ */
 export function SessionExpiredModal() {
   const { isAuthenticated } = useSessionContext();
   const [wasAuthenticated, setWasAuthenticated] = useState(isAuthenticated);

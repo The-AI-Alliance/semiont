@@ -448,31 +448,55 @@ Component mounts
 
 ## Provider Hierarchy
 
-The app is wrapped in multiple providers in this order (outer to inner):
+The provider tree has two distinct layers:
+
+1. **Root providers** mounted in `[locale]/layout.tsx` — auth-independent. Available on every page including the landing page, the OAuth flow, and static pages.
+2. **Auth shell** mounted only in protected layouts (`know/`, `admin/`, `moderate/`) and around `<WelcomePage />` in the route tree. Bundles authentication, the active KB, and the auth-failure modals. Pre-app routes intentionally do not mount the auth shell — surfacing a "session expired" modal on the landing page would be confusing because the user has not yet entered the app.
+
+### Root layer (always present)
 
 ```tsx
-<AuthContextProvider>                 // JWT session state (reads from backend cookie)
-  <AuthErrorBoundary>                 // Catch auth errors
-    <QueryClientProvider>             // React Query state
-      <SessionProvider>               // @semiont/react-ui - Session management
-        <ApiClientProvider>           // @semiont/react-ui - API client injection
-          <TranslationProvider>       // @semiont/react-ui - i18n (i18next)
-            <CacheProvider>           // @semiont/react-ui - Cache invalidation
-              <AnnotationProvider>    // @semiont/react-ui - Annotation mutations
-                <AnnotationUIProvider>  // @semiont/react-ui - UI state (sparkles)
-                  <OpenResourcesProvider>  // @semiont/react-ui - Routing
-                    <ToastProvider>   // App-specific - Toast notifications
-                      <LiveRegionProvider>  // App-specific - Screen reader
-                        <KeyboardShortcutsProvider>  // App-specific - Keyboard
-                          {children}  // App content
+// apps/frontend/src/app/providers.tsx
+<TranslationProvider>          // @semiont/react-ui — i18n
+  <QueryClientProvider>        // React Query (with auth-event dispatching in onError)
+    <ToastProvider>            // @semiont/react-ui — toast notifications
+      <LiveRegionProvider>     // @semiont/react-ui — screen reader announcements
+        <KeyboardShortcutsProvider>  // app-specific
+          <ThemeProvider>      // @semiont/react-ui — theme
+            <EventBusProvider> // @semiont/react-ui — RxJS event bus
+              <NavigationHandler />
+              {children}        // landing, about, privacy, terms, /auth/connect, /auth/error, /auth/signup, or any of the AuthShell-wrapped subtrees below
 ```
 
-**Why This Order:**
-1. AuthContextProvider must be outermost (provides auth to all)
-2. AuthErrorBoundary catches auth failures
-3. QueryClientProvider needed for all data fetching
-4. Provider Pattern providers (Session, ApiClient, Translation, Cache, Annotation, etc.) from `@semiont/react-ui`
-5. App-specific utilities (Toast, LiveRegion, KeyboardShortcuts)
+### Auth shell (mounted in protected layouts only)
+
+```tsx
+// apps/frontend/src/contexts/AuthShell.tsx
+<KnowledgeBaseProvider>           // which KB is active (from localStorage)
+  <KnowledgeBaseAuthBridge>       // re-keys AuthProvider on activeKnowledgeBase.id
+    <AuthProvider>                // validates JWT against the active KB on mount
+      <AuthErrorBoundary>         // catches errors thrown by the auth chain
+        <SessionProvider>         // @semiont/react-ui — fed by useSessionManager → useAuth
+          <SessionExpiredModal /> // @semiont/react-ui — surfaces 401s
+          <PermissionDeniedModal /> // @semiont/react-ui — surfaces 403s
+          {children}              // protected layout body
+```
+
+### Where the auth shell mounts
+
+| Route            | Mounted in                                          |
+|------------------|-----------------------------------------------------|
+| `/know/*`        | `apps/frontend/src/app/[locale]/know/layout.tsx`    |
+| `/admin/*`       | `apps/frontend/src/app/[locale]/admin/layout.tsx`   |
+| `/moderate/*`    | `apps/frontend/src/app/[locale]/moderate/layout.tsx`|
+| `/auth/welcome`  | `apps/frontend/src/App.tsx` (route element)         |
+
+### Why the split
+
+- **Pre-app surfaces** (landing page, OAuth flow, static pages) do not need to validate JWTs and should not surface auth-failure modals.
+- **Protected layouts** validate the active KB's JWT on mount via `getMe`. A 401 from that call dispatches `auth:unauthorized`, which `SessionExpiredModal` (mounted in the same shell) catches and surfaces.
+- **`AuthProvider` re-keys on `activeKnowledgeBase.id`** so switching KBs forces a fresh validation against the new backend.
+- **Protected layouts mount their own `ApiClientProvider`** pointing at the active KB's backend URL — they need the auth context to resolve that URL.
 
 See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for details on the Provider Pattern architecture.
 

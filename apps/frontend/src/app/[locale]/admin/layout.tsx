@@ -9,8 +9,9 @@ import { Link, routes } from '@/lib/routing';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
 import { useKnowledgeBaseContext, kbBackendUrl } from '@/contexts/KnowledgeBaseContext';
+import { AuthShell } from '@/contexts/AuthShell';
 
-export default function AdminLayout() {
+function AdminLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { isAuthenticated, isAdmin, isModerator, token: authToken } = useAuth();
@@ -63,5 +64,13 @@ export default function AdminLayout() {
         </div>
       </ApiClientProvider>
     </AuthTokenProvider>
+  );
+}
+
+export default function AdminLayout() {
+  return (
+    <AuthShell>
+      <AdminLayoutBody />
+    </AuthShell>
   );
 }
