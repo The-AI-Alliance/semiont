@@ -175,7 +175,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     // Verify failure event was emitted
     await waitFor(() => {
       expect(failedListener).toHaveBeenCalledWith({
-        error: expect.any(Error),
+        message: expect.any(String),
       });
     });
   });

@@ -161,7 +161,7 @@ describe('Bind Flow - Body Update Integration', () => {
     subscription.unsubscribe();
 
     expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
-      error: expect.any(Error),
+      message: expect.any(String),
     });
   });
 
