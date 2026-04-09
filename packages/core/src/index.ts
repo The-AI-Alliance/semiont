@@ -86,22 +86,12 @@ export type {
   ResourceAnnotations,
 } from './event-base';
 
-// Event catalog (domain event types, union, type guards)
+// Event catalog (domain event types, union)
 export type {
   EventOfType,
   ResourceEvent,
   ResourceEventType,
-  SystemEvent,
-  ResourceScopedEvent,
   EventInput,
-  DomainEventKey,
-} from './event-catalog';
-export {
-  DOMAIN_EVENT_KEYS,
-  isResourceEvent,
-  isSystemEvent,
-  isResourceScopedEvent,
-  getEventType,
 } from './event-catalog';
 
 // Bus protocol (unified EventMap — all channels on the EventBus)
