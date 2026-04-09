@@ -263,6 +263,21 @@ describe('UserPanel Component', () => {
       expect(mockRouterPush).toHaveBeenCalledWith('/');
     });
 
+    it('should still call apiClient.logout and navigate when no KB is active', async () => {
+      // Defensive branch: if Sign Out is somehow clicked while activeKnowledgeBase
+      // is null, the handler must NOT call signOut(...) (no id to pass) but
+      // must still log out the API client and navigate home.
+      mockUseKbSession.mockReturnValue(withDefaults({ activeKnowledgeBase: null }));
+
+      render(<UserPanel />);
+      const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
+      await userEvent.click(signOutButton);
+
+      expect(mockLogout).toHaveBeenCalled();
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(mockRouterPush).toHaveBeenCalledWith('/');
+    });
+
     it('should still navigate even if signOut is rapidly clicked', async () => {
       render(<UserPanel />);
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });

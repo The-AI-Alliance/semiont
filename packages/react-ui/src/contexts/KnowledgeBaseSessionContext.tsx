@@ -370,10 +370,13 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
 
   const signIn = useCallback((id: string, token: string) => {
     setKbTokenInStorage(id, token);
-    // If signing into the active KB, the validation effect won't re-run because
-    // the activeKnowledgeBase reference hasn't changed. Bump the KB list to
-    // force a fresh activeKnowledgeBase memo and re-trigger validation.
-    setKnowledgeBases(prev => [...prev]);
+    // The validation effect re-runs when `activeKnowledgeBase`'s reference
+    // changes. If we sign into the currently-active KB, just bumping the
+    // array is not enough — `find()` would return the same KB object and
+    // the memo's output reference would be unchanged. Replace the matching
+    // KB with a fresh object so `find()` yields a new reference and the
+    // validation effect fires.
+    setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb } : kb));
     setActiveKnowledgeBaseId(id);
   }, []);
 
