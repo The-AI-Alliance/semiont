@@ -1,9 +1,14 @@
-import React, { useTransition, useEffect, useCallback } from 'react';
+import React, { useTransition, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
+import {
+  SettingsPanel,
+  ResizeHandle,
+  usePanelWidth,
+  useEventSubscriptions,
+  useKnowledgeBaseSession,
+} from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
@@ -57,8 +62,7 @@ export function ToolbarPanels({
   children
 }: ToolbarPanelsProps) {
   const { t: _t } = useTranslation();
-  const { session } = useAuthContext();
-  const isAuthenticated = !!session;
+  const { isAuthenticated } = useKnowledgeBaseSession();
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();

@@ -207,21 +207,33 @@ const translations = createMockTranslationManager({
 renderWithProviders(<Toolbar />, { translationManager: translations });
 ```
 
-### createMockSessionManager
+### createMockKnowledgeBaseSession
 
-Creates a session manager with custom state:
+Creates a `KnowledgeBaseSessionContext` value with custom overrides. Tests pass it via `knowledgeBaseSession` to `renderWithProviders`:
 
 ```tsx
-import { createMockSessionManager } from '@semiont/react-ui/test-utils';
+import { createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 
-const session = createMockSessionManager({
+const session = createMockKnowledgeBaseSession({
   isAuthenticated: true,
+  isAdmin: true,
+  displayName: 'Alice',
   expiresAt: new Date(Date.now() + 300000), // 5 minutes
-  timeUntilExpiry: 300000,
-  isExpiringSoon: true
 });
 
-renderWithProviders(<SessionBanner />, { sessionManager: session });
+renderWithProviders(<UserBadge />, { knowledgeBaseSession: session });
+```
+
+For modal tests, set the modal-driving flags directly:
+
+```tsx
+const session = createMockKnowledgeBaseSession({
+  sessionExpiredAt: Date.now(),
+  sessionExpiredMessage: 'Token expired at 5pm',
+  acknowledgeSessionExpired: vi.fn(),
+});
+
+renderWithProviders(<SessionExpiredModal />, { knowledgeBaseSession: session });
 ```
 
 ### createMockOpenResourcesManager
@@ -258,11 +270,17 @@ When you don't provide custom values, `renderWithProviders` uses these defaults:
     client: null // Unauthenticated by default
   },
 
-  sessionManager: {
+  knowledgeBaseSession: {
+    // Defaults from defaultMockKnowledgeBaseSession — all auth flags false,
+    // empty KB list, no active KB, no session, no modal flags raised.
     isAuthenticated: false,
-    expiresAt: null,
-    timeUntilExpiry: null,
-    isExpiringSoon: false
+    isAdmin: false,
+    isModerator: false,
+    activeKnowledgeBase: null,
+    session: null,
+    sessionExpiredAt: null,
+    permissionDeniedAt: null,
+    // ...mutations are vi.fn() stubs
   },
 
   openResourcesManager: {
@@ -372,31 +390,27 @@ it('should render with namespace.key format', () => {
 ## Testing Session State
 
 ```tsx
-import { renderWithProviders, createMockSessionManager } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 
 describe('SessionExpiryBanner', () => {
   it('should show warning when expiring soon', () => {
-    const session = createMockSessionManager({
+    const session = createMockKnowledgeBaseSession({
       isAuthenticated: true,
       expiresAt: new Date(Date.now() + 60000), // 1 minute
-      timeUntilExpiry: 60000,
-      isExpiringSoon: true
     });
 
-    renderWithProviders(<SessionExpiryBanner />, { sessionManager: session });
+    renderWithProviders(<SessionExpiryBanner />, { knowledgeBaseSession: session });
 
     expect(screen.getByText(/expiring soon/i)).toBeInTheDocument();
   });
 
   it('should not show when not expiring soon', () => {
-    const session = createMockSessionManager({
+    const session = createMockKnowledgeBaseSession({
       isAuthenticated: true,
       expiresAt: new Date(Date.now() + 3600000), // 1 hour
-      timeUntilExpiry: 3600000,
-      isExpiringSoon: false
     });
 
-    renderWithProviders(<SessionExpiryBanner />, { sessionManager: session });
+    renderWithProviders(<SessionExpiryBanner />, { knowledgeBaseSession: session });
 
     expect(screen.queryByText(/expiring soon/i)).not.toBeInTheDocument();
   });

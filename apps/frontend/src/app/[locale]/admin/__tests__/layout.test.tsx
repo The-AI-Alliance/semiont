@@ -4,24 +4,6 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import AdminLayout from '../layout';
 
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    isAuthenticated: true,
-    isAdmin: true,
-    isModerator: false,
-    token: 'mock-token',
-    session: null,
-    user: null,
-    backendUser: null,
-    isLoading: false,
-    hasValidBackendToken: true,
-    isFullyAuthenticated: true,
-    userDomain: 'example.com',
-    displayName: 'Admin User',
-    avatarUrl: null,
-  }),
-}));
-
 vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
   KeyboardShortcutsContext: React.createContext(null),
 }));
@@ -32,10 +14,24 @@ vi.mock('@/lib/routing', () => ({
   routes: {},
 }));
 
+const TEST_KB = { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'admin@example.com' };
+
 vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui');
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
+    useKnowledgeBaseSession: () => ({
+      knowledgeBases: [TEST_KB],
+      activeKnowledgeBase: TEST_KB,
+      isAuthenticated: true,
+      isAdmin: true,
+      isModerator: false,
+      isFullyAuthenticated: true,
+      hasValidBackendToken: true,
+      token: 'mock-token',
+      isLoading: false,
+    }),
+    kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     EventBusProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     LeftSidebar: ({ children }: { children: React.ReactNode | Function }) => (
@@ -55,25 +51,6 @@ vi.mock('@/components/admin/AdminNavigation', () => ({
 
 vi.mock('@/lib/env', () => ({
   SEMIONT_SITE_NAME: 'Test Site',
-}));
-
-vi.mock('@/contexts/KnowledgeBaseContext', () => ({
-  KnowledgeBaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useKnowledgeBaseContext: () => ({
-    activeKnowledgeBase: { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
-    knowledgeBases: [],
-    activeKnowledgeBaseId: 'test',
-    addKnowledgeBase: vi.fn(),
-    removeKnowledgeBase: vi.fn(),
-    setActiveKnowledgeBase: vi.fn(),
-    updateKnowledgeBase: vi.fn(),
-    signOut: vi.fn(),
-  }),
-  kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-  getKbToken: () => 'test-token',
-  clearKbToken: vi.fn(),
-  isTokenExpired: () => false,
-  getKbSessionStatus: () => 'authenticated',
 }));
 
 vi.mock('@/contexts/AuthShell', () => ({

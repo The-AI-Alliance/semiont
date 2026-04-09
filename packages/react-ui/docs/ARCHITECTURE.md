@@ -318,12 +318,12 @@ packages/react-ui/
 │   ├── types/              # TypeScript interfaces
 │   │   ├── ApiClientManager.ts
 │   │   ├── TranslationManager.ts
-│   │   ├── SessionManager.ts
+│   │   ├── knowledge-base.ts
 │   │   └── ...
 │   ├── contexts/           # React Context providers
 │   │   ├── ApiClientContext.tsx
 │   │   ├── TranslationContext.tsx
-│   │   ├── SessionContext.tsx
+│   │   ├── KnowledgeBaseSessionContext.tsx
 │   │   └── __tests__/     # Context tests
 │   ├── features/          # Feature-based components
 │   │   ├── auth/          # Authentication components
@@ -427,7 +427,7 @@ const { data } = useResources().list.useQuery();
 Use React Context for cross-cutting concerns:
 
 ```tsx
-const { isAuthenticated } = useSessionContext();
+const { isAuthenticated } = useKnowledgeBaseSession();
 const t = useTranslations('Common');
 ```
 
@@ -464,16 +464,21 @@ if (error instanceof APIError) {
 ### Global Error Handlers
 
 ```tsx
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
       if (error instanceof APIError) {
-        dispatch401Error('Session expired');
+        if (error.status === 401) notifySessionExpired('Session expired');
+        if (error.status === 403) notifyPermissionDenied('Access denied');
       }
     }
   })
 });
 ```
+
+`notifySessionExpired` and `notifyPermissionDenied` are module-scoped functions that the active `KnowledgeBaseSessionProvider` registers itself with on mount. When no provider is mounted (e.g. on the landing page), the calls are no-ops.
 
 ### Error Boundaries
 

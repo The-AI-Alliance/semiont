@@ -12,8 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocale } from '@/i18n/routing';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken } from '@semiont/react-ui';
+import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken, useKnowledgeBaseSession } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
 import { usePanelBrowse } from '@semiont/react-ui';
@@ -35,7 +34,7 @@ function ComposeResourceContent() {
   const locale = useLocale();
   const router = useRouter();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, isLoading: authLoading, token: authToken } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, token: authToken } = useKnowledgeBaseSession();
   const { showError, showSuccess } = useToast();
   const mode = searchParams?.get('mode');
   const tokenFromUrl = searchParams?.get('token');

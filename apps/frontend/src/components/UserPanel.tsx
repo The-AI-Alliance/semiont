@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { sanitizeImageURL, useSessionExpiry, formatTime, useApiClient } from '@semiont/react-ui';
-import { useAuth } from '@/hooks/useAuth';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
+import {
+  sanitizeImageURL,
+  useSessionExpiry,
+  formatTime,
+  useApiClient,
+  useKnowledgeBaseSession,
+} from '@semiont/react-ui';
 import { useRouter } from '@/i18n/routing';
 
 // Fallback avatar when image fails to load or is invalid
@@ -12,9 +15,15 @@ const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdod
 export function UserPanel() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`UserPanel.${k}`, p as any) as string;
-  const { displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
-  const { clearSession } = useAuthContext();
-  const { activeKnowledgeBase } = useKnowledgeBaseContext();
+  const {
+    displayName,
+    avatarUrl,
+    userDomain,
+    isAdmin,
+    isModerator,
+    activeKnowledgeBase,
+    signOut,
+  } = useKnowledgeBaseSession();
   const apiClient = useApiClient();
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
@@ -42,7 +51,9 @@ export function UserPanel() {
     } catch {
       // best-effort — cookie already cleared server-side
     }
-    clearSession();
+    if (activeKnowledgeBase) {
+      signOut(activeKnowledgeBase.id);
+    }
     router.push('/');
   };
 

@@ -181,10 +181,10 @@ export default function Dashboard() {
 ```typescript
 // src/components/DashboardContent.tsx
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useKnowledgeBaseSession } from "@semiont/react-ui";
 
 export function DashboardContent() {
-  const { isFullyAuthenticated } = useAuth();
+  const { isFullyAuthenticated } = useKnowledgeBaseSession();
   const { data, isLoading, error } = api.dashboard.getData.useQuery();
 
   if (!isFullyAuthenticated) {
@@ -235,7 +235,7 @@ export const api = {
         return useQuery({
           queryKey: ['dashboard.data'],
           queryFn: () => apiService.dashboard.getData(),
-          enabled: !!useAuth().isFullyAuthenticated,
+          enabled: !!useKnowledgeBaseSession().isFullyAuthenticated,
         });
       }
     }
@@ -344,7 +344,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 // src/components/ProtectedRoute.tsx
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useKnowledgeBaseSession } from "@semiont/react-ui";
 import { useRouter } from "@/i18n/routing";
 import { useEffect } from "react";
 
@@ -357,7 +357,7 @@ export function ProtectedRoute({
   children,
   requireFullAuth = false
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isFullyAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isFullyAuthenticated, isLoading } = useKnowledgeBaseSession();
   const router = useRouter();
 
   useEffect(() => {

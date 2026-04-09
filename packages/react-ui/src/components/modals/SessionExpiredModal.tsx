@@ -1,53 +1,39 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useSessionContext } from '../../contexts/SessionContext';
-import { AUTH_EVENTS, onAuthEvent } from '../../lib/auth-events';
+import { useKnowledgeBaseSession } from '../../contexts/KnowledgeBaseSessionContext';
 
 /**
- * Modal that surfaces when the user's session expires or a 401 is dispatched.
- * Listens for the `auth:unauthorized` event AND for transitions in `useSessionContext`.
+ * Modal that surfaces when the active KB's session expires (a 401 from
+ * either the provider's own JWT validation or from any React Query call
+ * via the QueryCache.onError handler).
  *
- * Should be mounted inside the auth shell — i.e., the part of the tree where
- * authentication is required. Mounting it on pre-app routes (landing page, OAuth flow)
- * causes confusing flashes.
+ * Reads `sessionExpiredAt` from KnowledgeBaseSessionContext. When the user
+ * dismisses the modal, the provider clears the flag.
+ *
+ * Must be mounted inside KnowledgeBaseSessionProvider.
  */
 export function SessionExpiredModal() {
-  const { isAuthenticated } = useSessionContext();
-  const [wasAuthenticated, setWasAuthenticated] = useState(isAuthenticated);
-  const [showModal, setShowModal] = useState(false);
-
-  useEffect(() => {
-    // Detect when session expires (transition from authenticated to not authenticated)
-    if (wasAuthenticated && !isAuthenticated) {
-      setShowModal(true);
-    }
-    setWasAuthenticated(isAuthenticated);
-  }, [isAuthenticated, wasAuthenticated]);
-
-  useEffect(() => {
-    // Listen for 401 unauthorized events
-    const cleanup = onAuthEvent(AUTH_EVENTS.UNAUTHORIZED, () => {
-      setShowModal(true);
-    });
-
-    return cleanup;
-  }, []);
+  const {
+    sessionExpiredAt,
+    sessionExpiredMessage,
+    acknowledgeSessionExpired,
+  } = useKnowledgeBaseSession();
+  const showModal = sessionExpiredAt !== null;
 
   const handleSignIn = () => {
+    acknowledgeSessionExpired();
     window.location.href = `/auth/connect?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
   };
 
   const handleClose = () => {
-    setShowModal(false);
+    acknowledgeSessionExpired();
     window.location.href = '/';
   };
 
   return (
     <Transition appear show={showModal}>
       <Dialog as="div" className="semiont-modal" onClose={handleClose}>
-        {/* Backdrop */}
         <TransitionChild
           enter="ease-out duration-200"
           enterFrom="opacity-0"
@@ -59,7 +45,6 @@ export function SessionExpiredModal() {
           <div className="semiont-modal__backdrop" />
         </TransitionChild>
 
-        {/* Modal */}
         <div className="semiont-modal__container">
           <div className="semiont-modal__wrapper">
             <TransitionChild
@@ -71,7 +56,6 @@ export function SessionExpiredModal() {
               leaveTo="opacity-0 scale-95"
             >
               <DialogPanel className="semiont-modal__panel semiont-modal__panel--medium">
-                {/* Icon */}
                 <div className="semiont-modal__icon-wrapper">
                   <div className="semiont-modal__icon" style={{
                     background: 'linear-gradient(to bottom right, var(--semiont-color-red-100, #fee2e2), var(--semiont-color-red-300, #fca5a5))',
@@ -82,17 +66,15 @@ export function SessionExpiredModal() {
                   </div>
                 </div>
 
-                {/* Content */}
                 <div className="semiont-modal__content">
                   <DialogTitle className="semiont-modal__title semiont-modal__title--centered">
                     Session Expired
                   </DialogTitle>
                   <p className="semiont-modal__description">
-                    Your session has expired for security reasons. Please sign in again to continue working.
+                    {sessionExpiredMessage ?? 'Your session has expired for security reasons. Please sign in again to continue working.'}
                   </p>
                 </div>
 
-                {/* Actions */}
                 <div className="semiont-modal__actions">
                   <button
                     type="button"

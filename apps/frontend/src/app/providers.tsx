@@ -6,8 +6,8 @@ import {
   TranslationProvider,
   ThemeProvider,
   EventBusProvider,
-  dispatch401Error,
-  dispatch403Error,
+  notifySessionExpired,
+  notifyPermissionDenied,
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
@@ -17,6 +17,11 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
 /**
  * Create a minimal QueryClient with error handlers and retry logic.
  * Authentication is handled by @semiont/api-client via lib/api-hooks.
+ *
+ * 401/403 errors route through module-scoped notify functions registered by
+ * the active KnowledgeBaseSessionProvider (mounted inside the protected
+ * AuthShell). On pre-app routes where no provider is mounted, the calls are
+ * no-ops.
  */
 function createQueryClient() {
   return new QueryClient({
@@ -24,9 +29,9 @@ function createQueryClient() {
       onError: (error) => {
         if (error instanceof APIError) {
           if (error.status === 401) {
-            dispatch401Error('Your session has expired. Please sign in again.');
+            notifySessionExpired('Your session has expired. Please sign in again.');
           } else if (error.status === 403) {
-            dispatch403Error('You do not have permission to access this resource.');
+            notifyPermissionDenied('You do not have permission to access this resource.');
           }
         }
       },
@@ -35,9 +40,9 @@ function createQueryClient() {
       onError: (error) => {
         if (error instanceof APIError) {
           if (error.status === 401) {
-            dispatch401Error('Your session has expired. Please sign in again.');
+            notifySessionExpired('Your session has expired. Please sign in again.');
           } else if (error.status === 403) {
-            dispatch403Error('You do not have permission to perform this action.');
+            notifyPermissionDenied('You do not have permission to perform this action.');
           }
         }
       },
@@ -72,11 +77,11 @@ function createQueryClient() {
  *
  * Wires up GLOBAL contexts that every page needs — auth-independent.
  *
- * Auth-dependent providers (KnowledgeBaseProvider, AuthProvider, SessionProvider,
- * AuthErrorBoundary, SessionExpiredModal, PermissionDeniedModal) are bundled in
- * `AuthShell` and mounted only in protected layouts (know/, admin/, moderate/,
- * auth/welcome/). Pre-app routes (landing, OAuth flow) intentionally do NOT
- * mount AuthShell — they have no need to validate JWTs.
+ * Auth-dependent providers (KnowledgeBaseSessionProvider, ProtectedErrorBoundary,
+ * SessionExpiredModal, PermissionDeniedModal) are bundled in `AuthShell` and
+ * mounted only in protected layouts (know/, admin/, moderate/, auth/welcome/).
+ * Pre-app routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
+ * they have no need to validate JWTs.
  *
  * ApiClientProvider is added in feature-specific layouts (e.g. /know) that
  * require API access. Public pages don't need it.

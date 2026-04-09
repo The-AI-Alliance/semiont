@@ -14,13 +14,12 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions, useKnowledgeBaseSession } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
-import { useAuth } from '@/hooks/useAuth';
 
 // Wrapper component that provides auth props to StatusDisplay
 function StatusDisplayWithAuth() {
-  const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useAuth();
+  const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useKnowledgeBaseSession();
   return (
     <StatusDisplay
       isFullyAuthenticated={isFullyAuthenticated}

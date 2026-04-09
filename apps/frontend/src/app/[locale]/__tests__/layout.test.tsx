@@ -34,15 +34,15 @@ vi.mock('@semiont/react-ui', async () => {
 });
 
 import LocaleLayout from '../layout';
-import { useAuthContext } from '@/contexts/AuthContext';
+import { useKnowledgeBaseSession } from '@semiont/react-ui';
 
 /**
- * A child component that calls useAuthContext. If LocaleLayout has not
- * mounted AuthShell (the desired behavior), this throws — proving the
- * boundary holds.
+ * A child component that calls useKnowledgeBaseSession. If LocaleLayout
+ * has not mounted AuthShell (the desired behavior), this throws — proving
+ * the boundary holds.
  */
 function AuthContextProbe() {
-  useAuthContext();
+  useKnowledgeBaseSession();
   return <div data-testid="probe">probe</div>;
 }
 
@@ -63,13 +63,13 @@ describe('LocaleLayout — provider boundary', () => {
     vi.clearAllMocks();
   });
 
-  it('does NOT mount AuthProvider — useAuthContext throws when called outside AuthShell', () => {
+  it('does NOT mount AuthShell — useKnowledgeBaseSession throws when called outside it', () => {
     // React logs the thrown error to console.error before re-raising;
     // suppress it for clean test output.
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => {
       renderLocaleLayoutWithChild(<AuthContextProbe />);
-    }).toThrow(/useAuthContext requires AuthShell/);
+    }).toThrow(/useKnowledgeBaseSession requires KnowledgeBaseSessionProvider/);
     consoleError.mockRestore();
   });
 

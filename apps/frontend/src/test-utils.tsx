@@ -1,8 +1,10 @@
 /**
  * Frontend-specific test utilities
  *
- * Provides renderWithProviders that wraps components with ALL necessary providers
- * for testing, including react-ui providers and the JWT auth context.
+ * Provides renderWithProviders that wraps components with the providers a
+ * frontend test typically needs. The KnowledgeBaseSession context is mocked
+ * via the library context provider so tests can supply a fake session value
+ * without going through localStorage / JWT validation.
  */
 
 import React, { ReactElement } from 'react';
@@ -11,20 +13,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   TranslationProvider,
   ApiClientProvider,
-  SessionProvider as ReactUiSessionProvider,
   OpenResourcesProvider,
   ToastProvider,
+  KnowledgeBaseSessionContext,
 } from '@semiont/react-ui';
 import {
   defaultMocks,
+  defaultMockKnowledgeBaseSession,
+  createMockKnowledgeBaseSession,
   TestProvidersOptions,
   createMockTranslationManager,
-  createMockSessionManager,
   createMockOpenResourcesManager,
 } from '@semiont/react-ui/test-utils';
 import type {
   TranslationManager,
-  SessionManager,
   OpenResourcesManager,
 } from '@semiont/react-ui';
 
@@ -45,7 +47,7 @@ export function renderWithProviders(
   const {
     translationManager = defaultMocks.translationManager,
     apiBaseUrl = 'http://localhost:4000',
-    sessionManager = defaultMocks.sessionManager,
+    knowledgeBaseSession = defaultMockKnowledgeBaseSession,
     openResourcesManager = defaultMocks.openResourcesManager,
     queryClient: providedQueryClient,
     ...renderOptions
@@ -62,7 +64,7 @@ export function renderWithProviders(
     return (
       <TranslationProvider translationManager={translationManager}>
         <ApiClientProvider baseUrl={apiBaseUrl}>
-          <ReactUiSessionProvider sessionManager={sessionManager}>
+          <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <QueryClientProvider client={testQueryClient}>
                 <ToastProvider>
@@ -70,7 +72,7 @@ export function renderWithProviders(
                 </ToastProvider>
               </QueryClientProvider>
             </OpenResourcesProvider>
-          </ReactUiSessionProvider>
+          </KnowledgeBaseSessionContext.Provider>
         </ApiClientProvider>
       </TranslationProvider>
     );
@@ -84,13 +86,13 @@ export * from '@testing-library/react';
 export { vi } from 'vitest';
 export {
   defaultMocks,
+  defaultMockKnowledgeBaseSession,
+  createMockKnowledgeBaseSession,
   createMockTranslationManager,
-  createMockSessionManager,
   createMockOpenResourcesManager,
 };
 export type {
   TestProvidersOptions,
   TranslationManager,
-  SessionManager,
   OpenResourcesManager,
 };

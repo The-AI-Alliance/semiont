@@ -2,16 +2,30 @@ import { useContext } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, Toolbar, useGlobalEvents, useAttentionStream, useStoreTokenSync, usePanelBrowse, useTheme, useLineNumbers } from '@semiont/react-ui';
+import {
+  Footer,
+  ResourceAnnotationsProvider,
+  OpenResourcesProvider,
+  CacheProvider,
+  ApiClientProvider,
+  AuthTokenProvider,
+  Toolbar,
+  useGlobalEvents,
+  useAttentionStream,
+  useStoreTokenSync,
+  usePanelBrowse,
+  useTheme,
+  useLineNumbers,
+  useKnowledgeBaseSession,
+  kbBackendUrl,
+  getKbSessionStatus,
+} from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
-import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from '@/i18n/routing';
-import { useKnowledgeBaseContext, kbBackendUrl, getKbSessionStatus } from '@/contexts/KnowledgeBaseContext';
 import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 import { AuthShell } from '@/contexts/AuthShell';
 
@@ -28,7 +42,7 @@ function GlobalEventsConnector() {
 function DiscoverEmptyState() {
   const { t: _t } = useTranslation();
   const t = (k: string) => _t(`DiscoverEmptyState.${k}`) as string;
-  const { knowledgeBases, activeKnowledgeBase } = useKnowledgeBaseContext();
+  const { knowledgeBases, activeKnowledgeBase } = useKnowledgeBaseSession();
   const status = activeKnowledgeBase
     ? getKbSessionStatus(activeKnowledgeBase.id)
     : null;
@@ -108,9 +122,7 @@ function KnowledgeLayoutBody() {
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const openResourcesManager = useOpenResourcesManager();
   const cacheManager = useCacheManager();
-  const { token: authToken, isLoading } = useAuth();
-  const router = useRouter();
-  const { activeKnowledgeBase } = useKnowledgeBaseContext();
+  const { token: authToken, isLoading, activeKnowledgeBase } = useKnowledgeBaseSession();
 
   if (isLoading) {
     return (

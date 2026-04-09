@@ -1,22 +1,21 @@
 /**
  * SessionExpiredModal Tests
  *
- * Tests the modal that surfaces when:
- * - The user transitions from authenticated → not authenticated (via SessionContext)
- * - An `auth:unauthorized` event is dispatched on the window
- *
- * The modal is hidden by default and only renders content when triggered.
+ * The modal renders content when `sessionExpiredAt` is non-null on the
+ * KnowledgeBaseSession context, and is hidden otherwise. Button clicks
+ * call `acknowledgeSessionExpired()` and navigate the window.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
-import { act, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders, createMockSessionManager } from '../../../test-utils';
+import {
+  renderWithProviders,
+  createMockKnowledgeBaseSession,
+} from '../../../test-utils';
 import { SessionExpiredModal } from '../SessionExpiredModal';
-import { dispatch401Error } from '../../../lib/auth-events';
 
-// Mock HeadlessUI to avoid jsdom issues with portals/transitions
 vi.mock('@headlessui/react', () => ({
   Dialog: ({ children, ...props }: any) => <div role="dialog" {...props}>{typeof children === 'function' ? children({ open: true }) : children}</div>,
   DialogPanel: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -25,7 +24,6 @@ vi.mock('@headlessui/react', () => ({
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
 
-// Mock window.location for navigation assertions
 const originalLocation = window.location;
 let mockLocation: { href: string; pathname: string };
 
@@ -48,30 +46,22 @@ afterEach(() => {
 
 describe('SessionExpiredModal', () => {
   describe('initial render', () => {
-    it('does not render modal content when authenticated and no event fired', () => {
+    it('does not render modal content when sessionExpiredAt is null', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        sessionManager: createMockSessionManager({ isAuthenticated: true }),
+        knowledgeBaseSession: createMockKnowledgeBaseSession({
+          sessionExpiredAt: null,
+        }),
       });
-      expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
-    });
-
-    it('does not render modal content when initially unauthenticated', () => {
-      renderWithProviders(<SessionExpiredModal />, {
-        sessionManager: createMockSessionManager({ isAuthenticated: false }),
-      });
-      // No transition occurred, no event fired → modal stays hidden
       expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
     });
   });
 
-  describe('on auth:unauthorized event', () => {
-    it('shows modal when dispatch401Error is called', () => {
+  describe('when sessionExpiredAt is set', () => {
+    it('renders the modal with default message', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        sessionManager: createMockSessionManager({ isAuthenticated: true }),
-      });
-
-      act(() => {
-        dispatch401Error('Token expired');
+        knowledgeBaseSession: createMockKnowledgeBaseSession({
+          sessionExpiredAt: Date.now(),
+        }),
       });
 
       expect(screen.getByText('Session Expired')).toBeInTheDocument();
@@ -79,46 +69,46 @@ describe('SessionExpiredModal', () => {
       expect(screen.getByRole('button', { name: /go to home/i })).toBeInTheDocument();
     });
 
-    it('shows modal regardless of session state when 401 fires', () => {
+    it('renders the custom message from sessionExpiredMessage', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        sessionManager: createMockSessionManager({ isAuthenticated: false }),
+        knowledgeBaseSession: createMockKnowledgeBaseSession({
+          sessionExpiredAt: Date.now(),
+          sessionExpiredMessage: 'Your token expired at 5pm',
+        }),
       });
-
-      act(() => {
-        dispatch401Error();
-      });
-
-      expect(screen.getByText('Session Expired')).toBeInTheDocument();
+      expect(screen.getByText(/your token expired at 5pm/i)).toBeInTheDocument();
     });
   });
 
   describe('button actions', () => {
-    it('navigates to /auth/connect with current path on Sign In Again', () => {
+    it('calls acknowledgeSessionExpired and navigates to /auth/connect on Sign In Again', () => {
+      const ack = vi.fn();
       mockLocation.pathname = '/know/discover';
       renderWithProviders(<SessionExpiredModal />, {
-        sessionManager: createMockSessionManager({ isAuthenticated: true }),
-      });
-
-      act(() => {
-        dispatch401Error();
+        knowledgeBaseSession: createMockKnowledgeBaseSession({
+          sessionExpiredAt: Date.now(),
+          acknowledgeSessionExpired: ack,
+        }),
       });
 
       fireEvent.click(screen.getByRole('button', { name: /sign in again/i }));
 
+      expect(ack).toHaveBeenCalled();
       expect(mockLocation.href).toBe('/auth/connect?callbackUrl=%2Fknow%2Fdiscover');
     });
 
-    it('navigates to / on Go to Home', () => {
+    it('calls acknowledgeSessionExpired and navigates to / on Go to Home', () => {
+      const ack = vi.fn();
       renderWithProviders(<SessionExpiredModal />, {
-        sessionManager: createMockSessionManager({ isAuthenticated: true }),
-      });
-
-      act(() => {
-        dispatch401Error();
+        knowledgeBaseSession: createMockKnowledgeBaseSession({
+          sessionExpiredAt: Date.now(),
+          acknowledgeSessionExpired: ack,
+        }),
       });
 
       fireEvent.click(screen.getByRole('button', { name: /go to home/i }));
 
+      expect(ack).toHaveBeenCalled();
       expect(mockLocation.href).toBe('/');
     });
   });

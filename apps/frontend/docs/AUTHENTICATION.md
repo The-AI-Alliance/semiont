@@ -2,111 +2,149 @@
 
 ## Overview
 
-Authentication in Semiont is owned entirely by the backend. The frontend has no auth server, no NextAuth, and no session encryption. The architecture emphasizes:
+A user is always authenticated **against a specific Knowledge Base (KB)** — never globally. Switching KBs means switching sessions atomically. The frontend stores one JWT per KB in `localStorage` and validates it on mount/switch via `GET /api/auth/me` against that KB's backend.
 
-- **No global mutable state** - All authentication state managed through React hooks
-- **Cookie-based auth** - Backend sets an httpOnly JWT cookie; browser sends it automatically
-- **Fail-fast philosophy** - Missing authentication redirects to sign-in immediately
-- **React Query integration** - All API calls use authenticated React Query hooks
+There is no NextAuth, no httpOnly cookie, no global session. State is owned by one merged provider that lives in `@semiont/react-ui` and is mounted only inside the protected layout boundary.
 
 ## Core Components
 
-### 1. AuthContext (`src/contexts/AuthContext.tsx`)
+### 1. KnowledgeBaseSessionProvider (`@semiont/react-ui`)
 
-Fetches session state from `GET /api/auth/me` on mount and exposes it via context:
+The single source of truth for "which KB is active and what is the user's session against it." Owns:
 
-```typescript
-interface AuthContextValue {
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  displayName: string | null;
-  avatarUrl: string | null;
-  userDomain: string | null;
-  isAdmin: boolean;
-  isModerator: boolean;
-  token: string | null;
-  clearSession: () => void;
-}
-```
+- The list of configured KBs (persisted to `localStorage` under `semiont.knowledgeBases`)
+- The active KB id (persisted to `localStorage` under `semiont.activeKnowledgeBaseId`)
+- Per-KB JWTs (`localStorage` under `semiont.token.<kbId>`)
+- The validated session (`{ token, user }`) for the active KB
+- Modal-driving flags (`sessionExpiredAt`, `permissionDeniedAt`)
+- JWT expiry derivations for the session-timer UI
 
-### 2. useAuth() Hook
+Mount it inside `AuthShell`, never at the locale layout level. Mounting it on pre-app routes (landing, OAuth flow) triggers spurious JWT validation and modal flashes.
 
-Primary authentication hook — use this everywhere:
+### 2. useKnowledgeBaseSession() Hook
+
+The only hook anything needs to read or mutate session state:
 
 ```typescript
-const { isAuthenticated, isAdmin, token, displayName } = useAuth();
+import { useKnowledgeBaseSession } from '@semiont/react-ui';
+
+const {
+  // KB list
+  knowledgeBases,
+  activeKnowledgeBase,
+  // session state
+  session,
+  isLoading,
+  // derived auth fields (memoized off session.user)
+  user,
+  token,
+  isAuthenticated,
+  isAdmin,
+  isModerator,
+  displayName,
+  // mutations
+  addKnowledgeBase,
+  signIn,
+  signOut,
+  setActiveKnowledgeBase,
+  // modal acks
+  acknowledgeSessionExpired,
+  acknowledgePermissionDenied,
+} = useKnowledgeBaseSession();
 ```
 
-### 3. API Client
+The hook **throws** when called outside `KnowledgeBaseSessionProvider` (i.e. outside `AuthShell`). There is no fallback. Auth misuse must fail loudly.
 
-All API calls go through `@semiont/api-client`. The browser includes the httpOnly JWT cookie automatically on same-origin requests — no manual token header management needed.
+### 3. AuthShell (`apps/frontend/src/contexts/AuthShell.tsx`)
 
-```typescript
-const apiClient = useApiClient();
-const data = await apiClient.getDocument(id);
+A thin frontend composition that mounts the library provider, the protected error boundary, and the two auth-failure modals. Wrap any layout that hosts authenticated routes with `<AuthShell>`. Today that's `know/`, `admin/`, `moderate/`, and `auth/welcome/`.
+
+```tsx
+<KnowledgeBaseSessionProvider>
+  <ProtectedErrorBoundary>
+    <SessionExpiredModal />
+    <PermissionDeniedModal />
+    {children}
+  </ProtectedErrorBoundary>
+</KnowledgeBaseSessionProvider>
 ```
 
-### 4. React Query Integration
+### 4. KnowledgeBasePanel (frontend)
 
-All API calls use React Query hooks that internally use the api client:
-
-```typescript
-const { data, isLoading, error } = useDocuments();
-```
+User-facing UI for adding/switching/signing-out-of KBs. Calls `addKnowledgeBase(input, token)` (atomic — stores token + adds to list + sets active in one step) and `signIn(id, token)` for re-auth on existing KBs. Never writes to localStorage directly.
 
 ## Authentication Flow
 
 ```
-1. User submits credentials (email/password or OAuth)
-   └── POST /api/auth/signin → backend validates
-       └── Backend sets httpOnly JWT cookie
-           └── Browser stores cookie automatically
+1. User adds a KB via KnowledgeBasePanel
+   └── Frontend POSTs credentials directly to that KB's backend
+       └── Backend returns a JWT
+           └── KnowledgeBasePanel calls addKnowledgeBase({...kb}, token)
+               └── Provider stores token, adds KB to list, sets it active
 
-2. Subsequent requests
-   └── Browser sends cookie automatically (same-origin)
-       └── Backend validates JWT on every request
-           └── 401 response → frontend redirects to sign-in
+2. Page mount / KB switch
+   └── KnowledgeBaseSessionProvider's effect fires
+       └── Reads stored token for the active KB
+           └── If present and not expired by `exp`, calls getMe(token)
+               ├── 200 → setSession({ token, user })
+               └── 401 → clearKbToken + setSessionExpiredAt(Date.now())
+                          └── SessionExpiredModal reads context, surfaces
 
-3. Sign out
-   └── POST /api/auth/signout → backend clears cookie
-       └── AuthContext.clearSession() clears local state
+3. Out-of-band 401/403 from any React Query call
+   └── QueryCache.onError → notifySessionExpired() / notifyPermissionDenied()
+       └── Module-scoped function calls into the active provider
+           └── Provider sets the modal flag, modal surfaces
+
+4. Sign out
+   └── UserPanel calls apiClient.logout() then signOut(activeKb.id)
+       └── Provider clears stored token + in-memory session
            └── Router redirects to home
 ```
 
 ## Route Protection
 
-Protected layouts check authentication and redirect if not authenticated:
+Protected layouts wrap their body in `<AuthShell>`, then check session state inside the body:
 
 ```typescript
-// In KnowledgeLayout, AdminLayout, ModerateLayout
-const { token, isLoading } = useAuth();
-const router = useRouter();
+function KnowledgeLayoutBody() {
+  const { token, isLoading, activeKnowledgeBase } = useKnowledgeBaseSession();
+  if (isLoading) return <LoadingSpinner />;
+  if (!activeKnowledgeBase || !token) return <UnauthenticatedKnowledgeLayout />;
+  return <AuthenticatedKnowledgeLayout />;
+}
 
-if (isLoading) return <LoadingSpinner />;
-if (!token) {
-  router.push(`/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
-  return null;
+export default function KnowledgeLayout() {
+  return <AuthShell><KnowledgeLayoutBody /></AuthShell>;
 }
 ```
 
 ## OAuth Flow
 
-OAuth is handled entirely by the backend:
+OAuth providers can be configured per KB on the backend. The flow:
 
-1. Frontend links to `GET /api/auth/oauth/google` (backend redirects to Google)
-2. Google redirects to `GET /api/auth/oauth/google/callback` (backend endpoint)
-3. Backend validates, issues JWT, sets httpOnly cookie, redirects to frontend
-4. Frontend's `AuthContext` picks up the new session on next render
+1. User picks a KB and chooses an OAuth provider in the connect form
+2. Browser is redirected to the backend's OAuth endpoint for that KB
+3. Backend handles the OAuth dance, issues a JWT, redirects back with the token
+4. Frontend stores the token in `localStorage` keyed to the KB id and switches the active KB
 
-## Environment Variables
+## Cross-tree session signaling
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SEMIONT_BACKEND_URL` | Yes | Backend API URL |
-| `SEMIONT_SITE_NAME` | No | Site name (default: "Semiont") |
-| `SEMIONT_GOOGLE_CLIENT_ID` | No | Google OAuth client ID (for sign-in button display) |
-| `SEMIONT_OAUTH_ALLOWED_DOMAINS` | No | Comma-separated allowed email domains |
-| `SEMIONT_ENABLE_LOCAL_AUTH` | No | Enable email/password sign-in (default: false) |
+Code outside the React tree (most importantly the React Query `QueryCache.onError` and `MutationCache.onError` handlers in `app/providers.tsx`) cannot call hooks. It signals the active provider via module-scoped notify functions exported from `@semiont/react-ui`:
+
+```typescript
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+
+new QueryCache({
+  onError: (error) => {
+    if (error instanceof APIError) {
+      if (error.status === 401) notifySessionExpired('Your session has expired.');
+      if (error.status === 403) notifyPermissionDenied('Access denied.');
+    }
+  },
+});
+```
+
+When no `KnowledgeBaseSessionProvider` is mounted (e.g. on the landing page), these calls are no-ops.
 
 ## Related Documentation
 

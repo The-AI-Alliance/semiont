@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import type { KnowledgeBase } from '@/contexts/KnowledgeBaseContext';
+import type { KnowledgeBase } from '@semiont/react-ui';
 
 const translations: Record<string, string> = {
   'KnowledgeBasePanel.title': 'Knowledge Bases',
@@ -36,6 +36,7 @@ const mockSetActiveKnowledgeBase = vi.fn();
 const mockAddKnowledgeBase = vi.fn();
 const mockRemoveKnowledgeBase = vi.fn();
 const mockUpdateKnowledgeBase = vi.fn();
+const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
 
 const kb1: KnowledgeBase = { id: 'kb-1', label: 'Production', host: 'prod.example.com', port: 4000, protocol: 'https', email: 'admin@prod.com' };
@@ -44,20 +45,24 @@ const kb2: KnowledgeBase = { id: 'kb-2', label: 'Staging', host: 'staging.exampl
 let mockKnowledgeBases: KnowledgeBase[] = [kb1, kb2];
 let mockActiveKnowledgeBase: KnowledgeBase | null = kb1;
 
-vi.mock('@/contexts/KnowledgeBaseContext', () => ({
-  useKnowledgeBaseContext: () => ({
-    get knowledgeBases() { return mockKnowledgeBases; },
-    get activeKnowledgeBase() { return mockActiveKnowledgeBase; },
-    setActiveKnowledgeBase: mockSetActiveKnowledgeBase,
-    addKnowledgeBase: mockAddKnowledgeBase,
-    removeKnowledgeBase: mockRemoveKnowledgeBase,
-    updateKnowledgeBase: mockUpdateKnowledgeBase,
-    signOut: mockSignOut,
-  }),
-  defaultProtocol: (host: string) => host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https',
-  getKbSessionStatus: (id: string) => id === kb1.id ? 'authenticated' : 'signed-out',
-  setKbToken: vi.fn(),
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  return {
+    ...actual,
+    useKnowledgeBaseSession: () => ({
+      get knowledgeBases() { return mockKnowledgeBases; },
+      get activeKnowledgeBase() { return mockActiveKnowledgeBase; },
+      setActiveKnowledgeBase: mockSetActiveKnowledgeBase,
+      addKnowledgeBase: mockAddKnowledgeBase,
+      removeKnowledgeBase: mockRemoveKnowledgeBase,
+      updateKnowledgeBase: mockUpdateKnowledgeBase,
+      signIn: mockSignIn,
+      signOut: mockSignOut,
+    }),
+    defaultProtocol: (host: string) => host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https',
+    getKbSessionStatus: (id: string) => id === kb1.id ? 'authenticated' : 'signed-out',
+  };
+});
 
 vi.mock('@semiont/api-client', () => ({
   SemiontApiClient: vi.fn(),

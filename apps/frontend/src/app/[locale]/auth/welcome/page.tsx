@@ -6,19 +6,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useAuthContext } from '@/contexts/AuthContext';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useAuthApi } from '@semiont/react-ui';
+import { PageLayout, useToast, useAuthApi, useKnowledgeBaseSession } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
 
 export default function Welcome() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AuthWelcome.${k}`, p as any) as string;
-  const { isAuthenticated, isLoading, user } = useAuth();
-  const { clearSession } = useAuthContext();
+  const { isAuthenticated, isLoading, user, activeKnowledgeBase, signOut } = useKnowledgeBaseSession();
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
@@ -55,8 +52,10 @@ export default function Welcome() {
 
   const handleTermsAcceptance = async (accepted: boolean) => {
     if (!accepted) {
-      // User declined terms - clear session and redirect to home
-      clearSession();
+      // User declined terms - sign out of the active KB and redirect to home
+      if (activeKnowledgeBase) {
+        signOut(activeKnowledgeBase.id);
+      }
       router.push('/');
       return;
     }

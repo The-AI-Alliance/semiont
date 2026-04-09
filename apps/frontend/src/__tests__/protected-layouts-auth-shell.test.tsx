@@ -37,38 +37,6 @@ vi.mock('@/lib/routing', () => ({
   routes: {},
 }));
 
-// Mock the auth/KB hooks to return authenticated state so layouts render their body
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    isAuthenticated: true,
-    isAdmin: true,
-    isModerator: true,
-    isFullyAuthenticated: true,
-    hasValidBackendToken: true,
-    token: 'test-token',
-    isLoading: false,
-  }),
-}));
-
-vi.mock('@/contexts/KnowledgeBaseContext', () => ({
-  KnowledgeBaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useKnowledgeBaseContext: () => ({
-    knowledgeBases: [{ id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' }],
-    activeKnowledgeBaseId: 'kb-1',
-    activeKnowledgeBase: { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' },
-    addKnowledgeBase: vi.fn(),
-    removeKnowledgeBase: vi.fn(),
-    setActiveKnowledgeBase: vi.fn(),
-    updateKnowledgeBase: vi.fn(),
-    signOut: vi.fn(),
-  }),
-  kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-  getKbToken: () => 'test-token',
-  clearKbToken: vi.fn(),
-  isTokenExpired: () => false,
-  getKbSessionStatus: () => 'authenticated',
-}));
-
 // Mock heavy hooks/managers to avoid wiring real implementations
 vi.mock('@/hooks/useOpenResourcesManager', () => ({
   useOpenResourcesManager: () => ({
@@ -84,10 +52,25 @@ vi.mock('@/hooks/useCacheManager', () => ({
   useCacheManager: () => ({}),
 }));
 
+const TEST_KB = { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' };
+
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
+    useKnowledgeBaseSession: () => ({
+      knowledgeBases: [TEST_KB],
+      activeKnowledgeBase: TEST_KB,
+      isAuthenticated: true,
+      isAdmin: true,
+      isModerator: true,
+      isFullyAuthenticated: true,
+      hasValidBackendToken: true,
+      token: 'test-token',
+      isLoading: false,
+    }),
+    kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
+    getKbSessionStatus: () => 'authenticated',
     AuthTokenProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     CacheProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
