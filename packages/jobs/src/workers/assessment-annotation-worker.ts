@@ -69,7 +69,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
       userId: userId(job.metadata.userId),
       jobId: jobId(job.metadata.id),
       jobType: 'assessment-annotation',
-      result: { result },
+      result,
     });
   }
 
@@ -106,7 +106,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
         jobId: jobId(assJob.metadata.id),
         jobType: assJob.metadata.type,
         percentage: assJob.progress.percentage,
-        progress: { progress: assJob.progress },
+        progress: { stage: assJob.progress.stage, percentage: assJob.progress.percentage, message: assJob.progress.message || '' },
       });
       // Ephemeral progress for real-time UI updates
       const resourceBus = this.eventBus.scope(assJob.params.resourceId);

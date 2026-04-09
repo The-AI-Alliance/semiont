@@ -69,7 +69,7 @@ export class HighlightAnnotationWorker extends JobWorker {
       userId: userId(job.metadata.userId),
       jobId: jobId(job.metadata.id),
       jobType: 'highlight-annotation',
-      result: { result },
+      result,
     });
   }
 
@@ -106,7 +106,7 @@ export class HighlightAnnotationWorker extends JobWorker {
         jobId: jobId(hlJob.metadata.id),
         jobType: hlJob.metadata.type,
         percentage: hlJob.progress.percentage,
-        progress: { progress: hlJob.progress },
+        progress: { stage: hlJob.progress.stage, percentage: hlJob.progress.percentage, message: hlJob.progress.message || '' },
       });
       // Ephemeral progress for real-time UI updates
       const resourceBus = this.eventBus.scope(hlJob.params.resourceId);

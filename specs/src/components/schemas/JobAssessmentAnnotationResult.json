@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "description": "Result of a completed assessment-annotation job.",
+  "properties": {
+    "assessmentsFound": { "type": "integer" },
+    "assessmentsCreated": { "type": "integer" }
+  },
+  "required": ["assessmentsFound", "assessmentsCreated"]
+}

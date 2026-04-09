@@ -15,8 +15,7 @@
       "$ref": "./JobType.json"
     },
     "result": {
-      "type": "object",
-      "additionalProperties": true
+      "$ref": "./JobResult.json"
     }
   },
   "required": [

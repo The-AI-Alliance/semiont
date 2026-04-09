@@ -253,8 +253,8 @@ export class GenerationWorker extends JobWorker {
       jobId: jobId(job.metadata.id),
       jobType: 'generation',
       result: {
-        resultResourceId: result.resourceId,
-        annotationId: job.params.referenceId,
+        resourceId: result.resourceId as string,
+        resourceName: result.resourceName,
       },
     });
   }
@@ -317,8 +317,9 @@ export class GenerationWorker extends JobWorker {
         jobType: genJob.metadata.type,
         percentage: genJob.progress.percentage,
         progress: {
-          currentStep: genJob.progress.stage,
-          message: genJob.progress.message,
+          stage: genJob.progress.stage,
+          percentage: genJob.progress.percentage,
+          message: genJob.progress.message || '',
         },
       });
       resourceBus.get('yield:progress').next({

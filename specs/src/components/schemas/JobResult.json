@@ -1,0 +1,11 @@
+{
+  "description": "Discriminated union of all job result types.",
+  "oneOf": [
+    { "$ref": "./JobGenerationResult.json" },
+    { "$ref": "./JobReferenceAnnotationResult.json" },
+    { "$ref": "./JobHighlightAnnotationResult.json" },
+    { "$ref": "./JobAssessmentAnnotationResult.json" },
+    { "$ref": "./JobCommentAnnotationResult.json" },
+    { "$ref": "./JobTagAnnotationResult.json" }
+  ]
+}

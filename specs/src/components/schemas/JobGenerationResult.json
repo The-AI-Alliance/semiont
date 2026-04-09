@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "description": "Result of a completed generation job.",
+  "properties": {
+    "resourceId": { "type": "string", "description": "ID of the generated resource" },
+    "resourceName": { "type": "string", "description": "Name of the generated resource" }
+  },
+  "required": ["resourceId", "resourceName"]
+}

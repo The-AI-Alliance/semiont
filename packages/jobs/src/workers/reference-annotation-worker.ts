@@ -292,7 +292,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
       userId: userId(job.metadata.userId),
       jobId: jobId(job.metadata.id),
       jobType: 'reference-annotation',
-      result: { result },
+      result,
     });
   }
 
@@ -390,10 +390,16 @@ export class ReferenceAnnotationWorker extends JobWorker {
         jobType: detJob.metadata.type,
         percentage,
         progress: {
-          currentStep: detJob.progress.currentEntityType,
-          processedSteps: detJob.progress.processedEntityTypes,
-          totalSteps: detJob.progress.totalEntityTypes,
-          foundCount: detJob.progress.entitiesFound,
+          stage: 'scanning',
+          percentage,
+          message: detJob.progress.currentEntityType
+            ? `Processing ${detJob.progress.currentEntityType}`
+            : 'Processing...',
+          totalEntityTypes: detJob.progress.totalEntityTypes,
+          processedEntityTypes: detJob.progress.processedEntityTypes,
+          entitiesFound: detJob.progress.entitiesFound,
+          entitiesEmitted: detJob.progress.entitiesEmitted,
+          currentEntityType: detJob.progress.currentEntityType,
         },
       });
 
