@@ -2,25 +2,21 @@
  * Entity Types Bootstrap Tests
  *
  * Tests the entity types bootstrap service:
- * - Initial bootstrap (creates projection from DEFAULT_ENTITY_TYPES)
- * - Idempotency (skips if projection exists)
- * - Singleton flag (only runs once per process)
- * - Event emission (entitytype.added for each default type)
+ * - Initial bootstrap (emits mark:add-entity-type for all defaults)
+ * - Idempotency (reads __system__ event log, skips existing types)
+ * - Partial bootstrap (adds only missing types)
  * - System user ID usage
- * - Path resolution (absolute and relative)
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
+import { bootstrapEntityTypes } from '../../bootstrap/entity-types';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { type SemiontProject } from '@semiont/core/node';
-import { userId, EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
+import { userId, resourceId, EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
 import { createKnowledgeBase, type KnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
 import { getGraphDatabase } from '@semiont/graph';
-import { promises as fs } from 'fs';
-import { join } from 'path';
 import { createTestProject } from '../helpers/test-project';
 
 const mockLogger: Logger = {
@@ -40,8 +36,6 @@ describe('Entity Types Bootstrap', () => {
   let kb: KnowledgeBase;
 
   beforeEach(async () => {
-    resetBootstrap();
-
     ({ project, teardown } = await createTestProject('bootstrap'));
 
     eventBus = new EventBus();
@@ -59,27 +53,19 @@ describe('Entity Types Bootstrap', () => {
   });
 
   describe('initial bootstrap', () => {
-    it('should create entity types projection when it does not exist', async () => {
-      await bootstrapEntityTypes(eventBus, project);
+    it('should emit mark:entity-type-added for all DEFAULT_ENTITY_TYPES on fresh KB', async () => {
+      await bootstrapEntityTypes(eventBus, eventStore);
 
-      const projectionPath = join(project.stateDir, 'projections', '__system__', 'entitytypes.json');
-      const exists = await fs.access(projectionPath).then(() => true).catch(() => false);
-      expect(exists).toBe(true);
-    });
-
-    it('should emit entitytype.added events for all DEFAULT_ENTITY_TYPES', async () => {
-      await bootstrapEntityTypes(eventBus, project);
-
-      const systemEvents = await eventStore.log.getEvents('__system__' as any);
+      const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
 
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
 
     it('should use system user ID for bootstrap events', async () => {
-      await bootstrapEntityTypes(eventBus, project);
+      await bootstrapEntityTypes(eventBus, eventStore);
 
-      const systemEvents = await eventStore.log.getEvents('__system__' as any);
+      const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
 
       const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
@@ -88,151 +74,50 @@ describe('Entity Types Bootstrap', () => {
       });
     });
 
-    it('should emit events in correct order', async () => {
-      await bootstrapEntityTypes(eventBus, project);
+    it('should emit events in DEFAULT_ENTITY_TYPES order', async () => {
+      await bootstrapEntityTypes(eventBus, eventStore);
 
-      const systemEvents = await eventStore.log.getEvents('__system__' as any);
+      const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
 
-      const emittedTypes = addedEvents.map(e => {
-        if (e.type === 'mark:entity-type-added') {
-          return e.payload.entityType;
-        }
-        throw new Error('Unexpected event type');
-      });
+      const emittedTypes = addedEvents.map(e =>
+        e.type === 'mark:entity-type-added' ? e.payload.entityType : ''
+      );
       expect(emittedTypes).toEqual(DEFAULT_ENTITY_TYPES);
-    });
-
-    it('should create valid entitytype.added event payloads', async () => {
-      await bootstrapEntityTypes(eventBus, project);
-
-      const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
-
-      addedEvents.forEach(event => {
-        expect(event.type).toBe('mark:entity-type-added');
-        if (event.type === 'mark:entity-type-added') {
-          expect(event.payload).toHaveProperty('entityType');
-          expect(typeof event.payload.entityType).toBe('string');
-          expect(event.payload.entityType.length).toBeGreaterThan(0);
-        }
-      });
-    });
-
-    it('should populate projection file with all entity types', async () => {
-      await bootstrapEntityTypes(eventBus, project);
-
-      const projectionPath = join(project.stateDir, 'projections', '__system__', 'entitytypes.json');
-      const content = await fs.readFile(projectionPath, 'utf-8');
-      const projection = JSON.parse(content);
-
-      expect(projection.entityTypes).toEqual(DEFAULT_ENTITY_TYPES.sort());
     });
   });
 
   describe('idempotency', () => {
-    it('should skip bootstrap if projection already exists', async () => {
-      await bootstrapEntityTypes(eventBus, project);
+    it('should not emit duplicate events on second call', async () => {
+      await bootstrapEntityTypes(eventBus, eventStore);
+      await bootstrapEntityTypes(eventBus, eventStore);
 
-      resetBootstrap();
-
-      const eventsBefore = await eventStore.log.getEvents('__system__' as any);
-      const beforeCount = eventsBefore.length;
-
-      await bootstrapEntityTypes(eventBus, project);
-
-      const eventsAfter = await eventStore.log.getEvents('__system__' as any);
-      expect(eventsAfter.length).toBe(beforeCount);
-    });
-
-    it('should detect existing projection on filesystem', async () => {
-      const projectionPath = join(project.stateDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
-      await fs.writeFile(projectionPath, JSON.stringify({ entityTypes: ['Person'] }));
-
-      await bootstrapEntityTypes(eventBus, project);
-
-      const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      expect(systemEvents.length).toBe(0);
-    });
-
-    it('should only run once per process', async () => {
-      await bootstrapEntityTypes(eventBus, project);
-      await bootstrapEntityTypes(eventBus, project);
-
-      const systemEvents = await eventStore.log.getEvents('__system__' as any);
+      const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
+
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
-  });
 
-  describe('path resolution', () => {
-    it('should handle absolute filesystem paths', async () => {
-      await bootstrapEntityTypes(eventBus, project);
+    it('should only emit missing types when some already exist', async () => {
+      // Manually add a few entity types
+      const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
+      for (const tag of ['Person', 'Organization']) {
+        eventBus.get('mark:add-entity-type').next({ tag, userId: SYSTEM_USER_ID });
+        await new Promise(r => setTimeout(r, 50));
+      }
 
-      const projectionPath = join(project.stateDir, 'projections', '__system__', 'entitytypes.json');
-      const exists = await fs.access(projectionPath).then(() => true).catch(() => false);
-      expect(exists).toBe(true);
-    });
+      const eventsBefore = await eventStore.log.getEvents(resourceId('__system__'));
+      const beforeCount = eventsBefore.filter(e => e.type === 'mark:entity-type-added').length;
+      expect(beforeCount).toBe(2);
 
-    it('should handle different filesystem path configurations', async () => {
-      resetBootstrap();
+      await bootstrapEntityTypes(eventBus, eventStore);
 
-      const { project: altProject, teardown: altTeardown } = await createTestProject('bootstrap-alt');
+      const eventsAfter = await eventStore.log.getEvents(resourceId('__system__'));
+      const afterCount = eventsAfter.filter(e => e.type === 'mark:entity-type-added').length;
 
-      const altEventBus = new EventBus();
-      const altEventStore = createEventStore(altProject, altEventBus, mockLogger);
-      const altGraphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const altKb = await createKnowledgeBase(altEventStore, altProject, altGraphDb, altEventBus, mockLogger);
-      const altStower = new Stower(altKb, altEventBus, mockLogger);
-      await altStower.initialize();
-
-      await bootstrapEntityTypes(altEventBus, altProject);
-
-      const projectionPath = join(altProject.stateDir, 'projections', '__system__', 'entitytypes.json');
-      const exists = await fs.access(projectionPath).then(() => true).catch(() => false);
-
-      await altStower.stop();
-      altEventBus.destroy();
-      await altTeardown();
-
-      expect(exists).toBe(true);
-    });
-
-    it('should create projection directory if it does not exist', async () => {
-      const projectionDir = join(project.stateDir, 'projections', '__system__');
-      const existsBefore = await fs.access(projectionDir).then(() => true).catch(() => false);
-      expect(existsBefore).toBe(false);
-
-      await bootstrapEntityTypes(eventBus, project);
-
-      const existsAfter = await fs.access(projectionDir).then(() => true).catch(() => false);
-      expect(existsAfter).toBe(true);
-    });
-  });
-
-  describe('error handling', () => {
-    it('should propagate filesystem errors other than ENOENT', async () => {
-      await expect(
-        bootstrapEntityTypes(eventBus, project)
-      ).resolves.not.toThrow();
-    });
-  });
-
-  describe('resetBootstrap', () => {
-    it('should allow bootstrap to run again after reset', async () => {
-      await bootstrapEntityTypes(eventBus, project);
-
-      const projectionPath = join(project.stateDir, 'projections', '__system__', 'entitytypes.json');
-      await fs.unlink(projectionPath);
-
-      resetBootstrap();
-
-      await bootstrapEntityTypes(eventBus, project);
-
-      const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
-      expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length * 2);
+      expect(afterCount).toBe(DEFAULT_ENTITY_TYPES.length);
+      // Only the missing ones were added
+      expect(afterCount - beforeCount).toBe(DEFAULT_ENTITY_TYPES.length - 2);
     });
   });
 });

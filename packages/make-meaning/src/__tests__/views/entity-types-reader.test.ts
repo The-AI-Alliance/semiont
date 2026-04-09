@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readEntityTypesProjection } from '../../views/entity-types-reader';
-import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
+import { bootstrapEntityTypes } from '../../bootstrap/entity-types';
 import { createEventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { type SemiontProject } from '@semiont/core/node';
@@ -65,15 +65,14 @@ describe('Entity Types Projection Reader', () => {
     });
 
     it('should return all DEFAULT_ENTITY_TYPES after bootstrap', async () => {
-      resetBootstrap();
-
+      
       const eventBus = new EventBus();
       const eventStore = createEventStore(project, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
       const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
-      await bootstrapEntityTypes(eventBus, project);
+      await bootstrapEntityTypes(eventBus, eventStore);
       await stower.stop();
       eventBus.destroy();
 
@@ -163,8 +162,7 @@ describe('Entity Types Projection Reader', () => {
 
   describe('integration', () => {
     it('should read types after bootstrap process', async () => {
-      resetBootstrap();
-
+      
       const eventBus = new EventBus();
       const eventStore = createEventStore(project, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
@@ -175,7 +173,7 @@ describe('Entity Types Projection Reader', () => {
       const beforeBootstrap = await readEntityTypesProjection(project);
       expect(beforeBootstrap).toEqual([]);
 
-      await bootstrapEntityTypes(eventBus, project);
+      await bootstrapEntityTypes(eventBus, eventStore);
       await stower.stop();
       eventBus.destroy();
 
