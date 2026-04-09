@@ -36,10 +36,12 @@ import {
 // ---------- SemiontApiClient mock ----------
 
 const mockGetMe = vi.fn();
+const mockRefreshToken = vi.fn();
 vi.mock('@semiont/api-client', async () => {
   const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
   class MockSemiontApiClient {
     getMe = mockGetMe;
+    refreshToken = mockRefreshToken;
   }
   return {
     ...actual,
@@ -76,7 +78,11 @@ const KB_B = {
 function seedStorage(args: {
   knowledgeBases?: Array<typeof KB_A>;
   activeId?: string | null;
-  tokens?: Record<string, string>;
+  /**
+   * Per-KB tokens. Pass a string to default the refresh token to a fresh
+   * 30-day JWT, or pass an explicit `{ access, refresh }` pair.
+   */
+  tokens?: Record<string, string | { access: string; refresh: string }>;
 } = {}) {
   if (args.knowledgeBases !== undefined) {
     localStorage.setItem('semiont.knowledgeBases', JSON.stringify(args.knowledgeBases));
@@ -86,10 +92,33 @@ function seedStorage(args: {
     else localStorage.setItem('semiont.activeKnowledgeBaseId', args.activeId);
   }
   if (args.tokens) {
-    for (const [id, token] of Object.entries(args.tokens)) {
-      localStorage.setItem(`semiont.token.${id}`, token);
+    for (const [id, value] of Object.entries(args.tokens)) {
+      const session = typeof value === 'string'
+        ? { access: value, refresh: makeFakeJwt(30 * 24 * 3600) }
+        : value;
+      localStorage.setItem(`semiont.session.${id}`, JSON.stringify(session));
     }
   }
+}
+
+function getStoredAccess(kbId: string): string | null {
+  const raw = localStorage.getItem(`semiont.session.${kbId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.access === 'string') return parsed.access;
+  } catch { /* malformed */ }
+  return null;
+}
+
+function getStoredRefresh(kbId: string): string | null {
+  const raw = localStorage.getItem(`semiont.session.${kbId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.refresh === 'string') return parsed.refresh;
+  } catch { /* malformed */ }
+  return null;
 }
 
 interface ProbeApi {
@@ -119,6 +148,7 @@ function renderWithProvider(child: React.ReactElement = <></>) {
 beforeEach(() => {
   localStorage.clear();
   mockGetMe.mockReset();
+  mockRefreshToken.mockReset();
 });
 
 afterEach(() => {
@@ -230,7 +260,7 @@ describe('mount-time JWT validation', () => {
     await waitFor(() => expect(api.current?.sessionExpiredAt).not.toBeNull());
 
     expect(api.current!.session).toBeNull();
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).toBeNull();
+    expect(getStoredAccess(KB_A.id)).toBeNull();
   });
 
   it('does NOT clear the token on a non-401 error (5xx)', async () => {
@@ -249,7 +279,7 @@ describe('mount-time JWT validation', () => {
 
     expect(api.current!.session).toBeNull();
     expect(api.current!.sessionExpiredAt).toBeNull();
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).not.toBeNull();
+    expect(getStoredAccess(KB_A.id)).not.toBeNull();
   });
 
   it('treats a non-APIError throw as a non-401 error (does not raise the modal)', async () => {
@@ -266,7 +296,7 @@ describe('mount-time JWT validation', () => {
 
     expect(api.current!.session).toBeNull();
     expect(api.current!.sessionExpiredAt).toBeNull();
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).not.toBeNull();
+    expect(getStoredAccess(KB_A.id)).not.toBeNull();
   });
 });
 
@@ -297,7 +327,7 @@ describe('notifySessionExpired / notifyPermissionDenied', () => {
     expect(api.current!.sessionExpiredAt).not.toBeNull();
     expect(api.current!.sessionExpiredMessage).toBe('Token kicked from the bus');
     expect(api.current!.session).toBeNull();
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).toBeNull();
+    expect(getStoredAccess(KB_A.id)).toBeNull();
   });
 
   it('notifySessionExpired uses a default message when none is provided', async () => {
@@ -331,7 +361,7 @@ describe('notifySessionExpired / notifyPermissionDenied', () => {
     expect(api.current!.permissionDeniedMessage).toBe('Admin only');
     // Session is unaffected
     expect(api.current!.session).not.toBeNull();
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).not.toBeNull();
+    expect(getStoredAccess(KB_A.id)).not.toBeNull();
   });
 
   it('unregisters the notify handlers on unmount, becoming a no-op again', async () => {
@@ -429,12 +459,14 @@ describe('addKnowledgeBase', () => {
     const { api } = renderWithProvider();
     await waitFor(() => expect(api.current).not.toBeNull());
 
-    const newToken = makeFakeJwt();
+    const newAccess = makeFakeJwt();
+    const newRefresh = makeFakeJwt(30 * 24 * 3600);
     let returnedKb: ReturnType<NonNullable<typeof api.current>['addKnowledgeBase']> | undefined;
     act(() => {
       returnedKb = api.current!.addKnowledgeBase(
         { label: 'New KB', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
-        newToken
+        newAccess,
+        newRefresh,
       );
     });
 
@@ -443,7 +475,8 @@ describe('addKnowledgeBase', () => {
     expect(returnedKb!.id).toMatch(/.+/); // some non-empty string
     expect(api.current!.knowledgeBases).toHaveLength(1);
     expect(api.current!.activeKnowledgeBase?.id).toBe(returnedKb!.id);
-    expect(localStorage.getItem(`semiont.token.${returnedKb!.id}`)).toBe(newToken);
+    expect(getStoredAccess(returnedKb!.id)).toBe(newAccess);
+    expect(getStoredRefresh(returnedKb!.id)).toBe(newRefresh);
 
     // The provider should fire validation against the new KB
     await waitFor(() => expect(mockGetMe).toHaveBeenCalled());
@@ -467,12 +500,14 @@ describe('signIn', () => {
     // Second validation: a different user, to prove re-validation actually ran
     mockGetMe.mockResolvedValueOnce({ email: 'alice2@example.com', name: 'Alice2' });
 
-    const freshToken = makeFakeJwt();
+    const freshAccess = makeFakeJwt();
+    const freshRefresh = makeFakeJwt(30 * 24 * 3600);
     act(() => {
-      api.current!.signIn(KB_A.id, freshToken);
+      api.current!.signIn(KB_A.id, freshAccess, freshRefresh);
     });
 
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).toBe(freshToken);
+    expect(getStoredAccess(KB_A.id)).toBe(freshAccess);
+    expect(getStoredRefresh(KB_A.id)).toBe(freshRefresh);
     await waitFor(() => expect(mockGetMe).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(api.current?.session?.user.email).toBe('alice2@example.com'));
   });
@@ -490,13 +525,14 @@ describe('signIn', () => {
 
     mockGetMe.mockResolvedValueOnce({ email: 'bob@example.com' });
 
-    const bobToken = makeFakeJwt();
+    const bobAccess = makeFakeJwt();
+    const bobRefresh = makeFakeJwt(30 * 24 * 3600);
     act(() => {
-      api.current!.signIn(KB_B.id, bobToken);
+      api.current!.signIn(KB_B.id, bobAccess, bobRefresh);
     });
 
     expect(api.current!.activeKnowledgeBase?.id).toBe(KB_B.id);
-    expect(localStorage.getItem(`semiont.token.${KB_B.id}`)).toBe(bobToken);
+    expect(getStoredAccess(KB_B.id)).toBe(bobAccess);
     await waitFor(() => expect(api.current?.session?.user.email).toBe('bob@example.com'));
   });
 });
@@ -517,7 +553,7 @@ describe('signOut', () => {
       api.current!.signOut(KB_A.id);
     });
 
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).toBeNull();
+    expect(getStoredAccess(KB_A.id)).toBeNull();
     expect(api.current!.session).toBeNull();
     expect(api.current!.isAuthenticated).toBe(false);
   });
@@ -540,10 +576,10 @@ describe('signOut', () => {
       api.current!.signOut(KB_B.id);
     });
 
-    expect(localStorage.getItem(`semiont.token.${KB_B.id}`)).toBeNull();
+    expect(getStoredAccess(KB_B.id)).toBeNull();
     // Active KB session is unaffected
     expect(api.current!.session?.user.email).toBe('alice@example.com');
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).not.toBeNull();
+    expect(getStoredAccess(KB_A.id)).not.toBeNull();
   });
 });
 
@@ -571,7 +607,7 @@ describe('removeKnowledgeBase', () => {
     });
 
     expect(api.current!.knowledgeBases.map(k => k.id)).toEqual([KB_B.id]);
-    expect(localStorage.getItem(`semiont.token.${KB_A.id}`)).toBeNull();
+    expect(getStoredAccess(KB_A.id)).toBeNull();
     await waitFor(() => expect(api.current?.activeKnowledgeBase?.id).toBe(KB_B.id));
   });
 
@@ -764,5 +800,293 @@ describe('useKnowledgeBaseSession', () => {
     }
     expect(() => render(<Probe />)).toThrow(/useKnowledgeBaseSession requires KnowledgeBaseSessionProvider/);
     consoleErrorSpy.mockRestore();
+  });
+});
+
+// ---------- Refresh flow ----------
+
+describe('refresh flow', () => {
+  describe('mount-time refresh', () => {
+    it('refreshes on mount when the access token is past its exp', async () => {
+      const expiredAccess = makeFakeJwt(-100);
+      const validRefresh = makeFakeJwt(30 * 24 * 3600);
+      const newAccess = makeFakeJwt(3600);
+
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: { access: expiredAccess, refresh: validRefresh } },
+      });
+      mockRefreshToken.mockResolvedValueOnce({ access_token: newAccess });
+      mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+
+      // Refresh was called once
+      expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+      // getMe was called with the NEW token
+      expect(mockGetMe).toHaveBeenCalledTimes(1);
+      // Storage was updated to the new access token, refresh unchanged
+      expect(getStoredAccess(KB_A.id)).toBe(newAccess);
+      expect(getStoredRefresh(KB_A.id)).toBe(validRefresh);
+      // In-memory session token reflects the refreshed value
+      expect(api.current!.token).toBe(newAccess);
+    });
+
+    it('clears session and stays signed out if refresh fails on mount', async () => {
+      const expiredAccess = makeFakeJwt(-100);
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: { access: expiredAccess, refresh: makeFakeJwt(30 * 24 * 3600) } },
+      });
+      mockRefreshToken.mockRejectedValueOnce(new APIError('Invalid', 401, 'Unauthorized'));
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.isLoading).toBe(false));
+
+      expect(api.current!.session).toBeNull();
+      expect(getStoredAccess(KB_A.id)).toBeNull();
+      expect(mockGetMe).not.toHaveBeenCalled();
+    });
+
+    it('falls through to refresh when getMe returns 401, then re-validates', async () => {
+      const accessTokenStr = makeFakeJwt(3600);
+      const refreshTokenStr = makeFakeJwt(30 * 24 * 3600);
+      const newAccess = makeFakeJwt(3600);
+
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: { access: accessTokenStr, refresh: refreshTokenStr } },
+      });
+
+      // First getMe rejects with 401, refresh succeeds, second getMe succeeds
+      mockGetMe
+        .mockRejectedValueOnce(new APIError('Unauthorized', 401, 'Unauthorized'))
+        .mockResolvedValueOnce({ email: 'alice@example.com' });
+      mockRefreshToken.mockResolvedValueOnce({ access_token: newAccess });
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+
+      expect(mockGetMe).toHaveBeenCalledTimes(2);
+      expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+      expect(api.current!.token).toBe(newAccess);
+      // Modal flag NOT raised — recovery succeeded
+      expect(api.current!.sessionExpiredAt).toBeNull();
+    });
+  });
+
+  describe('refreshActive (the imperative API)', () => {
+    it('returns the new access token and updates session.token', async () => {
+      const accessTokenStr = makeFakeJwt(3600);
+      const refreshTokenStr = makeFakeJwt(30 * 24 * 3600);
+      const newAccess = makeFakeJwt(3600);
+
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: { access: accessTokenStr, refresh: refreshTokenStr } },
+      });
+      mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+      mockRefreshToken.mockResolvedValueOnce({ access_token: newAccess });
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+
+      let returned: string | null = null;
+      await act(async () => {
+        returned = await api.current!.refreshActive();
+      });
+
+      expect(returned).toBe(newAccess);
+      expect(api.current!.token).toBe(newAccess);
+      expect(getStoredAccess(KB_A.id)).toBe(newAccess);
+      expect(api.current!.session?.user.email).toBe('alice@example.com');
+    });
+
+    it('returns null and surfaces sessionExpiredAt when refresh fails', async () => {
+      const accessTokenStr = makeFakeJwt(3600);
+      const refreshTokenStr = makeFakeJwt(30 * 24 * 3600);
+
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: { access: accessTokenStr, refresh: refreshTokenStr } },
+      });
+      mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+      mockRefreshToken.mockRejectedValueOnce(new APIError('Invalid', 401, 'Unauthorized'));
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+
+      let returned: string | null = 'still-set';
+      await act(async () => {
+        returned = await api.current!.refreshActive();
+      });
+
+      expect(returned).toBeNull();
+      expect(api.current!.session).toBeNull();
+      expect(api.current!.sessionExpiredAt).not.toBeNull();
+      expect(getStoredAccess(KB_A.id)).toBeNull();
+    });
+
+    it('deduplicates concurrent refreshActive calls into a single network call', async () => {
+      const accessTokenStr = makeFakeJwt(3600);
+      const refreshTokenStr = makeFakeJwt(30 * 24 * 3600);
+      const newAccess = makeFakeJwt(3600);
+
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: { access: accessTokenStr, refresh: refreshTokenStr } },
+      });
+      mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+
+      // The first refresh is the only one that should hit the network.
+      // Make it slow so the second concurrent caller has to await it.
+      let resolveRefresh: (value: { access_token: string }) => void;
+      const refreshPromise = new Promise<{ access_token: string }>(resolve => {
+        resolveRefresh = resolve;
+      });
+      mockRefreshToken.mockReturnValueOnce(refreshPromise);
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+
+      // Fire two concurrent refreshes
+      let firstResult: string | null = null;
+      let secondResult: string | null = null;
+      await act(async () => {
+        const p1 = api.current!.refreshActive().then(v => { firstResult = v; });
+        const p2 = api.current!.refreshActive().then(v => { secondResult = v; });
+        // Resolve the network mock
+        resolveRefresh!({ access_token: newAccess });
+        await Promise.all([p1, p2]);
+      });
+
+      expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+      expect(firstResult).toBe(newAccess);
+      expect(secondResult).toBe(newAccess);
+    });
+  });
+
+  describe('proactive refresh', () => {
+    it('schedules and fires a refresh shortly before the access token expires', async () => {
+      vi.useFakeTimers();
+      try {
+        // Access token expires in 6 minutes — proactive refresh fires 5 min before exp = ~1 min from now
+        const expiresInSec = 6 * 60;
+        const accessTokenStr = makeFakeJwt(expiresInSec);
+        const refreshTokenStr = makeFakeJwt(30 * 24 * 3600);
+        const newAccess = makeFakeJwt(3600);
+
+        seedStorage({
+          knowledgeBases: [KB_A],
+          activeId: KB_A.id,
+          tokens: { [KB_A.id]: { access: accessTokenStr, refresh: refreshTokenStr } },
+        });
+        mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+        mockRefreshToken.mockResolvedValueOnce({ access_token: newAccess });
+
+        const { api } = renderWithProvider();
+        await vi.waitFor(() => expect(api.current?.session).not.toBeNull());
+
+        // No refresh has fired yet
+        expect(mockRefreshToken).not.toHaveBeenCalled();
+
+        // Advance past the proactive-refresh fire time (~1 minute)
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+        });
+
+        expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+        expect(api.current!.token).toBe(newAccess);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('cross-tab sync', () => {
+    it('updates the in-memory token when another tab refreshes the same KB', async () => {
+      const accessTokenStr = makeFakeJwt(3600);
+      const refreshTokenStr = makeFakeJwt(30 * 24 * 3600);
+      const newAccessFromOtherTab = makeFakeJwt(3600);
+
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: { access: accessTokenStr, refresh: refreshTokenStr } },
+      });
+      mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+
+      // Simulate another tab writing a new session for the same KB
+      act(() => {
+        const newValue = JSON.stringify({ access: newAccessFromOtherTab, refresh: refreshTokenStr });
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: `semiont.session.${KB_A.id}`,
+          newValue,
+          oldValue: null,
+        }));
+      });
+
+      expect(api.current!.token).toBe(newAccessFromOtherTab);
+      // User info is unchanged
+      expect(api.current!.session?.user.email).toBe('alice@example.com');
+    });
+
+    it('clears the session when another tab signs out', async () => {
+      seedStorage({
+        knowledgeBases: [KB_A],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: makeFakeJwt() },
+      });
+      mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+
+      // Simulate another tab clearing the storage entry
+      act(() => {
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: `semiont.session.${KB_A.id}`,
+          newValue: null,
+          oldValue: 'whatever',
+        }));
+      });
+
+      expect(api.current!.session).toBeNull();
+    });
+
+    it('ignores storage events for other KBs', async () => {
+      seedStorage({
+        knowledgeBases: [KB_A, KB_B],
+        activeId: KB_A.id,
+        tokens: { [KB_A.id]: makeFakeJwt() },
+      });
+      mockGetMe.mockResolvedValueOnce({ email: 'alice@example.com' });
+
+      const { api } = renderWithProvider();
+      await waitFor(() => expect(api.current?.session).not.toBeNull());
+      const tokenBefore = api.current!.token;
+
+      // Storage event for the OTHER KB — must not affect the active session
+      act(() => {
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: `semiont.session.${KB_B.id}`,
+          newValue: null,
+          oldValue: 'whatever',
+        }));
+      });
+
+      expect(api.current!.session).not.toBeNull();
+      expect(api.current!.token).toBe(tokenBefore);
+    });
   });
 });

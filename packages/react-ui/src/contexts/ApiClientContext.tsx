@@ -2,13 +2,20 @@
 
 import { createContext, useContext, ReactNode, useMemo } from 'react';
 import { baseUrl } from '@semiont/core';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, type TokenRefresher } from '@semiont/api-client';
 import { useEventBus } from './EventBusContext';
 
 const ApiClientContext = createContext<SemiontApiClient | undefined>(undefined);
 
 export interface ApiClientProviderProps {
   baseUrl: string;
+  /**
+   * Optional 401-recovery hook. If provided, the api-client will retry
+   * requests once with a fresh token when a 401 is encountered. The
+   * frontend's protected layouts pass `useKnowledgeBaseSession().refreshActive`
+   * here so the api-client can transparently recover from expired access tokens.
+   */
+  tokenRefresher?: TokenRefresher;
   children: ReactNode;
 }
 
@@ -20,6 +27,7 @@ export interface ApiClientProviderProps {
  */
 export function ApiClientProvider({
   baseUrl: url,
+  tokenRefresher,
   children,
 }: ApiClientProviderProps) {
   const eventBus = useEventBus();
@@ -30,8 +38,9 @@ export function ApiClientProvider({
       eventBus,
       // Use no timeout in test environment to avoid AbortController issues with ky + vitest
       ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
+      ...(tokenRefresher && { tokenRefresher }),
     }),
-    [url, eventBus]
+    [url, eventBus, tokenRefresher]
   );
 
   return (

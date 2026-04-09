@@ -18,12 +18,14 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
-// Mock SemiontApiClient — control whether getMe succeeds or fails
+// Mock SemiontApiClient — control whether getMe / refreshToken succeed or fail
 const mockGetMe = vi.fn();
+const mockRefreshToken = vi.fn();
 vi.mock('@semiont/api-client', async () => {
   const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
   class MockSemiontApiClient {
     getMe = mockGetMe;
+    refreshToken = mockRefreshToken;
   }
   return {
     ...actual,
@@ -61,13 +63,20 @@ const KB = {
 import { AuthShell } from '../AuthShell';
 import { APIError } from '@semiont/api-client';
 
+function seedSession(access: string, refresh: string) {
+  localStorage.setItem(
+    `semiont.session.${KB_ID}`,
+    JSON.stringify({ access, refresh }),
+  );
+}
+
 describe('AuthShell integration — KB session validation → modal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
     localStorage.setItem('semiont.knowledgeBases', JSON.stringify([KB]));
     localStorage.setItem('semiont.activeKnowledgeBaseId', KB_ID);
-    localStorage.setItem(`semiont.token.${KB_ID}`, makeFakeJwt());
+    seedSession(makeFakeJwt(), makeFakeJwt());
   });
 
   afterEach(() => {
@@ -90,12 +99,13 @@ describe('AuthShell integration — KB session validation → modal', () => {
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
-    // Token should still be in storage on success
-    expect(localStorage.getItem(`semiont.token.${KB_ID}`)).not.toBeNull();
+    // Session should still be in storage on success
+    expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
   });
 
-  it('surfaces SessionExpiredModal when getMe fails with 401', async () => {
+  it('surfaces SessionExpiredModal when getMe AND refresh both fail with 401', async () => {
     mockGetMe.mockRejectedValueOnce(new APIError('Unauthorized', 401, 'Unauthorized'));
+    mockRefreshToken.mockRejectedValueOnce(new APIError('Invalid', 401, 'Unauthorized'));
 
     render(
       <AuthShell>
@@ -108,8 +118,8 @@ describe('AuthShell integration — KB session validation → modal', () => {
     });
 
     expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
-    // Provider should have cleared the dead token
-    expect(localStorage.getItem(`semiont.token.${KB_ID}`)).toBeNull();
+    // Provider should have cleared the dead session
+    expect(localStorage.getItem(`semiont.session.${KB_ID}`)).toBeNull();
     // Children still render alongside the modal
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
   });
@@ -128,7 +138,29 @@ describe('AuthShell integration — KB session validation → modal', () => {
     });
 
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
-    // Token should NOT be cleared on a 500
-    expect(localStorage.getItem(`semiont.token.${KB_ID}`)).not.toBeNull();
+    // Session should NOT be cleared on a 500
+    expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
+    expect(mockRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('recovers transparently when getMe returns 401 but refresh succeeds', async () => {
+    const newAccess = makeFakeJwt();
+    mockGetMe
+      .mockRejectedValueOnce(new APIError('Unauthorized', 401, 'Unauthorized'))
+      .mockResolvedValueOnce({ email: 'alice@example.com' });
+    mockRefreshToken.mockResolvedValueOnce({ access_token: newAccess });
+
+    render(
+      <AuthShell>
+        <div data-testid="protected-content">protected</div>
+      </AuthShell>
+    );
+
+    await waitFor(() => expect(mockGetMe).toHaveBeenCalledTimes(2));
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
+    // Storage now holds the refreshed access token
+    const stored = JSON.parse(localStorage.getItem(`semiont.session.${KB_ID}`)!);
+    expect(stored.access).toBe(newAccess);
   });
 });

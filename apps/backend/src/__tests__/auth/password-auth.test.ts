@@ -178,6 +178,57 @@ describe('POST /api/tokens/password', () => {
       expect(typeof data.token).toBe('string');
       expect(data.token.split('.')).toHaveLength(3);
     });
+
+    it('should return both an access token (1h) and a refresh token (30d)', async () => {
+      const mockUser: User = {
+        id: faker.string.uuid(),
+        email: testEmail,
+        name: 'Test User',
+        image: null,
+        domain: 'example.com',
+        provider: 'password',
+        providerId: testEmail,
+        passwordHash,
+        isAdmin: false,
+        isActive: true,
+        isModerator: false,
+        termsAcceptedAt: null,
+        lastLogin: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockPrismaUser.findUnique.mockResolvedValue(mockUser);
+      mockPrismaUser.update.mockResolvedValue(mockUser);
+
+      const response = await app.request('/api/tokens/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: testEmail, password: testPassword }),
+      });
+
+      const data = await response.json() as AuthResponse;
+
+      // Both tokens are present and well-formed
+      expect(typeof data.token).toBe('string');
+      expect(data.token.split('.')).toHaveLength(3);
+      expect(typeof data.refreshToken).toBe('string');
+      expect(data.refreshToken.split('.')).toHaveLength(3);
+      // They are distinct (different exp claims)
+      expect(data.refreshToken).not.toBe(data.token);
+
+      // Access token expires in ~1 hour (give or take a few seconds for clock skew)
+      const accessPayload = JSON.parse(Buffer.from(data.token.split('.')[1]!, 'base64').toString());
+      const accessTtlSec = accessPayload.exp - Math.floor(Date.now() / 1000);
+      expect(accessTtlSec).toBeGreaterThan(60 * 55);   // > 55 minutes
+      expect(accessTtlSec).toBeLessThanOrEqual(60 * 60 + 5); // <= 1 hour + skew
+
+      // Refresh token expires in ~30 days
+      const refreshPayload = JSON.parse(Buffer.from(data.refreshToken.split('.')[1]!, 'base64').toString());
+      const refreshTtlSec = refreshPayload.exp - Math.floor(Date.now() / 1000);
+      expect(refreshTtlSec).toBeGreaterThan(29 * 24 * 60 * 60); // > 29 days
+      expect(refreshTtlSec).toBeLessThanOrEqual(30 * 24 * 60 * 60 + 5); // <= 30 days + skew
+    });
   });
 
   describe('invalid credentials', () => {

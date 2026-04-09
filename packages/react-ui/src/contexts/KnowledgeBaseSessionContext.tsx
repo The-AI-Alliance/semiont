@@ -15,9 +15,12 @@
  *   - The list of configured KBs (persisted to localStorage)
  *   - Which KB is currently active (persisted to localStorage)
  *   - The validated session (token + user) for the active KB
- *   - Per-KB JWTs in localStorage
+ *   - Per-KB sessions (`{ access, refresh }`) in localStorage
  *   - The "session expired" and "permission denied" flags that drive the modals
  *   - JWT expiry derivations (for the session-timer UI)
+ *   - Refresh-token logic with concurrency control (one in-flight refresh per KB)
+ *   - Proactive refresh: a timer that fires before the access token expires
+ *   - Cross-tab sync: when another tab refreshes or signs out, this tab updates
  *
  * Mounting: must be inside `EventBusProvider` and `TranslationProvider` (it
  * uses neither, but the modals it sits next to do). It does NOT depend on
@@ -30,10 +33,11 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { SemiontApiClient, APIError } from '@semiont/api-client';
-import { baseUrl, EventBus, accessToken } from '@semiont/core';
+import { baseUrl, EventBus, accessToken, refreshToken as makeRefreshToken } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type {
   KnowledgeBase,
@@ -48,22 +52,45 @@ export interface AuthSession {
   user: UserInfo;
 }
 
+/** The shape persisted to localStorage per KB. */
+export interface StoredSession {
+  access: string;
+  refresh: string;
+}
+
 // ---------- Storage helpers (private) ----------
 
-const TOKEN_PREFIX = 'semiont.token.';
+const SESSION_PREFIX = 'semiont.session.';
 const STORAGE_KEY = 'semiont.knowledgeBases';
 const ACTIVE_KEY = 'semiont.activeKnowledgeBaseId';
 
-function getKbTokenFromStorage(kbId: string): string | null {
-  return localStorage.getItem(`${TOKEN_PREFIX}${kbId}`);
+/** Refresh the access token this many milliseconds before it expires. */
+const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;
+
+function sessionKey(kbId: string): string {
+  return `${SESSION_PREFIX}${kbId}`;
 }
 
-function setKbTokenInStorage(kbId: string, token: string): void {
-  localStorage.setItem(`${TOKEN_PREFIX}${kbId}`, token);
+function getStoredSession(kbId: string): StoredSession | null {
+  const raw = localStorage.getItem(sessionKey(kbId));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.access === 'string' && typeof parsed.refresh === 'string') {
+      return { access: parsed.access, refresh: parsed.refresh };
+    }
+  } catch {
+    // malformed entry — treat as no session
+  }
+  return null;
 }
 
-function clearKbTokenFromStorage(kbId: string): void {
-  localStorage.removeItem(`${TOKEN_PREFIX}${kbId}`);
+function setStoredSession(kbId: string, session: StoredSession): void {
+  localStorage.setItem(sessionKey(kbId), JSON.stringify(session));
+}
+
+function clearStoredSession(kbId: string): void {
+  localStorage.removeItem(sessionKey(kbId));
 }
 
 function parseJwtExpiry(token: string): Date | null {
@@ -140,9 +167,49 @@ export function kbBackendUrl(kb: KnowledgeBase): string {
  * dots without requiring re-renders on every tick.
  */
 export function getKbSessionStatus(kbId: string): KbSessionStatus {
-  const token = getKbTokenFromStorage(kbId);
-  if (!token) return 'signed-out';
-  return isJwtExpired(token) ? 'expired' : 'authenticated';
+  const stored = getStoredSession(kbId);
+  if (!stored) return 'signed-out';
+  return isJwtExpired(stored.access) ? 'expired' : 'authenticated';
+}
+
+// ---------- Refresh-token coordination (module-scoped) ----------
+
+/**
+ * One in-flight refresh promise per KB. Ensures concurrent 401s for the same
+ * KB deduplicate to a single network call.
+ */
+const inFlightRefreshes: Map<string, Promise<string | null>> = new Map();
+
+async function performRefresh(kb: KnowledgeBase): Promise<string | null> {
+  const existing = inFlightRefreshes.get(kb.id);
+  if (existing) return existing;
+
+  const promise = (async (): Promise<string | null> => {
+    const stored = getStoredSession(kb.id);
+    if (!stored) return null;
+
+    const client = new SemiontApiClient({
+      baseUrl: baseUrl(kbBackendUrl(kb)),
+      eventBus: new EventBus(),
+    });
+
+    try {
+      const response = await client.refreshToken(makeRefreshToken(stored.refresh));
+      const newAccess = response.access_token;
+      if (!newAccess) return null;
+      setStoredSession(kb.id, { access: newAccess, refresh: stored.refresh });
+      return newAccess;
+    } catch {
+      return null;
+    }
+  })();
+
+  inFlightRefreshes.set(kb.id, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightRefreshes.delete(kb.id);
+  }
 }
 
 // ---------- Module-scoped session-expired notifier ----------
@@ -156,8 +223,6 @@ export function getKbSessionStatus(kbId: string): KbSessionStatus {
  *
  * When no provider is mounted (e.g. on the landing page), these calls are
  * no-ops — there is nothing to notify.
- *
- * This is the same pattern React Query itself uses for its global signals.
  */
 type Notify = (message?: string) => void;
 
@@ -205,14 +270,22 @@ interface KnowledgeBaseSessionValue {
   permissionDeniedMessage: string | null;
 
   // Mutations
-  addKnowledgeBase: (kb: NewKnowledgeBase, token: string) => KnowledgeBase;
+  addKnowledgeBase: (kb: NewKnowledgeBase, access: string, refresh: string) => KnowledgeBase;
   removeKnowledgeBase: (id: string) => void;
   setActiveKnowledgeBase: (id: string) => void;
   updateKnowledgeBase: (id: string, updates: Partial<Pick<KnowledgeBase, 'label'>>) => void;
-  /** Re-auth on an existing KB: store the new token and refresh the session. */
-  signIn: (id: string, token: string) => void;
-  /** Sign out of a KB: clear its stored token. If it's the active KB, clear in-memory session too. */
+  /** Re-auth on an existing KB: store the new tokens and refresh the session. */
+  signIn: (id: string, access: string, refresh: string) => void;
+  /** Sign out of a KB: clear its stored tokens. If it's the active KB, clear in-memory session too. */
   signOut: (id: string) => void;
+
+  /**
+   * Refresh the active KB's access token. Returns the new access token, or
+   * null if no refresh token is available or the refresh failed. Concurrent
+   * calls deduplicate via an in-flight Promise per KB. Used by the api-client's
+   * 401-recovery hook and by the proactive refresh timer.
+   */
+  refreshActive: () => Promise<string | null>;
 
   // Modal acks
   acknowledgeSessionExpired: () => void;
@@ -249,8 +322,10 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
   const [isLoading, setIsLoading] = useState<boolean>(() => {
     const id = activeKnowledgeBaseId;
     if (!id) return false;
-    const token = getKbTokenFromStorage(id);
-    return !!token && !isJwtExpired(token);
+    const stored = getStoredSession(id);
+    if (!stored) return false;
+    // We'll either validate (if access fresh) or refresh (if refresh available)
+    return !isJwtExpired(stored.access) || stored.refresh != null;
   });
 
   // Modal flags
@@ -272,13 +347,70 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
     }
   }, [activeKnowledgeBaseId]);
 
-  // Validate the active KB's stored token whenever the active KB changes.
-  // This is the heart of the merge: KB switching atomically re-validates.
   const activeKnowledgeBase = useMemo(
     () => knowledgeBases.find(kb => kb.id === activeKnowledgeBaseId) ?? null,
     [knowledgeBases, activeKnowledgeBaseId]
   );
 
+  // Refs for cross-effect coordination
+  const activeKbRef = useRef<KnowledgeBase | null>(activeKnowledgeBase);
+  useEffect(() => {
+    activeKbRef.current = activeKnowledgeBase;
+  }, [activeKnowledgeBase]);
+
+  const proactiveRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Schedule a one-shot timer that fires `REFRESH_BEFORE_EXP_MS` before the
+   * given access token expires. Cancels any prior pending timer.
+   */
+  const scheduleProactiveRefresh = useCallback((accessTokenStr: string) => {
+    if (proactiveRefreshTimerRef.current) {
+      clearTimeout(proactiveRefreshTimerRef.current);
+      proactiveRefreshTimerRef.current = null;
+    }
+    const expiresAt = parseJwtExpiry(accessTokenStr);
+    if (!expiresAt) return;
+    const refreshAt = expiresAt.getTime() - REFRESH_BEFORE_EXP_MS;
+    const delay = Math.max(0, refreshAt - Date.now());
+    proactiveRefreshTimerRef.current = setTimeout(() => {
+      proactiveRefreshTimerRef.current = null;
+      // Fire-and-forget: refreshActive captures activeKbRef and updates state
+      refreshActiveRef.current?.();
+    }, delay);
+  }, []);
+
+  // refreshActive needs to be stable across renders for the api-client wiring
+  // and also needs to read fresh activeKnowledgeBase via the ref. We define
+  // the function via a ref so callers can capture a stable reference.
+  const refreshActiveRef = useRef<(() => Promise<string | null>) | null>(null);
+  const refreshActive = useCallback(async (): Promise<string | null> => {
+    const kb = activeKbRef.current;
+    if (!kb) return null;
+    const newAccess = await performRefresh(kb);
+    if (newAccess) {
+      // Update the in-memory session token so consumers see the new value
+      setSession(prev => (prev ? { ...prev, token: newAccess } : prev));
+      scheduleProactiveRefresh(newAccess);
+    } else {
+      // Refresh failed — surface the modal
+      setSession(null);
+      clearStoredSession(kb.id);
+      setSessionExpiredMessage('Your session has expired. Please sign in again.');
+      setSessionExpiredAt(Date.now());
+      if (proactiveRefreshTimerRef.current) {
+        clearTimeout(proactiveRefreshTimerRef.current);
+        proactiveRefreshTimerRef.current = null;
+      }
+    }
+    return newAccess;
+  }, [scheduleProactiveRefresh]);
+  refreshActiveRef.current = refreshActive;
+
+  // Validate the active KB's stored token whenever the active KB changes.
+  // If the access token is past its exp, refresh first.
+  // If getMe returns 401, try one refresh and revalidate.
+  // If refresh fails or returns 401, surface the session-expired modal.
   useEffect(() => {
     if (!activeKnowledgeBase) {
       setSession(null);
@@ -286,39 +418,106 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
       return;
     }
 
-    const token = getKbTokenFromStorage(activeKnowledgeBase.id);
-    if (!token || isJwtExpired(token)) {
+    const stored = getStoredSession(activeKnowledgeBase.id);
+    if (!stored) {
       setSession(null);
       setIsLoading(false);
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
-    const client = new SemiontApiClient({
-      baseUrl: baseUrl(kbBackendUrl(activeKnowledgeBase)),
-      eventBus: new EventBus(),
-    });
-    client.getMe({ auth: accessToken(token) })
-      .then((data) => {
+
+    const validate = async (tokenToUse: string) => {
+      const client = new SemiontApiClient({
+        baseUrl: baseUrl(kbBackendUrl(activeKnowledgeBase)),
+        eventBus: new EventBus(),
+      });
+      try {
+        const data = await client.getMe({ auth: accessToken(tokenToUse) });
         if (cancelled) return;
-        setSession({ token, user: data as UserInfo });
-      })
-      .catch((error) => {
+        setSession({ token: tokenToUse, user: data as UserInfo });
+        scheduleProactiveRefresh(tokenToUse);
+      } catch (error) {
         if (cancelled) return;
         setSession(null);
         if (error instanceof APIError && error.status === 401) {
-          clearKbTokenFromStorage(activeKnowledgeBase.id);
+          // Try one refresh on 401 from getMe before surfacing the modal
+          const refreshed = await performRefresh(activeKnowledgeBase);
+          if (cancelled) return;
+          if (refreshed) {
+            return validate(refreshed);
+          }
+          clearStoredSession(activeKnowledgeBase.id);
           setSessionExpiredMessage('Your session has expired. Please sign in again.');
           setSessionExpiredAt(Date.now());
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setIsLoading(false);
-      });
+      }
+    };
 
-    return () => { cancelled = true; };
-  }, [activeKnowledgeBase]);
+    setIsLoading(true);
+
+    if (isJwtExpired(stored.access)) {
+      (async () => {
+        const refreshed = await performRefresh(activeKnowledgeBase);
+        if (cancelled) return;
+        if (refreshed) {
+          await validate(refreshed);
+        } else {
+          setSession(null);
+          clearStoredSession(activeKnowledgeBase.id);
+          setIsLoading(false);
+        }
+      })();
+    } else {
+      validate(stored.access);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeKnowledgeBase, scheduleProactiveRefresh]);
+
+  // Cancel proactive refresh timer on unmount
+  useEffect(() => {
+    return () => {
+      if (proactiveRefreshTimerRef.current) {
+        clearTimeout(proactiveRefreshTimerRef.current);
+        proactiveRefreshTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cross-tab sync: listen for storage events on the active KB's session key
+  useEffect(() => {
+    if (!activeKnowledgeBaseId) return;
+    const watchKey = sessionKey(activeKnowledgeBaseId);
+    const handler = (e: StorageEvent) => {
+      if (e.key !== watchKey) return;
+      if (!e.newValue) {
+        // Token was cleared in another tab
+        setSession(null);
+        if (proactiveRefreshTimerRef.current) {
+          clearTimeout(proactiveRefreshTimerRef.current);
+          proactiveRefreshTimerRef.current = null;
+        }
+        return;
+      }
+      try {
+        const parsed = JSON.parse(e.newValue) as StoredSession;
+        if (typeof parsed.access === 'string') {
+          // Update our in-memory session token (user info is unchanged)
+          setSession(prev => (prev ? { ...prev, token: parsed.access } : prev));
+          scheduleProactiveRefresh(parsed.access);
+        }
+      } catch {
+        // Ignore malformed payloads
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [activeKnowledgeBaseId, scheduleProactiveRefresh]);
 
   // Register module-scoped notify handlers so the QueryCache 401/403 handlers
   // can reach the active provider instance.
@@ -328,7 +527,11 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
       setSessionExpiredAt(Date.now());
       setSession(null);
       if (activeKnowledgeBaseId) {
-        clearKbTokenFromStorage(activeKnowledgeBaseId);
+        clearStoredSession(activeKnowledgeBaseId);
+      }
+      if (proactiveRefreshTimerRef.current) {
+        clearTimeout(proactiveRefreshTimerRef.current);
+        proactiveRefreshTimerRef.current = null;
       }
     };
     activeNotifyPermissionDenied = (message) => {
@@ -342,19 +545,18 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
   }, [activeKnowledgeBaseId]);
 
   // Mutations
-  const addKnowledgeBase = useCallback((input: NewKnowledgeBase, token: string): KnowledgeBase => {
+  const addKnowledgeBase = useCallback((input: NewKnowledgeBase, access: string, refresh: string): KnowledgeBase => {
     const kb: KnowledgeBase = { id: generateKbId(), ...input };
-    setKbTokenInStorage(kb.id, token);
+    setStoredSession(kb.id, { access, refresh });
     setKnowledgeBases(prev => [...prev, kb]);
     setActiveKnowledgeBaseId(kb.id);
     return kb;
   }, []);
 
   const removeKnowledgeBase = useCallback((id: string) => {
-    clearKbTokenFromStorage(id);
+    clearStoredSession(id);
     setKnowledgeBases(prev => {
       const remaining = prev.filter(kb => kb.id !== id);
-      // If the removed KB was active, reassign or clear
       setActiveKnowledgeBaseId(activeId => activeId === id ? (remaining[0]?.id ?? null) : activeId);
       return remaining;
     });
@@ -368,23 +570,24 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
     setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb, ...updates } : kb));
   }, []);
 
-  const signIn = useCallback((id: string, token: string) => {
-    setKbTokenInStorage(id, token);
-    // The validation effect re-runs when `activeKnowledgeBase`'s reference
-    // changes. If we sign into the currently-active KB, just bumping the
-    // array is not enough — `find()` would return the same KB object and
-    // the memo's output reference would be unchanged. Replace the matching
-    // KB with a fresh object so `find()` yields a new reference and the
-    // validation effect fires.
+  const signIn = useCallback((id: string, access: string, refresh: string) => {
+    setStoredSession(id, { access, refresh });
+    // Replace the matching KB with a fresh object so the activeKnowledgeBase
+    // memo's `find()` returns a new reference, the validation effect re-runs,
+    // and the new tokens get used.
     setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb } : kb));
     setActiveKnowledgeBaseId(id);
   }, []);
 
   const signOut = useCallback((id: string) => {
-    clearKbTokenFromStorage(id);
+    clearStoredSession(id);
     setActiveKnowledgeBaseId(activeId => {
       if (activeId === id) {
         setSession(null);
+        if (proactiveRefreshTimerRef.current) {
+          clearTimeout(proactiveRefreshTimerRef.current);
+          proactiveRefreshTimerRef.current = null;
+        }
       }
       return activeId;
     });
@@ -442,6 +645,7 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
       updateKnowledgeBase,
       signIn,
       signOut,
+      refreshActive,
       acknowledgeSessionExpired,
       acknowledgePermissionDenied,
     };
@@ -460,6 +664,7 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
     updateKnowledgeBase,
     signIn,
     signOut,
+    refreshActive,
     acknowledgeSessionExpired,
     acknowledgePermissionDenied,
   ]);

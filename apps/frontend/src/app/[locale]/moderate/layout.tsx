@@ -19,7 +19,7 @@ import { AuthShell } from '@/contexts/AuthShell';
 function ModerateLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
-  const { isAuthenticated, isAdmin, isModerator, token: authToken, activeKnowledgeBase } = useKnowledgeBaseSession();
+  const { isAuthenticated, isAdmin, isModerator, token: authToken, activeKnowledgeBase, refreshActive } = useKnowledgeBaseSession();
   const router = useRouter();
 
   if (!activeKnowledgeBase) {
@@ -29,7 +29,7 @@ function ModerateLayoutBody() {
 
   return (
     <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)}>
+      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
           <div className="flex flex-1">
             <LeftSidebar

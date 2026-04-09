@@ -18,6 +18,13 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
  * Create a minimal QueryClient with error handlers and retry logic.
  * Authentication is handled by @semiont/api-client via lib/api-hooks.
  *
+ * Most 401s never reach this handler: the api-client's tokenRefresher hook
+ * (wired by ApiClientProvider via `useKnowledgeBaseSession().refreshActive`)
+ * intercepts a 401, refreshes the access token, and retries the request
+ * transparently. This handler only fires when the refresh itself failed —
+ * i.e., the refresh token is gone or also expired — at which point the
+ * "session expired" modal is the right UX.
+ *
  * 401/403 errors route through module-scoped notify functions registered by
  * the active KnowledgeBaseSessionProvider (mounted inside the protected
  * AuthShell). On pre-app routes where no provider is mounted, the calls are

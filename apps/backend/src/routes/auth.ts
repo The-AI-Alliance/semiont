@@ -116,7 +116,7 @@ authRouter.post('/api/tokens/password',
 
       getRouteLogger().debug('Password auth successful', { email });
 
-      // Generate JWT token
+      // Generate access (1h) and refresh (30d) tokens
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
@@ -126,7 +126,8 @@ authRouter.post('/api/tokens/password',
         isAdmin: user.isAdmin,
       };
 
-      const token = JWTService.generateToken(jwtPayload);
+      const token = JWTService.generateToken(jwtPayload, '1h');
+      const refreshToken = JWTService.generateToken(jwtPayload, '30d');
 
       // Update last login
       await prisma.user.update({
@@ -139,7 +140,7 @@ authRouter.post('/api/tokens/password',
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: 60 * 60, // 1 hour, matching access token lifetime
       });
 
       const response: AuthResponse = {
@@ -153,6 +154,7 @@ authRouter.post('/api/tokens/password',
           isAdmin: user.isAdmin,
         },
         token,
+        refreshToken,
         isNewUser: false,
       };
 
@@ -194,15 +196,15 @@ authRouter.post('/api/tokens/google',
       // Verify Google token and get user info
       const googleUser = await OAuthService.verifyGoogleToken(googleCredential(access_token));
 
-      // Create or update user
-      const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
+      // Create or update user (returns access + refresh tokens)
+      const { user, token, refreshToken, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
 
       setCookie(c, 'semiont-token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: 60 * 60, // 1 hour, matching access token lifetime
       });
 
       const response: AuthResponse = {
@@ -216,6 +218,7 @@ authRouter.post('/api/tokens/google',
           isAdmin: user.isAdmin,
         },
         token,
+        refreshToken,
         isNewUser,
       };
 

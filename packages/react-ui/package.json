@@ -104,6 +104,7 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "react-error-boundary": "^4.1.2"
   }
 }
