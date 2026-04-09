@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventBus, type ResourceId, type UserId, type AnnotationId, type ResourceEvent } from '@semiont/core';
+import { EventBus, type ResourceId, type UserId, type AnnotationId, type PersistedEvent } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { replayEventStream, type ContentBlobResolver } from '../../exchange/replay';
@@ -33,7 +33,7 @@ const STUB_RESOURCE: components['schemas']['ResourceDescriptor'] = {
 };
 
 /** Minimal AnnotationBodyUpdatedEvent stub for mark:body-updated test emissions. */
-function stubBodyUpdatedEvent(): Extract<ResourceEvent, { type: 'mark:body-updated' }> {
+function stubBodyUpdatedEvent(): Extract<PersistedEvent, { type: 'mark:body-updated' }> {
   return {
     id: 'stub',
     timestamp: '2026-03-12T00:00:00Z',

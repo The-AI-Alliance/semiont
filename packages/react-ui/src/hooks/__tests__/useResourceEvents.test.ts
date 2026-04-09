@@ -13,7 +13,7 @@ import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { ResourceEvent } from '@semiont/core';
+import type { PersistedEvent } from '@semiont/core';
 
 vi.mock('@semiont/api-client', () => ({
   SemiontApiClient: vi.fn(function () {}),
@@ -43,11 +43,11 @@ const wrapper = ({ children }: { children: ReactNode }) =>
   );
 
 // Helper to build typed ResourceEvents
-function makeEvent<T extends ResourceEvent['type']>(
+function makeEvent<T extends PersistedEvent['type']>(
   type: T,
-  payload: Extract<ResourceEvent, { type: T }>['payload']
-): Extract<ResourceEvent, { type: T }> {
-  return { type, payload } as Extract<ResourceEvent, { type: T }>;
+  payload: Extract<PersistedEvent, { type: T }>['payload']
+): Extract<PersistedEvent, { type: T }> {
+  return { type, payload } as Extract<PersistedEvent, { type: T }>;
 }
 
 // Create flat StoredEvent shape for typed channels

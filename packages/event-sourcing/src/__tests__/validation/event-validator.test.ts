@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventValidator } from '../../validation/event-validator';
-import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import type { StoredEvent, PersistedEvent } from '@semiont/core';
 import { sha256 } from '../../storage/shard-utils';
 
 describe('EventValidator', () => {
@@ -20,7 +20,7 @@ describe('EventValidator', () => {
 
   // Helper to create StoredEvent with proper checksum
   function createStoredEvent(
-    event: Partial<Omit<ResourceEvent, 'id' | 'timestamp' | 'version' | 'userId'>> & { type: ResourceEvent['type']; userId?: string },
+    event: Partial<Omit<PersistedEvent, 'id' | 'timestamp' | 'version' | 'userId'>> & { type: PersistedEvent['type']; userId?: string },
     sequenceNumber: number,
     prevChecksum?: string
   ): StoredEvent {
@@ -47,7 +47,7 @@ describe('EventValidator', () => {
       payload = event.payload || {};
     }
 
-    const fullEvent: ResourceEvent = {
+    const fullEvent: PersistedEvent = {
       id: `event-${sequenceNumber}`,
       userId: event.userId || 'user1',
       timestamp: new Date().toISOString(),
@@ -55,7 +55,7 @@ describe('EventValidator', () => {
       resourceId: event.resourceId || 'doc1',
       ...event,
       payload,
-    } as ResourceEvent;
+    } as PersistedEvent;
 
     const checksum = sha256(fullEvent);
 

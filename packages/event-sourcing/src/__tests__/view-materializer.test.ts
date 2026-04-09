@@ -11,7 +11,7 @@ import { ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId } from '@semiont/core';
-import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import type { StoredEvent, PersistedEvent } from '@semiont/core';
 
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -42,14 +42,14 @@ describe('ViewMaterializer', () => {
   });
 
   // Helper to create StoredEvent
-  function createStoredEvent(event: Omit<ResourceEvent, 'id' | 'timestamp' | 'version' | 'userId'> & { userId?: string }, sequenceNumber: number): StoredEvent {
-    const fullEvent: ResourceEvent = {
+  function createStoredEvent(event: Omit<PersistedEvent, 'id' | 'timestamp' | 'version' | 'userId'> & { userId?: string }, sequenceNumber: number): StoredEvent {
+    const fullEvent: PersistedEvent = {
       id: `event-${sequenceNumber}`,
       userId: event.userId || 'user1',
       timestamp: new Date().toISOString(),
       version: 1,
       ...event,
-    } as ResourceEvent;
+    } as PersistedEvent;
 
     return {
       ...fullEvent,
