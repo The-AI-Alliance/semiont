@@ -29,6 +29,16 @@ import { findBodyItem } from '@semiont/core';
 import type { ViewStorage, ResourceView } from '../storage/view-storage';
 import { writeStorageUriEntry, removeStorageUriEntry } from '../storage/storage-uri-index';
 
+/**
+ * Minimal structural type for the event log dependency of `rebuildAll`.
+ * Avoids importing the concrete EventLog class from a sibling directory and
+ * keeps the materializer independent of the event-log implementation.
+ */
+export interface RebuildEventSource {
+  getEvents(resourceId: ResourceId): Promise<StoredEvent[]>;
+  getAllResourceIds(): Promise<ResourceId[]>;
+}
+
 export interface ViewMaterializerConfig {
   basePath: string;
 }
@@ -379,6 +389,58 @@ export class ViewMaterializer {
       case 'mark:entity-type-added':
         break;
     }
+  }
+
+  /**
+   * Walk every event stream in the event log and materialize the corresponding
+   * view from scratch. Idempotent: existing view files are overwritten.
+   *
+   * Mirrors GraphDBConsumer.rebuildAll() and Smelter.rebuildAll() — this is the
+   * recovery path that makes the ephemeral stateDir safe to wipe. The live
+   * append path (EventStore.appendEvent → materializeIncremental /
+   * materializeEntityTypes) is unchanged and runs in addition.
+   */
+  async rebuildAll(eventLog: RebuildEventSource): Promise<void> {
+    this.logger?.info('[ViewMaterializer] Rebuilding all materialized views from event log');
+
+    const SYSTEM_ID = '__system__' as unknown as ResourceId;
+
+    // Pass 1: __system__ events — produces system projections
+    // (currently entitytypes.json; future system projections plug in here)
+    const systemEvents = await eventLog.getEvents(SYSTEM_ID);
+    this.logger?.info('[ViewMaterializer] Replaying system events', { count: systemEvents.length });
+    for (const event of systemEvents) {
+      if (event.type === 'mark:entity-type-added') {
+        await this.materializeEntityTypes((event.payload as { entityType: string }).entityType);
+      }
+    }
+
+    // Pass 2: resource-scoped events — produces resource views and the
+    // storage-uri index
+    const allResourceIds = await eventLog.getAllResourceIds();
+    const resourceIds = allResourceIds.filter(
+      (rid) => (rid as unknown as string) !== '__system__'
+    );
+    this.logger?.info('[ViewMaterializer] Rebuilding resource views', { count: resourceIds.length });
+    for (const rid of resourceIds) {
+      const events = await eventLog.getEvents(rid);
+      if (events.length === 0) continue;
+
+      // Build the view in memory from all events, then write once.
+      const view = this.materializeFromEvents(events, rid);
+      await this.viewStorage.save(rid, view);
+
+      // Replay each event through the storage-uri index so URI lookups
+      // also recover from a wiped stateDir.
+      for (const event of events) {
+        await this.materializeStorageUriIndex(rid, event);
+      }
+    }
+
+    this.logger?.info('[ViewMaterializer] Rebuild complete', {
+      systemEvents: systemEvents.length,
+      resources: resourceIds.length,
+    });
   }
 
   /**

@@ -12,7 +12,7 @@
  */
 
 import { type ResourceId, type PersistedEvent, type StoredEvent, type Logger } from '@semiont/core';
-import { ViewMaterializer, type ViewMaterializerConfig } from './views/view-materializer';
+import { ViewMaterializer, type ViewMaterializerConfig, type RebuildEventSource } from './views/view-materializer';
 import type { ViewStorage, ResourceView } from './storage/view-storage';
 
 export interface ViewManagerConfig {
@@ -64,6 +64,16 @@ export class ViewManager {
     }
     // Future system views can be added here
     // e.g., user.created, workspace.created, etc.
+  }
+
+  /**
+   * Rebuild all materialized views from the event log on startup.
+   * Mirrors GraphDBConsumer.rebuildAll() — call this once during
+   * createKnowledgeBase before the HTTP server begins accepting requests.
+   * Idempotent: existing view files are overwritten.
+   */
+  async rebuildAll(eventLog: RebuildEventSource): Promise<void> {
+    return this.materializer.rebuildAll(eventLog);
   }
 
   /**

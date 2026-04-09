@@ -66,6 +66,12 @@ export async function createKnowledgeBase(
   await graphConsumer.initialize();
 
   if (!options?.skipRebuild) {
+    // Rebuild materialized views from the event log first. The Browser actor
+    // reads from these views, so they must be populated before any request is
+    // served. The views layer is the third derived read model alongside the
+    // graph and vectors; this call mirrors graphConsumer.rebuildAll() and
+    // smelter.rebuildAll() so that an ephemeral stateDir wipe is recoverable.
+    await eventStore.views.rebuildAll(eventStore.log);
     await graphConsumer.rebuildAll();
   }
 
