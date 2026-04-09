@@ -136,13 +136,18 @@ export class SemiontApiClient {
     // Remove trailing slash for consistent URL construction
     this.baseUrl = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
 
-    // When a tokenRefresher is configured, expand ky's retry policy to also
-    // retry 401 once on POST/PATCH/etc. The beforeRetry hook below decides
-    // whether to actually proceed with the retry (only on 401 and only if
-    // the refresher returns a fresh token).
+    // When a tokenRefresher is configured, expand ky's retry policy to retry
+    // 401 exactly once on any method. The limit of 1 means: at most one auth
+    // retry per failed request. If the refreshed token also 401s, the request
+    // fails and the modal surfaces — the api-client does not chain refreshes.
+    //
+    // Tradeoff vs the default `retry: 2`: transient 5xx errors are also
+    // retried only once instead of twice. Acceptable: a single retry handles
+    // ephemeral upstream blips, and chaining more retries on 5xx delays the
+    // user-visible failure without meaningfully improving outcomes.
     const retryConfig = tokenRefresher
       ? {
-          limit: typeof retry === 'number' ? Math.max(retry, 1) : 1,
+          limit: 1,
           methods: ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'],
           statusCodes: [401, 408, 413, 429, 500, 502, 503, 504],
         }

@@ -8,19 +8,22 @@
  *
  * Why merged: a session in this app is always a session against a specific
  * KB. There is no auth without a KB. Switching KBs means switching sessions
- * atomically. The previous split forced consumers to coordinate two
- * contexts and helper functions across module boundaries.
+ * atomically.
  *
  * What it owns:
  *   - The list of configured KBs (persisted to localStorage)
  *   - Which KB is currently active (persisted to localStorage)
  *   - The validated session (token + user) for the active KB
- *   - Per-KB sessions (`{ access, refresh }`) in localStorage
  *   - The "session expired" and "permission denied" flags that drive the modals
  *   - JWT expiry derivations (for the session-timer UI)
- *   - Refresh-token logic with concurrency control (one in-flight refresh per KB)
+ *   - Mount-time validation flow with manual 401 recovery
  *   - Proactive refresh: a timer that fires before the access token expires
  *   - Cross-tab sync: when another tab refreshes or signs out, this tab updates
+ *
+ * Implementation is split across the `knowledge-base-session/` directory:
+ *   - `storage.ts` — localStorage shape, JWT helpers, KB list helpers
+ *   - `refresh.ts` — `performRefresh` and the in-flight Promise dedup map
+ *   - `notify.ts` — module-scoped notify functions and the register helper
  *
  * Mounting: must be inside `EventBusProvider` and `TranslationProvider` (it
  * uses neither, but the modals it sits next to do). It does NOT depend on
@@ -37,13 +40,29 @@ import React, {
   useState,
 } from 'react';
 import { SemiontApiClient, APIError } from '@semiont/api-client';
-import { baseUrl, EventBus, accessToken, refreshToken as makeRefreshToken } from '@semiont/core';
+import { baseUrl, EventBus, accessToken } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type {
   KnowledgeBase,
-  KbSessionStatus,
   NewKnowledgeBase,
 } from '../types/knowledge-base';
+import {
+  ACTIVE_KEY,
+  REFRESH_BEFORE_EXP_MS,
+  clearStoredSession,
+  generateKbId,
+  getStoredSession,
+  isJwtExpired,
+  kbBackendUrl,
+  loadKnowledgeBases,
+  parseJwtExpiry,
+  saveKnowledgeBases,
+  sessionKey,
+  setStoredSession,
+} from './knowledge-base-session/storage';
+import { performRefresh } from './knowledge-base-session/refresh';
+import { registerAuthNotifyHandlers } from './knowledge-base-session/notify';
+import type { StoredSession } from './knowledge-base-session/storage';
 
 type UserInfo = components['schemas']['UserResponse'];
 
@@ -52,190 +71,17 @@ export interface AuthSession {
   user: UserInfo;
 }
 
-/** The shape persisted to localStorage per KB. */
-export interface StoredSession {
-  access: string;
-  refresh: string;
-}
-
-// ---------- Storage helpers (private) ----------
-
-const SESSION_PREFIX = 'semiont.session.';
-const STORAGE_KEY = 'semiont.knowledgeBases';
-const ACTIVE_KEY = 'semiont.activeKnowledgeBaseId';
-
-/** Refresh the access token this many milliseconds before it expires. */
-const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;
-
-function sessionKey(kbId: string): string {
-  return `${SESSION_PREFIX}${kbId}`;
-}
-
-function getStoredSession(kbId: string): StoredSession | null {
-  const raw = localStorage.getItem(sessionKey(kbId));
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.access === 'string' && typeof parsed.refresh === 'string') {
-      return { access: parsed.access, refresh: parsed.refresh };
-    }
-  } catch {
-    // malformed entry — treat as no session
-  }
-  return null;
-}
-
-function setStoredSession(kbId: string, session: StoredSession): void {
-  localStorage.setItem(sessionKey(kbId), JSON.stringify(session));
-}
-
-function clearStoredSession(kbId: string): void {
-  localStorage.removeItem(sessionKey(kbId));
-}
-
-function parseJwtExpiry(token: string): Date | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3 || !parts[1]) return null;
-    const payload = JSON.parse(atob(parts[1])) as { exp?: number };
-    if (!payload.exp) return null;
-    return new Date(payload.exp * 1000);
-  } catch {
-    return null;
-  }
-}
-
-function isJwtExpired(token: string): boolean {
-  const expiry = parseJwtExpiry(token);
-  if (!expiry) return true;
-  return expiry.getTime() < Date.now();
-}
-
-function migrateLegacyEntry(entry: any): KnowledgeBase {
-  if (entry.host !== undefined) return entry as KnowledgeBase;
-  // Legacy format: { id, label, backendUrl }
-  try {
-    const url = new URL(entry.backendUrl);
-    return {
-      id: entry.id,
-      label: entry.label,
-      host: url.hostname,
-      port: parseInt(url.port, 10) || (url.protocol === 'https:' ? 443 : 80),
-      protocol: url.protocol === 'https:' ? 'https' : 'http',
-      email: '',
-    };
-  } catch {
-    return {
-      id: entry.id,
-      label: entry.label || 'Unknown',
-      host: 'localhost',
-      port: 4000,
-      protocol: 'http',
-      email: '',
-    };
-  }
-}
-
-function loadKnowledgeBases(): KnowledgeBase[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const entries = JSON.parse(raw) as any[];
-    return entries.map(migrateLegacyEntry);
-  } catch {
-    return [];
-  }
-}
-
-function saveKnowledgeBases(knowledgeBases: KnowledgeBase[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(knowledgeBases));
-}
-
-// ---------- Public pure helpers ----------
-
-export function defaultProtocol(host: string): 'http' | 'https' {
-  return host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https';
-}
-
-export function kbBackendUrl(kb: KnowledgeBase): string {
-  return `${kb.protocol}://${kb.host}:${kb.port}`;
-}
-
-/**
- * Read the locally-stored credential status for a KB. Pure / synchronous —
- * does not subscribe to context changes. Used by KB-list UI to color status
- * dots without requiring re-renders on every tick.
- */
-export function getKbSessionStatus(kbId: string): KbSessionStatus {
-  const stored = getStoredSession(kbId);
-  if (!stored) return 'signed-out';
-  return isJwtExpired(stored.access) ? 'expired' : 'authenticated';
-}
-
-// ---------- Refresh-token coordination (module-scoped) ----------
-
-/**
- * One in-flight refresh promise per KB. Ensures concurrent 401s for the same
- * KB deduplicate to a single network call.
- */
-const inFlightRefreshes: Map<string, Promise<string | null>> = new Map();
-
-async function performRefresh(kb: KnowledgeBase): Promise<string | null> {
-  const existing = inFlightRefreshes.get(kb.id);
-  if (existing) return existing;
-
-  const promise = (async (): Promise<string | null> => {
-    const stored = getStoredSession(kb.id);
-    if (!stored) return null;
-
-    const client = new SemiontApiClient({
-      baseUrl: baseUrl(kbBackendUrl(kb)),
-      eventBus: new EventBus(),
-    });
-
-    try {
-      const response = await client.refreshToken(makeRefreshToken(stored.refresh));
-      const newAccess = response.access_token;
-      if (!newAccess) return null;
-      setStoredSession(kb.id, { access: newAccess, refresh: stored.refresh });
-      return newAccess;
-    } catch {
-      return null;
-    }
-  })();
-
-  inFlightRefreshes.set(kb.id, promise);
-  try {
-    return await promise;
-  } finally {
-    inFlightRefreshes.delete(kb.id);
-  }
-}
-
-// ---------- Module-scoped session-expired notifier ----------
-
-/**
- * The provider registers itself with this module-scoped slot on mount and
- * unregisters on unmount. Code outside the React tree (notably the React
- * Query QueryCache.onError handler in app providers) calls these functions
- * to notify the active provider that the session has expired or that a
- * permission was denied.
- *
- * When no provider is mounted (e.g. on the landing page), these calls are
- * no-ops — there is nothing to notify.
- */
-type Notify = (message?: string) => void;
-
-let activeNotifySessionExpired: Notify | null = null;
-let activeNotifyPermissionDenied: Notify | null = null;
-
-export function notifySessionExpired(message?: string): void {
-  activeNotifySessionExpired?.(message);
-}
-
-export function notifyPermissionDenied(message?: string): void {
-  activeNotifyPermissionDenied?.(message);
-}
+// Re-export the public surface so consumers can keep importing from this module
+export {
+  defaultProtocol,
+  kbBackendUrl,
+  getKbSessionStatus,
+} from './knowledge-base-session/storage';
+export type { StoredSession } from './knowledge-base-session/storage';
+export {
+  notifySessionExpired,
+  notifyPermissionDenied,
+} from './knowledge-base-session/notify';
 
 // ---------- Context value ----------
 
@@ -302,10 +148,6 @@ export const KnowledgeBaseSessionContext = createContext<KnowledgeBaseSessionVal
 export type { KnowledgeBaseSessionValue };
 
 // ---------- Provider ----------
-
-function generateKbId(): string {
-  return crypto.randomUUID();
-}
 
 export function KnowledgeBaseSessionProvider({ children }: { children: React.ReactNode }) {
   // KB list and active selection
@@ -407,10 +249,23 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
   }, [scheduleProactiveRefresh]);
   refreshActiveRef.current = refreshActive;
 
-  // Validate the active KB's stored token whenever the active KB changes.
-  // If the access token is past its exp, refresh first.
-  // If getMe returns 401, try one refresh and revalidate.
-  // If refresh fails or returns 401, surface the session-expired modal.
+  // Mount-time validation. This is the only 401-handling path that does NOT
+  // go through the api-client's `tokenRefresher` hook. Two structural reasons:
+  //
+  //   1. ApiClientProvider hasn't mounted yet — the protected layout mounts
+  //      ApiClientProvider as a CHILD of this provider, so at validation time
+  //      the configured api-client (the one with `tokenRefresher`) doesn't
+  //      exist yet.
+  //
+  //   2. Even if it did, having the api-client silently recover would mean
+  //      this effect would never see the 401. But this effect is what BUILDS
+  //      the session — it needs to know whether validation succeeded so it
+  //      can either set `session = { token, user }` or surface the modal.
+  //
+  // So this effect uses a fresh throwaway api-client (no refresher) and
+  // handles 401 manually: try one refresh, retry getMe with the new token,
+  // surface the modal only if both fail. The duplication with the api-client's
+  // beforeRetry hook is structural — do not try to consolidate them.
   useEffect(() => {
     if (!activeKnowledgeBase) {
       setSession(null);
@@ -520,28 +375,28 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
   }, [activeKnowledgeBaseId, scheduleProactiveRefresh]);
 
   // Register module-scoped notify handlers so the QueryCache 401/403 handlers
-  // can reach the active provider instance.
+  // can reach the active provider instance. Returns a cleanup callback that
+  // unregisters the handlers when the active KB id changes or the provider
+  // unmounts.
   useEffect(() => {
-    activeNotifySessionExpired = (message) => {
-      setSessionExpiredMessage(message ?? 'Your session has expired. Please sign in again.');
-      setSessionExpiredAt(Date.now());
-      setSession(null);
-      if (activeKnowledgeBaseId) {
-        clearStoredSession(activeKnowledgeBaseId);
-      }
-      if (proactiveRefreshTimerRef.current) {
-        clearTimeout(proactiveRefreshTimerRef.current);
-        proactiveRefreshTimerRef.current = null;
-      }
-    };
-    activeNotifyPermissionDenied = (message) => {
-      setPermissionDeniedMessage(message ?? 'You do not have permission to perform this action.');
-      setPermissionDeniedAt(Date.now());
-    };
-    return () => {
-      activeNotifySessionExpired = null;
-      activeNotifyPermissionDenied = null;
-    };
+    return registerAuthNotifyHandlers({
+      onSessionExpired: (message) => {
+        setSessionExpiredMessage(message ?? 'Your session has expired. Please sign in again.');
+        setSessionExpiredAt(Date.now());
+        setSession(null);
+        if (activeKnowledgeBaseId) {
+          clearStoredSession(activeKnowledgeBaseId);
+        }
+        if (proactiveRefreshTimerRef.current) {
+          clearTimeout(proactiveRefreshTimerRef.current);
+          proactiveRefreshTimerRef.current = null;
+        }
+      },
+      onPermissionDenied: (message) => {
+        setPermissionDeniedMessage(message ?? 'You do not have permission to perform this action.');
+        setPermissionDeniedAt(Date.now());
+      },
+    });
   }, [activeKnowledgeBaseId]);
 
   // Mutations
