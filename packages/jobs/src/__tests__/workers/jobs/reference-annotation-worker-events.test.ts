@@ -157,10 +157,8 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
       jobId: jobId('job-test-3'),
       jobType: 'reference-annotation',
       result: expect.objectContaining({
-        result: expect.objectContaining({
-          totalFound: expect.any(Number),
-          totalEmitted: expect.any(Number)
-        })
+        totalFound: expect.any(Number),
+        totalEmitted: expect.any(Number)
       })
     });
   });
