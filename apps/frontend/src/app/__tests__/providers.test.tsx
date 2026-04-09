@@ -5,63 +5,29 @@ import { QueryClient } from '@tanstack/react-query';
 import { Providers } from '@/app/providers';
 import { APIError } from '@semiont/api-client';
 
-// Mock AuthProvider
-vi.mock('@/contexts/AuthContext', () => ({
-  AuthProvider: ({ children }: { children: React.ReactNode }) =>
-    <div data-testid="auth-provider">{children}</div>,
-  useAuthContext: () => ({
-    session: { token: 'mock-token', user: { email: 'test@example.com' } },
-    isLoading: false,
-    setSession: vi.fn(),
-    clearSession: vi.fn(),
-  }),
-}));
-
 // Mock custom contexts
 vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
   KeyboardShortcutsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }));
 
-// Mock @semiont/react-ui components
+// Mock @semiont/react-ui components — only what root Providers actually renders.
+// Root Providers no longer mounts the merged KB session provider; that's in AuthShell.
 vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui');
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
     ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     LiveRegionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
     useTheme: () => ({ theme: 'light', setTheme: vi.fn(), resolvedTheme: 'light' }),
-    dispatch401Error: vi.fn(),
-    dispatch403Error: vi.fn(),
+    notifySessionExpired: vi.fn(),
+    notifyPermissionDenied: vi.fn(),
   };
 });
 
-vi.mock('@/components/AuthErrorBoundary', () => ({
-  AuthErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}));
-
 vi.mock('@/components/knowledge/NavigationHandler', () => ({
   NavigationHandler: () => null,
-}));
-
-// Mock KnowledgeBaseContext so AuthProvider is rendered (activeKnowledgeBase must be set)
-vi.mock('@/contexts/KnowledgeBaseContext', () => ({
-  KnowledgeBaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useKnowledgeBaseContext: () => ({
-    knowledgeBases: [{ id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' }],
-    activeKnowledgeBaseId: 'kb-1',
-    activeKnowledgeBase: { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
-    addKnowledgeBase: vi.fn(),
-    removeKnowledgeBase: vi.fn(),
-    setActiveKnowledgeBase: vi.fn(),
-    updateKnowledgeBase: vi.fn(),
-    signOut: vi.fn(),
-  }),
-  kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-  getKbToken: () => null,
-  isTokenExpired: () => true,
 }));
 
 // Mock react-query to spy on QueryClient creation

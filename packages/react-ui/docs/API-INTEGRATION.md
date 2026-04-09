@@ -47,7 +47,7 @@ function useApiClientManager() {
 
 ```tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { dispatch401Error, dispatch403Error } from '@semiont/react-ui';
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
 import { APIError } from '@semiont/api-client';
 
 const queryClient = new QueryClient({
@@ -55,9 +55,9 @@ const queryClient = new QueryClient({
     onError: (error) => {
       if (error instanceof APIError) {
         if (error.status === 401) {
-          dispatch401Error('Your session has expired');
+          notifySessionExpired('Your session has expired');
         } else if (error.status === 403) {
-          dispatch403Error('Permission denied');
+          notifyPermissionDenied('Permission denied');
         }
       }
     },
@@ -540,9 +540,9 @@ const queryClient = new QueryClient({
     onError: (error) => {
       if (error instanceof APIError) {
         if (error.status === 401) {
-          dispatch401Error('Session expired');
+          notifySessionExpired('Session expired');
         } else if (error.status === 403) {
-          dispatch403Error('Permission denied');
+          notifyPermissionDenied('Permission denied');
         }
       }
     },

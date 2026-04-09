@@ -1,21 +1,25 @@
 import { useContext } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LeftSidebar, Footer, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
+import {
+  LeftSidebar,
+  Footer,
+  ApiClientProvider,
+  AuthTokenProvider,
+  useKnowledgeBaseSession,
+  kbBackendUrl,
+} from '@semiont/react-ui';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
-import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
-import { useKnowledgeBaseContext, kbBackendUrl } from '@/contexts/KnowledgeBaseContext';
 import { AuthShell } from '@/contexts/AuthShell';
 
 function ModerateLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
-  const { isAuthenticated, isAdmin, isModerator, token: authToken } = useAuth();
-  const { activeKnowledgeBase } = useKnowledgeBaseContext();
+  const { isAuthenticated, isAdmin, isModerator, token: authToken, activeKnowledgeBase } = useKnowledgeBaseSession();
   const router = useRouter();
 
   if (!activeKnowledgeBase) {

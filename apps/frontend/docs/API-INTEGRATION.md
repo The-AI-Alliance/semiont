@@ -213,54 +213,52 @@ async function callCustomEndpoint() {
 
 ### Authentication Flow
 
-The authentication flow is handled through the provider pattern:
+A user is always authenticated against a specific KB. The merged `KnowledgeBaseSessionProvider` (mounted by `AuthShell`) owns the active KB, the per-KB JWT in localStorage, and the validated session. The frontend mounts the library provider directly — there's no app-side wrapper to write.
 
-```typescript
-// 1. Frontend implements session provider
-export function NextAuthSessionProvider({ children }) {
-  const session = useSession();
+```tsx
+// apps/frontend/src/contexts/AuthShell.tsx
+import {
+  KnowledgeBaseSessionProvider,
+  ProtectedErrorBoundary,
+  SessionExpiredModal,
+  PermissionDeniedModal,
+} from '@semiont/react-ui';
 
-  const sessionManager = {
-    getSession: () => session.data,
-    getToken: async () => session.data?.accessToken,
-    signIn: (credentials) => signIn('credentials', credentials),
-    signOut: () => signOut(),
-  };
-
+export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider sessionManager={sessionManager}>
-      {children}
-    </SessionProvider>
+    <KnowledgeBaseSessionProvider>
+      <ProtectedErrorBoundary>
+        <SessionExpiredModal />
+        <PermissionDeniedModal />
+        {children}
+      </ProtectedErrorBoundary>
+    </KnowledgeBaseSessionProvider>
   );
-}
-
-// 2. @semiont/react-ui hooks use the session for API calls
-// Inside @semiont/react-ui:
-function useResources() {
-  const { apiClient } = useApiClient(); // Gets injected client
-  const { getToken } = useSession();    // Gets token from provider
-
-  // React Query automatically includes auth token
-  return {
-    list: {
-      useQuery: () => useQuery({
-        queryKey: ['resources'],
-        queryFn: async () => {
-          const token = await getToken();
-          return apiClient.resources.list({
-            headers: { Authorization: `Bearer ${token}` }
-          });
-        }
-      })
-    }
-  };
 }
 ```
 
+Components inside the shell read or mutate session state with `useKnowledgeBaseSession()`:
+
+```tsx
+import { useKnowledgeBaseSession } from '@semiont/react-ui';
+
+function UserBadge() {
+  const { isAuthenticated, displayName, signOut, activeKnowledgeBase } = useKnowledgeBaseSession();
+  if (!isAuthenticated || !activeKnowledgeBase) return null;
+  return (
+    <button onClick={() => signOut(activeKnowledgeBase.id)}>
+      {displayName} (Sign out)
+    </button>
+  );
+}
+```
+
+The hook **throws** if called outside the provider — there is no fallback. This enforces that auth-aware components are always mounted inside the protected boundary.
+
 **Key Points**:
-- **No manual token management** - Provider pattern handles authentication
-- **Framework-agnostic** - @semiont/react-ui doesn't know about NextAuth
-- **Type-safe** - Full TypeScript support from OpenAPI specs
+- **Per-KB sessions** — there is no global session; switching KBs switches sessions atomically
+- **No manual token management** — `useKnowledgeBaseSession` exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`) that handle storage
+- **Type-safe** — Full TypeScript support from OpenAPI specs
 
 ## W3C Web Annotation Model
 

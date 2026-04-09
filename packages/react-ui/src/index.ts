@@ -10,14 +10,13 @@ export * from './types/AnnotationManager';
 export * from './types/CacheManager';
 export * from './types/navigation';
 export type { OpenResourcesManager, OpenResource } from './types/OpenResourcesManager';
-export * from './types/SessionManager';
+export * from './types/knowledge-base';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
 
 // Lib utilities
 export * from './lib/annotation-registry';
 export * from './lib/api-hooks';
-export * from './lib/auth-events';
 export * from './lib/button-styles';
 export * from './lib/codemirror-json-theme';
 export * from './lib/codemirror-widgets';
@@ -57,13 +56,14 @@ export * from './contexts/useEventSubscription';
 export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
 export * from './contexts/RoutingContext';
-export * from './contexts/SessionContext';
+export * from './contexts/KnowledgeBaseSessionContext';
 export * from './contexts/TranslationContext';
 
 // Components - Top level
 export * from './components/CodeMirrorRenderer';
 export * from './components/AnnotateReferencesProgressWidget';
 export * from './components/ErrorBoundary';
+export * from './components/ProtectedErrorBoundary';
 export * from './components/LiveRegion';
 export * from './components/ResizeHandle';
 export * from './components/ResourceTagsInline';

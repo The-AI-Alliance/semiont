@@ -11,14 +11,59 @@ import { vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
-import { SessionProvider } from './contexts/SessionContext';
+import {
+  KnowledgeBaseSessionContext,
+  type KnowledgeBaseSessionValue,
+} from './contexts/KnowledgeBaseSessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
 import { EventBusProvider, useEventBus } from './contexts/EventBusContext';
 import type { EventBus } from '@semiont/core';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
-import type { SessionManager } from './types/SessionManager';
 import type { OpenResourcesManager } from './types/OpenResourcesManager';
+
+/**
+ * Default mock context value for KnowledgeBaseSessionProvider in tests.
+ * Tests override individual fields via `createMockKnowledgeBaseSession`.
+ */
+export const defaultMockKnowledgeBaseSession: KnowledgeBaseSessionValue = {
+  knowledgeBases: [],
+  activeKnowledgeBase: null,
+  session: null,
+  isLoading: false,
+  user: null,
+  token: null,
+  isAuthenticated: false,
+  hasValidBackendToken: false,
+  isFullyAuthenticated: false,
+  displayName: 'User',
+  avatarUrl: null,
+  userDomain: undefined,
+  isAdmin: false,
+  isModerator: false,
+  expiresAt: null,
+  sessionExpiredAt: null,
+  sessionExpiredMessage: null,
+  permissionDeniedAt: null,
+  permissionDeniedMessage: null,
+  addKnowledgeBase: vi.fn(() => ({ id: 'mock', label: '', host: '', port: 0, protocol: 'http' as const, email: '' })),
+  removeKnowledgeBase: vi.fn(),
+  setActiveKnowledgeBase: vi.fn(),
+  updateKnowledgeBase: vi.fn(),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  acknowledgeSessionExpired: vi.fn(),
+  acknowledgePermissionDenied: vi.fn(),
+};
+
+/**
+ * Construct a mock KnowledgeBaseSession context value with overrides.
+ */
+export function createMockKnowledgeBaseSession(
+  overrides: Partial<KnowledgeBaseSessionValue> = {},
+): KnowledgeBaseSessionValue {
+  return { ...defaultMockKnowledgeBaseSession, ...overrides };
+}
 
 /**
  * Default mock implementations
@@ -28,7 +73,6 @@ export const defaultMocks = {
     t: (namespace: string, key: string, params?: Record<string, any>) => {
       let result = `${namespace}.${key}`;
       if (params) {
-        // Simple parameter replacement for testing
         Object.entries(params).forEach(([k, v]) => {
           result = result.replace(`{${k}}`, String(v));
         });
@@ -36,13 +80,6 @@ export const defaultMocks = {
       return result;
     },
   } as TranslationManager,
-
-  sessionManager: {
-    isAuthenticated: false,
-    expiresAt: null,
-    timeUntilExpiry: null,
-    isExpiringSoon: false,
-  } as SessionManager,
 
   openResourcesManager: {
     openResources: [],
@@ -59,30 +96,11 @@ export const defaultMocks = {
 export interface TestProvidersOptions {
   translationManager?: TranslationManager;
   apiBaseUrl?: string;
-  sessionManager?: SessionManager;
+  knowledgeBaseSession?: KnowledgeBaseSessionValue;
   openResourcesManager?: OpenResourcesManager;
   queryClient?: QueryClient;
 }
 
-/**
- * Render component with all providers
- *
- * @example
- * ```tsx
- * import { renderWithProviders } from '@semiont/react-ui/test-utils';
- *
- * it('should render component', () => {
- *   renderWithProviders(<MyComponent />);
- *   expect(screen.getByText('Hello')).toBeInTheDocument();
- * });
- *
- * it('should work with custom API base URL', () => {
- *   renderWithProviders(<MyComponent />, {
- *     apiBaseUrl: 'http://test.example.com',
- *   });
- * });
- * ```
- */
 export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
   /** If true, returns the event bus instance along with render result */
   returnEventBus?: boolean;
@@ -116,7 +134,7 @@ export function renderWithProviders(
   const {
     translationManager = defaultMocks.translationManager,
     apiBaseUrl = 'http://localhost:4000',
-    sessionManager = defaultMocks.sessionManager,
+    knowledgeBaseSession = defaultMockKnowledgeBaseSession,
     openResourcesManager = defaultMocks.openResourcesManager,
     returnEventBus = false,
     queryClient = new QueryClient({
@@ -135,7 +153,7 @@ export function renderWithProviders(
       <TranslationProvider translationManager={translationManager}>
         <EventBusProvider>
           <ApiClientProvider baseUrl={apiBaseUrl}>
-            <SessionProvider sessionManager={sessionManager}>
+            <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
               <OpenResourcesProvider openResourcesManager={openResourcesManager}>
                 <QueryClientProvider client={queryClient}>
                   <ToastProvider>
@@ -149,7 +167,7 @@ export function renderWithProviders(
                   </ToastProvider>
                 </QueryClientProvider>
               </OpenResourcesProvider>
-            </SessionProvider>
+            </KnowledgeBaseSessionContext.Provider>
           </ApiClientProvider>
         </EventBusProvider>
       </TranslationProvider>
@@ -165,21 +183,8 @@ export function renderWithProviders(
   return result;
 }
 
-
 /**
  * Create a mock translation manager with custom translations
- *
- * @example
- * ```tsx
- * const translations = createMockTranslationManager({
- *   Toolbar: { save: 'Save', cancel: 'Cancel' },
- *   Footer: { copyright: '© 2024' },
- * });
- *
- * renderWithProviders(<MyComponent />, {
- *   translationManager: translations,
- * });
- * ```
  */
 export function createMockTranslationManager(
   translations: Record<string, Record<string, string>>
@@ -192,45 +197,7 @@ export function createMockTranslationManager(
 }
 
 /**
- * Create a mock session manager with custom session state
- *
- * @example
- * ```tsx
- * const session = createMockSessionManager({
- *   isAuthenticated: true,
- *   expiresAt: new Date(Date.now() + 3600000),
- * });
- *
- * renderWithProviders(<MyComponent />, {
- *   sessionManager: session,
- * });
- * ```
- */
-export function createMockSessionManager(
-  state: Partial<SessionManager>
-): SessionManager {
-  return {
-    isAuthenticated: false,
-    expiresAt: null,
-    timeUntilExpiry: null,
-    isExpiringSoon: false,
-    ...state,
-  };
-}
-
-/**
  * Create a mock open resources manager with custom resources
- *
- * @example
- * ```tsx
- * const resources = createMockOpenResourcesManager([
- *   { id: 'doc-1', name: 'Document 1', openedAt: Date.now() },
- * ]);
- *
- * renderWithProviders(<MyComponent />, {
- *   openResourcesManager: resources,
- * });
- * ```
  */
 export function createMockOpenResourcesManager(
   resources: OpenResourcesManager['openResources'] = []

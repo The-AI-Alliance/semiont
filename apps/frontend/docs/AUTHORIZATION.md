@@ -17,44 +17,42 @@ The current authorization system provides:
 
 ### Core Components
 
-#### 1. Permission Hooks (`src/hooks/useAuth.ts`)
+#### 1. Role flags on `useKnowledgeBaseSession()`
+
+The merged session hook exposes coarse role flags derived from the authenticated user:
 
 ```typescript
-export function usePermissions() {
-  // Currently returns basic permissions
-  // Ready for backend integration
-  return {
-    canRead: boolean,
-    canWrite: boolean,
-    canAdmin: boolean,
-    canManageUsers: boolean
-  };
+import { useKnowledgeBaseSession } from '@semiont/react-ui';
+
+const { isAdmin, isModerator } = useKnowledgeBaseSession();
+```
+
+These come straight from the `getMe` response and are coarse — fine-grained permission scopes are still backend-only and a future enhancement.
+
+#### 2. PermissionDeniedModal (`@semiont/react-ui`)
+
+A library modal that surfaces when users encounter 403 errors. It reads from `KnowledgeBaseSessionContext` (specifically `permissionDeniedAt` and `permissionDeniedMessage`), so it appears whenever the active provider's flag becomes non-null. Recovery options:
+
+- **Go Back** - Return to previous page
+- **Go to Home** - Navigate to home page
+- **Switch Account** - Sign in with different credentials
+
+The modal is mounted inside `AuthShell` alongside `SessionExpiredModal`.
+
+#### 3. notifyPermissionDenied (`@semiont/react-ui`)
+
+Code outside the React tree (the React Query `QueryCache.onError` and `MutationCache.onError` handlers) signals the active provider via a module-scoped notify function:
+
+```typescript
+import { notifyPermissionDenied } from '@semiont/react-ui';
+
+// In QueryCache.onError
+if (error instanceof APIError && error.status === 403) {
+  notifyPermissionDenied('You need admin access for this action');
 }
 ```
 
-#### 2. PermissionDeniedModal (`src/components/PermissionDeniedModal.tsx`)
-
-A modal that appears when users encounter 403 errors, providing:
-
-- Clear explanation of why access was denied
-- Current user context (shows signed-in account)
-- Multiple recovery options:
-  - **Go Back** - Return to previous page
-  - **Go to Home** - Navigate to home page
-  - **Switch Account** - Sign in with different credentials
-  - **Request Access** - Placeholder for future access request workflow
-
-#### 3. Global Event System (`src/lib/auth-events.ts`)
-
-```typescript
-// Dispatch 403 events from anywhere in the app
-dispatch403Error('You need admin access for this action');
-
-// Listen for permission denied events
-onAuthEvent(AUTH_EVENTS.FORBIDDEN, (event) => {
-  // Handle permission denial
-});
-```
+When no `KnowledgeBaseSessionProvider` is mounted (e.g. on the landing page), the call is a no-op. The provider clears the flag when the user dismisses the modal via `acknowledgePermissionDenied()`.
 
 ## 403 Error Handling Flow
 
@@ -62,32 +60,31 @@ onAuthEvent(AUTH_EVENTS.FORBIDDEN, (event) => {
 flowchart TD
     A[API Call] --> B{Response Status}
     B -->|403| C[APIError Thrown]
-    C --> D[Global Error Handler]
-    D --> E[dispatch403Error]
-    E --> F[PermissionDeniedModal Shows]
-    F --> G{User Choice}
-    G -->|Go Back| H[Router.back()]
-    G -->|Go Home| I[Navigate to /]
-    G -->|Switch Account| J[Sign In Flow]
-    G -->|Request Access| K[Future: Access Request]
+    C --> D[QueryCache.onError]
+    D --> E[notifyPermissionDenied]
+    E --> F[Provider sets permissionDeniedAt]
+    F --> G[PermissionDeniedModal reads context, shows]
+    G --> H{User Choice}
+    H -->|Go Back| I[Router.back + ack]
+    H -->|Go Home| J[Navigate to / + ack]
+    H -->|Switch Account| K[Sign In Flow + ack]
 ```
 
 ### Error Detection Layers
 
-1. **API Client Level** (`src/lib/api-client.ts`)
+1. **API Client Level** (`@semiont/api-client`)
    - Throws `APIError` with status: 403
    - Preserves error context from backend
 
-2. **React Query Level** (`src/app/providers.tsx`)
+2. **React Query Level** (`apps/frontend/src/app/providers.tsx`)
    ```typescript
    if (error instanceof APIError && error.status === 403) {
-     dispatch403Error('Permission denied');
+     notifyPermissionDenied('Permission denied');
    }
    ```
 
-3. **Component Level** (`src/hooks/useApiWithAuth.ts`)
-   - Shows toast notification
-   - Dispatches event for modal display
+3. **Component Level**
+   - Components inside `AuthShell` can read `isAdmin` / `isModerator` from `useKnowledgeBaseSession()` to disable or hide UI affordances proactively
 
 ## Security Considerations
 
@@ -198,9 +195,9 @@ Both systems use the same event-driven architecture for consistent error handlin
 
 ```typescript
 function MyComponent() {
-  const { canWrite } = usePermissions();
+  const { isAdmin } = useKnowledgeBaseSession();
 
-  if (!canWrite) {
+  if (!isAdmin) {
     return <ReadOnlyMessage />;
   }
 
@@ -309,13 +306,14 @@ const permissions = {
 ### Common Issues
 
 1. **Modal not appearing on 403**
-   - Check if `dispatch403Error` is being called
-   - Verify PermissionDeniedModal is mounted in layout
+   - Check if `notifyPermissionDenied` is being called from QueryCache.onError
+   - Verify `PermissionDeniedModal` is mounted inside `AuthShell`
+   - Confirm the page is inside the protected layout boundary — outside it, no provider is mounted and the notify call is a no-op
    - Check browser console for errors
 
-2. **Incorrect permissions shown**
-   - Permissions currently hardcoded in `usePermissions`
-   - Backend integration pending
+2. **Coarse role flags only**
+   - `isAdmin` / `isModerator` come straight from `getMe`
+   - Fine-grained per-resource permissions are pending backend support
 
 3. **403 errors not caught**
    - Ensure using `APIError` class from api-client

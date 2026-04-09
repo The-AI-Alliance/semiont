@@ -74,26 +74,32 @@ Import the styles in your app's main CSS file:
 import {
   TranslationProvider,
   ApiClientProvider,
-  SessionProvider,
+  KnowledgeBaseSessionProvider,
+  ProtectedErrorBoundary,
+  SessionExpiredModal,
+  PermissionDeniedModal,
 } from '@semiont/react-ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 function App({ children }) {
   const translationManager = useTranslationManager(); // Your implementation
-  const apiClientManager = useApiClientManager();     // Your implementation
-  const sessionManager = useSessionManager();         // Your implementation
   const queryClient = new QueryClient();
 
   return (
-    <SessionProvider sessionManager={sessionManager}>
-      <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider apiClientManager={apiClientManager}>
-          <QueryClientProvider client={queryClient}>
-            {children}
-          </QueryClientProvider>
+    <TranslationProvider translationManager={translationManager}>
+      <QueryClientProvider client={queryClient}>
+        <ApiClientProvider baseUrl="https://api.example.com">
+          {/* Mount KnowledgeBaseSessionProvider only on protected routes */}
+          <KnowledgeBaseSessionProvider>
+            <ProtectedErrorBoundary>
+              <SessionExpiredModal />
+              <PermissionDeniedModal />
+              {children}
+            </ProtectedErrorBoundary>
+          </KnowledgeBaseSessionProvider>
         </ApiClientProvider>
-      </TranslationProvider>
-    </SessionProvider>
+      </QueryClientProvider>
+    </TranslationProvider>
   );
 }
 ```
@@ -187,7 +193,7 @@ See [docs/STYLES.md](docs/STYLES.md) for detailed CSS documentation.
 
 All cross-cutting concerns use the Provider Pattern:
 
-- **SessionProvider** - Authentication state management
+- **KnowledgeBaseSessionProvider** - KB list, active KB, validated session, modal state — one merged provider that's the single source of truth for "which KB and what's the session against it"
 - **TranslationProvider** - Internationalization
 - **ApiClientProvider** - Authenticated API client
 - **OpenResourcesProvider** - Recently opened resources

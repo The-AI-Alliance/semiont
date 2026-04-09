@@ -4,19 +4,14 @@ import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIc
 import { SemiontApiClient } from '@semiont/api-client';
 import { baseUrl, email as makeEmail, accessToken, EventBus } from '@semiont/core';
 import {
-  useKnowledgeBaseContext,
+  useKnowledgeBaseSession,
   defaultProtocol,
   getKbSessionStatus,
-  setKbToken,
   type KnowledgeBase,
   type KbSessionStatus,
-} from '@/contexts/KnowledgeBaseContext';
+} from '@semiont/react-ui';
 
 type T = (key: string, params?: Record<string, unknown>) => string;
-
-function generateKbId(): string {
-  return crypto.randomUUID();
-}
 
 const STATUS_COLORS: Record<KbSessionStatus, string> = {
   authenticated: 'var(--semiont-color-success-500, #22c55e)',
@@ -144,7 +139,16 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
 export function KnowledgeBasePanel() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
-  const { knowledgeBases, activeKnowledgeBase, setActiveKnowledgeBase, addKnowledgeBase, removeKnowledgeBase, updateKnowledgeBase, signOut } = useKnowledgeBaseContext();
+  const {
+    knowledgeBases,
+    activeKnowledgeBase,
+    setActiveKnowledgeBase,
+    addKnowledgeBase,
+    removeKnowledgeBase,
+    updateKnowledgeBase,
+    signIn,
+    signOut,
+  } = useKnowledgeBaseSession();
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);
@@ -177,8 +181,7 @@ export function KnowledgeBasePanel() {
     if (existing) {
       try {
         const { token } = await authenticateWithBackend(host, port, protocol, email, password);
-        setKbToken(existing.id, token);
-        setActiveKnowledgeBase(existing.id);
+        signIn(existing.id, token);
         setShowAddForm(false);
       } catch (err) {
         setAddError(err instanceof Error ? err.message : String(err));
@@ -189,9 +192,7 @@ export function KnowledgeBasePanel() {
     }
     try {
       const { token, label } = await authenticateWithBackend(host, port, protocol, email, password);
-      const id = generateKbId();
-      setKbToken(id, token);
-      addKnowledgeBase({ id, label, host, port, protocol, email });
+      addKnowledgeBase({ label, host, port, protocol, email }, token);
       setShowAddForm(false);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
@@ -207,10 +208,9 @@ export function KnowledgeBasePanel() {
     setReauthSubmitting(true);
     try {
       const { token, label } = await authenticateWithBackend(kb.host, kb.port, kb.protocol, kb.email, password);
-      setKbToken(kbId, token);
       updateKnowledgeBase(kbId, { label });
+      signIn(kbId, token);
       setReauthKbId(null);
-      setActiveKnowledgeBase(kbId);
     } catch (err) {
       setReauthError(err instanceof Error ? err.message : String(err));
     } finally {

@@ -290,7 +290,7 @@ export function middleware(request) {
 import { Navigate } from 'react-router-dom';
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useSessionContext();
+  const { isAuthenticated } = useKnowledgeBaseSession();
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;

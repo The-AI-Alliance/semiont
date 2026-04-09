@@ -55,72 +55,85 @@ function MyComponent() {
 
 ## Available Providers
 
-### SessionProvider
+### KnowledgeBaseSessionProvider
 
-Manages authentication state and session expiration.
+The single source of truth for "which Knowledge Base is active and what is the user's session against it." This provider merges what could otherwise be three separate concerns (the KB list, the active KB selection, and the validated session) into one coherent unit. There is no auth without a KB — switching KBs means switching sessions atomically.
 
-**Interface:**
+**What it owns:**
+- The list of configured KBs (persisted to localStorage)
+- Which KB is currently active (persisted to localStorage)
+- The validated session (token + user) for the active KB
+- Per-KB JWTs in localStorage
+- The "session expired" and "permission denied" flags that drive the modals
+- JWT expiry derivation (for the session-timer UI)
 
-```typescript
-interface SessionManager {
-  isAuthenticated: boolean;
-  expiresAt: Date | null;
-  timeUntilExpiry: number | null; // milliseconds
-  isExpiringSoon: boolean;
-}
-```
+**Mounting:** Mount inside the protected layout boundary, never on pre-app routes (landing, OAuth flow). It does its own JWT validation on mount, so mounting it on routes that don't need auth causes spurious 401s.
 
 **Usage:**
 
 ```tsx
-import { SessionProvider, useSessionContext } from '@semiont/react-ui';
+import {
+  KnowledgeBaseSessionProvider,
+  ProtectedErrorBoundary,
+  SessionExpiredModal,
+  PermissionDeniedModal,
+  useKnowledgeBaseSession,
+} from '@semiont/react-ui';
 
-// App implementation (example using next-auth)
-function useSessionManager(): SessionManager {
-  const { data: session } = useSession();
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+// In your protected layout
+<KnowledgeBaseSessionProvider>
+  <ProtectedErrorBoundary>
+    <SessionExpiredModal />
+    <PermissionDeniedModal />
+    {children}
+  </ProtectedErrorBoundary>
+</KnowledgeBaseSessionProvider>
 
-  // Parse JWT to get expiration
-  useEffect(() => {
-    if (session?.backendToken) {
-      const payload = JSON.parse(atob(session.backendToken.split('.')[1]));
-      setExpiresAt(new Date(payload.exp * 1000));
-    }
-  }, [session]);
-
-  const timeUntilExpiry = expiresAt
-    ? expiresAt.getTime() - Date.now()
-    : null;
-
-  return {
-    isAuthenticated: !!session?.backendToken,
-    expiresAt,
-    timeUntilExpiry,
-    isExpiringSoon: timeUntilExpiry !== null && timeUntilExpiry < 5 * 60 * 1000
-  };
-}
-
-// In your app
-<SessionProvider sessionManager={sessionManager}>
-  {children}
-</SessionProvider>
-
-// In components
+// In components inside the provider
 function MyComponent() {
-  const { isAuthenticated, isExpiringSoon } = useSessionContext();
+  const {
+    activeKnowledgeBase,
+    session,
+    isAuthenticated,
+    isAdmin,
+    displayName,
+    signOut,
+  } = useKnowledgeBaseSession();
 
-  if (isExpiringSoon) {
-    return <SessionExpiryBanner />;
-  }
-
-  return <div>Authenticated: {isAuthenticated}</div>;
+  if (!isAuthenticated) return null;
+  return <div>Hello, {displayName}</div>;
 }
 ```
 
-**Components that use SessionContext:**
-- `SessionExpiredModal` - Shows modal when session expires
-- `SessionExpiryBanner` - Warning banner before expiration
-- `SessionTimer` - Displays countdown to expiration
+`useKnowledgeBaseSession()` **throws** when called outside the provider. There is no fallback. Auth misuse must fail loudly.
+
+**Cross-tree session signaling:**
+
+Code outside the React tree (notably the React Query `QueryCache.onError` handler) cannot call hooks. Use the module-scoped notify functions to signal the active provider:
+
+```tsx
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+
+new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (error instanceof APIError) {
+        if (error.status === 401) notifySessionExpired('Your session has expired.');
+        if (error.status === 403) notifyPermissionDenied('Access denied.');
+      }
+    },
+  }),
+});
+```
+
+When no `KnowledgeBaseSessionProvider` is mounted (e.g. on the landing page), these calls are no-ops.
+
+**Components that read from KnowledgeBaseSessionContext:**
+- `SessionExpiredModal` - shows when `sessionExpiredAt` becomes non-null
+- `PermissionDeniedModal` - shows when `permissionDeniedAt` becomes non-null
+- `SessionExpiryBanner` - warning banner before JWT expiration
+- `SessionTimer` - countdown to JWT expiration
+- `useSessionExpiry` - hook for JWT expiry derivations
 
 ---
 
@@ -542,31 +555,42 @@ See [ROUTING.md](ROUTING.md) for details.
 
 ## Provider Order
 
-Providers should be composed in this order (outer to inner):
+Providers split into two layers: **global** (every page) and **protected** (only routes that require auth). Auth-dependent state must NOT be mounted on pre-app routes (landing, OAuth flow), or those pages will trigger spurious JWT validation and modal flashes.
+
+**Global layer** (outer to inner):
 
 ```tsx
-<SessionProvider sessionManager={sessionManager}>
-  <TranslationProvider translationManager={translationManager}>
-    <ApiClientProvider apiClientManager={apiClientManager}>
-      <QueryClientProvider client={queryClient}>
-        <RoutingProvider routing={routingConfig}>
-          <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-            {children}
-          </OpenResourcesProvider>
-        </RoutingProvider>
-      </QueryClientProvider>
+<TranslationProvider translationManager={translationManager}>
+  <QueryClientProvider client={queryClient}>
+    <ApiClientProvider baseUrl={apiBaseUrl}>
+      <RoutingProvider routing={routingConfig}>
+        {children}
+      </RoutingProvider>
     </ApiClientProvider>
-  </TranslationProvider>
-</SessionProvider>
+  </QueryClientProvider>
+</TranslationProvider>
+```
+
+**Protected layer** — mounted only inside layouts that require authentication:
+
+```tsx
+<KnowledgeBaseSessionProvider>
+  <ProtectedErrorBoundary>
+    <SessionExpiredModal />
+    <PermissionDeniedModal />
+    <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+      {children}
+    </OpenResourcesProvider>
+  </ProtectedErrorBoundary>
+</KnowledgeBaseSessionProvider>
 ```
 
 **Rationale:**
-1. Session is outermost (authentication affects everything)
-2. Translation next (UI strings needed everywhere)
-3. API Client (depends on session for auth token)
-4. React Query (uses API client)
-5. Routing (needs translations)
-6. Open Resources innermost (app-specific, not used by core components)
+1. Translation outermost — UI strings are needed everywhere, including unauthenticated pages
+2. React Query and ApiClient also global — public pages may still issue API calls
+3. `KnowledgeBaseSessionProvider` is per-route, not global — it owns localStorage state and JWT validation that only protected routes need
+4. The modals and `ProtectedErrorBoundary` sit inside the session provider so they can read its state
+5. `OpenResourcesProvider` is innermost (app-specific, depends on session)
 
 ## Testing with Providers
 

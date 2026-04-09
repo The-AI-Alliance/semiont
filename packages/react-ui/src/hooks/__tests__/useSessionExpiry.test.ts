@@ -9,16 +9,30 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React, { type ReactNode } from 'react';
 import { useSessionExpiry } from '../useSessionExpiry';
-import { SessionProvider } from '../../contexts/SessionContext';
-import type { SessionManager } from '../../types/SessionManager';
+import {
+  KnowledgeBaseSessionContext,
+  type KnowledgeBaseSessionValue,
+} from '../../contexts/KnowledgeBaseSessionContext';
+import { defaultMockKnowledgeBaseSession } from '../../test-utils';
 
-// Helper to create a SessionManager with specified expiresAt
-const createMockSessionManager = (expiresAt: Date | null): SessionManager => ({
-  isAuthenticated: expiresAt !== null,
+// Helper to create a context value with the specified expiresAt.
+// The hook reads only expiresAt — everything else is the default mock.
+const createMockSessionManager = (expiresAt: Date | null): KnowledgeBaseSessionValue => ({
+  ...defaultMockKnowledgeBaseSession,
   expiresAt,
-  timeUntilExpiry: null, // Not used by useSessionExpiry
-  isExpiringSoon: false, // Not used by useSessionExpiry
 });
+
+const SessionProvider = ({
+  sessionManager,
+  children,
+}: {
+  sessionManager: KnowledgeBaseSessionValue;
+  children: ReactNode;
+}) => React.createElement(
+  KnowledgeBaseSessionContext.Provider,
+  { value: sessionManager },
+  children,
+);
 
 describe('useSessionExpiry', () => {
   beforeEach(() => {

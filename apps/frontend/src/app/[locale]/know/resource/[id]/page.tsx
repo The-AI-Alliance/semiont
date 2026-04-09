@@ -14,10 +14,9 @@ import { useResources } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 import { useStreamStatus } from '@/contexts/StreamStatusContext';
-import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, useKnowledgeBaseSession } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import type { SemiontResource } from '@semiont/react-ui';
 
@@ -32,7 +31,7 @@ export default function KnowledgeResourcePage() {
   const rId = resourceId(params?.id as string);
 
   const streamStatus = useStreamStatus();
-  const { activeKnowledgeBase } = useKnowledgeBaseContext();
+  const { activeKnowledgeBase } = useKnowledgeBaseSession();
 
   // Load only the resource descriptor - everything else is loaded by ResourceViewerPage
   const resources = useResources();

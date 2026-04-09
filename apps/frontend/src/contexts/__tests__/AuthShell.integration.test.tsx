@@ -3,16 +3,14 @@
  *
  * Exercises the full chain end-to-end (in jsdom):
  *
- *   AuthShell mount
- *     → AuthProvider validates JWT (mocked getMe returns 401)
- *     → catch handler clears local session
- *     → dispatches `auth:unauthorized` event
- *     → SessionExpiredModal (mounted inside AuthShell) catches the event
- *     → modal renders "Session Expired" + "Sign In Again" button
+ *   localStorage seeded with a KB + token
+ *     → AuthShell mounts
+ *     → KnowledgeBaseSessionProvider validates token via getMe
+ *     → on 401: provider clears token + sets sessionExpiredAt
+ *     → SessionExpiredModal reads sessionExpiredAt and renders
  *
- * This is the integration the unit tests miss: AuthShell + AuthProvider +
- * SessionExpiredModal working together as one piece. If any link in this
- * chain breaks, the user sees an empty page instead of the modal.
+ * If any link in this chain breaks, the user sees an empty page instead of
+ * the modal. This is the integration the unit tests miss.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -33,47 +31,6 @@ vi.mock('@semiont/api-client', async () => {
   };
 });
 
-// Mock KnowledgeBaseContext to provide an active KB and a stored token
-const mockClearKbToken = vi.fn();
-const mockKb = {
-  id: 'kb-1',
-  label: 'Test',
-  host: 'localhost',
-  port: 4000,
-  protocol: 'http' as const,
-  email: 'test@example.com',
-};
-
-vi.mock('@/contexts/KnowledgeBaseContext', () => ({
-  KnowledgeBaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useKnowledgeBaseContext: () => ({
-    knowledgeBases: [mockKb],
-    activeKnowledgeBase: mockKb,
-    activeKnowledgeBaseId: 'kb-1',
-    addKnowledgeBase: vi.fn(),
-    removeKnowledgeBase: vi.fn(),
-    setActiveKnowledgeBase: vi.fn(),
-    updateKnowledgeBase: vi.fn(),
-    signOut: vi.fn(),
-  }),
-  kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-  getKbToken: () => 'fake-jwt-token',
-  clearKbToken: (...args: any[]) => mockClearKbToken(...args),
-  isTokenExpired: () => false,
-}));
-
-// Mock useSessionManager — produce a real-ish session manager that responds
-// to the dispatched event flow. Since dispatch401Error is global (window
-// CustomEvent), the SessionExpiredModal will pick it up regardless.
-vi.mock('@/hooks/useSessionManager', () => ({
-  useSessionManager: () => ({
-    isAuthenticated: true,
-    expiresAt: null,
-    timeUntilExpiry: null,
-    isExpiringSoon: false,
-  }),
-}));
-
 // Mock @headlessui/react to avoid jsdom portal issues
 vi.mock('@headlessui/react', () => ({
   Dialog: ({ children, ...props }: any) => <div role="dialog" {...props}>{typeof children === 'function' ? children({ open: true }) : children}</div>,
@@ -83,16 +40,39 @@ vi.mock('@headlessui/react', () => ({
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
 
+// Build a fake JWT whose `exp` is far in the future, so the provider tries
+// to validate it (rather than rejecting it as expired before calling getMe).
+function makeFakeJwt(): string {
+  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }));
+  return `${header}.${payload}.sig`;
+}
+
+const KB_ID = 'kb-1';
+const KB = {
+  id: KB_ID,
+  label: 'Test',
+  host: 'localhost',
+  port: 4000,
+  protocol: 'http' as const,
+  email: 'test@example.com',
+};
+
 import { AuthShell } from '../AuthShell';
 import { APIError } from '@semiont/api-client';
 
-describe('AuthShell integration — 401 → SessionExpiredModal', () => {
+describe('AuthShell integration — KB session validation → modal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem('semiont.knowledgeBases', JSON.stringify([KB]));
+    localStorage.setItem('semiont.activeKnowledgeBaseId', KB_ID);
+    localStorage.setItem(`semiont.token.${KB_ID}`, makeFakeJwt());
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it('renders children and no modal when getMe succeeds', async () => {
@@ -104,15 +84,14 @@ describe('AuthShell integration — 401 → SessionExpiredModal', () => {
       </AuthShell>
     );
 
-    // Wait for the initial validation to settle
     await waitFor(() => {
       expect(mockGetMe).toHaveBeenCalled();
     });
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
-    // Modal should NOT have surfaced
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
-    expect(mockClearKbToken).not.toHaveBeenCalled();
+    // Token should still be in storage on success
+    expect(localStorage.getItem(`semiont.token.${KB_ID}`)).not.toBeNull();
   });
 
   it('surfaces SessionExpiredModal when getMe fails with 401', async () => {
@@ -124,17 +103,13 @@ describe('AuthShell integration — 401 → SessionExpiredModal', () => {
       </AuthShell>
     );
 
-    // Modal should appear
     await waitFor(() => {
       expect(screen.getByText('Session Expired')).toBeInTheDocument();
     });
 
-    // The "Sign In Again" button is present
     expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
-
-    // The dead token was cleared
-    expect(mockClearKbToken).toHaveBeenCalledWith('kb-1');
-
+    // Provider should have cleared the dead token
+    expect(localStorage.getItem(`semiont.token.${KB_ID}`)).toBeNull();
     // Children still render alongside the modal
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
   });
@@ -152,8 +127,8 @@ describe('AuthShell integration — 401 → SessionExpiredModal', () => {
       expect(mockGetMe).toHaveBeenCalled();
     });
 
-    // Non-401 errors should NOT surface the session-expired modal
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
-    expect(mockClearKbToken).not.toHaveBeenCalled();
+    // Token should NOT be cleared on a 500
+    expect(localStorage.getItem(`semiont.token.${KB_ID}`)).not.toBeNull();
   });
 });

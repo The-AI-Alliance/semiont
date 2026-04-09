@@ -34,18 +34,15 @@ vi.mock('@semiont/react-ui', async () => {
 });
 
 import LocaleLayout from '../layout';
-import { useAuthContext } from '@/contexts/AuthContext';
+import { useKnowledgeBaseSession } from '@semiont/react-ui';
 
 /**
- * A child component that records what useAuthContext returns.
- * Used to assert that no AuthProvider is mounted (the fallback NO_AUTH
- * value should be returned).
+ * A child component that calls useKnowledgeBaseSession. If LocaleLayout
+ * has not mounted AuthShell (the desired behavior), this throws — proving
+ * the boundary holds.
  */
-function AuthContextProbe({ onValue }: { onValue: (v: ReturnType<typeof useAuthContext>) => void }) {
-  const value = useAuthContext();
-  React.useEffect(() => {
-    onValue(value);
-  }, [value, onValue]);
+function AuthContextProbe() {
+  useKnowledgeBaseSession();
   return <div data-testid="probe">probe</div>;
 }
 
@@ -66,18 +63,14 @@ describe('LocaleLayout — provider boundary', () => {
     vi.clearAllMocks();
   });
 
-  it('does NOT mount AuthProvider — useAuthContext returns the NO_AUTH fallback', () => {
-    const onValue = vi.fn();
-    renderLocaleLayoutWithChild(<AuthContextProbe onValue={onValue} />);
-
-    expect(screen.getByTestId('probe')).toBeInTheDocument();
-    // The fallback NO_AUTH value has session=null, isLoading=false
-    expect(onValue).toHaveBeenCalledWith(
-      expect.objectContaining({
-        session: null,
-        isLoading: false,
-      })
-    );
+  it('does NOT mount AuthShell — useKnowledgeBaseSession throws when called outside it', () => {
+    // React logs the thrown error to console.error before re-raising;
+    // suppress it for clean test output.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => {
+      renderLocaleLayoutWithChild(<AuthContextProbe />);
+    }).toThrow(/useKnowledgeBaseSession requires KnowledgeBaseSessionProvider/);
+    consoleError.mockRestore();
   });
 
   it('renders children via Outlet', () => {

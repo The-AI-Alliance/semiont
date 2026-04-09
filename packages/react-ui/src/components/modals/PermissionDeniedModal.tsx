@@ -1,49 +1,45 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { AUTH_EVENTS, onAuthEvent, type AuthEventDetail } from '../../lib/auth-events';
+import { useKnowledgeBaseSession } from '../../contexts/KnowledgeBaseSessionContext';
 
 /**
- * Modal that surfaces when a 403 forbidden event is dispatched.
- * Listens for the `auth:forbidden` event.
+ * Modal that surfaces when a 403 forbidden error is reported via
+ * `notifyPermissionDenied` (called from QueryCache.onError).
  *
- * Should be mounted inside the auth shell — i.e., the part of the tree where
- * authentication is required.
+ * Reads `permissionDeniedAt` and `permissionDeniedMessage` from
+ * KnowledgeBaseSessionContext. The provider clears the flag when the user
+ * dismisses the modal.
+ *
+ * Must be mounted inside KnowledgeBaseSessionProvider.
  */
 export function PermissionDeniedModal() {
-  const [showModal, setShowModal] = useState(false);
-  const [deniedAction, setDeniedAction] = useState<string>('');
-
-  useEffect(() => {
-    // Listen for 403 forbidden events
-    const cleanup = onAuthEvent(AUTH_EVENTS.FORBIDDEN, (event: CustomEvent<AuthEventDetail>) => {
-      setDeniedAction(event.detail.message || 'You do not have permission to perform this action.');
-      setShowModal(true);
-    });
-
-    return cleanup;
-  }, []);
+  const {
+    permissionDeniedAt,
+    permissionDeniedMessage,
+    acknowledgePermissionDenied,
+  } = useKnowledgeBaseSession();
+  const showModal = permissionDeniedAt !== null;
+  const message = permissionDeniedMessage ?? 'You do not have permission to perform this action.';
 
   const handleGoBack = () => {
-    setShowModal(false);
+    acknowledgePermissionDenied();
     window.history.back();
   };
 
   const handleGoHome = () => {
-    setShowModal(false);
+    acknowledgePermissionDenied();
     window.location.href = '/';
   };
 
   const handleSwitchAccount = () => {
-    setShowModal(false);
+    acknowledgePermissionDenied();
     window.location.href = `/auth/connect?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
   };
 
   return (
     <Transition appear show={showModal}>
       <Dialog as="div" className="semiont-modal" onClose={handleGoBack}>
-        {/* Backdrop */}
         <TransitionChild
           enter="ease-out duration-200"
           enterFrom="opacity-0"
@@ -55,7 +51,6 @@ export function PermissionDeniedModal() {
           <div className="semiont-modal__backdrop" />
         </TransitionChild>
 
-        {/* Modal */}
         <div className="semiont-modal__container">
           <div className="semiont-modal__wrapper">
             <TransitionChild
@@ -67,7 +62,6 @@ export function PermissionDeniedModal() {
               leaveTo="opacity-0 scale-95"
             >
               <DialogPanel className="semiont-modal__panel semiont-modal__panel--medium">
-                {/* Icon */}
                 <div className="semiont-modal__icon-wrapper">
                   <div className="semiont-modal__icon">
                     <svg style={{ width: '1.5rem', height: '1.5rem', color: 'var(--semiont-color-amber-600, #d97706)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -76,17 +70,15 @@ export function PermissionDeniedModal() {
                   </div>
                 </div>
 
-                {/* Content */}
                 <div className="semiont-modal__content">
                   <DialogTitle className="semiont-modal__title semiont-modal__title--centered">
                     Access Denied
                   </DialogTitle>
                   <p className="semiont-modal__description">
-                    {deniedAction}
+                    {message}
                   </p>
                 </div>
 
-                {/* Details */}
                 <div style={{
                   padding: '0.75rem',
                   backgroundColor: 'var(--semiont-bg-secondary)',
@@ -112,7 +104,6 @@ export function PermissionDeniedModal() {
                   </ul>
                 </div>
 
-                {/* Actions */}
                 <div className="semiont-modal__actions">
                   <button
                     type="button"

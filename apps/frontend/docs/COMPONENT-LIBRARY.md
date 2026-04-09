@@ -63,7 +63,7 @@ The factoring of @semiont/react-ui creates a clear architectural boundary:
 
 #### Contexts & Providers
 - **ApiClientProvider**: Manages API client instance
-- **SessionProvider**: Manages user session state
+- **KnowledgeBaseSessionProvider**: Single source of truth for the active KB and the validated session against it (merged provider; throws if used outside the protected boundary)
 - **TranslationProvider**: Manages i18n translations
 - **AnnotationProvider**: Manages annotation state
 - **CacheProvider**: Manages client-side caching
@@ -95,34 +95,35 @@ The factoring of @semiont/react-ui creates a clear architectural boundary:
 
 ## Provider Pattern Implementation
 
-The frontend implements the provider interfaces defined by @semiont/react-ui:
+The frontend mounts providers from `@semiont/react-ui` directly. Auth-dependent providers are bundled in `AuthShell` and mounted only inside protected layouts.
 
-### Session Provider
+### KnowledgeBaseSessionProvider
+
+The merged provider lives in the library — the frontend mounts it via `AuthShell`:
 
 ```tsx
-// app/providers/SessionProvider.tsx
-import { SessionProvider } from '@semiont/react-ui';
-import { useSession } from 'next-auth/react';
+// apps/frontend/src/contexts/AuthShell.tsx
+import {
+  KnowledgeBaseSessionProvider,
+  ProtectedErrorBoundary,
+  SessionExpiredModal,
+  PermissionDeniedModal,
+} from '@semiont/react-ui';
 
-export function NextAuthSessionProvider({ children }) {
-  const session = useSession();
-
-  const sessionManager = {
-    getSession: () => session.data,
-    signIn: (credentials) => signIn('credentials', credentials),
-    signOut: () => signOut(),
-    onSessionChange: (callback) => {
-      // Subscribe to NextAuth session changes
-    }
-  };
-
+export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider sessionManager={sessionManager}>
-      {children}
-    </SessionProvider>
+    <KnowledgeBaseSessionProvider>
+      <ProtectedErrorBoundary>
+        <SessionExpiredModal />
+        <PermissionDeniedModal />
+        {children}
+      </ProtectedErrorBoundary>
+    </KnowledgeBaseSessionProvider>
   );
 }
 ```
+
+Wrap any layout that hosts authenticated routes with `<AuthShell>`. Pre-app routes (landing, OAuth flow) intentionally do NOT mount it.
 
 ### Translation Provider
 
