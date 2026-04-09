@@ -129,7 +129,6 @@ describe('useContextGatherFlow', () => {
 
   it('sets error on gather:failed', async () => {
     const { result } = renderContextGatherFlow();
-    const error = new Error('gather failed');
 
     act(() => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
@@ -137,11 +136,11 @@ describe('useContextGatherFlow', () => {
     await waitFor(() => expect(result.current.flow.gatherLoading).toBe(true));
 
     act(() => {
-      result.current.bus.get('gather:failed').next({ error } as any);
+      result.current.bus.get('gather:failed').next({ message: 'gather failed' } as any);
     });
 
     await waitFor(() => {
-      expect(result.current.flow.gatherError).toBe(error);
+      expect(result.current.flow.gatherError).toEqual(new Error('gather failed'));
       expect(result.current.flow.gatherLoading).toBe(false);
     });
   });
