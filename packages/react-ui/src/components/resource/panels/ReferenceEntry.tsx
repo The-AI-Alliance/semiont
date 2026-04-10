@@ -9,6 +9,7 @@ import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelec
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { useEventBus } from '../../../contexts/EventBusContext';
+import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
 
@@ -41,6 +42,7 @@ export function ReferenceEntry({
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
+  const client = useApiClient();
   const navigate = useObservableExternalNavigation();
   const hoverProps = useHoverEmitter(reference.id);
 
@@ -74,12 +76,11 @@ export function ReferenceEntry({
 
   const handleUnlink = () => {
     if (source && resolvedResourceUri) {
-      eventBus.get('bind:update-body').next({
-        correlationId: crypto.randomUUID(),
-        annotationId: annotationId(reference.id),
-        resourceId: resourceId(source),
-        operations: [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri } }],
-      });
+      client.bind.body(
+        resourceId(source),
+        annotationId(reference.id),
+        [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri } }],
+      ).catch(() => { /* error handled by events-stream */ });
     }
   };
 

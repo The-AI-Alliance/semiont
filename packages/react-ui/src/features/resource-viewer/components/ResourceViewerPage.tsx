@@ -209,8 +209,8 @@ export function ResourceViewerPage({
       setWizardEntityTypes(event.entityTypes);
       setWizardOpen(true);
 
-      // Trigger context gathering
-      eventBus.get('gather:requested').next({ correlationId: crypto.randomUUID(), annotationId: event.annotationId, resourceId: event.resourceId });
+      // Trigger context gathering — gather:requested is consumed by useContextGatherFlow
+      eventBus.get('gather:requested').next({ correlationId: crypto.randomUUID(), annotationId: event.annotationId, resourceId: event.resourceId, options: { contextWindow: 2000 } });
     });
     return () => subscription.unsubscribe();
   }, [eventBus]);
@@ -231,22 +231,18 @@ export function ResourceViewerPage({
     });
   }, [onGenerateDocument]);
 
-  const handleWizardLinkResource = useCallback((referenceId: string, targetResourceId: string) => {
-    eventBus.get('bind:update-body').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: annotationId(referenceId),
-      resourceId: rUri,
-      operations: [{
-        op: 'add',
-        item: {
-          type: 'SpecificResource' as const,
-          source: targetResourceId,
-          purpose: 'linking' as const,
-        },
-      }],
-    });
-    showSuccess('Reference linked successfully');
-  }, [rUri, showSuccess]); // eventBus is stable singleton
+  const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
+    try {
+      await client.bind.body(
+        rUri,
+        annotationId(referenceId),
+        [{ op: 'add', item: { type: 'SpecificResource' as const, source: targetResourceId, purpose: 'linking' as const } }],
+      );
+      showSuccess('Reference linked successfully');
+    } catch (error) {
+      showError(`Failed to link reference: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [rUri, client, showSuccess, showError]);
 
   const handleWizardComposeNavigate = useCallback((
     context: GatheredContext,

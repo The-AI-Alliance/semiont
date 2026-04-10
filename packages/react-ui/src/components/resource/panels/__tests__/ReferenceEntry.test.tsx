@@ -5,6 +5,7 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
 import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 
 type Annotation = components['schemas']['Annotation'];
@@ -303,29 +304,27 @@ describe('ReferenceEntry', () => {
       expect(unlinkButton).not.toBeInTheDocument();
     });
 
-    it('should emit bind:update-body on unlink click', async () => {
+    it('should call client.bind.body on unlink click', async () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
-      const unlinkHandler = vi.fn();
 
-      const { container, eventBus } = renderWithProviders(
+      const bindSpy = vi.spyOn(SemiontApiClient.prototype, 'bindAnnotation').mockResolvedValue({ correlationId: 'c1' });
+
+      const { container } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={true} />,
-        { returnEventBus: true }
       );
-
-      const subscription = eventBus!.get('bind:update-body').subscribe(unlinkHandler);
 
       const unlinkButton = container.querySelector('.semiont-reference-unlink')!;
       await userEvent.click(unlinkButton);
 
-      expect(unlinkHandler).toHaveBeenCalledWith(expect.objectContaining({
-        correlationId: expect.any(String),
-        annotationId: 'ref-1',
-        resourceId: 'resource-1',
-        operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc' } }],
-      }));
+      expect(bindSpy).toHaveBeenCalledWith(
+        'resource-1',
+        'ref-1',
+        { operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc' } }] },
+        expect.anything(),
+      );
 
-      subscription.unsubscribe();
+      bindSpy.mockRestore();
     });
   });
 
