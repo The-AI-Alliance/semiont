@@ -211,7 +211,6 @@ function ComposeResourceContent() {
               resourceId: toResourceId(params.sourceDocumentId),
               annotationId: toAnnotationId(params.annotationUri),
               data: {
-                resourceId: params.sourceDocumentId,
                 operations: [{
                   op: 'add',
                   item: {
