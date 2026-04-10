@@ -33,6 +33,16 @@ import { SSEClient } from './sse/index';
 import { FlowEngine } from './flows';
 import { ResourceStore } from './stores/resource-store';
 import { AnnotationStore } from './stores/annotation-store';
+import { BrowseNamespace } from './namespaces/browse';
+import { MarkNamespace } from './namespaces/mark';
+import { BindNamespace } from './namespaces/bind';
+import { GatherNamespace } from './namespaces/gather';
+import { MatchNamespace } from './namespaces/match';
+import { YieldNamespace } from './namespaces/yield';
+import { BeckonNamespace } from './namespaces/beckon';
+import { JobNamespace } from './namespaces/job';
+import { AuthNamespace } from './namespaces/auth';
+import { AdminNamespace } from './namespaces/admin';
 import type { Logger } from '@semiont/core';
 
 // Type helpers to extract request/response types from OpenAPI paths
@@ -79,6 +89,13 @@ export interface SemiontApiClientConfig {
   logger?: Logger;
   /** Optional 401-recovery hook. See {@link TokenRefresher}. */
   tokenRefresher?: TokenRefresher;
+  /**
+   * Token getter for the verb-namespace API (client.browse, client.mark, etc.).
+   * When provided, auth is managed internally — no per-call auth needed.
+   * The getter is called on each request to get the current token.
+   * If not provided, namespace methods use undefined auth (public endpoints only).
+   */
+  getToken?: () => AccessToken | undefined;
 }
 
 /**
@@ -125,6 +142,20 @@ export class SemiontApiClient {
     resources: ResourceStore;
     annotations: AnnotationStore;
   };
+
+  // ── Verb-oriented namespace API ──────────────────────────────────────────
+  // These coexist with the flat method list during migration.
+  // Phase F deletes the flat methods and promotes these to the primary API.
+  public readonly browse: BrowseNamespace;
+  public readonly mark: MarkNamespace;
+  public readonly bind: BindNamespace;
+  public readonly gather: GatherNamespace;
+  public readonly match: MatchNamespace;
+  public readonly yield: YieldNamespace;
+  public readonly beckon: BeckonNamespace;
+  public readonly job: JobNamespace;
+  public readonly auth: AuthNamespace;
+  public readonly admin: AdminNamespace;
 
   constructor(config: SemiontApiClientConfig) {
     const { baseUrl, eventBus, timeout = 30000, retry = 2, logger, tokenRefresher } = config;
@@ -252,6 +283,19 @@ export class SemiontApiClient {
       resources: new ResourceStore(this, this.eventBus),
       annotations: new AnnotationStore(this, this.eventBus),
     };
+
+    // Verb-oriented namespace API
+    const getToken = config.getToken ?? (() => undefined);
+    this.browse = new BrowseNamespace(this, this.eventBus, getToken);
+    this.mark = new MarkNamespace(this, this.eventBus, getToken);
+    this.bind = new BindNamespace(this, getToken);
+    this.gather = new GatherNamespace(this, this.eventBus, getToken);
+    this.match = new MatchNamespace(this, this.eventBus, getToken);
+    this.yield = new YieldNamespace(this, this.eventBus, getToken);
+    this.beckon = new BeckonNamespace(this, getToken);
+    this.job = new JobNamespace(this, getToken);
+    this.auth = new AuthNamespace(this, getToken);
+    this.admin = new AdminNamespace(this, getToken);
   }
 
   private authHeaders(options?: { auth?: AccessToken }): Record<string, string> {

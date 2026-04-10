@@ -1,23 +1,21 @@
 /**
  * useMarkFlow - Annotation state management hook
  *
- * Activates mark orchestration (CRUD + AI assist) by delegating to
- * client.flows.mark(). Manages UI state (pendingAnnotation, assistingMotivation,
+ * Bridges EventBus commands to namespace API methods for annotation CRUD
+ * and AI assist. Manages UI state (pendingAnnotation, assistingMotivation,
  * progress) via EventBus subscriptions — the React-specific portion.
  *
- * @subscribes mark:submit, mark:delete, mark:assist-request, job:cancel-requested
- * @subscribes mark:requested, mark:select-*, mark:cancel-pending
- * @subscribes mark:progress, mark:assist-finished, mark:assist-failed
- * @returns Annotation flow state
+ * The FlowEngine's HTTP bridging role is replaced by namespace methods:
+ * - mark:submit → client.mark.annotation()
+ * - mark:delete → client.mark.delete()
+ * - mark:assist-request → client.mark.assist() (Observable)
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Motivation, ResourceId, Selector } from '@semiont/core';
-import { accessToken } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
-import { useAuthToken } from '../contexts/AuthTokenContext';
 import type { MarkProgress } from '@semiont/core';
 import type { EventMap } from '@semiont/core';
 import { useToast } from '../components/Toast';
@@ -39,19 +37,7 @@ export interface MarkFlowState {
 export function useMarkFlow(rUri: ResourceId): MarkFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
-  const token = useAuthToken();
   const { showSuccess, showError, showInfo } = useToast();
-
-  const tokenRef = useRef(token);
-  useEffect(() => { tokenRef.current = token; });
-
-  // Activate flow engine subscription (CRUD + assist SSE)
-  useEffect(() => {
-    const sub = client.flows.mark(rUri, () =>
-      tokenRef.current ? accessToken(tokenRef.current) : undefined
-    );
-    return () => sub.unsubscribe();
-  }, [rUri, client]);
 
   // ── Manual annotation state ───────────────────────────────────────────────
 
@@ -102,11 +88,44 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
     'mark:select-reference': (s) => handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'linking' }),
     'mark:cancel-pending': () => setPendingAnnotation(null),
     'mark:create-ok': () => setPendingAnnotation(null),
+
+    // Bridge mark:submit to client.mark.annotation()
+    'mark:submit': async (event) => {
+      try {
+        const result = await client.mark.annotation(rUri, {
+          motivation: event.motivation,
+          target: { source: rUri, selector: event.selector as Selector },
+          body: event.body,
+        });
+        eventBus.get('mark:create-ok').next({ annotationId: result.annotationId });
+      } catch (error) {
+        eventBus.get('mark:create-failed').next({ message: error instanceof Error ? error.message : String(error) });
+      }
+    },
+
+    // Bridge mark:delete to client.mark.delete()
+    'mark:delete': async (event) => {
+      try {
+        await client.mark.delete(rUri, event.annotationId as Parameters<typeof client.mark.delete>[1]);
+        eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
+      } catch (error) {
+        eventBus.get('mark:delete-failed').next({ message: error instanceof Error ? error.message : String(error) });
+      }
+    },
+
+    // Bridge mark:assist-request to client.mark.assist() Observable
     'mark:assist-request': (event) => {
       if (progressDismissTimeoutRef.current) { clearTimeout(progressDismissTimeoutRef.current); progressDismissTimeoutRef.current = null; }
       setAssistingMotivation(event.motivation);
       setProgress(null);
+
+      client.mark.assist(rUri, event.motivation, event.options).subscribe({
+        next: (p) => setProgress(p as MarkProgress),
+        error: (err) => handleAnnotationFailed({ resourceId: rUri as string, message: err.message }),
+        complete: () => {}, // handled by mark:assist-finished EventBus subscription
+      });
     },
+
     'mark:progress': (chunk: MarkProgress) => setProgress(chunk),
     'mark:assist-finished': handleAnnotationComplete,
     'mark:assist-failed': handleAnnotationFailed,
