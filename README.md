@@ -18,14 +18,16 @@ export ANTHROPIC_API_KEY=<your-api-key>
 
 [Ollama](https://ollama.com/) is also supported for fully local inference. The inference provider is configured in the KB's `.semiont/containers/Dockerfile.backend` — see the [Configuration Guide](docs/administration/CONFIGURATION.md) for details.
 
-### Create a knowledge base
+### Clone the knowledge base template
+
+The template repository contains the configuration, container definitions, and startup scripts that the next steps depend on:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
 cd my-kb
 ```
 
-To see a pre-populated knowledge base instead, pick one from the [Knowledge Bases](#semiont-knowledge-bases) table below.
+To start with a pre-populated knowledge base instead, pick one from the [Knowledge Bases](#semiont-knowledge-bases) table below.
 
 ### Start the backend
 
