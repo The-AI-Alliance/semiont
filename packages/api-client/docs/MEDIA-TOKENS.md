@@ -60,7 +60,7 @@ Text resources (`text/plain`, `text/markdown`) are fetched through `useResourceC
 
 ## Why not observable stores
 
-Media tokens are intentionally not in the observable stores (`ResourceStore`, `AnnotationStore`). They are short-lived, non-domain state — there is no EventBus event for token expiry, and storing them reactively would add complexity with no benefit. React Query's `staleTime`-based refresh is the right fit.
+Media tokens are intentionally not in the browse namespace's Observable caches. They are short-lived, non-domain state — there is no EventBus event for token expiry, and storing them reactively would add complexity with no benefit. React Query's `staleTime`-based refresh is the right fit.
 
 ## OpenAPI spec
 

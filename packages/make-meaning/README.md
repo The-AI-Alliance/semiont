@@ -19,7 +19,7 @@ This package implements the actor model from [ARCHITECTURE.md](../../docs/ARCHIT
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
 
-The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The system can operate entirely without HTTP — see `EventBusClient` in `@semiont/api-client`.
+The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The `@semiont/api-client` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
 
 ## Quick Start
 
@@ -93,7 +93,7 @@ All meaningful actions flow through the EventBus. The KB actors are reactive —
 graph TB
     Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
-    EBC["EventBusClient"] -->|commands| BUS
+    EBC["SemiontApiClient"] -->|commands| BUS
 
     subgraph ks ["Knowledge System"]
         STOWER["Stower<br/>(write)"]

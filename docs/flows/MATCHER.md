@@ -52,14 +52,16 @@ const top = results[0];
 console.log(`Best match: ${top?.name} (score ${top?.score}, reason: ${top?.matchReason})`);
 ```
 
-**Via the EventBusClient** — simpler, name-only search without graph context:
+**Via the api-client namespace** — Observable with scored results:
 
 ```typescript
-// Emits bind:search-requested with the search term as the only context signal
-const results = await client.searchResources(selectedText);
+semiont.match.search(resourceId, referenceId, gatheredContext, {
+  limit: 10,
+  useSemanticScoring: true,
+}).subscribe((result) => {
+  console.log('Results:', result.response);
+});
 ```
-
-Use `bindSearch` when you have a `GatheredContext` (graph neighborhood, entity types, etc.). Use `searchResources` for quick lookups by name only.
 
 ## Events
 
@@ -116,8 +118,8 @@ This is GraphRAG-style re-ranking: structural retrieval narrows the candidate se
 The Matcher also handles reverse-lookup: given a resource, which annotations reference it?
 
 ```typescript
-// EventBusClient convenience method
-const { referencedBy } = await client.getResourceReferencedBy(resourceId, { motivation: 'linking' });
+// Via api-client namespace
+const referencedBy = await firstValueFrom(semiont.browse.referencedBy(resourceId));
 
 // Or via EventBus directly
 eventBus.get('bind:referenced-by-requested').next({

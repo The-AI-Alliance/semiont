@@ -169,47 +169,51 @@ for (const rId of resourceIds) {
 }
 ```
 
-## Using EventBusClient (Recommended)
+## Using SemiontApiClient (Recommended)
 
-For most scripting use cases, `EventBusClient` is the simplest approach — it wraps the EventBus request-response protocol into familiar async methods:
+For most scripting use cases, `SemiontApiClient` with verb namespaces is the simplest approach:
 
 ```typescript
-import { EventBusClient } from '@semiont/api-client';
-import { resourceId } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
+import { baseUrl, accessToken, EventBus, resourceId } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
 
-const client = new EventBusClient(eventBus);
+const semiont = new SemiontApiClient({
+  baseUrl: baseUrl('http://localhost:4000'),
+  eventBus: new EventBus(),
+  getToken: () => accessToken(token),
+});
 
 // Browse resources
-const resources = await client.listResources({ limit: 10, archived: false });
-const resource = await client.getResource(resourceId('doc-123'));
-const annotations = await client.getAnnotations(resourceId('doc-123'));
-const events = await client.getEvents(resourceId('doc-123'));
+const resource = await firstValueFrom(semiont.browse.resource(resourceId('doc-123')));
+const content = await semiont.browse.resourceContent(resourceId('doc-123'));
+const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
 
-// Graph queries
-const referencedBy = await client.getReferencedBy(resourceId('doc-123'));
-const results = await client.searchResources('quantum computing');
+// Mark annotations
+await semiont.mark.annotation(resourceId('doc-123'), { motivation: 'highlighting', ... });
+await semiont.mark.entityType('Person');
 
-// Entity types
-const entityTypes = await client.listEntityTypes();
+// Gather LLM context
+const context = await firstValueFrom(
+  semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'))
+);
 
-// LLM context
-const context = await client.getResourceLLMContext(resourceId('doc-123'), {
-  depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
-});
+// Bind references
+await semiont.bind.body(resourceId('doc-123'), annotationId('ann-1'), operations);
 ```
 
-The `EventBusClient` covers all knowledge-domain operations. Use the context modules directly (`ResourceContext`, `AnnotationContext`, `GraphContext`) only when you need lower-level control.
+Use the context modules directly (`ResourceContext`, `AnnotationContext`, `GraphContext`) only when you need lower-level control.
 
-## Differences from HTTP API
+## Differences from Direct Context Modules
 
-| Aspect | HTTP API | EventBusClient | Direct Context Modules |
-|--------|----------|----------------|----------------------|
-| **Transport** | HTTP REST + SSE | EventBus request-response | Direct function calls |
-| **Authentication** | JWT tokens, sessions | Not needed | Not needed |
-| **Events** | SSE stream to frontend | EventBus subscriptions | EventBus subscriptions |
-| **Error handling** | HTTP status codes | Exceptions | Exceptions |
-| **Deployment** | Backend server required | Standalone script | Standalone script |
-| **API surface** | Full (including binary, auth, admin) | Knowledge domain only | Low-level KB access |
+| Aspect | SemiontApiClient | Direct Context Modules |
+|--------|------------------|----------------------|
+| **Transport** | HTTP REST + SSE | Direct function calls |
+| **Authentication** | JWT tokens via `getToken` | Not needed |
+| **Events** | Observable return types | EventBus subscriptions |
+| **Error handling** | HTTP status codes / Observable errors | Exceptions |
+| **Deployment** | Backend server required | Standalone script |
+| **API surface** | Full (all 7 verbs + auth, admin) | Low-level KB access |
 
 ## Troubleshooting
 

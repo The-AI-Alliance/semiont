@@ -102,14 +102,14 @@ backend Stower persists mark:body-updated event, materializes view
     |
 events-stream delivers enriched mark:body-updated to all connected clients
     |
-AnnotationStore.updateInPlace writes the annotation into the cached list
+BrowseNamespace.updateAnnotationInPlace writes the annotation into the cached Observable
     |
 useObservable re-renders → ReferenceEntry recomputes isBodyResolved → 🔗
 ```
 
 ### How the link icon flip works
 
-The `mark:body-updated` event delivered via the events-stream is an `EnrichedResourceEvent` carrying the post-materialization annotation. The `AnnotationStore`'s subscriber writes it directly into the cached list via `updateInPlace` — no HTTP refetch needed. This is the single delivery path for all annotation mutations: locally-initiated binds and remote mutations from other participants all arrive the same way. See `apps/backend/docs/STREAMS.md` for the unified-stream architecture.
+The `mark:body-updated` event delivered via the events-stream is an `EnrichedResourceEvent` carrying the post-materialization annotation. The `BrowseNamespace`'s EventBus subscriber writes it directly into the cached Observable via `updateAnnotationInPlace` — no HTTP refetch needed. This is the single delivery path for all annotation mutations: locally-initiated binds and remote mutations from other participants all arrive the same way. See `apps/backend/docs/STREAMS.md` for the unified-stream architecture.
 
 ### Context-Driven Search
 

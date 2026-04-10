@@ -229,14 +229,15 @@ await updateMutation.mutateAsync({ id, title, content });
 
 High-churn entity data and browser-persistent application state are managed as observable stores — `BehaviorSubject`-backed classes with no React dependency. Components subscribe via `useObservable(store.observable$)`.
 
-**Entity stores** (live in `@semiont/api-client`, owned by `SemiontApiClient`):
+**Verb namespace Observables** (live in `@semiont/api-client`, owned by `SemiontApiClient`):
 
-| Store | Access | What it holds |
+| Namespace | Access | What it caches |
 |---|---|---|
-| `ResourceStore` | `client.stores.resources` | Resource descriptors, lazily fetched, invalidated by EventBus domain events |
-| `AnnotationStore` | `client.stores.annotations` | Annotation lists + details per resource, invalidated by SSE events |
+| Browse | `semiont.browse.resource(id)` | Resource descriptors, lazily fetched, invalidated by EventBus domain events |
+| Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
+| Browse | `semiont.browse.entityTypes()` | Entity types, updated by global-events-stream |
 
-These update automatically when backend SSE events arrive (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed for annotation or resource list consumers. See [`@semiont/api-client/docs/STORES.md`](../../../packages/api-client/docs/STORES.md) for full documentation.
+These update automatically when backend SSE events arrive (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/api-client` README](../../../packages/api-client/README.md) for the full verb namespace API.
 
 **Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
 

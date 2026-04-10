@@ -49,7 +49,7 @@ The subscription list is `STREAM_COMMAND_RESULT_TYPES` in `@semiont/core`.
 
 ### Enrichment
 
-For events that mutate an annotation (`mark:added`, `mark:body-updated`, `mark:removed`), the events-stream reads the post-materialization annotation from the view storage and includes it on the SSE payload. This lets the frontend update its `AnnotationStore` in-place without an HTTP refetch. The enrichment logic lives in `event-stream-enrichment.ts`.
+For events that mutate an annotation (`mark:added`, `mark:body-updated`, `mark:removed`), the events-stream reads the post-materialization annotation from the view storage and includes it on the SSE payload. This lets the frontend's `semiont.browse` namespace update its cached Observables in-place without an HTTP refetch. The enrichment logic lives in `event-stream-enrichment.ts`.
 
 ### Reconnection + replay
 
@@ -78,11 +78,11 @@ The per-operation routes were a source of fragility: the UI's correctness depend
 
 ## Frontend consumption
 
-The `AnnotationStore` in `@semiont/api-client` subscribes to the EventBus (which the SSE auto-router populates from the events-stream). On `mark:body-updated`, it reads the enriched annotation and calls `updateInPlace` to update the cached list synchronously.
+The `BrowseNamespace` in `@semiont/api-client` (`semiont.browse`) subscribes to the EventBus (which the SSE auto-router populates from the events-stream). On `mark:body-updated`, it reads the enriched annotation and updates the cached Observable in-place — no HTTP refetch.
 
-`FlowEngine` orchestrates commands: it subscribes to frontend EventBus channels (e.g., `bind:update-body`, `yield:request`, `mark:assist-request`), calls the corresponding HTTP POST, and lets the events-stream deliver the result. No per-operation SSE plumbing.
+Verb namespaces orchestrate commands: `semiont.bind.body()` calls the HTTP POST; `semiont.mark.assist()` calls the POST and returns an Observable that filters EventBus progress events by correlationId. The events-stream delivers results to all participants.
 
-React hooks (`useResourceEvents`, `useMarkFlow`, `useYieldFlow`, `useContextGatherFlow`) subscribe to the EventBus to update UI state. They don't know about HTTP or SSE — they just see events.
+React hooks (`useResourceEvents`, `useMarkFlow`, `useYieldFlow`, `useContextGatherFlow`) bridge EventBus UI events to namespace method calls and update local React state from EventBus domain events.
 
 ## Adding a new async operation
 
@@ -90,7 +90,6 @@ React hooks (`useResourceEvents`, `useMarkFlow`, `useYieldFlow`, `useContextGath
 2. Create a POST route handler that emits a command on the EventBus and returns `{correlationId}`
 3. Implement the actor/worker handler that processes the command and publishes results on `eventBus.scope(resourceId)`
 4. Add the result event type to `STREAM_COMMAND_RESULT_TYPES` (for non-persisted events) or `PERSISTED_EVENT_TYPES` (for persisted events)
-5. Add an HTTP method to `SemiontApiClient`
-6. Add a FlowEngine subscription (or a namespace method in the future proxy)
+5. Add a method to the appropriate verb namespace in `@semiont/api-client` (e.g., `semiont.mark.assist()` for a new mark operation)
 
 No new SSE route. No new SSEClient method. No streamSSE handshake. No keep-alive ping. No abort handler.
