@@ -9,7 +9,7 @@
  * events-stream as match:search-results or match:search-failed events.
  *
  * Replaces the former match-search-stream SSE route.
- * See .plans/UNIFIED-STREAM.md.
+ *
  */
 
 import { HTTPException } from 'hono/http-exception';

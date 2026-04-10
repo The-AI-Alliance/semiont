@@ -150,7 +150,7 @@ describe('Event Store', () => {
    * Threads correlationId through to event metadata. Load-bearing for the
    * unified-stream architecture: the events-stream route reads metadata.correlationId
    * to let subscribers match command-result events back to the POST that
-   * initiated them. See .plans/UNIFIED-STREAM.md Phase 0b.
+   * initiated them. Phase 0b.
    */
   it('appendEvent threads correlationId through to event metadata', async () => {
     const docId = resourceId('doc-correlation-test');
@@ -206,7 +206,7 @@ describe('Event Store', () => {
    * because appendEvent awaits materializeResource BEFORE publishing on the
    * scoped bus. If a future refactor moves materialization to a fire-and-forget
    * background task, this test fails BEFORE the bind-stream behavior silently
-   * breaks. See .plans/BINDING.md.
+   * breaks.
    */
   it('appendEvent awaits materialization before resolving (load-bearing for bind-stream)', async () => {
     const docId = resourceId('doc-ordering-test');

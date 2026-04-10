@@ -12,7 +12,7 @@
  * enrichment step (event-stream-enrichment.ts) reads the annotation from
  * the materialized view and includes it on the SSE wire format. The
  * AnnotationStore writes it in-place — no refetch, no dependency on a
- * per-operation stream. See .plans/BINDING.md and .plans/UNIFIED-STREAM.md.
+ * per-operation stream.
  *
  * Replaces the former bind-annotation-stream SSE route.
  */

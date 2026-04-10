@@ -35,28 +35,27 @@ export interface SSERequestOptions {
 }
 
 /**
- * SSE Client for real-time streaming operations
+ * SSE Client for long-lived streaming connections.
  *
- * Separate from the main HTTP client to clearly mark streaming endpoints.
+ * This client has three methods — one per long-lived broadcast stream.
+ * Per-operation SSE routes have been replaced by plain HTTP POSTs with
+ * results delivered via the events-stream.
+ *
  * Uses native fetch() instead of ky for SSE support.
- *
- * This client is stateless - auth tokens are passed per-request via options.
+ * Auth tokens are passed per-request via options.
  *
  * @example
  * ```typescript
- * const sseClient = new SSEClient({
- *   baseUrl: 'http://localhost:4000'
- * });
+ * const sseClient = new SSEClient({ baseUrl: 'http://localhost:4000' });
  *
- * const stream = sseClient.markReferences(
- *   'http://localhost:4000/resources/doc-123',
- *   { entityTypes: ['Person', 'Organization'] },
- *   { auth: 'your-token' }
- * );
+ * // Open a long-lived resource events stream (auto-reconnects on disconnect)
+ * const stream = sseClient.resourceEvents(resourceId, { auth, eventBus });
  *
- * stream.onProgress((p) => console.log(p.message));
- * stream.onComplete((r) => console.log(`Found ${r.foundCount} entities`));
- * stream.onError((e) => console.error('Detection failed:', e));
+ * // Events auto-route to EventBus typed channels
+ * eventBus.get('mark:body-updated').subscribe((event) => { ... });
+ *
+ * // Close when done
+ * stream.close();
  * ```
  */
 export class SSEClient {

@@ -10,7 +10,7 @@
  * gather:complete, gather:failed, or gather:annotation-progress events.
  *
  * Replaces the former gather-annotation-stream SSE route.
- * See .plans/UNIFIED-STREAM.md.
+ *
  */
 
 import { HTTPException } from 'hono/http-exception';

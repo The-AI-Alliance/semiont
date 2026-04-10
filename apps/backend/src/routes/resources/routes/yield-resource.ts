@@ -10,7 +10,7 @@
  * connected clients via the long-lived events-stream.
  *
  * Replaces the former yield-resource-stream SSE route.
- * See .plans/UNIFIED-STREAM.md.
+ *
  */
 
 import { HTTPException } from 'hono/http-exception';

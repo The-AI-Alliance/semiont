@@ -1,4 +1,4 @@
-// Replaces the former annotate-*-stream SSE route. See .plans/UNIFIED-STREAM.md.
+// Replaces the former annotate-*-stream SSE route.
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
