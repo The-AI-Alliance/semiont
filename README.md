@@ -8,16 +8,6 @@
 
 Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one.
 
-### Set up inference
-
-The default configuration uses [Anthropic](https://console.anthropic.com/):
-
-```bash
-export ANTHROPIC_API_KEY=<your-api-key>
-```
-
-[Ollama](https://ollama.com/) is also supported for fully local inference. The inference provider is configured in the KB's `.semiont/containers/Dockerfile.backend` — see the [Configuration Guide](docs/administration/CONFIGURATION.md) for details.
-
 ### Clone the knowledge base template
 
 The template repository contains the configuration, container definitions, and startup scripts that the next steps depend on:
@@ -34,7 +24,15 @@ To start with a pre-populated knowledge base instead, pick one from the [Knowled
 Builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server:
 
 ```bash
+# Fully local with Ollama (default, no API key needed)
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
+
+# Anthropic cloud inference
+export ANTHROPIC_API_KEY=<your-api-key>
+.semiont/scripts/local_backend.sh --config anthropic --email admin@example.com --password password
+
+# See available configs
+.semiont/scripts/local_backend.sh --list-configs
 ```
 
 The script stays attached and streams logs. The API is available at **http://localhost:4000**. See **[Backend setup](apps/backend/docs/LOCAL.md)** for npm-based alternatives and configuration.
