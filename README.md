@@ -21,7 +21,7 @@ export ANTHROPIC_API_KEY=<your-api-key>
 ### Create a knowledge base
 
 ```bash
-git clone https://github.com/The-AI-Alliance/semiont-empty-kb.git my-kb
+git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
 cd my-kb
 ```
 
@@ -76,12 +76,12 @@ For the full picture see the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)**
 
 ## Semiont Knowledge Bases
 
-### [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb)
+### [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)
 
 Empty template — start here for a new project.
 
 ```bash
-git clone https://github.com/The-AI-Alliance/semiont-empty-kb.git my-kb
+git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
 ```
 
 ### [gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)
