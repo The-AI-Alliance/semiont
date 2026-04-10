@@ -16,6 +16,7 @@ import type {
   AnnotationId,
   AccessToken,
   BaseUrl,
+  BodyOperation,
   CloneToken,
   ContentFormat,
   Email,
@@ -600,13 +601,13 @@ export class SemiontApiClient {
   async bindAnnotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
-    data: RequestContent<paths['/resources/{resourceId}/annotations/{annotationId}/body']['put']>,
+    data: { operations: BodyOperation[] },
     options?: RequestOptions
-  ): Promise<void> {
-    await this.http.put(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/body`, {
+  ): Promise<{ correlationId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/bind`, {
       json: data,
       headers: this.authHeaders(options),
-    });
+    }).json();
   }
 
   async getAnnotationHistory(

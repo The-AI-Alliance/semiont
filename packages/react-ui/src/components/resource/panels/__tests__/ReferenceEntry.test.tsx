@@ -318,11 +318,12 @@ describe('ReferenceEntry', () => {
       const unlinkButton = container.querySelector('.semiont-reference-unlink')!;
       await userEvent.click(unlinkButton);
 
-      expect(unlinkHandler).toHaveBeenCalledWith({
+      expect(unlinkHandler).toHaveBeenCalledWith(expect.objectContaining({
+        correlationId: expect.any(String),
         annotationId: 'ref-1',
         resourceId: 'resource-1',
         operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc' } }],
-      });
+      }));
 
       subscription.unsubscribe();
     });

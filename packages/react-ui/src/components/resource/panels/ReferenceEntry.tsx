@@ -75,6 +75,7 @@ export function ReferenceEntry({
   const handleUnlink = () => {
     if (source && resolvedResourceUri) {
       eventBus.get('bind:update-body').next({
+        correlationId: crypto.randomUUID(),
         annotationId: annotationId(reference.id),
         resourceId: resourceId(source),
         operations: [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri } }],

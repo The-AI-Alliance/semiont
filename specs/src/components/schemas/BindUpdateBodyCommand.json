@@ -46,5 +46,5 @@
       "description": "List of body mutation operations to apply"
     }
   },
-  "required": ["annotationId", "resourceId", "operations"]
+  "required": ["correlationId", "annotationId", "resourceId", "operations"]
 }

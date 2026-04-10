@@ -105,6 +105,7 @@ export type {
   MarkProgress,
   SelectionData,
 } from './bus-protocol';
+export { STREAM_COMMAND_RESULT_TYPES } from './bus-protocol';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';

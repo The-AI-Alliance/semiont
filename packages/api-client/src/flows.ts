@@ -43,39 +43,25 @@ export class FlowEngine {
     const sub = new Subscription();
 
     sub.add(
-      this.eventBus.get('bind:update-body').subscribe((event: EventMap['bind:update-body']) => {
-        const annotationId = makeAnnotationId(event.annotationId);
-
-        const finishedSub = this.eventBus.get('bind:finished').subscribe((finishedEvent) => {
-          if (finishedEvent.annotation.id !== event.annotationId) return;
-          finishedSub.unsubscribe();
-          failedSub.unsubscribe();
-
-          // Write the updated annotation directly into the local cache. The
-          // BehaviorSubject emits synchronously, useObservable re-renders, the
-          // icon flips before this microtask completes. No refetch, no
-          // dependency on a separate long-lived stream being healthy.
-          //
-          // Use rUri (the branded ResourceId for this bind flow's resource)
-          // rather than event.resourceId — they're the same value but rUri
-          // is already branded.
-          this.http.stores.annotations.updateInPlace(rUri, finishedEvent.annotation);
-
-          this.eventBus.get('bind:body-updated').next({ annotationId: finishedEvent.annotation.id });
-        });
-
-        const failedSub = this.eventBus.get('bind:failed').subscribe(() => {
-          finishedSub.unsubscribe();
-          failedSub.unsubscribe();
-          this.eventBus.get('bind:body-update-failed').next({ message: 'Bind failed' });
-        });
-
-        this.sse.bindAnnotation(
-          rUri,
-          annotationId,
-          { resourceId: event.resourceId, operations: event.operations as never },
-          { auth: getToken(), eventBus: this.eventBus },
-        );
+      this.eventBus.get('bind:update-body').subscribe(async (event: EventMap['bind:update-body']) => {
+        try {
+          // Plain POST — the backend emits mark:update-body on the EventBus,
+          // the Stower persists mark:body-updated, and the events-stream
+          // delivers the enriched event to all connected clients. The
+          // AnnotationStore's mark:body-updated subscriber calls updateInPlace
+          // with the post-materialization annotation — no per-operation
+          // stream, no bind:finished channel needed.
+          await this.http.bindAnnotation(
+            rUri,
+            makeAnnotationId(event.annotationId),
+            { operations: event.operations as never },
+            { auth: getToken() },
+          );
+        } catch (error) {
+          this.eventBus.get('bind:body-update-failed').next({
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
       }),
     );
 
@@ -127,6 +113,7 @@ export class FlowEngine {
         // Link the newly generated resource back to the reference annotation
         if (!event.resourceId || !event.referenceId || !event.sourceResourceId) return;
         this.eventBus.get('bind:update-body').next({
+          correlationId: crypto.randomUUID(),
           annotationId: makeAnnotationId(event.referenceId),
           resourceId: makeResourceId(event.sourceResourceId),
           operations: [{ op: 'add', item: { type: 'SpecificResource', source: event.resourceId } }],

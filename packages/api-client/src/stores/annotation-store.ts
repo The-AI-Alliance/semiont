@@ -15,12 +15,12 @@
  *
  * NOTE: mark:body-updated arrives on the events-stream as an EnrichedResourceEvent
  * carrying the post-materialization annotation. The subscriber writes it
- * directly into the list cache via updateInPlace — no refetch, no two-path
- * model. This is the local AND remote mutation path: locally-initiated binds
- * receive the same enriched event from the events-stream as remote mutations
- * (other tab, CLI, importer). The events-stream's enrichment step (in
- * apps/backend/.../event-stream-enrichment.ts) guarantees the annotation
- * field is present for these event types.
+ * directly into the list cache via updateInPlace — no refetch needed. This is
+ * the single delivery path for all annotation mutations: locally-initiated
+ * binds, remote mutations (other tab, CLI, importer), and AI-generated
+ * annotations all flow through the same events-stream → updateInPlace path.
+ * The events-stream enrichment step (event-stream-enrichment.ts) guarantees
+ * the annotation field is present for these event types.
  *
  * Token: mutable — call setTokenGetter() from the React layer when auth changes.
  */

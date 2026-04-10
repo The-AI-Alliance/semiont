@@ -84,12 +84,6 @@ export type GatherResourceStreamRequest = components['schemas']['GatherResourceS
 export type GatherAnnotationStreamRequest = components['schemas']['GatherAnnotationStreamRequest'];
 
 /**
- * Request body for bind annotation stream
- * Uses generated type from OpenAPI schema
- */
-export type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRequest'];
-
-/**
  * Request body for match search stream
  */
 export type MatchSearchStreamRequest = components['schemas']['MatchSearchStreamRequest'];
@@ -598,43 +592,6 @@ export class SSEClient {
         progressEvents: ['gather:annotation-progress'],
         completeEvent: 'gather:annotation-finished',
         errorEvent: 'gather:failed',
-        eventBus: options.eventBus,
-        eventPrefix: undefined
-      },
-      this.logger
-    );
-  }
-
-  /**
-   * Bind annotation body (streaming)
-   *
-   * Applies annotation body operations and streams completion via Server-Sent Events.
-   *
-   * @param resourceId - Resource URI or ID
-   * @param annotationId - Annotation URI or ID
-   * @param request - Bind operations (resourceId + operations array)
-   * @param options - Request options (auth token, eventBus)
-   * @returns SSE stream controller with complete/error callbacks
-   */
-  bindAnnotation(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    request: BindAnnotationStreamRequest,
-    options: SSERequestOptions
-  ): SSEStream {
-    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/bind-stream`;
-
-    return createSSEStream(
-      url,
-      {
-        method: 'POST',
-        headers: this.getHeaders(options.auth),
-        body: JSON.stringify(request)
-      },
-      {
-        progressEvents: [],
-        completeEvent: 'bind:finished',
-        errorEvent: 'bind:failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },

@@ -233,6 +233,7 @@ export function ResourceViewerPage({
 
   const handleWizardLinkResource = useCallback((referenceId: string, targetResourceId: string) => {
     eventBus.get('bind:update-body').next({
+      correlationId: crypto.randomUUID(),
       annotationId: annotationId(referenceId),
       resourceId: rUri,
       operations: [{

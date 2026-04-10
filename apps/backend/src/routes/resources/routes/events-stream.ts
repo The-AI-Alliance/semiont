@@ -19,7 +19,7 @@ import { EventQuery } from '@semiont/event-sourcing';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { resourceId, type ResourceId, type StoredEvent, type components, PERSISTED_EVENT_TYPES } from '@semiont/core';
+import { resourceId, type ResourceId, type StoredEvent, type EventName, type components, PERSISTED_EVENT_TYPES, STREAM_COMMAND_RESULT_TYPES } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import { getLogger } from '../../../logger';
 import { Subscription } from 'rxjs';
@@ -258,6 +258,34 @@ export function registerGetEventStream(router: ResourcesRouterType) {
         if (eventType === 'mark:entity-type-added') continue;
         subscriptions.push(
           scopedBus.getDomainEvent(eventType).subscribe(writeEnrichedEvent)
+        );
+      }
+
+      // Subscribe to non-persisted command-result events on the same scoped
+      // bus. These are ephemeral progress and result events from actors
+      // (Binder, Gatherer, workers) that all participants need for real-time
+      // collaboration. They don't have StoredEvent shape (no metadata, no
+      // sequenceNumber), so they're written as-is — the frontend SSE
+      // auto-router handles both shapes.
+      for (const eventType of STREAM_COMMAND_RESULT_TYPES) {
+        subscriptions.push(
+          scopedBus.get(eventType as EventName).subscribe(async (payload: unknown) => {
+            if (isStreamClosed) return;
+            try {
+              await stream.writeSSE({
+                data: JSON.stringify(payload),
+                event: eventType,
+                id: String(Date.now()),
+              });
+            } catch (error) {
+              logger.error('Error writing command-result event to SSE stream', {
+                streamId,
+                eventType,
+                error,
+              });
+              cleanup();
+            }
+          })
         );
       }
 

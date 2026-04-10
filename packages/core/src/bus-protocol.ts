@@ -144,8 +144,6 @@ export type EventMap = {
   'bind:update-body': components['schemas']['BindUpdateBodyCommand'];
   'bind:body-updated': components['schemas']['BindBodyUpdated'];
   'bind:body-update-failed': components['schemas']['CommandError'];
-  'bind:finished': components['schemas']['BindStreamFinished'];
-  'bind:failed': components['schemas']['BindStreamFailed'];
 
   // ========================================================================
   // MATCH FLOW — search
@@ -284,3 +282,36 @@ export type EventMap = {
 
 /** Any valid channel name on the EventBus. */
 export type EventName = keyof EventMap;
+
+/**
+ * Non-persisted event types that the per-resource events-stream should deliver
+ * to all connected clients. These are ephemeral command-result and progress
+ * events that don't go through EventStore.appendEvent but still need to reach
+ * every participant viewing the resource for real-time collaboration.
+ *
+ * Actors (Binder, Gatherer, workers) publish these on the scoped EventBus
+ * (`eventBus.scope(resourceId)`). The events-stream route subscribes to them
+ * alongside the persisted event types.
+ *
+ * Unlike PERSISTED_EVENT_TYPES, there's no compile-time exhaustiveness check
+ * here because these event types are a curated subset of EventMap — not every
+ * non-persisted event should flow to all participants. Adding a new one is a
+ * deliberate choice, not an automatic cascade.
+ */
+export const STREAM_COMMAND_RESULT_TYPES = [
+  // Match flow — search results for binding candidates
+  'match:search-results',
+  'match:search-failed',
+  // Gather flow — assembled context for reference resolution
+  'gather:complete',
+  'gather:failed',
+  'gather:annotation-progress',
+  // Mark flow — AI-assisted annotation progress
+  'mark:progress',
+  'mark:assist-finished',
+  'mark:assist-failed',
+  // Yield flow — resource generation progress
+  'yield:progress',
+  'yield:finished',
+  'yield:failed',
+] as const satisfies readonly EventName[];

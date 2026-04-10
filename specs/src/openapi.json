@@ -105,9 +105,6 @@
     "/resources/{resourceId}/annotations/{annotationId}/gather-annotation-stream": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_gather-annotation-stream.json"
     },
-    "/resources/{resourceId}/annotations/{annotationId}/bind-stream": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_bind-stream.json"
-    },
     "/resources/{id}/referenced-by": {
       "$ref": "paths/resources_{id}_referenced-by.json"
     },
@@ -296,12 +293,6 @@
       },
       "BindAnnotationStreamRequest": {
         "$ref": "components/schemas/BindAnnotationStreamRequest.json"
-      },
-      "BindStreamFinished": {
-        "$ref": "components/schemas/BindStreamFinished.json"
-      },
-      "BindStreamFailed": {
-        "$ref": "components/schemas/BindStreamFailed.json"
       },
       "GatherProgress": {
         "$ref": "components/schemas/GatherProgress.json"

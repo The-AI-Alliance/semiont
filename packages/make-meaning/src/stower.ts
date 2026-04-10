@@ -268,13 +268,18 @@ export class Stower {
 
   private async handleMarkUpdateBody(event: EventMap['mark:update-body']): Promise<void> {
     try {
-      await this.kb.eventStore.appendEvent({
-        type: 'mark:body-updated',
-        resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event.userId),
-        version: 1,
-        payload: { annotationId: event.annotationId, operations: event.operations },
-      });
+      await this.kb.eventStore.appendEvent(
+        {
+          type: 'mark:body-updated',
+          resourceId: resourceId(event.resourceId),
+          userId: makeUserId(event.userId),
+          version: 1,
+          payload: { annotationId: event.annotationId, operations: event.operations },
+        },
+        // Thread correlationId from the command into event metadata so the
+        // events-stream can deliver it to the client that initiated the bind.
+        event.correlationId ? { correlationId: event.correlationId } : undefined,
+      );
       // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error });
