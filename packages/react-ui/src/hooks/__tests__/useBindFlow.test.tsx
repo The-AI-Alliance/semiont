@@ -25,22 +25,24 @@ vi.mock('../../components/Toast', () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-const { mockBindBody, mockShowSuccess, mockShowError, mockShowInfo } = vi.hoisted(() => {
+const { mockBindBody, mockMatchSearch, mockShowSuccess, mockShowError, mockShowInfo } = vi.hoisted(() => {
   return {
     mockBindBody: vi.fn(),
+    mockMatchSearch: vi.fn(),
     mockShowSuccess: vi.fn(),
     mockShowError: vi.fn(),
     mockShowInfo: vi.fn(),
   };
 });
 
-// Mock API client — useBindFlow calls client.bind.body()
+// Mock API client — useBindFlow calls semiont.bind.body() and semiont.match.search()
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
       bind: { body: mockBindBody },
+      match: { search: mockMatchSearch },
     }),
   };
 });
@@ -77,8 +79,17 @@ describe('useBindFlow', () => {
     mockShowError.mockClear();
     mockShowInfo.mockClear();
     mockBindBody.mockClear();
+    mockMatchSearch.mockClear();
 
     mockBindBody.mockResolvedValue(undefined);
+    // match.search returns an Observable — mock with subscribe
+    mockMatchSearch.mockReturnValue({
+      subscribe: vi.fn(({ next, complete }) => {
+        next?.({ correlationId: 'c1', referenceId: 'ref-1', response: [] });
+        complete?.();
+        return { unsubscribe: vi.fn() };
+      }),
+    });
   });
 
   it('calls client.bind.body when bind:update-body event is emitted', async () => {
@@ -107,6 +118,49 @@ describe('useBindFlow', () => {
       expect(mockShowError).toHaveBeenCalledWith(
         expect.stringContaining('Failed to update reference')
       );
+    });
+  });
+
+  it('bridges match:search-requested to semiont.match.search()', async () => {
+    const { getEventBus } = renderBindFlow();
+
+    act(() => {
+      getEventBus().get('match:search-requested').next({
+        correlationId: 'corr-1',
+        resourceId: 'resource-123',
+        referenceId: 'ref-1',
+        context: { sourceContext: { selected: 'test' } },
+        limit: 10,
+        useSemanticScoring: true,
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockMatchSearch).toHaveBeenCalledWith(
+        expect.anything(), // resourceId
+        'ref-1',
+        expect.anything(), // context
+        expect.objectContaining({ limit: 10, useSemanticScoring: true }),
+      );
+    });
+  });
+
+  it('emits match:search-results on successful search', async () => {
+    const { getEventBus } = renderBindFlow();
+    const resultListener = vi.fn();
+    getEventBus().get('match:search-results').subscribe(resultListener);
+
+    act(() => {
+      getEventBus().get('match:search-requested').next({
+        correlationId: 'corr-2',
+        resourceId: 'resource-123',
+        referenceId: 'ref-2',
+        context: {},
+      });
+    });
+
+    await waitFor(() => {
+      expect(resultListener).toHaveBeenCalled();
     });
   });
 
