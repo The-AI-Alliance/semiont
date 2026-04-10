@@ -6,18 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { firstValueFrom, Subject, of, throwError } from 'rxjs';
-import { take, toArray } from 'rxjs/operators';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
-import type { components } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import type { SemiontApiClient } from '../../client';
-
-type Annotation = components['schemas']['Annotation'];
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
@@ -249,7 +244,7 @@ describe('YieldNamespace', () => {
   });
 
   it('cloneToken() delegates to generateCloneToken', async () => {
-    const result = await yld.cloneToken(RID);
+    await yld.cloneToken(RID);
     expect(http.generateCloneToken).toHaveBeenCalledWith(RID, { auth: 'tok' });
   });
 });

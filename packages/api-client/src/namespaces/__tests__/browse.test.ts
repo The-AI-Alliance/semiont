@@ -179,7 +179,7 @@ describe('BrowseNamespace', () => {
       browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
       const list = await firstDefined(browse.annotations(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1); // no refetch
-      expect(list![0].body[0]).toMatchObject({ source: 'res-2' });
+      expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-2' });
     });
 
     it('appends a new annotation if not present', async () => {
@@ -229,7 +229,7 @@ describe('BrowseNamespace', () => {
       eventBus.get('mark:body-updated').next(stored({ resourceId: RID, payload: { annotationId: AID }, annotation: updated }) as any);
       const list = await firstDefined(browse.annotations(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
-      expect(list![0].body[0]).toMatchObject({ source: 'res-target' });
+      expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-target' });
     });
 
     it('mark:body-updated without annotation → no-op', async () => {
@@ -262,7 +262,6 @@ describe('BrowseNamespace', () => {
   describe('EventBus → resource cache', () => {
     it('yield:create-ok → fetches new resource, invalidates lists', async () => {
       await firstDefined(browse.resources());
-      const listBefore = (http.browseResources as ReturnType<typeof vi.fn>).mock.calls.length;
       eventBus.get('yield:create-ok').next({ resourceId: RID, resource: mockResource('res-1') as any });
       await firstDefined(browse.resource(RID));
       expect(http.browseResource).toHaveBeenCalled();
