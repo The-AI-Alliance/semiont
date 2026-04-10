@@ -69,7 +69,7 @@ export type BrowseOptions = z.output<typeof BrowseOptionsSchema>;
 export async function runBrowse(options: BrowseOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { semiont, token } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId, rawAnnotationId] = options.args;
 
@@ -77,7 +77,7 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   let label: string;
 
   if (subcommand === 'resources') {
-    const data = await client.browseResources(
+    const data = await semiont.browseResources(
       options.limit,
       undefined,
       options.search as any,
@@ -89,15 +89,15 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
 
   } else if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    const resourceData = await client.browseResource(id, { auth: token });
+    const resourceData = await semiont.browseResource(id, { auth: token });
 
     if (options.annotations || options.references) {
-      const annotationsData = await client.browseAnnotations(id, undefined, { auth: token });
+      const annotationsData = await semiont.browseAnnotations(id, undefined, { auth: token });
       const annotations = (annotationsData as any)?.annotations ?? annotationsData ?? [];
 
       let referencedBy: unknown[] = [];
       if (options.references) {
-        const refData = await client.browseReferences(id, { auth: token });
+        const refData = await semiont.browseReferences(id, { auth: token });
         referencedBy = refData.referencedBy ?? [];
       }
 
@@ -114,19 +114,19 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   } else if (subcommand === 'annotation') {
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    result = await client.browseAnnotation(resourceId, annotationId, { auth: token });
+    result = await semiont.browseAnnotation(resourceId, annotationId, { auth: token });
     label = `${rawAnnotationId}: annotation on ${rawResourceId}`;
 
   } else if (subcommand === 'references') {
     const id = toResourceId(rawResourceId);
-    const data = await client.browseReferences(id, { auth: token });
+    const data = await semiont.browseReferences(id, { auth: token });
     result = data.referencedBy ?? [];
     const count = Array.isArray(result) ? result.length : 0;
     label = `${count} resource${count !== 1 ? 's' : ''} reference ${rawResourceId}`;
 
   } else if (subcommand === 'events') {
     const id = toResourceId(rawResourceId);
-    const data = await client.getResourceEvents(id, { auth: token });
+    const data = await semiont.getResourceEvents(id, { auth: token });
     result = data.events ?? data;
     const items = Array.isArray(result) ? result : [];
     label = `${items.length} event${items.length !== 1 ? 's' : ''} for ${rawResourceId}`;
@@ -134,19 +134,19 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   } else if (subcommand === 'history') {
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    result = await client.getAnnotationHistory(resourceId, annotationId, { auth: token });
+    result = await semiont.getAnnotationHistory(resourceId, annotationId, { auth: token });
     label = `history for annotation ${rawAnnotationId} on ${rawResourceId}`;
 
   } else if (subcommand === 'files') {
     const dirPath = options.args[1];
-    const data = await client.browseFiles(dirPath, options.sort, { auth: token });
+    const data = await semiont.browseFiles(dirPath, options.sort, { auth: token });
     result = data;
     const entries = (data as any)?.entries ?? [];
     label = `${entries.length} entr${entries.length !== 1 ? 'ies' : 'y'} in ${dirPath ?? '/'}`;
 
   } else {
     // subcommand === 'entity-types'
-    result = await client.listEntityTypes({ auth: token });
+    result = await semiont.listEntityTypes({ auth: token });
     const items = Array.isArray(result) ? result : (result as any)?.tags ?? [];
     label = `${items.length} entity type${items.length !== 1 ? 's' : ''}`;
   }

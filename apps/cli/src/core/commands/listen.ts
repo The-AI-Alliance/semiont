@@ -45,7 +45,7 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { semiont, token } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId] = options.args;
   const isResourceScoped = subcommand === 'resource';
@@ -78,8 +78,8 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
   if (!options.quiet) process.stderr.write(label + ' (Ctrl-C to stop)\n');
 
   const stream = isResourceScoped
-    ? client.sse.resourceEvents(toResourceId(rawResourceId), { auth: token, eventBus })
-    : client.sse.globalEvents({ auth: token, eventBus });
+    ? semiont.sse.resourceEvents(toResourceId(rawResourceId), { auth: token, eventBus })
+    : semiont.sse.globalEvents({ auth: token, eventBus });
 
   // Wait for SIGINT/SIGTERM or stream close
   await new Promise<void>((resolve) => {

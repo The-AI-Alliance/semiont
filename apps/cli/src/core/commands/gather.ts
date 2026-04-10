@@ -40,7 +40,7 @@ export type GatherOptions = z.output<typeof GatherOptionsSchema>;
 export async function runGather(options: GatherOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId, rawAnnotationId] = options.args;
 
@@ -48,7 +48,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
   if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    result = await client.gather.resource(id, { contextWindow: options.contextWindow });
+    result = await semiont.gather.resource(id, { contextWindow: options.contextWindow });
   } else if (subcommand === 'annotation') {
     if (!rawAnnotationId) {
       throw new Error('Usage: semiont gather annotation <resourceId> <annotationId>');
@@ -58,7 +58,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
     // gather.annotation returns Observable — await the completion event
     const completion = await firstValueFrom(
-      client.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
+      semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
         filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
         take(1),
         timeout(60_000),

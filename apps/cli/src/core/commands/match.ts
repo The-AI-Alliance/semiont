@@ -4,8 +4,8 @@
  * Searches for binding candidates for an annotation.
  *
  * Two-step process:
- *   1. client.gather.annotation → GatheredContext
- *   2. client.match.search → scored ResourceDescriptor[]
+ *   1. semiont.gather.annotation → GatheredContext
+ *   2. semiont.match.search → scored ResourceDescriptor[]
  *
  * Usage:
  *   semiont match <resourceId> <annotationId> [options]
@@ -53,11 +53,11 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const annotationId = toAnnotationId(rawAnnotationId);
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   // Step 1: gather context via Observable
   const gatherCompletion = await firstValueFrom(
-    client.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
+    semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
       filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
       take(1),
       timeout(60_000),
@@ -72,7 +72,7 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
 
   // Step 2: search via Observable
   const searchResult = await firstValueFrom(
-    client.match.search(resourceId, rawAnnotationId, context, {
+    semiont.match.search(resourceId, rawAnnotationId, context, {
       limit: options.limit,
       useSemanticScoring: !options.noSemantic,
     }).pipe(take(1), timeout(60_000)),

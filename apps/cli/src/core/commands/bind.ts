@@ -36,13 +36,13 @@ export type BindOptions = z.output<typeof BindOptionsSchema>;
 export async function runBind(options: BindOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   const [rawResourceId, rawAnnotationId, targetResourceId] = options.args;
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
-  await client.bind.body(resourceId, annotationId, [{
+  await semiont.bind.body(resourceId, annotationId, [{
     op: 'add',
     item: {
       type: 'SpecificResource',

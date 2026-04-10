@@ -142,8 +142,8 @@ describe('Layout Providers', () => {
       const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
 
       const TestComponent = () => {
-        const client = useApiClient();
-        return <div>Client: {client ? 'present' : 'null'}</div>;
+        const semiont = useApiClient();
+        return <div>Client: {semiont ? 'present' : 'null'}</div>;
       };
 
       render(
@@ -222,8 +222,8 @@ describe('Layout Providers', () => {
       const { default: ModerateLayout } = await import('@/app/[locale]/moderate/layout');
 
       const TestComponent = () => {
-        const client = useApiClient();
-        return <div>Client: {client ? 'present' : 'null'}</div>;
+        const semiont = useApiClient();
+        return <div>Client: {semiont ? 'present' : 'null'}</div>;
       };
 
       render(
@@ -294,8 +294,8 @@ describe('Layout Providers', () => {
       const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
 
       const TestComponent = () => {
-        const client = useApiClient();
-        return <div>Client: {client ? 'present' : 'null'}</div>;
+        const semiont = useApiClient();
+        return <div>Client: {semiont ? 'present' : 'null'}</div>;
       };
 
       render(

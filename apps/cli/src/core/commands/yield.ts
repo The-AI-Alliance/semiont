@@ -97,7 +97,7 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 // =====================================================================
 
 async function runDelegate(
-  client: SemiontApiClient,
+  semiont: SemiontApiClient,
   _token: AccessToken,
   options: YieldOptions,
 ): Promise<{ resourceId?: string; resourceName?: string }> {
@@ -108,7 +108,7 @@ async function runDelegate(
 
   // Step 1: gather context via Observable
   const gatherCompletion = await firstValueFrom(
-    client.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
+    semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
       filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
       take(1),
       timeout(60_000),
@@ -121,7 +121,7 @@ async function runDelegate(
 
   // Step 2: generate via Observable
   const result = await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-    client.yield.fromAnnotation(resourceId, annotationId, {
+    semiont.yield.fromAnnotation(resourceId, annotationId, {
       title: options.title ?? rawAnnotationId,
       storageUri: options.storageUri!,
       context,
@@ -152,12 +152,12 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { semiont, token } = loadCachedClient(rawBusUrl);
   const projectRoot = findProjectRoot();
 
   // ── Delegate mode ──────────────────────────────────────────────────
   if (options.delegate) {
-    const { resourceId, resourceName } = await runDelegate(client, token, options);
+    const { resourceId, resourceName } = await runDelegate(semiont, token, options);
     const label = resourceName ?? resourceId ?? options.storageUri!;
     if (!options.quiet) printSuccess(`Yielded: ${options.storageUri} → ${resourceId ?? '(pending)'}`);
     process.stdout.write(JSON.stringify({ resourceId, resourceName, storageUri: options.storageUri }));
@@ -200,7 +200,7 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
     const name = options.name ?? path.basename(filePath, path.extname(filePath));
     const format = guessFormat(filePath);
 
-    const { resourceId } = await client.yieldResource(
+    const { resourceId } = await semiont.yieldResource(
       { name, file: content, format, storageUri },
       { auth: token },
     );
