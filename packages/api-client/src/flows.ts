@@ -47,10 +47,21 @@ export class FlowEngine {
         const annotationId = makeAnnotationId(event.annotationId);
 
         const finishedSub = this.eventBus.get('bind:finished').subscribe((finishedEvent) => {
-          if (finishedEvent.annotationId !== event.annotationId) return;
+          if (finishedEvent.annotation.id !== event.annotationId) return;
           finishedSub.unsubscribe();
           failedSub.unsubscribe();
-          this.eventBus.get('bind:body-updated').next({ annotationId: event.annotationId });
+
+          // Write the updated annotation directly into the local cache. The
+          // BehaviorSubject emits synchronously, useObservable re-renders, the
+          // icon flips before this microtask completes. No refetch, no
+          // dependency on a separate long-lived stream being healthy.
+          //
+          // Use rUri (the branded ResourceId for this bind flow's resource)
+          // rather than event.resourceId — they're the same value but rUri
+          // is already branded.
+          this.http.stores.annotations.updateInPlace(rUri, finishedEvent.annotation);
+
+          this.eventBus.get('bind:body-updated').next({ annotationId: finishedEvent.annotation.id });
         });
 
         const failedSub = this.eventBus.get('bind:failed').subscribe(() => {

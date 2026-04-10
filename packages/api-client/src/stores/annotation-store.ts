@@ -13,17 +13,24 @@
  * - mark:body-updated → invalidate annotation list + detail (SSE domain event)
  * - mark:entity-tag-added / mark:entity-tag-removed → invalidate list for resource
  *
+ * NOTE: locally-initiated bind operations also reach the cache via
+ * FlowEngine.bind → updateInPlace(), which writes the new annotation
+ * directly without a refetch. The mark:body-updated handler here covers
+ * remote mutations (other tab, CLI, importer) that the local FlowEngine
+ * never sees. Both paths are required; they handle disjoint scenarios.
+ *
  * Token: mutable — call setTokenGetter() from the React layer when auth changes.
  */
 
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
 import { annotationId as makeAnnotationId } from '@semiont/core';
-import type { EventBus, EventMap, ResourceId, AnnotationId, AccessToken } from '@semiont/core';
+import type { EventBus, EventMap, ResourceId, AnnotationId, AccessToken, components } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
 import type { paths } from '@semiont/core';
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
+type Annotation = components['schemas']['Annotation'];
 
 export type AnnotationsListResponse = ResponseContent<paths['/resources/{id}/annotations']['get']>;
 export type AnnotationDetail = ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>;
@@ -133,6 +140,38 @@ export class AnnotationStore {
     next.delete(resourceId);
     this.list$.next(next);
     this.fetchList(resourceId);
+  }
+
+  /**
+   * Write an updated annotation directly into the cached list, in place.
+   *
+   * Called by FlowEngine.bind on bind:finished — the SSE response carries
+   * the fully materialized updated annotation, so the store updates with
+   * zero refetch and zero staleness.
+   *
+   * If the resource's list is not currently cached, this is a no-op. The
+   * next subscribe will fetch fresh anyway, so there's nothing to update.
+   *
+   * If the annotation is not in the cached list (e.g. created on another
+   * tab and we've never seen it), it is appended.
+   */
+  updateInPlace(resourceId: ResourceId, annotation: Annotation): void {
+    const currentList = this.list$.value.get(resourceId);
+    if (!currentList) return;
+
+    const existingIdx = currentList.annotations.findIndex((a) => a.id === annotation.id);
+    const nextAnnotations =
+      existingIdx >= 0
+        ? currentList.annotations.map((a, i) => (i === existingIdx ? annotation : a))
+        : [...currentList.annotations, annotation];
+
+    const nextList: AnnotationsListResponse = {
+      ...currentList,
+      annotations: nextAnnotations,
+    };
+    const nextMap = new Map<ResourceId, AnnotationsListResponse>(this.list$.value);
+    nextMap.set(resourceId, nextList);
+    this.list$.next(nextMap);
   }
 
   /** Invalidate a single annotation detail (re-fetched on next subscribe) */

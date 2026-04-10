@@ -96,10 +96,27 @@ bind:search-results → Wizard shows scored candidates (Step 3A)
     |
 User clicks "Link" on a result
     |
-bind:update-body → API call (PATCH annotation body)
+bind:update-body → SSE bind-stream POST to backend
     |
-bind:body-updated → UI updates: unresolved → linked
+backend Stower persists mark:body-updated event, materializes view
+    |
+bind-stream emits bind:finished SSE carrying the FULL updated annotation
+    |
+FlowEngine.bind writes the annotation directly into AnnotationStore (in-place)
+    |
+useObservable re-renders → ReferenceEntry recomputes isBodyResolved → 🔗
 ```
+
+### Why bind:finished carries the full annotation
+
+The `bind:finished` SSE payload contains the fully materialized post-bind annotation, not just its id. The frontend updates its `AnnotationStore` cache in-place from this payload — no HTTP refetch, no dependency on the long-lived events-stream side channel being healthy.
+
+Two independent paths handle two independent scenarios:
+
+- **Local mutation** (this client initiated the bind): `bind:finished` → `updateInPlace` → cached list emits → UI re-renders. Synchronous, no refetch.
+- **Remote mutation** (another tab, the CLI, an importer wrote `mark:body-updated` we didn't initiate): the long-lived `events-stream` SSE delivers the domain event → `AnnotationStore`'s `mark:body-updated` subscriber invalidates and refetches.
+
+These are not redundant. They handle disjoint cases. The local path is independent of the remote path's connection health.
 
 ### Context-Driven Search
 

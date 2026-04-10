@@ -6,13 +6,21 @@
  * Applies annotation body operations (add/remove/replace SpecificResource links)
  * and streams completion via Server-Sent Events.
  *
+ * IMPORTANT — the bind:finished payload carries the full updated annotation,
+ * not just its id. This is load-bearing: the frontend updates its local
+ * AnnotationStore in-place from this payload, with no refetch and no
+ * dependency on the long-lived events-stream. Sending only {annotationId}
+ * here is a fragile pattern that has broken the link-icon flip across
+ * multiple refactors — do not "simplify" this back. See .plans/BINDING.md.
+ *
  * Flow:
  *   1. Receive operations (same format as PUT /body)
  *   2. Open SSE stream
- *   3. Subscribe to event store for annotation.body.updated
+ *   3. Subscribe to scoped EventBus for mark:body-updated
  *   4. Emit mark:update-body on the core EventBus
- *   5. When the Stower persists the event, send bind:finished and close
- *   6. On error or timeout, send bind:failed and close
+ *   5. When the Stower persists the event, read the post-bind annotation
+ *      from the materialized view and send it as bind:finished, then close
+ *   6. On error, missing view entry, or timeout, send bind:failed and close
  */
 
 import { streamSSE } from 'hono/streaming';
@@ -24,6 +32,7 @@ import { resourceId, annotationId, userId, userToDid } from '@semiont/core';
 import { getLogger } from '../../../logger';
 import type { components } from '@semiont/core';
 import type { Subscription } from 'rxjs';
+import { readAnnotationFromView } from './bind-annotation-stream-helpers';
 
 type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRequest'];
 
@@ -79,16 +88,63 @@ export function registerBindAnnotationStream(router: ResourcesRouterType) {
             if (isStreamClosed) return;
             if (storedEvent.payload.annotationId !== annotationIdParam) return;
 
-            logger.info('Bind completed', { annotationId: annotationIdParam });
+            logger.info('Bind completed; reading updated annotation from materialized view', {
+              annotationId: annotationIdParam,
+            });
+
             try {
-              await stream.writeSSE({
-                data: JSON.stringify({ annotationId: String(aid) }),
-                event: 'bind:finished',
-                id: String(Date.now()),
+              // Read the just-materialized annotation. EventStore.appendEvent
+              // awaits materializeResource before publishing on the scoped bus
+              // we're subscribed to here, so the view is guaranteed up-to-date.
+              const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+              const updated = await readAnnotationFromView(kb, rId, annotationIdParam);
+
+              if (!updated) {
+                logger.error('Bind succeeded but annotation not found in materialized view', {
+                  annotationId: annotationIdParam,
+                });
+                try {
+                  await stream.writeSSE({
+                    data: JSON.stringify({
+                      error: 'Annotation not found in view after bind — view materialization may have failed',
+                    }),
+                    event: 'bind:failed',
+                    id: String(Date.now()),
+                  });
+                } catch {
+                  // Client already disconnected
+                }
+                cleanup();
+                return;
+              }
+
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({ annotation: updated }),
+                  event: 'bind:finished',
+                  id: String(Date.now()),
+                });
+              } catch {
+                logger.warn('Client disconnected before bind:finished');
+              }
+            } catch (error) {
+              logger.error('Failed to read updated annotation from view', {
+                annotationId: annotationIdParam,
+                error: error instanceof Error ? error.message : String(error),
               });
-            } catch {
-              logger.warn('Client disconnected before bind:finished');
+              try {
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    error: error instanceof Error ? error.message : 'Failed to read updated annotation',
+                  }),
+                  event: 'bind:failed',
+                  id: String(Date.now()),
+                });
+              } catch {
+                // Client already disconnected
+              }
             }
+
             cleanup();
           });
 

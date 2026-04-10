@@ -220,4 +220,119 @@ describe('AnnotationStore', () => {
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('updateInPlace()', () => {
+    /**
+     * Build an annotation with a SpecificResource body item — the kind of
+     * post-bind state that flows back from bind:finished.
+     */
+    function withResolvedBody(id: string, source: string): Annotation {
+      return {
+        ...mockAnnotation(id),
+        motivation: 'linking',
+        body: [{ type: 'SpecificResource', source, purpose: 'linking' }],
+      } as Annotation;
+    }
+
+    it('replaces an existing annotation in a cached list', async () => {
+      // Seed cache by subscribing
+      await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+
+      const updated = withResolvedBody('ann-1', 'res-2');
+      store.updateInPlace(RID, updated);
+
+      // The next subscribe should see the updated annotation, no fetch
+      const list = await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect((list as any).annotations).toHaveLength(1);
+      expect((list as any).annotations[0].body[0]).toMatchObject({
+        type: 'SpecificResource',
+        source: 'res-2',
+      });
+    });
+
+    it('appends a new annotation if not present in the cached list', async () => {
+      await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+
+      const newAnn = withResolvedBody('ann-2', 'res-3');
+      store.updateInPlace(RID, newAnn);
+
+      const list = await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect((list as any).annotations).toHaveLength(2);
+      expect((list as any).annotations.map((a: Annotation) => a.id)).toContain('ann-2');
+    });
+
+    it('is a no-op when list is not cached', async () => {
+      // Do NOT subscribe first; cache is cold
+      const newAnn = withResolvedBody('ann-1', 'res-2');
+      store.updateInPlace(RID, newAnn);
+
+      // First subscribe should trigger a normal cold-cache fetch
+      const list = await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      // It returns the mocked HTTP response (which has ann-1 with empty body),
+      // NOT the synthetic in-place update
+      expect((list as any).annotations[0].body).toEqual([]);
+    });
+
+    it('emits each in-place update on the observable', async () => {
+      const seen: AnnotationsListResponse[] = [];
+      const sub = store.listForResource(RID).subscribe((v) => {
+        if (v) seen.push(v);
+      });
+
+      // Wait for the initial fetch
+      await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+
+      const first = withResolvedBody('ann-1', 'res-A');
+      store.updateInPlace(RID, first);
+
+      const second = withResolvedBody('ann-1', 'res-B');
+      store.updateInPlace(RID, second);
+
+      sub.unsubscribe();
+
+      // We should have at least 3 emissions: initial fetch, first update, second update
+      expect(seen.length).toBeGreaterThanOrEqual(3);
+      const last = seen[seen.length - 1] as any;
+      expect(last.annotations[0].body[0]).toMatchObject({ source: 'res-B' });
+    });
+
+    it('idempotence: in-place update + remote refetch converge to equal state', async () => {
+      // Seed cache
+      await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+
+      const updated = withResolvedBody('ann-1', 'res-2');
+
+      // Local path: in-place update
+      store.updateInPlace(RID, updated);
+
+      // Make the next refetch return the SAME updated annotation (as it would
+      // after the backend persisted the change and the events-stream delivered
+      // the mark:body-updated event)
+      (http.browseAnnotations as any).mockResolvedValueOnce({
+        annotations: [updated],
+        total: 1,
+      });
+
+      // Remote path: simulate the events-stream delivering the same event
+      eventBus.get('mark:body-updated').next(
+        stored({ resourceId: RID, payload: { annotationId: AID } }) as any
+      );
+
+      // Wait for the refetch to land
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+
+      const list = await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect((list as any).annotations).toHaveLength(1);
+      expect((list as any).annotations[0].body[0]).toMatchObject({
+        type: 'SpecificResource',
+        source: 'res-2',
+      });
+    });
+  });
 });
