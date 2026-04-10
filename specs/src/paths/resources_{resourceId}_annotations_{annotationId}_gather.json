@@ -1,11 +1,10 @@
 {
   "post": {
-    "summary": "Gather Annotation LLM Context (SSE Stream)",
-    "description": "Stream real-time annotation LLM context gathering progress via Server-Sent Events",
+    "summary": "Gather Annotation Context",
+    "description": "Submit a gather-context command for an annotation. Returns {correlationId} immediately. The Gatherer assembles passage + graph context (long-running, involves LLM calls) and delivers results via the events-stream as gather:complete, gather:failed, or gather:annotation-progress events.",
     "tags": [
       "Resources",
       "Annotations",
-      "Real-time",
       "AI"
     ],
     "security": [
@@ -15,18 +14,14 @@
     ],
     "parameters": [
       {
-        "schema": {
-          "type": "string"
-        },
+        "schema": { "type": "string" },
         "required": true,
         "name": "resourceId",
         "in": "path",
         "description": "Resource ID"
       },
       {
-        "schema": {
-          "type": "string"
-        },
+        "schema": { "type": "string" },
         "required": true,
         "name": "annotationId",
         "in": "path",
@@ -34,6 +29,7 @@
       }
     ],
     "requestBody": {
+      "required": true,
       "content": {
         "application/json": {
           "schema": {
@@ -43,21 +39,22 @@
       }
     },
     "responses": {
-      "200": {
-        "description": "SSE stream opened successfully",
+      "202": {
+        "description": "Gather command accepted. Results delivered via events-stream.",
         "content": {
-          "text/event-stream": {
+          "application/json": {
             "schema": {
-              "$ref": "../components/schemas/EventStreamResponse.json"
+              "type": "object",
+              "properties": {
+                "correlationId": { "type": "string" }
+              },
+              "required": ["correlationId"]
             }
           }
         }
       },
       "401": {
         "description": "Authentication required"
-      },
-      "404": {
-        "description": "Annotation not found"
       }
     }
   }

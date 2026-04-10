@@ -253,38 +253,34 @@ export class FlowEngine {
   /**
    * Activate the gather-context flow for a resource.
    *
-   * @subscribes gather:requested — calls SSE gatherAnnotation, threads correlationId
-   * @emits gather:complete (re-emitted from SSE gather:annotation-finished)
+   * @subscribes gather:requested — calls HTTP gatherAnnotationContext
+   * @emits gather:failed on HTTP error
    */
   gatherContext(rUri: ResourceId, getToken: TokenGetter): Subscription {
-    return this.eventBus.get('gather:requested').subscribe((event: EventMap['gather:requested']) => {
-      const { correlationId } = event;
-      const contextWindow = event.options?.contextWindow ?? 2000;
-
-      const finishedSub = this.eventBus.get('gather:annotation-finished').subscribe((finishedEvent) => {
-        if (finishedEvent.correlationId !== correlationId) return;
-        finishedSub.unsubscribe();
-        failedSub.unsubscribe();
-        this.eventBus.get('gather:complete').next({
-          correlationId,
-          annotationId: makeAnnotationId(finishedEvent.annotationId),
-          response: finishedEvent.response,
+    return this.eventBus.get('gather:requested').subscribe(async (event: EventMap['gather:requested']) => {
+      try {
+        // Plain POST — the backend emits gather:requested on the EventBus,
+        // the Gatherer processes the context assembly and publishes
+        // gather:complete / gather:failed on the resource-scoped bus. The
+        // events-stream delivers them to all connected clients. The
+        // useContextGatherFlow hook's existing gather:complete subscription
+        // picks them up via the SSE auto-router.
+        await this.http.gatherAnnotationContext(
+          rUri,
+          makeAnnotationId(event.annotationId),
+          {
+            correlationId: event.correlationId,
+            contextWindow: event.options?.contextWindow ?? 2000,
+          },
+          { auth: getToken() },
+        );
+      } catch (error) {
+        this.eventBus.get('gather:failed').next({
+          correlationId: event.correlationId,
+          annotationId: event.annotationId,
+          message: error instanceof Error ? error.message : String(error),
         });
-      });
-
-      // failedSub: cleanup only — SSE layer already emitted gather:failed
-      const failedSub = this.eventBus.get('gather:failed').subscribe((failedEvent) => {
-        if (failedEvent.correlationId !== correlationId) return;
-        finishedSub.unsubscribe();
-        failedSub.unsubscribe();
-      });
-
-      this.sse.gatherAnnotation(
-        rUri,
-        makeAnnotationId(event.annotationId),
-        { contextWindow, correlationId },
-        { auth: getToken(), eventBus: this.eventBus },
-      );
+      }
     });
   }
 

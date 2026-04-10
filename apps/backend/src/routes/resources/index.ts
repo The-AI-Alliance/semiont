@@ -27,7 +27,7 @@ import { registerDeleteAnnotation } from './routes/delete-annotation';
 import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
 import { registerBindAnnotation } from './routes/bind-annotation';
 import { registerYieldResourceStream } from './routes/yield-resource-stream';
-import { registerGatherAnnotationStream } from './routes/gather-annotation-stream';
+import { registerGatherAnnotation } from './routes/gather-annotation';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
 // Factory function to create resources router with JobQueue
@@ -61,7 +61,7 @@ registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /ap
   registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
   registerBindAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/bind
   registerYieldResourceStream(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/yield-resource-stream
-  registerGatherAnnotationStream(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/gather-annotation-stream
+  registerGatherAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/gather
   registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
   registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId
 

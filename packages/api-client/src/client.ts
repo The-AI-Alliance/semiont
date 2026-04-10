@@ -620,6 +620,18 @@ export class SemiontApiClient {
     }).json();
   }
 
+  async gatherAnnotationContext(
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
+    data: { correlationId: string; contextWindow?: number },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/gather`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
   async matchSearch(
     resourceId: ResourceId,
     data: { correlationId: string; referenceId: string; context: unknown; limit?: number; useSemanticScoring?: boolean },

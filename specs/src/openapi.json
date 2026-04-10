@@ -102,8 +102,8 @@
     "/resources/{id}/match-search": {
       "$ref": "paths/resources_{id}_match-search.json"
     },
-    "/resources/{resourceId}/annotations/{annotationId}/gather-annotation-stream": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_gather-annotation-stream.json"
+    "/resources/{resourceId}/annotations/{annotationId}/gather": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_gather.json"
     },
     "/resources/{id}/referenced-by": {
       "$ref": "paths/resources_{id}_referenced-by.json"

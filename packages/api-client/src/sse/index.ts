@@ -79,11 +79,6 @@ export interface AnnotateTagsStreamRequest {
 export type GatherResourceStreamRequest = components['schemas']['GatherResourceStreamRequest'];
 
 /**
- * Request body for annotation gather stream
- */
-export type GatherAnnotationStreamRequest = components['schemas']['GatherAnnotationStreamRequest'];
-
-/**
  * SSE Client configuration
  */
 export interface SSEClientConfig {
@@ -549,43 +544,6 @@ export class SSEClient {
       {
         progressEvents: ['gather:progress'],
         completeEvent: 'gather:finished',
-        errorEvent: 'gather:failed',
-        eventBus: options.eventBus,
-        eventPrefix: undefined
-      },
-      this.logger
-    );
-  }
-
-  /**
-   * Gather LLM context for an annotation (streaming)
-   *
-   * Streams annotation LLM context gathering progress via Server-Sent Events.
-   *
-   * @param resourceId - Resource URI or ID
-   * @param annotationId - Annotation URI or ID
-   * @param request - Gather configuration (contextWindow)
-   * @param options - Request options (auth token, eventBus)
-   * @returns SSE stream controller with progress/complete/error callbacks
-   */
-  gatherAnnotation(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    request: GatherAnnotationStreamRequest,
-    options: SSERequestOptions
-  ): SSEStream {
-    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/gather-annotation-stream`;
-
-    return createSSEStream(
-      url,
-      {
-        method: 'POST',
-        headers: this.getHeaders(options.auth),
-        body: JSON.stringify(request)
-      },
-      {
-        progressEvents: ['gather:annotation-progress'],
-        completeEvent: 'gather:annotation-finished',
         errorEvent: 'gather:failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
