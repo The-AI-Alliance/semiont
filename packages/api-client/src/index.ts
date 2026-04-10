@@ -41,7 +41,6 @@ export type {
 export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
 export type {
   AnnotateReferencesStreamRequest,
-  MatchSearchStreamRequest,
   YieldResourceStreamRequest,
   SSEClientConfig,
   SSEStreamConnected

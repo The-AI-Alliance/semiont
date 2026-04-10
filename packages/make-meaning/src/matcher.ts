@@ -52,6 +52,10 @@ export class Matcher {
 
   private async handleSearch(event: EventMap['match:search-requested']): Promise<void> {
     try {
+      // Publish results on the resource-scoped bus so the events-stream
+      // delivers them to all participants viewing this resource.
+      const resultBus = this.eventBus.scope(event.resourceId);
+
       const context = event.context;
       const selectedText = context.sourceContext?.selected ?? '';
       const userHint = context.userHint ?? '';
@@ -72,7 +76,7 @@ export class Matcher {
 
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
-      this.eventBus.get('match:search-results').next({
+      resultBus.get('match:search-results').next({
         correlationId: event.correlationId,
         referenceId: event.referenceId,
         response: limited,
@@ -82,7 +86,7 @@ export class Matcher {
         referenceId: event.referenceId,
         error,
       });
-      this.eventBus.get('match:search-failed').next({
+      this.eventBus.scope(event.resourceId).get('match:search-failed').next({
         correlationId: event.correlationId,
         referenceId: event.referenceId,
         error: error instanceof Error ? error.message : String(error),

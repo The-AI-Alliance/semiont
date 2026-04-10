@@ -620,6 +620,17 @@ export class SemiontApiClient {
     }).json();
   }
 
+  async matchSearch(
+    resourceId: ResourceId,
+    data: { correlationId: string; referenceId: string; context: unknown; limit?: number; useSemanticScoring?: boolean },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/match-search`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
   // ============================================================================
   // ENTITY TYPES
   // ============================================================================

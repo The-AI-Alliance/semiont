@@ -66,14 +66,28 @@ export class FlowEngine {
     );
 
     sub.add(
-      this.eventBus.get('match:search-requested').subscribe((event: EventMap['match:search-requested']) => {
-        this.sse.matchSearch(rUri, {
-          correlationId: event.correlationId,
-          referenceId: event.referenceId,
-          context: event.context,
-          limit: event.limit,
-          useSemanticScoring: event.useSemanticScoring,
-        }, { auth: getToken(), eventBus: this.eventBus });
+      this.eventBus.get('match:search-requested').subscribe(async (event: EventMap['match:search-requested']) => {
+        try {
+          // Plain POST — the backend emits match:search-requested on the
+          // EventBus, the Binder processes the search and publishes results
+          // on the resource-scoped bus. The events-stream delivers them to
+          // all connected clients. The wizard's existing match:search-results
+          // subscription on the local EventBus picks them up via the SSE
+          // auto-router.
+          await this.http.matchSearch(rUri, {
+            correlationId: event.correlationId,
+            referenceId: event.referenceId,
+            context: event.context,
+            limit: event.limit,
+            useSemanticScoring: event.useSemanticScoring,
+          }, { auth: getToken() });
+        } catch (error) {
+          this.eventBus.get('match:search-failed').next({
+            correlationId: event.correlationId,
+            referenceId: event.referenceId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }),
     );
 

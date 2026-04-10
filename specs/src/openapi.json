@@ -99,8 +99,8 @@
     "/resources/{id}/gather-resource-stream": {
       "$ref": "paths/resources_{id}_gather-resource-stream.json"
     },
-    "/resources/{id}/match-search-stream": {
-      "$ref": "paths/resources_{id}_match-search-stream.json"
+    "/resources/{id}/match-search": {
+      "$ref": "paths/resources_{id}_match-search.json"
     },
     "/resources/{resourceId}/annotations/{annotationId}/gather-annotation-stream": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_gather-annotation-stream.json"
@@ -606,7 +606,6 @@
       "MarkUpdateBodyCommand": { "$ref": "components/schemas/MarkUpdateBodyCommand.json" },
       "MarkUpdateEntityTypesCommand": { "$ref": "components/schemas/MarkUpdateEntityTypesCommand.json" },
       "MatchSearchRequest": { "$ref": "components/schemas/MatchSearchRequest.json" },
-      "MatchSearchStreamRequest": { "$ref": "components/schemas/MatchSearchStreamRequest.json" },
       "MediaTokenRequest": { "$ref": "components/schemas/MediaTokenRequest.json" },
       "MediaTokenResponse": { "$ref": "components/schemas/MediaTokenResponse.json" },
       "SettingsHoverDelayChangedEvent": { "$ref": "components/schemas/SettingsHoverDelayChangedEvent.json" },

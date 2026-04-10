@@ -84,11 +84,6 @@ export type GatherResourceStreamRequest = components['schemas']['GatherResourceS
 export type GatherAnnotationStreamRequest = components['schemas']['GatherAnnotationStreamRequest'];
 
 /**
- * Request body for match search stream
- */
-export type MatchSearchStreamRequest = components['schemas']['MatchSearchStreamRequest'];
-
-/**
  * SSE Client configuration
  */
 export interface SSEClientConfig {
@@ -594,41 +589,6 @@ export class SSEClient {
         errorEvent: 'gather:failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
-      },
-      this.logger
-    );
-  }
-
-  /**
-   * Search for binding candidates (streaming)
-   *
-   * Bridges match:search-requested to the backend Matcher actor via SSE.
-   * Results emit as match:search-results on the browser EventBus.
-   *
-   * @param resourceId - Resource the annotation belongs to
-   * @param request - Search configuration (referenceId, context, limit)
-   * @param options - Request options (auth token, eventBus)
-   * @returns SSE stream controller
-   */
-  matchSearch(
-    resourceId: ResourceId,
-    request: MatchSearchStreamRequest,
-    options: SSERequestOptions
-  ): SSEStream {
-    const url = `${this.baseUrl}/resources/${resourceId}/match-search-stream`;
-
-    return createSSEStream(
-      url,
-      {
-        method: 'POST',
-        headers: this.getHeaders(options.auth),
-        body: JSON.stringify(request)
-      },
-      {
-        progressEvents: [],
-        completeEvent: 'match:search-results',
-        errorEvent: 'match:search-failed',
-        eventBus: options.eventBus,
       },
       this.logger
     );

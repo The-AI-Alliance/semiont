@@ -310,7 +310,8 @@ describe('EventBusClient', () => {
       eventBus.get('match:search-requested').subscribe((e) => {
         expect(e.context.sourceContext?.selected).toBe('quantum');
         respondAsync(() => {
-          eventBus.get('match:search-results').next({
+          // Binder publishes results on the resource-scoped bus
+          eventBus.scope(e.resourceId).get('match:search-results').next({
             correlationId: e.correlationId,
             referenceId: e.referenceId,
             response: mockResults,
@@ -318,14 +319,14 @@ describe('EventBusClient', () => {
         });
       });
 
-      const result = await client.searchResources('quantum');
+      const result = await client.searchResources('quantum', 'test-resource');
       expect(result).toEqual(mockResults);
     });
 
     test('should throw on search failure', async () => {
       eventBus.get('match:search-requested').subscribe((e) => {
         respondAsync(() => {
-          eventBus.get('match:search-failed').next({
+          eventBus.scope(e.resourceId).get('match:search-failed').next({
             referenceId: e.referenceId,
             correlationId: e.correlationId,
             error: 'Search unavailable',
@@ -333,7 +334,7 @@ describe('EventBusClient', () => {
         });
       });
 
-      await expect(client.searchResources('test')).rejects.toThrow('Search unavailable');
+      await expect(client.searchResources('test', 'test-resource')).rejects.toThrow('Search unavailable');
     });
   });
 

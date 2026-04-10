@@ -374,16 +374,19 @@ export class EventBusClient {
 
   async searchResources(
     searchTerm: string,
+    resourceId: string,
   ): Promise<components['schemas']['ResourceDescriptor'][]> {
     const correlationId = crypto.randomUUID();
     const referenceId = correlationId; // reuse as referenceId
 
+    // Subscribe on the resource-scoped bus — the Binder publishes results there
+    const scopedBus = this.eventBus.scope(resourceId);
     const result$ = merge(
-      this.eventBus.get('match:search-results').pipe(
+      scopedBus.get('match:search-results').pipe(
         filter((e) => e.correlationId === correlationId),
         map((e) => ({ ok: true as const, response: e.response })),
       ),
-      this.eventBus.get('match:search-failed').pipe(
+      scopedBus.get('match:search-failed').pipe(
         filter((e) => e.correlationId === correlationId),
         map((e) => ({ ok: false as const, error: new Error(e.error) })),
       ),
@@ -393,6 +396,7 @@ export class EventBusClient {
 
     this.eventBus.get('match:search-requested').next({
       correlationId,
+      resourceId,
       referenceId,
       context: {
         annotation: {

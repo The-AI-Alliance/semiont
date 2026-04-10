@@ -144,18 +144,19 @@ export function ReferenceWizardModal({
   }, []);
 
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
-    if (!annotationId || !context) return;
+    if (!annotationId || !context || !resourceId) return;
     setIsSearching(true);
     const contextWithHint = userHint ? { ...context, userHint } : context;
     eventBus.get('match:search-requested').next({
       correlationId: crypto.randomUUID(),
+      resourceId,
       referenceId: annotationId,
       context: contextWithHint,
       limit: config.limit,
       useSemanticScoring: config.useSemanticScoring,
     });
     // Stay on configure-search until results arrive (subscription above handles transition)
-  }, [annotationId, context, eventBus, userHint]);
+  }, [annotationId, resourceId, context, eventBus, userHint]);
 
   const handleGenerateSubmit = useCallback((config: GenerationConfig) => {
     if (!annotationId) return;
