@@ -342,6 +342,9 @@
       "StoredEventResponse": {
         "$ref": "components/schemas/StoredEventResponse.json"
       },
+      "EnrichedResourceEvent": {
+        "$ref": "components/schemas/EnrichedResourceEvent.json"
+      },
       "ResourceCreatedPayload": {
         "$ref": "components/schemas/ResourceCreatedPayload.json"
       },

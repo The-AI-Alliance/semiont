@@ -36,10 +36,15 @@ export class EventLog {
    * Append event to log
    * @param event - Resource event (from @semiont/core)
    * @param resourceId - Branded ResourceId (from @semiont/core)
+   * @param options.correlationId - Optional command correlation id (stored on metadata)
    * @returns Stored event with metadata (sequence number, timestamp, checksum)
    */
-  async append(event: EventInput, resourceId: ResourceId): Promise<StoredEvent> {
-    return this.storage.appendEvent(event, resourceId);
+  async append(
+    event: EventInput,
+    resourceId: ResourceId,
+    options?: { correlationId?: string },
+  ): Promise<StoredEvent> {
+    return this.storage.appendEvent(event, resourceId, options);
   }
 
   /**

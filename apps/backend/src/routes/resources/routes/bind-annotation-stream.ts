@@ -32,7 +32,7 @@ import { resourceId, annotationId, userId, userToDid } from '@semiont/core';
 import { getLogger } from '../../../logger';
 import type { components } from '@semiont/core';
 import type { Subscription } from 'rxjs';
-import { readAnnotationFromView } from './bind-annotation-stream-helpers';
+import { readAnnotationFromView } from './event-stream-enrichment';
 
 type BindAnnotationStreamRequest = components['schemas']['BindAnnotationStreamRequest'];
 

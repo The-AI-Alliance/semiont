@@ -180,14 +180,48 @@ describe('AnnotationStore', () => {
       expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
     });
 
-    it('mark:body-updated → invalidates list; next subscribe re-fetches', async () => {
+    it('mark:body-updated → updateInPlace from enriched annotation, no refetch', async () => {
       await firstDefined(store.listForResource(RID));
       expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:body-updated').next(stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
+      // Enriched event from events-stream carries the post-materialization
+      // annotation. The subscriber writes it directly into the cached list.
+      const updatedAnnotation: Annotation = {
+        ...mockAnnotation('ann-1'),
+        motivation: 'linking',
+        body: [{ type: 'SpecificResource', source: 'res-target', purpose: 'linking' }],
+      } as Annotation;
 
+      eventBus.get('mark:body-updated').next(stored({
+        resourceId: RID,
+        payload: { annotationId: AID },
+        annotation: updatedAnnotation,
+      }) as any);
+
+      // No refetch — the next subscribe sees the updated state from cache
+      const list = await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect((list as any).annotations[0].body[0]).toMatchObject({
+        type: 'SpecificResource',
+        source: 'res-target',
+      });
+    });
+
+    it('mark:body-updated without annotation enrichment → no-op (defensive)', async () => {
       await firstDefined(store.listForResource(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+
+      // An un-enriched event would indicate a backend bug (the events-stream
+      // enrichment step should always populate the annotation field for this
+      // event type). The subscriber drops it rather than refetching.
+      eventBus.get('mark:body-updated').next(stored({
+        resourceId: RID,
+        payload: { annotationId: AID },
+      }) as any);
+
+      // No refetch, no in-place update
+      await firstDefined(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
     });
 
     it('mark:entity-tag-added → invalidates list', async () => {
@@ -301,33 +335,45 @@ describe('AnnotationStore', () => {
       expect(last.annotations[0].body[0]).toMatchObject({ source: 'res-B' });
     });
 
-    it('idempotence: in-place update + remote refetch converge to equal state', async () => {
+    it('replay-window-exceeded → invalidateList for that resource', async () => {
+      // Prime the cache
+      await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+
+      // Simulate the events-stream reporting that too many events were missed
+      eventBus.get('replay-window-exceeded').next({
+        resourceId: 'res-1',
+        lastEventId: 1,
+        missedCount: 5000,
+        cap: 1000,
+        message: 'Replay window exceeded',
+      });
+
+      // The cache for this resource was invalidated; next subscribe refetches
+      await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
+    });
+
+    it('events-stream enriched event is the canonical update path (single source of truth)', async () => {
       // Seed cache
       await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
 
       const updated = withResolvedBody('ann-1', 'res-2');
 
-      // Local path: in-place update
-      store.updateInPlace(RID, updated);
+      // Simulate the events-stream delivering an EnrichedResourceEvent for
+      // mark:body-updated. After the unification, this is the single path
+      // for both local and remote mutations — the subscriber writes the
+      // annotation directly into the cached list.
+      eventBus.get('mark:body-updated').next(stored({
+        resourceId: RID,
+        payload: { annotationId: AID },
+        annotation: updated,
+      }) as any);
 
-      // Make the next refetch return the SAME updated annotation (as it would
-      // after the backend persisted the change and the events-stream delivered
-      // the mark:body-updated event)
-      (http.browseAnnotations as any).mockResolvedValueOnce({
-        annotations: [updated],
-        total: 1,
-      });
-
-      // Remote path: simulate the events-stream delivering the same event
-      eventBus.get('mark:body-updated').next(
-        stored({ resourceId: RID, payload: { annotationId: AID } }) as any
-      );
-
-      // Wait for the refetch to land
-      await new Promise((r) => setTimeout(r, 0));
-      await new Promise((r) => setTimeout(r, 0));
-
+      // The cache reflects the updated state, no refetch
       const list = await firstDefined<AnnotationsListResponse>(store.listForResource(RID));
+      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
       expect((list as any).annotations).toHaveLength(1);
       expect((list as any).annotations[0].body[0]).toMatchObject({
         type: 'SpecificResource',

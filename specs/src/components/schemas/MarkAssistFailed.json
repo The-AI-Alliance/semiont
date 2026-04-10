@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Error payload emitted on mark:assist-failed SSE channel when AI-assisted annotation fails.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Echoes the correlationId from the originating mark:assist-request command, if any."
+    },
     "resourceId": {
       "type": "string"
     },

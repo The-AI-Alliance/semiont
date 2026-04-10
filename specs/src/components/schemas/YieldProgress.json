@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Progress state for resource yield (generation) workflow. Emitted as SSE events on yield:progress and yield:finished channels.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Echoes the correlationId from the originating yield:request command, if any. Lets clients match progress events back to the operation that initiated them."
+    },
     "status": {
       "type": "string",
       "enum": ["started", "fetching", "generating", "creating", "complete", "error"]

@@ -721,6 +721,12 @@ export class SSEClient {
     // - Domain events (mark:added, job:completed, etc.) emit to their typed channel
     // - stream-connected emits to 'stream-connected' channel (subscribers can handle or ignore)
     // No manual .on() registration needed - declarative auto-routing based on Event Map
+    //
+    // Long-lived stream: enable auto-reconnect with Last-Event-ID replay so a
+    // network blip is invisible to the caller. The factory tracks the most
+    // recent event id and sends it on each reconnect; the backend's
+    // events-stream route honors Last-Event-ID and replays missed events
+    // from the log up to its replay window cap.
     const stream = createSSEStream(
       url,
       {
@@ -731,7 +737,8 @@ export class SSEClient {
         progressEvents: ['*'], // Accept all event types (long-lived stream)
         completeEvent: null, // Never completes (long-lived)
         errorEvent: null, // No error event (errors throw)
-        eventBus: options.eventBus
+        eventBus: options.eventBus,
+        reconnect: true,
       },
       this.logger
     );
@@ -773,6 +780,13 @@ export class SSEClient {
   ): SSEStream {
     const url = `${this.baseUrl}/api/events/stream`;
 
+    // Long-lived stream: enable auto-reconnect. The global-events-stream route
+    // does not currently honor Last-Event-ID (its events are system-level and
+    // typically don't have a sequenceNumber the way per-resource events do),
+    // so reconnect here just re-establishes the connection without replay.
+    // System events the client misses during the gap are not recovered —
+    // consumers (frontend entity-types query) handle this with React Query
+    // refetching on connect.
     const stream = createSSEStream(
       url,
       {
@@ -783,7 +797,8 @@ export class SSEClient {
         progressEvents: ['*'],
         completeEvent: null,
         errorEvent: null,
-        eventBus: options.eventBus
+        eventBus: options.eventBus,
+        reconnect: true,
       },
       this.logger
     );
@@ -815,6 +830,9 @@ export class SSEClient {
   ): SSEStream {
     const url = `${this.baseUrl}/api/participants/me/attention-stream`;
 
+    // Long-lived stream: enable auto-reconnect. Attention/presence events are
+    // ephemeral by design — missed events are not replayed. The reconnect
+    // here just re-establishes the connection so future events flow.
     const stream = createSSEStream(
       url,
       {
@@ -825,7 +843,8 @@ export class SSEClient {
         progressEvents: ['*'],
         completeEvent: null,
         errorEvent: null,
-        eventBus: options.eventBus
+        eventBus: options.eventBus,
+        reconnect: true,
       },
       this.logger
     );

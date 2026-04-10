@@ -147,6 +147,59 @@ describe('Event Store', () => {
   });
 
   /**
+   * Threads correlationId through to event metadata. Load-bearing for the
+   * unified-stream architecture: the events-stream route reads metadata.correlationId
+   * to let subscribers match command-result events back to the POST that
+   * initiated them. See .plans/UNIFIED-STREAM.md Phase 0b.
+   */
+  it('appendEvent threads correlationId through to event metadata', async () => {
+    const docId = resourceId('doc-correlation-test');
+    const cid = 'corr-abc-123';
+
+    const stored = await eventStore.appendEvent(
+      {
+        type: 'yield:created',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: {
+          name: 'Doc',
+          format: 'text/plain',
+          contentChecksum: 'sha:abc',
+          creationMethod: CREATION_METHODS.API,
+        },
+      },
+      { correlationId: cid },
+    );
+
+    expect(stored.metadata.correlationId).toBe(cid);
+
+    // Re-reading from disk should preserve the correlationId
+    const events = await query.getResourceEvents(docId);
+    const reread = events.find((e) => e.id === stored.id);
+    expect(reread?.metadata.correlationId).toBe(cid);
+  });
+
+  it('appendEvent without correlationId leaves the field absent', async () => {
+    const docId = resourceId('doc-no-correlation');
+
+    const stored = await eventStore.appendEvent({
+      type: 'yield:created',
+      resourceId: docId,
+      userId: userId('user1'),
+      version: 1,
+      payload: {
+        name: 'Doc',
+        format: 'text/plain',
+        contentChecksum: 'sha:abc',
+        creationMethod: CREATION_METHODS.API,
+      },
+    });
+
+    expect(stored.metadata.correlationId).toBeUndefined();
+  });
+
+  /**
    * Load-bearing for bind-annotation-stream: the route subscribes to
    * mark:body-updated on the scoped EventBus and reads the updated annotation
    * from the materialized view in its handler. That sequence is correct only

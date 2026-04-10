@@ -17,6 +17,10 @@
     "checksum": {
       "type": "string",
       "description": "SHA-256 of this event (integrity verification)"
+    },
+    "correlationId": {
+      "type": "string",
+      "description": "Optional correlation id propagated from a command. Lets clients match command-result events back to the POST that initiated them. Set by EventStore.appendEvent's options when a route handler passes one through."
     }
   },
   "required": ["sequenceNumber", "streamPosition"]

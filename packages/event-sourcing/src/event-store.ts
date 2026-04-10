@@ -60,13 +60,21 @@ export class EventStore {
   /**
    * Append an event to the store
    * Coordinates: persistence → view → notification
+   *
+   * @param options.correlationId - Optional id propagated from a command. Stored
+   *   on the event's metadata so that subscribers (notably the events-stream
+   *   route) can match command-result events back to the POST that initiated
+   *   them. Pass through from your route handler when handling commands.
    */
-  async appendEvent(event: EventInput): Promise<StoredEvent> {
+  async appendEvent(
+    event: EventInput,
+    options?: { correlationId?: string },
+  ): Promise<StoredEvent> {
     // System-level events (mark:entity-type-added) have no resourceId - use __system__
     const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 
     // 1. Persist event to log
-    const storedEvent = await this.log.append(event, resourceId as any);
+    const storedEvent = await this.log.append(event, resourceId as any, options);
 
     // 2. Update views
     if (resourceId === '__system__') {

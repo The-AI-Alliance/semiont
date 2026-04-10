@@ -279,6 +279,7 @@ export type EventMap = {
   // ========================================================================
 
   'stream-connected': Record<string, never>;
+  'replay-window-exceeded': { resourceId?: string; lastEventId: number; missedCount: number; cap: number; message: string };
 };
 
 /** Any valid channel name on the EventBus. */

@@ -93,6 +93,7 @@ export type {
   PersistedEventType,
   EventInput,
 } from './persisted-events';
+export { PERSISTED_EVENT_TYPES } from './persisted-events';
 
 // Bus protocol (unified EventMap — all channels on the EventBus)
 export type {

@@ -1,9 +1,9 @@
 /**
- * Tests for bind-annotation-stream helpers.
+ * Tests for event-stream enrichment helpers.
  *
- * These exercise the pure view-read logic against an in-memory KB. The
- * Hono route wiring is covered by manual e2e — these tests cover the logic
- * that could be wrong.
+ * Pure view-read logic against an in-memory KB plus the typed
+ * eventAnnotationId discriminator. The Hono route wiring is covered by
+ * manual e2e — these tests cover the logic that could be wrong.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -13,11 +13,11 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, resourceId, userId, CREATION_METHODS, type Logger } from '@semiont/core';
+import { EventBus, resourceId, userId, CREATION_METHODS, annotationId as makeAnnotationId, type Logger, type StoredEvent } from '@semiont/core';
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '@semiont/make-meaning';
 
-import { readAnnotationFromView } from '../bind-annotation-stream-helpers';
+import { readAnnotationFromView, eventAnnotationId } from '../event-stream-enrichment';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -206,5 +206,67 @@ describe('readAnnotationFromView', () => {
 
     // The enriched field should be present (added by AnnotationContext.enrichResolvedReferences)
     expect((result as any)._resolvedDocumentName).toBe('Target Document Name');
+  });
+});
+
+describe('eventAnnotationId', () => {
+  /** Helper: build a minimal StoredEvent with the bare fields the discriminator needs. */
+  function makeStored<T extends StoredEvent['type']>(type: T, payload: any): StoredEvent {
+    return {
+      id: 'evt-id',
+      type,
+      timestamp: new Date().toISOString(),
+      userId: userId('user-1'),
+      version: 1,
+      payload,
+      metadata: { sequenceNumber: 1, streamPosition: 0 },
+    } as unknown as StoredEvent;
+  }
+
+  it('returns annotation.id for mark:added', () => {
+    const event = makeStored('mark:added', {
+      annotation: { id: 'ann-1', motivation: 'linking', target: { source: 'res-1' }, body: [] },
+    });
+    expect(eventAnnotationId(event)).toBe('ann-1');
+  });
+
+  it('returns annotationId for mark:body-updated', () => {
+    const event = makeStored('mark:body-updated', {
+      annotationId: makeAnnotationId('ann-2'),
+      operations: [],
+    });
+    expect(eventAnnotationId(event)).toBe('ann-2');
+  });
+
+  it('returns annotationId for mark:removed', () => {
+    const event = makeStored('mark:removed', {
+      annotationId: makeAnnotationId('ann-3'),
+    });
+    expect(eventAnnotationId(event)).toBe('ann-3');
+  });
+
+  it('returns null for events that do not mutate annotations', () => {
+    const event = makeStored('yield:created', {
+      name: 'Doc',
+      format: 'text/plain',
+      contentChecksum: 'sha:abc',
+      creationMethod: 'api',
+    });
+    expect(eventAnnotationId(event)).toBeNull();
+  });
+
+  it('returns null for job events', () => {
+    const event = makeStored('job:completed', {
+      jobId: 'job-1',
+      jobType: 'reference-annotation',
+    });
+    expect(eventAnnotationId(event)).toBeNull();
+  });
+
+  it('returns null for entity tag events (which mutate the resource, not an annotation)', () => {
+    const event = makeStored('mark:entity-tag-added', {
+      entityType: 'Person',
+    });
+    expect(eventAnnotationId(event)).toBeNull();
   });
 });

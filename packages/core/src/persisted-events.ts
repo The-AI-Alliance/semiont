@@ -57,5 +57,49 @@ export type PersistedEvent = {
 
 export type PersistedEventType = PersistedEvent['type'];
 
+/**
+ * Runtime list of every persisted event type.
+ *
+ * Single source of truth for code that needs to enumerate event types at
+ * runtime — most importantly the per-resource `events-stream` SSE route,
+ * which subscribes to all of them. The exhaustiveness check below makes
+ * it impossible to add a new member to `PersistedEventCatalog` without
+ * also adding it here: forgetting fails to typecheck rather than silently
+ * dropping the event from the events-stream.
+ */
+export const PERSISTED_EVENT_TYPES = [
+  'yield:created',
+  'yield:cloned',
+  'yield:updated',
+  'yield:moved',
+  'yield:representation-added',
+  'yield:representation-removed',
+  'mark:added',
+  'mark:removed',
+  'mark:body-updated',
+  'mark:archived',
+  'mark:unarchived',
+  'mark:entity-tag-added',
+  'mark:entity-tag-removed',
+  'mark:entity-type-added',
+  'job:started',
+  'job:progress',
+  'job:completed',
+  'job:failed',
+  'embedding:computed',
+  'embedding:deleted',
+] as const satisfies readonly PersistedEventType[];
+
+// Compile-time exhaustiveness: if PersistedEventType gains a member that
+// PERSISTED_EVENT_TYPES is missing, this assignment fails to typecheck.
+// The ERROR object names the missing-member case so the build error is
+// self-explanatory.
+type _ExhaustivePersistedEventTypes =
+  Exclude<PersistedEventType, typeof PERSISTED_EVENT_TYPES[number]> extends never
+    ? true
+    : { ERROR: 'PERSISTED_EVENT_TYPES is missing members of PersistedEventType' };
+const _persistedEventTypesExhaustive: _ExhaustivePersistedEventTypes = true;
+void _persistedEventTypesExhaustive;
+
 /** Input type for appendEvent — PersistedEvent without id/timestamp (assigned at persistence time). */
 export type EventInput = Omit<PersistedEvent, 'id' | 'timestamp'>;

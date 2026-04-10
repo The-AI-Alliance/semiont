@@ -7,17 +7,20 @@
  * - Is readable from outside React
  *
  * EventBus events handled:
- * - mark:deleted      → remove from detail cache
- * - mark:added        → invalidate annotation list (SSE domain event; resourceId on BaseEvent)
- * - mark:removed      → invalidate annotation list + detail (SSE domain event)
- * - mark:body-updated → invalidate annotation list + detail (SSE domain event)
+ * - mark:delete-ok    → remove from detail cache
+ * - mark:added        → invalidate annotation list
+ * - mark:removed      → invalidate annotation list + detail
+ * - mark:body-updated → updateInPlace from enriched annotation + invalidate detail
  * - mark:entity-tag-added / mark:entity-tag-removed → invalidate list for resource
  *
- * NOTE: locally-initiated bind operations also reach the cache via
- * FlowEngine.bind → updateInPlace(), which writes the new annotation
- * directly without a refetch. The mark:body-updated handler here covers
- * remote mutations (other tab, CLI, importer) that the local FlowEngine
- * never sees. Both paths are required; they handle disjoint scenarios.
+ * NOTE: mark:body-updated arrives on the events-stream as an EnrichedResourceEvent
+ * carrying the post-materialization annotation. The subscriber writes it
+ * directly into the list cache via updateInPlace — no refetch, no two-path
+ * model. This is the local AND remote mutation path: locally-initiated binds
+ * receive the same enriched event from the events-stream as remote mutations
+ * (other tab, CLI, importer). The events-stream's enrichment step (in
+ * apps/backend/.../event-stream-enrichment.ts) guarantees the annotation
+ * field is present for these event types.
  *
  * Token: mutable — call setTokenGetter() from the React layer when auth changes.
  */
@@ -31,6 +34,7 @@ import type { paths } from '@semiont/core';
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 type Annotation = components['schemas']['Annotation'];
+type EnrichedResourceEvent = components['schemas']['EnrichedResourceEvent'];
 
 export type AnnotationsListResponse = ResponseContent<paths['/resources/{id}/annotations']['get']>;
 export type AnnotationDetail = ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>;
@@ -82,11 +86,22 @@ export class AnnotationStore {
       this.invalidateDetail(makeAnnotationId(stored.payload.annotationId));
     });
 
-    eventBus.get('mark:body-updated').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateList(stored.resourceId);
-      }
-      this.invalidateDetail(makeAnnotationId(stored.payload.annotationId));
+    eventBus.get('mark:body-updated').subscribe((event) => {
+      // The runtime payload arriving via the events-stream SSE auto-router
+      // is an EnrichedResourceEvent — the StoredEvent extended with the
+      // post-materialization annotation by the backend's enrichment step.
+      // The bus-protocol channel type is the narrower backend StoredEvent
+      // shape because the same channel is used internally backend-side
+      // with branded types; the auto-router puts the wider wire format
+      // here at runtime. Cast through unknown is the standard TS way to
+      // bridge two compatible-but-not-assignable types at a single
+      // narrowing boundary.
+      const enriched = event as unknown as EnrichedResourceEvent;
+      if (!enriched.resourceId || !enriched.annotation) return;
+      this.updateInPlace(enriched.resourceId as ResourceId, enriched.annotation);
+      // Detail cache: annotations cached individually become stale on body
+      // mutation — invalidate so the next subscribe re-fetches.
+      this.invalidateDetail(makeAnnotationId(enriched.annotation.id));
     });
 
     eventBus.get('mark:entity-tag-added').subscribe((stored) => {
@@ -98,6 +113,15 @@ export class AnnotationStore {
     eventBus.get('mark:entity-tag-removed').subscribe((stored) => {
       if (stored.resourceId) {
         this.invalidateList(stored.resourceId);
+      }
+    });
+
+    // If the events-stream reconnection window exceeded the replay cap, we
+    // missed events and can't know which annotations changed. Invalidate the
+    // resource's list so the next subscribe does a cold refetch.
+    eventBus.get('replay-window-exceeded').subscribe((event) => {
+      if (event.resourceId) {
+        this.invalidateList(event.resourceId as ResourceId);
       }
     });
   }
