@@ -26,7 +26,7 @@ import type { StreamStatus } from './useResourceEvents';
  * ```
  */
 export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean } = {}) {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const token = useAuthToken();
   const eventBus = useEventBus();
   const queryClient = useQueryClient();
@@ -56,7 +56,7 @@ export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean 
     if (connectingRef.current || streamRef.current) return;
     connectingRef.current = true;
 
-    if (!client) {
+    if (!semiont) {
       setStatus('error');
       connectingRef.current = false;
       return;
@@ -65,7 +65,7 @@ export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean 
     setStatus('connecting');
 
     try {
-      const stream = client.sse.globalEvents({
+      const stream = semiont.sse.globalEvents({
         ...(token ? { auth: accessToken(token) } : {}),
         eventBus,
       });
@@ -78,7 +78,7 @@ export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean 
       connectingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, token, eventBus]);
+  }, [semiont, token, eventBus]);
 
   const disconnect = useCallback(() => {
     if (streamRef.current) {
@@ -91,12 +91,12 @@ export function useGlobalEvents({ autoConnect = true }: { autoConnect?: boolean 
 
   // Auto-connect on mount
   useEffect(() => {
-    if (autoConnect && client) {
+    if (autoConnect && semiont) {
       connect();
     }
     return () => disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoConnect, client]);
+  }, [autoConnect, semiont]);
 
   return {
     status,

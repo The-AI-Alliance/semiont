@@ -34,7 +34,7 @@ export function useYieldFlow(
   resourceId: string,
   clearNewAnnotationId: (annotationId: AnnotationId) => void
 ): YieldFlowState {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const { showSuccess, showError } = useToast();
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -57,7 +57,7 @@ export function useYieldFlow(
     // Subscribe to the Observable returned by yield.fromAnnotation()
     // Progress, completion, and failure arrive via the Observable
     // (which internally filters EventBus events by annotationId).
-    const sub = client.yield.fromAnnotation(
+    const sub = semiont.yield.fromAnnotation(
       makeResourceId(resourceId),
       makeAnnotationId(referenceId),
       { ...options, language: options.language || locale },
@@ -79,7 +79,7 @@ export function useYieldFlow(
 
     // No cleanup needed — Observable completes naturally on yield:finished/failed
     return sub;
-  }, [resourceId, clearNewAnnotationId, locale, client, showError]);
+  }, [resourceId, clearNewAnnotationId, locale, semiont, showError]);
 
   const clearProgress = useCallback(() => { setYieldProgress(null); }, []);
 

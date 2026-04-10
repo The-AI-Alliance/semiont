@@ -30,7 +30,7 @@ const SEMIONT_API_URL = process.env.SEMIONT_API_URL;
 const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
 const token = accessToken(SEMIONT_ACCESS_TOKEN);
 
-const client = new SemiontApiClient({
+const semiont = new SemiontApiClient({
   baseUrl: baseUrl(SEMIONT_API_URL),
   eventBus: new EventBus(),
   getToken: () => token,
@@ -168,16 +168,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      case 'browse_resource':       return await handlers.browseResource(client, args);
-      case 'browse_resources':      return await handlers.browseResources(client, args);
-      case 'browse_highlights':     return await handlers.browseHighlights(client, args);
-      case 'browse_references':     return await handlers.browseReferences(client, args);
-      case 'mark_annotation':       return await handlers.markAnnotation(client, args);
-      case 'mark_assist':           return await handlers.markAssist(client, args);
-      case 'bind_body':             return await handlers.bindBody(client, args);
-      case 'gather_annotation':     return await handlers.gatherAnnotation(client, args);
-      case 'yield_resource':        return await handlers.yieldResource(client, args);
-      case 'yield_from_annotation': return await handlers.yieldFromAnnotation(client, args);
+      case 'browse_resource':       return await handlers.browseResource(semiont, args);
+      case 'browse_resources':      return await handlers.browseResources(semiont, args);
+      case 'browse_highlights':     return await handlers.browseHighlights(semiont, args);
+      case 'browse_references':     return await handlers.browseReferences(semiont, args);
+      case 'mark_annotation':       return await handlers.markAnnotation(semiont, args);
+      case 'mark_assist':           return await handlers.markAssist(semiont, args);
+      case 'bind_body':             return await handlers.bindBody(semiont, args);
+      case 'gather_annotation':     return await handlers.gatherAnnotation(semiont, args);
+      case 'yield_resource':        return await handlers.yieldResource(semiont, args);
+      case 'yield_from_annotation': return await handlers.yieldFromAnnotation(semiont, args);
       default: throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error) {

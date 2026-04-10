@@ -42,7 +42,7 @@ export function ReferenceEntry({
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
-  const client = useApiClient();
+  const semiont = useApiClient();
   const navigate = useObservableExternalNavigation();
   const hoverProps = useHoverEmitter(reference.id);
 
@@ -76,7 +76,7 @@ export function ReferenceEntry({
 
   const handleUnlink = () => {
     if (source && resolvedResourceUri) {
-      client.bind.body(
+      semiont.bind.body(
         resourceId(source),
         annotationId(reference.id),
         [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri } }],

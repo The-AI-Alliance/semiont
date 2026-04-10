@@ -20,13 +20,13 @@ import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 
 export function useStoreTokenSync(): void {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const token = useAuthToken();
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; });
 
   useEffect(() => {
     const getter = () => tokenRef.current ? accessToken(tokenRef.current) : undefined;
-    client.setTokenGetter(getter);
-  }, [client]);
+    semiont.setTokenGetter(getter);
+  }, [semiont]);
 }

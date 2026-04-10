@@ -6,168 +6,96 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
 [![License](https://img.shields.io/npm/l/@semiont/api-client.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered annotation detection, and collaborative document analysis.
+TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) — a knowledge management system for semantic annotations, AI-powered analysis, and collaborative document understanding.
 
-This package provides two clients, SSE streams, and utilities for working with Semiont:
+The api-client is a transparent proxy to `@semiont/make-meaning`. The frontend writes code as though it has direct access to the knowledge system. HTTP, auth, SSE, and caching are internal concerns.
 
-- **`SemiontApiClient`** — HTTP client for the Semiont REST API
-- **`EventBusClient`** — Direct EventBus client (no HTTP needed)
+## The 7 Verbs
 
-OpenAPI types are re-exported from [`@semiont/core`](../core/README.md) (the source of truth).
+The API is organized by the domain's verbs — the same verbs that organize the EventBus protocol, the documentation, and the backend actors:
 
-## What is Semiont?
+```typescript
+import { SemiontApiClient } from '@semiont/api-client';
 
-Semiont lets you:
+const semiont = new SemiontApiClient({ baseUrl, eventBus, getToken });
 
-- **Store and manage documents** (text, markdown, images, PDFs)
-- **Create semantic annotations** using W3C Web Annotation standard
-- **Link and reference** between documents
-- **Track provenance** with event sourcing
-- **Collaborate in real-time** via SSE streams
-- **Detect annotations** using AI for text formats (highlights, assessments, comments, tags, entity references)
-- **Retrieve context** for LLMs via graph traversal
-- **Generate new documents** from annotations with AI
+// Browse — reads from materialized views
+const resource = semiont.browse.resource(resourceId);       // Observable
+const annotations = semiont.browse.annotations(resourceId); // Observable
+const content = await semiont.browse.resourceContent(rid);   // Promise
+
+// Mark — annotation CRUD + AI assist
+await semiont.mark.annotation(resourceId, input);
+await semiont.mark.delete(resourceId, annotationId);
+semiont.mark.assist(resourceId, 'linking', options);         // Observable (progress)
+
+// Bind — reference linking
+await semiont.bind.body(resourceId, annotationId, operations);
+
+// Gather — LLM context assembly
+semiont.gather.annotation(annotationId, resourceId);         // Observable (progress → context)
+
+// Match — semantic search
+semiont.match.search(resourceId, referenceId, context);      // Observable (results)
+
+// Yield — resource creation + AI generation
+await semiont.yield.resource(data);
+semiont.yield.fromAnnotation(resourceId, annotationId, opts); // Observable (progress)
+
+// Beckon — attention coordination
+semiont.beckon.attention(annotationId, resourceId);           // void (ephemeral)
+
+// + Job, Auth, Admin namespaces
+```
+
+## Return Type Conventions
+
+- **Browse live queries** → `Observable` (events-stream driven, cached in BehaviorSubject)
+- **Browse one-shot reads** → `Promise` (fetch once, no cache)
+- **Commands** (mark, bind, yield.resource) → `Promise` (fire-and-forget)
+- **Long-running ops** (gather, match, yield.fromAnnotation, mark.assist) → `Observable` (progress + result)
+- **Ephemeral signals** (beckon) → `void`
+
+## Auth is Internal
+
+The client takes a `getToken` function at construction. No per-call auth:
+
+```typescript
+const semiont = new SemiontApiClient({
+  baseUrl: baseUrl('http://localhost:4000'),
+  eventBus: new EventBus(),
+  getToken: () => accessToken(token),
+});
+
+// No auth on individual calls
+const annotations = semiont.browse.annotations(resourceId);
+await semiont.mark.annotation(resourceId, input);
+await semiont.bind.body(resourceId, annotationId, operations);
+```
+
+Update the token getter at any time via `semiont.setTokenGetter(getter)`.
 
 ## Installation
-
-Install the latest stable release from npm:
 
 ```bash
 npm install @semiont/api-client
 ```
 
-Or install the latest development build:
-
-```bash
-npm install @semiont/api-client@dev
-```
-
-**Prerequisites**: Semiont backend running. See [Running the Backend](../../apps/backend/README.md#quick-start) for setup.
-
-## Quick Start
-
-```typescript
-import { SemiontApiClient, baseUrl, email, resourceUri } from '@semiont/api-client';
-
-const client = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-});
-
-// Authenticate (local development mode)
-await client.authenticateLocal(email('user@example.com'));
-
-// Create a text document
-const { resource } = await client.createResource({
-  name: 'My Document',
-  file: Buffer.from('The quick brown fox jumps over the lazy dog.'),
-  format: 'text/plain',
-  entityTypes: ['example']
-});
-
-console.log('Created resource:', resource['@id']);
-
-// Detect annotations with AI (text/markdown formats only)
-const stream = client.sse.detectAnnotations(resourceUri(resource['@id']), {
-  entityTypes: ['Animal', 'Color']
-});
-
-stream.onProgress((p) => console.log(`Scanning: ${p.currentEntityType}`));
-stream.onComplete((result) => console.log(`Found ${result.foundCount} annotations`));
-
-// Get annotations
-const annotations = await client.getResourceAnnotations(resourceUri(resource['@id']));
-console.log('Annotations:', annotations.annotations.length);
-```
-
-## EventBus Client (No HTTP)
-
-The `EventBusClient` communicates directly via the RxJS EventBus — no HTTP server needed. It covers all knowledge-domain operations (resource reads, annotations, entity types, search, LLM context, clone tokens, job status).
-
-```typescript
-import { EventBusClient } from '@semiont/api-client';
-import { EventBus, resourceId } from '@semiont/core';
-import { startMakeMeaning } from '@semiont/make-meaning';
-
-// Start the knowledge system
-const eventBus = new EventBus();
-const makeMeaning = await startMakeMeaning(config, eventBus, logger);
-
-// Use EventBusClient instead of SemiontApiClient
-const client = new EventBusClient(eventBus);
-
-// Same operations, no HTTP
-const resources = await client.listResources({ limit: 10 });
-const resource = await client.getResource(resourceId('doc-123'));
-const annotations = await client.getAnnotations(resourceId('doc-123'));
-const entityTypes = await client.listEntityTypes();
-const results = await client.searchResources('quantum computing');
-```
-
-**What's covered**: All browse, bind, mark, gather, yield (clone), and job operations.
-
-**What's NOT covered** (HTTP-only): Auth, admin, health/status, binary content upload/download, SSE streaming.
-
-## Logging
-
-Enable logging to debug requests and monitor API usage:
-
-```typescript
-import { SemiontApiClient, Logger, baseUrl } from '@semiont/api-client';
-import winston from 'winston';
-
-const logger = winston.createLogger({
-  level: 'debug',
-  format: winston.format.json(),
-  transports: [new winston.transports.Console()]
-});
-
-const client = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-  logger
-});
-
-// Now all HTTP requests and SSE streams will be logged
-```
-
-**What gets logged**: HTTP requests/responses, SSE stream lifecycle, individual events, and errors
-
-**Security**: Authorization headers are never logged to prevent token leaks
-
-📘 **[Complete Logging Guide](./docs/LOGGING.md)** - Logger setup, integration examples, structured metadata, troubleshooting
+**Prerequisites**: Semiont backend running. See [Running the Backend](../../apps/backend/README.md#quick-start).
 
 ## Documentation
 
-📚 **[Usage Guide](./docs/Usage.md)** - Authentication, resources, annotations, SSE streaming
-
-📖 **[API Reference](./docs/API-Reference.md)** - Complete method documentation
-
-🛠️ **[Utilities Guide](./docs/Utilities.md)** - Text encoding, fuzzy anchoring, SVG utilities
-
-🗄️ **[Observable Stores](./docs/STORES.md)** - Reactive resource and annotation caches, EventBus-driven invalidation, React integration
+- [Usage Guide](./docs/Usage.md) — authentication, resources, annotations, streaming
+- [API Reference](./docs/API-Reference.md) — complete method documentation
+- [Utilities Guide](./docs/Utilities.md) — text encoding, fuzzy anchoring, SVG utilities
+- [Logging Guide](./docs/LOGGING.md) — logger setup and troubleshooting
 
 ## Key Features
 
-- **Two clients** - HTTP (`SemiontApiClient`) and EventBus (`EventBusClient`) for the same operations
-- **Type-safe** - Re-exports OpenAPI types from `@semiont/core` with branded types
-- **W3C compliant** - Web Annotation standard with fuzzy text matching
-- **Real-time** - SSE streaming for long operations
-- **Framework-agnostic** - Pure TypeScript utilities work everywhere
-- **Character encoding** - Proper UTF-8, ISO-8859-1, Windows-1252 support
-
-**Note**: OpenAPI types are generated in `@semiont/core` (source of truth) and re-exported here for convenience.
-
-## Use Cases
-
-**SemiontApiClient (HTTP)**:
-- MCP servers and AI integrations
-- Frontend applications (wrap with React hooks)
-- CLI tools and automation scripts
-- Third-party integrations
-
-**EventBusClient (direct)**:
-- Scripts that run alongside make-meaning (no HTTP server)
-- Testing without HTTP overhead
-- Embedded scenarios where EventBus is available directly
+- **Verb-oriented** — 7 domain namespaces mirror `@semiont/make-meaning`'s actor model
+- **Type-safe** — OpenAPI types from `@semiont/core`, branded identifiers
+- **Observable reads** — live-updating views via EventBus + events-stream SSE
+- **Framework-agnostic** — pure TypeScript + RxJS, no React dependency
 
 ## License
 

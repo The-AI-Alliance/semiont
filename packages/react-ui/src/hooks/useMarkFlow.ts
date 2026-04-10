@@ -6,9 +6,9 @@
  * progress) via EventBus subscriptions — the React-specific portion.
  *
  * The FlowEngine's HTTP bridging role is replaced by namespace methods:
- * - mark:submit → client.mark.annotation()
- * - mark:delete → client.mark.delete()
- * - mark:assist-request → client.mark.assist() (Observable)
+ * - mark:submit → semiont.mark.annotation()
+ * - mark:delete → semiont.mark.delete()
+ * - mark:assist-request → semiont.mark.assist() (Observable)
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -36,7 +36,7 @@ export interface MarkFlowState {
 
 export function useMarkFlow(rUri: ResourceId): MarkFlowState {
   const eventBus = useEventBus();
-  const client = useApiClient();
+  const semiont = useApiClient();
   const { showSuccess, showError, showInfo } = useToast();
 
   // ── Manual annotation state ───────────────────────────────────────────────
@@ -89,10 +89,10 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
     'mark:cancel-pending': () => setPendingAnnotation(null),
     'mark:create-ok': () => setPendingAnnotation(null),
 
-    // Bridge mark:submit to client.mark.annotation()
+    // Bridge mark:submit to semiont.mark.annotation()
     'mark:submit': async (event) => {
       try {
-        const result = await client.mark.annotation(rUri, {
+        const result = await semiont.mark.annotation(rUri, {
           motivation: event.motivation,
           target: { source: rUri, selector: event.selector as Selector },
           body: event.body,
@@ -103,23 +103,23 @@ export function useMarkFlow(rUri: ResourceId): MarkFlowState {
       }
     },
 
-    // Bridge mark:delete to client.mark.delete()
+    // Bridge mark:delete to semiont.mark.delete()
     'mark:delete': async (event) => {
       try {
-        await client.mark.delete(rUri, event.annotationId as Parameters<typeof client.mark.delete>[1]);
+        await semiont.mark.delete(rUri, event.annotationId as Parameters<typeof semiont.mark.delete>[1]);
         eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
       } catch (error) {
         eventBus.get('mark:delete-failed').next({ message: error instanceof Error ? error.message : String(error) });
       }
     },
 
-    // Bridge mark:assist-request to client.mark.assist() Observable
+    // Bridge mark:assist-request to semiont.mark.assist() Observable
     'mark:assist-request': (event) => {
       if (progressDismissTimeoutRef.current) { clearTimeout(progressDismissTimeoutRef.current); progressDismissTimeoutRef.current = null; }
       setAssistingMotivation(event.motivation);
       setProgress(null);
 
-      client.mark.assist(rUri, event.motivation, event.options).subscribe({
+      semiont.mark.assist(rUri, event.motivation, event.options).subscribe({
         next: (p) => setProgress(p as MarkProgress),
         error: (err) => handleAnnotationFailed({ resourceId: rUri as string, message: err.message }),
         complete: () => {}, // handled by mark:assist-finished EventBus subscription

@@ -3,7 +3,7 @@
  *
  * Manages UI state for context gathering. The actual gather trigger
  * comes from components emitting gather:requested on the EventBus.
- * This hook bridges to client.gather.annotation() and manages the
+ * This hook bridges to semiont.gather.annotation() and manages the
  * React state (loading, context, error).
  */
 
@@ -28,14 +28,14 @@ export interface ContextGatherFlowState {
 export function useContextGatherFlow(
   config: ContextGatherFlowConfig,
 ): ContextGatherFlowState {
-  const client = useApiClient();
+  const semiont = useApiClient();
 
   const [gatherContext, setGatherContext] = useState<GatheredContext | null>(null);
   const [gatherLoading, setGatherLoading] = useState(false);
   const [gatherError, setGatherError] = useState<Error | null>(null);
   const [gatherAnnotationId, setGatherAnnotationId] = useState<AnnotationId | null>(null);
 
-  // Bridge gather:requested EventBus events to client.gather.annotation()
+  // Bridge gather:requested EventBus events to semiont.gather.annotation()
   // and listen for completion/failure via EventBus (events-stream auto-routes)
   useEventSubscriptions({
     'gather:requested': (event) => {
@@ -45,7 +45,7 @@ export function useContextGatherFlow(
       setGatherAnnotationId(annotationId(event.annotationId));
 
       // Fire the gather via namespace API
-      client.gather.annotation(
+      semiont.gather.annotation(
         annotationId(event.annotationId),
         config.resourceId,
         { contextWindow: event.options?.contextWindow ?? 2000 },

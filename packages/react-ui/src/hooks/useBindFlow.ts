@@ -3,7 +3,7 @@
  *
  * Bridges EventBus commands to namespace API methods.
  * Components emit bind:update-body / match:search-requested on the EventBus;
- * this hook calls client.bind.body() / client.match.search() in response.
+ * this hook calls semiont.bind.body() / semiont.match.search() in response.
  *
  * Toast notifications for resolution errors remain here (React-specific).
  */
@@ -16,18 +16,18 @@ import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useToast } from '../components/Toast';
 
 export function useBindFlow(rUri: ResourceId): void {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const eventBus = useEventBus();
   const { showError } = useToast();
 
   useEventSubscriptions({
-    // Bridge bind:update-body to client.bind.body()
+    // Bridge bind:update-body to semiont.bind.body()
     'bind:update-body': async (event) => {
       try {
-        await client.bind.body(
+        await semiont.bind.body(
           rUri,
           makeAnnotationId(event.annotationId) as AnnotationId,
-          event.operations as Parameters<typeof client.bind.body>[2],
+          event.operations as Parameters<typeof semiont.bind.body>[2],
         );
       } catch (error) {
         showError(`Failed to update reference: ${error instanceof Error ? error.message : String(error)}`);
@@ -35,9 +35,9 @@ export function useBindFlow(rUri: ResourceId): void {
     },
     'bind:body-update-failed': ({ message }) => showError(`Failed to update reference: ${message}`),
 
-    // Bridge match:search-requested to client.match.search() Observable
+    // Bridge match:search-requested to semiont.match.search() Observable
     'match:search-requested': (event) => {
-      client.match.search(
+      semiont.match.search(
         makeResourceId(event.resourceId),
         event.referenceId,
         event.context as GatheredContext,

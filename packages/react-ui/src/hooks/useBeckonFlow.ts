@@ -207,7 +207,7 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
  * ```
  */
 export function useAttentionStream(): { status: StreamStatus } {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const token = useAuthToken();
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; });
@@ -216,9 +216,9 @@ export function useAttentionStream(): { status: StreamStatus } {
   useEffect(() => {
     setStatus('connecting');
     try {
-      const stream = client.sse.attentionStream({
+      const stream = semiont.sse.attentionStream({
         auth: tokenRef.current ? accessToken(tokenRef.current) : undefined,
-        eventBus: client.eventBus,
+        eventBus: semiont.eventBus,
       });
       setStatus('connected');
       return () => { stream.close(); setStatus('disconnected'); };
@@ -227,7 +227,7 @@ export function useAttentionStream(): { status: StreamStatus } {
       setStatus('error');
       return;
     }
-  }, [client]);
+  }, [semiont]);
 
   return { status };
 }

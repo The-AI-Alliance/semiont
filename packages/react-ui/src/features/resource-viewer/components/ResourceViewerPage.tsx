@@ -140,7 +140,7 @@ export function ResourceViewerPage({
 
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
-  const client = useApiClient();
+  const semiont = useApiClient();
   const queryClient = useQueryClient(); // retained for non-store queries (events log)
 
   // UI state hooks
@@ -164,14 +164,14 @@ export function ResourceViewerPage({
 
   // Binary path: fetch short-lived media token, construct URL
   const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(rUri);
-  const binaryContent = (isBinary && mediaToken && client)
-    ? `${client.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
+  const binaryContent = (isBinary && mediaToken && semiont)
+    ? `${semiont.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
     : '';
 
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  const annotationsData = useObservable(client.browse.annotations(rUri));
+  const annotationsData = useObservable(semiont.browse.annotations(rUri));
   const annotations = useMemo(
     () => annotationsData || [],
     [annotationsData]
@@ -233,7 +233,7 @@ export function ResourceViewerPage({
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
     try {
-      await client.bind.body(
+      await semiont.bind.body(
         rUri,
         annotationId(referenceId),
         [{ op: 'add', item: { type: 'SpecificResource' as const, source: targetResourceId, purpose: 'linking' as const } }],
@@ -242,7 +242,7 @@ export function ResourceViewerPage({
     } catch (error) {
       showError(`Failed to link reference: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [rUri, client, showSuccess, showError]);
+  }, [rUri, semiont, showSuccess, showError]);
 
   const handleWizardComposeNavigate = useCallback((
     context: GatheredContext,
