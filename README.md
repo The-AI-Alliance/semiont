@@ -21,17 +21,22 @@ To start with a pre-populated knowledge base instead, pick one from the [Knowled
 
 ### Start the backend
 
-Builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server:
+Builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server. The default config uses Ollama for fully local inference (no API key needed):
 
 ```bash
-# Fully local with Ollama (default, no API key needed)
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
+```
 
-# Anthropic cloud inference
+To use Anthropic cloud inference instead:
+
+```bash
 export ANTHROPIC_API_KEY=<your-api-key>
 .semiont/scripts/local_backend.sh --config anthropic --email admin@example.com --password password
+```
 
-# See available configs
+To see all available configs:
+
+```bash
 .semiont/scripts/local_backend.sh --list-configs
 ```
 
