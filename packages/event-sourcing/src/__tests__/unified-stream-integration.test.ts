@@ -15,7 +15,6 @@ import { SemiontProject } from '@semiont/core/node';
 import {
   resourceId,
   userId,
-  annotationId,
   EventBus,
   CREATION_METHODS,
   type Logger,
