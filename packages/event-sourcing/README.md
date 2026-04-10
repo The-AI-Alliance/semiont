@@ -11,10 +11,14 @@ Event sourcing infrastructure for the Semiont knowledge platform. Provides the p
 ## Architecture
 
 ```
-appendEvent(event)
+appendEvent(event, options?)
   1. Persist to EventLog (JSONL files)
   2. Materialize views (resource descriptors, entity types)
   3. Publish StoredEvent to Core EventBus typed channels
+
+options.correlationId threads a command correlation id into event metadata,
+enabling clients to match command-result events back to the POST that
+initiated them. See docs/architecture/STREAMS.md.
 ```
 
 The **EventStore** is the single write path. It coordinates three concerns:
