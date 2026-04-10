@@ -1,7 +1,7 @@
 /**
  * Gather Command
  *
- * Fetches LLM-optimized context for a resource or annotation via SSE stream.
+ * Fetches LLM-optimized context for a resource or annotation.
  *
  * Usage:
  *   semiont gather resource <resourceId> [options]
@@ -9,8 +9,9 @@
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } from '@semiont/core';
-import type { components } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
+import { filter, take, timeout } from 'rxjs/operators';
+import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -23,12 +24,10 @@ import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 
 export const GatherOptionsSchema = ApiOptionsSchema.extend({
   args: z.array(z.string()).min(2, 'Usage: semiont gather resource <resourceId> | gather annotation <resourceId> <annotationId>'),
-  // resource options
   depth: z.coerce.number().int().min(1).max(3).default(2),
   maxResources: z.coerce.number().int().min(1).max(20).default(10),
   noContent: z.boolean().default(false),
   summary: z.boolean().default(false),
-  // annotation options
   contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
 });
 
@@ -38,40 +37,10 @@ export type GatherOptions = z.output<typeof GatherOptionsSchema>;
 // IMPLEMENTATION
 // =====================================================================
 
-function waitForGatherResourceFinished(eventBus: EventBus): Promise<components['schemas']['ResourceLLMContextResponse']> {
-  return new Promise((resolve, reject) => {
-    const doneSub = eventBus.get('gather:finished').subscribe((event) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      resolve(event.response);
-    });
-    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(new Error(event.message ?? 'Gather resource failed'));
-    });
-  });
-}
-
-function waitForGatherAnnotationFinished(eventBus: EventBus): Promise<components['schemas']['AnnotationLLMContextResponse']> {
-  return new Promise((resolve, reject) => {
-    const doneSub = eventBus.get('gather:annotation-finished').subscribe((event) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      resolve(event.response);
-    });
-    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(new Error(event.message ?? 'Gather annotation failed'));
-    });
-  });
-}
-
 export async function runGather(options: GatherOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { client } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId, rawAnnotationId] = options.args;
 
@@ -79,34 +48,23 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
   if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    const eventBus = new EventBus();
-    const donePromise = waitForGatherResourceFinished(eventBus);
-    client.sse.gatherResource(
-      id,
-      {
-        depth: options.depth,
-        maxResources: options.maxResources,
-        includeContent: !options.noContent,
-        includeSummary: options.summary,
-      },
-      { auth: token, eventBus },
-    );
-    result = await donePromise;
+    result = await client.gather.resource(id, { contextWindow: options.contextWindow });
   } else if (subcommand === 'annotation') {
     if (!rawAnnotationId) {
       throw new Error('Usage: semiont gather annotation <resourceId> <annotationId>');
     }
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    const eventBus = new EventBus();
-    const donePromise = waitForGatherAnnotationFinished(eventBus);
-    client.sse.gatherAnnotation(
-      resourceId,
-      annotationId,
-      { contextWindow: options.contextWindow },
-      { auth: token, eventBus },
+
+    // gather.annotation returns Observable — await the completion event
+    const completion = await firstValueFrom(
+      client.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
+        filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
+        take(1),
+        timeout(60_000),
+      ),
     );
-    result = await donePromise;
+    result = (completion as any).response;
   } else {
     throw new Error(`Unknown subcommand: ${subcommand}. Use 'resource' or 'annotation'.`);
   }
@@ -131,43 +89,29 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
 
 export const gatherCmd = new CommandBuilder()
   .name('gather')
-  .description('Fetch LLM-optimized context for a resource or annotation. Outputs JSON to stdout: ResourceLLMContextResponse (resource) or AnnotationLLMContextResponse containing GatheredContext (annotation). Schemas defined in specs/src/components/schemas/.')
+  .description('Fetch LLM-optimized context for a resource or annotation.')
   .requiresEnvironment(true)
   .requiresServices(true)
   .examples(
     'semiont gather resource <resourceId>',
-    'semiont gather resource <resourceId> --depth 3 --max-resources 20',
-    'semiont gather resource <resourceId> --no-content',
     'semiont gather annotation <resourceId> <annotationId>',
-    'semiont gather annotation <resourceId> <annotationId> --context-window 200',
-    'semiont gather resource <resourceId> | jq \'.mainResource.name\'',
-    'semiont gather annotation <resourceId> <annotationId> | jq \'.context.sourceContext.selected\'',
+    'semiont gather resource <resourceId> --depth 3 --max-resources 15',
+    'semiont gather annotation <resourceId> <annotationId> --context-window 2000',
   )
   .args({
     ...withApiArgs({
-      '--depth': {
-        type: 'string',
-        description: 'Graph traversal depth: 1–3 (default: 2)',
-      },
-      '--max-resources': {
-        type: 'string',
-        description: 'Max related resources to include: 1–20 (default: 10)',
-      },
-      '--no-content': {
-        type: 'boolean',
-        description: 'Exclude full resource content (default: content included)',
-        default: false,
-      },
-      '--summary': {
-        type: 'boolean',
-        description: 'Request AI-generated summary (default: false)',
-        default: false,
-      },
-      '--context-window': {
-        type: 'string',
-        description: 'Characters of surrounding text context: 100–5000 (default: 1000)',
-      },
-    }, {}),
+      depth: { type: 'number', description: 'Graph traversal depth (1-3)', default: '2' },
+      'max-resources': { type: 'number', description: 'Maximum related resources (1-20)', default: '10' },
+      'no-content': { type: 'boolean', description: 'Exclude resource content from context' },
+      summary: { type: 'boolean', description: 'Include AI-generated summaries' },
+      'context-window': { type: 'number', description: 'Character window around annotation (100-5000)', default: '1000' },
+    }, {
+      depth: 'depth',
+      'max-resources': 'maxResources',
+      'no-content': 'noContent',
+      summary: 'summary',
+      'context-window': 'contextWindow',
+    }),
     restAs: 'args',
     aliases: {},
   })

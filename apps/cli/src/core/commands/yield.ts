@@ -18,7 +18,9 @@
 import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
-import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
+import { filter, take, timeout } from 'rxjs/operators';
+import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -94,46 +96,9 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 // DELEGATE MODE HELPERS
 // =====================================================================
 
-function waitForYieldFinished(eventBus: EventBus): Promise<{ resourceId?: string; resourceName?: string }> {
-  return new Promise((resolve, reject) => {
-    const doneSub = eventBus.get('yield:finished').subscribe((event) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      resolve({ resourceId: event.resourceId, resourceName: event.resourceName });
-    });
-    const failSub = eventBus.get('yield:failed').subscribe((event: any) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(new Error(event.error ?? 'Generation failed'));
-    });
-  });
-}
-
-function waitForGatherAnnotationFinished(eventBus: EventBus, annotationId: string): Promise<GatheredContext> {
-  return new Promise((resolve, reject) => {
-    const doneSub = eventBus.get('gather:annotation-finished').subscribe((event) => {
-      if (event.annotationId !== annotationId) return;
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      const context = (event.response as any).context as GatheredContext | undefined;
-      if (!context) {
-        reject(new Error('No context returned from gatherAnnotation — cannot generate'));
-      } else {
-        resolve(context);
-      }
-    });
-    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
-      if (event.annotationId !== annotationId) return;
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(new Error(event.message ?? 'Gather annotation failed'));
-    });
-  });
-}
-
 async function runDelegate(
   client: SemiontApiClient,
-  token: AccessToken,
+  _token: AccessToken,
   options: YieldOptions,
 ): Promise<{ resourceId?: string; resourceName?: string }> {
   const rawResourceId = options.resource!;
@@ -141,37 +106,41 @@ async function runDelegate(
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
-  const gatherEventBus = new EventBus();
-  const gatherPromise = waitForGatherAnnotationFinished(gatherEventBus, rawAnnotationId);
-  client.sse.gatherAnnotation(
-    resourceId,
-    annotationId,
-    { contextWindow: options.contextWindow },
-    { auth: token, eventBus: gatherEventBus },
+  // Step 1: gather context via Observable
+  const gatherCompletion = await firstValueFrom(
+    client.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
+      filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
+      take(1),
+      timeout(60_000),
+    ),
   );
-  const context = await gatherPromise;
+  const context = (gatherCompletion as any).response?.context as GatheredContext;
+  if (!context) throw new Error('No context returned from gatherAnnotation — cannot generate');
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
-  const eventBus = new EventBus();
-  const donePromise = waitForYieldFinished(eventBus);
-
-  client.sse.yieldResource(
-    resourceId,
-    annotationId,
-    {
-      context,
+  // Step 2: generate via Observable
+  const result = await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
+    client.yield.fromAnnotation(resourceId, annotationId, {
+      title: options.title ?? rawAnnotationId,
       storageUri: options.storageUri!,
-      ...(options.title && { title: options.title }),
-      ...(options.prompt && { prompt: options.prompt }),
-      ...(options.language && { language: options.language }),
-      ...(options.temperature !== undefined && { temperature: options.temperature }),
-      ...(options.maxTokens !== undefined && { maxTokens: options.maxTokens }),
-    },
-    { auth: token, eventBus },
-  );
+      context,
+      prompt: options.prompt,
+      language: options.language,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    }).subscribe({
+      next: (progress) => {
+        if (progress.resourceId) {
+          resolve({ resourceId: progress.resourceId, resourceName: progress.resourceName });
+        }
+      },
+      error: (err) => reject(err),
+      complete: () => resolve({}),
+    });
+  });
 
-  return await donePromise;
+  return result;
 }
 
 // =====================================================================

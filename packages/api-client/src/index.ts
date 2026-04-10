@@ -22,7 +22,7 @@
 
 // Export clients
 export * from './client';
-export { EventBusClient } from './event-bus-client';
+
 
 // Verb-oriented namespace API
 export { BrowseNamespace } from './namespaces/browse';

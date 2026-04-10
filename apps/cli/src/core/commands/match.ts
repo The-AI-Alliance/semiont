@@ -1,27 +1,26 @@
 /**
  * Match Command
  *
- * Searches for binding candidates for an annotation using the same backend
- * flow as the "Search" button in the Gather Context modal.
+ * Searches for binding candidates for an annotation.
  *
  * Two-step process:
- *   1. gatherAnnotation → GatheredContext
- *   2. sse.bindSearch (SSE stream) → scored ResourceDescriptor[]
+ *   1. client.gather.annotation → GatheredContext
+ *   2. client.match.search → scored ResourceDescriptor[]
  *
  * Usage:
  *   semiont match <resourceId> <annotationId> [options]
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
+import { filter, take, timeout } from 'rxjs/operators';
+import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
-import type { SemiontApiClient } from '@semiont/api-client';
-import type { AccessToken } from '@semiont/core';
 
 type ScoredResult = components['schemas']['ResourceDescriptor'] & {
   score?: number;
@@ -43,103 +42,43 @@ export const MatchOptionsSchema = ApiOptionsSchema.extend({
 export type MatchOptions = z.output<typeof MatchOptionsSchema>;
 
 // =====================================================================
-// HELPERS
-// =====================================================================
-
-function waitForSearchResults(eventBus: EventBus, referenceId: string): Promise<ScoredResult[]> {
-  return new Promise((resolve, reject) => {
-    const resultSub = eventBus.get('match:search-results').subscribe((event) => {
-      if (event.referenceId === referenceId) {
-        resultSub.unsubscribe();
-        errorSub.unsubscribe();
-        resolve(event.response as ScoredResult[]);
-      }
-    });
-    const errorSub = eventBus.get('match:search-failed').subscribe((event) => {
-      if (event.referenceId === referenceId) {
-        resultSub.unsubscribe();
-        errorSub.unsubscribe();
-        reject(event.error);
-      }
-    });
-  });
-}
-
-async function gatherContext(
-  client: SemiontApiClient,
-  resourceId: ReturnType<typeof toResourceId>,
-  annotationId: ReturnType<typeof toAnnotationId>,
-  contextWindow: number,
-  token: AccessToken,
-): Promise<GatheredContext> {
-  const eventBus = new EventBus();
-  const contextPromise = new Promise<GatheredContext>((resolve, reject) => {
-    const doneSub = eventBus.get('gather:annotation-finished').subscribe((event) => {
-      if (event.annotationId !== annotationId) return;
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      const context = (event.response as any).context as GatheredContext | undefined;
-      if (!context) {
-        reject(new Error('No context returned from gatherAnnotation'));
-      } else {
-        resolve(context);
-      }
-    });
-    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
-      if (event.annotationId !== annotationId) return;
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(new Error(event.message ?? 'Gather annotation failed'));
-    });
-  });
-  client.sse.gatherAnnotation(
-    resourceId,
-    annotationId,
-    { contextWindow },
-    { auth: token, eventBus },
-  );
-  return contextPromise;
-}
-
-// =====================================================================
 // IMPLEMENTATION
 // =====================================================================
 
 export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  
 
   const [rawResourceId, rawAnnotationId] = options.args;
   const resourceId = toResourceId(rawResourceId);
   const annotationId = toAnnotationId(rawAnnotationId);
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { client } = loadCachedClient(rawBusUrl);
 
-  // Step 1: gather context
-  let context = await gatherContext(client, resourceId, annotationId, options.contextWindow, token);
+  // Step 1: gather context via Observable
+  const gatherCompletion = await firstValueFrom(
+    client.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
+      filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
+      take(1),
+      timeout(60_000),
+    ),
+  );
+  let context = (gatherCompletion as any).response?.context as GatheredContext;
+  if (!context) throw new Error('No context returned from gather');
 
-  // Apply user hint if provided
   if (options.userHint) {
     context = { ...context, userHint: options.userHint };
   }
 
-  // Step 2: search via SSE stream
-  const eventBus = new EventBus();
-  const resultsPromise = waitForSearchResults(eventBus, rawAnnotationId);
-
-  client.sse.matchSearch(
-    resourceId,
-    {
-      referenceId: rawAnnotationId,
-      context,
+  // Step 2: search via Observable
+  const searchResult = await firstValueFrom(
+    client.match.search(resourceId, rawAnnotationId, context, {
       limit: options.limit,
       useSemanticScoring: !options.noSemantic,
-    },
-    { auth: token, eventBus },
+    }).pipe(take(1), timeout(60_000)),
   );
 
-  const results = await resultsPromise;
+  const results = (searchResult as any).response as ScoredResult[];
 
   process.stdout.write(JSON.stringify(results, null, 2));
   if (!options.quiet) process.stdout.write('\n');
@@ -161,36 +100,26 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
 
 export const matchCmd = new CommandBuilder()
   .name('match')
-  .description('Search for binding candidates for an annotation. Outputs JSON array of ResourceDescriptor & { score?, matchReason? } to stdout. Uses the same flow as the Search button in the Gather Context modal.')
+  .description('Search for binding candidates for an annotation. Gathers context, then runs scored search.')
   .requiresEnvironment(true)
   .requiresServices(true)
   .examples(
     'semiont match <resourceId> <annotationId>',
-    'semiont match <resourceId> <annotationId> --user-hint "look for papers about neural scaling"',
     'semiont match <resourceId> <annotationId> --limit 5 --no-semantic',
-    'semiont match <resourceId> <annotationId> | jq \'.[0].name\'',
-    'semiont match <resourceId> <annotationId> | jq -r \'.[0]["@id"]\' | xargs -I{} semiont mark <resourceId> --motivation linking --link {}',
+    'semiont match <resourceId> <annotationId> --user-hint "quantum physics" --context-window 2000',
   )
   .args({
     ...withApiArgs({
-      '--context-window': {
-        type: 'string',
-        description: 'Characters of context around annotation: 100–5000 (default: 1000)',
-      },
-      '--user-hint': {
-        type: 'string',
-        description: 'Override/supplement the context text used for matching',
-      },
-      '--limit': {
-        type: 'string',
-        description: 'Max results to return: 1–20 (default: 10)',
-      },
-      '--no-semantic': {
-        type: 'boolean',
-        description: 'Disable semantic scoring (faster, keyword-only)',
-        default: false,
-      },
-    }, {}),
+      'context-window': { type: 'number', description: 'Char window around annotation (100-5000)', default: '1000' },
+      'user-hint': { type: 'string', description: 'Additional search hint' },
+      limit: { type: 'number', description: 'Max results (1-20)', default: '10' },
+      'no-semantic': { type: 'boolean', description: 'Disable semantic scoring' },
+    }, {
+      'context-window': 'contextWindow',
+      'user-hint': 'userHint',
+      limit: 'limit',
+      'no-semantic': 'noSemantic',
+    }),
     restAs: 'args',
     aliases: {},
   })
