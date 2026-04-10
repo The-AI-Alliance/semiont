@@ -10,16 +10,15 @@ import {
 import { SemiontApiClient } from '@semiont/api-client';
 import { baseUrl, accessToken, EventBus } from '@semiont/core';
 
+import * as handlers from './handlers.js';
+
 /**
  * Semiont MCP Server
  *
- * This MCP server provides access to the Semiont API.
- * It handles authentication and makes the API available to AI applications.
+ * Exposes the Semiont verb-oriented API to AI applications via MCP tools.
+ * Tools are named by flow: browse, mark, bind, gather, match, yield.
  */
 
-import * as handlers from './handlers.js';
-
-// Configuration from environment variables
 if (!process.env.SEMIONT_API_URL) {
   throw new Error('SEMIONT_API_URL environment variable is required');
 }
@@ -29,383 +28,179 @@ if (!process.env.SEMIONT_ACCESS_TOKEN) {
 
 const SEMIONT_API_URL = process.env.SEMIONT_API_URL;
 const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
+const token = accessToken(SEMIONT_ACCESS_TOKEN);
 
-// Create the stateless Semiont API client
-// Auth token is stored separately and passed per-request
-const apiClient = new SemiontApiClient({
+const semiont = new SemiontApiClient({
   baseUrl: baseUrl(SEMIONT_API_URL),
   eventBus: new EventBus(),
+  getToken: () => token,
 });
 
-// Store the access token to pass with each request
-const auth = accessToken(SEMIONT_ACCESS_TOKEN);
-
-// Create the MCP server
 const server = new Server(
-  {
-    name: 'semiont-mcp',
-    version: '0.1.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-      resources: {},
-      prompts: {},
-    },
-  }
+  { name: 'semiont-mcp', version: '0.2.0' },
+  { capabilities: { tools: {}, resources: {}, prompts: {} } },
 );
 
-// Define all available tools
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      // Resource Management
-      {
-        name: 'semiont_create_resource',
-        description: 'Create a new resource in the knowledge graph',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'Resource name' },
-            content: { type: 'string', description: 'Resource content' },
-            storageUri: { type: 'string', description: 'Working-tree URI where the resource will be stored (e.g. file://docs/my-resource.md)' },
-            entityTypes: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Entity types (e.g., Person, Topic, Concept)'
-            },
-            contentType: { type: 'string', description: 'Content MIME type (default: text/plain)' },
-            metadata: { type: 'object', description: 'Additional metadata' },
-          },
-          required: ['name', 'content', 'storageUri'],
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    // ── Browse ────────────────────────────────────────────────────────
+    {
+      name: 'browse_resource',
+      description: 'Get a resource by ID with its annotations and references',
+      inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Resource ID' } }, required: ['id'] },
+    },
+    {
+      name: 'browse_resources',
+      description: 'List resources with optional filters',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          search: { type: 'string', description: 'Search query' },
+          archived: { type: 'boolean', description: 'Filter by archived status (default: false)' },
+          limit: { type: 'number', description: 'Maximum results (default: 20)' },
         },
       },
-      {
-        name: 'semiont_get_resource',
-        description: 'Get a resource by ID with its selections',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', description: 'Resource ID' },
-          },
-          required: ['id'],
+    },
+    {
+      name: 'browse_highlights',
+      description: 'Get highlighting annotations for a resource',
+      inputSchema: { type: 'object', properties: { resourceId: { type: 'string' } }, required: ['resourceId'] },
+    },
+    {
+      name: 'browse_references',
+      description: 'Get linking annotations for a resource',
+      inputSchema: { type: 'object', properties: { resourceId: { type: 'string' } }, required: ['resourceId'] },
+    },
+    // ── Mark ──────────────────────────────────────────────────────────
+    {
+      name: 'mark_annotation',
+      description: 'Create an annotation (highlight, comment, reference, tag) on a resource',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          resourceId: { type: 'string', description: 'Resource ID' },
+          selectionData: { type: 'object', description: 'Selection data (offset, length, text)', properties: { offset: { type: 'number' }, length: { type: 'number' }, text: { type: 'string' } } },
+          entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types for this annotation' },
         },
+        required: ['resourceId', 'selectionData'],
       },
-      {
-        name: 'semiont_list_resources',
-        description: 'List and search resources',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            entityTypes: { type: 'string', description: 'Comma-separated entity types to filter' },
-            search: { type: 'string', description: 'Search query' },
-            archived: { type: 'boolean', description: 'Filter by archived status (default: false - shows only non-archived resources)' },
-            limit: { type: 'number', description: 'Maximum results (default: 20)' },
-            offset: { type: 'number', description: 'Offset for pagination (default: 0)' },
-          },
+    },
+    {
+      name: 'mark_assist',
+      description: 'AI-assisted annotation: detect entities, highlights, assessments, comments, or tags',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          resourceId: { type: 'string', description: 'Resource ID' },
+          entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types to detect (for linking motivation)' },
         },
+        required: ['resourceId'],
       },
-      {
-        name: 'semiont_detect_selections',
-        description: 'Detect selections (entities, references) in a resource',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: { type: 'string', description: 'Resource ID' },
-            types: { 
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Types to detect (default: entities, concepts)' 
-            },
-            confidence: { type: 'number', description: 'Minimum confidence (0-1, default: 0.7)' },
-          },
-          required: ['resourceId'],
+    },
+    // ── Bind ──────────────────────────────────────────────────────────
+    {
+      name: 'bind_body',
+      description: 'Link a reference annotation to a target resource',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sourceResourceId: { type: 'string', description: 'Resource containing the annotation' },
+          annotationId: { type: 'string', description: 'Annotation ID to link' },
+          targetResourceId: { type: 'string', description: 'Target resource to link to' },
         },
+        required: ['sourceResourceId', 'annotationId', 'targetResourceId'],
       },
-      // Selection Management
-      {
-        name: 'semiont_create_selection',
-        description: 'Create a new selection in a resource',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: { type: 'string', description: 'Resource ID' },
-            selectionType: { type: 'string', description: 'Selection type (e.g., text_span)' },
-            selectionData: { 
-              type: 'object',
-              description: 'Selection data (offset, length, text, etc.)',
-              properties: {
-                type: { type: 'string' },
-                offset: { type: 'number' },
-                length: { type: 'number' },
-                text: { type: 'string' },
-              },
-            },
-            entityTypes: { 
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Entity types for this selection' 
-            },
-            provisional: { type: 'boolean', description: 'Is this provisional?' },
-          },
-          required: ['resourceId', 'selectionType', 'selectionData'],
+    },
+    // ── Gather ────────────────────────────────────────────────────────
+    {
+      name: 'gather_annotation',
+      description: 'Gather LLM context for an annotation (passage + graph context)',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          resourceId: { type: 'string' },
+          annotationId: { type: 'string' },
+          contextWindow: { type: 'number', description: 'Character window (default: 2000)' },
         },
+        required: ['resourceId', 'annotationId'],
       },
-      {
-        name: 'semiont_save_selection',
-        description: 'Save a selection as a highlight',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            selectionId: { type: 'string', description: 'Selection ID' },
-            metadata: { type: 'object', description: 'Additional metadata' },
-          },
-          required: ['selectionId'],
+    },
+    // ── Yield ─────────────────────────────────────────────────────────
+    {
+      name: 'yield_resource',
+      description: 'Create a new resource from content',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Resource name' },
+          content: { type: 'string', description: 'Resource content' },
+          storageUri: { type: 'string', description: 'Storage URI (e.g. file://docs/my-resource.md)' },
+          entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types' },
+          contentType: { type: 'string', description: 'MIME type (default: text/plain)' },
         },
+        required: ['name', 'content', 'storageUri'],
       },
-      {
-        name: 'semiont_resolve_selection',
-        description: 'Link a selection to a resource (adds SpecificResource to annotation body)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            selectionId: { type: 'string', description: 'Selection ID' },
-            resourceId: { type: 'string', description: 'Target resource ID to link to' },
-          },
-          required: ['selectionId', 'resourceId'],
+    },
+    {
+      name: 'yield_from_annotation',
+      description: 'Generate a new resource from an annotation using AI',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          resourceId: { type: 'string' },
+          annotationId: { type: 'string' },
+          title: { type: 'string' },
+          storageUri: { type: 'string' },
+          prompt: { type: 'string', description: 'AI generation prompt' },
+          language: { type: 'string' },
         },
+        required: ['resourceId', 'annotationId', 'storageUri'],
       },
-      // Resource Generation from Selections
-      {
-        name: 'semiont_generate_resource_from_selection',
-        description: 'Generate a resource with AI-generated content from a selection',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            selectionId: { type: 'string', description: 'Selection ID' },
-            storageUri: { type: 'string', description: 'Working-tree URI where the generated resource will be saved (e.g. file://generated/overview.md)' },
-            name: { type: 'string', description: 'Resource name (optional)' },
-            entityTypes: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Entity types for the new resource'
-            },
-            prompt: { type: 'string', description: 'AI generation prompt' },
-          },
-          required: ['selectionId', 'storageUri'],
-        },
-      },
-      // Context and Analysis
-      {
-        name: 'semiont_get_contextual_summary',
-        description: 'Get a contextual summary for a selection',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            selectionId: { type: 'string', description: 'Selection ID' },
-            includeRelated: { type: 'boolean', description: 'Include related resources' },
-            maxRelated: { type: 'number', description: 'Max related resources' },
-          },
-          required: ['selectionId'],
-        },
-      },
-      {
-        name: 'semiont_get_schema_description',
-        description: 'Get a natural language description of the graph schema',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'semiont_get_llm_context',
-        description: 'Get LLM-suitable context for a resource and optional selection',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: { type: 'string', description: 'Resource ID' },
-            selectionId: { type: 'string', description: 'Optional selection ID' },
-            includeReferences: { type: 'boolean', description: 'Include references (default: true)' },
-            includeSelections: { type: 'boolean', description: 'Include selections (default: true)' },
-            maxReferencedResources: { type: 'number', description: 'Max referenced docs (default: 5)' },
-            contextWindow: { type: 'number', description: 'Context window size (default: 1000)' },
-          },
-          required: ['resourceId'],
-        },
-      },
-      // Relationship Queries
-      {
-        name: 'semiont_get_resource_selections',
-        description: 'Get all selections in a resource',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: { type: 'string', description: 'Resource ID' },
-          },
-          required: ['resourceId'],
-        },
-      },
-      {
-        name: 'semiont_get_resource_highlights',
-        description: 'Get saved highlights in a resource',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: { type: 'string', description: 'Resource ID' },
-          },
-          required: ['resourceId'],
-        },
-      },
-      {
-        name: 'semiont_get_resource_references',
-        description: 'Get linked references in a resource',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: { type: 'string', description: 'Resource ID' },
-          },
-          required: ['resourceId'],
-        },
-      },
-    ],
-  };
-});
+    },
+  ],
+}));
 
-// Handle resources list (empty - we don't provide resources)
-server.setRequestHandler(ListResourcesRequestSchema, async () => {
-  return {
-    resources: [],
-  };
-});
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
+server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
 
-// Handle prompts list (empty - we don't provide prompts)
-server.setRequestHandler(ListPromptsRequestSchema, async () => {
-  return {
-    prompts: [],
-  };
-});
-
-
-// Handle tool execution
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
     switch (name) {
-      case 'semiont_create_resource':
-        return await handlers.handleCreateResource(apiClient, auth, args);
-
-      case 'semiont_get_resource':
-        return await handlers.handleGetResource(apiClient, auth, args?.id as string);
-
-      case 'semiont_list_resources':
-        return await handlers.handleListResources(apiClient, auth, args);
-
-      case 'semiont_detect_selections':
-        return await handlers.handleDetectAnnotations(apiClient, auth, args);
-
-      case 'semiont_create_selection':
-        return await handlers.handleCreateAnnotation(apiClient, auth, args);
-
-      case 'semiont_save_selection':
-        return await handlers.handleSaveAnnotation(apiClient, auth, args);
-
-      case 'semiont_resolve_selection':
-        return await handlers.handleResolveAnnotation(apiClient, auth, args);
-
-      case 'semiont_generate_resource_from_selection':
-        return await handlers.handleGenerateResourceFromAnnotation(apiClient, auth, args);
-
-      case 'semiont_get_contextual_summary':
-        return await handlers.handleGetContextualSummary(apiClient, auth, args);
-
-      case 'semiont_get_schema_description':
-        return await handlers.handleGetSchemaDescription(apiClient, auth);
-
-      case 'semiont_get_llm_context':
-        return await handlers.handleGetLLMContext(apiClient, auth, args);
-
-      case 'semiont_get_resource_selections':
-        return await handlers.handleGetResourceAnnotations(apiClient, auth, args);
-
-      case 'semiont_get_resource_highlights':
-        return await handlers.handleGetResourceHighlights(apiClient, auth, args || {});
-
-      case 'semiont_get_resource_references':
-        return await handlers.handleGetResourceReferences(apiClient, auth, args || {});
-
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+      case 'browse_resource':       return await handlers.browseResource(semiont, args);
+      case 'browse_resources':      return await handlers.browseResources(semiont, args);
+      case 'browse_highlights':     return await handlers.browseHighlights(semiont, args);
+      case 'browse_references':     return await handlers.browseReferences(semiont, args);
+      case 'mark_annotation':       return await handlers.markAnnotation(semiont, args);
+      case 'mark_assist':           return await handlers.markAssist(semiont, args);
+      case 'bind_body':             return await handlers.bindBody(semiont, args);
+      case 'gather_annotation':     return await handlers.gatherAnnotation(semiont, args);
+      case 'yield_resource':        return await handlers.yieldResource(semiont, args);
+      case 'yield_from_annotation': return await handlers.yieldFromAnnotation(semiont, args);
+      default: throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error) {
     return {
-      content: [{
-        type: 'text',
-        text: `Error calling Semiont API: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      }],
+      content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }],
       isError: true,
     };
   }
 });
 
-// Start the server
 async function main() {
-  console.error('[MCP Server] Starting up...');
-  console.error('[MCP Server] Environment:', {
-    SEMIONT_API_URL,
-    NODE_ENV: process.env.NODE_ENV,
-    cwd: process.cwd()
-  });
-
+  console.error('[MCP] Starting semiont-mcp v0.2.0');
   const transport = new StdioServerTransport();
-  console.error('[MCP Server] Connecting to transport...');
-
   await server.connect(transport);
-  console.error('[MCP Server] Connected successfully');
+  console.error('[MCP] Connected');
 
-  // Keep the server alive until it receives a termination signal
-  process.on('SIGINT', async () => {
-    console.error('[MCP Server] Received SIGINT, shutting down...');
-    await server.close();
-    process.exit(0);
-  });
+  process.on('SIGINT', async () => { await server.close(); process.exit(0); });
+  process.on('SIGTERM', async () => { await server.close(); process.exit(0); });
 
-  process.on('SIGTERM', async () => {
-    console.error('[MCP Server] Received SIGTERM, shutting down...');
-    await server.close();
-    process.exit(0);
-  });
-
-  // Add handler for unexpected exits
-  process.on('exit', (code) => {
-    console.error(`[MCP Server] Process exiting with code ${code}`);
-  });
-
-  process.on('uncaughtException', (error) => {
-    console.error('[MCP Server] Uncaught exception:', error);
-    process.exit(1);
-  });
-
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('[MCP Server] Unhandled rejection at:', promise, 'reason:', reason);
-    process.exit(1);
-  });
-
-  console.error('[MCP Server] Setting up keep-alive...');
-
-  // Keep the process alive
-  // The server will handle incoming messages via the transport
-  await new Promise(() => {
-    console.error('[MCP Server] Keep-alive promise created, server should stay running...');
-
-    // Log periodic heartbeat to show we're still alive
-    setInterval(() => {
-      console.error(`[MCP Server] Still alive at ${new Date().toISOString()}`);
-    }, 30000); // Every 30 seconds
-  });
+  await new Promise(() => {});
 }
 
 main().catch((error) => {
-  console.error('[MCP Server] Fatal error in main:', error);
+  console.error('[MCP] Fatal:', error);
   process.exit(1);
 });

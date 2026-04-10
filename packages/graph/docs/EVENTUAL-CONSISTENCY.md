@@ -282,6 +282,20 @@ await consumer.rebuildAll();
 
 This guarantees all resource nodes exist before any REFERENCES edges are created.
 
+### Symmetric rebuild across all derived stores
+
+The graph is one of three derived read models in the Semiont knowledge base. Each is rebuildable from the event log on startup:
+
+| Derived store | Rebuild method | Owned by |
+|---|---|---|
+| Graph (Neo4j) | `GraphDBConsumer.rebuildAll()` | `@semiont/make-meaning` |
+| Vectors (Qdrant) | `Smelter.rebuildAll()` | `@semiont/make-meaning` |
+| Materialized views | `ViewManager.rebuildAll(eventLog)` | `@semiont/event-sourcing` |
+
+All three are awaited inside `createKnowledgeBase` before the HTTP server begins accepting requests. By the time any client can hit the API, all three derived stores are caught up to the event log. The graph rebuild described above is one instance of this pattern; the views layer follows the same shape (live incremental update on append + full rebuild on startup), and the same correctness argument applies — replaying events 1..N produces the same final state regardless of whether they arrive over time or all at once.
+
+See [`@semiont/event-sourcing`'s STORAGE-LAYOUT.md](../../event-sourcing/docs/STORAGE-LAYOUT.md#ephemerality-and-rebuild) for the views-layer ephemerality model.
+
 ## Related Frontend Cache Issue
 
 The backend eventual consistency fix solved the graph race condition, but revealed a **frontend caching issue**.

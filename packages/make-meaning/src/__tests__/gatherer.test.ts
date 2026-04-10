@@ -100,7 +100,7 @@ describe('Gatherer', () => {
         context: mockContext,
       });
 
-      const resultPromise = eventBus.get('gather:complete').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.scope('res-1').get('gather:complete').pipe(take(1)).toPromise();
 
       eventBus.get('gather:requested').next({
         correlationId: 'test-corr-id',
@@ -126,7 +126,7 @@ describe('Gatherer', () => {
     it('should emit gather:failed on error', async () => {
       vi.mocked(AnnotationContext.buildLLMContext).mockRejectedValue(new Error('Annotation not found'));
 
-      const resultPromise = eventBus.get('gather:failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.scope('res-1').get('gather:failed').pipe(take(1)).toPromise();
 
       eventBus.get('gather:requested').next({
         correlationId: 'test-corr-id',
@@ -151,7 +151,7 @@ describe('Gatherer', () => {
 
       vi.mocked(LLMContext.getResourceContext).mockResolvedValue(mockResponse as any);
 
-      const resultPromise = eventBus.get('gather:resource-complete').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.scope('res-1').get('gather:resource-complete').pipe(take(1)).toPromise();
 
       eventBus.get('gather:resource-requested').next({
         correlationId: 'test-corr-id',
@@ -174,7 +174,7 @@ describe('Gatherer', () => {
     it('should emit gather:resource-failed on error', async () => {
       vi.mocked(LLMContext.getResourceContext).mockRejectedValue(new Error('Resource not found'));
 
-      const resultPromise = eventBus.get('gather:resource-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.scope('res-2').get('gather:resource-failed').pipe(take(1)).toPromise();
 
       eventBus.get('gather:resource-requested').next({
         correlationId: 'test-corr-id',

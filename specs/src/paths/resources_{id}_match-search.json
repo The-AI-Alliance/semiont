@@ -1,11 +1,10 @@
 {
   "post": {
-    "summary": "Match Search (SSE Stream)",
-    "description": "Search for binding candidates for a reference annotation via Server-Sent Events. Delegates to the Matcher actor on the backend EventBus.",
+    "summary": "Match Search",
+    "description": "Submit a match-search command for binding candidates. Returns {correlationId} immediately. Results are delivered asynchronously via the long-lived events-stream as match:search-results or match:search-failed events.",
     "tags": [
       "Resources",
       "Annotations",
-      "Real-time",
       "AI"
     ],
     "security": [
@@ -29,24 +28,27 @@
       "content": {
         "application/json": {
           "schema": {
-            "$ref": "../components/schemas/MatchSearchStreamRequest.json"
+            "$ref": "../components/schemas/MatchSearchRequest.json"
           }
         }
       }
     },
     "responses": {
-      "200": {
-        "description": "SSE stream opened successfully",
+      "202": {
+        "description": "Search command accepted. Results delivered via events-stream.",
         "content": {
-          "text/event-stream": {
+          "application/json": {
             "schema": {
-              "$ref": "../components/schemas/EventStreamResponse.json"
+              "type": "object",
+              "properties": {
+                "correlationId": {
+                  "type": "string"
+                }
+              },
+              "required": ["correlationId"]
             }
           }
         }
-      },
-      "400": {
-        "description": "referenceId and context are required"
       },
       "401": {
         "description": "Authentication required"

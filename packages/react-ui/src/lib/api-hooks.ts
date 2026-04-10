@@ -44,7 +44,7 @@ function toAccessToken(token: string | null) {
  * Resource operations
  */
 export function useResources() {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const token = useAuthToken();
   // eventBus used for yield:updated emission in update mutation
   const eventBus = useEventBus();
@@ -54,8 +54,8 @@ export function useResources() {
       useQuery: (options?: { limit?: number; archived?: boolean; query?: string }) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.all(options?.limit, options?.archived),
-          queryFn: () => client!.browseResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined, { auth: toAccessToken(token) }),
-          enabled: !!client,
+          queryFn: () => semiont!.browseResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined, { auth: toAccessToken(token) }),
+          enabled: !!semiont,
         }),
     },
 
@@ -63,8 +63,8 @@ export function useResources() {
       useQuery: (id: ResourceId, options?: Omit<UseQueryOptions, 'queryKey' | 'queryFn'>) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.detail(id),
-          queryFn: () => client!.browseResource(id, { auth: toAccessToken(token) }),
-          enabled: !!client && !!id,
+          queryFn: () => semiont!.browseResource(id, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!id,
           ...options,
         }),
     },
@@ -73,8 +73,8 @@ export function useResources() {
       useQuery: (id: ResourceId) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.events(id),
-          queryFn: () => client!.getResourceEvents(id, { auth: toAccessToken(token) }),
-          enabled: !!client && !!id,
+          queryFn: () => semiont!.getResourceEvents(id, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!id,
         }),
     },
 
@@ -82,8 +82,8 @@ export function useResources() {
       useQuery: (id: ResourceId) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.annotations(id),
-          queryFn: () => client!.browseAnnotations(id, undefined, { auth: toAccessToken(token) }),
-          enabled: !!client && !!id,
+          queryFn: () => semiont!.browseAnnotations(id, undefined, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!id,
         }),
     },
 
@@ -91,8 +91,8 @@ export function useResources() {
       useQuery: (id: ResourceId) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.referencedBy(id),
-          queryFn: () => client!.browseReferences(id, { auth: toAccessToken(token) }),
-          enabled: !!client && !!id,
+          queryFn: () => semiont!.browseReferences(id, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!id,
         }),
     },
 
@@ -101,13 +101,13 @@ export function useResources() {
         useQuery({
           queryKey: QUERY_KEYS.resources.representation(id),
           queryFn: async () => {
-            const { data } = await client!.getResourceRepresentation(id, {
+            const { data } = await semiont!.getResourceRepresentation(id, {
               accept: mediaType as ContentFormat,
               auth: toAccessToken(token),
             });
             return decodeWithCharset(data, mediaType);
           },
-          enabled: !!client && !!id && !!mediaType,
+          enabled: !!semiont && !!id && !!mediaType,
         }),
     },
 
@@ -115,8 +115,8 @@ export function useResources() {
       useQuery: (id: ResourceId) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.mediaToken(id),
-          queryFn: () => client!.getMediaToken(id, { auth: toAccessToken(token) }),
-          enabled: !!client && !!id,
+          queryFn: () => semiont!.getMediaToken(id, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!id,
           staleTime: 4 * 60 * 1000,
         }),
     },
@@ -125,8 +125,8 @@ export function useResources() {
       useQuery: (query: string, limit: number) =>
         useQuery({
           queryKey: QUERY_KEYS.resources.search(query, limit),
-          queryFn: () => client!.browseResources(limit, undefined, searchQuery(query), { auth: toAccessToken(token) }),
-          enabled: !!client && !!query,
+          queryFn: () => semiont!.browseResources(limit, undefined, searchQuery(query), { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!query,
         }),
     },
 
@@ -135,15 +135,15 @@ export function useResources() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: (data: Parameters<SemiontApiClient['yieldResource']>[0]) => {
-            if (!client) {
+            if (!semiont) {
               throw new Error('Not authenticated - please sign in to create resources');
             }
-            return client.yieldResource(data, { auth: toAccessToken(token) });
+            return semiont.yieldResource(data, { auth: toAccessToken(token) });
           },
           onSuccess: (result) => {
             // Fetch new resource into store and invalidate lists
-            client.stores.resources.invalidateDetail(resourceIdBrand(result.resourceId));
-            client.stores.resources.invalidateLists();
+            semiont.browse.invalidateResourceDetail(resourceIdBrand(result.resourceId));
+            semiont.browse.invalidateResourceLists();
           },
         });
       },
@@ -154,8 +154,8 @@ export function useResources() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: ({ id, data }: { id: ResourceId; data: Parameters<SemiontApiClient['updateResource']>[1] }) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.updateResource(id, data, { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.updateResource(id, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_data, variables) => {
             eventBus.get('yield:update-ok').next({ resourceId: variables.id });
@@ -169,8 +169,8 @@ export function useResources() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: (id: ResourceId) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.generateCloneToken(id, { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.generateCloneToken(id, { auth: toAccessToken(token) });
           },
         });
       },
@@ -181,8 +181,8 @@ export function useResources() {
         const authToken = useAuthToken();
         return useQuery({
           queryKey: ['resources', 'token', cloneTokenStr],
-          queryFn: () => client!.getResourceByToken(cloneToken(cloneTokenStr), { auth: toAccessToken(authToken) }),
-          enabled: !!client && !!cloneTokenStr,
+          queryFn: () => semiont!.getResourceByToken(cloneToken(cloneTokenStr), { auth: toAccessToken(authToken) }),
+          enabled: !!semiont && !!cloneTokenStr,
         });
       },
     },
@@ -192,12 +192,12 @@ export function useResources() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: (data: Parameters<SemiontApiClient['createResourceFromToken']>[0]) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.createResourceFromToken(data, { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.createResourceFromToken(data, { auth: toAccessToken(token) });
           },
           onSuccess: (result) => {
-            client.stores.resources.invalidateDetail(resourceIdBrand(result.resourceId));
-            client.stores.resources.invalidateLists();
+            semiont.browse.invalidateResourceDetail(resourceIdBrand(result.resourceId));
+            semiont.browse.invalidateResourceLists();
           },
         });
       },
@@ -209,7 +209,7 @@ export function useResources() {
  * Annotation operations
  */
 export function useAnnotations() {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const queryClient = useQueryClient(); // retained for events log invalidation (no store yet)
   const token = useAuthToken();
 
@@ -218,8 +218,8 @@ export function useAnnotations() {
       useQuery: (id: AnnotationId) =>
         useQuery({
           queryKey: ['annotations', id],
-          queryFn: () => client!.getAnnotation(id, { auth: toAccessToken(token) }),
-          enabled: !!client && !!id,
+          queryFn: () => semiont!.getAnnotation(id, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!id,
         }),
     },
 
@@ -227,8 +227,8 @@ export function useAnnotations() {
       useQuery: (resourceId: ResourceId, annotationId: AnnotationId) =>
         useQuery({
           queryKey: ['annotations', resourceId, annotationId],
-          queryFn: () => client!.browseAnnotation(resourceId, annotationId, { auth: toAccessToken(token) }),
-          enabled: !!client && !!resourceId && !!annotationId,
+          queryFn: () => semiont!.browseAnnotation(resourceId, annotationId, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!resourceId && !!annotationId,
         }),
     },
 
@@ -236,8 +236,8 @@ export function useAnnotations() {
       useQuery: (resourceId: ResourceId, annotationId: AnnotationId) =>
         useQuery({
           queryKey: QUERY_KEYS.annotations.history(resourceId, annotationId),
-          queryFn: () => client!.getAnnotationHistory(resourceId, annotationId, { auth: toAccessToken(token) }),
-          enabled: !!client && !!resourceId && !!annotationId,
+          queryFn: () => semiont!.getAnnotationHistory(resourceId, annotationId, { auth: toAccessToken(token) }),
+          enabled: !!semiont && !!resourceId && !!annotationId,
         }),
     },
 
@@ -252,13 +252,13 @@ export function useAnnotations() {
             resourceId: ResourceId;
             data: Parameters<SemiontApiClient['markAnnotation']>[1];
           }) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.markAnnotation(resourceId, data, { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.markAnnotation(resourceId, data, { auth: toAccessToken(token) });
           },
           onSuccess: (result, variables) => {
-            // AnnotationStore reacts to mark:added SSE event automatically.
+            /// BrowseNamespace reacts to mark:added SSE event automatically.
             // Explicitly invalidate the annotation detail and events log.
-            client.stores.annotations.invalidateDetail(annotationIdBrand(result.annotationId));
+            semiont.browse.invalidateAnnotationDetail(annotationIdBrand(result.annotationId));
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
           },
         });
@@ -273,13 +273,13 @@ export function useAnnotations() {
             resourceId: ResourceId;
             annotationId: AnnotationId;
           }) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.deleteAnnotation(variables.resourceId, variables.annotationId, { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.deleteAnnotation(variables.resourceId, variables.annotationId, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
-            // AnnotationStore reacts to mark:removed SSE event automatically.
+            // BrowseNamespace reacts to mark:removed SSE event automatically.
             // Explicitly remove from detail cache and invalidate events log.
-            client.stores.annotations.invalidateDetail(variables.annotationId);
+            semiont.browse.invalidateAnnotationDetail(variables.annotationId);
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
           },
         });
@@ -299,13 +299,13 @@ export function useAnnotations() {
             annotationId: AnnotationId;
             data: Parameters<SemiontApiClient['bindAnnotation']>[2];
           }) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.bindAnnotation(resourceId, annotationId, data, { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.bindAnnotation(resourceId, annotationId, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
-            // AnnotationStore reacts to mark:body-updated SSE event automatically.
+            // BrowseNamespace reacts to mark:body-updated SSE event automatically.
             // Invalidate annotation detail and events log; invalidate referencedBy for linked targets.
-            client.stores.annotations.invalidateDetail(variables.annotationId);
+            semiont.browse.invalidateAnnotationDetail(variables.annotationId);
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
 
             if (variables.data.operations) {
@@ -331,7 +331,7 @@ export function useAnnotations() {
  * Entity type operations
  */
 export function useEntityTypes() {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const queryClient = useQueryClient();
   const token = useAuthToken();
 
@@ -342,8 +342,8 @@ export function useEntityTypes() {
       useQuery: (options?: Omit<UseQueryOptions<EntityTypesResponse>, 'queryKey' | 'queryFn'>) =>
         useQuery({
           queryKey: QUERY_KEYS.entityTypes.all(),
-          queryFn: () => client!.listEntityTypes({ auth: toAccessToken(token) }),
-          enabled: !!client,
+          queryFn: () => semiont!.listEntityTypes({ auth: toAccessToken(token) }),
+          enabled: !!semiont,
           ...options,
         }),
     },
@@ -353,8 +353,8 @@ export function useEntityTypes() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: (type: string) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.addEntityType(entityType(type), { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.addEntityType(entityType(type), { auth: toAccessToken(token) });
           },
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
@@ -368,8 +368,8 @@ export function useEntityTypes() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: (types: string[]) => {
-            if (!client) throw new Error('Not authenticated');
-            return client.addEntityTypesBulk(types.map(entityType), { auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.addEntityTypesBulk(types.map(entityType), { auth: toAccessToken(token) });
           },
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.entityTypes.all() });
@@ -384,7 +384,7 @@ export function useEntityTypes() {
  * Admin operations
  */
 export function useAdmin() {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const queryClient = useQueryClient();
   const token = useAuthToken();
 
@@ -394,8 +394,8 @@ export function useAdmin() {
         useQuery: () =>
           useQuery({
             queryKey: QUERY_KEYS.admin.users.all(),
-            queryFn: () => client!.listUsers({ auth: toAccessToken(token) }),
-            enabled: !!client,
+            queryFn: () => semiont!.listUsers({ auth: toAccessToken(token) }),
+            enabled: !!semiont,
           }),
       },
 
@@ -403,8 +403,8 @@ export function useAdmin() {
         useQuery: () =>
           useQuery({
             queryKey: QUERY_KEYS.admin.users.stats(),
-            queryFn: () => client!.getUserStats({ auth: toAccessToken(token) }),
-            enabled: !!client,
+            queryFn: () => semiont!.getUserStats({ auth: toAccessToken(token) }),
+            enabled: !!semiont,
           }),
       },
 
@@ -413,8 +413,8 @@ export function useAdmin() {
           const token = useAuthToken();
           return useMutation({
             mutationFn: ({ id, data }: { id: string; data: Parameters<SemiontApiClient['updateUser']>[1] }) => {
-              if (!client) throw new Error('Not authenticated');
-              return client.updateUser(userDID(id), data, { auth: toAccessToken(token) });
+              if (!semiont) throw new Error('Not authenticated');
+              return semiont.updateUser(userDID(id), data, { auth: toAccessToken(token) });
             },
             onSuccess: () => {
               queryClient.invalidateQueries({ queryKey: QUERY_KEYS.admin.users.all() });
@@ -430,8 +430,8 @@ export function useAdmin() {
         useQuery: () =>
           useQuery({
             queryKey: QUERY_KEYS.admin.oauth.config(),
-            queryFn: () => client!.getOAuthConfig({ auth: toAccessToken(token) }),
-            enabled: !!client,
+            queryFn: () => semiont!.getOAuthConfig({ auth: toAccessToken(token) }),
+            enabled: !!semiont,
           }),
       },
     },
@@ -441,8 +441,8 @@ export function useAdmin() {
         useMutation: () =>
           useMutation({
             mutationFn: async () => {
-              if (!client) throw new Error('Not authenticated');
-              const response = await client.backupKnowledgeBase({ auth: toAccessToken(token) });
+              if (!semiont) throw new Error('Not authenticated');
+              const response = await semiont.backupKnowledgeBase({ auth: toAccessToken(token) });
               if (!response.ok) {
                 throw new Error(`Backup failed: ${response.status} ${response.statusText}`);
               }
@@ -471,8 +471,8 @@ export function useAdmin() {
               file: File;
               onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
             }) => {
-              if (!client) throw new Error('Not authenticated');
-              return client.restoreKnowledgeBase(file, {
+              if (!semiont) throw new Error('Not authenticated');
+              return semiont.restoreKnowledgeBase(file, {
                 auth: toAccessToken(token),
                 onProgress,
               });
@@ -488,7 +488,7 @@ export function useAdmin() {
  * Moderation operations (moderator or admin role required)
  */
 export function useModeration() {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const token = useAuthToken();
 
   return {
@@ -497,8 +497,8 @@ export function useModeration() {
         useMutation: () =>
           useMutation({
             mutationFn: async (params?: { includeArchived?: boolean }) => {
-              if (!client) throw new Error('Not authenticated');
-              const response = await client.exportKnowledgeBase(params, { auth: toAccessToken(token) });
+              if (!semiont) throw new Error('Not authenticated');
+              const response = await semiont.exportKnowledgeBase(params, { auth: toAccessToken(token) });
               if (!response.ok) {
                 throw new Error(`Export failed: ${response.status} ${response.statusText}`);
               }
@@ -527,8 +527,8 @@ export function useModeration() {
               file: File;
               onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
             }) => {
-              if (!client) throw new Error('Not authenticated');
-              return client.importKnowledgeBase(file, {
+              if (!semiont) throw new Error('Not authenticated');
+              return semiont.importKnowledgeBase(file, {
                 auth: toAccessToken(token),
                 onProgress,
               });
@@ -543,7 +543,7 @@ export function useModeration() {
  * Authentication and user operations via API
  */
 export function useAuthApi() {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const queryClient = useQueryClient();
   const token = useAuthToken();
 
@@ -552,8 +552,8 @@ export function useAuthApi() {
       useQuery: () =>
         useQuery({
           queryKey: QUERY_KEYS.users.me(),
-          queryFn: () => client!.getMe({ auth: toAccessToken(token) }),
-          enabled: !!client,
+          queryFn: () => semiont!.getMe({ auth: toAccessToken(token) }),
+          enabled: !!semiont,
         }),
     },
 
@@ -562,8 +562,8 @@ export function useAuthApi() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: () => {
-            if (!client) throw new Error('Not authenticated');
-            return client.acceptTerms({ auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.acceptTerms({ auth: toAccessToken(token) });
           },
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users.me() });
@@ -577,8 +577,8 @@ export function useAuthApi() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: () => {
-            if (!client) throw new Error('Not authenticated');
-            return client.generateMCPToken({ auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.generateMCPToken({ auth: toAccessToken(token) });
           },
         });
       },
@@ -589,8 +589,8 @@ export function useAuthApi() {
         const token = useAuthToken();
         return useMutation({
           mutationFn: () => {
-            if (!client) throw new Error('Not authenticated');
-            return client.logout({ auth: toAccessToken(token) });
+            if (!semiont) throw new Error('Not authenticated');
+            return semiont.logout({ auth: toAccessToken(token) });
           },
           onSuccess: () => {
             // Clear all queries on logout
@@ -606,7 +606,7 @@ export function useAuthApi() {
  * Health check and system status
  */
 export function useHealth() {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const token = useAuthToken();
 
   return {
@@ -614,8 +614,8 @@ export function useHealth() {
       useQuery: () =>
         useQuery({
           queryKey: QUERY_KEYS.health(),
-          queryFn: () => client!.healthCheck(), // Public endpoint - no auth required
-          enabled: !!client,
+          queryFn: () => semiont!.healthCheck(), // Public endpoint - no auth required
+          enabled: !!semiont,
         }),
     },
 
@@ -623,8 +623,8 @@ export function useHealth() {
       useQuery: (refetchInterval?: number) =>
         useQuery({
           queryKey: QUERY_KEYS.status(),
-          queryFn: () => client!.getStatus({ auth: toAccessToken(token) }), // Requires authentication
-          enabled: !!client,
+          queryFn: () => semiont!.getStatus({ auth: toAccessToken(token) }), // Requires authentication
+          enabled: !!semiont,
           ...(refetchInterval && { refetchInterval }),
         }),
     },

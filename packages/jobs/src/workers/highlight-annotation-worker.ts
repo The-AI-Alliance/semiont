@@ -71,6 +71,19 @@ export class HighlightAnnotationWorker extends JobWorker {
       jobType: 'highlight-annotation',
       result,
     });
+
+    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
+    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
+    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
+    resourceBus.get('mark:assist-finished').next({
+      motivation: 'highlighting',
+      resourceId: String(job.params.resourceId),
+      status: 'complete',
+      percentage: 100,
+      foundCount: result.highlightsFound,
+      createdCount: result.highlightsCreated,
+      message: 'Detection complete',
+    });
   }
 
   /**
@@ -132,6 +145,13 @@ export class HighlightAnnotationWorker extends JobWorker {
         jobId: jobId(hlJob.metadata.id),
         jobType: hlJob.metadata.type,
         error: 'Highlight detection failed. Please try again later.',
+      });
+
+      // Emit mark:assist-failed on the resource-scoped bus
+      const resourceBus = this.eventBus.scope(String(hlJob.params.resourceId));
+      resourceBus.get('mark:assist-failed').next({
+        resourceId: String(hlJob.params.resourceId),
+        message: 'Highlight detection failed. Please try again later.',
       });
     }
   }

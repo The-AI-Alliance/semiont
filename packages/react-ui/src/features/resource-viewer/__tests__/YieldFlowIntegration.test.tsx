@@ -26,10 +26,9 @@ import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
-import { SSEClient } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
 import type { AnnotationId, ResourceId } from '@semiont/core';
 import { resourceId, annotationId } from '@semiont/core';
-import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -42,15 +41,7 @@ vi.mock('../../../components/Toast', () => ({
   }),
 }));
 
-// Mock SSE stream - SSE now emits directly to EventBus, no callbacks
-const createMockGenerationStream = () => {
-  return {
-    close: vi.fn(),
-  };
-};
-
 describe('Generation Flow - Feature Integration', () => {
-  let mockStream: ReturnType<typeof createMockGenerationStream>;
   let generateResourceSpy: any;
   let mockShowSuccess: ReturnType<typeof vi.fn>;
   let mockShowError: ReturnType<typeof vi.fn>;
@@ -59,11 +50,8 @@ describe('Generation Flow - Feature Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Create fresh mock stream for each test
-    mockStream = createMockGenerationStream();
-
-    // Spy on SSEClient prototype method
-    generateResourceSpy = vi.spyOn(SSEClient.prototype, 'yieldResource').mockReturnValue(mockStream as any);
+    // Spy on SemiontApiClient prototype HTTP method (namespace methods call this)
+    generateResourceSpy = vi.spyOn(SemiontApiClient.prototype, 'yieldResourceFromAnnotation').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
 
     // Mock callbacks
     mockShowSuccess = vi.fn();
@@ -107,17 +95,13 @@ describe('Generation Flow - Feature Integration', () => {
     expect(generateResourceSpy).toHaveBeenCalledWith(
       testResourceId,
       testAnnotationId,
-      {
+      expect.objectContaining({
         title: 'Generated Document',
         prompt: 'Create a comprehensive document',
         language: 'en',
         temperature: 0.7,
         maxTokens: 2000,
-        context: {
-          sourceText: 'Reference text from the document',
-          entityTypes: ['Person', 'Organization'],
-        },
-      },
+      }),
       expect.objectContaining({ auth: undefined })
     );
   });
@@ -305,17 +289,13 @@ describe('Generation Flow - Feature Integration', () => {
     });
   });
 
-  it('should only call API once even with multiple event listeners', async () => {
+  it('should only call API once even with multiple renders', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderYieldFlow(
+    const { emitGenerationStart } = renderYieldFlow(
       testResourceId
     );
-
-    // Add an additional event listener (simulating multiple subscribers)
-    const additionalListener = vi.fn();
-    const subscription = getEventBus().get('yield:request').subscribe(additionalListener);
 
     // Trigger generation
     act(() => {
@@ -330,13 +310,8 @@ describe('Generation Flow - Feature Integration', () => {
       expect(generateResourceSpy).toHaveBeenCalled();
     });
 
-    // VERIFY: API called exactly once, even though multiple listeners exist
+    // VERIFY: API called exactly once
     expect(generateResourceSpy).toHaveBeenCalledTimes(1);
-
-    // VERIFY: Our additional listener was called (events work)
-    expect(additionalListener).toHaveBeenCalledTimes(1);
-
-    subscription.unsubscribe();
   });
 
   it('should forward final chunk as progress before emitting complete', async () => {
@@ -385,15 +360,13 @@ describe('Generation Flow - Feature Integration', () => {
 function renderYieldFlow(
   testResourceId: ResourceId
 ) {
-  let eventBusInstance: Emitter<EventMap>;
+  let eventBusInstance: ReturnType<typeof useEventBus>;
+  let generateFn: ReturnType<typeof useYieldFlow>['onGenerateDocument'];
 
   // Component to capture EventBus instance and set up event operations
   function EventBusCapture() {
     eventBusInstance = useEventBus();
-
-    // Set up resolution flow (resolve:update-body, resolve:link)
     useBindFlow(testResourceId);
-
     return null;
   }
 
@@ -402,11 +375,14 @@ function renderYieldFlow(
     const {
       isGenerating,
       generationProgress,
+      onGenerateDocument,
     } = useYieldFlow(
       'en',
       testResourceId,
       vi.fn()
     );
+
+    generateFn = onGenerateDocument;
 
     return (
       <div>
@@ -434,9 +410,10 @@ function renderYieldFlow(
   return {
     emitGenerationStart: (
       aId: AnnotationId,
-      rId: ResourceId,
+      _rId: ResourceId,
       options: {
         title: string;
+        storageUri?: string;
         prompt?: string;
         language?: string;
         temperature?: number;
@@ -444,11 +421,8 @@ function renderYieldFlow(
         context: any;
       }
     ) => {
-      eventBusInstance.get('yield:request').next({
-        annotationId: aId,
-        resourceId: rId,
-        options,
-      });
+      // Call the hook's callback directly (no longer EventBus-driven)
+      generateFn(aId as string, { storageUri: options.storageUri ?? 'file:///tmp/test', ...options });
     },
     getEventBus: () => eventBusInstance,
   };

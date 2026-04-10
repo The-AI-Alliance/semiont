@@ -140,7 +140,7 @@ export function ResourceViewerPage({
 
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
-  const client = useApiClient();
+  const semiont = useApiClient();
   const queryClient = useQueryClient(); // retained for non-store queries (events log)
 
   // UI state hooks
@@ -164,17 +164,17 @@ export function ResourceViewerPage({
 
   // Binary path: fetch short-lived media token, construct URL
   const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(rUri);
-  const binaryContent = (isBinary && mediaToken && client)
-    ? `${client.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
+  const binaryContent = (isBinary && mediaToken && semiont)
+    ? `${semiont.baseUrl}/api/resources/${rUri}?token=${mediaToken}`
     : '';
 
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  const annotationsData = useObservable(client.stores.annotations.listForResource(rUri));
+  const annotationsData = useObservable(semiont.browse.annotations(rUri));
   const annotations = useMemo(
-    () => annotationsData?.annotations || [],
-    [annotationsData?.annotations]
+    () => annotationsData || [],
+    [annotationsData]
   );
 
   const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);
@@ -209,8 +209,8 @@ export function ResourceViewerPage({
       setWizardEntityTypes(event.entityTypes);
       setWizardOpen(true);
 
-      // Trigger context gathering
-      eventBus.get('gather:requested').next({ correlationId: crypto.randomUUID(), annotationId: event.annotationId, resourceId: event.resourceId });
+      // Trigger context gathering — gather:requested is consumed by useContextGatherFlow
+      eventBus.get('gather:requested').next({ correlationId: crypto.randomUUID(), annotationId: event.annotationId, resourceId: event.resourceId, options: { contextWindow: 2000 } });
     });
     return () => subscription.unsubscribe();
   }, [eventBus]);
@@ -231,21 +231,18 @@ export function ResourceViewerPage({
     });
   }, [onGenerateDocument]);
 
-  const handleWizardLinkResource = useCallback((referenceId: string, targetResourceId: string) => {
-    eventBus.get('bind:update-body').next({
-      annotationId: annotationId(referenceId),
-      resourceId: rUri,
-      operations: [{
-        op: 'add',
-        item: {
-          type: 'SpecificResource' as const,
-          source: targetResourceId,
-          purpose: 'linking' as const,
-        },
-      }],
-    });
-    showSuccess('Reference linked successfully');
-  }, [rUri, showSuccess]); // eventBus is stable singleton
+  const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
+    try {
+      await semiont.bind.body(
+        rUri,
+        annotationId(referenceId),
+        [{ op: 'add', item: { type: 'SpecificResource' as const, source: targetResourceId, purpose: 'linking' as const } }],
+      );
+      showSuccess('Reference linked successfully');
+    } catch (error) {
+      showError(`Failed to link reference: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [rUri, semiont, showSuccess, showError]);
 
   const handleWizardComposeNavigate = useCallback((
     context: GatheredContext,

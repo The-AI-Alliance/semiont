@@ -145,4 +145,147 @@ describe('Event Store', () => {
     expect(stored!.resource.entityTypes).toContain('note');
     expect(stored!.annotations.version).toBe(2);
   });
+
+  /**
+   * Threads correlationId through to event metadata. Load-bearing for the
+   * unified-stream architecture: the events-stream route reads metadata.correlationId
+   * to let subscribers match command-result events back to the POST that
+   * initiated them. Phase 0b.
+   */
+  it('appendEvent threads correlationId through to event metadata', async () => {
+    const docId = resourceId('doc-correlation-test');
+    const cid = 'corr-abc-123';
+
+    const stored = await eventStore.appendEvent(
+      {
+        type: 'yield:created',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: {
+          name: 'Doc',
+          format: 'text/plain',
+          contentChecksum: 'sha:abc',
+          creationMethod: CREATION_METHODS.API,
+        },
+      },
+      { correlationId: cid },
+    );
+
+    expect(stored.metadata.correlationId).toBe(cid);
+
+    // Re-reading from disk should preserve the correlationId
+    const events = await query.getResourceEvents(docId);
+    const reread = events.find((e) => e.id === stored.id);
+    expect(reread?.metadata.correlationId).toBe(cid);
+  });
+
+  it('appendEvent without correlationId leaves the field absent', async () => {
+    const docId = resourceId('doc-no-correlation');
+
+    const stored = await eventStore.appendEvent({
+      type: 'yield:created',
+      resourceId: docId,
+      userId: userId('user1'),
+      version: 1,
+      payload: {
+        name: 'Doc',
+        format: 'text/plain',
+        contentChecksum: 'sha:abc',
+        creationMethod: CREATION_METHODS.API,
+      },
+    });
+
+    expect(stored.metadata.correlationId).toBeUndefined();
+  });
+
+  /**
+   * Load-bearing for bind-annotation-stream: the route subscribes to
+   * mark:body-updated on the scoped EventBus and reads the updated annotation
+   * from the materialized view in its handler. That sequence is correct only
+   * because appendEvent awaits materializeResource BEFORE publishing on the
+   * scoped bus. If a future refactor moves materialization to a fire-and-forget
+   * background task, this test fails BEFORE the bind-stream behavior silently
+   * breaks.
+   */
+  it('appendEvent awaits materialization before resolving (load-bearing for bind-stream)', async () => {
+    const docId = resourceId('doc-ordering-test');
+    const annId = 'ann-ordering-test';
+
+    // Create the resource
+    await eventStore.appendEvent({
+      type: 'yield:created',
+      resourceId: docId,
+      userId: userId('user1'),
+      version: 1,
+      payload: {
+        name: 'Ordering Test Doc',
+        format: 'text/plain',
+        contentChecksum: 'sha:ord',
+        creationMethod: CREATION_METHODS.API,
+      },
+    });
+
+    // Create a stub reference annotation
+    await eventStore.appendEvent({
+      type: 'mark:added',
+      resourceId: docId,
+      userId: userId('user1'),
+      version: 1,
+      payload: {
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+          type: 'Annotation' as const,
+          id: annId,
+          motivation: 'linking' as const,
+          target: {
+            source: docId,
+            selector: [
+              { type: 'TextPositionSelector', start: 0, end: 4 },
+              { type: 'TextQuoteSelector', exact: 'Test' },
+            ],
+          },
+          body: [],
+          modified: new Date().toISOString(),
+        },
+      },
+    });
+
+    // Bind: apply mark:body-updated to add a SpecificResource
+    await eventStore.appendEvent({
+      type: 'mark:body-updated',
+      resourceId: docId,
+      userId: userId('user1'),
+      version: 1,
+      payload: {
+        annotationId: annId,
+        operations: [
+          {
+            op: 'add',
+            item: {
+              type: 'SpecificResource',
+              source: 'res-target-ord',
+              purpose: 'linking',
+            },
+          },
+        ] as any,
+      },
+    });
+
+    // CRITICAL: by the time appendEvent resolved, the view file must already
+    // contain the updated annotation. No setTimeout, no polling, no microtask
+    // wait — synchronously after the await.
+    const view = await eventStore.viewStorage.get(docId);
+    expect(view).not.toBeNull();
+    const ann = view!.annotations.annotations.find((a) => a.id === annId);
+    expect(ann).toBeDefined();
+    expect(ann!.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'SpecificResource',
+          source: 'res-target-ord',
+        }),
+      ]),
+    );
+  });
 });

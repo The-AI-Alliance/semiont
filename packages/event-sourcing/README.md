@@ -11,19 +11,25 @@ Event sourcing infrastructure for the Semiont knowledge platform. Provides the p
 ## Architecture
 
 ```
-appendEvent(event)
+appendEvent(event, options?)
   1. Persist to EventLog (JSONL files)
   2. Materialize views (resource descriptors, entity types)
   3. Publish StoredEvent to Core EventBus typed channels
+
+options.correlationId threads a command correlation id into event metadata,
+enabling clients to match command-result events back to the POST that
+initiated them. See docs/architecture/STREAMS.md.
 ```
 
 The **EventStore** is the single write path. It coordinates three concerns:
 
-- **EventLog** — Append-only persistence to sharded JSONL files under `.semiont/events/`
-- **ViewManager** — Materializes resource views and system projections from events
+- **EventLog** — Append-only persistence to sharded JSONL files under `.semiont/events/`. This is the source of truth.
+- **ViewManager** — Materializes resource views and system projections from events. Supports both incremental updates on every append and a full `rebuildAll(eventLog)` for startup recovery.
 - **Core EventBus** (`@semiont/core`) — Publishes `StoredEvent` to typed channels after persistence
 
 Event publishing uses the Core EventBus from `@semiont/core`. There is no internal pub/sub system — all subscribers (GraphDBConsumer, Smelter, SSE routes) subscribe directly to typed channels on the Core EventBus.
+
+The materialized views directory is **ephemeral by design** — see the [ViewManager / ViewMaterializer](#viewmanager--viewmaterializer) section for the rebuild model and how it relates to the graph and vector consumers.
 
 ## Installation
 
@@ -113,9 +119,38 @@ const filtered = await query.queryEvents({
 
 ### ViewManager / ViewMaterializer
 
-Materializes JSON views from events. Resource views are projected to `.semiont/views/<resourceId>.json`. System views (entity types) are projected to `.semiont/projections/__system__/`.
+Materializes JSON views from events. Resource views are projected to `<stateDir>/resources/<shard>/<resourceId>.json`. System views (entity types) are projected to `<stateDir>/projections/__system__/`. The storage-uri index lives at `<stateDir>/projections/storage-uri-index.json`.
 
-The materializer processes events through a large switch statement that builds up resource descriptors, annotation collections, and system state.
+The materializer processes events through a large switch statement that builds up resource descriptors, annotation collections, and system state. There are two paths into it:
+
+**Live append path** — every `EventStore.appendEvent()` call materializes the event incrementally:
+- Resource events → `views.materializeResource(rid, event, getAllEvents)` → updates the resource view file and the storage-uri index.
+- System events (currently `mark:entity-type-added`) → `views.materializeSystem(eventType, payload)` → updates `entitytypes.json`.
+
+**Startup rebuild path** — `views.rebuildAll(eventLog)` walks the entire event log once at process start and writes every view from scratch. Idempotent: existing view files are overwritten. This is the recovery mechanism for the materialized layer.
+
+```typescript
+// Called once during knowledge-base construction, before any HTTP request
+await eventStore.views.rebuildAll(eventStore.log);
+```
+
+The two paths use the same materialization primitives, so replaying event 1..N via `rebuildAll` produces the same final state as the live path walking 1..N over time.
+
+#### Why startup rebuild exists
+
+The materialized views directory (`stateDir`) is **ephemeral by design** — it's safe to wipe (container recreation, `semiont destroy`, dev cleanup), and the event log under `.semiont/events/` is the single source of truth. `rebuildAll` is what makes "ephemeral" safe: any time `stateDir` goes empty, the next process start repopulates it from the event log.
+
+This makes the views layer the third leg of a symmetric pattern: the three derived read models (graph, vectors, materialized views) each have exactly one explicit rebuild method called from one place at startup:
+
+| Derived store | Rebuild method | Owned by |
+|---|---|---|
+| Graph (Neo4j) | `GraphDBConsumer.rebuildAll()` | `@semiont/make-meaning` |
+| Vectors (Qdrant) | `Smelter.rebuildAll()` | `@semiont/make-meaning` |
+| Materialized views | `ViewManager.rebuildAll(eventLog)` | `@semiont/event-sourcing` |
+
+All three are called from `createKnowledgeBase` before the HTTP server begins accepting requests, so by the time any client can hit the API, all three derived stores are caught up to the event log.
+
+`rebuildAll` accepts any object satisfying the `RebuildEventSource` structural type (`getEvents(rid)` + `getAllResourceIds()`); the concrete `EventLog` satisfies it without an explicit conformance declaration.
 
 ### EventValidator
 

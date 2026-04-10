@@ -93,6 +93,7 @@ export type {
   PersistedEventType,
   EventInput,
 } from './persisted-events';
+export { PERSISTED_EVENT_TYPES } from './persisted-events';
 
 // Bus protocol (unified EventMap — all channels on the EventBus)
 export type {
@@ -104,6 +105,7 @@ export type {
   MarkProgress,
   SelectionData,
 } from './bus-protocol';
+export { STREAM_COMMAND_RESULT_TYPES } from './bus-protocol';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';

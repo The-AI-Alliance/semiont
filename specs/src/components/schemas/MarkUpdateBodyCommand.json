@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Bus command to update an annotation's body with patch operations.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id threaded from the originating route through to event metadata. Lets the events-stream deliver matched results to the client that initiated the bind."
+    },
     "annotationId": {
       "type": "string"
     },

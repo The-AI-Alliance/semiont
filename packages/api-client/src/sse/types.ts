@@ -1,15 +1,16 @@
 /**
- * TypeScript types for Server-Sent Events (SSE) streaming
+ * TypeScript types for SSE event payloads.
  *
- * These types match the event payloads sent by backend SSE endpoints.
- * They are not validated (per SSE-VALIDATION-CONSIDERATIONS.md) but provide
- * type safety for client code consuming the streams.
+ * Progress and result types for events delivered via the long-lived
+ * events-stream. These match the payloads emitted by job workers on
+ * the resource-scoped EventBus. Used by the MCP server for type-safe
+ * event handling.
  */
 
 /**
  * Progress event for reference/linking detection stream
  *
- * Sent by POST /resources/:id/annotate-references-stream
+ * Sent by POST /resources/:id/annotate-references
  *
  * @example
  * ```typescript
@@ -41,7 +42,7 @@ export interface ReferenceDetectionProgress {
 /**
  * Progress event for resource generation stream
  *
- * Sent by POST /resources/:resourceId/annotations/:annotationId/yield-resource-stream
+ * Sent by POST /resources/:resourceId/annotations/:annotationId/yield-resource
  *
  * @example
  * ```typescript
@@ -71,7 +72,7 @@ export interface YieldProgress {
 /**
  * Progress event for highlight detection stream
  *
- * Sent by POST /resources/:id/annotate-highlights-stream
+ * Sent by POST /resources/:id/annotate-highlights
  *
  * @example
  * ```typescript
@@ -102,7 +103,7 @@ export interface HighlightDetectionProgress {
 /**
  * Progress event for assessment detection stream
  *
- * Sent by POST /resources/:id/annotate-assessments-stream
+ * Sent by POST /resources/:id/annotate-assessments
  *
  * @example
  * ```typescript
@@ -133,7 +134,7 @@ export interface AssessmentDetectionProgress {
 /**
  * Progress event for comment detection stream
  *
- * Sent by POST /resources/:id/annotate-comments-stream
+ * Sent by POST /resources/:id/annotate-comments
  *
  * @example
  * ```typescript
@@ -164,7 +165,7 @@ export interface CommentDetectionProgress {
 /**
  * Progress event for tag detection stream
  *
- * Sent by POST /resources/:id/annotate-tags-stream
+ * Sent by POST /resources/:id/annotate-tags
  *
  * @example
  * ```typescript

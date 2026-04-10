@@ -2,7 +2,7 @@
  * Tests for useBindFlow hook
  *
  * Validates the React-layer of the bind flow:
- * - Delegates to client.flows.bind() on mount
+ * - Bridges bind:update-body EventBus events to client.bind.body()
  * - Shows error toast on bind:body-update-failed
  */
 
@@ -25,23 +25,24 @@ vi.mock('../../components/Toast', () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-const { mockBind, mockUnsubscribe, mockShowSuccess, mockShowError, mockShowInfo } = vi.hoisted(() => {
+const { mockBindBody, mockMatchSearch, mockShowSuccess, mockShowError, mockShowInfo } = vi.hoisted(() => {
   return {
-    mockBind: vi.fn(),
-    mockUnsubscribe: vi.fn(),
+    mockBindBody: vi.fn(),
+    mockMatchSearch: vi.fn(),
     mockShowSuccess: vi.fn(),
     mockShowError: vi.fn(),
     mockShowInfo: vi.fn(),
   };
 });
 
-// Mock API client — useBindFlow calls client.flows.bind()
+// Mock API client — useBindFlow calls semiont.bind.body() and semiont.match.search()
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
-      flows: { bind: mockBind },
+      bind: { body: mockBindBody },
+      match: { search: mockMatchSearch },
     }),
   };
 });
@@ -77,26 +78,40 @@ describe('useBindFlow', () => {
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();
-    mockBind.mockClear();
-    mockUnsubscribe.mockClear();
+    mockBindBody.mockClear();
+    mockMatchSearch.mockClear();
 
-    mockBind.mockReturnValue({ unsubscribe: mockUnsubscribe });
+    mockBindBody.mockResolvedValue(undefined);
+    // match.search returns an Observable — mock with subscribe
+    mockMatchSearch.mockReturnValue({
+      subscribe: vi.fn(({ next, complete }) => {
+        next?.({ correlationId: 'c1', referenceId: 'ref-1', response: [] });
+        complete?.();
+        return { unsubscribe: vi.fn() };
+      }),
+    });
   });
 
-  it('calls client.flows.bind on mount', async () => {
-    renderBindFlow();
+  it('calls client.bind.body when bind:update-body event is emitted', async () => {
+    const { getEventBus } = renderBindFlow();
+
+    act(() => {
+      getEventBus().get('bind:update-body').next({
+        annotationId: 'anno-1',
+        operations: [{ op: 'replace', path: '/value', value: 'new-value' }],
+      });
+    });
 
     await waitFor(() => {
-      expect(mockBind).toHaveBeenCalled();
+      expect(mockBindBody).toHaveBeenCalled();
     });
   });
 
   it('shows error toast on bind:body-update-failed', async () => {
     const { getEventBus } = renderBindFlow();
-    const testError = new Error('Failed to link reference');
 
     act(() => {
-      getEventBus().get('bind:body-update-failed').next({ error: testError });
+      getEventBus().get('bind:body-update-failed').next({ message: 'Failed to link reference' });
     });
 
     await waitFor(() => {
@@ -106,23 +121,64 @@ describe('useBindFlow', () => {
     });
   });
 
-  it('unsubscribes on unmount', async () => {
-    function TestComponent() {
-      useBindFlow(resourceId('resource-123'));
-      return null;
-    }
-    const { unmount } = render(
-      <EventBusProvider>
-        <AuthTokenProvider token="test-token-123">
-          <ApiClientProvider baseUrl="http://localhost:4000">
-            <TestComponent />
-          </ApiClientProvider>
-        </AuthTokenProvider>
-      </EventBusProvider>
-    );
+  it('bridges match:search-requested to semiont.match.search()', async () => {
+    const { getEventBus } = renderBindFlow();
 
-    await waitFor(() => expect(mockBind).toHaveBeenCalled());
-    unmount();
-    expect(mockUnsubscribe).toHaveBeenCalled();
+    act(() => {
+      getEventBus().get('match:search-requested').next({
+        correlationId: 'corr-1',
+        resourceId: 'resource-123',
+        referenceId: 'ref-1',
+        context: { sourceContext: { selected: 'test' } },
+        limit: 10,
+        useSemanticScoring: true,
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockMatchSearch).toHaveBeenCalledWith(
+        expect.anything(), // resourceId
+        'ref-1',
+        expect.anything(), // context
+        expect.objectContaining({ limit: 10, useSemanticScoring: true }),
+      );
+    });
+  });
+
+  it('emits match:search-results on successful search', async () => {
+    const { getEventBus } = renderBindFlow();
+    const resultListener = vi.fn();
+    getEventBus().get('match:search-results').subscribe(resultListener);
+
+    act(() => {
+      getEventBus().get('match:search-requested').next({
+        correlationId: 'corr-2',
+        resourceId: 'resource-123',
+        referenceId: 'ref-2',
+        context: {},
+      });
+    });
+
+    await waitFor(() => {
+      expect(resultListener).toHaveBeenCalled();
+    });
+  });
+
+  it('shows error toast when client.bind.body rejects', async () => {
+    mockBindBody.mockRejectedValue(new Error('Network error'));
+    const { getEventBus } = renderBindFlow();
+
+    act(() => {
+      getEventBus().get('bind:update-body').next({
+        annotationId: 'anno-1',
+        operations: [{ op: 'replace', path: '/value', value: 'x' }],
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockShowError).toHaveBeenCalledWith(
+        expect.stringContaining('Network error')
+      );
+    });
   });
 });

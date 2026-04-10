@@ -129,33 +129,38 @@ console.log(`Before: "${context.before}"`);
 console.log(`After: "${context.after}"`);
 ```
 
-## Using EventBusClient (Recommended)
+## Using the API Client (Recommended)
 
-The simplest way to query the Knowledge Base without HTTP:
+The simplest way to interact with the knowledge system:
 
 ```typescript
-import { EventBusClient } from '@semiont/api-client';
-import { resourceId, annotationId } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
+import { baseUrl, accessToken, EventBus, resourceId } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
 
-const client = new EventBusClient(eventBus);
-
-// Browse reads
-const resources = await client.listResources({ limit: 10, archived: false });
-const resource = await client.getResource(resourceId('doc-123'));
-const annotations = await client.getAnnotations(resourceId('doc-123'));
-const events = await client.getEvents(resourceId('doc-123'));
-
-// Graph queries
-const referencedBy = await client.getReferencedBy(resourceId('doc-123'));
-const searchResults = await client.searchResources('quantum computing');
-
-// Entity types
-const entityTypes = await client.listEntityTypes();
-
-// LLM context
-const llmContext = await client.getResourceLLMContext(resourceId('doc-123'), {
-  depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
+const semiont = new SemiontApiClient({
+  baseUrl: baseUrl('http://localhost:4000'),
+  eventBus: new EventBus(),
+  getToken: () => accessToken(token),
 });
+
+// Browse reads (Observable — use firstValueFrom for one-shot)
+const resource = await firstValueFrom(semiont.browse.resource(resourceId('doc-123')));
+const annotations = await firstValueFrom(semiont.browse.annotations(resourceId('doc-123')));
+
+// One-shot reads (Promise)
+const content = await semiont.browse.resourceContent(resourceId('doc-123'));
+const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
+
+// Gather LLM context (Observable)
+const context = await firstValueFrom(
+  semiont.gather.annotation(annotationId('ann-1'), resourceId('doc-123'))
+);
+
+// Match (Observable)
+const results = await firstValueFrom(
+  semiont.match.search(resourceId('doc-123'), 'ref-1', gatheredContext)
+);
 ```
 
 ## Gathering Context via EventBus (Low-Level)

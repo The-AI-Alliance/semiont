@@ -2,7 +2,7 @@
  * Tests for useContextGatherFlow hook
  *
  * Validates the React-layer of the gather flow:
- * - Delegates to client.flows.gatherContext() on mount
+ * - Bridges gather:requested to client.gather.annotation()
  * - Updates UI state in response to gather:requested / gather:complete / gather:failed
  */
 
@@ -19,14 +19,14 @@ vi.mock('../../components/Toast', () => ({
   useToast: () => ({ showSuccess: vi.fn(), showError: vi.fn(), showInfo: vi.fn(), showWarning: vi.fn() }),
 }));
 
-const mockGatherContext = vi.fn();
+const mockGatherAnnotation = vi.fn();
 
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
-      flows: { gatherContext: mockGatherContext },
+      gather: { annotation: mockGatherAnnotation },
     }),
   };
 });
@@ -66,10 +66,37 @@ function renderFlow() {
   };
 }
 
+/** Create an Observable that never completes (stays pending) */
+function pendingObservable() {
+  return { subscribe: () => ({ unsubscribe: vi.fn() }) };
+}
+
+/** Create an Observable that emits a completion progress event then completes */
+function completingObservable(context: unknown) {
+  return {
+    subscribe: (observer: any) => {
+      observer.next?.({ response: { context } });
+      observer.complete?.();
+      return { unsubscribe: vi.fn() };
+    },
+  };
+}
+
+/** Create an Observable that errors */
+function errorObservable(message: string) {
+  return {
+    subscribe: (observer: any) => {
+      observer.error?.(new Error(message));
+      return { unsubscribe: vi.fn() };
+    },
+  };
+}
+
 describe('useContextGatherFlow', () => {
   beforeEach(() => {
-    mockGatherContext.mockClear();
-    mockGatherContext.mockReturnValue({ unsubscribe: vi.fn() });
+    mockGatherAnnotation.mockClear();
+    // Default: return a pending Observable (does not complete)
+    mockGatherAnnotation.mockReturnValue(pendingObservable());
   });
 
   it('initial state is idle', () => {
@@ -80,9 +107,9 @@ describe('useContextGatherFlow', () => {
     expect(getState().gatherAnnotationId).toBe(null);
   });
 
-  it('calls client.flows.gatherContext on mount', async () => {
+  it('does not call gather.annotation on mount (event-driven)', () => {
     renderFlow();
-    await waitFor(() => expect(mockGatherContext).toHaveBeenCalled());
+    expect(mockGatherAnnotation).not.toHaveBeenCalled();
   });
 
   it('sets loading state on gather:requested', async () => {
@@ -116,20 +143,14 @@ describe('useContextGatherFlow', () => {
     });
   });
 
-  it('updates context on gather:complete', async () => {
+  it('updates context when Observable emits completion progress', async () => {
+    mockGatherAnnotation.mockReturnValue(completingObservable(mockAnnotationContext));
     const { getState, getEventBus } = renderFlow();
 
     act(() => {
       getEventBus().get('gather:requested').next({
         annotationId: testAnnotationId,
         resourceId: testResourceId,
-      });
-    });
-
-    act(() => {
-      getEventBus().get('gather:complete').next({
-        annotationId: testAnnotationId,
-        response: { context: mockAnnotationContext as any },
       });
     });
 
@@ -139,7 +160,8 @@ describe('useContextGatherFlow', () => {
     });
   });
 
-  it('sets error state on gather:failed', async () => {
+  it('sets error state when Observable errors', async () => {
+    mockGatherAnnotation.mockReturnValue(errorObservable('Gather failed'));
     const { getState, getEventBus } = renderFlow();
 
     act(() => {
@@ -147,10 +169,6 @@ describe('useContextGatherFlow', () => {
         annotationId: testAnnotationId,
         resourceId: testResourceId,
       });
-    });
-
-    act(() => {
-      getEventBus().get('gather:failed').next({ annotationId: testAnnotationId, message: 'Gather failed' } as any);
     });
 
     await waitFor(() => {
@@ -162,17 +180,16 @@ describe('useContextGatherFlow', () => {
   it('clears state on new request before resolving', async () => {
     const { getState, getEventBus } = renderFlow();
 
-    // First request completes
+    // First request completes with context
+    mockGatherAnnotation.mockReturnValue(completingObservable(mockAnnotationContext));
     act(() => {
       getEventBus().get('gather:requested').next({ annotationId: testAnnotationId, resourceId: testResourceId });
-    });
-    act(() => {
-      getEventBus().get('gather:complete').next({ annotationId: testAnnotationId, response: { context: mockAnnotationContext as any } });
     });
 
     await waitFor(() => expect(getState().gatherContext).not.toBe(null));
 
-    // Second request — stays loading
+    // Second request — pending Observable, stays loading
+    mockGatherAnnotation.mockReturnValue(pendingObservable());
     act(() => {
       getEventBus().get('gather:requested').next({ annotationId: annotationId('anno-789'), resourceId: testResourceId });
     });

@@ -33,6 +33,18 @@ interface SSEConfig {
   eventBus: EventBus;
   /** Event prefix for EventBus (e.g., 'detection' → 'detection:progress') */
   eventPrefix?: string;
+  /**
+   * Auto-reconnect on transient errors with exponential backoff. Used by
+   * long-lived streams (events-stream, global events) where connection drops
+   * are expected and recovery should be invisible to the caller.
+   *
+   * When true, the factory tracks the most recent SSE event id and on
+   * reconnect sets it as the Last-Event-ID header so the server can replay
+   * any events missed during the gap.
+   *
+   * Defaults to false (short-lived streams fail fast on error).
+   */
+  reconnect?: boolean;
 }
 
 /**
@@ -57,7 +69,7 @@ interface SSEConfig {
  *
  * // Start stream - events auto-emit
  * const stream = createSSEStream(
- *   'http://localhost:4000/resources/123/annotate-references-stream',
+ *   'http://localhost:4000/resources/123/annotate-references',
  *   {
  *     method: 'POST',
  *     headers: { 'Authorization': 'Bearer token', 'Content-Type': 'application/json' },
@@ -81,13 +93,28 @@ export function createSSEStream(
   config: SSEConfig,
   logger?: Logger
 ): SSEStream {
-  const abortController = new AbortController();
+  let abortController = new AbortController();
   let closed = false; // Flag to stop processing events after close/complete/error
 
+  // Last SSE event id seen on this stream. Sent as Last-Event-ID on reconnect
+  // so the server can replay missed events. null until the first event arrives.
+  let lastEventId: string | null = null;
+
+  // Reconnection backoff (only used when config.reconnect is true). Resets to
+  // INITIAL on each successful connection.
+  const RECONNECT_INITIAL_MS = 1_000;
+  const RECONNECT_MAX_MS = 30_000;
+  let reconnectDelayMs = RECONNECT_INITIAL_MS;
+
   /**
-   * Start the SSE connection and parse the stream
+   * Start (or restart) the SSE connection and parse the stream.
+   *
+   * On the initial connection, no Last-Event-ID is sent. On reconnection
+   * (when config.reconnect is true and a previous connection has dropped),
+   * the most recently seen lastEventId is sent so the server can replay
+   * missed events.
    */
-  const connect = async () => {
+  const connect = async (): Promise<void> => {
     try {
       // Log stream request
       logger?.debug('SSE Stream Request', {
@@ -97,13 +124,21 @@ export function createSSEStream(
         timestamp: Date.now()
       });
 
+      // Build headers, optionally adding Last-Event-ID for reconnect replay.
+      // The native EventSource browser API would do this automatically; we
+      // use fetch() so we have to set it explicitly.
+      const headers: Record<string, string> = {
+        ...(fetchOptions.headers as Record<string, string> | undefined),
+        'Accept': 'text/event-stream',
+      };
+      if (lastEventId !== null) {
+        headers['Last-Event-ID'] = lastEventId;
+      }
+
       const response = await fetch(url, {
         ...fetchOptions,
         signal: abortController.signal,
-        headers: {
-          ...fetchOptions.headers,
-          'Accept': 'text/event-stream'
-        }
+        headers,
       });
 
       if (!response.ok) {
@@ -216,10 +251,17 @@ export function createSSEStream(
   /**
    * Handle a parsed SSE event
    */
-  const handleEvent = (eventType: string, data: string, _id: string) => {
+  const handleEvent = (eventType: string, data: string, id: string) => {
     // Skip keep-alive comments
     if (data.startsWith(':')) {
       return;
+    }
+
+    // Track the most recent event id for Last-Event-ID replay on reconnect.
+    // This applies whether or not config.reconnect is set — short-lived
+    // streams just won't act on it.
+    if (id) {
+      lastEventId = id;
     }
 
     try {
@@ -256,12 +298,64 @@ export function createSSEStream(
     }
   };
 
+  /**
+   * Run connect() with auto-reconnect when config.reconnect is enabled.
+   *
+   * Each failure increases the delay (capped at RECONNECT_MAX_MS). The loop
+   * exits when `closed` is set (user called close() or completeEvent fired).
+   * Server-ended streams and network errors both trigger reconnect; AbortError
+   * does not.
+   *
+   * Note: this currently does not reset the backoff after a "long enough"
+   * successful streaming period. In practice connect() blocks for the entire
+   * lifetime of the connection, so we don't have a good signal for "this
+   * connection has been healthy for a while" without instrumenting the
+   * read loop. Acceptable limitation: a flapping server gets the full
+   * exponential backoff, which is the right behavior anyway.
+   *
+   * For non-reconnecting streams (the default), this just calls connect()
+   * once and returns whatever it returns — no retry, no backoff.
+   */
+  const runConnect = async (): Promise<void> => {
+    if (!config.reconnect) {
+      return connect();
+    }
+
+    while (!closed) {
+      // Refresh the abort controller for each attempt — the previous one
+      // may have been aborted by a network error or by a previous connect.
+      abortController = new AbortController();
+      try {
+        await connect();
+        if (closed) return;
+        // connect() returned without error and we're not closed: the server
+        // ended the stream cleanly (rare for long-lived streams). Treat as
+        // a reconnectable disconnect.
+        logger?.info('SSE Stream ended cleanly; reconnecting', { url });
+      } catch (error) {
+        if (closed) return;
+        if (error instanceof Error && error.name === 'AbortError') return;
+        logger?.warn('SSE Stream errored; reconnecting', {
+          url,
+          error: error instanceof Error ? error.message : String(error),
+          delayMs: reconnectDelayMs,
+        });
+      }
+
+      // Wait with backoff before reconnecting, then double the delay
+      // (capped) so subsequent failures back off further.
+      await new Promise<void>((resolve) => setTimeout(resolve, reconnectDelayMs));
+      reconnectDelayMs = Math.min(reconnectDelayMs * 2, RECONNECT_MAX_MS);
+    }
+  };
+
   // Start connection immediately
-  connect();
+  void runConnect();
 
   // Return SSE stream controller
   return {
     close() {
+      closed = true;
       abortController.abort();
     }
   };

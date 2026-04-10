@@ -1,0 +1,68 @@
+{
+  "post": {
+    "summary": "Generate Resource from Annotation",
+    "description": "Submit a resource generation command. Returns {correlationId, jobId} immediately. The generation worker processes the job asynchronously and delivers progress (yield:progress) and completion (yield:finished) or failure (yield:failed) via the events-stream to all connected clients.",
+    "tags": [
+      "Resources",
+      "Annotations",
+      "AI"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": { "type": "string" },
+        "required": true,
+        "name": "resourceId",
+        "in": "path",
+        "description": "Source resource ID"
+      },
+      {
+        "schema": { "type": "string" },
+        "required": true,
+        "name": "annotationId",
+        "in": "path",
+        "description": "Reference annotation ID"
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/YieldResourceStreamRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "202": {
+        "description": "Generation command accepted. Progress and results delivered via events-stream.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "correlationId": { "type": "string" },
+                "jobId": { "type": "string" }
+              },
+              "required": ["correlationId", "jobId"]
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "Context is required for generation"
+      },
+      "401": {
+        "description": "Authentication required"
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  }
+}

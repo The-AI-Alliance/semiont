@@ -6,6 +6,10 @@
       "type": "string",
       "description": "Client-generated correlation ID to thread the response back to the originating request"
     },
+    "resourceId": {
+      "type": "string",
+      "description": "Resource ID the reference annotation belongs to. Used to scope result events on the EventBus so the events-stream delivers them to participants viewing this resource."
+    },
     "referenceId": {
       "type": "string",
       "description": "Annotation ID of the reference to search candidates for"
@@ -23,5 +27,5 @@
       "description": "Enable semantic similarity scoring in addition to keyword matching"
     }
   },
-  "required": ["correlationId", "referenceId", "context"]
+  "required": ["correlationId", "resourceId", "referenceId", "context"]
 }

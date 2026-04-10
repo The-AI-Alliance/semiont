@@ -1,7 +1,7 @@
 /**
  * useStoreTokenSync tests
  *
- * Verifies that setTokenGetter is called on both stores when the hook mounts,
+ * Verifies that setTokenGetter is called on the client when the hook mounts,
  * and that the getter returns the current token.
  */
 
@@ -21,18 +21,13 @@ vi.mock('@semiont/api-client', () => ({
 }));
 
 describe('useStoreTokenSync', () => {
-  let resourcesSetTokenGetter: ReturnType<typeof vi.fn>;
-  let annotationsSetTokenGetter: ReturnType<typeof vi.fn>;
+  let mockSetTokenGetter: ReturnType<typeof vi.fn>;
   let mockClient: any;
 
   beforeEach(() => {
-    resourcesSetTokenGetter = vi.fn();
-    annotationsSetTokenGetter = vi.fn();
+    mockSetTokenGetter = vi.fn();
     mockClient = {
-      stores: {
-        resources: { setTokenGetter: resourcesSetTokenGetter },
-        annotations: { setTokenGetter: annotationsSetTokenGetter },
-      },
+      setTokenGetter: mockSetTokenGetter,
     };
     vi.mocked(SemiontApiClient).mockImplementation(function () { return mockClient; });
     vi.clearAllMocks();
@@ -51,36 +46,21 @@ describe('useStoreTokenSync', () => {
       );
   }
 
-  it('calls setTokenGetter on resources store on mount', () => {
+  it('calls setTokenGetter on the client on mount', () => {
     renderHook(() => useStoreTokenSync(), { wrapper: makeWrapper('my-token') });
-    expect(resourcesSetTokenGetter).toHaveBeenCalledOnce();
-    expect(typeof resourcesSetTokenGetter.mock.calls[0][0]).toBe('function');
-  });
-
-  it('calls setTokenGetter on annotations store on mount', () => {
-    renderHook(() => useStoreTokenSync(), { wrapper: makeWrapper('my-token') });
-    expect(annotationsSetTokenGetter).toHaveBeenCalledOnce();
-    expect(typeof annotationsSetTokenGetter.mock.calls[0][0]).toBe('function');
+    expect(mockSetTokenGetter).toHaveBeenCalledOnce();
+    expect(typeof mockSetTokenGetter.mock.calls[0][0]).toBe('function');
   });
 
   it('getter returns an AccessToken when token is present', () => {
     renderHook(() => useStoreTokenSync(), { wrapper: makeWrapper('abc-token') });
-    const getter = resourcesSetTokenGetter.mock.calls[0][0] as () => unknown;
-    // accessToken from @semiont/core is not mocked here — getter returns the branded value
+    const getter = mockSetTokenGetter.mock.calls[0][0] as () => unknown;
     expect(getter()).toBeTruthy();
   });
 
   it('getter returns undefined when token is null', () => {
     renderHook(() => useStoreTokenSync(), { wrapper: makeWrapper(null) });
-    const getter = resourcesSetTokenGetter.mock.calls[0][0] as () => unknown;
+    const getter = mockSetTokenGetter.mock.calls[0][0] as () => unknown;
     expect(getter()).toBeUndefined();
-  });
-
-  it('both stores receive the same getter function', () => {
-    renderHook(() => useStoreTokenSync(), { wrapper: makeWrapper('tok') });
-    const resourcesGetter = resourcesSetTokenGetter.mock.calls[0][0];
-    const annotationsGetter = annotationsSetTokenGetter.mock.calls[0][0];
-    // Both should be the same function reference
-    expect(resourcesGetter).toBe(annotationsGetter);
   });
 });

@@ -21,10 +21,12 @@ vi.mock('@semiont/api-client', () => ({
   accessToken: vi.fn(function (t: string) { return t as any; }),
 }));
 
-const mockFlowResourceEvents = vi.fn().mockReturnValue({ unsubscribe: vi.fn() });
+const mockClose = vi.fn();
+const mockSseResourceEvents = vi.fn().mockReturnValue({ close: mockClose });
 const mockClient = {
-  stores: { resources: { setTokenGetter: vi.fn() }, annotations: { setTokenGetter: vi.fn() } },
-  flows: { resourceEvents: mockFlowResourceEvents },
+  setTokenGetter: vi.fn(),
+  sse: { resourceEvents: mockSseResourceEvents },
+  eventBus: { get: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }) }) },
 };
 
 vi.mocked(SemiontApiClient).mockImplementation(function () { return mockClient; });
@@ -58,7 +60,8 @@ function wrapStored(event: any): any {
 describe('useResourceEvents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFlowResourceEvents.mockReturnValue({ unsubscribe: vi.fn() });
+    mockClose.mockClear();
+    mockSseResourceEvents.mockReturnValue({ close: mockClose });
   });
 
   afterEach(() => {
@@ -81,7 +84,7 @@ describe('useResourceEvents', () => {
       { wrapper }
     );
     await waitFor(() => {
-      expect(mockFlowResourceEvents).toHaveBeenCalledWith(RID, expect.any(Function));
+      expect(mockSseResourceEvents).toHaveBeenCalledWith(RID, expect.objectContaining({ eventBus: expect.anything() }));
     });
   });
 
@@ -90,7 +93,7 @@ describe('useResourceEvents', () => {
       () => useResourceEvents({ rUri: RID, autoConnect: false }),
       { wrapper }
     );
-    expect(mockFlowResourceEvents).not.toHaveBeenCalled();
+    expect(mockSseResourceEvents).not.toHaveBeenCalled();
   });
 
   it('sets status to connected after connect()', async () => {
@@ -286,19 +289,19 @@ describe('useResourceEvents', () => {
     });
   });
 
-  it('unsubscribes from the flow on unmount', async () => {
-    const unsub = vi.fn();
-    mockFlowResourceEvents.mockReturnValue({ unsubscribe: unsub });
+  it('closes the SSE stream on unmount', async () => {
+    const closeFn = vi.fn();
+    mockSseResourceEvents.mockReturnValue({ close: closeFn });
 
     const { unmount } = renderHook(
       () => useResourceEvents({ rUri: RID }),
       { wrapper }
     );
 
-    await waitFor(() => expect(mockFlowResourceEvents).toHaveBeenCalled());
+    await waitFor(() => expect(mockSseResourceEvents).toHaveBeenCalled());
     unmount();
 
-    expect(unsub).toHaveBeenCalled();
+    expect(closeFn).toHaveBeenCalled();
   });
 
   it('isConnected is true when status is connected', async () => {

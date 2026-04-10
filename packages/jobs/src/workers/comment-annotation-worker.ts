@@ -71,6 +71,19 @@ export class CommentAnnotationWorker extends JobWorker {
       jobType: 'comment-annotation',
       result,
     });
+
+    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
+    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
+    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
+    resourceBus.get('mark:assist-finished').next({
+      motivation: 'commenting',
+      resourceId: String(job.params.resourceId),
+      status: 'complete',
+      percentage: 100,
+      foundCount: result.commentsFound,
+      createdCount: result.commentsCreated,
+      message: 'Detection complete',
+    });
   }
 
   /**
@@ -132,6 +145,13 @@ export class CommentAnnotationWorker extends JobWorker {
         jobId: jobId(cdJob.metadata.id),
         jobType: cdJob.metadata.type,
         error: 'Comment detection failed. Please try again later.',
+      });
+
+      // Emit mark:assist-failed on the resource-scoped bus
+      const resourceBus = this.eventBus.scope(String(cdJob.params.resourceId));
+      resourceBus.get('mark:assist-failed').next({
+        resourceId: String(cdJob.params.resourceId),
+        message: 'Comment detection failed. Please try again later.',
       });
     }
   }

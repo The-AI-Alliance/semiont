@@ -1,22 +1,16 @@
 /**
  * useContextGatherFlow - Context gather capability hook
  *
- * Activates gather orchestration for a resource by delegating to
- * client.flows.gatherContext(). Manages UI state (gatherContext, gatherLoading,
- * gatherError, gatherAnnotationId) via EventBus subscriptions — the
- * React-specific portion.
- *
- * @subscribes gather:requested - Triggers loading state
- * @subscribes gather:complete - Sets gathered context
- * @subscribes gather:failed - Sets error state
- * @returns Gather flow state
+ * Manages UI state for context gathering. The actual gather trigger
+ * comes from components emitting gather:requested on the EventBus.
+ * This hook bridges to semiont.gather.annotation() and manages the
+ * React state (loading, context, error).
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import type { GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
-import { accessToken, annotationId } from '@semiont/core';
+import { annotationId } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
-import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
 export interface ContextGatherFlowConfig {
@@ -34,38 +28,44 @@ export interface ContextGatherFlowState {
 export function useContextGatherFlow(
   config: ContextGatherFlowConfig,
 ): ContextGatherFlowState {
-  const client = useApiClient();
-  const token = useAuthToken();
-  const tokenRef = useRef(token);
-  useEffect(() => { tokenRef.current = token; });
+  const semiont = useApiClient();
 
   const [gatherContext, setGatherContext] = useState<GatheredContext | null>(null);
   const [gatherLoading, setGatherLoading] = useState(false);
   const [gatherError, setGatherError] = useState<Error | null>(null);
   const [gatherAnnotationId, setGatherAnnotationId] = useState<AnnotationId | null>(null);
 
-  // Activate flow engine subscription (SSE orchestration)
-  useEffect(() => {
-    const sub = client.flows.gatherContext(config.resourceId, () =>
-      tokenRef.current ? accessToken(tokenRef.current) : undefined
-    );
-    return () => sub.unsubscribe();
-  }, [config.resourceId, client]);
-
+  // Bridge gather:requested EventBus events to semiont.gather.annotation()
+  // and listen for completion/failure via EventBus (events-stream auto-routes)
   useEventSubscriptions({
     'gather:requested': (event) => {
       setGatherLoading(true);
       setGatherError(null);
       setGatherContext(null);
       setGatherAnnotationId(annotationId(event.annotationId));
-    },
-    'gather:complete': (event) => {
-      setGatherContext(event.response.context ?? null);
-      setGatherLoading(false);
-    },
-    'gather:failed': (event) => {
-      setGatherError(new Error(event.message));
-      setGatherLoading(false);
+
+      // Fire the gather via namespace API
+      semiont.gather.annotation(
+        annotationId(event.annotationId),
+        config.resourceId,
+        { contextWindow: event.options?.contextWindow ?? 2000 },
+      ).subscribe({
+        next: (progress) => {
+          // Check if this is the completion event (has response.context)
+          if ('response' in progress && progress.response) {
+            setGatherContext((progress as { response: { context: GatheredContext } }).response.context ?? null);
+            setGatherLoading(false);
+          }
+        },
+        error: (error) => {
+          setGatherError(error instanceof Error ? error : new Error(String(error)));
+          setGatherLoading(false);
+        },
+        complete: () => {
+          setGatherLoading(false);
+        },
+      });
+      // Observable completes naturally — no need to track subscription
     },
   });
 

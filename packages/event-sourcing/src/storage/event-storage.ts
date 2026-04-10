@@ -141,8 +141,16 @@ export class EventStorage {
   /**
    * Append an event - handles EVERYTHING for event creation
    * Creates ID, timestamp, metadata, checksum, sequence tracking, and writes to disk
+   *
+   * @param options.correlationId - Optional id propagated from a command. Stored
+   *   on the event's metadata so subscribers (notably the events-stream → frontend
+   *   path) can match command-result events back to the POST that initiated them.
    */
-  async appendEvent(event: EventInput, resourceId: ResourceId): Promise<StoredEvent> {
+  async appendEvent(
+    event: EventInput,
+    resourceId: ResourceId,
+    options?: { correlationId?: string },
+  ): Promise<StoredEvent> {
     // Ensure resource stream is initialized
     if (this.getSequenceNumber(resourceId) === 0) {
       await this.initializeResourceStream(resourceId);
@@ -164,6 +172,7 @@ export class EventStorage {
       streamPosition: 0,  // Will be set during write
       prevEventHash: prevEventHash || undefined,
       checksum: sha256(completeEvent),
+      ...(options?.correlationId !== undefined && { correlationId: options.correlationId }),
     };
 
     const storedEvent: StoredEvent = {

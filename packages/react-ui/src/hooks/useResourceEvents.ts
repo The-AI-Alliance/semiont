@@ -55,7 +55,7 @@ export function useResourceEvents({
   onError,
   autoConnect = true,
 }: UseResourceEventsOptions) {
-  const client = useApiClient();
+  const semiont = useApiClient();
   const token = useAuthToken();
   const eventBus = useEventBus();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
@@ -142,17 +142,18 @@ export function useResourceEvents({
     if (subRef.current) return;
     setStatus('connecting');
     try {
-      const sub = client.flows.resourceEvents(rUri, () =>
-        tokenRef.current ? accessToken(tokenRef.current) : undefined
-      );
-      subRef.current = sub;
+      const stream = semiont.sse.resourceEvents(rUri, {
+        auth: tokenRef.current ? accessToken(tokenRef.current) : undefined,
+        eventBus,
+      });
+      subRef.current = { unsubscribe: () => stream.close() };
       setStatus('connected');
     } catch (error) {
       console.error('[ResourceEvents] Failed to connect:', error);
       setStatus('error');
       onErrorRef.current?.('Failed to connect to event stream');
     }
-  }, [rUri, client]);
+  }, [rUri, semiont, eventBus]);
 
   const disconnect = useCallback(() => {
     if (subRef.current) {
@@ -168,7 +169,7 @@ export function useResourceEvents({
     }
     return () => disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoConnect, rUri, client]);
+  }, [autoConnect, rUri, semiont]);
 
   return {
     status,

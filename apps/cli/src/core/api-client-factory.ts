@@ -27,7 +27,7 @@ import {
 } from '@semiont/core';
 
 export interface AuthenticatedClient {
-  client: SemiontApiClient;
+  semiont: SemiontApiClient;
   token: AccessToken;
 }
 
@@ -95,8 +95,8 @@ export async function acquireToken(
   emailStr: string,
   passwordStr: string,
 ): Promise<void> {
-  const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl), eventBus: new EventBus() });
-  const authResult = await client.authenticatePassword(toEmail(emailStr), passwordStr);
+  const semiont = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl), eventBus: new EventBus() });
+  const authResult = await semiont.authenticatePassword(toEmail(emailStr), passwordStr);
   const cache: TokenCache = {
     bus: rawBusUrl,
     email: emailStr,
@@ -123,8 +123,8 @@ export function loadCachedClient(rawBusUrl: string): AuthenticatedClient {
     );
   }
 
-  const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl), eventBus: new EventBus() });
-  return { client, token: toAccessToken(cached.token) };
+  const semiont = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl), eventBus: new EventBus() });
+  return { semiont, token: toAccessToken(cached.token) };
 }
 
 /**

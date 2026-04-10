@@ -294,6 +294,19 @@ export class ReferenceAnnotationWorker extends JobWorker {
       jobType: 'reference-annotation',
       result,
     });
+
+    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
+    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
+    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
+    resourceBus.get('mark:assist-finished').next({
+      motivation: 'linking',
+      resourceId: String(job.params.resourceId),
+      status: 'complete',
+      percentage: 100,
+      foundCount: result.totalFound,
+      createdCount: result.totalEmitted,
+      message: 'Detection complete',
+    });
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
@@ -310,6 +323,13 @@ export class ReferenceAnnotationWorker extends JobWorker {
         jobId: jobId(detJob.metadata.id),
         jobType: detJob.metadata.type,
         error: 'Entity detection failed. Please try again later.',
+      });
+
+      // Emit mark:assist-failed on the resource-scoped bus
+      const resourceBus = this.eventBus.scope(String(detJob.params.resourceId));
+      resourceBus.get('mark:assist-failed').next({
+        resourceId: String(detJob.params.resourceId),
+        message: 'Entity detection failed. Please try again later.',
       });
     }
   }

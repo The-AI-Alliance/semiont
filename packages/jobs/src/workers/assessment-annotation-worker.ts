@@ -71,6 +71,19 @@ export class AssessmentAnnotationWorker extends JobWorker {
       jobType: 'assessment-annotation',
       result,
     });
+
+    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
+    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
+    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
+    resourceBus.get('mark:assist-finished').next({
+      motivation: 'assessing',
+      resourceId: String(job.params.resourceId),
+      status: 'complete',
+      percentage: 100,
+      foundCount: result.assessmentsFound,
+      createdCount: result.assessmentsCreated,
+      message: 'Detection complete',
+    });
   }
 
   /**
@@ -132,6 +145,13 @@ export class AssessmentAnnotationWorker extends JobWorker {
         jobId: jobId(aJob.metadata.id),
         jobType: aJob.metadata.type,
         error: 'Assessment detection failed. Please try again later.',
+      });
+
+      // Emit mark:assist-failed on the resource-scoped bus
+      const resourceBus = this.eventBus.scope(String(aJob.params.resourceId));
+      resourceBus.get('mark:assist-failed').next({
+        resourceId: String(aJob.params.resourceId),
+        message: 'Assessment detection failed. Please try again later.',
       });
     }
   }

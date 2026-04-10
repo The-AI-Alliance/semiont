@@ -17,7 +17,7 @@ import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
 vi.mock('../../../components/Toast', () => ({
@@ -33,11 +33,11 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Minimal mock - SSE streams not needed for this test
-    vi.spyOn(SSEClient.prototype, 'markReferences').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
-    vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
-    vi.spyOn(SSEClient.prototype, 'markComments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
-    vi.spyOn(SSEClient.prototype, 'markAssessments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    // Minimal mock — namespace methods call these HTTP methods internally
+    vi.spyOn(SemiontApiClient.prototype, 'annotateReferences').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateHighlights').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateComments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateAssessments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
   });
 
   afterEach(() => {

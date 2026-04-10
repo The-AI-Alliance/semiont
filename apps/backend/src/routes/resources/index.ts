@@ -8,13 +8,13 @@ import { registerCreateResource } from './routes/create';
 import { registerGetResourceUri } from './routes/get-uri';
 import { registerListResources } from './routes/list';
 import { registerUpdateResource } from './routes/update';
-import { registerAnnotateReferencesStream } from './routes/annotate-references-stream';
-import { registerAnnotateHighlightsStream } from './routes/annotate-highlights-stream';
-import { registerAnnotateAssessmentsStream } from './routes/annotate-assessments-stream';
-import { registerAnnotateCommentsStream } from './routes/annotate-comments-stream';
-import { registerAnnotateTagsStream } from './routes/annotate-tags-stream';
+import { registerAnnotateReferences } from './routes/annotate-references';
+import { registerAnnotateHighlights } from './routes/annotate-highlights';
+import { registerAnnotateAssessments } from './routes/annotate-assessments';
+import { registerAnnotateComments } from './routes/annotate-comments';
+import { registerAnnotateTags } from './routes/annotate-tags';
 import { registerGetReferencedBy } from './routes/referenced-by';
-import { registerMatchSearchStream } from './routes/match-search-stream';
+import { registerMatchSearch } from './routes/match-search';
 import { registerTokenRoutes } from './routes/token';
 import { registerGetResourceAnnotations } from './routes/get-annotations';
 import { registerGetEvents } from './routes/events';
@@ -25,9 +25,9 @@ import { registerCreateAnnotation } from './routes/create-annotation';
 import { registerGetAnnotation } from './routes/get-annotation';
 import { registerDeleteAnnotation } from './routes/delete-annotation';
 import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
-import { registerBindAnnotationStream } from './routes/bind-annotation-stream';
-import { registerYieldResourceStream } from './routes/yield-resource-stream';
-import { registerGatherAnnotationStream } from './routes/gather-annotation-stream';
+import { registerBindAnnotation } from './routes/bind-annotation';
+import { registerYieldResource } from './routes/yield-resource';
+import { registerGatherAnnotation } from './routes/gather-annotation';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
 // Factory function to create resources router with JobQueue
@@ -46,22 +46,22 @@ registerListResources(resourcesRouter);  // GET /resources
 registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /api/clone-tokens/create-resource, POST /resources/:id/clone-with-token
 
   // Routes with :id and specific suffixes
-  registerAnnotateReferencesStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-references-stream
-  registerAnnotateHighlightsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-highlights-stream
-  registerAnnotateAssessmentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-assessments-stream
-  registerAnnotateCommentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments-stream
-  registerAnnotateTagsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags-stream
+  registerAnnotateReferences(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-references
+  registerAnnotateHighlights(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-highlights
+  registerAnnotateAssessments(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-assessments
+  registerAnnotateComments(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments
+  registerAnnotateTags(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags
   registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
-  registerMatchSearchStream(resourcesRouter);  // POST /resources/:id/match-search-stream
+  registerMatchSearch(resourcesRouter);  // POST /resources/:id/match-search
 
   // Annotation routes (nested under resources) - must be before generic :id route
   registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)
   registerCreateAnnotation(resourcesRouter);  // POST /resources/:id/annotations
   registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
   registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
-  registerBindAnnotationStream(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/bind-stream
-  registerYieldResourceStream(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/yield-resource-stream
-  registerGatherAnnotationStream(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/gather-annotation-stream
+  registerBindAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/bind
+  registerYieldResource(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/yield-resource
+  registerGatherAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/gather
   registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
   registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId
 

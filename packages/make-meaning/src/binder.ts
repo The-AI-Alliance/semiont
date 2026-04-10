@@ -64,6 +64,10 @@ export class Binder {
   }
 
   private async handleSearch(event: EventMap['match:search-requested']): Promise<void> {
+    // Publish results on the resource-scoped bus so the events-stream
+    // delivers them to all participants viewing this resource.
+    const resultBus = this.eventBus.scope(event.resourceId);
+
     try {
       const context = event.context;
       const selectedText = context.sourceContext?.selected ?? '';
@@ -85,7 +89,7 @@ export class Binder {
 
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
-      this.eventBus.get('match:search-results').next({
+      resultBus.get('match:search-results').next({
         correlationId: event.correlationId,
         referenceId: event.referenceId,
         response: limited,
@@ -95,7 +99,7 @@ export class Binder {
         referenceId: event.referenceId,
         error,
       });
-      this.eventBus.get('match:search-failed').next({
+      resultBus.get('match:search-failed').next({
         correlationId: event.correlationId,
         referenceId: event.referenceId,
         error: error instanceof Error ? error.message : String(error),

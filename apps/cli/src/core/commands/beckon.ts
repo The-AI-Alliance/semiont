@@ -46,11 +46,11 @@ export async function runBeckon(options: BeckonOptions): Promise<CommandResults>
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { semiont, token } = loadCachedClient(rawBusUrl);
 
   const [participantId] = options.participantArr;
 
-  const result = await client.beckonAttention(
+  const result = await semiont.beckonAttention(
     participantId,
     {
       resourceId: options.resource,

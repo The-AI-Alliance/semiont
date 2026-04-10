@@ -22,12 +22,20 @@
 
 // Export clients
 export * from './client';
-export { EventBusClient } from './event-bus-client';
-export { FlowEngine } from './flows';
-export { ResourceStore } from './stores/resource-store';
-export { AnnotationStore } from './stores/annotation-store';
-export type { ResourceDetail, ResourceListResponse } from './stores/resource-store';
-export type { AnnotationsListResponse, AnnotationDetail } from './stores/annotation-store';
+
+
+// Verb-oriented namespace API
+export { BrowseNamespace } from './namespaces/browse';
+export { MarkNamespace } from './namespaces/mark';
+export { BindNamespace } from './namespaces/bind';
+export { GatherNamespace } from './namespaces/gather';
+export { MatchNamespace } from './namespaces/match';
+export { YieldNamespace } from './namespaces/yield';
+export { BeckonNamespace } from './namespaces/beckon';
+export { JobNamespace } from './namespaces/job';
+export { AuthNamespace } from './namespaces/auth';
+export { AdminNamespace } from './namespaces/admin';
+export type * from './namespaces/types';
 
 // Logger interface for observability (re-export from core)
 export type { Logger } from '@semiont/core';
@@ -40,9 +48,6 @@ export type {
 } from './sse/types';
 export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
 export type {
-  AnnotateReferencesStreamRequest,
-  MatchSearchStreamRequest,
-  YieldResourceStreamRequest,
   SSEClientConfig,
   SSEStreamConnected
 } from './sse/index';

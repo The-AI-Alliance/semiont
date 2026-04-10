@@ -2,14 +2,14 @@
  * Layer 3: Feature Integration Test - Bind Flow (body update)
  *
  * Tests the write side of useBindFlow:
- * - bind:update-body → calls bindAnnotation API
- * - bind:update-body → emits bind:body-updated on success
+ * - bind:update-body → calls http.bindAnnotation API (plain POST)
  * - bind:update-body → emits bind:body-update-failed on error
  * - auth token passed to bindAnnotation
  *
- * The wizard modal (ReferenceWizardModal) handles modal state, context
- * gathering, search configuration, and result display. This test covers
- * only the downstream API calls after the wizard emits bind:update-body.
+ * After the UNIFIED-STREAM migration, bind is a plain POST returning
+ * {correlationId}. The state change arrives on the events-stream as
+ * mark:body-updated. These tests focus on the POST call, not the
+ * events-stream delivery (which is tested in AnnotationStore tests).
  *
  * Uses real providers (EventBus, ApiClient, AuthToken) with mocked API boundary.
  */
@@ -21,14 +21,15 @@ import { useBindFlow } from '../../../hooks/useBindFlow';
 import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/api-client';
-import { resourceId, accessToken, annotationId } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
+import { resourceId, annotationId } from '@semiont/core';
 
-// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+const mockShowError = vi.fn();
+
 vi.mock('../../../components/Toast', () => ({
   useToast: () => ({
     showSuccess: vi.fn(),
-    showError: vi.fn(),
+    showError: mockShowError,
     showInfo: vi.fn(),
     showWarning: vi.fn(),
   }),
@@ -43,11 +44,9 @@ describe('Bind Flow - Body Update Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    bindAnnotationSpy = vi.fn().mockImplementation((_rId: any, annId: any, _req: any, opts: any) => {
-      queueMicrotask(() => opts.eventBus.get('bind:finished').next({ annotationId: annId }));
-      return { close: vi.fn() };
-    });
-    vi.spyOn(SSEClient.prototype, 'bindAnnotation').mockImplementation(bindAnnotationSpy as any);
+    // Mock the HTTP bindAnnotation method (plain POST, returns {correlationId})
+    bindAnnotationSpy = vi.fn().mockResolvedValue({ correlationId: 'corr-test' });
+    vi.spyOn(SemiontApiClient.prototype, 'bindAnnotation').mockImplementation(bindAnnotationSpy as any);
   });
 
   afterEach(() => {
@@ -82,10 +81,11 @@ describe('Bind Flow - Body Update Integration', () => {
 
   // ─── bind:update-body ──────────────────────────────────────────────────
 
-  it('bind:update-body calls bindAnnotation API', async () => {
+  it('bind:update-body calls http.bindAnnotation (plain POST)', async () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
+      correlationId: 'corr-1',
       annotationId: annotationId('ann-body-1'),
       resourceId: resourceId('linked-resource-id'),
       operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'linked-resource-id' } }],
@@ -100,6 +100,7 @@ describe('Bind Flow - Body Update Integration', () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
+      correlationId: 'corr-2',
       annotationId: annotationId('ann-auth'),
       resourceId: resourceId('resource-id'),
       operations: [{ op: 'replace', newItem: { type: 'SpecificResource' as const, source: 'resource-id' } }],
@@ -111,57 +112,24 @@ describe('Bind Flow - Body Update Integration', () => {
 
     const callArgs = bindAnnotationSpy.mock.calls[0];
     expect(callArgs[3]).toHaveProperty('auth');
-    expect(callArgs[3].auth).toBe(accessToken(testToken));
   });
 
-  it('bind:update-body emits bind:body-updated on success', async () => {
-    const { getEventBus } = renderBindFlow();
-    const bodyUpdatedSpy = vi.fn();
-
-    const subscription = getEventBus().get('bind:body-updated').subscribe(bodyUpdatedSpy);
-
-    act(() => { getEventBus().get('bind:update-body').next({
-      annotationId: annotationId('ann-success'),
-      resourceId: resourceId('resource-id'),
-      operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'resource-id' } }],
-    }); });
-
-    await waitFor(() => {
-      expect(bodyUpdatedSpy).toHaveBeenCalledTimes(1);
-    });
-
-    subscription.unsubscribe();
-
-    expect(bodyUpdatedSpy).toHaveBeenCalledWith({
-      annotationId: annotationId('ann-success'),
-    });
-  });
-
-  it('bind:update-body emits bind:body-update-failed on API error', async () => {
-    bindAnnotationSpy.mockImplementation((_rId: any, _annId: any, _req: any, opts: any) => {
-      queueMicrotask(() => opts.eventBus.get('bind:failed').next({ error: 'Update failed' }));
-      return { close: vi.fn() };
-    });
+  it('bind:update-body shows error toast on API error', async () => {
+    bindAnnotationSpy.mockRejectedValueOnce(new Error('Update failed'));
 
     const { getEventBus } = renderBindFlow();
-    const bodyUpdateFailedSpy = vi.fn();
-
-    const subscription = getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
     act(() => { getEventBus().get('bind:update-body').next({
+      correlationId: 'corr-3',
       annotationId: annotationId('ann-fail'),
       resourceId: resourceId('resource-id'),
       operations: [{ op: 'remove', item: { type: 'SpecificResource' as const, source: 'old-id' } }],
     }); });
 
     await waitFor(() => {
-      expect(bodyUpdateFailedSpy).toHaveBeenCalledTimes(1);
-    });
-
-    subscription.unsubscribe();
-
-    expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
-      message: expect.any(String),
+      expect(mockShowError).toHaveBeenCalledWith(
+        expect.stringContaining('Update failed'),
+      );
     });
   });
 
@@ -169,6 +137,7 @@ describe('Bind Flow - Body Update Integration', () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
+      correlationId: 'corr-4',
       annotationId: annotationId('ann-dedup'),
       resourceId: resourceId('resource-id'),
       operations: [{ op: 'add', item: { type: 'SpecificResource' as const, source: 'resource-id' } }],

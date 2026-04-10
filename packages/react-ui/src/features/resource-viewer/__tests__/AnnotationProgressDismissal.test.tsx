@@ -25,7 +25,7 @@ import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
 import { resourceId } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -39,20 +39,15 @@ vi.mock('../../../components/Toast', () => ({
 }));
 
 describe('Detection Progress Dismissal Bug', () => {
-  let mockStream: any;
   const rUri = resourceId('test');
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockStream = {
-      close: vi.fn(),
-    };
-
-    vi.spyOn(SSEClient.prototype, 'markReferences').mockReturnValue(mockStream);
-    vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue(mockStream);
-    vi.spyOn(SSEClient.prototype, 'markComments').mockReturnValue(mockStream);
-    vi.spyOn(SSEClient.prototype, 'markAssessments').mockReturnValue(mockStream);
+    vi.spyOn(SemiontApiClient.prototype, 'annotateReferences').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateHighlights').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateComments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateAssessments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
   });
 
   afterEach(() => {
