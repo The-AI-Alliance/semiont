@@ -29,10 +29,16 @@ vi.mock('../../components/Toast', () => ({
   }),
 }));
 
-const mockFlowMark = vi.fn().mockReturnValue({ unsubscribe: vi.fn() });
+const mockMarkAnnotation = vi.fn().mockResolvedValue({ annotationId: 'ann-1' });
+const mockMarkDelete = vi.fn().mockResolvedValue(undefined);
+const mockMarkAssist = vi.fn().mockReturnValue({ subscribe: vi.fn() });
 const mockClient = {
-  stores: { resources: { setTokenGetter: vi.fn() }, annotations: { setTokenGetter: vi.fn() } },
-  flows: { mark: mockFlowMark },
+  browse: { setTokenGetter: vi.fn() },
+  mark: {
+    annotation: mockMarkAnnotation,
+    delete: mockMarkDelete,
+    assist: mockMarkAssist,
+  },
 };
 
 vi.mocked(SemiontApiClient).mockImplementation(function () { return mockClient; });
@@ -60,7 +66,9 @@ function renderMarkFlow() {
 describe('useMarkFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFlowMark.mockReturnValue({ unsubscribe: vi.fn() });
+    mockMarkAnnotation.mockResolvedValue({ annotationId: 'ann-1' });
+    mockMarkDelete.mockResolvedValue(undefined);
+    mockMarkAssist.mockReturnValue({ subscribe: vi.fn() });
   });
 
   afterEach(() => {
@@ -74,9 +82,11 @@ describe('useMarkFlow', () => {
     expect(result.current.flow.progress).toBeNull();
   });
 
-  it('activates the mark flow engine on mount', () => {
+  it('does not call any mark methods on mount (event-driven)', () => {
     renderMarkFlow();
-    expect(mockFlowMark).toHaveBeenCalledWith(RID, expect.any(Function));
+    expect(mockMarkAnnotation).not.toHaveBeenCalled();
+    expect(mockMarkDelete).not.toHaveBeenCalled();
+    expect(mockMarkAssist).not.toHaveBeenCalled();
   });
 
   it('sets pendingAnnotation on mark:requested', async () => {

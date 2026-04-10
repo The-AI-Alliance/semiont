@@ -27,6 +27,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
+import { useStoreTokenSync } from '../../../hooks/useStoreTokenSync';
 import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -69,8 +70,7 @@ describe('Annotation Deletion - Feature Integration', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      // useMarkFlow is the single registration point for useBindFlow
-      // (handles mark:delete mark:create annotate:detect-request, etc.)
+      useStoreTokenSync(); // Syncs auth token to namespace getToken
       useMarkFlow(testId);
       return null;
     }

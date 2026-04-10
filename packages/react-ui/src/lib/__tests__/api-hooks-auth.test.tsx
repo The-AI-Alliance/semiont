@@ -86,15 +86,13 @@ describe('API Hooks Authentication', () => {
       healthCheck: vi.fn().mockResolvedValue({ status: 'ok' }),
       getStatus: vi.fn().mockResolvedValue({ status: 'operational' }),
 
-      // Stores (used by mutation onSuccess handlers)
-      stores: {
-        resources: {
-          invalidateDetail: vi.fn(),
-          invalidateLists: vi.fn(),
-        },
-        annotations: {
-          invalidateDetail: vi.fn(),
-        },
+      // Browse namespace (used by mutation onSuccess handlers for cache invalidation)
+      browse: {
+        setTokenGetter: vi.fn(),
+        invalidateAnnotationList: vi.fn(),
+        invalidateAnnotationDetail: vi.fn(),
+        invalidateResourceDetail: vi.fn(),
+        invalidateResourceLists: vi.fn(),
       },
     };
 

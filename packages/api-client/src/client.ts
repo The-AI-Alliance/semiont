@@ -30,9 +30,6 @@ import type {
   UserDID
 } from '@semiont/core';
 import { SSEClient } from './sse/index';
-import { FlowEngine } from './flows';
-import { ResourceStore } from './stores/resource-store';
-import { AnnotationStore } from './stores/annotation-store';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
@@ -120,6 +117,12 @@ export class SemiontApiClient {
   private logger?: Logger;
 
   /**
+   * Shared mutable token getter. All verb namespaces read from this.
+   * Updated via setTokenGetter() from the React auth layer.
+   */
+  private _getToken: () => AccessToken | undefined = () => undefined;
+
+  /**
    * SSE streaming client for real-time operations
    *
    * Separate from the main HTTP client to clearly mark streaming endpoints.
@@ -127,25 +130,7 @@ export class SemiontApiClient {
    */
   public readonly sse: SSEClient;
 
-  /**
-   * Framework-agnostic flow orchestration.
-   * Each method returns a Subscription; call .unsubscribe() to tear down.
-   */
-  public readonly flows: FlowEngine;
-
-  /**
-   * Per-workspace observable stores for entity data.
-   * Call stores.resources.setTokenGetter() / stores.annotations.setTokenGetter()
-   * from the React layer when the auth token changes.
-   */
-  public readonly stores: {
-    resources: ResourceStore;
-    annotations: AnnotationStore;
-  };
-
   // ── Verb-oriented namespace API ──────────────────────────────────────────
-  // These coexist with the flat method list during migration.
-  // Phase F deletes the flat methods and promotes these to the primary API.
   public readonly browse: BrowseNamespace;
   public readonly mark: MarkNamespace;
   public readonly bind: BindNamespace;
@@ -275,17 +260,12 @@ export class SemiontApiClient {
       logger: this.logger
     });
 
-    // Flow engine — pure RxJS orchestration, no React imports
-    this.flows = new FlowEngine(this.eventBus, this.sse, this);
-
-    // Observable stores — EventBus-reactive caches for entity data
-    this.stores = {
-      resources: new ResourceStore(this, this.eventBus),
-      annotations: new AnnotationStore(this, this.eventBus),
-    };
+    // Shared token getter — all namespaces read from this closure.
+    // Updated via setTokenGetter() from React auth layer.
+    if (config.getToken) this._getToken = config.getToken;
+    const getToken = () => this._getToken();
 
     // Verb-oriented namespace API
-    const getToken = config.getToken ?? (() => undefined);
     this.browse = new BrowseNamespace(this, this.eventBus, getToken);
     this.mark = new MarkNamespace(this, this.eventBus, getToken);
     this.bind = new BindNamespace(this, getToken);
@@ -296,6 +276,15 @@ export class SemiontApiClient {
     this.job = new JobNamespace(this, getToken);
     this.auth = new AuthNamespace(this, getToken);
     this.admin = new AdminNamespace(this, getToken);
+  }
+
+  /**
+   * Update the token getter for all verb namespaces.
+   * Called from the React auth layer when the token changes.
+   * All namespaces share this getter via closure — no per-namespace sync needed.
+   */
+  setTokenGetter(getter: () => AccessToken | undefined): void {
+    this._getToken = getter;
   }
 
   private authHeaders(options?: { auth?: AccessToken }): Record<string, string> {

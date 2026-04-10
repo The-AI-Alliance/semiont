@@ -142,17 +142,18 @@ export function useResourceEvents({
     if (subRef.current) return;
     setStatus('connecting');
     try {
-      const sub = client.flows.resourceEvents(rUri, () =>
-        tokenRef.current ? accessToken(tokenRef.current) : undefined
-      );
-      subRef.current = sub;
+      const stream = client.sse.resourceEvents(rUri, {
+        auth: tokenRef.current ? accessToken(tokenRef.current) : undefined,
+        eventBus,
+      });
+      subRef.current = { unsubscribe: () => stream.close() };
       setStatus('connected');
     } catch (error) {
       console.error('[ResourceEvents] Failed to connect:', error);
       setStatus('error');
       onErrorRef.current?.('Failed to connect to event stream');
     }
-  }, [rUri, client]);
+  }, [rUri, client, eventBus]);
 
   const disconnect = useCallback(() => {
     if (subRef.current) {

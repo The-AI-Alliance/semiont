@@ -171,10 +171,10 @@ export function ResourceViewerPage({
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  const annotationsData = useObservable(client.stores.annotations.listForResource(rUri));
+  const annotationsData = useObservable(client.browse.annotations(rUri));
   const annotations = useMemo(
-    () => annotationsData?.annotations || [],
-    [annotationsData?.annotations]
+    () => annotationsData || [],
+    [annotationsData]
   );
 
   const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);

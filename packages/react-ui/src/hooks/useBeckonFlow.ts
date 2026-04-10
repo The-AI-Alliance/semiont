@@ -216,11 +216,12 @@ export function useAttentionStream(): { status: StreamStatus } {
   useEffect(() => {
     setStatus('connecting');
     try {
-      const sub = client.flows.attentionStream(() =>
-        tokenRef.current ? accessToken(tokenRef.current) : undefined
-      );
+      const stream = client.sse.attentionStream({
+        auth: tokenRef.current ? accessToken(tokenRef.current) : undefined,
+        eventBus: client.eventBus,
+      });
       setStatus('connected');
-      return () => { sub.unsubscribe(); setStatus('disconnected'); };
+      return () => { stream.close(); setStatus('disconnected'); };
     } catch (error) {
       console.error('[AttentionStream] Failed to connect:', error);
       setStatus('error');

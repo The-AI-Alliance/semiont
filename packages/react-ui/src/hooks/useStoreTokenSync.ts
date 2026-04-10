@@ -27,9 +27,6 @@ export function useStoreTokenSync(): void {
 
   useEffect(() => {
     const getter = () => tokenRef.current ? accessToken(tokenRef.current) : undefined;
-    client.stores.resources.setTokenGetter(getter);
-    client.stores.annotations.setTokenGetter(getter);
-    // Also sync the browse namespace's token getter
-    client.browse.setTokenGetter(getter);
+    client.setTokenGetter(getter);
   }, [client]);
 }

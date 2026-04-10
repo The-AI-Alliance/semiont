@@ -24,11 +24,12 @@ import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
 import { resourceId, annotationId } from '@semiont/core';
 
-// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+const mockShowError = vi.fn();
+
 vi.mock('../../../components/Toast', () => ({
   useToast: () => ({
     showSuccess: vi.fn(),
-    showError: vi.fn(),
+    showError: mockShowError,
     showInfo: vi.fn(),
     showWarning: vi.fn(),
   }),
@@ -113,13 +114,10 @@ describe('Bind Flow - Body Update Integration', () => {
     expect(callArgs[3]).toHaveProperty('auth');
   });
 
-  it('bind:update-body emits bind:body-update-failed on API error', async () => {
+  it('bind:update-body shows error toast on API error', async () => {
     bindAnnotationSpy.mockRejectedValueOnce(new Error('Update failed'));
 
     const { getEventBus } = renderBindFlow();
-    const bodyUpdateFailedSpy = vi.fn();
-
-    const subscription = getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
     act(() => { getEventBus().get('bind:update-body').next({
       correlationId: 'corr-3',
@@ -129,13 +127,9 @@ describe('Bind Flow - Body Update Integration', () => {
     }); });
 
     await waitFor(() => {
-      expect(bodyUpdateFailedSpy).toHaveBeenCalledTimes(1);
-    });
-
-    subscription.unsubscribe();
-
-    expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
-      message: expect.any(String),
+      expect(mockShowError).toHaveBeenCalledWith(
+        expect.stringContaining('Update failed'),
+      );
     });
   });
 

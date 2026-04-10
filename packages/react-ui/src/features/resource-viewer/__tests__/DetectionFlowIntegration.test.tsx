@@ -29,7 +29,7 @@ import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
 import type { Motivation } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 import type { Emitter } from 'mitt';
@@ -45,15 +45,7 @@ vi.mock('../../../components/Toast', () => ({
 }));
 import type { EventMap } from '@semiont/core';
 
-// Mock SSE stream - SSE now emits directly to EventBus, no callbacks
-const createMockSSEStream = () => {
-  return {
-    close: vi.fn(),
-  };
-};
-
 describe('Detection Flow - Feature Integration', () => {
-  let mockStream: ReturnType<typeof createMockSSEStream>;
   let markReferencesSpy: any;
   let markHighlightsSpy: any;
   let detectCommentsSpy: any;
@@ -61,14 +53,11 @@ describe('Detection Flow - Feature Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Create fresh mock stream for each test
-    mockStream = createMockSSEStream();
-
-    // Spy on SSEClient prototype methods
-    markReferencesSpy = vi.spyOn(SSEClient.prototype, 'markReferences').mockReturnValue(mockStream as any);
-    markHighlightsSpy = vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue(mockStream as any);
-    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'markComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'markAssessments').mockReturnValue(mockStream as any);
+    // Spy on SemiontApiClient prototype HTTP methods (namespace methods call these)
+    markReferencesSpy = vi.spyOn(SemiontApiClient.prototype, 'annotateReferences').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    markHighlightsSpy = vi.spyOn(SemiontApiClient.prototype, 'annotateHighlights').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    detectCommentsSpy = vi.spyOn(SemiontApiClient.prototype, 'annotateComments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateAssessments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
   });
 
   afterEach(() => {
@@ -298,8 +287,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Reset for next test
     vi.clearAllMocks();
-    mockStream = createMockSSEStream();
-    detectCommentsSpy.mockReturnValue(mockStream);
+    detectCommentsSpy.mockResolvedValue({ correlationId: 'c2', jobId: 'j2' });
 
     // Test commenting
     act(() => {

@@ -31,7 +31,7 @@ import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -167,11 +167,11 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     // Create fresh stream for each test
     mockStream = new MockSSEStream();
 
-    // Spy on SSEClient prototype methods to inject mock stream
-    vi.spyOn(SSEClient.prototype, 'markHighlights').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'markAssessments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'markComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'markReferences').mockReturnValue(mockStream as any);
+    // Spy on SemiontApiClient prototype HTTP methods (namespace methods call these)
+    vi.spyOn(SemiontApiClient.prototype, 'annotateHighlights').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateAssessments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateComments').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
+    vi.spyOn(SemiontApiClient.prototype, 'annotateReferences').mockResolvedValue({ correlationId: 'c1', jobId: 'j1' });
 
     mockAnnotations = [];
   });

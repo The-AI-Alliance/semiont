@@ -31,15 +31,21 @@ vi.mock('../../components/Toast', () => ({
   }),
 }));
 
-// Mock API client — useMarkFlow calls client.flows.mark()
-const mockMark = vi.fn();
+// Mock API client — useMarkFlow calls client.mark.annotation/delete/assist
+const mockMarkAnnotation = vi.fn().mockResolvedValue({ annotationId: 'ann-1' });
+const mockMarkDelete = vi.fn().mockResolvedValue(undefined);
+const mockMarkAssist = vi.fn().mockReturnValue({ subscribe: vi.fn() });
 
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
     useApiClient: () => ({
-      flows: { mark: mockMark },
+      mark: {
+        annotation: mockMarkAnnotation,
+        delete: mockMarkDelete,
+        assist: mockMarkAssist,
+      },
     }),
   };
 });
@@ -80,7 +86,12 @@ describe('useMarkFlow', () => {
     mockShowSuccess.mockClear();
     mockShowError.mockClear();
     mockShowInfo.mockClear();
-    mockMark.mockReturnValue({ unsubscribe: vi.fn() });
+    mockMarkAnnotation.mockClear();
+    mockMarkDelete.mockClear();
+    mockMarkAssist.mockClear();
+    mockMarkAnnotation.mockResolvedValue({ annotationId: 'ann-1' });
+    mockMarkDelete.mockResolvedValue(undefined);
+    mockMarkAssist.mockReturnValue({ subscribe: vi.fn() });
     vi.useFakeTimers();
   });
 

@@ -142,8 +142,8 @@ export function useResources() {
           },
           onSuccess: (result) => {
             // Fetch new resource into store and invalidate lists
-            client.stores.resources.invalidateDetail(resourceIdBrand(result.resourceId));
-            client.stores.resources.invalidateLists();
+            client.browse.invalidateResourceDetail(resourceIdBrand(result.resourceId));
+            client.browse.invalidateResourceLists();
           },
         });
       },
@@ -196,8 +196,8 @@ export function useResources() {
             return client.createResourceFromToken(data, { auth: toAccessToken(token) });
           },
           onSuccess: (result) => {
-            client.stores.resources.invalidateDetail(resourceIdBrand(result.resourceId));
-            client.stores.resources.invalidateLists();
+            client.browse.invalidateResourceDetail(resourceIdBrand(result.resourceId));
+            client.browse.invalidateResourceLists();
           },
         });
       },
@@ -256,9 +256,9 @@ export function useAnnotations() {
             return client.markAnnotation(resourceId, data, { auth: toAccessToken(token) });
           },
           onSuccess: (result, variables) => {
-            // AnnotationStore reacts to mark:added SSE event automatically.
+            /// BrowseNamespace reacts to mark:added SSE event automatically.
             // Explicitly invalidate the annotation detail and events log.
-            client.stores.annotations.invalidateDetail(annotationIdBrand(result.annotationId));
+            client.browse.invalidateAnnotationDetail(annotationIdBrand(result.annotationId));
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
           },
         });
@@ -277,9 +277,9 @@ export function useAnnotations() {
             return client.deleteAnnotation(variables.resourceId, variables.annotationId, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
-            // AnnotationStore reacts to mark:removed SSE event automatically.
+            // BrowseNamespace reacts to mark:removed SSE event automatically.
             // Explicitly remove from detail cache and invalidate events log.
-            client.stores.annotations.invalidateDetail(variables.annotationId);
+            client.browse.invalidateAnnotationDetail(variables.annotationId);
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
           },
         });
@@ -303,9 +303,9 @@ export function useAnnotations() {
             return client.bindAnnotation(resourceId, annotationId, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
-            // AnnotationStore reacts to mark:body-updated SSE event automatically.
+            // BrowseNamespace reacts to mark:body-updated SSE event automatically.
             // Invalidate annotation detail and events log; invalidate referencedBy for linked targets.
-            client.stores.annotations.invalidateDetail(variables.annotationId);
+            client.browse.invalidateAnnotationDetail(variables.annotationId);
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceId) });
 
             if (variables.data.operations) {

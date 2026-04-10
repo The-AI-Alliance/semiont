@@ -21,10 +21,10 @@ vi.mock('@semiont/api-client', () => ({
   accessToken: vi.fn(function (t: string) { return t as any; }),
 }));
 
-const mockFlowGatherContext = vi.fn().mockReturnValue({ unsubscribe: vi.fn() });
+const mockGatherAnnotation = vi.fn();
 const mockClient = {
-  stores: { resources: { setTokenGetter: vi.fn() }, annotations: { setTokenGetter: vi.fn() } },
-  flows: { gatherContext: mockFlowGatherContext },
+  browse: { setTokenGetter: vi.fn() },
+  gather: { annotation: mockGatherAnnotation },
 };
 
 vi.mocked(SemiontApiClient).mockImplementation(function () { return mockClient; });
@@ -53,7 +53,8 @@ function renderContextGatherFlow() {
 describe('useContextGatherFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFlowGatherContext.mockReturnValue({ unsubscribe: vi.fn() });
+    // Default: return a pending Observable (does not complete)
+    mockGatherAnnotation.mockReturnValue({ subscribe: () => ({ unsubscribe: vi.fn() }) });
   });
 
   afterEach(() => {
@@ -68,9 +69,9 @@ describe('useContextGatherFlow', () => {
     expect(result.current.flow.gatherAnnotationId).toBeNull();
   });
 
-  it('activates the gather flow engine on mount', () => {
+  it('does not call gather.annotation on mount (event-driven)', () => {
     renderContextGatherFlow();
-    expect(mockFlowGatherContext).toHaveBeenCalledWith(RID, expect.any(Function));
+    expect(mockGatherAnnotation).not.toHaveBeenCalled();
   });
 
   it('sets loading on gather:requested', async () => {
@@ -88,24 +89,26 @@ describe('useContextGatherFlow', () => {
     });
   });
 
-  it('sets context on gather:complete', async () => {
-    const { result } = renderContextGatherFlow();
-
+  it('sets context when Observable emits completion progress', async () => {
     const mockContext = {
       annotation: { id: 'ann-1' },
       sourceResource: { '@id': 'res-1' },
       sourceContext: 'text context',
     };
 
-    act(() => {
-      result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
+    // Observable emits a progress event with response.context then completes
+    mockGatherAnnotation.mockReturnValue({
+      subscribe: (observer: any) => {
+        observer.next?.({ response: { context: mockContext } });
+        observer.complete?.();
+        return { unsubscribe: vi.fn() };
+      },
     });
-    await waitFor(() => expect(result.current.flow.gatherLoading).toBe(true));
+
+    const { result } = renderContextGatherFlow();
 
     act(() => {
-      result.current.bus.get('gather:complete').next({
-        response: { context: mockContext },
-      } as any);
+      result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
 
     await waitFor(() => {
@@ -114,11 +117,19 @@ describe('useContextGatherFlow', () => {
     });
   });
 
-  it('sets null context when gather:complete has no context', async () => {
+  it('sets null context when Observable emits progress without context', async () => {
+    mockGatherAnnotation.mockReturnValue({
+      subscribe: (observer: any) => {
+        observer.next?.({ response: {} });
+        observer.complete?.();
+        return { unsubscribe: vi.fn() };
+      },
+    });
+
     const { result } = renderContextGatherFlow();
 
     act(() => {
-      result.current.bus.get('gather:complete').next({ response: {} } as any);
+      result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
 
     await waitFor(() => {
@@ -127,16 +138,18 @@ describe('useContextGatherFlow', () => {
     });
   });
 
-  it('sets error on gather:failed', async () => {
+  it('sets error when Observable errors', async () => {
+    mockGatherAnnotation.mockReturnValue({
+      subscribe: (observer: any) => {
+        observer.error?.(new Error('gather failed'));
+        return { unsubscribe: vi.fn() };
+      },
+    });
+
     const { result } = renderContextGatherFlow();
 
     act(() => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
-    });
-    await waitFor(() => expect(result.current.flow.gatherLoading).toBe(true));
-
-    act(() => {
-      result.current.bus.get('gather:failed').next({ message: 'gather failed' } as any);
     });
 
     await waitFor(() => {
@@ -146,18 +159,23 @@ describe('useContextGatherFlow', () => {
   });
 
   it('clears previous error on gather:requested', async () => {
+    // First request errors
+    mockGatherAnnotation.mockReturnValue({
+      subscribe: (observer: any) => {
+        observer.error?.(new Error('first fail'));
+        return { unsubscribe: vi.fn() };
+      },
+    });
+
     const { result } = renderContextGatherFlow();
 
-    // First request fails
     act(() => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
-    act(() => {
-      result.current.bus.get('gather:failed').next({ message: 'first fail' } as any);
-    });
     await waitFor(() => expect(result.current.flow.gatherError).not.toBeNull());
 
-    // Second request clears error
+    // Second request clears error (pending Observable)
+    mockGatherAnnotation.mockReturnValue({ subscribe: () => ({ unsubscribe: vi.fn() }) });
     act(() => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
@@ -168,14 +186,26 @@ describe('useContextGatherFlow', () => {
   });
 
   it('clears previous context on gather:requested', async () => {
-    const { result } = renderContextGatherFlow();
     const mockContext = { annotation: {}, sourceResource: {}, sourceContext: 'ctx' };
 
+    // First request completes with context
+    mockGatherAnnotation.mockReturnValue({
+      subscribe: (observer: any) => {
+        observer.next?.({ response: { context: mockContext } });
+        observer.complete?.();
+        return { unsubscribe: vi.fn() };
+      },
+    });
+
+    const { result } = renderContextGatherFlow();
+
     act(() => {
-      result.current.bus.get('gather:complete').next({ response: { context: mockContext } } as any);
+      result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
     await waitFor(() => expect(result.current.flow.gatherContext).not.toBeNull());
 
+    // Second request clears context (pending Observable)
+    mockGatherAnnotation.mockReturnValue({ subscribe: () => ({ unsubscribe: vi.fn() }) });
     act(() => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
@@ -192,10 +222,6 @@ describe('useContextGatherFlow', () => {
       result.current.bus.get('gather:requested').next({ annotationId: AID } as any);
     });
     await waitFor(() => expect(result.current.flow.gatherAnnotationId).toBe(AID));
-
-    act(() => {
-      result.current.bus.get('gather:complete').next({ response: {} } as any);
-    });
 
     act(() => {
       result.current.bus.get('gather:requested').next({ annotationId: AID2 } as any);

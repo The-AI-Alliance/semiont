@@ -23,11 +23,6 @@
 // Export clients
 export * from './client';
 export { EventBusClient } from './event-bus-client';
-export { FlowEngine } from './flows';
-export { ResourceStore } from './stores/resource-store';
-export { AnnotationStore } from './stores/annotation-store';
-export type { ResourceDetail, ResourceListResponse } from './stores/resource-store';
-export type { AnnotationsListResponse, AnnotationDetail } from './stores/annotation-store';
 
 // Verb-oriented namespace API
 export { BrowseNamespace } from './namespaces/browse';

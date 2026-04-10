@@ -74,7 +74,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly fetchingReferencedBy = new Set<ResourceId>();
   private readonly referencedByObs$ = new Map<ResourceId, Observable<ReferencedByEntry[] | undefined>>();
 
-  private getToken: TokenGetter;
+  private readonly getToken: TokenGetter;
 
   constructor(
     private readonly http: SemiontApiClient,
@@ -83,11 +83,6 @@ export class BrowseNamespace implements IBrowseNamespace {
   ) {
     this.getToken = getToken;
     this.subscribeToEvents();
-  }
-
-  /** Update the token getter (called when auth changes) */
-  setTokenGetter(getter: TokenGetter): void {
-    this.getToken = getter;
   }
 
   // ── Live queries ────────────────────────────────────────────────────────
