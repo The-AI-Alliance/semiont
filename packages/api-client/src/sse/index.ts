@@ -7,7 +7,7 @@
 
 import { createSSEStream } from './stream';
 import type { SSEStream } from './types';
-import type { ResourceId, AnnotationId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import type { AccessToken, BaseUrl, EntityType, Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 
@@ -198,69 +198,6 @@ export class SSEClient {
         progressEvents: ['mark:progress'],
         completeEvent: 'mark:assist-finished',
         errorEvent: 'mark:assist-failed',
-        eventBus: options.eventBus,
-        eventPrefix: undefined
-      },
-      this.logger
-    );
-  }
-
-  /**
-   * Generate resource from annotation (streaming)
-   *
-   * Streams resource generation progress via Server-Sent Events.
-   *
-   * @param resourceId - Source resource URI or ID
-   * @param annotationId - Annotation URI or ID to use as generation source
-   * @param request - Generation options (title, prompt, language)
-   * @param options - Request options (auth token)
-   * @returns SSE stream controller with progress/complete/error callbacks
-   *
-   * @example
-   * ```typescript
-   * const stream = sseClient.yieldResource(
-   *   'http://localhost:4000/resources/doc-123',
-   *   'http://localhost:4000/annotations/ann-456',
-   *   { language: 'es', title: 'Spanish Summary' },
-   *   { auth: 'your-token' }
-   * );
-   *
-   * stream.onProgress((progress) => {
-   *   console.log(`${progress.status}: ${progress.percentage}%`);
-   *   console.log(progress.message);
-   * });
-   *
-   * stream.onComplete((result) => {
-   *   console.log(`Yielded resource: ${result.resourceId}`);
-   * });
-   *
-   * stream.onError((error) => {
-   *   console.error('Yield failed:', error.message);
-   * });
-   *
-   * // Cleanup when done
-   * stream.close();
-   * ```
-   */
-  yieldResource(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    request: YieldResourceStreamRequest,
-    options: SSERequestOptions
-  ): SSEStream {
-    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/yield-resource-stream`;
-
-    return createSSEStream(
-      url,
-      {
-        method: 'POST',
-        headers: this.getHeaders(options.auth),
-        body: JSON.stringify(request)
-      },
-      {
-        progressEvents: ['yield:progress'],
-        completeEvent: 'yield:finished',
-        errorEvent: 'yield:failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },

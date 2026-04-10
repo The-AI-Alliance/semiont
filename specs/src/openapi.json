@@ -132,8 +132,8 @@
     "/resources/{resourceId}/annotations/{annotationId}/body": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_body.json"
     },
-    "/resources/{resourceId}/annotations/{annotationId}/yield-resource-stream": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_yield-resource-stream.json"
+    "/resources/{resourceId}/annotations/{annotationId}/yield-resource": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_yield-resource.json"
     },
     "/resources/{resourceId}/annotations/{annotationId}/history": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_history.json"

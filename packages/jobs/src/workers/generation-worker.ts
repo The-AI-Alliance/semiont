@@ -257,6 +257,21 @@ export class GenerationWorker extends JobWorker {
         resourceName: result.resourceName,
       },
     });
+
+    // Emit yield:finished on the resource-scoped bus so the events-stream
+    // delivers it to all participants. Previously this was synthesized by
+    // the per-operation yield-resource-stream SSE route; now the worker
+    // emits it directly.
+    const resourceBus = this.eventBus.scope(String(job.params.sourceResourceId));
+    resourceBus.get('yield:finished').next({
+      status: 'complete',
+      referenceId: String(job.params.referenceId),
+      resourceName: result.resourceName,
+      resourceId: result.resourceId as string,
+      sourceResourceId: String(job.params.sourceResourceId),
+      percentage: 100,
+      message: 'Draft resource created! Ready for review.',
+    });
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
@@ -273,6 +288,16 @@ export class GenerationWorker extends JobWorker {
         jobId: jobId(genJob.metadata.id),
         jobType: genJob.metadata.type,
         error: 'Resource generation failed. Please try again later.',
+      });
+
+      // Emit yield:failed on the resource-scoped bus
+      const resourceBus = this.eventBus.scope(String(genJob.params.sourceResourceId));
+      resourceBus.get('yield:failed').next({
+        error: 'Resource generation failed. Please try again later.',
+        status: 'error',
+        referenceId: String(genJob.params.referenceId),
+        percentage: 0,
+        message: 'Resource generation failed. Please try again later.',
       });
     }
   }

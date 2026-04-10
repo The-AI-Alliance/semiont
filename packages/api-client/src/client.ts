@@ -620,6 +620,18 @@ export class SemiontApiClient {
     }).json();
   }
 
+  async yieldResourceFromAnnotation(
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
+    data: { title: string; storageUri: string; context: unknown; prompt?: string; language?: string; temperature?: number; maxTokens?: number },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string; jobId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/yield-resource`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
   async gatherAnnotationContext(
     resourceId: ResourceId,
     annotationId: AnnotationId,

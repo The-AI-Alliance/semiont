@@ -26,7 +26,7 @@ import { registerGetAnnotation } from './routes/get-annotation';
 import { registerDeleteAnnotation } from './routes/delete-annotation';
 import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
 import { registerBindAnnotation } from './routes/bind-annotation';
-import { registerYieldResourceStream } from './routes/yield-resource-stream';
+import { registerYieldResource } from './routes/yield-resource';
 import { registerGatherAnnotation } from './routes/gather-annotation';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
@@ -60,7 +60,7 @@ registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /ap
   registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
   registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
   registerBindAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/bind
-  registerYieldResourceStream(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/yield-resource-stream
+  registerYieldResource(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/yield-resource
   registerGatherAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/gather
   registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
   registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId

@@ -99,26 +99,36 @@ export class FlowEngine {
   /**
    * Activate the yield (generation) flow for a resource.
    *
-   * @subscribes yield:request — calls SSE yieldResource
+   * @subscribes yield:request — calls HTTP yieldResource (non-blocking POST)
    * @subscribes yield:finished — links generated resource back to the reference annotation via bind:update-body
-   * @subscribes job:cancel-requested (generation) — aborts in-flight stream
+   * @subscribes job:cancel-requested (generation) — no-op after migration (job runs server-side)
    */
   yield(_rUri: ResourceId, getToken: TokenGetter): Subscription {
     const sub = new Subscription();
-    let abortController: AbortController | null = null;
 
     sub.add(
-      this.eventBus.get('yield:request').subscribe((event: EventMap['yield:request']) => {
-        abortController?.abort();
-        abortController = new AbortController();
+      this.eventBus.get('yield:request').subscribe(async (event: EventMap['yield:request']) => {
         const { context, ...rest } = event.options;
         if (!context) throw new Error('yield:request requires gathered context');
-        this.sse.yieldResource(
-          makeResourceId(event.resourceId),
-          makeAnnotationId(event.annotationId),
-          { ...rest, context },
-          { auth: getToken(), eventBus: this.eventBus },
-        );
+        try {
+          // Plain POST — the backend creates the generation job and returns
+          // immediately. Progress (yield:progress) and completion
+          // (yield:finished) arrive via the events-stream from the worker.
+          await this.http.yieldResourceFromAnnotation(
+            makeResourceId(event.resourceId),
+            makeAnnotationId(event.annotationId),
+            { ...rest, context },
+            { auth: getToken() },
+          );
+        } catch (error) {
+          this.eventBus.get('yield:failed').next({
+            error: error instanceof Error ? error.message : String(error),
+            status: 'error',
+            referenceId: event.annotationId,
+            percentage: 0,
+            message: error instanceof Error ? error.message : 'Generation failed',
+          });
+        }
       }),
     );
 
@@ -135,16 +145,10 @@ export class FlowEngine {
       }),
     );
 
-    sub.add(
-      this.eventBus.get('job:cancel-requested').subscribe((event) => {
-        if (event.jobType === 'generation') {
-          abortController?.abort();
-          abortController = null;
-        }
-      }),
-    );
-
-    sub.add(new Subscription(() => { abortController?.abort(); }));
+    // Note: job:cancel-requested for generation is now a server-side concern.
+    // The job runs independently of the client connection. Client-side abort
+    // of a POST that already returned 202 is not meaningful. If cancellation
+    // is needed, it should be a POST /jobs/{jobId}/cancel endpoint.
 
     return sub;
   }
