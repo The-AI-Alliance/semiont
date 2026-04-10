@@ -73,6 +73,19 @@ export class TagAnnotationWorker extends JobWorker {
       jobType: 'tag-annotation',
       result,
     });
+
+    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
+    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
+    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
+    resourceBus.get('mark:assist-finished').next({
+      motivation: 'tagging',
+      resourceId: String(job.params.resourceId),
+      status: 'complete',
+      percentage: 100,
+      foundCount: result.tagsFound,
+      createdCount: result.tagsCreated,
+      message: 'Detection complete',
+    });
   }
 
   /**
@@ -137,6 +150,13 @@ export class TagAnnotationWorker extends JobWorker {
         jobId: jobId(tdJob.metadata.id),
         jobType: tdJob.metadata.type,
         error: 'Tag detection failed. Please try again later.',
+      });
+
+      // Emit mark:assist-failed on the resource-scoped bus
+      const resourceBus = this.eventBus.scope(String(tdJob.params.resourceId));
+      resourceBus.get('mark:assist-failed').next({
+        resourceId: String(tdJob.params.resourceId),
+        message: 'Tag detection failed. Please try again later.',
       });
     }
   }

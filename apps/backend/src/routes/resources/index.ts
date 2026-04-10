@@ -8,11 +8,11 @@ import { registerCreateResource } from './routes/create';
 import { registerGetResourceUri } from './routes/get-uri';
 import { registerListResources } from './routes/list';
 import { registerUpdateResource } from './routes/update';
-import { registerAnnotateReferencesStream } from './routes/annotate-references-stream';
-import { registerAnnotateHighlightsStream } from './routes/annotate-highlights-stream';
-import { registerAnnotateAssessmentsStream } from './routes/annotate-assessments-stream';
-import { registerAnnotateCommentsStream } from './routes/annotate-comments-stream';
-import { registerAnnotateTagsStream } from './routes/annotate-tags-stream';
+import { registerAnnotateReferences } from './routes/annotate-references';
+import { registerAnnotateHighlights } from './routes/annotate-highlights';
+import { registerAnnotateAssessments } from './routes/annotate-assessments';
+import { registerAnnotateComments } from './routes/annotate-comments';
+import { registerAnnotateTags } from './routes/annotate-tags';
 import { registerGetReferencedBy } from './routes/referenced-by';
 import { registerMatchSearch } from './routes/match-search';
 import { registerTokenRoutes } from './routes/token';
@@ -46,11 +46,11 @@ registerListResources(resourcesRouter);  // GET /resources
 registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /api/clone-tokens/create-resource, POST /resources/:id/clone-with-token
 
   // Routes with :id and specific suffixes
-  registerAnnotateReferencesStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-references-stream
-  registerAnnotateHighlightsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-highlights-stream
-  registerAnnotateAssessmentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-assessments-stream
-  registerAnnotateCommentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments-stream
-  registerAnnotateTagsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags-stream
+  registerAnnotateReferences(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-references
+  registerAnnotateHighlights(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-highlights
+  registerAnnotateAssessments(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-assessments
+  registerAnnotateComments(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments
+  registerAnnotateTags(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags
   registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
   registerMatchSearch(resourcesRouter);  // POST /resources/:id/match-search
 

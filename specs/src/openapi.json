@@ -81,20 +81,20 @@
     "/resources": {
       "$ref": "paths/resources.json"
     },
-    "/resources/{id}/annotate-references-stream": {
-      "$ref": "paths/resources_{id}_annotate-references-stream.json"
+    "/resources/{id}/annotate-references": {
+      "$ref": "paths/resources_{id}_annotate-references.json"
     },
-    "/resources/{id}/annotate-highlights-stream": {
-      "$ref": "paths/resources_{id}_annotate-highlights-stream.json"
+    "/resources/{id}/annotate-highlights": {
+      "$ref": "paths/resources_{id}_annotate-highlights.json"
     },
-    "/resources/{id}/annotate-assessments-stream": {
-      "$ref": "paths/resources_{id}_annotate-assessments-stream.json"
+    "/resources/{id}/annotate-assessments": {
+      "$ref": "paths/resources_{id}_annotate-assessments.json"
     },
-    "/resources/{id}/annotate-comments-stream": {
-      "$ref": "paths/resources_{id}_annotate-comments-stream.json"
+    "/resources/{id}/annotate-comments": {
+      "$ref": "paths/resources_{id}_annotate-comments.json"
     },
-    "/resources/{id}/annotate-tags-stream": {
-      "$ref": "paths/resources_{id}_annotate-tags-stream.json"
+    "/resources/{id}/annotate-tags": {
+      "$ref": "paths/resources_{id}_annotate-tags.json"
     },
     "/resources/{id}/gather-resource-stream": {
       "$ref": "paths/resources_{id}_gather-resource-stream.json"

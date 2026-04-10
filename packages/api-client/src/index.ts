@@ -40,8 +40,6 @@ export type {
 } from './sse/types';
 export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
 export type {
-  AnnotateReferencesStreamRequest,
-  YieldResourceStreamRequest,
   SSEClientConfig,
   SSEStreamConnected
 } from './sse/index';

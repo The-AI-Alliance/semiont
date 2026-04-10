@@ -16,7 +16,7 @@
  */
 
 import { Subscription } from 'rxjs';
-import type { EventMap, EventBus, ResourceId, Selector, EntityType, AccessToken } from '@semiont/core';
+import type { EventMap, EventBus, ResourceId, Selector, AccessToken } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SSEClient } from './sse/index';
 import type { SemiontApiClient } from './client';
@@ -166,7 +166,6 @@ export class FlowEngine {
    */
   mark(rUri: ResourceId, getToken: TokenGetter): Subscription {
     const sub = new Subscription();
-    let assistAbort: AbortController | null = null;
 
     sub.add(
       this.eventBus.get('mark:submit').subscribe(async (event: EventMap['mark:submit']) => {
@@ -196,58 +195,50 @@ export class FlowEngine {
 
     sub.add(
       this.eventBus.get('mark:assist-request').subscribe(async (event: EventMap['mark:assist-request']) => {
-        assistAbort?.abort();
-        assistAbort = new AbortController();
-        const opts = { auth: getToken(), eventBus: this.eventBus };
         const { motivation, options } = event;
+        const auth = getToken();
 
         try {
+          // Plain POSTs — the backend creates a job and returns immediately.
+          // Progress (mark:progress) and completion (mark:assist-finished) or
+          // failure (mark:assist-failed) arrive via the events-stream from
+          // the workers.
           if (motivation === 'tagging') {
             const { schemaId, categories } = options;
             if (!schemaId || !categories?.length) throw new Error('Tag assist requires schemaId and categories');
-            this.sse.markTags(rUri, { schemaId, categories }, opts);
+            await this.http.annotateTags(rUri, { schemaId, categories }, { auth });
           } else if (motivation === 'linking') {
             const { entityTypes, includeDescriptiveReferences } = options;
             if (!entityTypes?.length) throw new Error('Reference assist requires entityTypes');
-            this.sse.markReferences(rUri, {
-              entityTypes: entityTypes as EntityType[],
+            await this.http.annotateReferences(rUri, {
+              entityTypes: entityTypes as string[],
               includeDescriptiveReferences: includeDescriptiveReferences ?? false,
-            }, opts);
+            }, { auth });
           } else if (motivation === 'highlighting') {
-            this.sse.markHighlights(rUri, { instructions: options.instructions, density: options.density }, opts);
+            await this.http.annotateHighlights(rUri, { instructions: options.instructions, density: options.density }, { auth });
           } else if (motivation === 'assessing') {
-            this.sse.markAssessments(rUri, {
+            await this.http.annotateAssessments(rUri, {
               instructions: options.instructions,
-              tone: options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
+              tone: options.tone,
               density: options.density,
               language: options.language,
-            }, opts);
+            }, { auth });
           } else if (motivation === 'commenting') {
-            this.sse.markComments(rUri, {
+            await this.http.annotateComments(rUri, {
               instructions: options.instructions,
-              tone: options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
+              tone: options.tone,
               density: options.density,
               language: options.language,
-            }, opts);
+            }, { auth });
           }
         } catch (error) {
-          if (error instanceof Error && error.name === 'AbortError') {
-            this.eventBus.get('mark:assist-cancelled').next(undefined);
-          }
+          this.eventBus.get('mark:assist-failed').next({
+            resourceId: rUri as string,
+            message: error instanceof Error ? error.message : String(error),
+          });
         }
       }),
     );
-
-    sub.add(
-      this.eventBus.get('job:cancel-requested').subscribe((event) => {
-        if (event.jobType === 'annotation') {
-          assistAbort?.abort();
-          assistAbort = null;
-        }
-      }),
-    );
-
-    sub.add(new Subscription(() => { assistAbort?.abort(); }));
 
     return sub;
   }

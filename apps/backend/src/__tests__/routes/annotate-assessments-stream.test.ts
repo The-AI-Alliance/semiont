@@ -1,7 +1,7 @@
 /**
- * Assessment Detection Stream API Tests
+ * Assessment Detection API Tests
  *
- * Tests the HTTP contract of the POST /resources/:resourceId/annotate-assessments-stream endpoint.
+ * Tests the HTTP contract of the POST /resources/:resourceId/annotate-assessments endpoint.
  * Focuses on parameter validation, authentication, and response format.
  */
 
@@ -74,7 +74,7 @@ vi.mock('../../auth/oauth', () => ({
   },
 }));
 
-describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
+describe('POST /resources/:resourceId/annotate-assessments', () => {
   let app: Hono<{ Variables: Variables }>;
   let authToken: string;
   const testUser = {
@@ -133,8 +133,8 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
     app = importedApp;
   });
 
-  it('should return SSE stream with proper content-type', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+  it('should accept request and return 202 with correlationId', async () => {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -143,11 +143,14 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       body: JSON.stringify({}),
     });
 
-    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body).toHaveProperty('correlationId');
+    expect(body).toHaveProperty('jobId');
   });
 
   it('should accept detection without parameters', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -156,11 +159,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       body: JSON.stringify({}),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept instructions parameter', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -171,11 +174,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept tone parameter - analytical', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -186,11 +189,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept tone parameter - critical', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -201,11 +204,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept tone parameter - balanced', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -216,11 +219,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept tone parameter - constructive', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -231,11 +234,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept density parameter within valid range', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -246,11 +249,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept minimum density value (1)', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -261,11 +264,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should accept maximum density value (10)', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -276,11 +279,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should reject density below minimum (0)', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -295,7 +298,7 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
   });
 
   it('should reject density above maximum (11)', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -310,7 +313,7 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
   });
 
   it('should accept instructions, tone, and density together', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -323,11 +326,11 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 
   it('should require authentication', async () => {
-    const response = await app.request('/resources/test-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/test-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -343,7 +346,7 @@ describe('POST /resources/:resourceId/annotate-assessments-stream', () => {
     const { ResourceContext } = await import('@semiont/make-meaning');
     vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
 
-    const response = await app.request('/resources/nonexistent-resource/annotate-assessments-stream', {
+    const response = await app.request('/resources/nonexistent-resource/annotate-assessments', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,

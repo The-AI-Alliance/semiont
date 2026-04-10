@@ -620,6 +620,61 @@ export class SemiontApiClient {
     }).json();
   }
 
+  async annotateReferences(
+    resourceId: ResourceId,
+    data: { entityTypes: string[]; includeDescriptiveReferences?: boolean },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string; jobId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotate-references`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
+  async annotateHighlights(
+    resourceId: ResourceId,
+    data: { instructions?: string; density?: number },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string; jobId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotate-highlights`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
+  async annotateAssessments(
+    resourceId: ResourceId,
+    data: { instructions?: string; tone?: string; density?: number; language?: string },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string; jobId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotate-assessments`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
+  async annotateComments(
+    resourceId: ResourceId,
+    data: { instructions?: string; tone?: string; density?: number; language?: string },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string; jobId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotate-comments`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
+  async annotateTags(
+    resourceId: ResourceId,
+    data: { schemaId: string; categories: string[] },
+    options?: RequestOptions,
+  ): Promise<{ correlationId: string; jobId: string }> {
+    return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotate-tags`, {
+      json: data,
+      headers: this.authHeaders(options),
+    }).json();
+  }
+
   async yieldResourceFromAnnotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,

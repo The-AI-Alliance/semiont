@@ -1,7 +1,7 @@
 /**
- * Annotate References Stream API Tests
+ * Annotate References API Tests
  *
- * Tests the HTTP contract of the POST /resources/:resourceId/annotate-references-stream endpoint.
+ * Tests the HTTP contract of the POST /resources/:resourceId/annotate-references endpoint.
  * Focuses on parameter validation, authentication, and response format.
  */
 
@@ -74,7 +74,7 @@ vi.mock('../../auth/oauth', () => ({
   },
 }));
 
-describe('POST /resources/:resourceId/annotate-references-stream', () => {
+describe('POST /resources/:resourceId/annotate-references', () => {
   let app: Hono<{ Variables: Variables }>;
   let authToken: string;
   const testUser = {
@@ -133,8 +133,8 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
     app = importedApp;
   });
 
-  it('should return SSE stream with proper content-type', async () => {
-    const response = await app.request('/resources/test-resource/annotate-references-stream', {
+  it('should accept request and return 202 with correlationId', async () => {
+    const response = await app.request('/resources/test-resource/annotate-references', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -145,11 +145,14 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
       }),
     });
 
-    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body).toHaveProperty('correlationId');
+    expect(body).toHaveProperty('jobId');
   });
 
   it('should accept valid entity detection request', async () => {
-    const response = await app.request('/resources/test-resource/annotate-references-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -160,12 +163,11 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+    expect(response.status).toBe(202);
   });
 
   it('should require authentication', async () => {
-    const response = await app.request('/resources/test-resource/annotate-references-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -179,7 +181,7 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
   });
 
   it('should validate request body has entityTypes', async () => {
-    const response = await app.request('/resources/test-resource/annotate-references-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -196,7 +198,7 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
     const { ResourceContext } = await import('@semiont/make-meaning');
     vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
 
-    const response = await app.request('/resources/nonexistent-resource/annotate-references-stream', {
+    const response = await app.request('/resources/nonexistent-resource/annotate-references', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -211,7 +213,7 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
   });
 
   it('should accept includeDescriptiveReferences parameter', async () => {
-    const response = await app.request('/resources/test-resource/annotate-references-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -223,12 +225,11 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+    expect(response.status).toBe(202);
   });
 
   it('should accept includeDescriptiveReferences as false', async () => {
-    const response = await app.request('/resources/test-resource/annotate-references-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -240,6 +241,6 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
       }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
   });
 });
