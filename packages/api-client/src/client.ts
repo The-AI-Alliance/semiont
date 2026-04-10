@@ -638,7 +638,7 @@ export class SemiontApiClient {
     options?: RequestOptions
   ): Promise<{ correlationId: string }> {
     return this.http.post(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/bind`, {
-      json: data,
+      json: { resourceId, ...data },
       headers: this.authHeaders(options),
     }).json();
   }
@@ -738,7 +738,7 @@ export class SemiontApiClient {
     options?: RequestOptions,
   ): Promise<{ correlationId: string }> {
     return this.http.post(`${this.baseUrl}/resources/${resourceId}/match-search`, {
-      json: data,
+      json: { resourceId, ...data },
       headers: this.authHeaders(options),
     }).json();
   }
