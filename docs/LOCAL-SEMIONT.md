@@ -9,21 +9,47 @@ There are two ways to start:
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
-.semiont/scripts/local_backend.sh    # terminal 1
-.semiont/scripts/local_frontend.sh   # terminal 2
+.semiont/scripts/local_backend.sh --email admin@example.com --password password  # terminal 1
+.semiont/scripts/local_frontend.sh                                                # terminal 2
 ```
 
-No npm required — everything runs in containers. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites and details. The authoritative Dockerfiles and scripts live in the [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb) template repository under `.semiont/`.
+No npm required — everything runs in containers. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for prerequisites and details. The authoritative Dockerfiles and scripts live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`.
 
-**Create a new knowledge base** — start from scratch with your own documents:
+**Create a new knowledge base** — start from the template:
 
 ```bash
-npm install -g @semiont/cli
-semiont init
-semiont serve
+git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
+cd my-kb
 ```
 
-`semiont serve` guides you through the entire setup interactively — it prompts for a project directory, initializes the project, provisions and starts the database and backend, and creates an admin user.
+Start the backend with Ollama for fully local inference (no API key needed):
+
+```bash
+.semiont/scripts/local_backend.sh --email admin@example.com --password password
+```
+
+On first run, the backend container pulls the inference and embedding models from Ollama. This is a one-time download (~2-4 GB depending on the model) and may take several minutes.
+
+To use Anthropic cloud inference instead:
+
+```bash
+export ANTHROPIC_API_KEY=<your-api-key>
+.semiont/scripts/local_backend.sh --config anthropic --email admin@example.com --password password
+```
+
+To see all available configs:
+
+```bash
+.semiont/scripts/local_backend.sh --list-configs
+```
+
+In a second terminal, start the frontend:
+
+```bash
+.semiont/scripts/local_frontend.sh
+```
+
+Open **http://localhost:3000** and enter **http://localhost:4000** as the knowledge base URL.
 
 ## Detailed Setup
 

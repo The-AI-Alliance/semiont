@@ -27,6 +27,8 @@ Builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server. The def
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
 ```
 
+On first run, the backend container pulls the inference and embedding models from Ollama. The default config (`ollama-gemma`) pulls `gemma4:26b` (17 GB), `gemma4:e2b` (7.2 GB), and `nomic-embed-text` (274 MB) — roughly 24 GB total. This is a one-time download.
+
 To use Anthropic cloud inference instead:
 
 ```bash
