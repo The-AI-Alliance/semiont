@@ -1,0 +1,90 @@
+name: Publish Frontend Container Image
+
+run-name: "Frontend Image: @semiont/frontend@${{ inputs.version }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '@semiont/frontend version (e.g. 0.4.15, 0.4.15-build.42, latest)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (build but do not push)'
+        required: false
+        type: boolean
+        default: false
+      tag_latest:
+        description: 'Also tag as :latest'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Verify package exists on npm
+        run: |
+          npm view "@semiont/frontend@${{ inputs.version }}" version || {
+            echo "❌ @semiont/frontend@${{ inputs.version }} not found on npm"
+            exit 1
+          }
+          echo "✅ @semiont/frontend@${{ inputs.version }} exists"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tags
+        id: tags
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          TAGS="ghcr.io/the-ai-alliance/semiont-frontend:${{ inputs.version }}"
+          TAGS="$TAGS,ghcr.io/the-ai-alliance/semiont-frontend:sha-$COMMIT_SHA"
+          if [ "${{ inputs.tag_latest }}" = "true" ]; then
+            TAGS="$TAGS,ghcr.io/the-ai-alliance/semiont-frontend:latest"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./apps/frontend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ inputs.dry_run != 'true' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            SEMIONT_FRONTEND_VERSION=${{ inputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "## Frontend Container Image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**@semiont/frontend version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ steps.tags.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/the-ai-alliance/semiont-frontend:${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
