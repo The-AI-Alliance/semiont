@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Lägg till en kunskapsbas med hjälp av panelen till höger för att börja upptäcka, kommentera och länka resurser.",
     "sessionExpired": "Din session har gått ut.",
     "signedOut": "Du är utloggad.",
-    "signInHint": "Logga in via kunskapsbasens panel för att bläddra bland resurser."
+    "signInHint": "Logga in via kunskapsbasens panel för att bläddra bland resurser.",
+    "findKnowledgeBases": "Hitta kunskapsbaser",
+    "createNew": "Skapa en ny"
   },
   "AccountPanel": {
     "notAuthenticated": "Logga in på en kunskapsbas för att visa ditt konto."

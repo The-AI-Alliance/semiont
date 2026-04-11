@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Tambahkan basis pengetahuan menggunakan panel di sebelah kanan untuk mulai menemukan, memberi anotasi, dan menautkan sumber daya.",
     "sessionExpired": "Sesi Anda telah berakhir.",
     "signedOut": "Anda telah keluar.",
-    "signInHint": "Masuk menggunakan panel Basis Pengetahuan untuk menjelajahi sumber daya."
+    "signInHint": "Masuk menggunakan panel Basis Pengetahuan untuk menjelajahi sumber daya.",
+    "findKnowledgeBases": "Cari basis pengetahuan",
+    "createNew": "Buat yang baru"
   },
   "AccountPanel": {
     "notAuthenticated": "Masuk ke basis pengetahuan untuk melihat akun Anda."

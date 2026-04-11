@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Fügen Sie eine Wissensbasis über das Panel auf der rechten Seite hinzu, um mit dem Entdecken, Annotieren und Verknüpfen von Ressourcen zu beginnen.",
     "sessionExpired": "Ihre Sitzung ist abgelaufen.",
     "signedOut": "Sie sind abgemeldet.",
-    "signInHint": "Melden Sie sich über das Wissensbasis-Panel an, um Ressourcen zu durchsuchen."
+    "signInHint": "Melden Sie sich über das Wissensbasis-Panel an, um Ressourcen zu durchsuchen.",
+    "findKnowledgeBases": "Wissensbasen finden",
+    "createNew": "Neue erstellen"
   },
   "AccountPanel": {
     "notAuthenticated": "Melden Sie sich bei einer Wissensbasis an, um Ihr Konto anzuzeigen."

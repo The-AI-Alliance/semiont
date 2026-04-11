@@ -273,6 +273,8 @@
   "DiscoverEmptyState": {
     "noKnowledgeBases": "No knowledge bases",
     "noKnowledgeBasesHint": "Add a knowledge base using the panel on the right to start discovering, annotating, and linking resources.",
+    "findKnowledgeBases": "Find knowledge bases",
+    "createNew": "Create a new one",
     "sessionExpired": "Your session has expired.",
     "signedOut": "You are signed out.",
     "signInHint": "Sign in using the Knowledge Base panel to browse resources."

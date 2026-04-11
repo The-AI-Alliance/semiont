@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "右側のパネルを使用してナレッジベースを追加し、リソースの探索、注釈付け、リンクを開始してください。",
     "sessionExpired": "セッションが期限切れになりました。",
     "signedOut": "サインアウトしています。",
-    "signInHint": "ナレッジベースパネルを使用してサインインし、リソースを閲覧してください。"
+    "signInHint": "ナレッジベースパネルを使用してサインインし、リソースを閲覧してください。",
+    "findKnowledgeBases": "ナレッジベースを探す",
+    "createNew": "新規作成"
   },
   "AccountPanel": {
     "notAuthenticated": "アカウントを表示するには、ナレッジベースにサインインしてください。"

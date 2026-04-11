@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Thêm cơ sở kiến thức bằng bảng điều khiển bên phải để bắt đầu khám phá, chú thích và liên kết tài nguyên.",
     "sessionExpired": "Phiên của bạn đã hết hạn.",
     "signedOut": "Bạn đã đăng xuất.",
-    "signInHint": "Đăng nhập bằng bảng Cơ sở kiến thức để duyệt tài nguyên."
+    "signInHint": "Đăng nhập bằng bảng Cơ sở kiến thức để duyệt tài nguyên.",
+    "findKnowledgeBases": "Tìm cơ sở tri thức",
+    "createNew": "Tạo mới"
   },
   "AccountPanel": {
     "notAuthenticated": "Đăng nhập vào cơ sở kiến thức để xem tài khoản của bạn."

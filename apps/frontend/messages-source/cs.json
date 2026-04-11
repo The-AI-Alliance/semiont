@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Přidejte znalostní bázi pomocí panelu vpravo a začněte objevovat, anotovat a propojovat zdroje.",
     "sessionExpired": "Vaše relace vypršela.",
     "signedOut": "Jste odhlášeni.",
-    "signInHint": "Přihlaste se pomocí panelu Znalostní báze a procházejte zdroje."
+    "signInHint": "Přihlaste se pomocí panelu Znalostní báze a procházejte zdroje.",
+    "findKnowledgeBases": "Najít znalostní báze",
+    "createNew": "Vytvořit novou"
   },
   "AccountPanel": {
     "notAuthenticated": "Přihlaste se ke znalostní bázi, abyste zobrazili svůj účet."

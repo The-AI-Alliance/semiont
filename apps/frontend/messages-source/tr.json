@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Kaynakları keşfetmeye, not eklemeye ve bağlamaya başlamak için sağdaki paneli kullanarak bir bilgi tabanı ekleyin.",
     "sessionExpired": "Oturumunuzun süresi doldu.",
     "signedOut": "Çıkış yaptınız.",
-    "signInHint": "Kaynakları görüntülemek için Bilgi Tabanı panelini kullanarak giriş yapın."
+    "signInHint": "Kaynakları görüntülemek için Bilgi Tabanı panelini kullanarak giriş yapın.",
+    "findKnowledgeBases": "Bilgi tabanlarını bul",
+    "createNew": "Yeni oluştur"
   },
   "AccountPanel": {
     "notAuthenticated": "Hesabınızı görüntülemek için bir bilgi tabanında oturum açın."

@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Tilføj en videnbase ved hjælp af panelet til højre for at begynde at opdage, annotere og linke ressourcer.",
     "sessionExpired": "Din session er udløbet.",
     "signedOut": "Du er logget ud.",
-    "signInHint": "Log ind via videnbas-panelet for at gennemse ressourcer."
+    "signInHint": "Log ind via videnbas-panelet for at gennemse ressourcer.",
+    "findKnowledgeBases": "Find videnbaser",
+    "createNew": "Opret en ny"
   },
   "AccountPanel": {
     "notAuthenticated": "Log ind på en videnbase for at se din konto."

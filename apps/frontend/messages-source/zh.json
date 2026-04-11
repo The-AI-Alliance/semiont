@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "使用右侧面板添加知识库，开始发现、注释和链接资源。",
     "sessionExpired": "您的会话已过期。",
     "signedOut": "您已退出登录。",
-    "signInHint": "通过知识库面板登录以浏览资源。"
+    "signInHint": "通过知识库面板登录以浏览资源。",
+    "findKnowledgeBases": "查找知识库",
+    "createNew": "创建新知识库"
   },
   "AccountPanel": {
     "notAuthenticated": "登录知识库以查看您的帐户。"
