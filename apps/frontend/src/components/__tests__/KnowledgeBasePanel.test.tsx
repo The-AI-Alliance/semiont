@@ -39,7 +39,7 @@ const mockUpdateKnowledgeBase = vi.fn();
 const mockSignIn = vi.fn();
 const mockSignOut = vi.fn();
 
-const kb1: KnowledgeBase = { id: 'kb-1', label: 'Production', host: 'prod.example.com', port: 4000, protocol: 'https', email: 'admin@prod.com' };
+const kb1: KnowledgeBase = { id: 'kb-1', label: 'Production', host: 'prod.example.com', port: 4000, protocol: 'https', email: 'admin@prod.com', gitBranch: 'main' };
 const kb2: KnowledgeBase = { id: 'kb-2', label: 'Staging', host: 'staging.example.com', port: 4000, protocol: 'http', email: 'admin@staging.com' };
 
 let mockKnowledgeBases: KnowledgeBase[] = [kb1, kb2];
@@ -96,8 +96,21 @@ describe('KnowledgeBasePanel', () => {
 
     it('should display host:port for each KB', () => {
       render(<KnowledgeBasePanel />);
-      expect(screen.getByText('prod.example.com:4000')).toBeInTheDocument();
+      expect(screen.getByText('prod.example.com:4000 · main')).toBeInTheDocument();
       expect(screen.getByText('staging.example.com:4000')).toBeInTheDocument();
+    });
+
+    it('should display gitBranch when present', () => {
+      render(<KnowledgeBasePanel />);
+      // kb1 has gitBranch: 'main'
+      expect(screen.getByText(/· main/)).toBeInTheDocument();
+    });
+
+    it('should not display branch separator when gitBranch is absent', () => {
+      render(<KnowledgeBasePanel />);
+      // kb2 has no gitBranch — should show host:port only, no ·
+      const stagingText = screen.getByText('staging.example.com:4000');
+      expect(stagingText.textContent).not.toContain('·');
     });
 
     it('should render the Add knowledge base button', () => {
