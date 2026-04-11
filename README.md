@@ -6,7 +6,7 @@
 
 ## Quick Start
 
-### Start the frontend
+### Start the browser
 
 Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one.
 
