@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Adicione uma base de conhecimento usando o painel à direita para começar a descobrir, anotar e vincular recursos.",
     "sessionExpired": "Sua sessão expirou.",
     "signedOut": "Você está desconectado.",
-    "signInHint": "Entre pelo painel Base de conhecimento para navegar pelos recursos."
+    "signInHint": "Entre pelo painel Base de conhecimento para navegar pelos recursos.",
+    "findKnowledgeBases": "Encontrar bases de conhecimento",
+    "createNew": "Criar uma nova"
   },
   "AccountPanel": {
     "notAuthenticated": "Entre em uma base de conhecimento para visualizar sua conta."

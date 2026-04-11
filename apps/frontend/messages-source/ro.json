@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Adăugați o bază de cunoștințe folosind panoul din dreapta pentru a începe să descoperiți, să adnotați și să conectați resurse.",
     "sessionExpired": "Sesiunea dvs. a expirat.",
     "signedOut": "Ați fost deconectat.",
-    "signInHint": "Conectați-vă prin panoul Baza de cunoștințe pentru a naviga prin resurse."
+    "signInHint": "Conectați-vă prin panoul Baza de cunoștințe pentru a naviga prin resurse.",
+    "findKnowledgeBases": "Găsește baze de cunoștințe",
+    "createNew": "Creează una nouă"
   },
   "AccountPanel": {
     "notAuthenticated": "Conectați-vă la o bază de cunoștințe pentru a vă vizualiza contul."

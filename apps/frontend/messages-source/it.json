@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Aggiungi una base di conoscenza utilizzando il pannello a destra per iniziare a scoprire, annotare e collegare risorse.",
     "sessionExpired": "La tua sessione è scaduta.",
     "signedOut": "Hai effettuato la disconnessione.",
-    "signInHint": "Accedi tramite il pannello Base di conoscenza per sfogliare le risorse."
+    "signInHint": "Accedi tramite il pannello Base di conoscenza per sfogliare le risorse.",
+    "findKnowledgeBases": "Trova basi di conoscenza",
+    "createNew": "Creane una nuova"
   },
   "AccountPanel": {
     "notAuthenticated": "Accedi a una base di conoscenza per visualizzare il tuo account."

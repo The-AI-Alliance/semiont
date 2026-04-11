@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Lisää tietopankki oikeanpuoleisen paneelin avulla aloittaaksesi resurssien löytämisen, merkitsemisen ja linkittämisen.",
     "sessionExpired": "Istuntosi on vanhentunut.",
     "signedOut": "Olet kirjautunut ulos.",
-    "signInHint": "Kirjaudu sisään Tietopankki-paneelin avulla selataksesi resursseja."
+    "signInHint": "Kirjaudu sisään Tietopankki-paneelin avulla selataksesi resursseja.",
+    "findKnowledgeBases": "Etsi tietokantoja",
+    "createNew": "Luo uusi"
   },
   "AccountPanel": {
     "notAuthenticated": "Kirjaudu tietopankkiin nähdäksesi tilisi."

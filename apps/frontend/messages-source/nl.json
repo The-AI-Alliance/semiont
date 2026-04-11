@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "Voeg een kennisbasis toe via het paneel rechts om te beginnen met het ontdekken, annoteren en koppelen van bronnen.",
     "sessionExpired": "Uw sessie is verlopen.",
     "signedOut": "U bent uitgelogd.",
-    "signInHint": "Log in via het kennisbasis-paneel om bronnen te bekijken."
+    "signInHint": "Log in via het kennisbasis-paneel om bronnen te bekijken.",
+    "findKnowledgeBases": "Kennisbanken zoeken",
+    "createNew": "Nieuwe aanmaken"
   },
   "AccountPanel": {
     "notAuthenticated": "Log in op een kennisbasis om uw account te bekijken."

@@ -598,7 +598,9 @@
     "noKnowledgeBasesHint": "오른쪽 패널을 사용하여 지식 베이스를 추가하고 리소스 검색, 주석 달기 및 연결을 시작하세요.",
     "sessionExpired": "세션이 만료되었습니다.",
     "signedOut": "로그아웃되었습니다.",
-    "signInHint": "지식 베이스 패널을 사용하여 로그인하고 리소스를 탐색하세요."
+    "signInHint": "지식 베이스 패널을 사용하여 로그인하고 리소스를 탐색하세요.",
+    "findKnowledgeBases": "지식 베이스 찾기",
+    "createNew": "새로 만들기"
   },
   "AccountPanel": {
     "notAuthenticated": "계정을 보려면 지식 베이스에 로그인하세요."
