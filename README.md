@@ -2,13 +2,13 @@
 
 **Semiont is an open-source semantic wiki where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
+![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
+
 ## Quick Start
 
-### Install a container runtime
+### Start the frontend
 
 Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one.
-
-### Start the frontend
 
 Run the published frontend container image (substitute `docker` or `podman` for `container` as needed):
 
@@ -28,22 +28,11 @@ Clone a knowledge base and follow its README. Each KB repo contains configuratio
 | **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** | Public domain literature from Project Gutenberg |
 | **[synthetic-family](https://github.com/pingel-org/synthetic-family)** | Synthetic family dataset for testing and exploration |
 
-### Connect
+### Connect browser to knowledge base
 
-<table>
-<tr>
-<td width="25%" valign="top">
+Open **http://localhost:3000**. In the Knowledge Bases panel, enter host `localhost`, port `4000`, and the email and password you provided when starting the backend.
 
-Open **http://localhost:3000**.
-
-Enter **http://localhost:4000** as the knowledge base URL. Log in with the email and password you provided above.
-
-</td>
-<td width="75%">
-<img src="website/assets/images/semiont-2026-03-10.png" alt="Semiont screenshot" />
-</td>
-</tr>
-</table>
+![Connect to knowledge base](website/assets/images/connect-kb.png)
 
 ## Automate
 
