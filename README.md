@@ -20,48 +20,13 @@ Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/r
 
 ### Start a knowledge base
 
-Clone a knowledge base and run its backend script. Each KB repo contains the configuration, container definitions, and startup scripts under `.semiont/`.
+Clone a knowledge base and follow its README. Each KB repo contains configuration, container definitions, and startup scripts under `.semiont/`.
 
-**[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** — empty template for a new project:
-
-```bash
-git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
-cd my-kb
-.semiont/scripts/local_backend.sh --email admin@example.com --password password
-```
-
-**[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — public domain literature from Project Gutenberg:
-
-```bash
-git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
-cd gutenberg-kb
-.semiont/scripts/local_backend.sh --email admin@example.com --password password
-```
-
-**[synthetic-family](https://github.com/pingel-org/synthetic-family)** — synthetic family dataset for testing:
-
-```bash
-git clone https://github.com/pingel-org/synthetic-family.git
-cd synthetic-family
-.semiont/scripts/local_backend.sh --email admin@example.com --password password
-```
-
-The default config uses Ollama for fully local inference (no API key needed). On first run, the backend pulls `gemma4:26b` (17 GB), `gemma4:e2b` (7.2 GB), and `nomic-embed-text` (274 MB) — roughly 24 GB, one-time download.
-
-To use Anthropic cloud inference instead:
-
-```bash
-export ANTHROPIC_API_KEY=<your-api-key>
-.semiont/scripts/local_backend.sh --config anthropic --email admin@example.com --password password
-```
-
-To see all available configs:
-
-```bash
-.semiont/scripts/local_backend.sh --list-configs
-```
-
-The script stays attached and streams logs. The API is available at **http://localhost:4000**. See **[Backend setup](apps/backend/docs/LOCAL.md)** for npm-based alternatives and configuration.
+| Knowledge Base | Description |
+|---|---|
+| **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** | Empty template — start here for a new project |
+| **[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** | Public domain literature from Project Gutenberg |
+| **[synthetic-family](https://github.com/pingel-org/synthetic-family)** | Synthetic family dataset for testing and exploration |
 
 ### Connect
 
