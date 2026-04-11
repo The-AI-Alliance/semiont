@@ -8,26 +8,45 @@
 
 Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one.
 
-### Clone the knowledge base template
+### Start the frontend
 
-The template repository contains the configuration, container definitions, and startup scripts that the next steps depend on:
+Run the published frontend container image (substitute `docker` or `podman` for `container` as needed):
+
+```bash
+container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+```
+
+Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Frontend setup](apps/frontend/docs/LOCAL.md)** for details.
+
+### Start a knowledge base
+
+Clone a knowledge base and run its backend script. Each KB repo contains the configuration, container definitions, and startup scripts under `.semiont/`.
+
+**[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** — empty template for a new project:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
 cd my-kb
-```
-
-To start with a pre-populated knowledge base instead, pick one from the [Knowledge Bases](#semiont-knowledge-bases) table below.
-
-### Start the backend
-
-Builds containers, starts PostgreSQL, Neo4j, Qdrant, and the API server. The default config uses Ollama for fully local inference (no API key needed):
-
-```bash
 .semiont/scripts/local_backend.sh --email admin@example.com --password password
 ```
 
-On first run, the backend container pulls the inference and embedding models from Ollama. The default config (`ollama-gemma`) pulls `gemma4:26b` (17 GB), `gemma4:e2b` (7.2 GB), and `nomic-embed-text` (274 MB) — roughly 24 GB total. This is a one-time download.
+**[gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)** — public domain literature from Project Gutenberg:
+
+```bash
+git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
+cd gutenberg-kb
+.semiont/scripts/local_backend.sh --email admin@example.com --password password
+```
+
+**[synthetic-family](https://github.com/pingel-org/synthetic-family)** — synthetic family dataset for testing:
+
+```bash
+git clone https://github.com/pingel-org/synthetic-family.git
+cd synthetic-family
+.semiont/scripts/local_backend.sh --email admin@example.com --password password
+```
+
+The default config uses Ollama for fully local inference (no API key needed). On first run, the backend pulls `gemma4:26b` (17 GB), `gemma4:e2b` (7.2 GB), and `nomic-embed-text` (274 MB) — roughly 24 GB, one-time download.
 
 To use Anthropic cloud inference instead:
 
@@ -44,13 +63,7 @@ To see all available configs:
 
 The script stays attached and streams logs. The API is available at **http://localhost:4000**. See **[Backend setup](apps/backend/docs/LOCAL.md)** for npm-based alternatives and configuration.
 
-### Start the frontend
-
-Open a second terminal and run the published frontend container image:
-
-```bash
-container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
-```
+### Connect
 
 <table>
 <tr>
@@ -67,47 +80,35 @@ Enter **http://localhost:4000** as the knowledge base URL. Log in with the email
 </tr>
 </table>
 
-Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Frontend setup](apps/frontend/docs/LOCAL.md)** for details.
+## Automate
 
-### Automate
+Every operation in the GUI is available programmatically. The same seven flows — yield, mark, match, bind, gather, browse, beckon — work identically whether driven by a human, a script, or an AI agent.
 
-The web UI is one way to interact with a knowledge base. Engineers and agentic coding assistants can drive annotation, linking, and content generation programmatically:
-
-- **[Semiont CLI](apps/cli/README.md)** — `semiont mark`, `semiont gather`, `semiont match`, and other commands for scripting workflows from the terminal
-- **[API Client](packages/api-client/README.md)** — type-safe TypeScript SDK (`@semiont/api-client`) for building integrations and autonomous agents
-- **[Agent Skills](docs/skills/)** — ready-made skill definitions (e.g. `semiont-wiki`, `semiont-highlight`) that agentic coding assistants like Claude Code can use to drive the full annotation and generation pipeline
-
-Every operation available in the GUI is available through the CLI and API. Humans and AI agents share the same interfaces — see [Peer Collaboration](#core-tenets) below.
-
-For the full picture see the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)**.
-
-## Semiont Knowledge Bases
-
-### [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)
-
-Empty template — start here for a new project.
+**[Semiont CLI](apps/cli/README.md)** — pipe the full annotation pipeline from the terminal:
 
 ```bash
-git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
+semiont mark doc-123 --delegate --motivation linking --entity-type Person --entity-type Organization
+semiont gather annotation doc-123 ann-456
+semiont match doc-123 ann-456
+semiont bind doc-123 ann-456 target-789
 ```
 
-### [gutenberg-kb](https://github.com/The-AI-Alliance/gutenberg-kb)
+**[API Client](packages/api-client/README.md)** — type-safe TypeScript SDK organized by the seven verbs:
 
-Public domain literature from Project Gutenberg.
+```typescript
+const semiont = new SemiontApiClient({ baseUrl, eventBus, getToken });
 
-```bash
-git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
+await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
+const context = await firstValueFrom(semiont.gather.annotation(annId, resourceId));
+const results = await firstValueFrom(semiont.match.search(resourceId, refId, context));
+await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
 ```
 
-### [synthetic-family](https://github.com/pingel-org/synthetic-family)
+**[Agent Skills](docs/skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code can use to drive the full pipeline without writing integration code.
 
-Synthetic family dataset for testing and exploration.
+See the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)** for alternative setup paths.
 
-```bash
-git clone https://github.com/pingel-org/synthetic-family.git
-```
 
-Each KB repo includes container-based scripts in `.semiont/scripts/` — clone any KB and follow its README to get started.
 
 ## Why Semiont
 
