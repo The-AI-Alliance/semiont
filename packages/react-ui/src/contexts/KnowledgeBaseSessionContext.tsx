@@ -119,7 +119,7 @@ interface KnowledgeBaseSessionValue {
   addKnowledgeBase: (kb: NewKnowledgeBase, access: string, refresh: string) => KnowledgeBase;
   removeKnowledgeBase: (id: string) => void;
   setActiveKnowledgeBase: (id: string) => void;
-  updateKnowledgeBase: (id: string, updates: Partial<Pick<KnowledgeBase, 'label'>>) => void;
+  updateKnowledgeBase: (id: string, updates: Partial<KnowledgeBase>) => void;
   /** Re-auth on an existing KB: store the new tokens and refresh the session. */
   signIn: (id: string, access: string, refresh: string) => void;
   /** Sign out of a KB: clear its stored tokens. If it's the active KB, clear in-memory session too. */
@@ -421,7 +421,7 @@ export function KnowledgeBaseSessionProvider({ children }: { children: React.Rea
     setActiveKnowledgeBaseId(id);
   }, []);
 
-  const updateKnowledgeBase = useCallback((id: string, updates: Partial<Pick<KnowledgeBase, 'label'>>) => {
+  const updateKnowledgeBase = useCallback((id: string, updates: Partial<KnowledgeBase>) => {
     setKnowledgeBases(prev => prev.map(kb => kb.id === id ? { ...kb, ...updates } : kb));
   }, []);
 

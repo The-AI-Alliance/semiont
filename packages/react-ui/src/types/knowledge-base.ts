@@ -11,6 +11,7 @@ export interface KnowledgeBase {
   port: number;
   protocol: 'http' | 'https';
   email: string;
+  gitBranch?: string;
 }
 
 /**

@@ -119,7 +119,7 @@ function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
   );
 }
 
-async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; label: string }> {
+async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; label: string; gitBranch?: string }> {
   const origin = `${protocol}://${host}:${port}`;
   const client = new SemiontApiClient({ baseUrl: baseUrl(origin), eventBus: new EventBus() });
 
@@ -130,12 +130,14 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   if (!refreshToken) throw new Error('No refresh token received');
 
   let label = `${host}:${port}`;
+  let gitBranch: string | undefined;
   try {
     const status = await client.getStatus({ auth: accessToken(token) });
     if ((status as any).projectName) label = (status as any).projectName;
+    if ((status as any).gitBranch) gitBranch = (status as any).gitBranch;
   } catch { /* use default label */ }
 
-  return { token, refreshToken, label };
+  return { token, refreshToken, label, ...(gitBranch ? { gitBranch } : {}) };
 }
 
 export function KnowledgeBasePanel() {
@@ -182,7 +184,8 @@ export function KnowledgeBasePanel() {
     const existing = knowledgeBases.find(kb => kb.host === host && kb.port === port);
     if (existing) {
       try {
-        const { token, refreshToken } = await authenticateWithBackend(host, port, protocol, email, password);
+        const { token, refreshToken, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
+        updateKnowledgeBase(existing.id, { ...(gitBranch ? { gitBranch } : {}) });
         signIn(existing.id, token, refreshToken);
         setShowAddForm(false);
       } catch (err) {
@@ -193,8 +196,8 @@ export function KnowledgeBasePanel() {
       return;
     }
     try {
-      const { token, refreshToken, label } = await authenticateWithBackend(host, port, protocol, email, password);
-      addKnowledgeBase({ label, host, port, protocol, email }, token, refreshToken);
+      const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
+      addKnowledgeBase({ label, host, port, protocol, email, ...(gitBranch ? { gitBranch } : {}) }, token, refreshToken);
       setShowAddForm(false);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
@@ -209,8 +212,8 @@ export function KnowledgeBasePanel() {
     setReauthError(null);
     setReauthSubmitting(true);
     try {
-      const { token, refreshToken, label } = await authenticateWithBackend(kb.host, kb.port, kb.protocol, kb.email, password);
-      updateKnowledgeBase(kbId, { label });
+      const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(kb.host, kb.port, kb.protocol, kb.email, password);
+      updateKnowledgeBase(kbId, { label, ...(gitBranch ? { gitBranch } : {}) });
       signIn(kbId, token, refreshToken);
       setReauthKbId(null);
     } catch (err) {
@@ -277,7 +280,7 @@ export function KnowledgeBasePanel() {
                     </button>
                   </div>
                   <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
-                    {kb.host}:{kb.port}
+                    {kb.host}:{kb.port}{kb.gitBranch ? ` · ${kb.gitBranch}` : ''}
                   </span>
                 </div>
                 {confirmRemoveKbId === kb.id && (
