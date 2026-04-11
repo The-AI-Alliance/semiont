@@ -28,7 +28,8 @@
     "creationMethod": "Aanmaakmethode",
     "attributedTo": "Toegeschreven aan",
     "derivedFrom": "Afgeleid van",
-    "generatedBy": "Gegenereerd door"
+    "generatedBy": "Gegenereerd door",
+    "storageUri": "Opslag"
   },
   "CollaborationPanel": {
     "title": "Samenwerking",

@@ -28,7 +28,8 @@
     "creationMethod": "Způsob vytvoření",
     "attributedTo": "Připsáno",
     "derivedFrom": "Odvozeno z",
-    "generatedBy": "Vygenerováno pomocí"
+    "generatedBy": "Vygenerováno pomocí",
+    "storageUri": "Úložiště"
   },
   "CollaborationPanel": {
     "title": "Spolupráce",

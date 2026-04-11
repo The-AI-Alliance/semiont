@@ -28,7 +28,8 @@
     "creationMethod": "Cara pembuatan",
     "attributedTo": "Dikaitkan dengan",
     "derivedFrom": "Diturunkan dari",
-    "generatedBy": "Dibuat oleh"
+    "generatedBy": "Dibuat oleh",
+    "storageUri": "Penyimpanan"
   },
   "CollaborationPanel": {
     "title": "Kolaborasi",

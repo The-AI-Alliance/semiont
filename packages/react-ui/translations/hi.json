@@ -28,7 +28,8 @@
     "creationMethod": "निर्माण विधि",
     "attributedTo": "श्रेय दिया गया",
     "derivedFrom": "से व्युत्पन्न",
-    "generatedBy": "द्वारा उत्पन्न"
+    "generatedBy": "द्वारा उत्पन्न",
+    "storageUri": "भंडारण"
   },
   "CollaborationPanel": {
     "title": "सहयोग",

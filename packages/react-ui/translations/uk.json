@@ -28,7 +28,8 @@
     "creationMethod": "Спосіб створення",
     "attributedTo": "Авторство",
     "derivedFrom": "Походить від",
-    "generatedBy": "Створено за допомогою"
+    "generatedBy": "Створено за допомогою",
+    "storageUri": "Сховище"
   },
   "CollaborationPanel": {
     "title": "Співпраця",

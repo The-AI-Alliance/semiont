@@ -28,7 +28,8 @@
     "creationMethod": "创建方式",
     "attributedTo": "归属于",
     "derivedFrom": "派生自",
-    "generatedBy": "由…生成"
+    "generatedBy": "由…生成",
+    "storageUri": "存储"
   },
   "CollaborationPanel": {
     "title": "协作",

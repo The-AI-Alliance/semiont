@@ -28,7 +28,8 @@
     "creationMethod": "אופן יצירה",
     "attributedTo": "מיוחס ל",
     "derivedFrom": "נגזר מ",
-    "generatedBy": "נוצר על ידי"
+    "generatedBy": "נוצר על ידי",
+    "storageUri": "אחסון"
   },
   "CollaborationPanel": {
     "title": "שיתוף פעולה",

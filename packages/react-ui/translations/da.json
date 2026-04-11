@@ -28,7 +28,8 @@
     "creationMethod": "Oprettelsesmetode",
     "attributedTo": "Tilskrevet",
     "derivedFrom": "Afledt af",
-    "generatedBy": "Genereret af"
+    "generatedBy": "Genereret af",
+    "storageUri": "Lagring"
   },
   "CollaborationPanel": {
     "title": "Samarbejde",

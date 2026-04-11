@@ -28,7 +28,8 @@
     "creationMethod": "Luontitapa",
     "attributedTo": "Tekijä",
     "derivedFrom": "Johdettu",
-    "generatedBy": "Luonut"
+    "generatedBy": "Luonut",
+    "storageUri": "Tallennuspaikka"
   },
   "CollaborationPanel": {
     "title": "Yhteistyö",
