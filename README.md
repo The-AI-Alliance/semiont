@@ -18,6 +18,8 @@ container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:l
 
 Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Frontend setup](apps/frontend/docs/LOCAL.md)** for details.
 
+Point your web browser to the Semiont browser running at **http://localhost:3000**.
+
 ### Start a knowledge base
 
 Clone a knowledge base and follow its README. Each KB repo contains configuration, container definitions, and startup scripts under `.semiont/`.
@@ -30,7 +32,7 @@ Clone a knowledge base and follow its README. Each KB repo contains configuratio
 
 ### Connect browser to knowledge base
 
-Open **http://localhost:3000**. In the Knowledge Bases panel, enter host `localhost`, port `4000`, and the email and password you provided when starting the backend.
+In the Semiont browser's Knowledge Bases panel, enter host `localhost`, port `4000`, and the email and password you provided when starting the backend.
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 
