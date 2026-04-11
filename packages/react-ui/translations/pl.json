@@ -28,7 +28,8 @@
     "creationMethod": "Sposób utworzenia",
     "attributedTo": "Przypisano do",
     "derivedFrom": "Pochodzi z",
-    "generatedBy": "Wygenerowano przez"
+    "generatedBy": "Wygenerowano przez",
+    "storageUri": "Przechowywanie"
   },
   "CollaborationPanel": {
     "title": "Współpraca",

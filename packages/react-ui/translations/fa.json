@@ -28,7 +28,8 @@
     "creationMethod": "روش ایجاد",
     "attributedTo": "منتسب به",
     "derivedFrom": "مشتق از",
-    "generatedBy": "تولیدشده توسط"
+    "generatedBy": "تولیدشده توسط",
+    "storageUri": "ذخیره‌سازی"
   },
   "CollaborationPanel": {
     "title": "همکاری",

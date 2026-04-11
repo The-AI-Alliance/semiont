@@ -28,7 +28,8 @@
     "creationMethod": "Skapandesätt",
     "attributedTo": "Tillskriven",
     "derivedFrom": "Härledd från",
-    "generatedBy": "Genererad av"
+    "generatedBy": "Genererad av",
+    "storageUri": "Lagring"
   },
   "CollaborationPanel": {
     "title": "Samarbete",

@@ -28,7 +28,8 @@
     "creationMethod": "Μέθοδος δημιουργίας",
     "attributedTo": "Αποδίδεται σε",
     "derivedFrom": "Παράγεται από",
-    "generatedBy": "Δημιουργήθηκε από"
+    "generatedBy": "Δημιουργήθηκε από",
+    "storageUri": "Αποθήκευση"
   },
   "CollaborationPanel": {
     "title": "Συνεργασία",

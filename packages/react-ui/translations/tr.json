@@ -28,7 +28,8 @@
     "creationMethod": "Oluşturma yöntemi",
     "attributedTo": "Atfedilen",
     "derivedFrom": "Kaynağı",
-    "generatedBy": "Oluşturan"
+    "generatedBy": "Oluşturan",
+    "storageUri": "Depolama"
   },
   "CollaborationPanel": {
     "title": "İşbirliği",

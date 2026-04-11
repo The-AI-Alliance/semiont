@@ -28,7 +28,8 @@
     "creationMethod": "Cách tạo",
     "attributedTo": "Được gán cho",
     "derivedFrom": "Bắt nguồn từ",
-    "generatedBy": "Được tạo bởi"
+    "generatedBy": "Được tạo bởi",
+    "storageUri": "Lưu trữ"
   },
   "CollaborationPanel": {
     "title": "Cộng tác",

@@ -28,7 +28,8 @@
     "creationMethod": "Metodă de creare",
     "attributedTo": "Atribuit",
     "derivedFrom": "Derivat din",
-    "generatedBy": "Generat de"
+    "generatedBy": "Generat de",
+    "storageUri": "Stocare"
   },
   "CollaborationPanel": {
     "title": "Colaborare",

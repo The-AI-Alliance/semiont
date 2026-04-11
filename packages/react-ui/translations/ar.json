@@ -28,7 +28,8 @@
     "creationMethod": "طريقة الإنشاء",
     "attributedTo": "منسوب إلى",
     "derivedFrom": "مشتق من",
-    "generatedBy": "أُنشئ بواسطة"
+    "generatedBy": "أُنشئ بواسطة",
+    "storageUri": "التخزين"
   },
   "CollaborationPanel": {
     "title": "التعاون",

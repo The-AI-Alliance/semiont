@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 
 /**
  * Represents a Semiont project rooted at a given directory.
@@ -91,6 +92,22 @@ export class SemiontProject {
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';
     this.runtimeDir = path.join(runtimeBase, 'semiont', this.name);
     this.backendPidFile = path.join(this.runtimeDir, 'backend.pid');
+  }
+
+  /**
+   * Read the current git branch for the project root.
+   * Returns null if the project is not a git repo or git is not available.
+   */
+  gitBranch(): string | null {
+    try {
+      return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: this.root,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim() || null;
+    } catch {
+      return null;
+    }
   }
 
   /**

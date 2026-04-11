@@ -12,6 +12,7 @@ import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
 import type { User } from '@prisma/client';
 import type { components, EnvironmentConfig } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 
 type StatusResponse = components['schemas']['StatusResponse'];
 
@@ -30,7 +31,10 @@ statusRouter.use('/api/status', authMiddleware);
 statusRouter.get('/api/status', async (c) => {
   const user = c.get('user');
   const config = c.get('config');
-  const projectName = (config._metadata as Record<string, unknown>)?.projectName as string | undefined;
+  const metadata = config._metadata as Record<string, unknown> | undefined;
+  const projectName = metadata?.projectName as string | undefined;
+  const projectRoot = metadata?.projectRoot as string | undefined;
+  const gitBranch = projectRoot ? new SemiontProject(projectRoot).gitBranch() : undefined;
 
   const response: StatusResponse = {
     status: 'operational',
@@ -43,6 +47,7 @@ statusRouter.get('/api/status', async (c) => {
     message: 'Ready to build the future of knowledge management!',
     authenticatedAs: user?.email,
     projectName,
+    gitBranch: gitBranch ?? undefined,
   };
 
   return c.json(response, 200);

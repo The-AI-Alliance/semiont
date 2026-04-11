@@ -28,7 +28,8 @@
     "creationMethod": "생성 방법",
     "attributedTo": "귀속 대상",
     "derivedFrom": "파생 출처",
-    "generatedBy": "생성 도구"
+    "generatedBy": "생성 도구",
+    "storageUri": "저장소"
   },
   "CollaborationPanel": {
     "title": "협업",

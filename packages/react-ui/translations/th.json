@@ -28,7 +28,8 @@
     "creationMethod": "วิธีการสร้าง",
     "attributedTo": "อ้างอิงถึง",
     "derivedFrom": "ได้มาจาก",
-    "generatedBy": "สร้างโดย"
+    "generatedBy": "สร้างโดย",
+    "storageUri": "ที่จัดเก็บ"
   },
   "CollaborationPanel": {
     "title": "การทำงานร่วมกัน",

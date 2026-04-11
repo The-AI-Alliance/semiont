@@ -28,7 +28,8 @@
     "creationMethod": "作成方法",
     "attributedTo": "帰属先",
     "derivedFrom": "派生元",
-    "generatedBy": "生成ツール"
+    "generatedBy": "生成ツール",
+    "storageUri": "ストレージ"
   },
   "CollaborationPanel": {
     "title": "コラボレーション",

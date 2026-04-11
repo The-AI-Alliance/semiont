@@ -617,6 +617,7 @@ export function ResourceViewerPage({
                 documentLocale={getLanguage(resource)}
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
+                storageUri={resource.storageUri}
                 isArchived={resource.archived ?? false}
                 dateCreated={resource.dateCreated}
                 dateModified={resource.dateModified}

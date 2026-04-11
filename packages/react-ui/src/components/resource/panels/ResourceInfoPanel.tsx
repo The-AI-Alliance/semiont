@@ -14,6 +14,7 @@ interface Props {
   documentLocale?: string | undefined;
   primaryMediaType?: string | undefined;
   primaryByteSize?: number | undefined;
+  storageUri?: string | undefined;
   isArchived?: boolean;
   dateCreated?: string | undefined;
   dateModified?: string | undefined;
@@ -36,6 +37,7 @@ export function ResourceInfoPanel({
   documentLocale,
   primaryMediaType,
   primaryByteSize,
+  storageUri,
   isArchived = false,
   dateCreated,
   dateModified,
@@ -86,6 +88,14 @@ export function ResourceInfoPanel({
                 <span className="semiont-resource-info-panel__label">{t('byteSize')}</span>
                 <span className="semiont-resource-info-panel__value">
                   {primaryByteSize.toLocaleString()} bytes
+                </span>
+              </div>
+            )}
+            {storageUri && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('storageUri')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {storageUri}
                 </span>
               </div>
             )}

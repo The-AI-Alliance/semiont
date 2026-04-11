@@ -28,7 +28,8 @@
     "creationMethod": "তৈরির পদ্ধতি",
     "attributedTo": "সম্পাদককৃত",
     "derivedFrom": "থেকে উৎপন্ন",
-    "generatedBy": "তৈরিকারক"
+    "generatedBy": "তৈরিকারক",
+    "storageUri": "সঞ্চয়স্থান"
   },
   "CollaborationPanel": {
     "title": "সহযোগিতা",
