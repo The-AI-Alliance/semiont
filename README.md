@@ -46,9 +46,16 @@ The script stays attached and streams logs. The API is available at **http://loc
 
 ### Start the frontend
 
-Open a second terminal in the same directory:
+Open a second terminal and run the published frontend container image:
 
 ```bash
+container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+```
+
+Or use the script from the KB template (builds locally instead of pulling):
+
+```bash
+cd my-kb
 .semiont/scripts/local_frontend.sh
 ```
 
