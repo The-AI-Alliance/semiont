@@ -43,9 +43,16 @@ To see all available configs:
 .semiont/scripts/local_backend.sh --list-configs
 ```
 
-In a second terminal, start the frontend:
+In a second terminal, start the frontend using the published container image:
 
 ```bash
+container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+```
+
+Or use the script from the KB template (builds locally instead of pulling):
+
+```bash
+cd my-kb
 .semiont/scripts/local_frontend.sh
 ```
 

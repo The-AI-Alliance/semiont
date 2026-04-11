@@ -52,13 +52,6 @@ Open a second terminal and run the published frontend container image:
 container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
 
-Or use the script from the KB template (builds locally instead of pulling):
-
-```bash
-cd my-kb
-.semiont/scripts/local_frontend.sh
-```
-
 <table>
 <tr>
 <td width="25%" valign="top">
