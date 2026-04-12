@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
-import { Subject, of, EMPTY, type Observable } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap, startWith, map } from 'rxjs/operators';
-import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
+import { map } from 'rxjs/operators';
 import { getResourceId } from '@semiont/api-client';
+import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 import { useApiClient } from '../../contexts/ApiClientContext';
 import { useObservable } from '../../hooks/useObservable';
+import { createSearchPipeline } from '../../lib/search-pipeline';
 import './SearchModal.css';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -46,7 +46,6 @@ export function SearchModal({
 }: SearchModalProps) {
   const { announceSearchResults, announceSearching } = useSearchAnnouncements();
   const semiont = useApiClient();
-  const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const t = {
@@ -62,21 +61,15 @@ export function SearchModal({
   };
 
   // ── Search pipeline ─────────────────────────────────────────────────────
-  const searchInput$ = useMemo(() => new Subject<string>(), []);
-
-  type SearchState = { results: SearchResult[]; loading: boolean };
-  const searchState$: Observable<SearchState> = useMemo(() => {
-    if (!semiont) return EMPTY;
-    return searchInput$.pipe(
-      startWith(''),
-      debounceTime(SEARCH_DEBOUNCE_MS),
-      distinctUntilChanged(),
-      switchMap((q): Observable<SearchState> => {
-        const trimmed = q.trim();
-        if (!trimmed) return of({ results: [], loading: false });
-        return semiont.browse.resources({ search: trimmed, limit: SEARCH_LIMIT }).pipe(
-          map((resources): SearchState => {
-            const items: SearchResult[] = (resources ?? [])
+  // The fetch closure maps ResourceDescriptor → SearchResult inside the
+  // map operator. The helper handles debounce, switchMap, and loading state.
+  const [pipeline] = useState(() =>
+    createSearchPipeline<SearchResult>(
+      (q) =>
+        semiont.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
+          map((resources) => {
+            if (resources === undefined) return undefined;
+            return resources
               .map((resource): SearchResult | null => {
                 const id = getResourceId(resource);
                 if (!id) return null;
@@ -88,35 +81,32 @@ export function SearchModal({
                 };
               })
               .filter((r): r is SearchResult => r !== null);
-            return { results: items, loading: resources === undefined };
           }),
-          startWith({ results: [], loading: true }),
-        );
-      }),
-    );
-  }, [semiont, searchInput$]);
+        ),
+      { debounceMs: SEARCH_DEBOUNCE_MS },
+    ),
+  );
+  useEffect(() => () => pipeline.dispose(), [pipeline]);
 
-  const searchState = useObservable<SearchState>(searchState$);
+  const query = useObservable(pipeline.query$) ?? '';
+  const searchState = useObservable(pipeline.state$);
   const results = searchState?.results ?? [];
-  const loading = searchState?.loading ?? false;
+  const loading = searchState?.isSearching ?? false;
 
-  useEffect(() => () => searchInput$.complete(), [searchInput$]);
-
-  // Reset state when modal opens
+  // Reset query and selection when modal opens.
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
-      searchInput$.next('');
+      pipeline.setQuery('');
       setSelectedIndex(0);
     }
-  }, [isOpen, searchInput$]);
+  }, [isOpen, pipeline]);
 
-  // Reset selection when results change
+  // Reset selection cursor when results change.
   useEffect(() => {
     setSelectedIndex(0);
   }, [results.length]);
 
-  // Announce search lifecycle
+  // Accessibility announcements for search lifecycle.
   useEffect(() => {
     if (!query.trim()) return;
     if (loading) {
@@ -126,11 +116,6 @@ export function SearchModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, results.length]);
-
-  const handleQueryChange = (value: string) => {
-    setQuery(value);
-    searchInput$.next(value);
-  };
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -188,7 +173,7 @@ export function SearchModal({
                   <input
                     type="text"
                     value={query}
-                    onChange={(e) => handleQueryChange(e.target.value)}
+                    onChange={(e) => pipeline.setQuery(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={t.placeholder}
                     className="semiont-search-modal__input"

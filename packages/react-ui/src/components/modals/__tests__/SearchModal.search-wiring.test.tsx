@@ -1,12 +1,14 @@
 /**
- * SearchModal — search wiring tests
+ * SearchModal — wiring + UI tests
  *
- * Targeted at the Observable-driven search pipeline introduced when
- * SearchModal was migrated off React Query. Mocks HeadlessUI to dodge the
- * jsdom OOM that prevents the older SearchModal.* test files from running,
- * and mocks useApiClient with a controllable BehaviorSubject so we can
- * assert on what flows through browse.resources({ search }) and how the
- * component reflects each emission.
+ * Verifies that SearchModal correctly wires createSearchPipeline to
+ * browse.resources, maps results to its SearchResult shape, and renders
+ * each emission. Pure pipeline behavior (debounce, distinct, switchMap,
+ * loading state) is covered by search-pipeline.test.ts and not duplicated
+ * here.
+ *
+ * Mocks HeadlessUI to dodge the jsdom OOM that prevents the older
+ * SearchModal.* test files from running.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -100,7 +102,10 @@ describe('SearchModal — search wiring', () => {
     expect(screen.getByText('Start typing to search...')).toBeInTheDocument();
   });
 
-  it('forwards typed input to browse.resources after the debounce window', async () => {
+  it('wires the modal to browse.resources with the correct shape', async () => {
+    // One integration check that the modal calls browse.resources with the
+    // limit and search shape it advertises. Pipeline mechanics (debounce,
+    // empty-query gating) live in search-pipeline.test.ts.
     renderWithProviders(<SearchModal {...defaultProps} />);
     const input = screen.getByPlaceholderText('Search resources, entities...');
 
@@ -110,13 +115,6 @@ describe('SearchModal — search wiring', () => {
       () => expect(browseResourcesMock).toHaveBeenCalledWith({ search: 'marathon', limit: 5 }),
       { timeout: 1500 }
     );
-  });
-
-  it('does not call browse.resources when the input is empty', async () => {
-    renderWithProviders(<SearchModal {...defaultProps} />);
-    // Wait past the debounce window with no input — should never have called.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(browseResourcesMock).not.toHaveBeenCalled();
   });
 
   it('renders results when the Observable emits a non-empty list', async () => {

@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { Subject, of, EMPTY, type Observable } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap, startWith, map } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 import type { components } from '@semiont/core';
 import { getResourceId, getPrimaryRepresentation } from '@semiont/api-client';
 import { useApiClient } from '../../contexts/ApiClientContext';
 import { useObservable } from '../../hooks/useObservable';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
+import { createSearchPipeline } from '../../lib/search-pipeline';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -18,10 +18,6 @@ type SearchResult = {
   content?: string;
   mediaType?: string;
 };
-
-type SearchState = { results: SearchResult[]; isSearching: boolean };
-const EMPTY_SEARCH: SearchState = { results: [], isSearching: false };
-const SEARCHING: SearchState = { results: [], isSearching: true };
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SEARCH_LIMIT = 50;
@@ -61,7 +57,6 @@ export function ResourceSearchModal({
 }: ResourceSearchModalProps) {
   const { announceSearchResults, announceSearching, announceNavigation } = useSearchAnnouncements();
   const semiont = useApiClient();
-  const [search, setSearch] = useState(searchTerm);
 
   const t = {
     title: translations.title || 'Search Resources',
@@ -72,64 +67,46 @@ export function ResourceSearchModal({
   };
 
   // ── Search pipeline ─────────────────────────────────────────────────────
-  const searchInput$ = useMemo(() => new Subject<string>(), []);
+  const [pipeline] = useState(() =>
+    createSearchPipeline<SearchResult>(
+      (q) =>
+        semiont.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
+          map((resources) => {
+            if (resources === undefined) return undefined;
+            return resources
+              .map(toSearchResult)
+              .filter((r): r is SearchResult => r !== null);
+          }),
+        ),
+      { debounceMs: SEARCH_DEBOUNCE_MS, initialQuery: searchTerm },
+    ),
+  );
+  useEffect(() => () => pipeline.dispose(), [pipeline]);
 
-  const searchState$: Observable<SearchState> = useMemo(() => {
-    if (!semiont) return EMPTY;
-    return searchInput$.pipe(
-      startWith(searchTerm),
-      debounceTime(SEARCH_DEBOUNCE_MS),
-      distinctUntilChanged(),
-      switchMap((query): Observable<SearchState> => {
-        const trimmed = query.trim();
-        if (!trimmed) return of(EMPTY_SEARCH);
-        return semiont.browse.resources({ search: trimmed, limit: SEARCH_LIMIT }).pipe(
-          map((resources): SearchState => ({
-            results: (resources ?? []).map(toSearchResult).filter((r): r is SearchResult => r !== null),
-            isSearching: resources === undefined,
-          })),
-          startWith(SEARCHING),
-        );
-      }),
-    );
-    // searchTerm intentionally omitted: only used for the initial value
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [semiont, searchInput$]);
-
-  const searchState = useObservable<SearchState>(searchState$);
+  const search = useObservable(pipeline.query$) ?? '';
+  const searchState = useObservable(pipeline.state$);
   const results = searchState?.results ?? [];
   const loading = searchState?.isSearching ?? false;
 
-  useEffect(() => () => searchInput$.complete(), [searchInput$]);
-
-  // Announce search results
+  // Re-seed when modal re-opens with a different searchTerm prop. The
+  // initialQuery option only applies to the first construction; subsequent
+  // prop changes need an explicit setQuery.
   useEffect(() => {
-    if (!loading && search.trim()) {
+    if (isOpen && searchTerm) {
+      pipeline.setQuery(searchTerm);
+    }
+  }, [isOpen, searchTerm, pipeline]);
+
+  // Accessibility announcements for search lifecycle.
+  useEffect(() => {
+    if (!search.trim()) return;
+    if (loading) {
+      announceSearching();
+    } else {
       announceSearchResults(results.length, search);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, results.length]);
-
-  // Announce when searching
-  useEffect(() => {
-    if (loading && search.trim()) {
-      announceSearching();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
-
-  // Re-seed search term when modal opens with a fresh prop
-  useEffect(() => {
-    if (isOpen && searchTerm) {
-      setSearch(searchTerm);
-      searchInput$.next(searchTerm);
-    }
-  }, [isOpen, searchTerm, searchInput$]);
-
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    searchInput$.next(value);
-  };
 
   const handleSelect = (resourceId: string, resourceName: string) => {
     announceNavigation(resourceName, 'resource');
@@ -181,7 +158,7 @@ export function ResourceSearchModal({
                   <input
                     type="text"
                     value={search}
-                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onChange={(e) => pipeline.setQuery(e.target.value)}
                     placeholder={t.placeholder}
                     className="semiont-search-modal__search-input"
                     autoFocus
