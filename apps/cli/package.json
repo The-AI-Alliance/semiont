@@ -74,7 +74,6 @@
     "typescript": "^5.9.2"
   },
   "optionalDependencies": {
-    "@anthropic-ai/sdk": "^0.84.0",
     "@aws-sdk/client-cloudformation": "^3.600.0",
     "@aws-sdk/client-cloudwatch": "^3.600.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.600.0",
