@@ -235,15 +235,15 @@ ok "semiont-frontend image built"
 if [[ -n "$KB_DIR" ]]; then
   banner "BACKEND IMAGE"
 
-  if [[ ! -f "$KB_DIR/.semiont/containers/Dockerfile.backend" ]]; then
-    fail "No Dockerfile.backend found at $KB_DIR/.semiont/containers/"
+  if [[ ! -f "$KB_DIR/.semiont/containers/Dockerfile" ]]; then
+    fail "No Dockerfile found at $KB_DIR/.semiont/containers/"
     exit 1
   fi
 
   step "Building semiont-backend image from $KB_DIR..."
   $RT build --no-cache --tag semiont-backend \
     --build-arg NPM_REGISTRY=$BUILD_REGISTRY \
-    --file "$KB_DIR/.semiont/containers/Dockerfile.backend" \
+    --file "$KB_DIR/.semiont/containers/Dockerfile" \
     "$KB_DIR"
 
   ok "semiont-backend image built"
@@ -264,7 +264,7 @@ else
   echo ""
   echo -e "    $RT build --no-cache --tag semiont-backend \\"
   echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
-  echo -e "      --file .semiont/containers/Dockerfile.backend ."
+  echo -e "      --file .semiont/containers/Dockerfile ."
   echo ""
 fi
 

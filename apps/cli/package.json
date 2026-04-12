@@ -47,22 +47,6 @@
     "test:watch:unit": "vitest --watch --config vitest.config.unit.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.84.0",
-    "@aws-sdk/client-cloudformation": "^3.600.0",
-    "@aws-sdk/client-cloudwatch": "^3.600.0",
-    "@aws-sdk/client-cloudwatch-logs": "^3.600.0",
-    "@aws-sdk/client-cost-explorer": "^3.1025.0",
-    "@aws-sdk/client-ecr": "^3.600.0",
-    "@aws-sdk/client-ecs": "^3.600.0",
-    "@aws-sdk/client-efs": "^3.600.0",
-    "@aws-sdk/client-elastic-load-balancing-v2": "^3.859.0",
-    "@aws-sdk/client-lambda": "^3.600.0",
-    "@aws-sdk/client-neptune": "^3.600.0",
-    "@aws-sdk/client-rds": "^3.600.0",
-    "@aws-sdk/client-route-53": "^3.864.0",
-    "@aws-sdk/client-secrets-manager": "^3.600.0",
-    "@aws-sdk/client-sts": "^3.859.0",
-    "@aws-sdk/client-wafv2": "^3.859.0",
     "@semiont/api-client": "0.4.16",
     "@semiont/content": "0.4.16",
     "@semiont/core": "0.4.16",
@@ -88,6 +72,23 @@
     "@vitest/coverage-v8": "^4.1.0",
     "chalk": "^5.3.0",
     "typescript": "^5.9.2"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-cloudformation": "^3.600.0",
+    "@aws-sdk/client-cloudwatch": "^3.600.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.600.0",
+    "@aws-sdk/client-cost-explorer": "^3.1025.0",
+    "@aws-sdk/client-ecr": "^3.600.0",
+    "@aws-sdk/client-ecs": "^3.600.0",
+    "@aws-sdk/client-efs": "^3.600.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "^3.859.0",
+    "@aws-sdk/client-lambda": "^3.600.0",
+    "@aws-sdk/client-neptune": "^3.600.0",
+    "@aws-sdk/client-rds": "^3.600.0",
+    "@aws-sdk/client-route-53": "^3.864.0",
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
+    "@aws-sdk/client-sts": "^3.859.0",
+    "@aws-sdk/client-wafv2": "^3.859.0"
   },
   "overrides": {
     "esbuild": "0.27.2"
