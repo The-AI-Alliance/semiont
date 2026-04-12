@@ -47,7 +47,7 @@ Return a JSON array of comments. Each comment must have:
 - "suffix": up to 32 characters of text immediately after the passage
 - "comment": your comment following the instructions above
 
-Return ONLY a valid JSON array, no additional text or explanation.
+Respond with a valid JSON array.
 
 Example:
 [
@@ -85,7 +85,7 @@ Return a JSON array of comments. Each comment should have:
 - "suffix": up to 32 characters of text immediately after the passage
 - "comment": your explanatory comment (1-3 sentences, provide context/background/clarification)
 
-Return ONLY a valid JSON array, no additional text or explanation.
+Respond with a valid JSON array.
 
 Example format:
 [
@@ -133,7 +133,7 @@ Return a JSON array of highlights. Each highlight must have:
 - "prefix": up to 32 characters of text immediately before the passage
 - "suffix": up to 32 characters of text immediately after the passage
 
-Return ONLY a valid JSON array, no additional text or explanation.
+Respond with a valid JSON array.
 
 Example:
 [
@@ -168,7 +168,7 @@ Return a JSON array of highlights. Each highlight should have:
 - "prefix": up to 32 characters of text immediately before the passage
 - "suffix": up to 32 characters of text immediately after the passage
 
-Return ONLY a valid JSON array, no additional text or explanation.
+Respond with a valid JSON array.
 
 Example format:
 [
@@ -220,7 +220,7 @@ Return a JSON array of assessments. Each assessment must have:
 - "suffix": up to 32 characters of text immediately after the passage
 - "assessment": your assessment following the instructions above
 
-Return ONLY a valid JSON array, no additional text or explanation.
+Respond with a valid JSON array.
 
 Example:
 [
@@ -258,7 +258,7 @@ Return a JSON array of assessments. Each assessment should have:
 - "suffix": up to 32 characters of text immediately after the passage
 - "assessment": your analytical assessment (1-3 sentences, evaluate validity/strength/implications)
 
-Return ONLY a valid JSON array, no additional text or explanation.
+Respond with a valid JSON array.
 
 Example format:
 [
@@ -323,7 +323,7 @@ Return a JSON array of tags. Each tag should have:
 - "prefix": up to 32 characters of text immediately before the passage
 - "suffix": up to 32 characters of text immediately after the passage
 
-Return ONLY a valid JSON array, no additional text or explanation.
+Respond with a valid JSON array.
 
 Example format:
 [

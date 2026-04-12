@@ -357,10 +357,9 @@ ${contextParts.length > 0 ? contextParts.join('\n') : ''}
 Candidates:
 ${candidateLines}
 
-For each candidate, output ONLY a line with the number and score, like:
+For each candidate, output a line with the number and score, like:
 1. 0.8
-2. 0.3
-No explanations.`;
+2. 0.3`;
 
     const response = await this.inferenceClient.generateText(prompt, 200, 0.1);
 

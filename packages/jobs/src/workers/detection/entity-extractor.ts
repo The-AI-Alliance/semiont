@@ -77,7 +77,7 @@ Text to analyze:
 ${exact}
 """
 
-Return ONLY a JSON array of entities found. Each entity should have:
+Respond with a JSON array of entities found. Each entity should have:
 - exact: the exact text span from the input
 - entityType: one of the provided entity types
 - startOffset: character position where the entity starts (0-indexed)
@@ -85,8 +85,7 @@ Return ONLY a JSON array of entities found. Each entity should have:
 - prefix: up to 32 characters of text immediately before the entity (helps identify correct occurrence)
 - suffix: up to 32 characters of text immediately after the entity (helps identify correct occurrence)
 
-Return empty array [] if no entities found.
-Do not include markdown formatting or code fences, just the raw JSON array.
+If no entities are found, respond with an empty array [].
 
 Example output:
 [{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5,"prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25,"prefix":"went to ","suffix":" yesterday"}]`;
