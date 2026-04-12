@@ -13,7 +13,8 @@ graph TB
     EBC["SemiontApiClient"] -->|commands| BUS
 
     BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>mark:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
-    BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER["Gatherer"]
+    BUS -->|"browse:*,<br/>mark:entity-types-*"| BROWSER["Browser"]
+    BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER["Matcher"]
     BUS -->|"yield:created, mark:created,<br/>mark:body-updated"| SMELTER["Smelter"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
@@ -34,6 +35,9 @@ graph TB
         EVENTLOG -->|project| GRAPH
     end
 
+    BROWSER -->|query| VIEWS
+    BROWSER -->|search| GRAPH
+
     GATHERER -->|query| VIEWS
     GATHERER -->|read| CONTENT
     GATHERER -->|traverse| GRAPH
@@ -50,7 +54,8 @@ graph TB
     CTM -->|read| CONTENT
 
     STOWER -->|"yield:created,<br/>mark:created, ..."| BUS
-    GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
+    BROWSER -->|"browse:*-result"| BUS
+    GATHERER -->|"gather:complete"| BUS
     MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
     SMELTER -->|"embedding:compute,<br/>embedding:delete"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
@@ -62,7 +67,7 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,GATHERER,MATCHER,SMELTER,CTM worker
+    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,CTM worker
     class Routes,Workers,EBC caller
 ```
 
@@ -237,14 +242,15 @@ EventBus (callback, fire-and-forget)
 5. VectorStore *(optional — Qdrant or memory, from `@semiont/vectors`)*
 6. **KnowledgeBase** (groups stores, including optional vectors)
 7. GraphDBConsumer
-8. **Stower** (must start before Gatherer/Matcher — it handles writes they depend on)
+8. **Stower** (must start before reader actors — it handles writes they depend on)
 9. Entity type bootstrap (emits via EventBus, Stower persists)
 10. **Smelter** *(optional — subscribes to resource/annotation events, embeds and indexes)*
-11. **Gatherer** (browse reads, context assembly, entity type listing, vector semantic search)
-12. **Matcher** (search, referenced-by, vector semantic search)
-13. **CloneTokenManager** (clone token lifecycle)
-14. Job status subscription (inline `job:status-requested` handler)
-15. Workers (6 annotation/generation workers)
+11. **Browser** (browse reads, entity type listing)
+12. **Gatherer** (context assembly for downstream actors, vector semantic search)
+13. **Matcher** (candidate search, referenced-by, vector semantic search, composite scoring)
+14. **CloneTokenManager** (clone token lifecycle)
+15. Job status subscription (inline `job:status-requested` handler)
+16. Workers (6 annotation/generation workers)
 
 ## Storage Architecture
 
