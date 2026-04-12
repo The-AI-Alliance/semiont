@@ -557,6 +557,7 @@ export function ResourceViewerPage({
             activePanel={activePanel}
             theme={theme}
             showLineNumbers={showLineNumbers}
+            hoverDelayMs={hoverDelayMs}
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
               activePanel === 'annotations' ? 'w-[400px]' :

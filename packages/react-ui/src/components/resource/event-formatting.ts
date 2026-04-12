@@ -14,6 +14,36 @@ type Annotation = components['schemas']['Annotation'];
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 // =============================================================================
+// USER ID DISPLAY
+// =============================================================================
+
+/**
+ * Format a DID or user ID for display.
+ *
+ * did:web:example.com:users:admin%40example.com → admin@example.com
+ * did:web:system:smelter → Smelter
+ * plain-string → plain-string
+ */
+export function formatUserId(userId: string): string {
+  if (!userId.startsWith('did:')) return userId;
+
+  // System actors: did:web:system:smelter → Smelter
+  const systemMatch = userId.match(/^did:web:system:(.+)$/);
+  if (systemMatch) {
+    const name = systemMatch[1];
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  // User DIDs: did:web:example.com:users:admin%40example.com → admin@example.com
+  const userMatch = userId.match(/^did:web:[^:]+:users:(.+)$/);
+  if (userMatch) {
+    return decodeURIComponent(userMatch[1]);
+  }
+
+  return userId;
+}
+
+// =============================================================================
 // EVENT FORMATTING AND DISPLAY
 // =============================================================================
 
@@ -59,6 +89,9 @@ export function formatEventType(type: PersistedEventType, t: TranslateFn, payloa
     case 'yield:representation-added':
     case 'yield:representation-removed':
       return t('representationEvent');
+
+    case 'embedding:computed':
+      return t('embeddingComputed');
 
     default:
       return type;
@@ -107,6 +140,9 @@ export function getEventEmoji(type: PersistedEventType, payload?: any): string {
     case 'yield:representation-added':
     case 'yield:representation-removed':
       return '📄';
+
+    case 'embedding:computed':
+      return '🧮';
 
     default:
       return '📝';

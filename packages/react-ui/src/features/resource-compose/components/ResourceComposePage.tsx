@@ -339,7 +339,9 @@ export function ResourceComposePage({
 
         {/* Create Form */}
         <div className="semiont-form">
-        <form onSubmit={handleSaveResource} className="semiont-form__fields">
+        <form onSubmit={handleSaveResource} className="semiont-form__fields semiont-compose-grid">
+          {/* Left column: metadata */}
+          <div className="semiont-compose-grid__meta">
           {/* Name */}
           <div className="semiont-form__field">
             <label htmlFor="docName" className="semiont-form__label">
@@ -467,6 +469,11 @@ export function ResourceComposePage({
               ))}
             </select>
           </div>
+
+          </div>{/* end semiont-compose-grid__meta */}
+
+          {/* Right column: content */}
+          <div className="semiont-compose-grid__content">
 
           {/* Content Source Toggle - only show for new resources */}
           {!isClone && !isReferenceCompletion && (
@@ -656,6 +663,8 @@ export function ResourceComposePage({
               </label>
             </div>
           )}
+
+          </div>{/* end semiont-compose-grid__content */}
 
           {/* Action Buttons */}
           <div className="semiont-form__actions">

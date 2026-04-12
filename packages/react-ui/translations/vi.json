@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Sử dụng AI để chấm điểm kết quả theo mức độ liên quan ngữ nghĩa",
     "searching": "Đang tìm kiếm...",
     "search": "Tìm kiếm"
+  },
+  "History": {
+    "embeddingComputed": "Đã tính embedding"
   }
 }

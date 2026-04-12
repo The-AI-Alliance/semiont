@@ -28,6 +28,7 @@ vi.mock('../event-formatting', () => ({
   formatEventType: vi.fn((_type: string, t: (key: string) => string) => t('resourceCreated')),
   getEventEmoji: vi.fn(() => '\u{1F4C4}'),
   formatRelativeTime: vi.fn(() => '2 minutes ago'),
+  formatUserId: vi.fn((id: string) => id),
   getEventDisplayContent: vi.fn(() => mockDisplayContent),
   getEventEntityTypes: vi.fn(() => mockEntityTypes),
   getResourceCreationDetails: vi.fn(() => mockCreationDetails),

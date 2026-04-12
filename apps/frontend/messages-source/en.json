@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. All rights reserved.",
+    "copyright": "© {{year}} The AI Alliance. All rights reserved.",
     "about": "About",
     "privacyPolicy": "Privacy Policy",
     "cookiePreferences": "Cookie Preferences",

@@ -15,6 +15,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       representation: 'Representation',
       mediaType: 'Media Type',
       byteSize: 'Size',
+      storageUri: 'Storage',
       clone: 'Clone',
       cloneDescription: 'Generate a shareable clone link for this resource',
       archive: 'Archive',
@@ -193,6 +194,28 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Representation')).toBeInTheDocument();
       expect(screen.getByText('Size')).toBeInTheDocument();
       expect(screen.getByText('1,024 bytes')).toBeInTheDocument();
+    });
+
+    it('should render storageUri when provided', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel
+          {...defaultProps}
+          primaryMediaType="text/markdown"
+          storageUri="file://docs/overview.md"
+        />
+      );
+      expect(screen.getByText('Storage')).toBeInTheDocument();
+      expect(screen.getByText('file://docs/overview.md')).toBeInTheDocument();
+    });
+
+    it('should not render storageUri when absent', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel
+          {...defaultProps}
+          primaryMediaType="text/markdown"
+        />
+      );
+      expect(screen.queryByText('Storage')).not.toBeInTheDocument();
     });
 
     it('should not render representation section when neither media type nor byte size provided', () => {

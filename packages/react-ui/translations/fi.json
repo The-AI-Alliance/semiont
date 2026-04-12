@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
     "searching": "Haetaan...",
     "search": "Hae"
+  },
+  "History": {
+    "embeddingComputed": "Upotus laskettu"
   }
 }

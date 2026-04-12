@@ -374,5 +374,8 @@
     "semanticScoringHelp": "استخدام الذكاء الاصطناعي لتقييم النتائج حسب الصلة الدلالية",
     "searching": "جاري البحث...",
     "search": "بحث"
+  },
+  "History": {
+    "embeddingComputed": "تم حساب التضمين"
   }
 }

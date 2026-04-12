@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Użyj AI do oceny wyników według semantycznego dopasowania",
     "searching": "Wyszukiwanie...",
     "search": "Szukaj"
+  },
+  "History": {
+    "embeddingComputed": "Embedding obliczony"
   }
 }

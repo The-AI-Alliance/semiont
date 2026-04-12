@@ -13,7 +13,7 @@
     "administer": "관리"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. 모든 권리 보유.",
+    "copyright": "© {{year}} The AI Alliance. 모든 권리 보유.",
     "about": "소개",
     "privacyPolicy": "개인정보 처리방침",
     "cookiePreferences": "쿠키 설정",

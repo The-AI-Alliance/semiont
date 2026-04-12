@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
     "searching": "Vyhledávání...",
     "search": "Hledat"
+  },
+  "History": {
+    "embeddingComputed": "Embedding vypočten"
   }
 }

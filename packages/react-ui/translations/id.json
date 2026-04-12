@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil berdasarkan relevansi semantik",
     "searching": "Mencari...",
     "search": "Cari"
+  },
+  "History": {
+    "embeddingComputed": "Embedding dihitung"
   }
 }

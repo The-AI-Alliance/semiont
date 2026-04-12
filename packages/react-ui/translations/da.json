@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Brug AI til at score resultater efter semantisk relevans",
     "searching": "Søger...",
     "search": "Søg"
+  },
+  "History": {
+    "embeddingComputed": "Embedding beregnet"
   }
 }

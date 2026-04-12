@@ -56,21 +56,25 @@ step "Container runtime: ${BOLD}$RT${RESET}"
 SKIP_BUILD=false
 PACKAGES=""
 START_FROM=""
+KB_DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
     --package) PACKAGES="$2"; shift 2 ;;
     --start-from) START_FROM="$2"; shift 2 ;;
+    --kb) KB_DIR="$(cd "$2" && pwd)"; shift 2 ;;
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
-      echo "Build and publish @semiont/* packages to a local Verdaccio registry."
+      echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
+      echo "then build container images."
       echo "No npm required on the host — everything runs inside containers."
       echo ""
       echo "Options:"
       echo "  --package <list>   Comma-separated packages to build (default: all)"
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
+      echo "  --kb <path>        KB directory — also build the backend image"
       echo "  -h, --help         Show this help"
       echo ""
       echo "Build order:"
@@ -210,33 +214,59 @@ NPMRC
       --npmrc /tmp/.npmrc
   "
 
-banner "DONE ✓"
+BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 "$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"
 
-BUILD_REGISTRY="http://$HOST_ADDR:4873"
-echo -e "${BOLD}Next steps:${RESET}"
+# --- Build frontend container image ---
+
+banner "FRONTEND IMAGE"
+
+step "Building semiont-frontend image from apps/frontend/Dockerfile..."
+$RT build --no-cache --tag semiont-frontend \
+  --build-arg NPM_REGISTRY=$BUILD_REGISTRY \
+  --file "$REPO_ROOT/apps/frontend/Dockerfile" \
+  "$REPO_ROOT"
+
+ok "semiont-frontend image built"
+
+# --- Build backend container image (if --kb provided) ---
+
+if [[ -n "$KB_DIR" ]]; then
+  banner "BACKEND IMAGE"
+
+  if [[ ! -f "$KB_DIR/.semiont/containers/Dockerfile.backend" ]]; then
+    fail "No Dockerfile.backend found at $KB_DIR/.semiont/containers/"
+    exit 1
+  fi
+
+  step "Building semiont-backend image from $KB_DIR..."
+  $RT build --no-cache --tag semiont-backend \
+    --build-arg NPM_REGISTRY=$BUILD_REGISTRY \
+    --file "$KB_DIR/.semiont/containers/Dockerfile.backend" \
+    "$KB_DIR"
+
+  ok "semiont-backend image built"
+fi
+
+banner "DONE ✓"
+
+echo -e "${BOLD}Frontend:${RESET}"
+echo -e "  $RT run --publish 3000:3000 -it semiont-frontend"
 echo ""
-echo -e "  ${DIM}1. Build KB containers (from your KB project directory):${RESET}"
-echo ""
-echo -e "    $RT build --no-cache --tag semiont-backend \\"
-echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
-echo -e "      --file .semiont/containers/Dockerfile.backend ."
-echo ""
-echo -e "    $RT build --no-cache --tag semiont-frontend \\"
-echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
-echo -e "      --file .semiont/containers/Dockerfile.frontend ."
-echo ""
-echo -e "  ${DIM}2. Run:${RESET}"
-echo ""
-echo -e "    $RT run --publish 4000:4000 --volume \$(pwd):/kb \\"
-echo -e "      --env NEO4J_URI=... --env ANTHROPIC_API_KEY=... \\"
-echo -e "      -it semiont-backend"
-echo ""
-echo -e "    $RT run --publish 3000:3000 -it semiont-frontend"
-echo ""
-echo -e "  ${DIM}3. Open http://localhost:3000${RESET}"
-echo ""
-echo -e "  ${DIM}4. Stop Verdaccio when done:${RESET}"
-echo -e "    $RT stop $VERDACCIO_NAME"
+
+if [[ -n "$KB_DIR" ]]; then
+  echo -e "${BOLD}Backend:${RESET}"
+  echo -e "  $RT run --publish 4000:4000 --volume $KB_DIR:/kb -it semiont-backend"
+  echo ""
+else
+  echo -e "${BOLD}To build a KB backend (from your KB project directory):${RESET}"
+  echo ""
+  echo -e "    $RT build --no-cache --tag semiont-backend \\"
+  echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
+  echo -e "      --file .semiont/containers/Dockerfile.backend ."
+  echo ""
+fi
+
+echo -e "  ${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
 echo ""
