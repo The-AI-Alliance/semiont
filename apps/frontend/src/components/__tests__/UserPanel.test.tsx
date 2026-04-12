@@ -26,6 +26,10 @@ const mockFormatTime = vi.fn();
 const mockSanitizeImageURL = vi.fn();
 const mockLogout = vi.fn().mockResolvedValue(undefined);
 
+// Stable client reference: useApiClient is called per render. The real provider
+// holds one instance; the mock must do the same to keep useMemo deps stable.
+const stableMockClient = { logout: mockLogout };
+
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
@@ -34,7 +38,7 @@ vi.mock('@semiont/react-ui', async () => {
     useSessionExpiry: () => mockUseSessionExpiry(),
     formatTime: (time: number) => mockFormatTime(time),
     sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),
-    useApiClient: () => ({ logout: mockLogout }),
+    useApiClient: () => stableMockClient,
   };
 });
 

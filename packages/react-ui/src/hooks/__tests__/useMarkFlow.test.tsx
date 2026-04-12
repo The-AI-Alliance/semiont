@@ -36,17 +36,22 @@ const mockMarkAnnotation = vi.fn().mockResolvedValue({ annotationId: 'ann-1' });
 const mockMarkDelete = vi.fn().mockResolvedValue(undefined);
 const mockMarkAssist = vi.fn().mockReturnValue({ subscribe: vi.fn() });
 
+// Stable client reference — useApiClient is called on every render. The real
+// ApiClientProvider holds a single instance; the mock must do the same to
+// avoid invalidating useMemo deps and restarting subscriptions on each render.
+const stableMockClient = {
+  mark: {
+    annotation: mockMarkAnnotation,
+    delete: mockMarkDelete,
+    assist: mockMarkAssist,
+  },
+};
+
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
-    useApiClient: () => ({
-      mark: {
-        annotation: mockMarkAnnotation,
-        delete: mockMarkDelete,
-        assist: mockMarkAssist,
-      },
-    }),
+    useApiClient: () => stableMockClient,
   };
 });
 

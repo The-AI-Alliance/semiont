@@ -21,13 +21,17 @@ vi.mock('../../components/Toast', () => ({
 
 const mockGatherAnnotation = vi.fn();
 
+// Stable reference: useApiClient is called per render. The real provider holds
+// one instance; the mock must do the same to keep useMemo deps stable.
+const stableMockClient = {
+  gather: { annotation: mockGatherAnnotation },
+};
+
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
-    useApiClient: () => ({
-      gather: { annotation: mockGatherAnnotation },
-    }),
+    useApiClient: () => stableMockClient,
   };
 });
 
