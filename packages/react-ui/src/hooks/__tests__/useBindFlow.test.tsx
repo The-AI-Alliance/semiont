@@ -35,15 +35,19 @@ const { mockBindBody, mockMatchSearch, mockShowSuccess, mockShowError, mockShowI
   };
 });
 
-// Mock API client — useBindFlow calls semiont.bind.body() and semiont.match.search()
+// Mock API client — useBindFlow calls semiont.bind.body() and semiont.match.search().
+// Stable reference: useApiClient is called per render. The real provider holds
+// one instance; the mock must do the same to keep useMemo deps stable.
+const stableMockClient = {
+  bind: { body: mockBindBody },
+  match: { search: mockMatchSearch },
+};
+
 vi.mock('../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual('../../contexts/ApiClientContext');
   return {
     ...actual,
-    useApiClient: () => ({
-      bind: { body: mockBindBody },
-      match: { search: mockMatchSearch },
-    }),
+    useApiClient: () => stableMockClient,
   };
 });
 

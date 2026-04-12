@@ -145,7 +145,7 @@ export type MarkAssistProgress = MarkProgress | MarkAssistFinished;
 export interface BrowseNamespace {
   // Live queries (Observable — events-stream driven, cached in BehaviorSubject)
   resource(resourceId: ResourceId): Observable<ResourceDescriptor | undefined>;
-  resources(filters?: { limit?: number; archived?: boolean }): Observable<ResourceDescriptor[] | undefined>;
+  resources(filters?: { limit?: number; archived?: boolean; search?: string }): Observable<ResourceDescriptor[] | undefined>;
   annotations(resourceId: ResourceId): Observable<Annotation[] | undefined>;
   annotation(resourceId: ResourceId, annotationId: AnnotationId): Observable<Annotation | undefined>;
   entityTypes(): Observable<string[] | undefined>;

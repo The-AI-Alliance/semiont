@@ -20,7 +20,6 @@ export const QUERY_KEYS = {
     all: (limit?: number, archived?: boolean) => ['resources', { limit, archived }] as const,
     detail: (id: ResourceId) => ['resources', id] as const,
     byToken: (token: string) => ['resources', 'by-token', token] as const,
-    search: (query: string, limit: number) => ['resources', 'search', { query, limit }] as const,
     events: (id: ResourceId) => ['resources', id, 'events'] as const,
     annotations: (id: ResourceId) => ['resources', id, 'annotations'] as const,
     referencedBy: (id: ResourceId) => ['resources', id, 'referenced-by'] as const,

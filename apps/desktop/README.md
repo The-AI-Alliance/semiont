@@ -1,6 +1,6 @@
 # Semiont Desktop
 
-Native desktop application wrapping the Semiont frontend SPA using [Tauri](https://tauri.app/). It bundles the same UI as the container image with a thin native shell, so there's no container runtime to install and no local network permission to grant.
+Native desktop application wrapping the Semiont browser SPA using [Tauri](https://tauri.app/). It bundles the same UI as the container image with a thin native shell, so there's no container runtime to install and no local network permission to grant.
 
 You still need a knowledge base backend running somewhere — point the app at it the same way you would the browser version.
 
@@ -64,7 +64,7 @@ cd apps/desktop && cargo tauri dev
 ```
 
 The desktop app opens a native window pointing at the Vite dev server.
-Hot reload works — changes to the frontend are reflected immediately.
+Hot reload works — changes to the browser are reflected immediately.
 
 ### Build
 
@@ -85,7 +85,7 @@ Output: `src-tauri/target/release/bundle/dmg/Semiont_x.y.z_aarch64.dmg`
 
 ## Architecture
 
-The desktop app is a thin native shell around `apps/frontend/dist/`. No frontend
+The desktop app is a thin native shell around `apps/frontend/dist/`. No browser
 code lives here — this directory only contains the Tauri configuration, Rust entry
 point, and build scripts.
 

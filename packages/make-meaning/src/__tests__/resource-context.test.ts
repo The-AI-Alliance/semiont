@@ -22,6 +22,7 @@ describe('ResourceContext', () => {
   let mockKb: KnowledgeBase;
   let mockViewStorage: any;
   let mockRepStore: any;
+  let mockGraph: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,11 +36,15 @@ describe('ResourceContext', () => {
       retrieve: vi.fn(),
     };
 
+    mockGraph = {
+      searchResources: vi.fn().mockResolvedValue([]),
+    };
+
     mockKb = {
       eventStore: {} as any,
       views: mockViewStorage,
       content: mockRepStore,
-      graph: {} as any,
+      graph: mockGraph,
       projectionsDir: '',
       graphConsumer: {} as any,
     };
@@ -227,70 +232,19 @@ describe('ResourceContext', () => {
       expect(result.every(r => r.archived)).toBe(true);
     });
 
-    test('should filter by search term (case insensitive)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: { ...mockResource2, name: 'Special Document' },
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+    test('should delegate to graph.searchResources when search is set', async () => {
+      const specialDoc = { ...mockResource2, name: 'Special Document' };
+      mockGraph.searchResources.mockResolvedValue([specialDoc]);
 
       const result = await ResourceContext.listResources({ search: 'special' }, mockKb);
 
+      expect(mockGraph.searchResources).toHaveBeenCalledWith('special');
+      expect(mockViewStorage.getAll).not.toHaveBeenCalled();
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe('Special Document');
     });
 
-    test('should filter by search term (partial match)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: mockResource2,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
-
-      const result = await ResourceContext.listResources({ search: 'resource' }, mockKb);
-
-      expect(result).toHaveLength(2);
-    });
-
-    test('should combine archived and search filters', async () => {
+    test('should narrow graph search results by archived filter', async () => {
       const searchableArchived: ResourceDescriptor = {
         '@context': 'https://schema.org/',
         '@id': 'http://localhost:4000/resources/res-4',
@@ -302,29 +256,9 @@ describe('ResourceContext', () => {
         representations: [],
       };
 
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: searchableArchived,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
+      mockGraph.searchResources.mockResolvedValue([
+        { ...mockResource1, name: 'Special Live' },
+        searchableArchived,
       ]);
 
       const result = await ResourceContext.listResources(
@@ -336,20 +270,8 @@ describe('ResourceContext', () => {
       expect(result[0]).toEqual(searchableArchived);
     });
 
-    test('should return empty array when no matches', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+    test('should return empty array when graph search has no matches', async () => {
+      mockGraph.searchResources.mockResolvedValue([]);
 
       const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockKb);
 

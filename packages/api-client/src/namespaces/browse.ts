@@ -11,7 +11,7 @@
 
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
-import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery } from '@semiont/core';
 import type {
   EventBus,
   EventMap,
@@ -99,7 +99,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     return obs;
   }
 
-  resources(filters?: { limit?: number; archived?: boolean }): Observable<ResourceDescriptor[] | undefined> {
+  resources(filters?: { limit?: number; archived?: boolean; search?: string }): Observable<ResourceDescriptor[] | undefined> {
     const key = JSON.stringify(filters ?? {});
     if (!this.resourceList$.value.has(key) && !this.fetchingResourceList.has(key)) {
       this.fetchResourceList(key, filters);
@@ -402,11 +402,12 @@ export class BrowseNamespace implements IBrowseNamespace {
     }
   }
 
-  private async fetchResourceList(key: string, filters?: { limit?: number; archived?: boolean }): Promise<void> {
+  private async fetchResourceList(key: string, filters?: { limit?: number; archived?: boolean; search?: string }): Promise<void> {
     if (this.fetchingResourceList.has(key)) return;
     this.fetchingResourceList.add(key);
     try {
-      const result = await this.http.browseResources(filters?.limit, filters?.archived, undefined, { auth: this.getToken() });
+      const search = filters?.search ? searchQuery(filters.search) : undefined;
+      const result = await this.http.browseResources(filters?.limit, filters?.archived, search, { auth: this.getToken() });
       const next = new Map(this.resourceList$.value);
       next.set(key, result.resources);
       this.resourceList$.next(next);

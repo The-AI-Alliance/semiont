@@ -199,19 +199,6 @@ describe('API Hooks Authentication', () => {
       );
     });
 
-    it('should pass auth token to search', async () => {
-      const { result } = renderHook(() => useResources(), { wrapper });
-      const query = renderHook(() => result.current.search.useQuery('test', 10), { wrapper });
-
-      await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
-
-      expect(mockClient.browseResources).toHaveBeenCalledWith(
-        10,
-        undefined,
-        'test',
-        { auth: 'test-token' }
-      );
-    });
   });
 
   describe('useAnnotations queries', () => {

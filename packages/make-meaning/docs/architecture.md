@@ -13,7 +13,8 @@ graph TB
     EBC["SemiontApiClient"] -->|commands| BUS
 
     BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>mark:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
-    BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER["Gatherer"]
+    BUS -->|"browse:*,<br/>mark:entity-types-*"| BROWSER["Browser"]
+    BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER["Matcher"]
     BUS -->|"yield:created, mark:created,<br/>mark:body-updated"| SMELTER["Smelter"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
@@ -34,6 +35,9 @@ graph TB
         EVENTLOG -->|project| GRAPH
     end
 
+    BROWSER -->|query| VIEWS
+    BROWSER -->|search| GRAPH
+
     GATHERER -->|query| VIEWS
     GATHERER -->|read| CONTENT
     GATHERER -->|traverse| GRAPH
@@ -50,7 +54,8 @@ graph TB
     CTM -->|read| CONTENT
 
     STOWER -->|"yield:created,<br/>mark:created, ..."| BUS
-    GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
+    BROWSER -->|"browse:*-result"| BUS
+    GATHERER -->|"gather:complete"| BUS
     MATCHER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
     SMELTER -->|"embedding:compute,<br/>embedding:delete"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
@@ -62,7 +67,7 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,GATHERER,MATCHER,SMELTER,CTM worker
+    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,CTM worker
     class Routes,Workers,EBC caller
 ```
 
@@ -91,23 +96,47 @@ The single write path to the Knowledge Base. No other code calls `eventStore.app
 | `job:complete` | `job:completed` | — |
 | `job:fail` | `job:failed` | — |
 
-### Gatherer (Read Actor)
+### Browser (Read Actor)
 
-**Implementation**: [src/gatherer.ts](../src/gatherer.ts)
+**Implementation**: [src/browser.ts](../src/browser.ts)
 
-The read actor for the Knowledge Base. Handles all browse reads, context assembly, and entity type listing.
+The read actor for the Knowledge Base. Handles deterministic, fact-based queries against the materialized state — single-source, single-ordering, no scoring, no fusion, no LLM. If a question can be answered by one query against one index (a view scan, a graph match, an event filter), the Browser handles it.
 
-**Pipeline**: `gather:*` events use `groupBy(resourceId)` for per-resource isolation and `concatMap` for ordering. `browse:*` events use `mergeMap` for independent request-response (no grouping needed since they use `correlationId`).
+**Pipeline**: `browse:*` events use `mergeMap` for independent request-response (no grouping needed since they use `correlationId`).
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
 | `browse:resource-requested` | `ResourceContext.getResourceMetadata()` + event materialization | `browse:resource-result` / `browse:resource-failed` |
-| `browse:resources-requested` | `ResourceContext.listResources()` | `browse:resources-result` / `browse:resources-failed` |
+| `browse:resources-requested` | `ResourceContext.listResources()` (delegates to `kb.graph.searchResources` when `search` is set) | `browse:resources-result` / `browse:resources-failed` |
 | `browse:annotations-requested` | `AnnotationContext.getAllAnnotations()` | `browse:annotations-result` / `browse:annotations-failed` |
 | `browse:annotation-requested` | `AnnotationContext.getAnnotation()` + `ResourceContext.getResourceMetadata()` | `browse:annotation-result` / `browse:annotation-failed` |
 | `browse:events-requested` | `EventQuery.queryEvents()` | `browse:events-result` / `browse:events-failed` |
 | `browse:annotation-history-requested` | `EventQuery` + annotation event filtering | `browse:annotation-history-result` / `browse:annotation-history-failed` |
+| `browse:directory-requested` | Filesystem directory listing for storage browsing | `browse:directory-result` / `browse:directory-failed` |
 | `mark:entity-types-requested` | `readEntityTypesProjection()` | `mark:entity-types-result` / `mark:entity-types-failed` |
+
+#### Browse vs Match — when search belongs here vs in the Matcher
+
+Both actors can find resources by name; the question is what kind of question is being asked.
+
+- **Browse handles a query.** One signal, one ordering, deterministic. "Resources whose names contain X, sorted by date." `kb.graph.searchResources(query)` is a Browse primitive when used standalone — it answers the literal question and returns. The discover page's search box uses this path: a name match is exactly what the user asked for, nothing more.
+
+- **Match handles a recommendation.** Multiple candidate sources, composite scoring against `GatheredContext`, optional LLM blending. "Given this annotation, this passage, and this graph neighborhood, what are the most relevant resources to bind?" That's not a query — it's a ranked judgment.
+
+The same primitive (`kb.graph.searchResources`) is used by both actors today. That's fine: the difference is what each actor *does with the result*. Browse returns it sorted by date. Match treats it as one of four candidate sources and runs it through structural + semantic scoring.
+
+The rule: **if the answer could be a single SQL/Cypher query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** When discover-page search eventually wants fuzzy / semantic / context-boosted recall, that's the moment to route it through the Matcher instead of the Browser — and the api-client surface would shift from `browse.resources({ search })` to `match.search(...)` accordingly.
+
+### Gatherer (Context Assembly Actor)
+
+**Implementation**: [src/gatherer.ts](../src/gatherer.ts)
+
+Assembles `GatheredContext` for downstream actors (Matcher, generation workers). Pulls together passage context, graph neighborhood, vector semantic recall, and optionally an LLM-generated relationship summary into a single rich context object that other actors score against.
+
+**Pipeline**: `gather:*` events use `groupBy(resourceId)` + `concatMap` for per-resource isolation and ordering.
+
+| Request Event | Handler | Result Event |
+|--------------|---------|-------------|
 | `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + vector semantic search + optional inference summary | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
 
@@ -213,14 +242,15 @@ EventBus (callback, fire-and-forget)
 5. VectorStore *(optional — Qdrant or memory, from `@semiont/vectors`)*
 6. **KnowledgeBase** (groups stores, including optional vectors)
 7. GraphDBConsumer
-8. **Stower** (must start before Gatherer/Matcher — it handles writes they depend on)
+8. **Stower** (must start before reader actors — it handles writes they depend on)
 9. Entity type bootstrap (emits via EventBus, Stower persists)
 10. **Smelter** *(optional — subscribes to resource/annotation events, embeds and indexes)*
-11. **Gatherer** (browse reads, context assembly, entity type listing, vector semantic search)
-12. **Matcher** (search, referenced-by, vector semantic search)
-13. **CloneTokenManager** (clone token lifecycle)
-14. Job status subscription (inline `job:status-requested` handler)
-15. Workers (6 annotation/generation workers)
+11. **Browser** (browse reads, entity type listing)
+12. **Gatherer** (context assembly for downstream actors, vector semantic search)
+13. **Matcher** (candidate search, referenced-by, vector semantic search, composite scoring)
+14. **CloneTokenManager** (clone token lifecycle)
+15. Job status subscription (inline `job:status-requested` handler)
+16. Workers (6 annotation/generation workers)
 
 ## Storage Architecture
 

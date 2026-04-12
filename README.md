@@ -10,15 +10,15 @@
 
 Install one of [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/) if you don't already have one.
 
-Run the published frontend container image (substitute `docker` or `podman` for `container` as needed):
+Run the published browser container image (substitute `docker` or `podman` for `container` as needed):
 
 ```bash
 container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
 
-The frontend needs to reach a knowledge base backend running on your machine, so the container runtime must have local network permission. See [Local network access](docs/LOCAL-SEMIONT.md#local-network-access) for per-platform notes.
+The browser needs to reach a knowledge base backend running on your machine, so the container runtime must have local network permission. See [Local network access](docs/LOCAL-SEMIONT.md#local-network-access) for per-platform notes.
 
-Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Frontend setup](apps/frontend/docs/LOCAL.md)** for details.
+Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Browser setup](apps/frontend/docs/LOCAL.md)** for details.
 
 Point your web browser to the Semiont browser running at **http://localhost:3000**.
 

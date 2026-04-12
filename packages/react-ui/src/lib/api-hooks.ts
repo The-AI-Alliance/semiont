@@ -121,15 +121,6 @@ export function useResources() {
         }),
     },
 
-    search: {
-      useQuery: (query: string, limit: number) =>
-        useQuery({
-          queryKey: QUERY_KEYS.resources.search(query, limit),
-          queryFn: () => semiont!.browseResources(limit, undefined, searchQuery(query), { auth: toAccessToken(token) }),
-          enabled: !!semiont && !!query,
-        }),
-    },
-
     create: {
       useMutation: () => {
         const token = useAuthToken();

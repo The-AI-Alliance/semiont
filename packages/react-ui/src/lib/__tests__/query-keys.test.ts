@@ -64,11 +64,6 @@ describe('query-keys', () => {
         expect(key).toEqual(['resources', 'by-token', 'abc123']);
       });
 
-      it('should return correct key for resource search', () => {
-        const key = QUERY_KEYS.resources.search('test query', 10);
-        expect(key).toEqual(['resources', 'search', { query: 'test query', limit: 10 }]);
-      });
-
       it('should return correct key for resource events', () => {
         const key = QUERY_KEYS.resources.events(mockResourceId);
         expect(key).toEqual(['resources', mockResourceId, 'events']);
