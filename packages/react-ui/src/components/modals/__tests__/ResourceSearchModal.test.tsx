@@ -15,9 +15,14 @@ vi.mock('@headlessui/react', () => ({
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
 
-// Mock the api-client Observable surface
+// Mock the api-client Observable surface.
+// Note: useApiClient is called on every render. The real ApiClientProvider
+// holds a single instance — the mock must do the same, otherwise useMemo deps
+// invalidate on every render and RxJS pipelines restart from their initial
+// value on each keystroke.
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
 const browseResourcesMock = vi.fn(() => browseResourcesSubject.asObservable());
+const stableMockClient = { browse: { resources: browseResourcesMock } };
 
 vi.mock('../../../contexts/ApiClientContext', async () => {
   const actual = await vi.importActual<typeof import('../../../contexts/ApiClientContext')>(
@@ -25,9 +30,7 @@ vi.mock('../../../contexts/ApiClientContext', async () => {
   );
   return {
     ...actual,
-    useApiClient: () => ({
-      browse: { resources: browseResourcesMock },
-    }),
+    useApiClient: () => stableMockClient,
   };
 });
 
