@@ -210,33 +210,33 @@ NPMRC
       --npmrc /tmp/.npmrc
   "
 
-banner "DONE ✓"
+BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 "$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"
 
-BUILD_REGISTRY="http://$HOST_ADDR:4873"
-echo -e "${BOLD}Next steps:${RESET}"
+# --- Build frontend container image ---
+
+banner "FRONTEND IMAGE"
+
+step "Building semiont-frontend image from apps/frontend/Dockerfile..."
+$RT build --no-cache --tag semiont-frontend \
+  --build-arg NPM_REGISTRY=$BUILD_REGISTRY \
+  --file "$REPO_ROOT/apps/frontend/Dockerfile" \
+  "$REPO_ROOT"
+
+ok "semiont-frontend image built"
+
+banner "DONE ✓"
+
+echo -e "${BOLD}Frontend:${RESET}"
 echo ""
-echo -e "  ${DIM}1. Build KB containers (from your KB project directory):${RESET}"
+echo -e "  $RT run --publish 3000:3000 -it semiont-frontend"
+echo ""
+echo -e "${BOLD}To build a KB backend (from your KB project directory):${RESET}"
 echo ""
 echo -e "    $RT build --no-cache --tag semiont-backend \\"
 echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
 echo -e "      --file .semiont/containers/Dockerfile.backend ."
 echo ""
-echo -e "    $RT build --no-cache --tag semiont-frontend \\"
-echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
-echo -e "      --file .semiont/containers/Dockerfile.frontend ."
-echo ""
-echo -e "  ${DIM}2. Run:${RESET}"
-echo ""
-echo -e "    $RT run --publish 4000:4000 --volume \$(pwd):/kb \\"
-echo -e "      --env NEO4J_URI=... --env ANTHROPIC_API_KEY=... \\"
-echo -e "      -it semiont-backend"
-echo ""
-echo -e "    $RT run --publish 3000:3000 -it semiont-frontend"
-echo ""
-echo -e "  ${DIM}3. Open http://localhost:3000${RESET}"
-echo ""
-echo -e "  ${DIM}4. Stop Verdaccio when done:${RESET}"
-echo -e "    $RT stop $VERDACCIO_NAME"
+echo -e "  ${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
 echo ""
