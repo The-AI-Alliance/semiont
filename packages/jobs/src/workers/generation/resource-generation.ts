@@ -127,7 +127,7 @@ Requirements:
 - Aim for approximately ${finalMaxTokens} tokens of content, ${structureGuidance}
 - Be factual and informative
 - Use markdown formatting
-- Return ONLY the markdown content, no JSON, no code fences, no additional wrapper`;
+- Write the response as markdown`;
 
   // Simple parser - just use the response directly as markdown
   const parseResponse = (response: string): { title: string; content: string } => {
