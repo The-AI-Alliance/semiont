@@ -22,6 +22,7 @@ export * from './lib/codemirror-json-theme';
 export * from './lib/codemirror-widgets';
 export * from './lib/media-shapes';
 export * from './lib/query-keys';
+export * from './lib/search-pipeline';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
 export * from './lib/tag-schemas';

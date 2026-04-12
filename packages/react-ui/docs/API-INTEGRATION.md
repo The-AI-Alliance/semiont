@@ -190,24 +190,65 @@ function EditResource({ rId }) {
 - `resources.createFromToken.useMutation()` - Clone resource
 
 **Search:** there is no React Query hook for resource search. Search is consumed
-directly through the api-client's Observable surface, with debouncing handled
-in RxJS:
+directly through the api-client's Observable surface using `createSearchPipeline`,
+which encapsulates the debounce + distinct + switchMap + loading-state shape:
 
 ```tsx
-import { useApiClient, useObservable } from '@semiont/react-ui';
-import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap, startWith } from 'rxjs/operators';
+import {
+  useApiClient,
+  useObservable,
+  createSearchPipeline,
+} from '@semiont/react-ui';
+import { useState, useEffect } from 'react';
+import type { components } from '@semiont/core';
 
-const semiont = useApiClient();
-const input$ = useMemo(() => new Subject<string>(), []);
-const results$ = useMemo(() => input$.pipe(
-  startWith(''),
-  debounceTime(250),
-  distinctUntilChanged(),
-  switchMap(q => q.trim() ? semiont.browse.resources({ search: q, limit: 20 }) : of([])),
-), [semiont, input$]);
-const results = useObservable(results$) ?? [];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
+function MySearchUI() {
+  const semiont = useApiClient();
+  const [pipeline] = useState(() =>
+    createSearchPipeline<ResourceDescriptor>(
+      (q) => semiont.browse.resources({ search: q, limit: 20 }),
+    ),
+  );
+  useEffect(() => () => pipeline.dispose(), [pipeline]);
+
+  const query = useObservable(pipeline.query$) ?? '';
+  const state = useObservable(pipeline.state$);
+  const results = state?.results ?? [];
+  const isSearching = state?.isSearching ?? false;
+
+  return (
+    <input
+      value={query}
+      onChange={(e) => pipeline.setQuery(e.target.value)}
+    />
+    // ... render `results` and `isSearching`
+  );
+}
 ```
+
+The pipeline is created once per component mount via `useState`'s lazy
+initializer and torn down on unmount via `useEffect` cleanup. The component
+holds no React state for the search query — `pipeline.query$` is the source
+of truth, surfaced via `useObservable`.
+
+**Why a helper instead of `useMemo` + RxJS inline?** The pipeline is a
+stateful long-lived object (a Subject + an Observable graph). Inlining it in
+the component body and stabilizing it with `useMemo` is defensive plumbing
+against React re-runs, and it's easy to break by accident — a fresh object
+returned from a hook on each render busts the deps and restarts the
+pipeline on every keystroke. The helper sidesteps this by living outside
+the React render lifecycle entirely.
+
+**For non-trivial result mapping** (e.g., adapting `ResourceDescriptor` to a
+modal-specific shape), put the mapping inside the fetch closure with
+`map()`. The closure can return `undefined` to signal "still loading" — see
+`SearchModal.tsx` and `ResourceSearchModal.tsx` for working examples.
+
+`createSearchPipeline` is unit-testable without React: pass a stub fetch
+function, push values into `setQuery`, assert on emissions from `state$`.
+See `packages/react-ui/src/lib/__tests__/search-pipeline.test.ts`.
 
 ---
 
