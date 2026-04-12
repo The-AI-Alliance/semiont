@@ -44,6 +44,7 @@ export class OllamaInferenceClient implements InferenceClient {
         model: this.modelId,
         prompt,
         stream: false,
+        think: false,
         options: {
           num_predict: maxTokens,
           temperature,
