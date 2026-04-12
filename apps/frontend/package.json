@@ -1,6 +1,6 @@
 {
   "name": "semiont-frontend",
-  "version": "0.4.16",
+  "version": "0.4.17",
   "private": true,
   "scripts": {
     "audit:compliance": "./scripts/generate-compliance-report.sh",
@@ -47,8 +47,8 @@
     "@fontsource/orbitron": "^5.2.8",
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
-    "@semiont/api-client": "0.4.16",
-    "@semiont/react-ui": "0.4.16",
+    "@semiont/api-client": "0.4.17",
+    "@semiont/react-ui": "0.4.17",
     "@tanstack/react-query": "^5.90.16",
     "i18next": "^24.2.3",
     "i18next-http-backend": "^3.0.2",
