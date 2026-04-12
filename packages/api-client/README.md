@@ -8,7 +8,7 @@
 
 TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) — a knowledge management system for semantic annotations, AI-powered analysis, and collaborative document understanding.
 
-The api-client is a transparent proxy to `@semiont/make-meaning`. The frontend writes code as though it has direct access to the knowledge system. HTTP, auth, SSE, and caching are internal concerns.
+The api-client is a transparent proxy to `@semiont/make-meaning`. The browser writes code as though it has direct access to the knowledge system. HTTP, auth, SSE, and caching are internal concerns.
 
 ## The 7 Verbs
 

@@ -4,7 +4,7 @@ A type-safe React SPA built with Vite + React Router, featuring W3C Web Annotati
 
 ## Overview
 
-The Semiont frontend provides a rich annotation experience for building semantic knowledge graphs. Users can annotate documents with highlights, entity tags, and document links - all following the W3C Web Annotation Data Model for full interoperability.
+The Semiont browser provides a rich annotation experience for building semantic knowledge graphs. Users can annotate documents with highlights, entity tags, and document links - all following the W3C Web Annotation Data Model for full interoperability.
 
 **Key Features**:
 - W3C Web Annotation compliance
@@ -103,7 +103,7 @@ docker run -d \
 
 ### Component Library
 
-The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
+The browser uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
 
 - **Authentication Components**: SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage
 - **Layout Components**: PageLayout, UnifiedHeader, LeftSidebar, Footer
@@ -117,9 +117,9 @@ The library is framework-independent, accepting framework-specific implementatio
 
 ### Internationalization
 
-The frontend supports multiple languages through a hybrid approach:
+The browser supports multiple languages through a hybrid approach:
 
-- **Frontend-specific translations**: `apps/frontend/messages-source/*.json` (source of truth)
+- **Browser-specific translations**: `apps/frontend/messages-source/*.json` (source of truth)
 - **Component translations**: `packages/react-ui/translations/*.json` (source of truth)
 - **Generated output**: `scripts/merge-translations.js` merges both into `messages/` and `public/messages/` before every build/test/dev run
 - **Dynamic loading**: Non-English locales are loaded on-demand via `i18next-http-backend`
@@ -188,7 +188,7 @@ Some operations run asynchronously via background job workers:
 ## Documentation
 
 ### Getting Started
-- **[Local Setup](./docs/LOCAL.md)** - Run the frontend locally (container, npm, or desktop app)
+- **[Local Setup](./docs/LOCAL.md)** - Run the browser locally (container, npm, or desktop app)
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, common tasks, debugging
 - **[Testing Guide](./docs/TESTING.md)** - Test structure, running tests, writing tests
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Publishing and deployment workflows

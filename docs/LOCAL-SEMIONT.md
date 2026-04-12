@@ -43,7 +43,7 @@ To see all available configs:
 .semiont/scripts/local_backend.sh --list-configs
 ```
 
-In a second terminal, start the frontend using the published container image:
+In a second terminal, start a Semiont browser using the published container image:
 
 ```bash
 container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
@@ -60,7 +60,7 @@ Open **http://localhost:3000** and enter **http://localhost:4000** as the knowle
 
 ## Local network access
 
-The frontend container must be allowed to talk to the backend running on your host. Each platform handles this differently:
+The browser container must be allowed to talk to the backend running on your host. Each platform handles this differently:
 
 - **macOS + Apple `container`:** the first run prompts for permission. If you dismiss it, enable it under **System Settings → Privacy & Security → Local Network** and tick `container-runtime-linux`.
 - **macOS + Docker Desktop / Podman:** the same prompt appears, granted to `com.docker.backend` or `podman-mac-helper` in the same panel.
@@ -74,14 +74,14 @@ As an alternative to the container image, Semiont ships a native desktop app for
 ## Detailed Setup
 
 - **[Backend](../apps/backend/docs/LOCAL.md)** — PostgreSQL, inference, Neo4j, service management
-- **[Frontend](../apps/frontend/docs/LOCAL.md)** — SPA, desktop app, connecting to a backend
+- **[Browser](../apps/frontend/docs/LOCAL.md)** — SPA, desktop app, connecting to a backend
 
 ## Service Ports
 
 | Service | Port | URL |
 |---------|------|-----|
 | Backend | 4000 | http://localhost:4000 |
-| Frontend | 3000 | http://localhost:3000 |
+| Browser | 3000 | http://localhost:3000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 
 ## Related Documentation
