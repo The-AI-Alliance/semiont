@@ -133,6 +133,20 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.resources({ limit: 20 }));
       expect(http.browseResources).toHaveBeenCalledTimes(2);
     });
+
+    it('forwards search filter to browseResources', async () => {
+      await firstDefined(browse.resources({ search: 'foo', limit: 5 }));
+      expect(http.browseResources).toHaveBeenCalledWith(5, undefined, 'foo', { auth: undefined });
+    });
+
+    it('caches the same search query and re-fetches a different one', async () => {
+      await firstDefined(browse.resources({ search: 'foo' }));
+      await firstDefined(browse.resources({ search: 'foo' }));
+      expect(http.browseResources).toHaveBeenCalledTimes(1);
+
+      await firstDefined(browse.resources({ search: 'bar' }));
+      expect(http.browseResources).toHaveBeenCalledTimes(2);
+    });
   });
 
   // ── Entity types ──────────────────────────────────────────────────────

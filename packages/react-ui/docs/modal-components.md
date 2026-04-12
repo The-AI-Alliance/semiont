@@ -238,15 +238,11 @@ Modal components use BEM-style CSS classes:
 The modals integrate with the `useResources` hook for search functionality:
 
 ```tsx
-import { ResourceSearchModal, useResources } from '@semiont/react-ui';
+import { ResourceSearchModal, useApiClient } from '@semiont/react-ui';
 
-function SearchExample() {
-  // The modal uses this hook internally
-  const resources = useResources();
-
-  // You can also use it externally for custom search
-  const { data, isLoading } = resources.search.useQuery(searchTerm, limit);
-}
+// The modal uses the api-client's Observable surface internally:
+// semiont.browse.resources({ search, limit }) — debounced via RxJS.
+// For custom search elsewhere, use the same approach: see API-INTEGRATION.md.
 ```
 
 ## Platform Integration Examples

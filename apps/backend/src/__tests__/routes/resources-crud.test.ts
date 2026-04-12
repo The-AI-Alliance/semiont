@@ -44,6 +44,14 @@ const mockRepStore = {
   get: vi.fn().mockResolvedValue({ content: 'test content' }),
 };
 
+// Captured payloads for browse:resources-requested events emitted by the
+// list route. The mock Gatherer (in the vi.mock factory below) pushes each
+// request into this array before responding, so tests can assert on what
+// the route forwarded. vi.hoisted ensures the array exists before vi.mock.
+const { browseRequests } = vi.hoisted(() => ({
+  browseRequests: [] as Array<{ search?: string; archived?: boolean; entityType?: string; offset?: number; limit?: number }>,
+}));
+
 vi.mock('@semiont/make-meaning', () => ({
   ResourceContext: {
     getResourceMetadata: vi.fn().mockResolvedValue({
@@ -99,7 +107,14 @@ vi.mock('@semiont/make-meaning', () => ({
   },
   startMakeMeaning: vi.fn().mockImplementation(async (_project: unknown, _config: unknown, eventBus: EventBus) => {
     // Subscribe mock Gatherer to browse events so eventBusRequest gets responses
-    eventBus.get('browse:resources-requested').subscribe((e: { correlationId: string }) => {
+    eventBus.get('browse:resources-requested').subscribe((e: any) => {
+      browseRequests.push({
+        search: e.search,
+        archived: e.archived,
+        entityType: e.entityType,
+        offset: e.offset,
+        limit: e.limit,
+      });
       eventBus.get('browse:resources-result').next({
         correlationId: e.correlationId,
         response: {
@@ -305,6 +320,23 @@ describe('Resource CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
+    });
+
+    it('should forward ?q= as search on browse:resources-requested', async () => {
+      browseRequests.length = 0;
+      const response = await app.request('/resources?q=marathon&limit=20', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(browseRequests.length).toBeGreaterThan(0);
+      expect(browseRequests[browseRequests.length - 1]).toMatchObject({
+        search: 'marathon',
+        limit: 20,
+      });
     });
   });
 

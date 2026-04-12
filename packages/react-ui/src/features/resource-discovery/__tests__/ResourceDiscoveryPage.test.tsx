@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
 import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
 import { EventBusProvider } from '../../../contexts/EventBusContext';
@@ -29,6 +29,8 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
   entityTypes: [],
   isLoadingRecent: false,
   isSearching: false,
+  searchQuery: '',
+  onSearchQueryChange: vi.fn(),
   theme: 'light',
   showLineNumbers: false,
   activePanel: null,
@@ -86,13 +88,6 @@ describe('ResourceDiscoveryPage', () => {
       renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByPlaceholderText('Search resources...')).toBeInTheDocument();
-    });
-
-    it('renders search button', () => {
-      const props = createMockProps();
-      renderWithProviders(<ResourceDiscoveryPage {...props} />);
-
-      expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
     });
 
     it('renders toolbar component', () => {
@@ -172,69 +167,75 @@ describe('ResourceDiscoveryPage', () => {
   });
 
   describe('Search Functionality', () => {
-    it('allows typing in search input', () => {
-      const props = createMockProps();
+    it('reflects controlled searchQuery prop in the input', () => {
+      const props = createMockProps({ searchQuery: 'hello' });
       renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const input = screen.getByPlaceholderText('Search resources...') as HTMLInputElement;
-      fireEvent.change(input, { target: { value: 'test query' } });
-
-      expect(input.value).toBe('test query');
+      expect(input.value).toBe('hello');
     });
 
-    it('shows "Searching..." when isSearching is true', () => {
-      const props = createMockProps({ isSearching: true });
+    it('calls onSearchQueryChange on every keystroke', () => {
+      const onSearchQueryChange = vi.fn();
+      const props = createMockProps({ onSearchQueryChange });
       renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
-      expect(screen.getByRole('button', { name: 'Searching...' })).toBeInTheDocument();
-    });
-
-    it('disables search input when isSearching is true', () => {
-      const props = createMockProps({ isSearching: true });
-      renderWithProviders(<ResourceDiscoveryPage {...props} />);
-
-      const input = screen.getByPlaceholderText('Search resources...') as HTMLInputElement;
-      expect(input).toBeDisabled();
-    });
-
-    it('disables search button when isSearching is true', () => {
-      const props = createMockProps({ isSearching: true });
-      renderWithProviders(<ResourceDiscoveryPage {...props} />);
-
-      const button = screen.getByRole('button', { name: 'Searching...' });
-      expect(button).toBeDisabled();
-    });
-
-    it('displays search results with count', () => {
-      const searchDocuments = [
-        createMockResource('1', 'Result 1'),
-        createMockResource('2', 'Result 2'),
-      ];
-
-      const props = createMockProps({ searchDocuments });
-      renderWithProviders(<ResourceDiscoveryPage {...props} />);
-
-      // Type in search input to trigger search state
       const input = screen.getByPlaceholderText('Search resources...');
-      fireEvent.change(input, { target: { value: 'test' } });
+      fireEvent.change(input, { target: { value: 'a' } });
+      fireEvent.change(input, { target: { value: 'ab' } });
+      fireEvent.change(input, { target: { value: 'abc' } });
 
-      expect(screen.getByText('Result 1')).toBeInTheDocument();
-      expect(screen.getByText('Result 2')).toBeInTheDocument();
+      expect(onSearchQueryChange).toHaveBeenCalledTimes(3);
+      expect(onSearchQueryChange).toHaveBeenNthCalledWith(1, 'a');
+      expect(onSearchQueryChange).toHaveBeenNthCalledWith(2, 'ab');
+      expect(onSearchQueryChange).toHaveBeenNthCalledWith(3, 'abc');
     });
 
-    it('shows no results warning when search returns nothing', async () => {
+    it('shows the searching indicator when isSearching is true', () => {
+      const props = createMockProps({ isSearching: true, searchQuery: 'foo' });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Searching...')).toBeInTheDocument();
+    });
+
+    it('renders searchDocuments when searchQuery is non-empty', () => {
       const props = createMockProps({
+        searchQuery: 'res',
+        searchDocuments: [
+          createMockResource('1', 'Search Result 1'),
+          createMockResource('2', 'Search Result 2'),
+        ],
+        recentDocuments: [createMockResource('99', 'Recent Doc')],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByText('Search Result 1')).toBeInTheDocument();
+      expect(screen.getByText('Search Result 2')).toBeInTheDocument();
+      expect(screen.queryByText('Recent Doc')).not.toBeInTheDocument();
+      expect(screen.getByText('2 results found')).toBeInTheDocument();
+    });
+
+    it('shows no-results warning when searchQuery is non-empty, results empty, and not searching', () => {
+      const props = createMockProps({
+        searchQuery: 'nonexistent',
         searchDocuments: [],
+        isSearching: false,
         recentDocuments: [createMockResource('1', 'Recent Doc')],
       });
       renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
-      const input = screen.getByPlaceholderText('Search resources...');
-      fireEvent.change(input, { target: { value: 'nonexistent' } });
+      expect(screen.getByText('No results found for "nonexistent"')).toBeInTheDocument();
+    });
 
-      await waitFor(() => {
-        expect(screen.getByText('No results found for "nonexistent"')).toBeInTheDocument();
+    it('does not show no-results warning while still searching', () => {
+      const props = createMockProps({
+        searchQuery: 'foo',
+        searchDocuments: [],
+        isSearching: true,
       });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByText(/No results found/)).not.toBeInTheDocument();
     });
   });
 

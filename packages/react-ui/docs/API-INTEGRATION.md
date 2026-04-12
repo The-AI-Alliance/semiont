@@ -180,7 +180,6 @@ function EditResource({ rId }) {
 **Available Operations:**
 - `resources.list.useQuery()` - List resources
 - `resources.get.useQuery(rId)` - Get single resource
-- `resources.search.useQuery(query, limit)` - Search resources
 - `resources.events.useQuery(rId)` - Get resource events
 - `resources.annotations.useQuery(rId)` - Get resource annotations
 - `resources.referencedBy.useQuery(rId)` - Get referencing resources
@@ -189,6 +188,26 @@ function EditResource({ rId }) {
 - `resources.generateCloneToken.useMutation()` - Generate clone token
 - `resources.getByToken.useQuery(token)` - Get resource by token
 - `resources.createFromToken.useMutation()` - Clone resource
+
+**Search:** there is no React Query hook for resource search. Search is consumed
+directly through the api-client's Observable surface, with debouncing handled
+in RxJS:
+
+```tsx
+import { useApiClient, useObservable } from '@semiont/react-ui';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, startWith } from 'rxjs/operators';
+
+const semiont = useApiClient();
+const input$ = useMemo(() => new Subject<string>(), []);
+const results$ = useMemo(() => input$.pipe(
+  startWith(''),
+  debounceTime(250),
+  distinctUntilChanged(),
+  switchMap(q => q.trim() ? semiont.browse.resources({ search: q, limit: 20 }) : of([])),
+), [semiont, input$]);
+const results = useObservable(results$) ?? [];
+```
 
 ---
 
