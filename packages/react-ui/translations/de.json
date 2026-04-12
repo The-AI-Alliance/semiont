@@ -374,5 +374,8 @@
     "semanticScoringHelp": "KI zur Bewertung der Ergebnisse nach semantischer Relevanz verwenden",
     "searching": "Suche läuft...",
     "search": "Suchen"
+  },
+  "History": {
+    "embeddingComputed": "Embedding berechnet"
   }
 }

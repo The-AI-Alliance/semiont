@@ -8,6 +8,7 @@ import {
   formatEventType,
   getEventEmoji,
   formatRelativeTime,
+  formatUserId,
   getEventDisplayContent,
   getEventEntityTypes,
   getResourceCreationDetails,
@@ -132,7 +133,7 @@ export function HistoryEvent({
         )}
         {event.userId && (
           <span className="semiont-history-event__user">
-            {event.userId}
+            {formatUserId(event.userId)}
           </span>
         )}
         <span className="semiont-history-event__timestamp">
@@ -155,7 +156,7 @@ export function HistoryEvent({
       {creationDetails && (
         <div className="semiont-history-event__details">
           <span className="semiont-history-event__detail">
-            {t('user')}: <span className="semiont-history-event__detail-value">{creationDetails.userId}</span>
+            {t('user')}: <span className="semiont-history-event__detail-value">{creationDetails.userId ? formatUserId(creationDetails.userId) : ''}</span>
           </span>
           <span className="semiont-history-event__detail">
             {t('method')}: <span className="semiont-history-event__detail-value semiont-history-event__detail-value--uppercase">{creationDetails.method}</span>

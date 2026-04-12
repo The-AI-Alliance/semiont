@@ -374,5 +374,8 @@
     "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
     "searching": "מחפש...",
     "search": "חיפוש"
+  },
+  "History": {
+    "embeddingComputed": "הטמעה חושבה"
   }
 }

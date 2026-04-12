@@ -377,5 +377,8 @@
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
     "searching": "Zoeken...",
     "search": "Zoeken"
+  },
+  "History": {
+    "embeddingComputed": "Embedding berekend"
   }
 }

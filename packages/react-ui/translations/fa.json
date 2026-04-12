@@ -374,5 +374,8 @@
     "semanticScoringHelp": "استفاده از هوش مصنوعی برای امتیازدهی نتایج بر اساس ارتباط معنایی",
     "searching": "در حال جستجو...",
     "search": "جستجو"
+  },
+  "History": {
+    "embeddingComputed": "تعبیه محاسبه شد"
   }
 }

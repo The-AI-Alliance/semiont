@@ -74,6 +74,7 @@
     "annotationRemoved": "Annotation Removed",
     "annotationBodyUpdated": "Annotation Updated",
     "jobEvent": "Job Event",
+    "embeddingComputed": "Embedding Computed",
     "justNow": "just now",
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",

@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Usar IA para pontuar resultados por relevância semântica",
     "searching": "Pesquisando...",
     "search": "Pesquisar"
+  },
+  "History": {
+    "embeddingComputed": "Embedding calculado"
   }
 }

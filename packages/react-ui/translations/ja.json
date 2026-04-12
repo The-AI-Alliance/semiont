@@ -374,5 +374,8 @@
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
     "searching": "検索中...",
     "search": "検索"
+  },
+  "History": {
+    "embeddingComputed": "埋め込み計算済み"
   }
 }

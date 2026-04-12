@@ -374,5 +374,8 @@
     "semanticScoringHelp": "使用 AI 按语义相关性对结果进行评分",
     "searching": "搜索中...",
     "search": "搜索"
+  },
+  "History": {
+    "embeddingComputed": "嵌入计算完成"
   }
 }

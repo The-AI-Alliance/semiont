@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
     "searching": "Se caută...",
     "search": "Caută"
+  },
+  "History": {
+    "embeddingComputed": "Embedding calculat"
   }
 }

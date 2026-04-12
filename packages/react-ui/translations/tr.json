@@ -374,5 +374,8 @@
     "semanticScoringHelp": "Sonuçları anlamsal alaka düzeyine göre puanlamak için yapay zeka kullanın",
     "searching": "Aranıyor...",
     "search": "Ara"
+  },
+  "History": {
+    "embeddingComputed": "Gömme hesaplandı"
   }
 }
