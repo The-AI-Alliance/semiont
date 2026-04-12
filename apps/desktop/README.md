@@ -1,8 +1,48 @@
 # Semiont Desktop
 
-Native desktop application wrapping the Semiont frontend SPA using [Tauri](https://tauri.app/).
+Native desktop application wrapping the Semiont frontend SPA using [Tauri](https://tauri.app/). It bundles the same UI as the container image with a thin native shell, so there's no container runtime to install and no local network permission to grant.
 
-## Prerequisites
+You still need a knowledge base backend running somewhere — point the app at it the same way you would the browser version.
+
+## Install
+
+Download the latest build for your platform from the [Releases page](https://github.com/The-AI-Alliance/semiont/releases).
+
+### macOS
+
+The macOS DMGs are not signed with an Apple Developer ID, so Gatekeeper quarantines them on download. Before opening the DMG, strip the quarantine attribute:
+
+```bash
+xattr -cr ~/Downloads/Semiont_*.dmg
+```
+
+Then open the DMG normally and drag Semiont.app to Applications. Without this step you'll see "Semiont is damaged and can't be opened" — that's Gatekeeper, not actual damage.
+
+Builds are published for both Apple Silicon (`aarch64`) and Intel (`x86_64`) Macs.
+
+### Linux
+
+Two artifacts are published for x86_64:
+
+- **`.deb`** — for Debian, Ubuntu, and derivatives:
+  ```bash
+  sudo apt install ./Semiont_*_amd64.deb
+  ```
+- **`.AppImage`** — portable, runs on most distributions:
+  ```bash
+  chmod +x Semiont_*_amd64.AppImage
+  ./Semiont_*_amd64.AppImage
+  ```
+
+## Connecting to a backend
+
+On first launch, enter the backend host and port (e.g. `localhost:4000`) in the Knowledge Bases panel. The app talks to the backend over plain HTTP — same as the browser version — so any backend reachable from your machine works.
+
+## Building from source
+
+The rest of this document covers developing and building the desktop app from source. Most users only need the [Install](#install) section above.
+
+### Prerequisites
 
 For local development (without containers):
 - [Rust](https://rustup.rs/)
@@ -11,7 +51,7 @@ For local development (without containers):
 
 For containerized builds: just a container runtime (Apple Container, Docker, or Podman).
 
-## Development
+### Development
 
 Start the frontend dev server in one terminal, then the desktop shell in another:
 
@@ -26,15 +66,15 @@ cd apps/desktop && cargo tauri dev
 The desktop app opens a native window pointing at the Vite dev server.
 Hot reload works — changes to the frontend are reflected immediately.
 
-## Build
+### Build
 
-### Containerized (no Rust on host)
+#### Containerized (no Rust on host)
 
 ```bash
 apps/desktop/build.sh
 ```
 
-### Local (Rust required)
+#### Local (Rust required)
 
 ```bash
 cd apps/frontend && npm run build

@@ -46,16 +46,7 @@ tail -f ~/.local/state/semiont/frontend/app.log
 
 ## Desktop App
 
-The frontend is also available as a native desktop application (macOS, Linux).
-Download from the [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases) page.
-
-**macOS note:** The app is not yet code-signed. macOS will show "damaged and can't be opened." Run this before opening:
-
-```bash
-xattr -cr ~/Downloads/Semiont_*.dmg
-```
-
-See [apps/desktop/README.md](../../desktop/README.md) for building from source.
+The frontend is also available as a native desktop application (macOS, Linux). See [apps/desktop/README.md](../../desktop/README.md) for download links, per-platform install notes, and the macOS Gatekeeper workaround.
 
 ## Connecting to a backend
 

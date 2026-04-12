@@ -58,6 +58,19 @@ cd my-kb
 
 Open **http://localhost:3000** and enter **http://localhost:4000** as the knowledge base URL.
 
+## Local network access
+
+The frontend container must be allowed to talk to the backend running on your host. Each platform handles this differently:
+
+- **macOS + Apple `container`:** the first run prompts for permission. If you dismiss it, enable it under **System Settings → Privacy & Security → Local Network** and tick `container-runtime-linux`.
+- **macOS + Docker Desktop / Podman:** the same prompt appears, granted to `com.docker.backend` or `podman-mac-helper` in the same panel.
+- **Linux:** no prompt; containers share the host network namespace by default.
+- **Windows:** Docker Desktop / Podman handle this via WSL2; no extra step.
+
+## Desktop app
+
+As an alternative to the container image, Semiont ships a native desktop app for macOS and Linux — no container runtime to install and no local network permission to grant. See [apps/desktop/README.md](../apps/desktop/README.md) for download links, per-platform install notes, and the macOS Gatekeeper workaround.
+
 ## Detailed Setup
 
 - **[Backend](../apps/backend/docs/LOCAL.md)** — PostgreSQL, inference, Neo4j, service management
