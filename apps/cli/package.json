@@ -1,6 +1,6 @@
 {
   "name": "@semiont/cli",
-  "version": "0.4.18",
+  "version": "0.4.19",
   "description": "Semiont CLI - Unified environment management tool",
   "_comment": "AWS SDK dependencies (@aws-sdk/*) are only used by platforms/aws",
   "type": "module",
@@ -47,12 +47,12 @@
     "test:watch:unit": "vitest --watch --config vitest.config.unit.ts"
   },
   "dependencies": {
-    "@semiont/api-client": "0.4.18",
-    "@semiont/content": "0.4.18",
-    "@semiont/core": "0.4.18",
-    "@semiont/event-sourcing": "0.4.18",
-    "@semiont/graph": "0.4.18",
-    "@semiont/make-meaning": "0.4.18",
+    "@semiont/api-client": "0.4.19",
+    "@semiont/content": "0.4.19",
+    "@semiont/core": "0.4.19",
+    "@semiont/event-sourcing": "0.4.19",
+    "@semiont/graph": "0.4.19",
+    "@semiont/make-meaning": "0.4.19",
     "arg": "^5.0.2",
     "argon2": "^0.44.0",
     "express": "^5.2.1",
