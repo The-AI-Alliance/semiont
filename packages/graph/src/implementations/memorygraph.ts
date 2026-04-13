@@ -121,7 +121,8 @@ export class MemoryGraphDatabase implements GraphDatabase {
     if (filter.search) {
       const searchLower = filter.search.toLowerCase();
       docs = docs.filter(doc =>
-        doc.name.toLowerCase().includes(searchLower)
+        doc.name.toLowerCase().includes(searchLower) ||
+        (doc.storageUri?.toLowerCase().includes(searchLower) ?? false)
       );
     }
 
@@ -134,16 +135,15 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
 
   async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    // Simple text search in memory
-    // const results = await this.client.submit(`
-    //   g.V().has('Resource', 'name', textContains(query)).limit(limit).valueMap(true)
-    // `, { query, limit });
-
+    // Simple text search in memory across name and storageUri
     const searchLower = query.toLowerCase();
     const results = Array.from(this.resources.values())
-      .filter(doc => doc.name.toLowerCase().includes(searchLower))
+      .filter(doc =>
+        doc.name.toLowerCase().includes(searchLower) ||
+        (doc.storageUri?.toLowerCase().includes(searchLower) ?? false)
+      )
       .slice(0, limit);
-    
+
     return results;
   }
   

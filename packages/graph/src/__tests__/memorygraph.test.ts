@@ -189,6 +189,71 @@ describe('MemoryGraphDatabase Implementation', () => {
 
       expect(results).toEqual([]);
     });
+
+    it('searchResources() should match against storageUri', async () => {
+      const resource = createTestResource({
+        name: 'Greek Victory',
+        storageUri: 'file://authors/Herodotus/places/Marathon.md',
+      });
+      await db.createResource(resource);
+
+      const results = await db.searchResources('marathon');
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.['@id']).toBe(resource['@id']);
+    });
+
+    it('searchResources() against storageUri is case-insensitive', async () => {
+      const resource = createTestResource({
+        name: 'Plays',
+        storageUri: 'file://authors/Aeschylus/plays.md',
+      });
+      await db.createResource(resource);
+
+      const results = await db.searchResources('AESCHYLUS');
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.['@id']).toBe(resource['@id']);
+    });
+
+    it('searchResources() returns a single result when query matches both name and storageUri', async () => {
+      const resource = createTestResource({
+        name: 'Marathon',
+        storageUri: 'file://places/Marathon.md',
+      });
+      await db.createResource(resource);
+
+      const results = await db.searchResources('marathon');
+
+      expect(results).toHaveLength(1);
+    });
+
+    it('listResources({ search }) matches storageUri the same way', async () => {
+      await db.createResource(createTestResource({
+        name: 'Resource A',
+        storageUri: 'file://authors/Plato/republic.md',
+      }));
+      await db.createResource(createTestResource({
+        name: 'Resource B',
+        storageUri: 'file://authors/Aristotle/ethics.md',
+      }));
+
+      const result = await db.listResources({ search: 'plato' });
+
+      expect(result.total).toBe(1);
+      expect(result.resources[0]?.name).toBe('Resource A');
+    });
+
+    it('createResource persists storageUri so it round-trips through getResource', async () => {
+      const resource = createTestResource({
+        storageUri: 'file://docs/overview.md',
+      });
+      await db.createResource(resource);
+
+      const loaded = await db.getResource(resourceId(resource['@id']));
+
+      expect(loaded?.storageUri).toBe('file://docs/overview.md');
+    });
   });
 
   describe('Annotation Relationship Logic', () => {

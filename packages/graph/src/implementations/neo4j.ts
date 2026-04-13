@@ -213,6 +213,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.contentChecksum = $contentChecksum,
              d.sourceAnnotationId = $sourceAnnotationId,
              d.sourceResourceId = $sourceResourceId,
+             d.storageUri = $storageUri,
              d.stub = false
          RETURN d`,
         {
@@ -227,6 +228,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
+          storageUri: resource.storageUri ?? null,
         }
       );
 
@@ -305,7 +307,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       }
 
       if (filter.search) {
-        conditions.push('toLower(d.name) CONTAINS toLower($search)');
+        conditions.push('(toLower(d.name) CONTAINS toLower($search) OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($search))');
         params.search = filter.search;
       }
 
@@ -346,6 +348,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(
         `MATCH (d:Resource)
          WHERE toLower(d.name) CONTAINS toLower($query)
+            OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($query)
          RETURN d
          ORDER BY d.updatedAt DESC
          LIMIT $limit`,
@@ -1013,6 +1016,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
+          storageUri: resource.storageUri ?? null,
         };
       });
 
@@ -1029,6 +1033,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.contentChecksum = r.contentChecksum,
              d.sourceAnnotationId = r.sourceAnnotationId,
              d.sourceResourceId = r.sourceResourceId,
+             d.storageUri = r.storageUri,
              d.stub = false
          RETURN d`,
         { resources: params }
@@ -1177,6 +1182,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     };
 
     if (props.sourceResourceId) resource.sourceResourceId = props.sourceResourceId;
+    if (props.storageUri) resource.storageUri = props.storageUri;
 
     return resource;
   }
