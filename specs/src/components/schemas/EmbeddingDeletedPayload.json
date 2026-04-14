@@ -1,7 +1,0 @@
-{
-  "type": "object",
-  "description": "Payload for embedding:deleted domain event",
-  "properties": {
-    "annotationId": { "type": "string" }
-  }
-}

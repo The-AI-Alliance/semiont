@@ -62,7 +62,6 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
     'mark:entity-tag-added', 'mark:entity-tag-removed',
     'mark:entity-type-added',
     'job:started', 'job:progress', 'job:completed', 'job:failed',
-    'embedding:computed', 'embedding:deleted',
   ];
   for (const eventType of allEventTypes) {
     eventBus.get(eventType as any).subscribe((event) => {

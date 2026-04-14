@@ -25,6 +25,7 @@ import type { EventBus, Logger } from '@semiont/core';
 import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
 import { GraphDBConsumer } from './graph/consumer.js';
 import { Smelter } from './smelter.js';
+import { EmbeddingStore } from './embedding-store.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
@@ -83,12 +84,15 @@ export async function createKnowledgeBase(
   // Initialize vector search if configured
   if (options?.vectorStore && options?.embeddingProvider) {
     kb.vectors = options.vectorStore;
+    const embeddingStore = new EmbeddingStore(project);
     kb.smelter = new Smelter(
       eventStore,
       eventBus,
       options.vectorStore,
       options.embeddingProvider,
       content,
+      embeddingStore,
+      views,
       logger.child({ component: 'smelter' }),
       options.chunkingConfig,
     );

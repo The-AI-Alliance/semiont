@@ -5,22 +5,23 @@
  * - Resource embedding and indexing (via embedBatch)
  * - Annotation embedding and indexing
  * - Deletion handling
- * - embedding:computed events emitted on EventBus (for Stower persistence)
- * - rebuildAll() replay from event log
+ * - EmbeddingStore write-through on creation
+ * - rebuildAll() loads from EmbeddingStore, detects model mismatch and re-embeds
  * - Cross-resource batch processing
  *
  * Uses MemoryVectorStore and a mock EmbeddingProvider.
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
-import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
+import { EventStore, FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, resourceId, userId, CREATION_METHODS } from '@semiont/core';
-import type { Logger, EventMap } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import { WorkingTreeStore } from '@semiont/content';
 import { Smelter } from '../smelter';
+import { EmbeddingStore } from '../embedding-store';
 import { partitionByType } from '../batch-utils';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -45,12 +46,12 @@ function deterministicEmbed(text: string): number[] {
   return vec;
 }
 
-function createMockEmbeddingProvider(): EmbeddingProvider {
+function createMockEmbeddingProvider(model = 'mock-model'): EmbeddingProvider {
   return {
     embed: vi.fn().mockImplementation(async (text: string) => deterministicEmbed(text)),
     embedBatch: vi.fn().mockImplementation(async (texts: string[]) => texts.map(deterministicEmbed)),
     dimensions: vi.fn().mockReturnValue(4),
-    model: vi.fn().mockReturnValue('mock-model'),
+    model: vi.fn().mockReturnValue(model),
   };
 }
 
@@ -96,6 +97,8 @@ describe('Smelter', () => {
   let vectorStore: MemoryVectorStore;
   let embeddingProvider: EmbeddingProvider;
   let contentStore: WorkingTreeStore;
+  let embeddingStore: EmbeddingStore;
+  let viewStorage: ViewStorage;
   let smelter: Smelter;
 
   beforeAll(async () => {
@@ -106,18 +109,20 @@ describe('Smelter', () => {
 
     project = new SemiontProject(tempDir);
     await fs.mkdir(project.eventsDir, { recursive: true });
+    await fs.mkdir(project.embeddingsDir, { recursive: true });
     await fs.mkdir(project.projectionsDir, { recursive: true });
     await fs.mkdir(project.representationsDir, { recursive: true });
   });
 
   beforeEach(async () => {
     eventBus = new EventBus();
-    const viewStorage = new FilesystemViewStorage(project);
+    viewStorage = new FilesystemViewStorage(project);
     eventStore = new EventStore(project, project.projectionsDir, viewStorage, eventBus, mockLogger);
     vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
     embeddingProvider = createMockEmbeddingProvider();
     contentStore = new WorkingTreeStore(project, mockLogger);
+    embeddingStore = new EmbeddingStore(project);
 
     smelter = new Smelter(
       eventStore,
@@ -125,6 +130,8 @@ describe('Smelter', () => {
       vectorStore,
       embeddingProvider,
       contentStore,
+      embeddingStore,
+      viewStorage,
       mockLogger,
     );
     await smelter.initialize();
@@ -166,17 +173,15 @@ describe('Smelter', () => {
     expect(embeddingProvider.embedBatch).toHaveBeenCalled();
   });
 
-  it('emits embedding:computed events on the EventBus', async () => {
+  it('writes embeddings to EmbeddingStore on resource creation', async () => {
     const content = Buffer.from('Short text for embedding test.');
     const uri = 'file://embed-test.txt';
     await contentStore.store(content, uri, { noGit: true });
 
-    const received: EventMap['embedding:compute'][] = [];
-    eventBus.get('embedding:compute').subscribe(e => received.push(e));
-
+    const rid = resourceId('res-embed-store');
     await eventStore.appendEvent({
       type: 'yield:created',
-      resourceId: resourceId('res-embed'),
+      resourceId: rid,
       userId: userId('user-1'),
       version: 1,
       payload: {
@@ -190,12 +195,11 @@ describe('Smelter', () => {
 
     await tick();
 
-    expect(received.length).toBeGreaterThan(0);
-    expect(received[0].resourceId).toBe('res-embed');
-    expect(received[0].chunkIndex).toBe(0);
-    expect(received[0].embedding).toHaveLength(4);
-    expect(received[0].model).toBe('mock-model');
-    expect(received[0].dimensions).toBe(4);
+    const stored = await embeddingStore.readResourceEmbeddings(rid);
+    expect(stored).not.toBeNull();
+    expect(stored!.model).toBe('mock-model');
+    expect(stored!.chunks.length).toBeGreaterThan(0);
+    expect(stored!.chunks[0].embedding).toHaveLength(4);
   });
 
   it('indexes resource vectors into vector store', async () => {
@@ -224,7 +228,7 @@ describe('Smelter', () => {
     expect(results.length).toBeGreaterThan(0);
   });
 
-  it('indexes annotation text into vector store', async () => {
+  it('indexes annotation text into vector store and EmbeddingStore', async () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: resourceId('res-1'),
@@ -265,6 +269,14 @@ describe('Smelter', () => {
     const queryVec = deterministicEmbed('Lincoln was a great leader');
     const results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
+
+    // Also check EmbeddingStore
+    const { annotationId: makeAnnotationId } = await import('@semiont/core');
+    const stored = await embeddingStore.readAnnotationEmbedding(makeAnnotationId('ann-1'));
+    expect(stored).not.toBeNull();
+    expect(stored!.model).toBe('mock-model');
+    expect(stored!.text).toBe('Lincoln was a great leader');
+    expect(stored!.motivation).toBe('highlighting');
   });
 
   it('deletes resource vectors on resource.archived', async () => {
@@ -287,12 +299,10 @@ describe('Smelter', () => {
     });
     await tick();
 
-    // Verify indexed
     const queryVec = deterministicEmbed('Content to be archived');
     let results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
 
-    // Archive
     await eventStore.appendEvent({
       type: 'mark:archived',
       resourceId: resourceId('res-archive'),
@@ -302,46 +312,180 @@ describe('Smelter', () => {
     });
     await tick();
 
-    // Verify deleted
     results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBe(0);
   });
 
-  it('rebuilds vector store from event log via rebuildAll', async () => {
+  it('rebuilds vector store from EmbeddingStore', async () => {
     const rid = resourceId('res-rebuild');
-    const text = 'Rebuilding vectors from event log.';
+    const text = 'Rebuilding vectors from embedding store.';
     const embedding = deterministicEmbed(text);
 
-    // Simulate what the Stower would persist: an embedding.computed event
-    await eventStore.appendEvent({
-      type: 'embedding:computed',
-      resourceId: rid,
-      userId: userId('did:web:system:smelter'),
-      version: 1,
-      payload: {
-        chunkIndex: 0,
-        chunkText: text,
-        embedding,
-        model: 'mock-model',
-        dimensions: 4,
-      },
-    });
+    // Write directly to EmbeddingStore (simulating a prior run)
+    await embeddingStore.writeResourceChunks(rid, 'mock-model', 4, [
+      { chunkIndex: 0, text, embedding },
+    ]);
 
     // Vector store is empty — nothing indexed yet
     const queryVec = deterministicEmbed(text);
     let results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBe(0);
 
-    // Rebuild from event log
     await smelter.rebuildAll();
 
     results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].resourceId).toBe(String(rid));
+    // rebuildAll should not have called the provider (model matches)
+    expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
+  });
+
+  it('back-fills resources missing an embedding file during rebuildAll', async () => {
+    const content = Buffer.from('Missing embedding file content.');
+    const uri = 'file://missing-embed.txt';
+    await contentStore.store(content, uri, { noGit: true });
+
+    // Write a materialized view directly (simulating a completed view rebuild
+    // with no corresponding embedding file — the gap rebuildAll must fill)
+    const rid = resourceId('res-backfill');
+    await viewStorage.save(rid, {
+      resource: {
+        '@context': 'https://schema.org',
+        '@id': String(rid),
+        name: 'Backfill Me',
+        archived: false,
+        storageUri: uri,
+        representations: [],
+      },
+      annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '' },
+    });
+
+    // Confirm no embedding file exists
+    const before = await embeddingStore.readResourceEmbeddings(rid);
+    expect(before).toBeNull();
+
+    // rebuildAll should detect the gap and back-fill
+    await smelter.rebuildAll();
+
+    // File should now exist
+    const after = await embeddingStore.readResourceEmbeddings(rid);
+    expect(after).not.toBeNull();
+    expect(after!.chunks.length).toBeGreaterThan(0);
+
+    // And Qdrant should have it
+    const queryVec = deterministicEmbed('Missing embedding file content');
+    const results = await vectorStore.searchResources(queryVec, { limit: 5 });
+    expect(results.length).toBeGreaterThan(0);
+  });
+
+  it('re-embeds on model mismatch during rebuildAll', async () => {
+    const rid = resourceId('res-stale-model');
+    const text = 'This was embedded with an old model.';
+    const staleEmbedding = deterministicEmbed(text);
+
+    // Write with a different (stale) model name
+    await embeddingStore.writeResourceChunks(rid, 'old-model', 4, [
+      { chunkIndex: 0, text, embedding: staleEmbedding },
+    ]);
+
+    await smelter.rebuildAll();
+
+    // Provider should have been called to re-embed
+    expect(embeddingProvider.embedBatch).toHaveBeenCalled();
+
+    // File should now reflect the current model
+    const stored = await embeddingStore.readResourceEmbeddings(rid);
+    expect(stored!.model).toBe('mock-model');
+  });
+
+  it('re-embeds resource when yield:updated fires', async () => {
+    const uri = 'file://updated-resource.txt';
+    const rid = resourceId('res-updated');
+
+    // Create resource with initial content
+    await contentStore.store(Buffer.from('Initial content for update test.'), uri, { noGit: true });
+    await eventStore.appendEvent({
+      type: 'yield:created',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        name: 'Update Test',
+        format: 'text/plain',
+        contentChecksum: 'init-cs',
+        creationMethod: CREATION_METHODS.UPLOAD,
+        storageUri: uri,
+      },
+    });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    // Replace content at the same URI and fire yield:updated
+    await contentStore.store(Buffer.from('Replaced content after update event.'), uri, { noGit: true });
+    await eventStore.appendEvent({
+      type: 'yield:updated',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: { contentChecksum: 'new-cs' },
+    });
+    await tick();
+
+    // embedBatch should have been called again
+    const callsAfterUpdate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterUpdate).toBeGreaterThan(callsAfterCreate);
+
+    // EmbeddingStore should reflect the new content
+    const stored = await embeddingStore.readResourceEmbeddings(rid);
+    expect(stored).not.toBeNull();
+    expect(stored!.chunks[0].text).toContain('Replaced content');
+  });
+
+  it('re-embeds resource when yield:representation-added fires', async () => {
+    const uri = 'file://repr-resource.txt';
+    const rid = resourceId('res-repr-added');
+
+    await contentStore.store(Buffer.from('Resource with a new representation.'), uri, { noGit: true });
+    await eventStore.appendEvent({
+      type: 'yield:created',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        name: 'Repr Test',
+        format: 'text/plain',
+        contentChecksum: 'repr-cs',
+        creationMethod: CREATION_METHODS.UPLOAD,
+        storageUri: uri,
+      },
+    });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    await eventStore.appendEvent({
+      type: 'yield:representation-added',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        representation: {
+          mediaType: 'text/markdown',
+          storageUri: uri,
+          checksum: 'repr-md-cs',
+          rel: 'derived',
+        },
+      },
+    } as any);
+    await tick();
+
+    // embedBatch should have fired again due to re-embed
+    const callsAfterRepr = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterRepr).toBeGreaterThan(callsAfterCreate);
   });
 
   it('stops cleanly', async () => {
     await smelter.stop();
-    // No errors thrown
   });
 });

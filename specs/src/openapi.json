@@ -390,12 +390,6 @@
       "JobFailedPayload": {
         "$ref": "components/schemas/JobFailedPayload.json"
       },
-      "EmbeddingComputedPayload": {
-        "$ref": "components/schemas/EmbeddingComputedPayload.json"
-      },
-      "EmbeddingDeletedPayload": {
-        "$ref": "components/schemas/EmbeddingDeletedPayload.json"
-      },
       "AnnotateHighlightsStreamRequest": {
         "$ref": "components/schemas/AnnotateHighlightsStreamRequest.json"
       },
@@ -566,8 +560,6 @@
       "BrowseResourcesRequest": { "$ref": "components/schemas/BrowseResourcesRequest.json" },
       "BrowseResourcesResult": { "$ref": "components/schemas/BrowseResourcesResult.json" },
       "BrowseRouterPushEvent": { "$ref": "components/schemas/BrowseRouterPushEvent.json" },
-      "EmbeddingComputeCommand": { "$ref": "components/schemas/EmbeddingComputeCommand.json" },
-      "EmbeddingDeleteCommand": { "$ref": "components/schemas/EmbeddingDeleteCommand.json" },
       "FragmentSelector": { "$ref": "components/schemas/FragmentSelector.json" },
       "GatherAnnotationComplete": { "$ref": "components/schemas/GatherAnnotationComplete.json" },
       "GatherAnnotationRequest": { "$ref": "components/schemas/GatherAnnotationRequest.json" },

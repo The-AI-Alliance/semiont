@@ -257,13 +257,6 @@ export type EventMap = {
   'job:status-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   // ========================================================================
-  // EMBEDDING FLOW — Smelter commands; domain events are in event-catalog.ts
-  // ========================================================================
-
-  'embedding:compute': components['schemas']['EmbeddingComputeCommand'];
-  'embedding:delete': components['schemas']['EmbeddingDeleteCommand'];
-
-  // ========================================================================
   // SETTINGS (frontend-only)
   // ========================================================================
 
