@@ -48,6 +48,18 @@ detect_runtime() {
 }
 
 RT=$(detect_runtime)
+
+# --- Cleanup trap ---
+# Stopped and removed on EXIT so logs are always available on failure.
+# (Avoids --rm with -d, which is broken on Apple Container CLI.)
+verdaccio_cleanup() {
+  if [[ -n "${VERDACCIO_NAME:-}" ]]; then
+    $RT stop "$VERDACCIO_NAME" >/dev/null 2>&1 || true
+    $RT rm   "$VERDACCIO_NAME" >/dev/null 2>&1 || true
+  fi
+}
+trap verdaccio_cleanup EXIT
+
 banner "SEMIONT LOCAL BUILD"
 step "Container runtime: ${BOLD}$RT${RESET}"
 
@@ -91,17 +103,19 @@ done
 banner "LOCAL REGISTRY"
 
 step "Ensuring port 4873 is free..."
+# Kill any process holding the port
 PID_ON_PORT=$(lsof -ti :4873 2>/dev/null || echo "")
 if [[ -n "$PID_ON_PORT" ]]; then
   echo "  Port 4873 held by PID $PID_ON_PORT — killing..."
   kill $PID_ON_PORT 2>/dev/null || true
   for i in $(seq 1 10); do
-    if ! lsof -ti :4873 > /dev/null 2>&1; then
-      break
-    fi
+    if ! lsof -ti :4873 > /dev/null 2>&1; then break; fi
     sleep 0.5
   done
 fi
+# Remove any leftover Verdaccio container that might be holding the port
+$RT stop semiont-verdaccio 2>/dev/null || true
+$RT rm   semiont-verdaccio 2>/dev/null || true
 if lsof -ti :4873 > /dev/null 2>&1; then
   fail "Port 4873 is still in use after kill"
   lsof -i :4873 2>/dev/null
@@ -114,13 +128,15 @@ VERDACCIO_STORAGE=$(mktemp -d)
 echo "  Container name: $VERDACCIO_NAME"
 echo "  Storage dir:    $VERDACCIO_STORAGE"
 
-RUN_OUTPUT=$($RT run -d --rm \
+# Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
+# detached containers that use --rm, making logs unreachable on failure.
+# The EXIT trap above handles cleanup instead.
+$RT run -d \
   --name "$VERDACCIO_NAME" \
   -p 4873:4873 \
   -v "$SCRIPT_DIR/verdaccio.yaml:/verdaccio/conf/config.yaml:ro" \
   -v "$VERDACCIO_STORAGE:/verdaccio/storage" \
-  verdaccio/verdaccio 2>&1)
-echo "  Container run output: $RUN_OUTPUT"
+  verdaccio/verdaccio > /dev/null
 
 # Wait for Verdaccio to be ready
 for i in $(seq 1 30); do
