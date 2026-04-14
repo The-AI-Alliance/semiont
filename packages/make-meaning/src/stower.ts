@@ -28,8 +28,6 @@
  * - job:report-progress → job.progress
  * - job:complete       → job.completed
  * - job:fail           → job.failed
- * - embedding:compute   → embedding.computed   (from Smelter)
- * - embedding:delete    → embedding.deleted    (from Smelter)
  */
 
 import { promises as fs } from 'fs';
@@ -82,8 +80,6 @@ export class Stower {
       pipe('job:report-progress', (e) => this.handleJobReportProgress(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
-      pipe('embedding:compute', (e) => this.handleEmbeddingComputed(e)),
-      pipe('embedding:delete', (e) => this.handleEmbeddingDeleted(e)),
     ).subscribe({
       error: (err: unknown) => this.logger.error('Stower pipeline error', { error: err }),
     });
@@ -421,35 +417,6 @@ export class Stower {
         jobId: event.jobId,
         jobType: event.jobType,
         error: event.error,
-      },
-    });
-  }
-
-  private async handleEmbeddingComputed(event: EventMap['embedding:compute']): Promise<void> {
-    await this.kb.eventStore.appendEvent({
-      type: 'embedding:computed',
-      resourceId: resourceId(event.resourceId),
-      userId: makeUserId('did:web:system:smelter'),
-      version: 1,
-      payload: {
-        annotationId: event.annotationId,
-        chunkIndex: event.chunkIndex,
-        chunkText: event.chunkText,
-        embedding: event.embedding,
-        model: event.model,
-        dimensions: event.dimensions,
-      },
-    });
-  }
-
-  private async handleEmbeddingDeleted(event: EventMap['embedding:delete']): Promise<void> {
-    await this.kb.eventStore.appendEvent({
-      type: 'embedding:deleted',
-      resourceId: resourceId(event.resourceId),
-      userId: makeUserId('did:web:system:smelter'),
-      version: 1,
-      payload: {
-        annotationId: event.annotationId,
       },
     });
   }

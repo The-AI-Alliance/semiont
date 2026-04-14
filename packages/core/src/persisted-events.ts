@@ -1,7 +1,7 @@
 /**
  * Persisted Events
  *
- * The 20 event types that get appended to the JSONL event log.
+ * The 18 event types that get appended to the JSONL event log.
  * Each maps a type string to its OpenAPI payload schema.
  * The PersistedEvent union derives from this catalog.
  */
@@ -35,8 +35,6 @@ type PersistedEventCatalog = {
   'job:progress': components['schemas']['JobProgressPayload'];
   'job:completed': components['schemas']['JobCompletedPayload'];
   'job:failed': components['schemas']['JobFailedPayload'];
-  'embedding:computed': components['schemas']['EmbeddingComputedPayload'];
-  'embedding:deleted': components['schemas']['EmbeddingDeletedPayload'];
 };
 
 // ── Derived types ────────────────────────────────────────────────────────────
@@ -86,8 +84,6 @@ export const PERSISTED_EVENT_TYPES = [
   'job:progress',
   'job:completed',
   'job:failed',
-  'embedding:computed',
-  'embedding:deleted',
 ] as const satisfies readonly PersistedEventType[];
 
 // Compile-time exhaustiveness: if PersistedEventType gains a member that

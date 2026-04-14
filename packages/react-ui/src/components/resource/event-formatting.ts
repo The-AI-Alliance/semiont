@@ -90,9 +90,6 @@ export function formatEventType(type: PersistedEventType, t: TranslateFn, payloa
     case 'yield:representation-removed':
       return t('representationEvent');
 
-    case 'embedding:computed':
-      return t('embeddingComputed');
-
     default:
       return type;
   }
@@ -140,9 +137,6 @@ export function getEventEmoji(type: PersistedEventType, payload?: any): string {
     case 'yield:representation-added':
     case 'yield:representation-removed':
       return '📄';
-
-    case 'embedding:computed':
-      return '🧮';
 
     default:
       return '📝';
