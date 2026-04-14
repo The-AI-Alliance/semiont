@@ -320,7 +320,7 @@ describe('ReferenceEntry', () => {
       expect(bindSpy).toHaveBeenCalledWith(
         'resource-1',
         'ref-1',
-        { operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc' } }] },
+        { operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc', purpose: 'linking' } }] },
         expect.anything(),
       );
 

@@ -193,21 +193,35 @@ import { fetchAPI, createFetchAPI } from '@semiont/core';
 const response = await fetchAPI(url, { method: 'POST', body: data });
 ```
 
-### Backend-Specific Annotation Utilities
+### Annotation body matcher
 
-Utilities that work with internal backend types:
+`findBodyItem` locates a body item in an annotation body by identity
+(type + source for `SpecificResource`, type + value for `TextualBody`).
+Used by the `mark:body-updated` event replay path to apply add / remove /
+replace operations.
 
 ```typescript
-import { bodyItemsMatch, findBodyItem } from '@semiont/core';
+import { findBodyItem, type BodyItemIdentity } from '@semiont/core';
 
-// Find specific body item in annotation
-const item = findBodyItem(annotation.body, (item) => item.purpose === 'tagging');
+// Loose match: any body item with this source, regardless of purpose.
+// This is the common case for Semiont's bind/unbind flow.
+const index = findBodyItem(annotation.body, {
+  type: 'SpecificResource',
+  source: 'https://example.com/target',
+});
 
-// Check if two body items match
-if (bodyItemsMatch(item1, item2)) {
-  // ...
-}
+// Strict match: disambiguate among same-source bodies under different
+// purposes. Needed when an annotation has multiple SpecificResource bodies
+// pointing at the same target under different W3C purposes.
+const linkingIdx = findBodyItem(annotation.body, {
+  type: 'SpecificResource',
+  source: 'https://example.com/target',
+  purpose: 'linking',
+});
 ```
+
+`purpose` is optional in the identity. Omit it to match on identity alone;
+provide it when the caller knows which purpose to target.
 
 ### Backend Internal Types
 

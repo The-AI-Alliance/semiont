@@ -124,8 +124,9 @@ export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
 
-// Backend-specific annotation utilities
+// Annotation body matcher (used by mark:body-updated event replay)
 export { findBodyItem } from './annotation-utils';
+export type { BodyItemIdentity } from './annotation-utils';
 
 // Annotation assembly (pure functions for building W3C Annotations)
 export {
