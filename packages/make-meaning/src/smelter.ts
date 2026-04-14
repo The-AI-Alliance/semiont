@@ -48,7 +48,7 @@ export class Smelter {
   private readonly chunkingConfig: ChunkingConfig;
 
   constructor(
-    private eventStore: EventStore,
+    _eventStore: EventStore,
     private eventBus: EventBus,
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,
@@ -570,7 +570,6 @@ export class Smelter {
     const annotationId = String(event.payload.annotationId);
     if (!annotationId) return;
 
-    const rid = makeResourceId(event.resourceId!);
     const aid = makeAnnotationId(annotationId);
 
     await this.vectorStore.deleteAnnotationVector(aid);

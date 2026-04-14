@@ -357,7 +357,7 @@ describe('Smelter', () => {
         storageUri: uri,
         representations: [],
       },
-      annotations: { annotations: [] },
+      annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '' },
     });
 
     // Confirm no embedding file exists
