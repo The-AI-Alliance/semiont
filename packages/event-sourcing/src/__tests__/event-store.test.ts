@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { EventStore } from '../event-store';
 import { EventQuery } from '../query/event-query';
-import { EventValidator } from '../validation/event-validator';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
 import { CREATION_METHODS, resourceId, userId, EventBus } from '@semiont/core';
@@ -19,7 +18,6 @@ describe('Event Store', () => {
   let project: SemiontProject;
   let eventStore: EventStore;
   let query: EventQuery;
-  let validator: EventValidator;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-${uuidv4()}`);
@@ -36,7 +34,6 @@ describe('Event Store', () => {
     );
 
     query = new EventQuery(eventStore.log.storage);
-    validator = new EventValidator();
   });
 
   afterAll(async () => {
@@ -65,56 +62,6 @@ describe('Event Store', () => {
     const events = await query.getResourceEvents(docId);
     expect(events).toHaveLength(1);
     expect(events[0]?.type).toBe('yield:created');
-  });
-
-  it('should create event chain with prevEventHash', async () => {
-    const docId = resourceId('doc-test2');
-
-    const e1 = await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: docId,
-      userId: userId('user1'),
-      version: 1,
-      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
-    });
-
-    const e2 = await eventStore.appendEvent({
-      type: 'mark:added',
-      resourceId: docId,
-      userId: userId('user1'),
-      version: 1,
-      payload: {
-        annotation: {
-          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-          'type': 'Annotation' as const,
-          id: 'hl1',
-          motivation: 'highlighting' as const,
-          target: {
-            source: docId,
-            selector: [
-              {
-                type: 'TextPositionSelector',
-                start: 0,
-                end: 4,
-              },
-              {
-                type: 'TextQuoteSelector',
-                exact: 'Test',
-              },
-            ],
-          },
-          body: [], // Empty body array (no entity tags)
-          modified: new Date().toISOString(),
-        },
-      },
-    });
-
-    expect(e1.metadata.prevEventHash).toBeUndefined();
-    expect(e2.metadata.prevEventHash).toBe(e1.metadata.checksum);
-
-    const eventsForValidation = await query.getResourceEvents(docId);
-    const validation = validator.validateEventChain(eventsForValidation);
-    expect(validation.valid).toBe(true);
   });
 
   it('should rebuild projection from events', async () => {

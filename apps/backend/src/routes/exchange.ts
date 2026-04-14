@@ -151,7 +151,6 @@ exchangeRouter.post('/api/admin/exchange/restore', async (c) => {
           phase: 'complete',
           result: {
             stats: result.stats,
-            hashChainValid: result.hashChainValid,
           },
         });
       } catch (err) {

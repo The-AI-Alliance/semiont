@@ -43,7 +43,7 @@ function collectWritable(): { writable: Writable; promise: Promise<Buffer> } {
   return { writable, promise };
 }
 
-function makeStoredEvent(type: string, payload: Record<string, unknown>, checksum: string): StoredEvent {
+function makeStoredEvent(type: string, payload: Record<string, unknown>): StoredEvent {
   return {
     id: 'evt-1',
     type,
@@ -55,8 +55,6 @@ function makeStoredEvent(type: string, payload: Record<string, unknown>, checksu
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      checksum,
-      prevEventHash: undefined,
     },
   } as StoredEvent;
 }
@@ -120,7 +118,7 @@ describe('backup-exporter', () => {
 
   it('exports system events and resource events', async () => {
     const systemEvents = [
-      makeStoredEvent('mark:entity-type-added', { entityType: 'Person' }, 'sys-check-1'),
+      makeStoredEvent('mark:entity-type-added', { entityType: 'Person' }),
     ];
     const resourceId = 'res-abc' as ResourceId;
     const resourceEvents = new Map<string, StoredEvent[]>();
@@ -132,7 +130,7 @@ describe('backup-exporter', () => {
         language: 'en',
         entityTypes: ['Person'],
         creationMethod: 'api',
-      }, 'res-check-1'),
+      }),
     ]);
 
     const contentBlobs = new Map([
@@ -189,38 +187,6 @@ describe('backup-exporter', () => {
     // Verify content blob
     const contentData = entryDataMap.get('sha-content.md')!;
     expect(contentData.toString('utf8')).toBe('# Test Content\n');
-  });
-
-  it('includes correct stream summaries with checksums', async () => {
-    const systemEvents = [
-      makeStoredEvent('mark:entity-type-added', { entityType: 'A' }, 'first-sys'),
-      makeStoredEvent('mark:entity-type-added', { entityType: 'B' }, 'last-sys'),
-    ];
-
-    const eventStore = createMockEventStore({ systemEvents });
-    const contentStore = createMockContentStore(new Map());
-    const { writable, promise } = collectWritable();
-
-    await exportBackup(
-      { eventStore, content: contentStore, sourceUrl: 'http://test' },
-      writable,
-    );
-
-    const archive = await promise;
-    let manifestData = '';
-    for await (const entry of readTarGz(bufferToReadable(archive))) {
-      if (entry.name === '.semiont/manifest.jsonl') {
-        manifestData = entry.data.toString('utf8');
-      }
-    }
-
-    const lines = manifestData.trim().split('\n');
-    const streamSummary = JSON.parse(lines[1]);
-
-    expect(streamSummary.stream).toBe('__system__');
-    expect(streamSummary.eventCount).toBe(2);
-    expect(streamSummary.firstChecksum).toBe('first-sys');
-    expect(streamSummary.lastChecksum).toBe('last-sys');
   });
 
   it('sets sourceUrl and exportedAt in manifest', async () => {

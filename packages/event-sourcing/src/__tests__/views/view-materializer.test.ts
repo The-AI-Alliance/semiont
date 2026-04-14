@@ -16,11 +16,10 @@ import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal EventMetadata for tests
-function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+function createEventMetadata(sequenceNumber: number): EventMetadata {
   return {
     sequenceNumber,
     streamPosition: sequenceNumber * 100,
-    prevEventHash: prevHash,
   };
 }
 
@@ -120,7 +119,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -177,7 +176,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -226,7 +225,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -240,7 +239,7 @@ describe('ViewMaterializer', () => {
               checksum: 'checksum1',
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -288,7 +287,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -336,7 +335,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -360,7 +359,7 @@ describe('ViewMaterializer', () => {
               ],
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -368,6 +367,189 @@ describe('ViewMaterializer', () => {
 
       expect(view?.annotations.annotations).toHaveLength(1);
       expect(view?.annotations.annotations[0].body).toHaveLength(1);
+    });
+
+    it('replays add + remove (with purpose) to produce empty body', async () => {
+      // Regression guard: strict-purpose matching is the canonical case
+      // where the caller knows which body they're removing.
+      const rid = resourceId('doc1');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Test Document',
+            format: 'text/plain' as const,
+            contentChecksum: 'checksum1',
+            creationMethod: 'api' as const,
+          },
+          metadata: createEventMetadata(1),
+        },
+        {
+          id: 'event2',
+          type: 'mark:added',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 2,
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              id: 'anno1',
+              type: 'Annotation' as const,
+              motivation: 'linking' satisfies Motivation,
+              body: [],
+              target: 'doc1',
+            },
+          },
+          metadata: createEventMetadata(2),
+        },
+        {
+          id: 'event3',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 3,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'add' as const,
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                  purpose: 'linking' as const,
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(3),
+        },
+        {
+          id: 'event4',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 4,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'remove' as const,
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                  purpose: 'linking' as const,
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(4),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+      expect(view?.annotations.annotations).toHaveLength(1);
+      expect(view?.annotations.annotations[0].body).toEqual([]);
+    });
+
+    it('replays add + remove (without purpose) to produce empty body', async () => {
+      // The regression this fix was written for. Event 7 in the user's KB
+      // had a remove op with no `purpose` field; strict-purpose matching
+      // in findBodyItem silently failed, leaving the link in place forever.
+      // After the fix, purpose-less removes match by identity alone.
+      const rid = resourceId('doc1');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Test Document',
+            format: 'text/plain' as const,
+            contentChecksum: 'checksum1',
+            creationMethod: 'api' as const,
+          },
+          metadata: createEventMetadata(1),
+        },
+        {
+          id: 'event2',
+          type: 'mark:added',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 2,
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              id: 'anno1',
+              type: 'Annotation' as const,
+              motivation: 'linking' satisfies Motivation,
+              body: [],
+              target: 'doc1',
+            },
+          },
+          metadata: createEventMetadata(2),
+        },
+        {
+          id: 'event3',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 3,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'add' as const,
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                  purpose: 'linking' as const,
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(3),
+        },
+        {
+          id: 'event4',
+          type: 'mark:body-updated',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 4,
+          payload: {
+            annotationId: annotationId('anno1'),
+            operations: [
+              {
+                op: 'remove' as const,
+                // Note: no `purpose` on the remove item — this is the
+                // historical shape event-sourcing replay must handle.
+                item: {
+                  type: 'SpecificResource' as const,
+                  source: 'target-doc',
+                },
+              },
+            ],
+          },
+          metadata: createEventMetadata(4),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+      expect(view?.annotations.annotations).toHaveLength(1);
+      expect(view?.annotations.annotations[0].body).toEqual([]);
     });
 
     it('should handle annotation.removed event', async () => {
@@ -409,7 +591,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -423,7 +605,7 @@ describe('ViewMaterializer', () => {
               annotationId: annotationId('anno1'),
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -486,7 +668,7 @@ describe('ViewMaterializer', () => {
 
       await materializer.materializeIncremental(rid, addRepEvent, async () => [
         { ...createEvent, metadata: createEventMetadata(1) },
-        { ...addRepEvent, metadata: createEventMetadata(2, 'hash1') },
+        { ...addRepEvent, metadata: createEventMetadata(2) },
       ] as any);
 
       const view = await viewStorage.get(rid);
@@ -612,7 +794,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -632,7 +814,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -679,7 +861,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -699,7 +881,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -741,7 +923,7 @@ describe('ViewMaterializer', () => {
               checksum: 'nonexistent',
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -786,7 +968,7 @@ describe('ViewMaterializer', () => {
               annotationId: annotationId('nonexistent'),
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 

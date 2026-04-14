@@ -93,8 +93,6 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
           payload: storedEvent.payload,
           metadata: {
             sequenceNumber: storedEvent.metadata.sequenceNumber,
-            prevEventHash: storedEvent.metadata.prevEventHash,
-            checksum: storedEvent.metadata.checksum,
           },
         };
 

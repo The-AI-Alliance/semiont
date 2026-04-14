@@ -53,48 +53,6 @@ describe('EventStorage', () => {
       expect(new Date(stored.timestamp)).toBeInstanceOf(Date);
     });
 
-    it('should calculate checksums for events', async () => {
-      const stored = await storage.appendEvent({
-        type: 'yield:created',
-        userId: userId('user1'),
-        resourceId: resourceId('doc1'),
-        version: 1,
-        payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
-      }, resourceId('doc1'));
-
-      expect(stored.metadata.checksum).toBeDefined();
-      expect(stored.metadata.checksum).toMatch(/^[a-f0-9]{64}$/); // SHA-256 hex
-    });
-
-    it('should link events with prevEventHash', async () => {
-      const e1 = await storage.appendEvent({
-        type: 'yield:created',
-        userId: userId('user1'),
-        resourceId: resourceId('doc1'),
-        version: 1,
-        payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1', creationMethod: 'api' as const },
-      }, resourceId('doc1'));
-
-      const e2 = await storage.appendEvent({
-        type: 'mark:added',
-        userId: userId('user1'),
-        resourceId: resourceId('doc1'),
-        version: 1,
-        payload: {
-          annotation: {
-            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-            type: 'Annotation' as const,
-            id: 'anno1',
-            motivation: 'highlighting' as const,
-            target: { source: 'doc1' },
-            body: []
-          }
-        },
-      }, resourceId('doc1'));
-
-      expect(e1.metadata.prevEventHash).toBeUndefined();
-      expect(e2.metadata.prevEventHash).toBe(e1.metadata.checksum);
-    });
   });
 
   describe('Sequence Tracking', () => {

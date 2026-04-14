@@ -45,27 +45,25 @@ function stubBodyUpdatedEvent(): Extract<PersistedEvent, { type: 'mark:body-upda
   };
 }
 
-function makeStoredEvent(event: Record<string, unknown>, opts: { checksum?: string; prevEventHash?: string } = {}): string {
+function makeStoredEvent(event: Record<string, unknown>): string {
   return JSON.stringify({
     ...event,
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      checksum: opts.checksum || 'abc123',
-      prevEventHash: opts.prevEventHash || null,
     },
   });
 }
 
-function entityTypeEvent(entityType: string, opts: { checksum?: string; prevEventHash?: string } = {}): string {
+function entityTypeEvent(entityType: string): string {
   return makeStoredEvent({
     type: 'mark:entity-type-added',
     payload: { entityType },
     userId: TEST_USER,
-  }, opts);
+  });
 }
 
-function resourceCreatedEvent(name: string, contentChecksum: string, opts: { checksum?: string; prevEventHash?: string } = {}): string {
+function resourceCreatedEvent(name: string, contentChecksum: string): string {
   return makeStoredEvent({
     type: 'yield:created',
     resourceId: TEST_RESOURCE,
@@ -78,10 +76,10 @@ function resourceCreatedEvent(name: string, contentChecksum: string, opts: { che
       entityTypes: [],
       creationMethod: 'api',
     },
-  }, opts);
+  });
 }
 
-function annotationAddedEvent(annotationId: string, opts: { checksum?: string; prevEventHash?: string } = {}): string {
+function annotationAddedEvent(annotationId: string): string {
   return makeStoredEvent({
     type: 'mark:added',
     resourceId: TEST_RESOURCE,
@@ -95,7 +93,7 @@ function annotationAddedEvent(annotationId: string, opts: { checksum?: string; p
         target: { source: 'http://example.com' },
       },
     },
-  }, opts);
+  });
 }
 
 /**
@@ -136,7 +134,6 @@ describe('replay', () => {
 
       expect(result.stats.eventsReplayed).toBe(1);
       expect(result.stats.entityTypesAdded).toBe(1);
-      expect(result.hashChainValid).toBe(true);
     });
 
     it('replays a resource.created event with content blob', async () => {
@@ -361,9 +358,9 @@ describe('replay', () => {
       });
 
       const lines = [
-        entityTypeEvent('Person', { checksum: 'c1' }),
-        resourceCreatedEvent('Doc', 'sha-1', { checksum: 'c2', prevEventHash: 'c1' }),
-        annotationAddedEvent('ann-1', { checksum: 'c3', prevEventHash: 'c2' }),
+        entityTypeEvent('Person'),
+        resourceCreatedEvent('Doc', 'sha-1'),
+        annotationAddedEvent('ann-1'),
       ];
 
       const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
@@ -372,56 +369,6 @@ describe('replay', () => {
       expect(result.stats.entityTypesAdded).toBe(1);
       expect(result.stats.resourcesCreated).toBe(1);
       expect(result.stats.annotationsCreated).toBe(1);
-      expect(result.hashChainValid).toBe(true);
-    });
-  });
-
-  describe('hash chain validation', () => {
-    it('detects a valid hash chain', async () => {
-      eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' } as any));
-      });
-
-      const lines = [
-        entityTypeEvent('A', { checksum: 'hash-1' }),
-        entityTypeEvent('B', { checksum: 'hash-2', prevEventHash: 'hash-1' }),
-      ];
-
-      const resolver: ContentBlobResolver = () => undefined;
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
-
-      expect(result.hashChainValid).toBe(true);
-    });
-
-    it('detects a broken hash chain', async () => {
-      eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' } as any));
-      });
-
-      const lines = [
-        entityTypeEvent('A', { checksum: 'hash-1' }),
-        entityTypeEvent('B', { checksum: 'hash-2', prevEventHash: 'WRONG-HASH' }),
-      ];
-
-      const resolver: ContentBlobResolver = () => undefined;
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
-
-      expect(result.hashChainValid).toBe(false);
-    });
-
-    it('treats missing prevEventHash as valid (first event in stream)', async () => {
-      eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'done' } as any));
-      });
-
-      const lines = [
-        entityTypeEvent('A', { checksum: 'hash-1' }),
-      ];
-
-      const resolver: ContentBlobResolver = () => undefined;
-      const result = await replayEventStream(lines.join('\n'), eventBus, resolver, mockContentStore);
-
-      expect(result.hashChainValid).toBe(true);
     });
   });
 });

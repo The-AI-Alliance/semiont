@@ -11,7 +11,7 @@
  */
 
 import { startMakeMeaning } from '@semiont/make-meaning';
-import { EventQuery, EventValidator } from '@semiont/event-sourcing';
+import { EventQuery } from '@semiont/event-sourcing';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { resourceId as makeResourceId, EventBus } from '@semiont/core';
 import { makeMeaningConfigFrom } from '../utils/config';
@@ -40,7 +40,6 @@ async function rebuildProjections(rId?: string, environment?: string) {
   const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
   const { knowledgeSystem: { kb: { eventStore } } } = makeMeaning;
   const query = new EventQuery(eventStore.log.storage);
-  const validator = new EventValidator();
 
   if (rId) {
     // Rebuild single resource
@@ -53,15 +52,6 @@ async function rebuildProjections(rId?: string, environment?: string) {
     }
 
     logger.info('Found events for resource', { resourceId: rId, eventCount: events.length });
-
-    // Validate event chain
-    const validation = validator.validateEventChain(events);
-    if (!validation.valid) {
-      logger.error('Event chain validation failed', { resourceId: rId, errors: validation.errors });
-      validation.errors.forEach(err => logger.error('Validation error', { error: err }));
-      process.exit(1);
-    }
-    logger.info('Event chain valid', { resourceId: rId });
 
     // Rebuild projection
     const stored = await eventStore.views.materializer.materialize(events, makeResourceId(rId));

@@ -14,11 +14,10 @@ import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal EventMetadata for tests
-function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+function createEventMetadata(sequenceNumber: number): EventMetadata {
   return {
     sequenceNumber,
     streamPosition: sequenceNumber * 100,
-    prevEventHash: prevHash,
   };
 }
 
@@ -123,7 +122,7 @@ describe('ViewManager', () => {
         },
         {
           ...event,
-          metadata: createEventMetadata(2, 'hash0'),
+          metadata: createEventMetadata(2),
         },
       ] as any);
 

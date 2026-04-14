@@ -79,7 +79,7 @@ export function ReferenceEntry({
       semiont.bind.body(
         resourceId(source),
         annotationId(reference.id),
-        [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri } }],
+        [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri, purpose: 'linking' } }],
       ).catch(() => { /* error handled by events-stream */ });
     }
   };

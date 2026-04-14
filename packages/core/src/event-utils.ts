@@ -24,8 +24,6 @@ export interface StoredEventLike {
   payload?: unknown;
   metadata: {
     sequenceNumber: number;
-    prevEventHash?: string;
-    checksum?: string;
   };
 }
 

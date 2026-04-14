@@ -34,7 +34,6 @@ export interface BackupImporterOptions {
 export interface BackupImportResult {
   manifest: BackupManifestHeader;
   stats: ReplayStats;
-  hashChainValid: boolean;
 }
 
 /**
@@ -114,7 +113,6 @@ export async function importBackup(
   // 3. Replay system events first (entity types)
   const systemData = entries.get('.semiont/events/__system__.jsonl');
   let stats: ReplayStats = { eventsReplayed: 0, resourcesCreated: 0, annotationsCreated: 0, entityTypesAdded: 0 };
-  let hashChainValid = true;
 
   if (systemData) {
     const result = await replayEventStream(
@@ -125,7 +123,6 @@ export async function importBackup(
       logger,
     );
     stats = mergeStats(stats, result.stats);
-    if (!result.hashChainValid) hashChainValid = false;
   }
 
   // 4. Replay resource event streams
@@ -146,12 +143,11 @@ export async function importBackup(
       logger,
     );
     stats = mergeStats(stats, result.stats);
-    if (!result.hashChainValid) hashChainValid = false;
   }
 
-  logger?.info('Backup import complete', { ...stats, hashChainValid });
+  logger?.info('Backup import complete', { ...stats });
 
-  return { manifest: header, stats, hashChainValid };
+  return { manifest: header, stats };
 }
 
 function mergeStats(a: ReplayStats, b: ReplayStats): ReplayStats {

@@ -36,7 +36,6 @@ export interface ReplayStats {
 
 export interface ReplayResult {
   stats: ReplayStats;
-  hashChainValid: boolean;
 }
 
 const REPLAY_TIMEOUT_MS = 30_000;
@@ -65,30 +64,13 @@ export async function replayEventStream(
     entityTypesAdded: 0,
   };
 
-  // Validate hash chain
-  let hashChainValid = true;
-  for (let i = 1; i < storedEvents.length; i++) {
-    const prev = storedEvents[i - 1];
-    const curr = storedEvents[i];
-    if (curr.metadata.prevEventHash && prev.metadata.checksum) {
-      if (curr.metadata.prevEventHash !== prev.metadata.checksum) {
-        logger?.warn('Hash chain break', {
-          index: i,
-          expected: prev.metadata.checksum,
-          got: curr.metadata.prevEventHash,
-        });
-        hashChainValid = false;
-      }
-    }
-  }
-
   // Replay each event
   for (const stored of storedEvents) {
     await replayEvent(stored, eventBus, resolveBlob, contentStore, stats, logger);
     stats.eventsReplayed++;
   }
 
-  return { stats, hashChainValid };
+  return { stats };
 }
 
 async function replayEvent(

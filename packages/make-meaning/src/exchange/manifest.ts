@@ -27,8 +27,6 @@ export interface BackupManifestHeader {
 export interface BackupStreamSummary {
   stream: string; // resourceId or '__system__'
   eventCount: number;
-  firstChecksum: string;
-  lastChecksum: string;
 }
 
 // ── Linked Data manifest (JSON-LD) ──

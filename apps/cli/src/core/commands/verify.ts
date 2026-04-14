@@ -116,9 +116,8 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
     printInfo(`Stats: ${header.stats.streams} streams, ${header.stats.events} events, ${header.stats.blobs} blobs`);
   }
 
-  // 2. Verify each event stream's hash chain
+  // 2. Verify each event stream
   const streamSummaries = manifestLines.slice(1).map((line: string) => JSON.parse(line));
-  let totalChainBreaks = 0;
   let totalEventsChecked = 0;
   const warnings: string[] = [];
 
@@ -134,35 +133,6 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
     const lines = streamData.toString('utf8').trim().split('\n');
     const events: StoredEvent[] = lines.map((line: string) => JSON.parse(line));
     totalEventsChecked += events.length;
-
-    // Check hash chain
-    let chainBreaks = 0;
-    for (let i = 1; i < events.length; i++) {
-      const prev = events[i - 1];
-      const curr = events[i];
-      if (curr.metadata.prevEventHash && prev.metadata.checksum) {
-        if (curr.metadata.prevEventHash !== prev.metadata.checksum) {
-          chainBreaks++;
-        }
-      }
-    }
-
-    if (chainBreaks > 0) {
-      warnings.push(`Stream ${summary.stream}: ${chainBreaks} hash chain break(s)`);
-      totalChainBreaks += chainBreaks;
-    }
-
-    // Check first/last checksums match manifest
-    if (events.length > 0) {
-      const firstChecksum = events[0].metadata.checksum || '';
-      const lastChecksum = events[events.length - 1].metadata.checksum || '';
-      if (summary.firstChecksum && firstChecksum !== summary.firstChecksum) {
-        warnings.push(`Stream ${summary.stream}: first checksum mismatch`);
-      }
-      if (summary.lastChecksum && lastChecksum !== summary.lastChecksum) {
-        warnings.push(`Stream ${summary.stream}: last checksum mismatch`);
-      }
-    }
 
     // Check event count matches
     if (events.length !== summary.eventCount) {
@@ -187,7 +157,7 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
       }
     }
 
-    if (totalChainBreaks === 0 && warnings.length === 0) {
+    if (warnings.length === 0) {
       printSuccess('Backup is valid');
     } else {
       printError(`Verification found ${warnings.length} issue(s)`);
@@ -195,7 +165,7 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
   }
 
   const duration = Date.now() - startTime;
-  const success = totalChainBreaks === 0 && warnings.length === 0;
+  const success = warnings.length === 0;
 
   return {
     command: 'verify',
@@ -219,7 +189,6 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
         streams: streamSummaries.length,
         eventsChecked: totalEventsChecked,
         contentBlobs: contentEntries.length,
-        hashChainBreaks: totalChainBreaks,
         warnings,
       },
       duration,

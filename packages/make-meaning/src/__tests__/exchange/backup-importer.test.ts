@@ -81,7 +81,7 @@ function makeManifest(opts: { streams?: number; events?: number; blobs?: number 
 }
 
 function makeStreamSummary(stream: string, eventCount: number) {
-  return JSON.stringify({ stream, eventCount, firstChecksum: 'fc', lastChecksum: 'lc' });
+  return JSON.stringify({ stream, eventCount });
 }
 
 function makeStoredEventJson(type: string, payload: Record<string, unknown>) {
@@ -90,8 +90,6 @@ function makeStoredEventJson(type: string, payload: Record<string, unknown>) {
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      checksum: 'abc123',
-      prevEventHash: null,
     },
   });
 }
@@ -139,7 +137,6 @@ describe('backup-importer', () => {
     expect(result.manifest.format).toBe(BACKUP_FORMAT);
     expect(result.stats.eventsReplayed).toBe(1);
     expect(result.stats.entityTypesAdded).toBe(1);
-    expect(result.hashChainValid).toBe(true);
   });
 
   it('imports a backup with resource events and content blobs', async () => {
@@ -180,7 +177,6 @@ describe('backup-importer', () => {
 
     expect(result.stats.eventsReplayed).toBe(1);
     expect(result.stats.resourcesCreated).toBe(1);
-    expect(result.hashChainValid).toBe(true);
   });
 
   it('resolves content blobs by checksum from entry names', async () => {
