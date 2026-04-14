@@ -138,9 +138,11 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     const sourceAnnotationId = this.getPropertyValue(props, 'sourceAnnotationId');
     const sourceResourceId = this.getPropertyValue(props, 'sourceResourceId');
+    const storageUri = this.getPropertyValue(props, 'storageUri');
 
     if (sourceAnnotationId) resource.sourceAnnotationId = sourceAnnotationId;
     if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
+    if (storageUri) resource.storageUri = storageUri;
 
     return resource;
   }
@@ -270,6 +272,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (resource.sourceResourceId) {
       vertex.property('sourceResourceId', resource.sourceResourceId);
     }
+    if (resource.storageUri) {
+      vertex.property('storageUri', resource.storageUri);
+    }
 
     await vertex.next();
 
@@ -322,20 +327,22 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
-    let traversalQuery = this.g!.V().hasLabel('Resource');
-
-    // Apply filters
-    if (filter.search) {
-      // Note: This is a simple text search. In production, you'd use
-      // JanusGraph's full-text search capabilities with Elasticsearch
-      const { process: gremlinProcess } = await import('gremlin');
-      traversalQuery = traversalQuery.has('name', gremlinProcess.TextP.containing(filter.search));
-    }
-
-    const docs = await traversalQuery.toList();
+    // Note: filtering is done client-side after retrieval. In production,
+    // JanusGraph supports server-side text predicates via Elasticsearch,
+    // but composing OR across multiple text properties requires the
+    // anonymous-traversal API; for a backend that's not the production
+    // target today, JS post-filtering is simpler and adequate at our scale.
+    const docs = await this.g!.V().hasLabel('Resource').toList();
     let resources = docs.map((v: any) => this.vertexToResource(v));
 
-    // Apply entity type filtering after retrieval since JanusGraph stores as JSON
+    if (filter.search) {
+      const needle = filter.search.toLowerCase();
+      resources = resources.filter((doc: ResourceDescriptor) =>
+        (doc.name?.toLowerCase().includes(needle) ?? false) ||
+        (doc.storageUri?.toLowerCase().includes(needle) ?? false)
+      );
+    }
+
     if (filter.entityTypes && filter.entityTypes.length > 0) {
       resources = resources.filter((doc: ResourceDescriptor) =>
         filter.entityTypes!.some((type: string) => doc.entityTypes?.includes(type))
