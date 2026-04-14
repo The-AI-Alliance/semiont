@@ -128,8 +128,24 @@ export function defaultProtocol(host: string): 'http' | 'https' {
   return host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https';
 }
 
+/** Accepts: localhost, dotted-decimal IPv4, valid DNS labels. Rejects slashes, colons, query strings. */
+const HOSTNAME_RE = /^(([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?|localhost|\d{1,3}(\.\d{1,3}){3})$/;
+
+export function isValidHostname(host: string): boolean {
+  return HOSTNAME_RE.test(host);
+}
+
 export function kbBackendUrl(kb: KnowledgeBase): string {
-  return `${kb.protocol}://${kb.host}:${kb.port}`;
+  if (!isValidHostname(kb.host)) {
+    throw new Error(`Invalid KB hostname: "${kb.host}"`);
+  }
+  // Use URL property assignment so the parser normalises the hostname (e.g. lowercasing)
+  // rather than blindly interpolating a user-supplied string.
+  const url = new URL('http://x');
+  url.protocol = kb.protocol + ':';
+  url.hostname = kb.host;
+  url.port = String(kb.port);
+  return `${kb.protocol}://${url.hostname}:${kb.port}`;
 }
 
 /**

@@ -74,6 +74,7 @@ export interface AuthSession {
 // Re-export the public surface so consumers can keep importing from this module
 export {
   defaultProtocol,
+  isValidHostname,
   kbBackendUrl,
   getKbSessionStatus,
 } from './knowledge-base-session/storage';
