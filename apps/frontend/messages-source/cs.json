@@ -591,7 +591,8 @@
     "statusConnected": "Připojeno",
     "statusExpired": "Relace vypršela",
     "statusSignedOut": "Odhlášeno",
-    "statusUnreachable": "Nedosažitelné"
+    "statusUnreachable": "Nedosažitelné",
+    "invalidHost": "Neplatný název hostitele"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Žádné znalostní báze",

@@ -591,7 +591,8 @@
     "statusConnected": "已连接",
     "statusExpired": "会话已过期",
     "statusSignedOut": "已退出",
-    "statusUnreachable": "无法访问"
+    "statusUnreachable": "无法访问",
+    "invalidHost": "无效的主机名"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "没有知识库",

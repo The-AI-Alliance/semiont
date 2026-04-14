@@ -591,7 +591,8 @@
     "statusConnected": "Bağlı",
     "statusExpired": "Oturum süresi doldu",
     "statusSignedOut": "Çıkış yapıldı",
-    "statusUnreachable": "Erişilemiyor"
+    "statusUnreachable": "Erişilemiyor",
+    "invalidHost": "Geçersiz ana bilgisayar adı"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Bilgi tabanı yok",

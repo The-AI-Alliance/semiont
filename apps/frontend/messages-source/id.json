@@ -591,7 +591,8 @@
     "statusConnected": "Terhubung",
     "statusExpired": "Sesi berakhir",
     "statusSignedOut": "Keluar",
-    "statusUnreachable": "Tidak dapat dijangkau"
+    "statusUnreachable": "Tidak dapat dijangkau",
+    "invalidHost": "Nama host tidak valid"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Tidak ada basis pengetahuan",

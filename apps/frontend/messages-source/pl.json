@@ -591,7 +591,8 @@
     "statusConnected": "Połączono",
     "statusExpired": "Sesja wygasła",
     "statusSignedOut": "Wylogowano",
-    "statusUnreachable": "Niedostępny"
+    "statusUnreachable": "Niedostępny",
+    "invalidHost": "Nieprawidłowa nazwa hosta"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Brak baz wiedzy",

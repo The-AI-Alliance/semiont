@@ -591,7 +591,8 @@
     "statusConnected": "সংযুক্ত",
     "statusExpired": "সেশন মেয়াদ শেষ",
     "statusSignedOut": "সাইন আউট হয়েছে",
-    "statusUnreachable": "পৌঁছানো যাচ্ছে না"
+    "statusUnreachable": "পৌঁছানো যাচ্ছে না",
+    "invalidHost": "অবৈধ হোস্টনেম"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "কোনো জ্ঞান ভাণ্ডার নেই",

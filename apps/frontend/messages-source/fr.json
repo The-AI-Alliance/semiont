@@ -591,7 +591,8 @@
     "statusConnected": "Connecté",
     "statusExpired": "Session expirée",
     "statusSignedOut": "Déconnecté",
-    "statusUnreachable": "Inaccessible"
+    "statusUnreachable": "Inaccessible",
+    "invalidHost": "Nom d'hôte invalide"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Aucune base de connaissances",

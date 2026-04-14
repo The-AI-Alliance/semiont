@@ -591,7 +591,8 @@
     "statusConnected": "Forbundet",
     "statusExpired": "Session udløbet",
     "statusSignedOut": "Logget ud",
-    "statusUnreachable": "Utilgængelig"
+    "statusUnreachable": "Utilgængelig",
+    "invalidHost": "Ugyldigt værtsnavn"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen videnbaser",
