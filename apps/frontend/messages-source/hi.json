@@ -591,7 +591,8 @@
     "statusConnected": "जुड़ा हुआ",
     "statusExpired": "सत्र समाप्त",
     "statusSignedOut": "साइन आउट",
-    "statusUnreachable": "अनुपलब्ध"
+    "statusUnreachable": "अनुपलब्ध",
+    "invalidHost": "अमान्य होस्टनाम"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "कोई ज्ञान आधार नहीं",

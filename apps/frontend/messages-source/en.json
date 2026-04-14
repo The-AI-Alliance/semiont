@@ -268,7 +268,8 @@
     "statusConnected": "Connected",
     "statusExpired": "Session expired",
     "statusSignedOut": "Signed out",
-    "statusUnreachable": "Unreachable"
+    "statusUnreachable": "Unreachable",
+    "invalidHost": "Invalid hostname"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "No knowledge bases",

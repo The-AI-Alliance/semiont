@@ -591,7 +591,8 @@
     "statusConnected": "接続済み",
     "statusExpired": "セッション期限切れ",
     "statusSignedOut": "サインアウト済み",
-    "statusUnreachable": "到達不能"
+    "statusUnreachable": "到達不能",
+    "invalidHost": "無効なホスト名"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ナレッジベースがありません",

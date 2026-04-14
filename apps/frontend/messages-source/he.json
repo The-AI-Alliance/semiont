@@ -591,7 +591,8 @@
     "statusConnected": "מחובר",
     "statusExpired": "הפגישה פגה",
     "statusSignedOut": "מנותק",
-    "statusUnreachable": "לא ניתן להגיע"
+    "statusUnreachable": "לא ניתן להגיע",
+    "invalidHost": "שם מארח לא חוקי"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "אין בסיסי ידע",

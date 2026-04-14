@@ -591,7 +591,8 @@
     "statusConnected": "เชื่อมต่อแล้ว",
     "statusExpired": "เซสชันหมดอายุ",
     "statusSignedOut": "ออกจากระบบแล้ว",
-    "statusUnreachable": "เข้าถึงไม่ได้"
+    "statusUnreachable": "เข้าถึงไม่ได้",
+    "invalidHost": "ชื่อโฮสต์ไม่ถูกต้อง"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ไม่มีฐานความรู้",

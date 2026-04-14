@@ -591,7 +591,8 @@
     "statusConnected": "Verbunden",
     "statusExpired": "Sitzung abgelaufen",
     "statusSignedOut": "Abgemeldet",
-    "statusUnreachable": "Nicht erreichbar"
+    "statusUnreachable": "Nicht erreichbar",
+    "invalidHost": "Ungültiger Hostname"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Keine Wissensbasen",

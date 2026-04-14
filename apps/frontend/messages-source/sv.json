@@ -591,7 +591,8 @@
     "statusConnected": "Ansluten",
     "statusExpired": "Session utgången",
     "statusSignedOut": "Utloggad",
-    "statusUnreachable": "Onåbar"
+    "statusUnreachable": "Onåbar",
+    "invalidHost": "Ogiltigt värdnamn"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Inga kunskapsbaser",

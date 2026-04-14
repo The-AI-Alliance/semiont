@@ -591,7 +591,8 @@
     "statusConnected": "Підключено",
     "statusExpired": "Сеанс завершено",
     "statusSignedOut": "Вийшли",
-    "statusUnreachable": "Недоступно"
+    "statusUnreachable": "Недоступно",
+    "invalidHost": "Недійсне ім'я хоста"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Немає баз знань",

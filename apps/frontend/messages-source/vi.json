@@ -591,7 +591,8 @@
     "statusConnected": "Đã kết nối",
     "statusExpired": "Phiên đã hết hạn",
     "statusSignedOut": "Đã đăng xuất",
-    "statusUnreachable": "Không thể truy cập"
+    "statusUnreachable": "Không thể truy cập",
+    "invalidHost": "Tên máy chủ không hợp lệ"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Không có cơ sở kiến thức",

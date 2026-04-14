@@ -591,7 +591,8 @@
     "statusConnected": "متصل",
     "statusExpired": "انتهت صلاحية الجلسة",
     "statusSignedOut": "تم تسجيل الخروج",
-    "statusUnreachable": "غير قابل للوصول"
+    "statusUnreachable": "غير قابل للوصول",
+    "invalidHost": "اسم مضيف غير صالح"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "لا توجد قواعد معرفة",

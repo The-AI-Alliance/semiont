@@ -591,7 +591,8 @@
     "statusConnected": "Tilkoblet",
     "statusExpired": "Økt utløpt",
     "statusSignedOut": "Logget ut",
-    "statusUnreachable": "Ikke tilgjengelig"
+    "statusUnreachable": "Ikke tilgjengelig",
+    "invalidHost": "Ugyldig vertsnavn"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen kunnskapsbaser",

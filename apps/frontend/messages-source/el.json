@@ -591,7 +591,8 @@
     "statusConnected": "Συνδεδεμένο",
     "statusExpired": "Η συνεδρία έληξε",
     "statusSignedOut": "Αποσυνδεδεμένο",
-    "statusUnreachable": "Μη προσβάσιμο"
+    "statusUnreachable": "Μη προσβάσιμο",
+    "invalidHost": "Μη έγκυρο όνομα κεντρικού υπολογιστή"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Δεν υπάρχουν βάσεις γνώσης",

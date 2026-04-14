@@ -591,7 +591,8 @@
     "statusConnected": "Verbonden",
     "statusExpired": "Sessie verlopen",
     "statusSignedOut": "Uitgelogd",
-    "statusUnreachable": "Onbereikbaar"
+    "statusUnreachable": "Onbereikbaar",
+    "invalidHost": "Ongeldige hostnaam"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Geen kennisbases",

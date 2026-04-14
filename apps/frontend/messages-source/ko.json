@@ -591,7 +591,8 @@
     "statusConnected": "연결됨",
     "statusExpired": "세션 만료",
     "statusSignedOut": "로그아웃됨",
-    "statusUnreachable": "연결 불가"
+    "statusUnreachable": "연결 불가",
+    "invalidHost": "잘못된 호스트 이름"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "지식 베이스 없음",

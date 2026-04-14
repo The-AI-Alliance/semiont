@@ -591,7 +591,8 @@
     "statusConnected": "Conectat",
     "statusExpired": "Sesiune expirată",
     "statusSignedOut": "Deconectat",
-    "statusUnreachable": "Inaccesibil"
+    "statusUnreachable": "Inaccesibil",
+    "invalidHost": "Nume de gazdă invalid"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nicio bază de cunoștințe",

@@ -591,7 +591,8 @@
     "statusConnected": "متصل",
     "statusExpired": "نشست منقضی شده",
     "statusSignedOut": "خارج شده",
-    "statusUnreachable": "غیرقابل دسترس"
+    "statusUnreachable": "غیرقابل دسترس",
+    "invalidHost": "نام هاست نامعتبر"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "هیچ پایگاه دانشی وجود ندارد",
