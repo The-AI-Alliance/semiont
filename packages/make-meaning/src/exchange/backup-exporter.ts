@@ -101,8 +101,6 @@ export async function exportBackup(
     streamSummaries.push({
       stream: streamId,
       eventCount: events.length,
-      firstChecksum: events[0].metadata.checksum || '',
-      lastChecksum: events[events.length - 1].metadata.checksum || '',
     });
   }
 

@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { StoredEvent, PersistedEvent, EventMetadata, EventInput, ResourceId, Logger } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
-import { jumpConsistentHash, sha256 } from './shard-utils';
+import { jumpConsistentHash } from './shard-utils';
 
 export interface EventStorageConfig {
   maxEventsPerFile?: number;     // File rotation threshold (default: 10000)
@@ -39,8 +39,6 @@ export class EventStorage {
 
   // Per-resource sequence tracking: resourceId -> sequence number
   private resourceSequences: Map<string, number> = new Map();
-  // Per-resource last event hash: resourceId -> hash
-  private resourceLastHash: Map<string, string> = new Map();
   // Per-resource current file cache: avoids fs.readdir() + countEventsInFile() on every append
   private currentFiles: Map<string, { path: string; eventCount: number }> = new Map();
 
@@ -119,7 +117,7 @@ export class EventStorage {
 
       this.logger?.info('[EventStorage] Initialized event stream', { resourceId, path: docPath });
     } else {
-      // Load existing sequence number and last hash
+      // Load existing sequence number from the last file
       const files = await this.getEventFiles(resourceId);
       if (files.length > 0) {
         const lastFile = files[files.length - 1];
@@ -127,9 +125,6 @@ export class EventStorage {
           const lastEvent = await this.getLastEvent(resourceId, lastFile);
           if (lastEvent) {
             this.resourceSequences.set(resourceId, lastEvent.metadata.sequenceNumber);
-            if (lastEvent.metadata.checksum) {
-              this.resourceLastHash.set(resourceId, lastEvent.metadata.checksum);
-            }
           }
         }
       } else {
@@ -140,7 +135,13 @@ export class EventStorage {
 
   /**
    * Append an event - handles EVERYTHING for event creation
-   * Creates ID, timestamp, metadata, checksum, sequence tracking, and writes to disk
+   * Creates ID, timestamp, metadata, sequence tracking, and writes to disk.
+   *
+   * Integrity is provided by git at the commit level (when gitSync is enabled),
+   * not by per-event chaining metadata. See .plans/CROSS-KB-FEDERATION.md for
+   * the future federation story; per-event signatures (the unused
+   * `EventSignature` field on StoredEvent) are the planned mechanism for
+   * cross-KB authorship binding.
    *
    * @param options.correlationId - Optional id propagated from a command. Stored
    *   on the event's metadata so subscribers (notably the events-stream → frontend
@@ -163,15 +164,11 @@ export class EventStorage {
       timestamp: new Date().toISOString(),
     } as PersistedEvent;
 
-    // Calculate metadata
     const sequenceNumber = this.getNextSequenceNumber(resourceId);
-    const prevEventHash = this.getLastEventHash(resourceId);
 
     const metadata: EventMetadata = {
       sequenceNumber,
       streamPosition: 0,  // Will be set during write
-      prevEventHash: prevEventHash || undefined,
-      checksum: sha256(completeEvent),
       ...(options?.correlationId !== undefined && { correlationId: options.correlationId }),
     };
 
@@ -180,11 +177,7 @@ export class EventStorage {
       metadata,
     };
 
-    // Write to disk
     await this.writeEvent(storedEvent, resourceId);
-
-    // Update last hash
-    this.setLastEventHash(resourceId, metadata.checksum!);
 
     return storedEvent;
   }
@@ -434,17 +427,4 @@ export class EventStorage {
     return next;
   }
 
-  /**
-   * Get last event hash for a resource
-   */
-  getLastEventHash(resourceId: ResourceId): string | null {
-    return this.resourceLastHash.get(resourceId) || null;
-  }
-
-  /**
-   * Set last event hash for a resource
-   */
-  setLastEventHash(resourceId: ResourceId, hash: string): void {
-    this.resourceLastHash.set(resourceId, hash);
-  }
 }

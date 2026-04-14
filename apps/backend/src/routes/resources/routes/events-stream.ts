@@ -55,8 +55,6 @@ async function buildEnrichedEvent(
     metadata: {
       sequenceNumber: storedEvent.metadata.sequenceNumber,
       streamPosition: storedEvent.metadata.streamPosition,
-      ...(storedEvent.metadata.prevEventHash !== undefined && { prevEventHash: storedEvent.metadata.prevEventHash }),
-      ...(storedEvent.metadata.checksum !== undefined && { checksum: storedEvent.metadata.checksum }),
       ...(storedEvent.metadata.correlationId !== undefined && { correlationId: storedEvent.metadata.correlationId }),
     },
   };

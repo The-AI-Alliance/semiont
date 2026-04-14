@@ -37,9 +37,6 @@ export {
 // Query
 export { EventQuery } from './query/event-query';
 
-// Validation
-export { EventValidator } from './validation/event-validator';
-
 // Views
 export { ViewMaterializer } from './views/view-materializer';
 

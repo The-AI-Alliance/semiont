@@ -295,8 +295,6 @@ describe('SemiontApiClient - Archive Operations', () => {
             payload: { highlightId: 'ann-123' },
             metadata: {
               sequenceNumber: 1,
-              prevEventHash: 'hash-0',
-              checksum: 'checksum-1',
             },
           },
           {
@@ -308,8 +306,6 @@ describe('SemiontApiClient - Archive Operations', () => {
             payload: { highlightId: 'ann-123' },
             metadata: {
               sequenceNumber: 2,
-              prevEventHash: 'hash-1',
-              checksum: 'checksum-2',
             },
           },
         ],

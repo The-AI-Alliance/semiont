@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Metadata added at persistence time. Part of every StoredEvent.",
+  "description": "Metadata added at persistence time. Part of every StoredEvent. Integrity is provided by git at the commit level (when gitSync is enabled), not by in-event metadata fields.",
   "properties": {
     "sequenceNumber": {
       "type": "integer",
@@ -9,14 +9,6 @@
     "streamPosition": {
       "type": "integer",
       "description": "Byte offset in the JSONL file"
-    },
-    "prevEventHash": {
-      "type": "string",
-      "description": "SHA-256 of the previous event (hash chain)"
-    },
-    "checksum": {
-      "type": "string",
-      "description": "SHA-256 of this event (integrity verification)"
     },
     "correlationId": {
       "type": "string",

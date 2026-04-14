@@ -16,11 +16,10 @@ import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal EventMetadata for tests
-function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+function createEventMetadata(sequenceNumber: number): EventMetadata {
   return {
     sequenceNumber,
     streamPosition: sequenceNumber * 100,
-    prevEventHash: prevHash,
   };
 }
 
@@ -120,7 +119,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -177,7 +176,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -226,7 +225,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -240,7 +239,7 @@ describe('ViewMaterializer', () => {
               checksum: 'checksum1',
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -288,7 +287,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -336,7 +335,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -360,7 +359,7 @@ describe('ViewMaterializer', () => {
               ],
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -407,7 +406,7 @@ describe('ViewMaterializer', () => {
               target: 'doc1',
             },
           },
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
           id: 'event3',
@@ -429,7 +428,7 @@ describe('ViewMaterializer', () => {
               },
             ],
           },
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
         {
           id: 'event4',
@@ -451,7 +450,7 @@ describe('ViewMaterializer', () => {
               },
             ],
           },
-          metadata: createEventMetadata(4, 'hash3'),
+          metadata: createEventMetadata(4),
         },
       ];
 
@@ -499,7 +498,7 @@ describe('ViewMaterializer', () => {
               target: 'doc1',
             },
           },
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
           id: 'event3',
@@ -521,7 +520,7 @@ describe('ViewMaterializer', () => {
               },
             ],
           },
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
         {
           id: 'event4',
@@ -544,7 +543,7 @@ describe('ViewMaterializer', () => {
               },
             ],
           },
-          metadata: createEventMetadata(4, 'hash3'),
+          metadata: createEventMetadata(4),
         },
       ];
 
@@ -592,7 +591,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -606,7 +605,7 @@ describe('ViewMaterializer', () => {
               annotationId: annotationId('anno1'),
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -669,7 +668,7 @@ describe('ViewMaterializer', () => {
 
       await materializer.materializeIncremental(rid, addRepEvent, async () => [
         { ...createEvent, metadata: createEventMetadata(1) },
-        { ...addRepEvent, metadata: createEventMetadata(2, 'hash1') },
+        { ...addRepEvent, metadata: createEventMetadata(2) },
       ] as any);
 
       const view = await viewStorage.get(rid);
@@ -795,7 +794,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -815,7 +814,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -862,7 +861,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
         {
 
@@ -882,7 +881,7 @@ describe('ViewMaterializer', () => {
               },
             },
 
-          metadata: createEventMetadata(3, 'hash2'),
+          metadata: createEventMetadata(3),
         },
       ];
 
@@ -924,7 +923,7 @@ describe('ViewMaterializer', () => {
               checksum: 'nonexistent',
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 
@@ -969,7 +968,7 @@ describe('ViewMaterializer', () => {
               annotationId: annotationId('nonexistent'),
             },
 
-          metadata: createEventMetadata(2, 'hash1'),
+          metadata: createEventMetadata(2),
         },
       ];
 

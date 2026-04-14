@@ -56,8 +56,6 @@ describe('ViewMaterializer', () => {
       metadata: {
         sequenceNumber,
         streamPosition: sequenceNumber - 1,
-        checksum: `checksum-${sequenceNumber}`,
-        prevEventHash: sequenceNumber > 1 ? `checksum-${sequenceNumber - 1}` : undefined,
       },
     } as StoredEvent;
   }
