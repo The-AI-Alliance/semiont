@@ -398,6 +398,93 @@ describe('Smelter', () => {
     expect(stored!.model).toBe('mock-model');
   });
 
+  it('re-embeds resource when yield:updated fires', async () => {
+    const uri = 'file://updated-resource.txt';
+    const rid = resourceId('res-updated');
+
+    // Create resource with initial content
+    await contentStore.store(Buffer.from('Initial content for update test.'), uri, { noGit: true });
+    await eventStore.appendEvent({
+      type: 'yield:created',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        name: 'Update Test',
+        format: 'text/plain',
+        contentChecksum: 'init-cs',
+        creationMethod: CREATION_METHODS.UPLOAD,
+        storageUri: uri,
+      },
+    });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    // Replace content at the same URI and fire yield:updated
+    await contentStore.store(Buffer.from('Replaced content after update event.'), uri, { noGit: true });
+    await eventStore.appendEvent({
+      type: 'yield:updated',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: { contentChecksum: 'new-cs' },
+    });
+    await tick();
+
+    // embedBatch should have been called again
+    const callsAfterUpdate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterUpdate).toBeGreaterThan(callsAfterCreate);
+
+    // EmbeddingStore should reflect the new content
+    const stored = await embeddingStore.readResourceEmbeddings(rid);
+    expect(stored).not.toBeNull();
+    expect(stored!.chunks[0].text).toContain('Replaced content');
+  });
+
+  it('re-embeds resource when yield:representation-added fires', async () => {
+    const uri = 'file://repr-resource.txt';
+    const rid = resourceId('res-repr-added');
+
+    await contentStore.store(Buffer.from('Resource with a new representation.'), uri, { noGit: true });
+    await eventStore.appendEvent({
+      type: 'yield:created',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        name: 'Repr Test',
+        format: 'text/plain',
+        contentChecksum: 'repr-cs',
+        creationMethod: CREATION_METHODS.UPLOAD,
+        storageUri: uri,
+      },
+    });
+    await tick();
+
+    const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    await eventStore.appendEvent({
+      type: 'yield:representation-added',
+      resourceId: rid,
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        representation: {
+          mediaType: 'text/markdown',
+          storageUri: uri,
+          checksum: 'repr-md-cs',
+          rel: 'derived',
+        },
+      },
+    } as any);
+    await tick();
+
+    // embedBatch should have fired again due to re-embed
+    const callsAfterRepr = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(callsAfterRepr).toBeGreaterThan(callsAfterCreate);
+  });
+
   it('stops cleanly', async () => {
     await smelter.stop();
   });

@@ -33,8 +33,8 @@ import { partitionByType } from './batch-utils.js';
 
 export class Smelter {
   private static readonly SMELTER_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
-    'yield:created', 'mark:archived',
-    'mark:added', 'mark:removed',
+    'yield:created', 'yield:updated', 'yield:representation-added',
+    'mark:archived', 'mark:added', 'mark:removed',
   ]);
 
   private static readonly BURST_WINDOW_MS = 50;
@@ -402,6 +402,12 @@ export class Smelter {
       case 'yield:created':
         await this.handleResourceCreated(storedEvent as EventOfType<'yield:created'>);
         break;
+      case 'yield:updated':
+        await this.handleResourceUpdated(storedEvent as EventOfType<'yield:updated'>);
+        break;
+      case 'yield:representation-added':
+        await this.handleRepresentationAdded(storedEvent as EventOfType<'yield:representation-added'>);
+        break;
       case 'mark:archived':
         await this.handleResourceArchived(storedEvent as EventOfType<'mark:archived'>);
         break;
@@ -465,6 +471,54 @@ export class Smelter {
       resourceId: String(rid), chunks: embeddingChunks.length,
       heapMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
     });
+  }
+
+  /**
+   * Re-embed a resource whose content has changed in-place.
+   *
+   * Used by yield:updated and yield:representation-added handlers. Reads the
+   * current storageUri from the materialized view (which is updated before the
+   * EventBus fires), deletes stale Qdrant vectors, and overwrites the
+   * EmbeddingStore file with fresh chunks.
+   */
+  private async reembedResource(rid: ReturnType<typeof makeResourceId>): Promise<void> {
+    const view = await this.viewStorage.get(rid);
+    const storageUri = view?.resource.storageUri;
+    if (!storageUri) return;
+
+    const content = await this.contentStore.retrieve(storageUri);
+    if (!content) return;
+
+    const text = new TextDecoder().decode(content);
+    if (!text.trim()) return;
+
+    const chunks = chunkText(text, this.chunkingConfig);
+    if (chunks.length === 0) return;
+
+    const embeddings = await this.embeddingProvider.embedBatch(chunks);
+    const model = this.embeddingProvider.model();
+    const dimensions = this.embeddingProvider.dimensions();
+
+    const embeddingChunks: EmbeddingChunk[] = chunks.map((chunkText, i) => ({
+      chunkIndex: i, text: chunkText, embedding: embeddings[i],
+    }));
+
+    await this.embeddingStore.writeResourceChunks(rid, model, dimensions, embeddingChunks);
+    // Delete-then-upsert to purge stale chunk indices if the chunk count changed
+    await this.vectorStore.deleteResourceVectors(rid);
+    await this.vectorStore.upsertResourceVectors(rid, embeddingChunks);
+
+    this.logger.debug('Smelter re-embedded resource', {
+      resourceId: String(rid), chunks: embeddingChunks.length,
+    });
+  }
+
+  private async handleResourceUpdated(event: EventOfType<'yield:updated'>): Promise<void> {
+    await this.reembedResource(makeResourceId(event.resourceId!));
+  }
+
+  private async handleRepresentationAdded(event: EventOfType<'yield:representation-added'>): Promise<void> {
+    await this.reembedResource(makeResourceId(event.resourceId!));
   }
 
   private async handleResourceArchived(event: EventOfType<'mark:archived'>): Promise<void> {
