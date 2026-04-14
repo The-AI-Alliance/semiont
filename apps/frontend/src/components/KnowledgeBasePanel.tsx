@@ -6,6 +6,7 @@ import { baseUrl, email as makeEmail, accessToken, EventBus } from '@semiont/cor
 import {
   useKnowledgeBaseSession,
   defaultProtocol,
+  isValidHostname,
   getKbSessionStatus,
   type KnowledgeBase,
   type KbSessionStatus,
@@ -44,7 +45,7 @@ function StatusDot({ status, t }: { status: KbSessionStatus; t: T }) {
 
 function LoginForm({ t, onSubmit, onCancel, error, isSubmitting, autoFocus, pulsing, initialHost = 'localhost', initialPort = 4000, initialEmail = 'admin@example.com' }: {
   t: T;
-  onSubmit: (host: string, port: number, email: string, password: string) => Promise<void>;
+  onSubmit: (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => Promise<void>;
   onCancel: () => void;
   error: string | null;
   isSubmitting: boolean;
@@ -56,8 +57,14 @@ function LoginForm({ t, onSubmit, onCancel, error, isSubmitting, autoFocus, puls
 }) {
   const [host, setHost] = useState(initialHost);
   const [port, setPort] = useState(String(initialPort));
+  const [protocol, setProtocol] = useState<'http' | 'https'>(defaultProtocol(initialHost));
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
+
+  const handleHostChange = (newHost: string) => {
+    setHost(newHost);
+    setProtocol(defaultProtocol(newHost));
+  };
 
   return (
     <div
@@ -71,16 +78,23 @@ function LoginForm({ t, onSubmit, onCancel, error, isSubmitting, autoFocus, puls
       }}
     >
       <h3 style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>{t('connectTitle')}</h3>
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit(host, parseInt(port, 10) || 4000, email, password); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <form onSubmit={(e) => { e.preventDefault(); if (isValidHostname(host)) onSubmit(host, parseInt(port, 10) || 4000, protocol, email, password); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <input type="text" value={host} onChange={e => setHost(e.target.value)} placeholder="Host" className="semiont-input" style={{ flex: 1 }} autoFocus={autoFocus} />
+          <select value={protocol} onChange={e => setProtocol(e.target.value as 'http' | 'https')} className="semiont-input" style={{ width: '5.5rem', flexShrink: 0 }}>
+            <option value="http">HTTP</option>
+            <option value="https">HTTPS</option>
+          </select>
+          <input type="text" value={host} onChange={e => handleHostChange(e.target.value)} placeholder="Host" className="semiont-input" style={{ flex: 1 }} autoFocus={autoFocus} />
           <input type="number" value={port} onChange={e => setPort(e.target.value)} placeholder="Port" className="semiont-input" style={{ width: '5rem' }} />
         </div>
+        {host && !isValidHostname(host) && (
+          <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{t('invalidHost')}</div>
+        )}
         <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="semiont-input" />
         <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="semiont-input" />
         {error && <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{error}</div>}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="submit" className="semiont-button semiont-button--primary" style={{ flex: 1 }} disabled={isSubmitting}>
+          <button type="submit" className="semiont-button semiont-button--primary" style={{ flex: 1 }} disabled={isSubmitting || !isValidHostname(host)}>
             {isSubmitting ? t('connecting') : t('connect')}
           </button>
           <button type="button" className="semiont-button" onClick={onCancel}>
@@ -177,10 +191,9 @@ export function KnowledgeBasePanel() {
     setAddError(null);
   };
 
-  const handleAdd = async (host: string, port: number, email: string, password: string) => {
+  const handleAdd = async (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => {
     setAddError(null);
     setAddSubmitting(true);
-    const protocol = defaultProtocol(host);
     const existing = knowledgeBases.find(kb => kb.host === host && kb.port === port);
     if (existing) {
       try {
