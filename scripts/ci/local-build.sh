@@ -10,7 +10,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REGISTRY="http://localhost:4873"
-VERDACCIO_NAME="semiont-verdaccio-$$"
+# Fixed name so pre-run cleanup can find stale containers from prior runs.
+# Parallel runs aren't possible anyway — port 4873 is the bottleneck.
+VERDACCIO_NAME="semiont-verdaccio"
 VERDACCIO_USER="semiont"
 VERDACCIO_PASS="semiont"
 
@@ -49,8 +51,10 @@ detect_runtime() {
 
 RT=$(detect_runtime)
 
-# --- Cleanup trap ---
-# Stopped and removed on EXIT so logs are always available on failure.
+# --- Failure cleanup trap ---
+# On failure, stop and remove the Verdaccio container so the next run starts
+# clean. Disabled at the end of the happy path so Verdaccio keeps running for
+# later image pulls — the user stops it manually when done.
 # (Avoids --rm with -d, which is broken on Apple Container CLI.)
 verdaccio_cleanup() {
   if [[ -n "${VERDACCIO_NAME:-}" ]]; then
@@ -58,7 +62,7 @@ verdaccio_cleanup() {
     $RT rm   "$VERDACCIO_NAME" >/dev/null 2>&1 || true
   fi
 }
-trap verdaccio_cleanup EXIT
+trap verdaccio_cleanup ERR INT TERM
 
 banner "SEMIONT LOCAL BUILD"
 step "Container runtime: ${BOLD}$RT${RESET}"
@@ -125,8 +129,14 @@ ok "Port 4873 is free"
 
 step "Starting fresh Verdaccio..."
 VERDACCIO_STORAGE=$(mktemp -d)
+# Copy config into a temp dir so we can mount the whole directory.
+# Apple Container CLI sandboxes single-file bind mounts in a way that
+# makes them unreadable inside the container; a directory mount works.
+VERDACCIO_CONF=$(mktemp -d)
+cp "$SCRIPT_DIR/verdaccio.yaml" "$VERDACCIO_CONF/config.yaml"
 echo "  Container name: $VERDACCIO_NAME"
 echo "  Storage dir:    $VERDACCIO_STORAGE"
+echo "  Config dir:     $VERDACCIO_CONF"
 
 # Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
 # detached containers that use --rm, making logs unreachable on failure.
@@ -134,7 +144,7 @@ echo "  Storage dir:    $VERDACCIO_STORAGE"
 $RT run -d \
   --name "$VERDACCIO_NAME" \
   -p 4873:4873 \
-  -v "$SCRIPT_DIR/verdaccio.yaml:/verdaccio/conf/config.yaml:ro" \
+  -v "$VERDACCIO_CONF:/verdaccio/conf" \
   -v "$VERDACCIO_STORAGE:/verdaccio/storage" \
   verdaccio/verdaccio > /dev/null
 
