@@ -267,7 +267,7 @@ echo -e "  your local Verdaccio so it builds the backend from your freshly"
 echo -e "  published ${DIM}@semiont/*${RESET} packages instead of npmjs:"
 echo ""
 echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
-echo -e "    ${BOLD}NPM_REGISTRY=$BUILD_REGISTRY ./.semiont/scripts/start.sh \\${RESET}"
+echo -e "    ${BOLD}NPM_REGISTRY=$BUILD_REGISTRY ./.semiont/scripts/start.sh${RESET} \\"
 echo -e "    ${BOLD}  --email admin@example.com --password password${RESET}"
 echo ""
 
