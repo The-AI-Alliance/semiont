@@ -10,7 +10,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REGISTRY="http://localhost:4873"
-VERDACCIO_NAME="semiont-verdaccio-$$"
+# Fixed name so pre-run cleanup can find stale containers from prior runs.
+# Parallel runs aren't possible anyway — port 4873 is the bottleneck.
+VERDACCIO_NAME="semiont-verdaccio"
 VERDACCIO_USER="semiont"
 VERDACCIO_PASS="semiont"
 
@@ -49,8 +51,10 @@ detect_runtime() {
 
 RT=$(detect_runtime)
 
-# --- Cleanup trap ---
-# Stopped and removed on EXIT so logs are always available on failure.
+# --- Failure cleanup trap ---
+# On failure, stop and remove the Verdaccio container so the next run starts
+# clean. Disabled at the end of the happy path so Verdaccio keeps running for
+# later image pulls — the user stops it manually when done.
 # (Avoids --rm with -d, which is broken on Apple Container CLI.)
 verdaccio_cleanup() {
   if [[ -n "${VERDACCIO_NAME:-}" ]]; then
@@ -58,7 +62,7 @@ verdaccio_cleanup() {
     $RT rm   "$VERDACCIO_NAME" >/dev/null 2>&1 || true
   fi
 }
-trap verdaccio_cleanup EXIT
+trap verdaccio_cleanup ERR INT TERM
 
 banner "SEMIONT LOCAL BUILD"
 step "Container runtime: ${BOLD}$RT${RESET}"
@@ -68,25 +72,22 @@ step "Container runtime: ${BOLD}$RT${RESET}"
 SKIP_BUILD=false
 PACKAGES=""
 START_FROM=""
-KB_DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
     --package) PACKAGES="$2"; shift 2 ;;
     --start-from) START_FROM="$2"; shift 2 ;;
-    --kb) KB_DIR="$(cd "$2" && pwd)"; shift 2 ;;
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
       echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
-      echo "then build container images."
+      echo "then build the frontend container image."
       echo "No npm required on the host — everything runs inside containers."
       echo ""
       echo "Options:"
       echo "  --package <list>   Comma-separated packages to build (default: all)"
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
-      echo "  --kb <path>        KB directory — also build the backend image"
       echo "  -h, --help         Show this help"
       echo ""
       echo "Build order:"
@@ -125,8 +126,14 @@ ok "Port 4873 is free"
 
 step "Starting fresh Verdaccio..."
 VERDACCIO_STORAGE=$(mktemp -d)
+# Copy config into a temp dir so we can mount the whole directory.
+# Apple Container CLI sandboxes single-file bind mounts in a way that
+# makes them unreadable inside the container; a directory mount works.
+VERDACCIO_CONF=$(mktemp -d)
+cp "$SCRIPT_DIR/verdaccio.yaml" "$VERDACCIO_CONF/config.yaml"
 echo "  Container name: $VERDACCIO_NAME"
 echo "  Storage dir:    $VERDACCIO_STORAGE"
+echo "  Config dir:     $VERDACCIO_CONF"
 
 # Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
 # detached containers that use --rm, making logs unreachable on failure.
@@ -134,7 +141,7 @@ echo "  Storage dir:    $VERDACCIO_STORAGE"
 $RT run -d \
   --name "$VERDACCIO_NAME" \
   -p 4873:4873 \
-  -v "$SCRIPT_DIR/verdaccio.yaml:/verdaccio/conf/config.yaml:ro" \
+  -v "$VERDACCIO_CONF:/verdaccio/conf" \
   -v "$VERDACCIO_STORAGE:/verdaccio/storage" \
   verdaccio/verdaccio > /dev/null
 
@@ -246,43 +253,23 @@ $RT build --no-cache --tag semiont-frontend \
 
 ok "semiont-frontend image built"
 
-# --- Build backend container image (if --kb provided) ---
-
-if [[ -n "$KB_DIR" ]]; then
-  banner "BACKEND IMAGE"
-
-  if [[ ! -f "$KB_DIR/.semiont/containers/Dockerfile" ]]; then
-    fail "No Dockerfile found at $KB_DIR/.semiont/containers/"
-    exit 1
-  fi
-
-  step "Building semiont-backend image from $KB_DIR..."
-  $RT build --no-cache --tag semiont-backend \
-    --build-arg NPM_REGISTRY=$BUILD_REGISTRY \
-    --file "$KB_DIR/.semiont/containers/Dockerfile" \
-    "$KB_DIR"
-
-  ok "semiont-backend image built"
-fi
-
 banner "DONE ✓"
 
 echo -e "${BOLD}Frontend:${RESET}"
 echo -e "  $RT run --publish 3000:3000 -it semiont-frontend"
 echo ""
 
-if [[ -n "$KB_DIR" ]]; then
-  echo -e "${BOLD}Backend:${RESET}"
-  echo -e "  $RT run --publish 4000:4000 --volume $KB_DIR:/kb -it semiont-backend"
-  echo ""
-else
-  echo -e "${BOLD}To build a KB backend (from your KB project directory):${RESET}"
-  echo ""
-  echo -e "    $RT build --no-cache --tag semiont-backend \\"
-  echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
-  echo -e "      --file .semiont/containers/Dockerfile ."
-  echo ""
-fi
+echo -e "${BOLD}Backend (from your KB project directory):${RESET}"
+echo ""
+echo -e "  The KB's ${DIM}.semiont/scripts/start.sh${RESET} spins up Neo4j, Qdrant, Ollama,"
+echo -e "  PostgreSQL, and the Semiont API — all wired together. Point it at"
+echo -e "  your local Verdaccio so it builds the backend from your freshly"
+echo -e "  published ${DIM}@semiont/*${RESET} packages instead of npmjs:"
+echo ""
+echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
+echo -e "    ${BOLD}NPM_REGISTRY=$BUILD_REGISTRY ./.semiont/scripts/start.sh${RESET} \\"
+echo -e "    ${BOLD}  --email admin@example.com --password password${RESET}"
+echo ""
 
-echo -e "  ${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
+echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
 echo ""

@@ -79,14 +79,12 @@ function LoginForm({ t, onSubmit, onCancel, error, isSubmitting, autoFocus, puls
     >
       <h3 style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>{t('connectTitle')}</h3>
       <form onSubmit={(e) => { e.preventDefault(); if (isValidHostname(host)) onSubmit(host, parseInt(port, 10) || 4000, protocol, email, password); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <select value={protocol} onChange={e => setProtocol(e.target.value as 'http' | 'https')} className="semiont-input" style={{ width: '5.5rem', flexShrink: 0 }}>
-            <option value="http">HTTP</option>
-            <option value="https">HTTPS</option>
-          </select>
-          <input type="text" value={host} onChange={e => handleHostChange(e.target.value)} placeholder="Host" className="semiont-input" style={{ flex: 1 }} autoFocus={autoFocus} />
-          <input type="number" value={port} onChange={e => setPort(e.target.value)} placeholder="Port" className="semiont-input" style={{ width: '5rem' }} />
-        </div>
+        <select value={protocol} onChange={e => setProtocol(e.target.value as 'http' | 'https')} className="semiont-input">
+          <option value="http">HTTP</option>
+          <option value="https">HTTPS</option>
+        </select>
+        <input type="text" value={host} onChange={e => handleHostChange(e.target.value)} placeholder="Host" className="semiont-input" autoFocus={autoFocus} />
+        <input type="number" value={port} onChange={e => setPort(e.target.value)} placeholder="Port" className="semiont-input" />
         {host && !isValidHostname(host) && (
           <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{t('invalidHost')}</div>
         )}

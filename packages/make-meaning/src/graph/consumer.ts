@@ -261,6 +261,7 @@ export class GraphDBConsumer {
       dateCreated: new Date().toISOString(),
       wasAttributedTo: didToAgent(event.userId),
       creationMethod: event.payload.creationMethod,
+      ...(event.payload.storageUri ? { storageUri: event.payload.storageUri } : {}),
     };
   }
 
