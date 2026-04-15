@@ -212,8 +212,19 @@ export class Smelter {
       if (view.resource.archived) continue;
       if (!view.resource.storageUri) continue;
 
-      const content = await this.contentStore.retrieve(view.resource.storageUri);
-      if (!content) continue;
+      // Views can reference storageUris whose files have been deleted from the
+      // working tree. WorkingTreeStore.retrieve throws on missing files, so we
+      // must catch and skip — this is a best-effort back-fill, not a hard error.
+      let content: Buffer;
+      try {
+        content = await this.contentStore.retrieve(view.resource.storageUri);
+      } catch (err) {
+        this.logger.warn('Smelter back-fill skipped — content missing', {
+          resourceId: ridStr, storageUri: view.resource.storageUri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        continue;
+      }
 
       const text = new TextDecoder().decode(content);
       if (!text.trim()) continue;
