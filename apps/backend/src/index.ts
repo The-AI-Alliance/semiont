@@ -62,6 +62,26 @@ import { initializeLogger, getLogger } from './logger';
 initializeLogger(config.logLevel);
 const logger = getLogger();
 
+// Event-loop lag monitor.
+// Samples loop delay every 20ms and emits a summary every 30s. If P99 > 100ms,
+// incoming HTTP requests are sitting in the TCP backlog instead of being
+// handled promptly — that's what surfaces as client-side "Request timed out"
+// on otherwise-fast POSTs. Low overhead (<1% CPU).
+{
+  const { monitorEventLoopDelay } = await import('node:perf_hooks');
+  const h = monitorEventLoopDelay({ resolution: 20 });
+  h.enable();
+  const monitorLogger = logger.child({ component: 'event-loop-monitor' });
+  setInterval(() => {
+    const maxMs = Number((h.max / 1e6).toFixed(1));
+    const p99Ms = Number((h.percentile(99) / 1e6).toFixed(1));
+    const meanMs = Number((h.mean / 1e6).toFixed(1));
+    const level = p99Ms > 100 ? 'warn' : 'info';
+    monitorLogger.log(level, 'event-loop delay', { meanMs, p99Ms, maxMs });
+    h.reset();
+  }, 30_000).unref();
+}
+
 // Log database configuration after logger is initialized
 if (databaseUrlConstructed) {
   logger.info('DATABASE_URL constructed from environment components', {
