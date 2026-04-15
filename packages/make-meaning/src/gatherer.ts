@@ -14,6 +14,15 @@
  * - gather:resource-requested — resource-level LLM context assembly
  *
  * RxJS pipeline uses groupBy(resourceId) + concatMap for per-resource isolation.
+ *
+ * ## Per-resource serialization
+ *
+ * `groupBy(resourceId) + concatMap(...)` is the stream-consumer flavor of
+ * per-resource serialization — the same invariant enforced by `Smelter`,
+ * `GraphDBConsumer`, and (in a different shape) `ViewManager`. See
+ * `packages/core/src/serialize-per-key.ts` for the shared primitive used
+ * by RPC-style services, and `.plans/PerResourceSerializer.md` for the
+ * broader design that would unify the two shapes.
  */
 
 import { Subscription, from } from 'rxjs';

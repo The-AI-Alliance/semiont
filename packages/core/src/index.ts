@@ -121,6 +121,10 @@ export { EventBus, ScopedEventBus } from './event-bus';
 // RxJS operators
 export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 
+// Per-key serialization (for RPC-style callers; see also RxJS groupBy + concatMap
+// for stream-style callers in packages/make-meaning)
+export { serializePerKey } from './serialize-per-key';
+
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
 

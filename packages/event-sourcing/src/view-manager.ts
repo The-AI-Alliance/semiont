@@ -11,7 +11,7 @@
  * - Pub/sub notifications (see EventBus)
  */
 
-import { type ResourceId, type PersistedEvent, type StoredEvent, type Logger } from '@semiont/core';
+import { type ResourceId, type PersistedEvent, type StoredEvent, type Logger, serializePerKey } from '@semiont/core';
 import { ViewMaterializer, type ViewMaterializerConfig, type RebuildEventSource } from './views/view-materializer';
 import type { ViewStorage, ResourceView } from './storage/view-storage';
 
@@ -33,28 +33,36 @@ export interface ViewManagerConfig {
  * RMW cycles will clobber each other, losing events and occasionally
  * corrupting the view file entirely.
  *
- * ViewManager serializes these by maintaining a per-resource promise chain:
+ * ViewManager serializes these via `serializePerKey` from `@semiont/core`:
  * each incoming `materializeResource` call chains onto the previous one
  * for the same `resourceId`, so the work runs strictly sequentially per
  * resource while still parallelizing across different resources. System
- * events go through their own shared chain.
+ * events go through their own shared chain (keyed by a sentinel).
  *
- * Error isolation: a rejected chain does not poison subsequent events —
- * `.catch(() => {})` in the link ensures the next event starts fresh from
- * whatever state the failed operation left on disk.
+ * Why this shape and not RxJS `groupBy + concatMap`:
+ * ViewManager is called **synchronously** by `EventStore.appendEvent` — it
+ * must block the caller until the view is written, so SSE subscribers
+ * that see the subsequently-published event get the up-to-date view (a
+ * read-your-writes guarantee). The RxJS stream-consumer pattern used by
+ * `Smelter`, `GraphDBConsumer`, and `Gatherer` can't provide that
+ * guarantee because it's fire-and-forget from the publisher's perspective.
+ * Both patterns solve "serialize work per resource" — see also
+ * `packages/core/src/serialize-per-key.ts` for the shared primitive.
  */
 export class ViewManager {
   // Expose materializer for direct access to view methods
   readonly materializer: ViewMaterializer;
 
-  // Per-resource write serialization. Key is the string form of ResourceId;
-  // value is a promise representing the tail of the in-flight chain for that
-  // resource. Entries are removed once the chain empties.
+  // Per-resource write serialization. Keyed by the string form of ResourceId;
+  // values are promise tails in the in-flight chain for each resource.
+  // Entries are removed once the chain empties — see `serializePerKey`.
   private resourceChains = new Map<string, Promise<void>>();
 
-  // Shared chain for system-level views (entity types, etc.). Single chain
-  // is fine — system events are rare and global.
-  private systemChain: Promise<void> = Promise.resolve();
+  // Shared chain for system-level views (entity types, etc.). A single
+  // sentinel key serializes all system-level writes; these events are
+  // rare and global, so per-type keying buys nothing.
+  private systemChains = new Map<symbol, Promise<void>>();
+  private static readonly SYSTEM_KEY = Symbol('system');
 
   constructor(
     viewStorage: ViewStorage,
@@ -80,27 +88,9 @@ export class ViewManager {
     event: PersistedEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
-    const key = String(resourceId);
-    const prev = this.resourceChains.get(key) ?? Promise.resolve();
-
-    // Chain onto prev, swallowing any error from the previous link so one
-    // bad event doesn't poison subsequent ones. The new link's own errors
-    // still propagate to our caller via the final `await next`.
-    const next = prev
-      .catch(() => { /* prior failure doesn't block us */ })
-      .then(() => this.materializer.materializeIncremental(resourceId, event, getAllEvents));
-
-    this.resourceChains.set(key, next);
-
-    try {
-      await next;
-    } finally {
-      // Only clear the entry if we're still the tail. If another caller
-      // has already chained onto us, leave it so the chain stays intact.
-      if (this.resourceChains.get(key) === next) {
-        this.resourceChains.delete(key);
-      }
-    }
+    await serializePerKey(String(resourceId), this.resourceChains, () =>
+      this.materializer.materializeIncremental(resourceId, event, getAllEvents),
+    );
   }
 
   /**
@@ -108,17 +98,12 @@ export class ViewManager {
    * Serialized through a shared chain — see class doc.
    */
   async materializeSystem(eventType: string, payload: any): Promise<void> {
-    const next = this.systemChain
-      .catch(() => { /* prior failure doesn't block us */ })
-      .then(async () => {
-        if (eventType === 'mark:entity-type-added') {
-          await this.materializer.materializeEntityTypes(payload.entityType);
-        }
-        // Future system views can be added here
-      });
-
-    this.systemChain = next;
-    await next;
+    await serializePerKey(ViewManager.SYSTEM_KEY, this.systemChains, async () => {
+      if (eventType === 'mark:entity-type-added') {
+        await this.materializer.materializeEntityTypes(payload.entityType);
+      }
+      // Future system views can be added here
+    });
   }
 
   /**

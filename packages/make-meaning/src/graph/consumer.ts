@@ -16,6 +16,15 @@
  *   BURST_WINDOW_MS  = 50   — debounce window before flushing a batch
  *   MAX_BATCH_SIZE   = 500  — force flush to bound memory
  *   IDLE_TIMEOUT_MS  = 200  — silence before returning to passthrough
+ *
+ * ## Per-resource serialization
+ *
+ * `groupBy(resourceId) + concatMap(...)` is the stream-consumer flavor of
+ * per-resource serialization — the same invariant enforced by `Smelter`,
+ * `Gatherer`, and (in a different shape) `ViewManager`. See
+ * `packages/core/src/serialize-per-key.ts` for the shared primitive used
+ * by RPC-style services, and `.plans/PerResourceSerializer.md` for the
+ * broader design that would unify the two shapes.
  */
 
 import { Subject, Subscription, from } from 'rxjs';
