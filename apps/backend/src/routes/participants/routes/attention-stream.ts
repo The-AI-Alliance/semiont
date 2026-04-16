@@ -12,6 +12,7 @@ import { streamSSE } from 'hono/streaming';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EventBus } from '@semiont/core';
+import { errField } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import { getOrCreateChannel, removeChannel } from '../attention-channels';
 import { getLogger } from '../../../logger';
@@ -64,7 +65,7 @@ export function registerAttentionStream(router: ParticipantsRouterType) {
             id: String(Date.now()),
           });
         } catch (error) {
-          logger.error('Error writing beckon signal to attention stream', { error });
+          logger.error('Error writing beckon signal to attention stream', { error: errField(error) });
           cleanup();
         }
       });

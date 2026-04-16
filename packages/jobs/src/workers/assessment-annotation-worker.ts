@@ -10,7 +10,7 @@ import type { AnyJob, AssessmentDetectionJob, RunningJob, AssessmentDetectionPar
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { EventBus, userToAgent, type Logger } from '@semiont/core';
+import { EventBus, userToAgent, type Logger, errField } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
 import type { AssessmentMatch } from './detection/motivation-parsers';
@@ -216,7 +216,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
         await this.createAssessmentAnnotation(job.params.resourceId, job.metadata, assessment, job.params.language);
         created++;
       } catch (error) {
-        this.logger?.error('Failed to create assessment', { error });
+        this.logger?.error('Failed to create assessment', { error: errField(error) });
       }
     }
 

@@ -270,4 +270,114 @@ describe('ViewManager', () => {
       expect(materializeEntityTypesSpy).toHaveBeenCalledWith(entityType);
     });
   });
+
+  describe('per-resource serialization', () => {
+    // Build a minimal yield:created event for a given resource id
+    const mkEvent = (rid: ReturnType<typeof resourceId>) => ({
+      id: `event-${rid}`,
+      type: 'yield:created' as const,
+      timestamp: new Date().toISOString(),
+      userId: userId('user1'),
+      resourceId: rid,
+      version: 1,
+      payload: {
+        name: 'Test',
+        format: 'text/plain' as const,
+        contentChecksum: 'cs',
+        creationMethod: 'api' as const,
+      },
+    });
+
+    it('serializes concurrent calls for the same resource', async () => {
+      const rid = resourceId('doc1');
+      const event = mkEvent(rid);
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      // Record the real-time interleaving of start/end events for each call.
+      const trace: string[] = [];
+      let callCount = 0;
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockImplementation(async () => {
+        const n = ++callCount;
+        trace.push(`start-${n}`);
+        // Simulate an async read-modify-write cycle
+        await new Promise((r) => setTimeout(r, 20));
+        trace.push(`end-${n}`);
+      });
+
+      // Fire three calls at once, without awaiting between them
+      await Promise.all([
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+      ]);
+
+      // If serialization works, starts and ends are strictly interleaved
+      // per call: start-1, end-1, start-2, end-2, start-3, end-3.
+      // If concurrent, we'd see start-1, start-2, start-3, end-*, end-*, end-*.
+      expect(trace).toEqual(['start-1', 'end-1', 'start-2', 'end-2', 'start-3', 'end-3']);
+    });
+
+    it('runs calls for different resources in parallel', async () => {
+      const rid1 = resourceId('doc1');
+      const rid2 = resourceId('doc2');
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      const trace: string[] = [];
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockImplementation(async (rid) => {
+        const tag = String(rid);
+        trace.push(`start-${tag}`);
+        await new Promise((r) => setTimeout(r, 20));
+        trace.push(`end-${tag}`);
+      });
+
+      await Promise.all([
+        manager.materializeResource(rid1, mkEvent(rid1), getAllEvents),
+        manager.materializeResource(rid2, mkEvent(rid2), getAllEvents),
+      ]);
+
+      // Both should start before either ends — proves non-blocking across resources
+      const starts = trace.filter((t) => t.startsWith('start-'));
+      const firstEndIndex = trace.findIndex((t) => t.startsWith('end-'));
+      expect(starts.length).toBe(2);
+      expect(firstEndIndex).toBeGreaterThan(1); // both starts happened before any end
+    });
+
+    it('does not poison the chain when one call fails', async () => {
+      const rid = resourceId('doc1');
+      const event = mkEvent(rid);
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      let callCount = 0;
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) throw new Error('first call fails');
+        // subsequent calls succeed
+      });
+
+      const results = await Promise.allSettled([
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+      ]);
+
+      expect(results[0].status).toBe('rejected');
+      expect(results[1].status).toBe('fulfilled');
+      expect(results[2].status).toBe('fulfilled');
+      expect(callCount).toBe(3); // all three attempts ran
+    });
+
+    it('clears the chain entry when the last call completes', async () => {
+      const rid = resourceId('doc1');
+      const event = mkEvent(rid);
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockResolvedValue(undefined);
+
+      await manager.materializeResource(rid, event, getAllEvents);
+
+      // Access private state via type assertion — test intent is explicit
+      const chains = (manager as unknown as { resourceChains: Map<string, Promise<void>> }).resourceChains;
+      expect(chains.has(String(rid))).toBe(false);
+    });
+  });
 });

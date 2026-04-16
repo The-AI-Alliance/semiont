@@ -11,7 +11,7 @@ import type { AnyJob, TagDetectionJob, RunningJob, TagDetectionParams, TagDetect
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { EventBus, userToAgent, type Logger } from '@semiont/core';
+import { EventBus, userToAgent, type Logger, errField } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { ResourceId } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
@@ -248,7 +248,7 @@ export class TagAnnotationWorker extends JobWorker {
         await this.createTagAnnotation(job.params.resourceId, job.metadata, job.params.schemaId, tag);
         created++;
       } catch (error) {
-        this.logger?.error('Failed to create tag', { error });
+        this.logger?.error('Failed to create tag', { error: errField(error) });
       }
     }
 

@@ -128,94 +128,120 @@ Example output:
         offsetsFromAI: `[${startOffset}:${endOffset}]`
       });
 
-      // Verify the offsets are correct by checking if the text matches
+      // Verify the LLM-provided offsets point at the text the LLM says they do.
+      //
+      // Re-anchoring classification:
+      //   'llm-exact'       — LLM offsets match `exact` on the first try (happy path)
+      //   'context-recovered' — mismatch recovered via prefix/suffix disambiguation
+      //   'unique-match'    — mismatch recovered by first-occurrence, but `exact`
+      //                       appears exactly once so there's no ambiguity
+      //   'first-of-many'   — mismatch fell back to first-occurrence while `exact`
+      //                       appears multiple times — the annotation *may* be
+      //                       anchored at the wrong occurrence
+      //   'dropped'         — `exact` doesn't appear anywhere; entity skipped
+      //
+      // Log severity is tuned so that normal operation is silent at info/warn
+      // level. Only 'first-of-many' warns (it's genuinely risky) and 'dropped'
+      // errors (the LLM emitted something that isn't in the text).
       const extractedText = exact.substring(startOffset, endOffset);
+      let anchorMethod: 'llm-exact' | 'context-recovered' | 'unique-match' | 'first-of-many' | 'dropped';
 
-      // If the extracted text doesn't match, find the correct position using context
-      if (extractedText !== entity.exact) {
-        logger?.warn('Offset mismatch detected', {
+      if (extractedText === entity.exact) {
+        anchorMethod = 'llm-exact';
+        logger?.debug('Entity anchored', {
+          text: entity.exact,
+          entityType: entity.entityType,
+          anchorMethod,
+        });
+      } else {
+        // LLM offsets are wrong — the text at [start, end] isn't what they said.
+        // Try to recover via prefix/suffix context, then by unique/first occurrence.
+        logger?.debug('LLM offsets mismatch — attempting re-anchor', {
           expected: entity.exact,
-          foundAtOffsets: `[${startOffset}:${endOffset}]`,
-          foundText: extractedText
+          llmOffsets: `[${startOffset}:${endOffset}]`,
+          foundAtLlmOffsets: extractedText,
         });
 
-        // Show context around the AI-provided offset
-        const contextStart = Math.max(0, startOffset - 50);
-        const contextEnd = Math.min(exact.length, endOffset + 50);
-        const contextBefore = exact.substring(contextStart, startOffset);
-        const contextAfter = exact.substring(endOffset, contextEnd);
-        logger?.debug('Context around AI offset', {
-          before: contextBefore,
-          extracted: extractedText,
-          after: contextAfter
-        });
+        // Count total occurrences up front — needed for the 'unique-match' vs
+        // 'first-of-many' distinction below.
+        let occurrenceCount = 0;
+        let firstOccurrence = -1;
+        let searchPos = 0;
+        while ((searchPos = exact.indexOf(entity.exact, searchPos)) !== -1) {
+          if (firstOccurrence === -1) firstOccurrence = searchPos;
+          occurrenceCount++;
+          searchPos++;
+        }
 
-        logger?.debug('Searching for exact match in resource');
-
-        // Try to find using prefix/suffix context if provided
-        let found = false;
-        if (entity.prefix || entity.suffix) {
-          logger?.debug('Using LLM-provided context for disambiguation', {
-            prefix: entity.prefix,
-            suffix: entity.suffix
+        if (occurrenceCount === 0) {
+          anchorMethod = 'dropped';
+          logger?.error('Entity text not found in resource — dropping', {
+            text: entity.exact,
+            entityType: entity.entityType,
+            llmOffsets: `[${startOffset}:${endOffset}]`,
+            anchorMethod,
+            resourceStart: exact.substring(0, 200),
           });
+          return null;
+        }
 
-          // Search for all occurrences and find the one with matching context
-          let searchPos = 0;
-          while ((searchPos = exact.indexOf(entity.exact, searchPos)) !== -1) {
-            const candidatePrefix = exact.substring(Math.max(0, searchPos - 32), searchPos);
+        // Try prefix/suffix-guided re-anchoring if context was provided.
+        let recoveredOffset = -1;
+        if (entity.prefix || entity.suffix) {
+          let p = 0;
+          while ((p = exact.indexOf(entity.exact, p)) !== -1) {
+            const candidatePrefix = exact.substring(Math.max(0, p - 32), p);
             const candidateSuffix = exact.substring(
-              searchPos + entity.exact.length,
-              Math.min(exact.length, searchPos + entity.exact.length + 32)
+              p + entity.exact.length,
+              Math.min(exact.length, p + entity.exact.length + 32),
             );
-
-            // Check if context matches (allowing for partial matches at boundaries)
             const prefixMatch = !entity.prefix || candidatePrefix.endsWith(entity.prefix);
             const suffixMatch = !entity.suffix || candidateSuffix.startsWith(entity.suffix);
-
             if (prefixMatch && suffixMatch) {
-              logger?.debug('Found match using context', {
-                offset: searchPos,
-                offsetDiff: searchPos - startOffset,
-                candidatePrefix,
-                candidateSuffix
-              });
-              startOffset = searchPos;
-              endOffset = searchPos + entity.exact.length;
-              found = true;
+              recoveredOffset = p;
               break;
             }
-
-            searchPos++;
-          }
-
-          if (!found) {
-            logger?.warn('No occurrence found with matching context', { text: entity.exact });
+            p++;
           }
         }
 
-        // Fallback to first occurrence if context didn't help
-        if (!found) {
-          const index = exact.indexOf(entity.exact);
-          if (index !== -1) {
-            logger?.warn('Using first occurrence', {
-              text: entity.exact,
-              offset: index,
-              offsetDiff: index - startOffset
-            });
-            startOffset = index;
-            endOffset = index + entity.exact.length;
-          } else {
-            logger?.error('Cannot find entity anywhere in resource', {
-              text: entity.exact,
-              resourceStart: exact.substring(0, 200)
-            });
-            // If we still can't find it, skip this entity
-            return null;
-          }
+        if (recoveredOffset !== -1) {
+          anchorMethod = 'context-recovered';
+          startOffset = recoveredOffset;
+          endOffset = recoveredOffset + entity.exact.length;
+          logger?.debug('Entity anchored', {
+            text: entity.exact,
+            entityType: entity.entityType,
+            anchorMethod,
+            offsetDiff: recoveredOffset - entity.startOffset,
+          });
+        } else if (occurrenceCount === 1) {
+          anchorMethod = 'unique-match';
+          startOffset = firstOccurrence;
+          endOffset = firstOccurrence + entity.exact.length;
+          logger?.debug('Entity anchored', {
+            text: entity.exact,
+            entityType: entity.entityType,
+            anchorMethod,
+            offsetDiff: firstOccurrence - entity.startOffset,
+          });
+        } else {
+          // Multiple candidates, no context to disambiguate — risky fallback.
+          // We still emit the annotation but flag it so operators can review.
+          anchorMethod = 'first-of-many';
+          startOffset = firstOccurrence;
+          endOffset = firstOccurrence + entity.exact.length;
+          logger?.warn('Entity anchored at first of multiple occurrences — may be wrong', {
+            text: entity.exact,
+            entityType: entity.entityType,
+            anchorMethod,
+            occurrenceCount,
+            chosenOffset: firstOccurrence,
+            llmOffsets: `[${entity.startOffset}:${entity.endOffset}]`,
+            hasPrefix: !!entity.prefix,
+            hasSuffix: !!entity.suffix,
+          });
         }
-      } else {
-        logger?.debug('Offsets correct', { text: entity.exact });
       }
 
       return {

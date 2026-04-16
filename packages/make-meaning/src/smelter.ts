@@ -13,12 +13,22 @@
  *   5. Index vectors into the VectorStore (Qdrant) for fast similarity search
  *
  * Uses the same burst-buffer RxJS pipeline as GraphDBConsumer.
+ *
+ * ## Per-resource serialization
+ *
+ * Smelter processes events strictly in order per resourceId via
+ * `groupBy(resourceId) + concatMap(...)`. This is the stream-consumer
+ * flavor of per-resource serialization — the same invariant enforced by
+ * `GraphDBConsumer`, `Gatherer`, and (in a different shape) `ViewManager`.
+ * See `packages/core/src/serialize-per-key.ts` for the shared primitive
+ * used by RPC-style services, and `.plans/PerResourceSerializer.md` for
+ * the broader design that would unify the two shapes.
  */
 
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { type EventStore, type ViewStorage } from '@semiont/event-sourcing';
-import { burstBuffer } from '@semiont/core';
+import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, StoredEvent, PersistedEvent, EventOfType } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
@@ -263,7 +273,7 @@ export class Smelter {
         this.logger.error('Smelter failed to process batch run', {
           eventType: run[0].type,
           runSize: run.length,
-          error,
+          error: errField(error),
         });
       }
     }

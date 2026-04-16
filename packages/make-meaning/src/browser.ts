@@ -22,7 +22,7 @@ import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus, resourceId, annotationId } from '@semiont/core';
+import { EventBus, resourceId, annotationId, errField } from '@semiont/core';
 import { getExactText, getTargetSource, getTargetSelector, getResourceEntityTypes, getBodySource } from '@semiont/api-client';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
@@ -109,7 +109,7 @@ export class Browser {
         },
       });
     } catch (error) {
-      this.logger.error('Browse resource failed', { resourceId: event.resourceId, error });
+      this.logger.error('Browse resource failed', { resourceId: event.resourceId, error: errField(error) });
       this.eventBus.get('browse:resource-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -149,7 +149,7 @@ export class Browser {
         },
       });
     } catch (error) {
-      this.logger.error('Browse resources failed', { error });
+      this.logger.error('Browse resources failed', { error: errField(error) });
       this.eventBus.get('browse:resources-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -169,7 +169,7 @@ export class Browser {
         },
       });
     } catch (error) {
-      this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error });
+      this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error: errField(error) });
       this.eventBus.get('browse:annotations-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -207,7 +207,7 @@ export class Browser {
         },
       });
     } catch (error) {
-      this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
+      this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
       this.eventBus.get('browse:annotation-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -243,7 +243,7 @@ export class Browser {
         },
       });
     } catch (error) {
-      this.logger.error('Browse events failed', { resourceId: event.resourceId, error });
+      this.logger.error('Browse events failed', { resourceId: event.resourceId, error: errField(error) });
       this.eventBus.get('browse:events-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -287,7 +287,7 @@ export class Browser {
         },
       });
     } catch (error) {
-      this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error });
+      this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
       this.eventBus.get('browse:annotation-history-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -337,7 +337,7 @@ export class Browser {
         response: { referencedBy },
       });
     } catch (error) {
-      this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error });
+      this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error: errField(error) });
       this.eventBus.get('browse:referenced-by-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -353,7 +353,7 @@ export class Browser {
         response: { entityTypes },
       });
     } catch (error) {
-      this.logger.error('Entity types read failed', { error });
+      this.logger.error('Entity types read failed', { error: errField(error) });
       this.eventBus.get('browse:entity-types-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),

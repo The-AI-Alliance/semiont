@@ -15,6 +15,7 @@ import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import type { EventBus, StoredEvent } from '@semiont/core';
+import { errField } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { getLogger } from '../logger';
 import type { Subscription } from 'rxjs';
@@ -105,7 +106,7 @@ globalEventsRouter.get('/api/events/stream', async (c) => {
         logger.error('Error writing event to global SSE stream', {
           streamId,
           eventType: storedEvent.type,
-          error,
+          error: errField(error),
         });
         cleanup();
       }

@@ -10,7 +10,7 @@ import type { AnyJob, HighlightDetectionJob, RunningJob, HighlightDetectionParam
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { EventBus, userToAgent, type Logger } from '@semiont/core';
+import { EventBus, userToAgent, type Logger, errField } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
 import type { HighlightMatch } from './detection/motivation-parsers';
@@ -215,7 +215,7 @@ export class HighlightAnnotationWorker extends JobWorker {
         await this.createHighlightAnnotation(job.params.resourceId, job.metadata, highlight);
         created++;
       } catch (error) {
-        this.logger?.error('Failed to create highlight', { error });
+        this.logger?.error('Failed to create highlight', { error: errField(error) });
       }
     }
 

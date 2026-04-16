@@ -14,7 +14,7 @@
 import { Subscription, from } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
-import { type EventBus, resourceId } from '@semiont/core';
+import { type EventBus, resourceId, errField } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
@@ -84,7 +84,7 @@ export class Matcher {
     } catch (error) {
       this.logger.error('Bind search failed', {
         referenceId: event.referenceId,
-        error,
+        error: errField(error),
       });
       this.eventBus.scope(event.resourceId).get('match:search-failed').next({
         correlationId: event.correlationId,
