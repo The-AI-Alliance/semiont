@@ -5,11 +5,11 @@
  * and delegates rendering to the pure React AdminUsersPage component.
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAdmin, buttonStyles, Toolbar } from '@semiont/react-ui';
+import { buttonStyles, Toolbar, useApiClient, useAuthToken } from '@semiont/react-ui';
 import type { paths } from '@semiont/core';
-import { useQueryClient } from '@tanstack/react-query';
+import { accessToken, userDID } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
@@ -22,13 +22,15 @@ type AdminUserStatsResponse = ResponseContent<paths['/api/admin/users/stats']['g
 export default function AdminUsers() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminUsers.${k}`, p as any) as string;
-  const queryClient = useQueryClient();
 
   // Toolbar and settings state
   const browseVM = useBrowseVM();
   const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+
+  const semiont = useApiClient();
+  const token = useAuthToken();
 
   // Handle theme change events
   const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
@@ -45,20 +47,41 @@ export default function AdminUsers() {
     'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
-  // API hooks
-  const adminAPI = useAdmin();
-  const { data: usersResponse, isLoading: usersLoading } = adminAPI.users.list.useQuery();
-  const { data: statsResponse, isLoading: statsLoading } = adminAPI.users.stats.useQuery();
-  const updateUserMutation = adminAPI.users.update.useMutation();
+  const [usersResponse, setUsersResponse] = useState<AdminUsersResponse | undefined>(undefined);
+  const [statsResponse, setStatsResponse] = useState<AdminUserStatsResponse | undefined>(undefined);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
 
-  const users = (usersResponse as AdminUsersResponse | undefined)?.users ?? [];
-  const userStats = (statsResponse as AdminUserStatsResponse | undefined)?.stats ?? null;
+  const authOpts = token ? { auth: accessToken(token) } : {};
+
+  const fetchUsers = useCallback(() => {
+    if (!semiont) return;
+    setUsersLoading(true);
+    semiont.listUsers(authOpts)
+      .then((data) => { setUsersResponse(data as AdminUsersResponse); setUsersLoading(false); })
+      .catch(() => setUsersLoading(false));
+  }, [semiont, token]);
+
+  const fetchStats = useCallback(() => {
+    if (!semiont) return;
+    setStatsLoading(true);
+    semiont.getUserStats(authOpts)
+      .then((data) => { setStatsResponse(data as AdminUserStatsResponse); setStatsLoading(false); })
+      .catch(() => setStatsLoading(false));
+  }, [semiont, token]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  const users = usersResponse?.users ?? [];
+  const userStats = statsResponse?.stats ?? null;
 
   const handleUpdateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
+    if (!semiont) return;
     try {
-      await updateUserMutation.mutateAsync({ id, data });
-      queryClient.invalidateQueries({ queryKey: ['admin.users.list'] });
-      queryClient.invalidateQueries({ queryKey: ['admin.users.stats'] });
+      await semiont.updateUser(userDID(id), data, token ? { auth: accessToken(token) } : {});
+      fetchUsers();
+      fetchStats();
     } catch (error) {
       console.error('Failed to update user:', error);
     }

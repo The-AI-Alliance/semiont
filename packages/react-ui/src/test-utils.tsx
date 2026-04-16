@@ -8,7 +8,6 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
 import {
@@ -99,7 +98,6 @@ export interface TestProvidersOptions {
   apiBaseUrl?: string;
   knowledgeBaseSession?: KnowledgeBaseSessionValue;
   openResourcesManager?: OpenResourcesManager;
-  queryClient?: QueryClient;
 }
 
 export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
@@ -138,12 +136,6 @@ export function renderWithProviders(
     knowledgeBaseSession = defaultMockKnowledgeBaseSession,
     openResourcesManager = defaultMocks.openResourcesManager,
     returnEventBus = false,
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    }),
     ...renderOptions
   } = options || {};
 
@@ -156,17 +148,15 @@ export function renderWithProviders(
           <ApiClientProvider baseUrl={apiBaseUrl}>
             <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
               <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-                <QueryClientProvider client={queryClient}>
-                  <ToastProvider>
-                    {returnEventBus ? (
-                      <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
-                        {children}
-                      </EventBusCapture>
-                    ) : (
-                      children
-                    )}
-                  </ToastProvider>
-                </QueryClientProvider>
+                <ToastProvider>
+                  {returnEventBus ? (
+                    <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
+                      {children}
+                    </EventBusCapture>
+                  ) : (
+                    children
+                  )}
+                </ToastProvider>
               </OpenResourcesProvider>
             </KnowledgeBaseSessionContext.Provider>
           </ApiClientProvider>

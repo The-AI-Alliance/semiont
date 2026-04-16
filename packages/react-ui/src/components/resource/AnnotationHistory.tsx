@@ -3,7 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
-import { useResources } from '../../lib/api-hooks';
+import { useApiClient } from '../../contexts/ApiClientContext';
+import { useObservable } from '../../hooks/useObservable';
 import type { ResourceId } from '@semiont/core';
 import { getAnnotationUriFromEvent, type StoredEventLike } from '@semiont/core';
 import { HistoryEvent } from './HistoryEvent';
@@ -19,17 +20,13 @@ interface Props {
 
 export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onEventClick, Link, routes }: Props) {
   const t = useTranslations('AnnotationHistory');
+  const semiont = useApiClient();
 
-  // API hooks
-  const resources = useResources();
-
-  // Load events using React Query
-  // React Query will automatically refetch when the query is invalidated by the parent
-  const { data: eventsData, isLoading: loading, isError: error } = resources.events.useQuery(rUri);
-
-  // Load annotations to look up text for removed/resolved events (single request)
-  const { data: annotationsData } = resources.annotations.useQuery(rUri);
-  const annotations = annotationsData?.annotations || [];
+  const eventsData = useObservable(semiont!.browse.events(rUri));
+  const annotationsData = useObservable(semiont!.browse.annotations(rUri));
+  const loading = eventsData === undefined;
+  const error = false;
+  const annotations = annotationsData ?? [];
 
   // Refs to track event elements for scrolling
   const eventRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -37,7 +34,7 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
 
   // Sort events by oldest first (most recent at bottom)
   // Filter out job events - they're represented by mark:body-updated events instead
-  const events: StoredEventLike[] = !eventsData?.events ? [] : (eventsData.events as StoredEventLike[])
+  const events: StoredEventLike[] = !eventsData ? [] : (eventsData as StoredEventLike[])
     .filter((e) => {
       return e.type !== 'job:started' && e.type !== 'job:progress' && e.type !== 'job:completed';
     })

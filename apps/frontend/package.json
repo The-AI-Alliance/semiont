@@ -49,7 +49,6 @@
     "@heroicons/react": "^2.2.0",
     "@semiont/api-client": "0.4.21",
     "@semiont/react-ui": "0.4.21",
-    "@tanstack/react-query": "^5.90.16",
     "i18next": "^24.2.3",
     "i18next-http-backend": "^3.0.2",
     "react": "^19.2.4",

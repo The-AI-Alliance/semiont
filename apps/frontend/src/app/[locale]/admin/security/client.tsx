@@ -5,10 +5,11 @@
  * and delegates rendering to the pure React AdminSecurityPage component.
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAdmin, Toolbar } from '@semiont/react-ui';
+import { Toolbar, useApiClient, useAuthToken } from '@semiont/react-ui';
 import type { paths } from '@semiont/core';
+import { accessToken } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
@@ -27,6 +28,9 @@ export default function AdminSecurity() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  const semiont = useApiClient();
+  const token = useAuthToken();
+
   // Handle theme change events
   const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
     setTheme(theme);
@@ -42,12 +46,18 @@ export default function AdminSecurity() {
     'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
-  // Get OAuth configuration from API
-  const adminAPI = useAdmin();
-  const { data: oauthConfig, isLoading: oauthLoading } = adminAPI.oauth.config.useQuery();
+  const [oauthConfig, setOauthConfig] = useState<OAuthConfigResponse | undefined>(undefined);
+  const [oauthLoading, setOauthLoading] = useState(true);
 
-  const allowedDomains = (oauthConfig as OAuthConfigResponse | undefined)?.allowedDomains ?? [];
-  const providers = (oauthConfig as OAuthConfigResponse | undefined)?.providers ?? [];
+  useEffect(() => {
+    if (!semiont) return;
+    semiont.getOAuthConfig(token ? { auth: accessToken(token) } : {})
+      .then((data) => { setOauthConfig(data as OAuthConfigResponse); setOauthLoading(false); })
+      .catch(() => setOauthLoading(false));
+  }, [semiont, token]);
+
+  const allowedDomains = oauthConfig?.allowedDomains ?? [];
+  const providers = oauthConfig?.providers ?? [];
 
   return (
     <AdminSecurityPage

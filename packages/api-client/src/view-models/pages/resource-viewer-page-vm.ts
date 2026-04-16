@@ -1,6 +1,5 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
-import type { EventBus, ResourceId } from '@semiont/core';
-import type { components } from '@semiont/core';
+import type { EventBus, ResourceId, components } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { BrowseVM } from '../flows/browse-vm';
@@ -11,8 +10,11 @@ import { createMatchVM } from '../flows/match-vm';
 import { createYieldVM, type YieldVM } from '../flows/yield-vm';
 import { createBindVM } from '../flows/bind-vm';
 import type { SemiontApiClient } from '../../client';
+import { decodeWithCharset } from '../../utils/text-encoding';
+import type { ReferencedByEntry } from '../../namespaces/types';
 
 type Annotation = components['schemas']['Annotation'];
+type StoredEventResponse = components['schemas']['StoredEventResponse'];
 
 export interface WizardState {
   open: boolean;
@@ -35,6 +37,11 @@ export interface ResourceViewerPageVM extends ViewModel {
 
   annotations$: Observable<Annotation[]>;
   entityTypes$: Observable<string[]>;
+  events$: Observable<StoredEventResponse[]>;
+  referencedBy$: Observable<ReferencedByEntry[]>;
+  content$: Observable<string>;
+  contentLoading$: Observable<boolean>;
+  mediaToken$: Observable<string | null>;
   wizard$: Observable<WizardState>;
 
   closeWizard(): void;
@@ -46,6 +53,7 @@ export function createResourceViewerPageVM(
   resourceId: ResourceId,
   locale: string,
   browse: BrowseVM,
+  options?: { mediaType?: string },
 ): ResourceViewerPageVM {
   const disposer = createDisposer();
 
@@ -71,6 +79,37 @@ export function createResourceViewerPageVM(
   const entityTypes$: Observable<string[]> = client.browse.entityTypes().pipe(
     map((e) => e ?? []),
   );
+
+  const events$: Observable<StoredEventResponse[]> = client.browse.events(resourceId).pipe(
+    map((e) => e ?? []),
+  );
+
+  const referencedBy$: Observable<ReferencedByEntry[]> = client.browse.referencedBy(resourceId).pipe(
+    map((r) => r ?? []),
+  );
+
+  const content$ = new BehaviorSubject<string>('');
+  const contentLoading$ = new BehaviorSubject<boolean>(false);
+  const mediaToken$ = new BehaviorSubject<string | null>(null);
+
+  const mediaType = options?.mediaType || 'text/plain';
+  const isBinaryType = mediaType.startsWith('image/') || mediaType === 'application/pdf';
+
+  if (!isBinaryType && mediaType) {
+    contentLoading$.next(true);
+    client.browse.resourceRepresentation(resourceId, { accept: mediaType })
+      .then(({ data }) => {
+        content$.next(decodeWithCharset(data, mediaType));
+        contentLoading$.next(false);
+      })
+      .catch(() => { contentLoading$.next(false); });
+  }
+
+  if (isBinaryType) {
+    client.auth.mediaToken(resourceId)
+      .then(({ token }) => mediaToken$.next(token))
+      .catch(() => {});
+  }
 
   const wizard$ = new BehaviorSubject<WizardState>(WIZARD_CLOSED);
 
@@ -99,10 +138,18 @@ export function createResourceViewerPageVM(
     yield: yieldVM,
     annotations$,
     entityTypes$,
+    events$,
+    referencedBy$,
+    content$: content$.asObservable(),
+    contentLoading$: contentLoading$.asObservable(),
+    mediaToken$: mediaToken$.asObservable(),
     wizard$: wizard$.asObservable(),
     closeWizard: () => wizard$.next(WIZARD_CLOSED),
     dispose: () => {
       wizard$.complete();
+      content$.complete();
+      contentLoading$.complete();
+      mediaToken$.complete();
       disposer.dispose();
     },
   };

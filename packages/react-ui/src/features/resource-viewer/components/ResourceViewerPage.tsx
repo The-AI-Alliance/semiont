@@ -6,9 +6,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import type { components, ResourceId, GatheredContext, EventMap } from '@semiont/core';
-import { annotationId } from '@semiont/core';
+import { annotationId, accessToken } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getMimeCategory } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
@@ -21,8 +20,6 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
 import { useObservable } from '@semiont/react-ui';
-import { QUERY_KEYS } from '../../../lib/query-keys';
-import { useResources } from '../../../lib/api-hooks';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
 import { useToast } from '../../../components/Toast';
@@ -36,6 +33,7 @@ import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
+import { useAuthToken } from '../../../contexts/AuthTokenContext';
 import { createResourceViewerPageVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
@@ -138,7 +136,6 @@ export function ResourceViewerPage({
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
   const semiont = useApiClient();
-  const queryClient = useQueryClient(); // retained for non-store queries (events log)
 
   // UI state hooks
   const { showError, showSuccess, showInfo } = useToast();
@@ -147,9 +144,6 @@ export function ResourceViewerPage({
   const { hoverDelayMs } = useHoverDelay();
   const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
-
-  // API hooks (React Query — remaining until Phase 6)
-  const resources = useResources();
 
   // Determine MIME category to choose content path
   const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
@@ -167,15 +161,15 @@ export function ResourceViewerPage({
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);
-  const referencedBy = referencedByData?.referencedBy || [];
-
   // Composite VM — owns all flow VMs, wizard state, annotations, entity types
   const browseVM = useBrowseVM();
   const vm = useViewModel(() => createResourceViewerPageVM(semiont, eventBus, rUri, locale, browseVM));
 
   const annotations = useObservable(vm.annotations$) ?? [];
   const allEntityTypes = useObservable(vm.entityTypes$) ?? [];
+  const referencedByRaw = useObservable(vm.referencedBy$);
+  const referencedBy = referencedByRaw ?? [];
+  const referencedByLoading = referencedByRaw === undefined;
   const hoveredAnnotationId = useObservable(vm.beckon.hoveredAnnotationId$) ?? null;
   const pendingAnnotation = useObservable(vm.mark.pendingAnnotation$) ?? null;
   const assistingMotivation = useObservable(vm.mark.assistingMotivation$) ?? null;
@@ -265,17 +259,13 @@ export function ResourceViewerPage({
     autoConnect: true,
 
     onAnnotationAdded: useCallback((_event: any) => {
-      // Store handles annotation refresh; events log needs explicit invalidation
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-    }, [queryClient, rUri]),
+    }, []),
 
     onAnnotationRemoved: useCallback((_event: any) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-    }, [queryClient, rUri]),
+    }, []),
 
     onAnnotationBodyUpdated: useCallback((_event: any) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-    }, [queryClient, rUri]),
+    }, []),
 
     // Document status events
     onDocumentArchived: useCallback((_event: any) => {
@@ -302,41 +292,42 @@ export function ResourceViewerPage({
     }, []),
   });
 
-  // Mutations hoisted to top level — hooks must not be called inside callbacks
-  const updateMutation = resources.update.useMutation();
-  const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
+  const authToken = useAuthToken();
+  const authOpts = useMemo(() => ({ auth: authToken ? accessToken(authToken) : undefined }), [authToken]);
 
-  // Event handlers extracted to useCallback (tenet: no inline handlers in useEventSubscriptions)
   const handleResourceArchive = useCallback(async () => {
+    if (!semiont) return;
     try {
-      await updateMutation.mutateAsync({ id: rUri, data: { archived: true } });
+      await semiont.updateResource(rUri, { archived: true }, authOpts);
       await refetchDocument();
     } catch (err) {
       console.error('Failed to archive document:', err);
       showError('Failed to archive document');
     }
-  }, [updateMutation, rUri, refetchDocument, showError]);
+  }, [semiont, rUri, authOpts, refetchDocument, showError]);
 
   const handleResourceUnarchive = useCallback(async () => {
+    if (!semiont) return;
     try {
-      await updateMutation.mutateAsync({ id: rUri, data: { archived: false } });
+      await semiont.updateResource(rUri, { archived: false }, authOpts);
       await refetchDocument();
     } catch (err) {
       console.error('Failed to unarchive document:', err);
       showError('Failed to unarchive document');
     }
-  }, [updateMutation, rUri, refetchDocument, showError]);
+  }, [semiont, rUri, authOpts, refetchDocument, showError]);
 
   const handleResourceClone = useCallback(async () => {
+    if (!semiont) return;
     try {
-      const result = await generateCloneTokenMutation.mutateAsync(rUri);
+      const result = await semiont.generateCloneToken(rUri, authOpts);
       const token = result.token;
       eventBus.get('browse:router-push').next({ path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
     }
-  }, [generateCloneTokenMutation, rUri, showError]);
+  }, [semiont, rUri, authOpts, showError]);
 
   const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
     triggerSparkleAnimation(annotationId);
@@ -360,12 +351,10 @@ export function ResourceViewerPage({
 
   const handleDetectionComplete = useCallback(() => {
     showSuccess('Annotation complete');
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [queryClient, rUri, showSuccess]);
+  }, [showSuccess]);
   const handleDetectionFailed = useCallback(({ message }: { message?: string }) => {
     showError(message || 'Annotation failed');
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [queryClient, rUri, showError]);
+  }, [showError]);
   const handleGenerationComplete = useCallback((progress: { resourceName?: string }) => {
     showSuccess(progress.resourceName
       ? `Resource "${progress.resourceName}" created successfully!`

@@ -9,8 +9,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useAuthApi, useKnowledgeBaseSession } from '@semiont/react-ui';
+import { PageLayout, useToast, useKnowledgeBaseSession, useApiClient, useAuthToken } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
+import { accessToken } from '@semiont/core';
 
 export default function Welcome() {
   const { t: _t } = useTranslation();
@@ -18,16 +19,20 @@ export default function Welcome() {
   const { isAuthenticated, isLoading, user, activeKnowledgeBase, signOut } = useKnowledgeBaseSession();
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const toast = useToast();
 
-  // API hooks
-  const authAPI = useAuthApi();
+  const semiont = useApiClient();
+  const token = useAuthToken();
 
-  // Query user data to check if terms already accepted
-  const { data: userData } = authAPI.me.useQuery();
+  const [userData, setUserData] = useState<{ termsAcceptedAt?: string } | undefined>(undefined);
 
-  // Mutation for accepting terms
-  const acceptTermsMutation = authAPI.acceptTerms.useMutation();
+  useEffect(() => {
+    if (!semiont) return;
+    semiont.getMe(token ? { auth: accessToken(token) } : {})
+      .then((data) => setUserData(data as { termsAcceptedAt?: string }))
+      .catch(() => {});
+  }, [semiont, token]);
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -60,8 +65,10 @@ export default function Welcome() {
       return;
     }
 
+    if (!semiont) return;
     try {
-      await acceptTermsMutation.mutateAsync();
+      setIsProcessing(true);
+      await semiont.acceptTerms(token ? { auth: accessToken(token) } : {});
       setTermsAccepted(true);
 
       // Small delay to show the acceptance state
@@ -71,6 +78,8 @@ export default function Welcome() {
     } catch (error) {
       console.error('Terms acceptance error:', error);
       toast.showError(t('errorAcceptingTerms'));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -84,7 +93,7 @@ export default function Welcome() {
       termsAcceptedAt={userData?.termsAcceptedAt ?? null}
       isNewUser={!userData?.termsAcceptedAt}
       status={pageStatus}
-      isProcessing={acceptTermsMutation.isPending}
+      isProcessing={isProcessing}
       onAccept={() => handleTermsAcceptance(true)}
       onDecline={() => handleTermsAcceptance(false)}
       translations={{

@@ -7,7 +7,6 @@
 // Types
 export * from './types/annotation-props';
 export * from './types/AnnotationManager';
-export * from './types/CacheManager';
 export * from './types/navigation';
 export type { OpenResourcesManager, OpenResource } from './types/OpenResourcesManager';
 export * from './types/knowledge-base';
@@ -16,12 +15,10 @@ export * from './types/resource-viewer';
 
 // Lib utilities
 export * from './lib/annotation-registry';
-export * from './lib/api-hooks';
 export * from './lib/button-styles';
 export * from './lib/codemirror-json-theme';
 export * from './lib/codemirror-widgets';
 export * from './lib/media-shapes';
-export * from './lib/query-keys';
 export { createSearchPipeline, type SearchPipeline, type SearchPipelineOptions, type SearchState } from '@semiont/api-client';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
@@ -52,7 +49,6 @@ export * from './hooks/useResourceContent';
 export * from './contexts/AnnotationContext';
 export * from './contexts/ApiClientContext';
 export * from './contexts/AuthTokenContext';
-export * from './contexts/CacheContext';
 export * from './contexts/EventBusContext';
 
 export * from './contexts/useEventSubscription';

@@ -6,7 +6,6 @@ import {
   Footer,
   ResourceAnnotationsProvider,
   OpenResourcesProvider,
-  CacheProvider,
   ApiClientProvider,
   AuthTokenProvider,
   Toolbar,
@@ -27,7 +26,6 @@ import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
-import { useCacheManager } from '@/hooks/useCacheManager';
 import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 import { AuthShell } from '@/contexts/AuthShell';
 
@@ -130,7 +128,6 @@ function KnowledgeLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const openResourcesManager = useOpenResourcesManager();
-  const cacheManager = useCacheManager();
   const { token: authToken, isLoading, activeKnowledgeBase, refreshActive } = useKnowledgeBaseSession();
 
   if (isLoading) {
@@ -153,33 +150,31 @@ function KnowledgeLayoutBody() {
   return (
     <AuthTokenProvider token={authToken}>
       <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
-        <CacheProvider cacheManager={cacheManager}>
-          <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-            <ResourceAnnotationsProvider>
-              <GlobalEventsConnector />
-              <KnowledgeLayoutInner>
-                <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
-                  <div className="flex flex-1 overflow-hidden">
-                    <KnowledgeSidebarWrapper />
-                    <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
-                      <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
-                        <Outlet />
-                      </div>
-                    </main>
-                  </div>
-                  <Footer
-                    Link={Link}
-                    routes={routes}
-                    t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-                    CookiePreferences={CookiePreferences}
-                    showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
-                    {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-                  />
+        <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+          <ResourceAnnotationsProvider>
+            <GlobalEventsConnector />
+            <KnowledgeLayoutInner>
+              <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+                <div className="flex flex-1 overflow-hidden">
+                  <KnowledgeSidebarWrapper />
+                  <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+                    <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
+                      <Outlet />
+                    </div>
+                  </main>
                 </div>
-              </KnowledgeLayoutInner>
-            </ResourceAnnotationsProvider>
-          </OpenResourcesProvider>
-        </CacheProvider>
+                <Footer
+                  Link={Link}
+                  routes={routes}
+                  t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
+                  CookiePreferences={CookiePreferences}
+                  showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
+                  {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+                />
+              </div>
+            </KnowledgeLayoutInner>
+          </ResourceAnnotationsProvider>
+        </OpenResourcesProvider>
       </ApiClientProvider>
     </AuthTokenProvider>
   );

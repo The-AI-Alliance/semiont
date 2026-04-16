@@ -150,6 +150,7 @@ export interface BrowseNamespace {
   annotation(resourceId: ResourceId, annotationId: AnnotationId): Observable<Annotation | undefined>;
   entityTypes(): Observable<string[] | undefined>;
   referencedBy(resourceId: ResourceId): Observable<ReferencedByEntry[] | undefined>;
+  events(resourceId: ResourceId): Observable<StoredEventResponse[] | undefined>;
 
   // One-shot reads (Promise — no caching, no live update)
   resourceContent(resourceId: ResourceId): Promise<string>;

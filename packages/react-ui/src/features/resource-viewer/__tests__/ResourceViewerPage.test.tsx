@@ -37,34 +37,9 @@ vi.mock('../../../hooks/useResourceContent', () => ({
   useResourceContent: () => ({ content: 'Test content', loading: false }),
 }));
 
-vi.mock('../../../lib/api-hooks', () => ({
-  useResources: () => ({
-    annotations: { useQuery: () => ({ data: { annotations: [] } }) },
-    referencedBy: { useQuery: () => ({ data: { referencedBy: [] }, isLoading: false }) },
-    mediaToken: { useQuery: () => ({ data: { token: 'mock-media-token' }, isLoading: false }) },
-    update: { useMutation: () => ({ mutateAsync: vi.fn() }) },
-    generateCloneToken: { useMutation: () => ({ mutateAsync: vi.fn() }) },
-  }),
-  useEntityTypes: () => ({
-    list: { useQuery: () => ({ data: { entityTypes: ['Document', 'Article', 'Book'] } }) },
-  }),
-}));
-
 vi.mock('../../../hooks/useResourceEvents', () => ({
   useResourceEvents: () => null,
 }));
-
-// Mock dependencies that ResourceViewerPage imports
-vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual('@tanstack/react-query');
-  return {
-    ...actual,
-    useQueryClient: () => ({
-      invalidateQueries: vi.fn(),
-      setQueryData: vi.fn(),
-    }),
-  };
-});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');

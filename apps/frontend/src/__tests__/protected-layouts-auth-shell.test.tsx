@@ -48,10 +48,6 @@ vi.mock('@/hooks/useOpenResourcesManager', () => ({
   }),
 }));
 
-vi.mock('@/hooks/useCacheManager', () => ({
-  useCacheManager: () => ({}),
-}));
-
 const TEST_KB = { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' };
 
 vi.mock('@semiont/react-ui', async () => {
@@ -73,7 +69,6 @@ vi.mock('@semiont/react-ui', async () => {
     getKbSessionStatus: () => 'authenticated',
     AuthTokenProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    CacheProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     OpenResourcesProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     LeftSidebar: () => <div data-testid="left-sidebar" />,

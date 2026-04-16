@@ -7,10 +7,10 @@
  * All other concerns (data loading, events, UI state) are handled by ResourceViewerPage.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLocale } from '@/i18n/routing';
-import { useResources } from '@semiont/react-ui';
+import { useApiClient, useObservable } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 import { useStreamStatus } from '@/contexts/StreamStatusContext';
@@ -33,45 +33,33 @@ export default function KnowledgeResourcePage() {
   const streamStatus = useStreamStatus();
   const { activeKnowledgeBase } = useKnowledgeBaseSession();
 
-  // Load only the resource descriptor - everything else is loaded by ResourceViewerPage
-  const resources = useResources();
-  const {
-    data: docData,
-    isLoading,
-    isError,
-    error,
-    refetch: refetchDocument
-  } = resources.get.useQuery(rId) as {
-    data: { resource: SemiontResource } | undefined;
-    isLoading: boolean;
-    isError: boolean;
-    error: unknown;
-    refetch: () => Promise<unknown>;
-  };
+  const semiont = useApiClient();
+  const resourceData = useObservable(semiont!.browse.resource(rId));
+
+  const isLoading = resourceData === undefined;
 
   // Log error for debugging
   useEffect(() => {
-    if (isError && !isLoading) {
-      console.error(`[Document] Failed to load resource ${rId}:`, error);
+    if (!isLoading && !resourceData) {
+      console.error(`[Document] Resource ${rId} not found`);
     }
-  }, [isError, isLoading, rId, error]);
+  }, [isLoading, rId, resourceData]);
+
+  const refetchDocument = useCallback(async () => {
+    semiont?.browse.invalidateResourceDetail(rId);
+  }, [semiont, rId]);
 
   // Early return: Loading state
-  if (isLoading || !docData) {
+  if (isLoading) {
     return <ResourceLoadingState />;
   }
 
-  // Early return: Error state
-  if (isError) {
-    return <ResourceErrorState error={error} onRetry={() => refetchDocument()} />;
-  }
-
   // Early return: ResourceDescriptor not found
-  if (!docData.resource) {
-    return <ResourceErrorState error={new Error('Resource not found')} onRetry={() => refetchDocument()} />;
+  if (!resourceData) {
+    return <ResourceErrorState error={new Error('Resource not found')} onRetry={refetchDocument} />;
   }
 
-  const resource = docData.resource;
+  const resource = resourceData as SemiontResource;
   // resource['@id'] is now a bare ID
   const canonicalId = resourceId(resource['@id']);
 

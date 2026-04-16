@@ -1,25 +1,35 @@
+import { useEffect, useState } from 'react';
 import type { ResourceId } from '@semiont/core';
-import { useResources } from '../lib/api-hooks';
+import { accessToken } from '@semiont/core';
+import { useApiClient } from '../contexts/ApiClientContext';
+import { useAuthToken } from '../contexts/AuthTokenContext';
 
 export interface UseMediaTokenResult {
   token: string | undefined;
   loading: boolean;
 }
 
-/**
- * Hook to fetch a short-lived media token for a binary resource.
- *
- * The token is scoped to a single resource (sub: resourceId) and expires in 5 minutes.
- * React Query staleTime of 4 minutes ensures it is refreshed before expiry.
- *
- * Use the returned token to construct a URL:
- *   `${baseUrl}/api/resources/${id}?token=${token}`
- */
 export function useMediaToken(id: ResourceId): UseMediaTokenResult {
-  const resources = useResources();
-  const { data, isLoading } = resources.mediaToken.useQuery(id);
-  return {
-    token: data?.token,
-    loading: isLoading,
-  };
+  const semiont = useApiClient();
+  const authToken = useAuthToken();
+  const [token, setToken] = useState<string | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!semiont || !id) { setLoading(false); return; }
+    setLoading(true);
+    semiont.getMediaToken(id, { auth: authToken ? accessToken(authToken) : undefined })
+      .then(({ token: t }) => { setToken(t); setLoading(false); })
+      .catch(() => { setLoading(false); });
+
+    const refreshInterval = setInterval(() => {
+      semiont.getMediaToken(id, { auth: authToken ? accessToken(authToken) : undefined })
+        .then(({ token: t }) => setToken(t))
+        .catch(() => {});
+    }, 4 * 60 * 1000);
+
+    return () => clearInterval(refreshInterval);
+  }, [semiont, id, authToken]);
+
+  return { token, loading };
 }
