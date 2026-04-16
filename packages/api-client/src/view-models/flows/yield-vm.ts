@@ -1,4 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import type { EventBus, ResourceId, YieldProgress, GatheredContext } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
@@ -54,6 +55,8 @@ export function createYieldVM(
       makeResourceId(resourceId as string),
       makeAnnotationId(referenceId),
       { ...options, language: options.language || locale },
+    ).pipe(
+      timeout({ each: 300_000 }),
     ).subscribe({
       next: (chunk) => {
         progress$.next(chunk);

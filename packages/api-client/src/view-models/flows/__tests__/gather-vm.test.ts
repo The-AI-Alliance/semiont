@@ -160,6 +160,28 @@ describe('createGatherVM', () => {
     vm.dispose();
   });
 
+  it('errors with timeout when Observable does not complete within 60s', () => {
+    vi.useFakeTimers();
+    const gatherFn = vi.fn(() => new Observable(() => {}));
+    const client = mockClient(gatherFn);
+    const vm = createGatherVM(client, eventBus, RID);
+
+    const errors: unknown[] = [];
+    const loading: boolean[] = [];
+    vm.error$.subscribe(v => errors.push(v));
+    vm.loading$.subscribe(v => loading.push(v));
+
+    eventBus.get('gather:requested').next({ annotationId: AID as string } as any);
+    expect(loading[loading.length - 1]).toBe(true);
+
+    vi.advanceTimersByTime(60_000);
+    expect(errors[errors.length - 1]).toBeInstanceOf(Error);
+    expect(loading[loading.length - 1]).toBe(false);
+
+    vm.dispose();
+    vi.useRealTimers();
+  });
+
   it('stops responding after dispose', () => {
     const gatherFn = vi.fn();
     const client = mockClient(gatherFn);

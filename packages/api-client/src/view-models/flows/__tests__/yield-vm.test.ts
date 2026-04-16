@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { YieldProgress } from '@semiont/core';
 import type { SemiontApiClient } from '../../../client';
@@ -170,6 +170,46 @@ describe('createYieldVM', () => {
     expect(failures).toHaveLength(1);
     expect(failures[0]).toEqual(expect.objectContaining({ error: 'LLM timeout' }));
     vm.dispose();
+  });
+
+  it('emits yield:failed on timeout when no progress within 300s', () => {
+    vi.useFakeTimers();
+    const fromAnnotationFn = vi.fn(() => new Observable(() => {}));
+    const vm = createYieldVM(mockClient(fromAnnotationFn), eventBus, RID, 'en');
+    const failures: unknown[] = [];
+    eventBus.get('yield:failed').subscribe(f => failures.push(f));
+
+    vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
+    expect(failures).toHaveLength(0);
+
+    vi.advanceTimersByTime(300_000);
+    expect(failures).toHaveLength(1);
+
+    vm.dispose();
+    vi.useRealTimers();
+  });
+
+  it('resets timeout on each progress emission', () => {
+    vi.useFakeTimers();
+    const progressSubject = new Subject<YieldProgress>();
+    const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
+    const vm = createYieldVM(mockClient(fromAnnotationFn), eventBus, RID, 'en');
+    const failures: unknown[] = [];
+    eventBus.get('yield:failed').subscribe(f => failures.push(f));
+
+    vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
+
+    vi.advanceTimersByTime(290_000);
+    progressSubject.next(makeProgress({ percentage: 50 }));
+
+    vi.advanceTimersByTime(290_000);
+    expect(failures).toHaveLength(0);
+
+    vi.advanceTimersByTime(10_000);
+    expect(failures).toHaveLength(1);
+
+    vm.dispose();
+    vi.useRealTimers();
   });
 
   it('stops responding after dispose', () => {

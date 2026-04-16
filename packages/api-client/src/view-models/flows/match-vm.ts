@@ -1,4 +1,5 @@
 import type { Subscription } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import type { EventBus, ResourceId, GatheredContext } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
@@ -19,6 +20,8 @@ export function createMatchVM(
       event.referenceId,
       event.context as GatheredContext,
       { limit: event.limit, useSemanticScoring: event.useSemanticScoring },
+    ).pipe(
+      timeout(60_000),
     ).subscribe({
       next: (result) => eventBus.get('match:search-results').next(result),
       error: (err) => eventBus.get('match:search-failed').next({

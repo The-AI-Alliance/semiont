@@ -1,4 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import type { EventBus, GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
 import { annotationId as makeAnnotationId } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
@@ -32,6 +33,8 @@ export function createGatherVM(
       makeAnnotationId(event.annotationId),
       resourceId,
       { contextWindow: event.options?.contextWindow ?? 2000 },
+    ).pipe(
+      timeout(60_000),
     ).subscribe({
       next: (progress) => {
         if ('response' in progress && progress.response) {

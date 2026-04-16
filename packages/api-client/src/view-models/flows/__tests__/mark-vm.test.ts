@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontApiClient } from '../../../client';
 import { createMarkVM } from '../mark-vm';
@@ -251,6 +251,49 @@ describe('createMarkVM', () => {
     expect(failures).toHaveLength(1);
     expect(failures[0]).toEqual(expect.objectContaining({ message: 'LLM down' }));
     vm.dispose();
+  });
+
+  it('emits mark:assist-failed on timeout when no progress within 180s', () => {
+    vi.useFakeTimers();
+    const assistFn = vi.fn(() => new Observable(() => {}));
+    const vm = createMarkVM(mockClient({ assist: assistFn }), eventBus, RID);
+    const failures: unknown[] = [];
+    eventBus.get('mark:assist-failed').subscribe(e => failures.push(e));
+
+    eventBus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    expect(failures).toHaveLength(0);
+
+    vi.advanceTimersByTime(180_000);
+    expect(failures).toHaveLength(1);
+
+    vm.dispose();
+    vi.useRealTimers();
+  });
+
+  it('resets timeout on each progress emission (does not fire prematurely)', () => {
+    vi.useFakeTimers();
+    const progressSubject = new Subject();
+    const assistFn = vi.fn(() => progressSubject.asObservable());
+    const vm = createMarkVM(mockClient({ assist: assistFn }), eventBus, RID);
+    const failures: unknown[] = [];
+    eventBus.get('mark:assist-failed').subscribe(e => failures.push(e));
+
+    eventBus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+
+    // Progress at 170s — resets the 180s timer
+    vi.advanceTimersByTime(170_000);
+    progressSubject.next({ status: 'in-progress', percentage: 50 });
+
+    // At 340s (170s after last progress) — still within 180s window
+    vi.advanceTimersByTime(170_000);
+    expect(failures).toHaveLength(0);
+
+    // At 350s (180s after last progress) — should timeout
+    vi.advanceTimersByTime(10_000);
+    expect(failures).toHaveLength(1);
+
+    vm.dispose();
+    vi.useRealTimers();
   });
 
   it('stops responding after dispose', () => {

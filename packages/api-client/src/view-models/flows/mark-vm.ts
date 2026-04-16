@@ -1,4 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import type { EventBus, ResourceId, Motivation, Selector, MarkProgress, EventMap } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
@@ -89,7 +90,9 @@ export function createMarkVM(
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
 
-    const assistSub = client.mark.assist(resourceId, event.motivation, event.options).subscribe({
+    const assistSub = client.mark.assist(resourceId, event.motivation, event.options).pipe(
+      timeout({ each: 180_000 }),
+    ).subscribe({
       next: (p) => progress$.next(p as MarkProgress),
       error: (err) => eventBus.get('mark:assist-failed').next({
         resourceId: resourceId as string,
