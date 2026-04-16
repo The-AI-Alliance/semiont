@@ -33,9 +33,13 @@ semiont mark --resource <id> --delegate --motivation commenting \
 
 ## TypeScript — delegate
 
+Uses `createMarkVM` from `@semiont/api-client` to manage the assist lifecycle, including timeout and error handling.
+
 ```typescript
-import { SemiontApiClient, resourceId } from '@semiont/api-client';
+import { SemiontApiClient, createMarkVM, resourceId } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 const client = new SemiontApiClient({
   baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
@@ -44,31 +48,33 @@ const client = new SemiontApiClient({
 
 const rId = resourceId('doc-123');
 const eventBus = new EventBus();
+const markVM = createMarkVM(client, eventBus, rId);
 
-const count = await new Promise<number>((resolve, reject) => {
-  eventBus.get('mark:assist-finished').subscribe(result => {
-    resolve(result.progress?.createdCount ?? 0);
-  });
-  eventBus.get('mark:assist-failed').subscribe(({ error }) => reject(error));
-
-  client.sse.markComments(rId, {
+eventBus.get('mark:assist-request').next({
+  motivation: 'commenting',
+  options: {
     tone: 'conversational',
     instructions: 'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
     density: 5,
-  }, {
-    auth: client.accessToken,
-    eventBus,
-  });
+  },
 });
 
+const finished = await firstValueFrom(
+  eventBus.get('mark:assist-finished').pipe(
+    filter((e) => e.motivation === 'commenting'),
+  ),
+);
+
+console.log(`Created ${finished.progress?.createdCount ?? 0} comments`);
+
+markVM.dispose();
 eventBus.destroy();
-console.log(`Created ${count} comments`);
 ```
 
 ## TypeScript — manual
 
 ```typescript
-await client.markAnnotation(rId, {
+await client.mark.annotation(rId, {
   motivation: 'commenting',
   target: {
     source: rId,
@@ -84,7 +90,7 @@ await client.markAnnotation(rId, {
     value: 'Consider reordering this paragraph — the conclusion appears before the supporting evidence.',
     purpose: 'commenting',
   }],
-}, { auth: client.accessToken });
+});
 ```
 
 ## Guidance for the AI assistant
@@ -95,9 +101,8 @@ await client.markAnnotation(rId, {
   - `explanatory` — onboarding docs, user-facing content, tutorials
   - `conversational` — collaborative drafts, editorial passes, general documents
   - `technical` — API docs, specs, engineering documents
-- **Density for comments** (2–12). Start at 4–6 for a moderate editorial pass. High density (8–12) is appropriate for detailed line editing of short documents.
+- **Density for comments** (2-12). Start at 4-6 for a moderate editorial pass. High density (8-12) is appropriate for detailed line editing of short documents.
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
 - **Distinguish from assessments.** Comments are for dialogue and editorial improvement. Assessments are for flagging objective risks or errors. Use `commenting` when the goal is to help the author revise or help readers understand; use `assessing` when the goal is to flag a problem.
 - **Manual mode is for specific targeted feedback.** When the user knows exactly what they want to say about a specific passage, manual mode is faster and more precise than running delegate.
-- **Check results** with `client.getResourceAnnotations(rId)` — filter for `motivation === 'commenting'`.
-- **Always destroy the EventBus** after the stream completes to avoid memory leaks.
+- **Check results** with `client.browse.annotations(rId)` — filter for `motivation === 'commenting'`.

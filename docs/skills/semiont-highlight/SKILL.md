@@ -28,9 +28,13 @@ semiont mark --resource <id> --delegate --motivation highlighting \
 
 ## TypeScript — delegate
 
+Uses `createMarkVM` from `@semiont/api-client` to manage the assist lifecycle, including timeout and error handling.
+
 ```typescript
-import { SemiontApiClient, resourceId } from '@semiont/api-client';
+import { SemiontApiClient, createMarkVM, resourceId } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 const client = new SemiontApiClient({
   baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
@@ -39,30 +43,38 @@ const client = new SemiontApiClient({
 
 const rId = resourceId('doc-123');
 const eventBus = new EventBus();
+const markVM = createMarkVM(client, eventBus, rId);
 
-const count = await new Promise<number>((resolve, reject) => {
-  eventBus.get('mark:assist-finished').subscribe(result => {
-    resolve(result.progress?.createdCount ?? 0);
-  });
-  eventBus.get('mark:assist-failed').subscribe(({ error }) => reject(error));
-
-  client.sse.markHighlights(rId, {
+eventBus.get('mark:assist-request').next({
+  motivation: 'highlighting',
+  options: {
     instructions: 'Focus on key claims and supporting evidence',
     density: 5,
-  }, {
-    auth: client.accessToken,
-    eventBus,
-  });
+  },
 });
 
+const finished = await firstValueFrom(
+  eventBus.get('mark:assist-finished').pipe(
+    filter((e) => e.motivation === 'highlighting'),
+  ),
+);
+
+console.log(`Created ${finished.progress?.createdCount ?? 0} highlights`);
+
+markVM.dispose();
 eventBus.destroy();
-console.log(`Created ${count} highlights`);
 ```
+
+The MarkVM handles:
+- Calling `client.mark.assist()` when `mark:assist-request` is emitted
+- Tracking progress via `markVM.progress$`
+- Timeout (180s without progress) that emits `mark:assist-failed`
+- Clearing state on completion or failure
 
 ## TypeScript — manual
 
 ```typescript
-await client.markAnnotation(rId, {
+await client.mark.annotation(rId, {
   motivation: 'highlighting',
   target: {
     source: rId,
@@ -78,15 +90,14 @@ await client.markAnnotation(rId, {
     value: 'Optional note about why this is highlighted',
     purpose: 'describing',
   }],
-}, { auth: client.accessToken });
+});
 ```
 
 ## Guidance for the AI assistant
 
 - **Ask what to highlight** if the user hasn't said — key claims? risks? supporting evidence? quotes? The `--instructions` flag focuses the AI on what matters.
-- **Density is the main tuning knob.** Start around 5 for selective highlighting. Go up to 10–15 for dense annotation of dense technical material. Go down to 1–3 for a light editorial pass.
+- **Density is the main tuning knob.** Start around 5 for selective highlighting. Go up to 10-15 for dense annotation of dense technical material. Go down to 1-3 for a light editorial pass.
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
-- **Check results** with `semiont browse resources --resource <id>` or `client.getResourceAnnotations(rId)` — filter for `motivation === 'highlighting'`.
+- **Check results** with `semiont browse resource <id> --annotations` or `client.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
 - **Manual mode is for corrections.** If the AI missed a specific passage, add it manually. Don't re-run delegate just to capture one passage.
-- **The `mark:assist-finished` event payload** includes `{ motivation, resourceId, progress: { createdCount } }`.
-- **Always destroy the EventBus** after the stream completes to avoid memory leaks.
+- **The MarkVM's `progress$` Observable** emits `{ status, percentage, createdCount }` during assist for progress tracking.

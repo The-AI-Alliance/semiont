@@ -33,9 +33,13 @@ semiont mark --resource <id> --delegate --motivation assessing \
 
 ## TypeScript — delegate
 
+Uses `createMarkVM` from `@semiont/api-client` to manage the assist lifecycle, including timeout and error handling.
+
 ```typescript
-import { SemiontApiClient, resourceId } from '@semiont/api-client';
+import { SemiontApiClient, createMarkVM, resourceId } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 const client = new SemiontApiClient({
   baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
@@ -44,31 +48,33 @@ const client = new SemiontApiClient({
 
 const rId = resourceId('doc-123');
 const eventBus = new EventBus();
+const markVM = createMarkVM(client, eventBus, rId);
 
-const count = await new Promise<number>((resolve, reject) => {
-  eventBus.get('mark:assist-finished').subscribe(result => {
-    resolve(result.progress?.createdCount ?? 0);
-  });
-  eventBus.get('mark:assist-failed').subscribe(({ error }) => reject(error));
-
-  client.sse.markAssessments(rId, {
+eventBus.get('mark:assist-request').next({
+  motivation: 'assessing',
+  options: {
     tone: 'critical',
     instructions: 'Flag scheduling risks, resource conflicts, and unverified safety assumptions',
     density: 4,
-  }, {
-    auth: client.accessToken,
-    eventBus,
-  });
+  },
 });
 
+const finished = await firstValueFrom(
+  eventBus.get('mark:assist-finished').pipe(
+    filter((e) => e.motivation === 'assessing'),
+  ),
+);
+
+console.log(`Created ${finished.progress?.createdCount ?? 0} assessments`);
+
+markVM.dispose();
 eventBus.destroy();
-console.log(`Created ${count} assessments`);
 ```
 
 ## TypeScript — manual
 
 ```typescript
-await client.markAnnotation(rId, {
+await client.mark.annotation(rId, {
   motivation: 'assessing',
   target: {
     source: rId,
@@ -84,7 +90,7 @@ await client.markAnnotation(rId, {
     value: 'This assumption is unverified — the timeline assumes Q3 availability but procurement lead time is typically 16 weeks.',
     purpose: 'describing',
   }],
-}, { auth: client.accessToken });
+});
 ```
 
 ## Guidance for the AI assistant
@@ -95,8 +101,7 @@ await client.markAnnotation(rId, {
   - Use `constructive` when the goal is improvement, not just criticism
   - Use `analytical` for detached technical evaluation
   - Use `balanced` when the author should see both positives and negatives
-- **Density is lower for assessments** (1–10 vs. 1–15 for highlights). Start at 3–5 for a focused review. Only go higher for dense technical or legal documents where nearly every claim warrants scrutiny.
+- **Density is lower for assessments** (1-10 vs. 1-15 for highlights). Start at 3-5 for a focused review. Only go higher for dense technical or legal documents where nearly every claim warrants scrutiny.
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
 - **Manual mode is for known issues.** If the user has already identified a problem and wants to attach it to the document, use manual mode. Delegate is for discovery.
-- **Check results** with `client.getResourceAnnotations(rId)` — filter for `motivation === 'assessing'`.
-- **Always destroy the EventBus** after the stream completes to avoid memory leaks.
+- **Check results** with `client.browse.annotations(rId)` — filter for `motivation === 'assessing'`.
