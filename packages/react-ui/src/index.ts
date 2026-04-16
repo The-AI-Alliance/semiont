@@ -223,7 +223,7 @@ export { createBeckonVM, type BeckonVM, createHoverHandlers, type HoverHandlers,
 export * from './hooks/useMarkFlow';
 export { createBrowseVM, type BrowseVM, type BrowseVMOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from '@semiont/api-client';
 export * from './hooks/useBrowseVM';
-export * from './hooks/useYieldFlow';
+export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/api-client';
 export { createGatherVM, type GatherVM } from '@semiont/api-client';
 export { createMatchVM, type MatchVM } from '@semiont/api-client';
 export * from './hooks/useBindFlow';

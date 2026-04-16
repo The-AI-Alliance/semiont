@@ -38,11 +38,10 @@ import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsCon
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { createBeckonVM, createGatherVM, createMatchVM } from '@semiont/api-client';
+import { createBeckonVM, createGatherVM, createMatchVM, createYieldVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
-import { useYieldFlow } from '../../../hooks/useYieldFlow';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
@@ -194,10 +193,8 @@ export function ResourceViewerPage({
   const onScrollCompleted = browseVM.onScrollCompleted;
   useViewModel(() => createMatchVM(semiont, eventBus, rUri));
   useBindFlow(rUri);
-  const {
-    generationProgress,
-    onGenerateDocument,
-  } = useYieldFlow(locale, rUri, clearNewAnnotationId);
+  const yieldVM = useViewModel(() => createYieldVM(semiont, eventBus, rUri, locale));
+  const generationProgress = useObservable(yieldVM.progress$) ?? null;
   const gatherVM = useViewModel(() => createGatherVM(semiont, eventBus, rUri));
   const gatherContext = useObservable(gatherVM.context$) ?? null;
   const gatherLoading = useObservable(gatherVM.loading$) ?? false;
@@ -229,7 +226,8 @@ export function ResourceViewerPage({
   }, []);
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
-    onGenerateDocument(referenceId, {
+    clearNewAnnotationId(annotationId(referenceId));
+    yieldVM.generate(referenceId, {
       title: config.title,
       storageUri: config.storagePath,
       prompt: config.prompt,
@@ -238,7 +236,7 @@ export function ResourceViewerPage({
       maxTokens: config.maxTokens,
       context: config.context,
     });
-  }, [onGenerateDocument]);
+  }, [yieldVM, clearNewAnnotationId]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
     try {
@@ -391,12 +389,15 @@ export function ResourceViewerPage({
     // Error notification is handled by useMarkFlow; store handles annotation refresh
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);
-  const handleGenerationComplete = useCallback(() => {
-    // Toast notification is handled by useYieldFlow
-  }, []);
-  const handleGenerationFailed = useCallback(() => {
-    // Error notification is handled by useYieldFlow
-  }, []);
+  const handleGenerationComplete = useCallback((progress: { resourceName?: string }) => {
+    showSuccess(progress.resourceName
+      ? `Resource "${progress.resourceName}" created successfully!`
+      : 'Resource created successfully!');
+  }, [showSuccess]);
+  const handleGenerationFailed = useCallback(({ error, message }: { error?: string; message?: string }) => {
+    const msg = message || error || 'Generation failed';
+    showError(`Resource generation failed: ${msg}`);
+  }, [showError]);
 
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {

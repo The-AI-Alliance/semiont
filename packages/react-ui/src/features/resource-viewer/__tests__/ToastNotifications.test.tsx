@@ -1,17 +1,9 @@
 /**
  * Toast Notifications Test - Verifies Toast Integration
  *
- * This test verifies the fix for the issue identified in commit 9690806abc910bad490e684d6ef71d874a90579c.
- *
- * SOLUTION IMPLEMENTED:
- * - Pattern B: Both useMarkFlow and useYieldFlow call useToast internally
- * - Toast notifications are shown from within the hooks (self-contained)
- *
- * EXPECTED BEHAVIOR (after fix):
- * - Detection completes → User sees success toast ✓
- * - Detection fails → User sees error toast ✓
- * - Generation completes → User sees success toast ✓
- * - Generation fails → User sees error toast ✓
+ * Tests that useMarkFlow calls useToast internally for detection events.
+ * Yield toast handling moved to the consumer (ResourceViewerPage) via
+ * EventBus subscriptions — tested there, not here.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -21,9 +13,7 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { resourceId } from '@semiont/core';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { useYieldFlow } from '../../../hooks/useYieldFlow';
 
-// Mock the toast hook to track calls
 const mockShowSuccess = vi.fn();
 const mockShowError = vi.fn();
 
@@ -45,18 +35,9 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
     mockShowError.mockClear();
   });
 
-  /**
-   * Test component that uses both hooks to verify toast integration
-   */
   function TestComponentWithDetection() {
     eventBusInstance = useEventBus();
     useMarkFlow(rUri);
-    return <div data-testid="test">Test</div>;
-  }
-
-  function TestComponentWithGeneration() {
-    eventBusInstance = useEventBus();
-    useYieldFlow('en', 'test-resource', vi.fn());
     return <div data-testid="test">Test</div>;
   }
 
@@ -66,18 +47,6 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
         <AuthTokenProvider token={null}>
           <ApiClientProvider baseUrl="http://localhost:4000">
             <TestComponentWithDetection />
-          </ApiClientProvider>
-        </AuthTokenProvider>
-      </EventBusProvider>
-    );
-  }
-
-  function renderGenerationTest() {
-    return render(
-      <EventBusProvider>
-        <AuthTokenProvider token={null}>
-          <ApiClientProvider baseUrl="http://localhost:4000">
-            <TestComponentWithGeneration />
           </ApiClientProvider>
         </AuthTokenProvider>
       </EventBusProvider>
@@ -122,49 +91,6 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
       // Wait for toast to be called
       await waitFor(() => {
         expect(mockShowError).toHaveBeenCalledWith('AI service unavailable');
-      });
-    });
-  });
-
-  describe('Generation Events Trigger Toasts', () => {
-    it('yield:finished shows success toast', async () => {
-      renderGenerationTest();
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-      mockShowSuccess.mockClear();
-
-      // Emit generation finished event
-      act(() => {
-        eventBusInstance.get('yield:finished').next({
-          status: 'complete',
-          message: 'Document generated successfully',
-          percentage: 100,
-          referenceId: 'ref-1',
-        });
-      });
-
-      // Wait for toast to be called
-      await waitFor(() => {
-        expect(mockShowSuccess).toHaveBeenCalledWith('Resource created successfully!');
-      });
-    });
-
-    it('yield:failed shows error toast', async () => {
-      renderGenerationTest();
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-      mockShowError.mockClear();
-
-      // Emit generation failed event
-      act(() => {
-        eventBusInstance.get('yield:failed').next({
-          error: 'Failed to generate document',
-        });
-      });
-
-      // Wait for toast to be called
-      await waitFor(() => {
-        expect(mockShowError).toHaveBeenCalledWith('Resource generation failed: Failed to generate document');
       });
     });
   });

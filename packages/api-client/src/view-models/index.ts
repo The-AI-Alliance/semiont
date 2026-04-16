@@ -28,3 +28,8 @@ export {
   createMatchVM,
   type MatchVM,
 } from './flows/match-vm';
+export {
+  createYieldVM,
+  type YieldVM,
+  type GenerateDocumentOptions,
+} from './flows/yield-vm';
