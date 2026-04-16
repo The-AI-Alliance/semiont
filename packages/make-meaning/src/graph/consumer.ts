@@ -30,7 +30,7 @@
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { EventQuery, type EventStore } from '@semiont/event-sourcing';
-import { didToAgent, burstBuffer, EventBus } from '@semiont/core';
+import { didToAgent, burstBuffer, EventBus, errField } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/core';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
@@ -141,7 +141,7 @@ export class GraphDBConsumer {
       this.logger.error('Failed to apply event to graph', {
         eventType: storedEvent.type,
         resourceId: storedEvent.resourceId,
-        error,
+        error: errField(error),
       });
     }
   }
@@ -193,7 +193,7 @@ export class GraphDBConsumer {
         this.logger.error('Failed to process batch run', {
           eventType: run[0].type,
           runSize: run.length,
-          error,
+          error: errField(error),
         });
       }
       const last = run[run.length - 1];
@@ -373,8 +373,7 @@ export class GraphDBConsumer {
         } catch (error) {
           this.logger.error('Error in annotation.body.updated handler', {
             annotationId: event.payload.annotationId,
-            error,
-            stack: error instanceof Error ? error.stack : undefined
+            error: errField(error),
           });
         }
         break;

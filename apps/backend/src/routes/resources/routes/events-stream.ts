@@ -19,7 +19,7 @@ import { EventQuery } from '@semiont/event-sourcing';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { resourceId, type ResourceId, type StoredEvent, type EventName, type components, PERSISTED_EVENT_TYPES, STREAM_COMMAND_RESULT_TYPES } from '@semiont/core';
+import { resourceId, type ResourceId, type StoredEvent, type EventName, type components, PERSISTED_EVENT_TYPES, STREAM_COMMAND_RESULT_TYPES, errField } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import { getLogger } from '../../../logger';
 import { Subscription } from 'rxjs';
@@ -187,7 +187,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
           logger.error('Error writing event to SSE stream', {
             streamId,
             eventType: storedEvent.type,
-            error,
+            error: errField(error),
           });
           cleanup();
         }
@@ -279,7 +279,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
               logger.error('Error writing command-result event to SSE stream', {
                 streamId,
                 eventType,
-                error,
+                error: errField(error),
               });
               cleanup();
             }

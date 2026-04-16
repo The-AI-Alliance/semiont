@@ -127,6 +127,7 @@ export { serializePerKey } from './serialize-per-key';
 
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
+export { errField } from './logger';
 
 // Annotation body matcher (used by mark:body-updated event replay)
 export { findBodyItem } from './annotation-utils';

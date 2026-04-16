@@ -28,7 +28,7 @@
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { type EventStore, type ViewStorage } from '@semiont/event-sourcing';
-import { burstBuffer } from '@semiont/core';
+import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, StoredEvent, PersistedEvent, EventOfType } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
@@ -273,7 +273,7 @@ export class Smelter {
         this.logger.error('Smelter failed to process batch run', {
           eventType: run[0].type,
           runSize: run.length,
-          error,
+          error: errField(error),
         });
       }
     }

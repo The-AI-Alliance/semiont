@@ -10,7 +10,7 @@ import type { AnyJob, CommentDetectionJob, RunningJob, CommentDetectionParams, C
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { EventBus, userToAgent, type Logger } from '@semiont/core';
+import { EventBus, userToAgent, type Logger, errField } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
 import type { CommentMatch } from './detection/motivation-parsers';
@@ -216,7 +216,7 @@ export class CommentAnnotationWorker extends JobWorker {
         await this.createCommentAnnotation(job.params.resourceId, job.metadata, comment, job.params.language);
         created++;
       } catch (error) {
-        this.logger?.error('Failed to create comment', { error });
+        this.logger?.error('Failed to create comment', { error: errField(error) });
       }
     }
 

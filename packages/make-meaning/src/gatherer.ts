@@ -28,7 +28,7 @@
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
-import { EventBus, annotationId as makeAnnotationId, resourceId } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId, errField } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
@@ -113,7 +113,7 @@ export class Gatherer {
     } catch (error) {
       this.logger.error('Gather annotation context failed', {
         annotationId: event.annotationId,
-        error,
+        error: errField(error),
       });
       resultBus.get('gather:failed').next({
         correlationId: event.correlationId,
@@ -147,7 +147,7 @@ export class Gatherer {
     } catch (error) {
       this.logger.error('Gather resource context failed', {
         resourceId: event.resourceId,
-        error,
+        error: errField(error),
       });
       resultBus.get('gather:resource-failed').next({
         correlationId: event.correlationId,

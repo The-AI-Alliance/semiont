@@ -23,7 +23,7 @@
 import { Subscription, from } from 'rxjs';
 import { concatMap, mergeMap } from 'rxjs/operators';
 import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
-import { type EventBus, resourceId } from '@semiont/core';
+import { type EventBus, resourceId, errField } from '@semiont/core';
 import { getExactText, getResourceId, getResourceEntityTypes, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
 import type { KnowledgeBase } from './knowledge-base';
@@ -97,7 +97,7 @@ export class Binder {
     } catch (error) {
       this.logger.error('Bind search failed', {
         referenceId: event.referenceId,
-        error,
+        error: errField(error),
       });
       resultBus.get('match:search-failed').next({
         correlationId: event.correlationId,
@@ -428,7 +428,7 @@ For each candidate, output a line with the number and score, like:
     } catch (error) {
       this.logger.error('Referenced-by query failed', {
         resourceId: event.resourceId,
-        error,
+        error: errField(error),
       });
       this.eventBus.get('browse:referenced-by-failed').next({
         correlationId: event.correlationId,
