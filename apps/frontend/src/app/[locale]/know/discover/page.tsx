@@ -14,7 +14,7 @@ import {
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useBrowseVM } from '@semiont/react-ui';
-import { createDiscoverPageVM } from '@semiont/api-client';
+import { createDiscoverVM } from '@semiont/api-client';
 
 export default function DiscoverPage() {
   const { t: _t } = useTranslation();
@@ -23,7 +23,7 @@ export default function DiscoverPage() {
   const semiont = useApiClient();
 
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createDiscoverPageVM(semiont, browseVM));
+  const vm = useViewModel(() => createDiscoverVM(semiont, browseVM));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
   const recentDocuments = useObservable(vm.recentResources$) ?? [];

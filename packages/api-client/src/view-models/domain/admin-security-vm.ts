@@ -4,17 +4,17 @@ import type { ViewModel } from '../lib/view-model';
 import type { BrowseVM } from '../flows/browse-vm';
 import type { SemiontApiClient } from '../../client';
 
-export interface AdminSecurityPageVM extends ViewModel {
+export interface AdminSecurityVM extends ViewModel {
   browse: BrowseVM;
   providers$: Observable<unknown[]>;
   allowedDomains$: Observable<string[]>;
   isLoading$: Observable<boolean>;
 }
 
-export function createAdminSecurityPageVM(
+export function createAdminSecurityVM(
   client: SemiontApiClient,
   browse: BrowseVM,
-): AdminSecurityPageVM {
+): AdminSecurityVM {
   const disposer = createDisposer();
   disposer.add(browse);
 

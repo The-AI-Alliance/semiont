@@ -12,7 +12,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
-import { createAdminSecurityPageVM } from '@semiont/react-ui';
+import { createAdminSecurityVM } from '@semiont/react-ui';
 import { useViewModel } from '@semiont/react-ui';
 
 export default function AdminSecurity() {
@@ -21,7 +21,7 @@ export default function AdminSecurity() {
 
   const semiont = useApiClient();
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createAdminSecurityPageVM(semiont!, browseVM));
+  const vm = useViewModel(() => createAdminSecurityVM(semiont!, browseVM));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
   const providers = useObservable(vm.providers$) ?? [];

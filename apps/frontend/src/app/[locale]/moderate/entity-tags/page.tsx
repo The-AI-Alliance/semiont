@@ -11,7 +11,7 @@ import {
   useViewModel,
   EntityTagsPage,
 } from '@semiont/react-ui';
-import { createEntityTagsPageVM } from '@semiont/api-client';
+import { createEntityTagsVM } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function EntityTagsPageWrapper() {
@@ -20,7 +20,7 @@ export default function EntityTagsPageWrapper() {
   const client = useApiClient();
 
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createEntityTagsPageVM(client, browseVM));
+  const vm = useViewModel(() => createEntityTagsVM(client, browseVM));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
   const entityTypes = useObservable(vm.entityTypes$) ?? [];

@@ -3,15 +3,15 @@ import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { SemiontApiClient } from '../../client';
 
-export interface WelcomePageVM extends ViewModel {
+export interface WelcomeVM extends ViewModel {
   userData$: Observable<{ termsAcceptedAt?: string } | null>;
   isProcessing$: Observable<boolean>;
   acceptTerms(): Promise<void>;
 }
 
-export function createWelcomePageVM(
+export function createWelcomeVM(
   client: SemiontApiClient,
-): WelcomePageVM {
+): WelcomeVM {
   const disposer = createDisposer();
 
   const userData$ = new BehaviorSubject<{ termsAcceptedAt?: string } | null>(null);

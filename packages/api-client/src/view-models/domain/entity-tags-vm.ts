@@ -5,7 +5,7 @@ import type { ViewModel } from '../lib/view-model';
 import type { BrowseVM } from '../flows/browse-vm';
 import type { SemiontApiClient } from '../../client';
 
-export interface EntityTagsPageVM extends ViewModel {
+export interface EntityTagsVM extends ViewModel {
   browse: BrowseVM;
   entityTypes$: Observable<string[]>;
   isLoading$: Observable<boolean>;
@@ -16,10 +16,10 @@ export interface EntityTagsPageVM extends ViewModel {
   addTag(): Promise<void>;
 }
 
-export function createEntityTagsPageVM(
+export function createEntityTagsVM(
   client: SemiontApiClient,
   browse: BrowseVM,
-): EntityTagsPageVM {
+): EntityTagsVM {
   const disposer = createDisposer();
   disposer.add(browse);
 

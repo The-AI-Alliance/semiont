@@ -42,10 +42,35 @@ export {
   createBindVM,
   type BindVM,
 } from './flows/bind-vm';
+
+// Domain VMs — reusable across React, CLI, MCP
 export {
-  createDiscoverPageVM,
-  type DiscoverPageVM,
-} from './pages/discover-page-vm';
+  createDiscoverVM,
+  type DiscoverVM,
+} from './domain/discover-vm';
+export {
+  createEntityTagsVM,
+  type EntityTagsVM,
+} from './domain/entity-tags-vm';
+export {
+  createExchangeVM,
+  type ExchangeVM,
+  type ImportPreview,
+} from './domain/exchange-vm';
+export {
+  createAdminUsersVM,
+  type AdminUsersVM,
+} from './domain/admin-users-vm';
+export {
+  createAdminSecurityVM,
+  type AdminSecurityVM,
+} from './domain/admin-security-vm';
+export {
+  createWelcomeVM,
+  type WelcomeVM,
+} from './domain/welcome-vm';
+
+// Page composites — React UI layout orchestration
 export {
   createResourceViewerPageVM,
   type ResourceViewerPageVM,
@@ -61,24 +86,3 @@ export {
   type ReferenceData,
   type SaveResourceParams,
 } from './pages/compose-page-vm';
-export {
-  createEntityTagsPageVM,
-  type EntityTagsPageVM,
-} from './pages/entity-tags-page-vm';
-export {
-  createExchangeVM,
-  type ExchangeVM,
-  type ImportPreview,
-} from './pages/exchange-vm';
-export {
-  createAdminUsersPageVM,
-  type AdminUsersPageVM,
-} from './pages/admin-users-page-vm';
-export {
-  createAdminSecurityPageVM,
-  type AdminSecurityPageVM,
-} from './pages/admin-security-page-vm';
-export {
-  createWelcomePageVM,
-  type WelcomePageVM,
-} from './pages/welcome-page-vm';

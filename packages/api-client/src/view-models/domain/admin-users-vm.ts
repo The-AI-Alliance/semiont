@@ -5,7 +5,7 @@ import type { ViewModel } from '../lib/view-model';
 import type { BrowseVM } from '../flows/browse-vm';
 import type { SemiontApiClient } from '../../client';
 
-export interface AdminUsersPageVM extends ViewModel {
+export interface AdminUsersVM extends ViewModel {
   browse: BrowseVM;
   users$: Observable<unknown[]>;
   stats$: Observable<unknown | null>;
@@ -14,10 +14,10 @@ export interface AdminUsersPageVM extends ViewModel {
   updateUser(id: string, data: { isAdmin?: boolean; isActive?: boolean }): Promise<void>;
 }
 
-export function createAdminUsersPageVM(
+export function createAdminUsersVM(
   client: SemiontApiClient,
   browse: BrowseVM,
-): AdminUsersPageVM {
+): AdminUsersVM {
   const disposer = createDisposer();
   disposer.add(browse);
 

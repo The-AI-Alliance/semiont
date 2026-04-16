@@ -11,7 +11,7 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 const RECENT_LIMIT = 10;
 const SEARCH_LIMIT = 20;
 
-export interface DiscoverPageVM extends ViewModel {
+export interface DiscoverVM extends ViewModel {
   browse: BrowseVM;
   search: SearchPipeline<ResourceDescriptor>;
   recentResources$: Observable<ResourceDescriptor[]>;
@@ -19,10 +19,10 @@ export interface DiscoverPageVM extends ViewModel {
   isLoadingRecent$: Observable<boolean>;
 }
 
-export function createDiscoverPageVM(
+export function createDiscoverVM(
   client: SemiontApiClient,
   browse: BrowseVM,
-): DiscoverPageVM {
+): DiscoverVM {
   const disposer = createDisposer();
 
   const search = createSearchPipeline<ResourceDescriptor>((q) =>

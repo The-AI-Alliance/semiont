@@ -12,7 +12,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
-import { createAdminUsersPageVM } from '@semiont/react-ui';
+import { createAdminUsersVM } from '@semiont/react-ui';
 import { useViewModel } from '@semiont/react-ui';
 
 export default function AdminUsers() {
@@ -21,7 +21,7 @@ export default function AdminUsers() {
 
   const semiont = useApiClient();
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createAdminUsersPageVM(semiont!, browseVM));
+  const vm = useViewModel(() => createAdminUsersVM(semiont!, browseVM));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
   const users = useObservable(vm.users$) ?? [];

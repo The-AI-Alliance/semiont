@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { PageLayout, useToast, useKnowledgeBaseSession, useApiClient, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
-import { createWelcomePageVM } from '@semiont/react-ui';
+import { createWelcomeVM } from '@semiont/react-ui';
 import { useViewModel } from '@semiont/react-ui';
 
 export default function Welcome() {
@@ -23,7 +23,7 @@ export default function Welcome() {
   const toast = useToast();
 
   const semiont = useApiClient();
-  const vm = useViewModel(() => createWelcomePageVM(semiont!));
+  const vm = useViewModel(() => createWelcomeVM(semiont!));
 
   const userData = useObservable(vm.userData$);
   const isProcessing = useObservable(vm.isProcessing$) ?? false;
