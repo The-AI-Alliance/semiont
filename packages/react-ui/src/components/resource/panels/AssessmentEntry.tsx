@@ -4,7 +4,7 @@ import type { Ref } from 'react';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 type Annotation = components['schemas']['Annotation'];
 

@@ -3,9 +3,8 @@
 import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
+import { getMimeCategory, isPdfMimeType, createHoverHandlers } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
-import { createHoverHandlers } from '../../hooks/useBeckonFlow';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';

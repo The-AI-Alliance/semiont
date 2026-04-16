@@ -38,7 +38,8 @@ import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsCon
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { useBeckonFlow } from '../../../hooks/useBeckonFlow';
+import { createBeckonVM } from '@semiont/api-client';
+import { useViewModel } from '../../../hooks/useViewModel';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
 import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
@@ -184,7 +185,8 @@ export function ResourceViewerPage({
   const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Flow state hooks (NO CONTAINERS)
-  const { hoveredAnnotationId } = useBeckonFlow();
+  const beckonVM = useViewModel(() => createBeckonVM(eventBus));
+  const hoveredAnnotationId = useObservable(beckonVM.hoveredAnnotationId$) ?? null;
   const { assistingMotivation, progress, pendingAnnotation } = useMarkFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelBrowse();
   useBindFlow(rUri);

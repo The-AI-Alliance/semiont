@@ -85,6 +85,7 @@ vi.mock('@semiont/react-ui', async () => {
     useGlobalEvents: () => {},
     useStoreTokenSync: () => {},
     useAttentionStream: () => ({ status: 'connected' }),
+    useJobReplayBridge: () => {},
   };
 });
 

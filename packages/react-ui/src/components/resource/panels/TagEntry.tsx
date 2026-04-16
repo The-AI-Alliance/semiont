@@ -6,7 +6,7 @@ import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 type Annotation = components['schemas']['Annotation'];
 

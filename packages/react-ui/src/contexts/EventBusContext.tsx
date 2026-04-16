@@ -1,8 +1,7 @@
 'use client';
 
-import { createContext, useContext, useRef, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useRef, type ReactNode } from 'react';
 import { EventBus } from '@semiont/core';
-import { createJobReplayBridge } from '@semiont/api-client';
 
 const EventBusContext = createContext<EventBus | null>(null);
 
@@ -26,11 +25,6 @@ export function EventBusProvider({ children }: EventBusProviderProps) {
     eventBusRef.current = new EventBus();
   }
   const eventBus = eventBusRef.current;
-
-  useEffect(() => {
-    const bridge = createJobReplayBridge(eventBus);
-    return () => bridge.dispose();
-  }, [eventBus]);
 
   return (
     <EventBusContext.Provider value={eventBus}>

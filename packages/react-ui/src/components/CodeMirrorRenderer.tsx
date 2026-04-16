@@ -6,9 +6,8 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } fr
 import { markdown } from '@codemirror/lang-markdown';
 import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from '../lib/codemirror-widgets';
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
-import { isReference } from '@semiont/api-client';
+import { isReference, createHoverHandlers } from '@semiont/api-client';
 import type { EventBus } from "@semiont/core";
-import { createHoverHandlers } from '../hooks/useBeckonFlow';
 import {
   convertSegmentPositions,
   computeAnnotationDecorations,

@@ -13,6 +13,7 @@ import {
   useGlobalEvents,
   useAttentionStream,
   useStoreTokenSync,
+  useJobReplayBridge,
   usePanelBrowse,
   useTheme,
   useLineNumbers,
@@ -32,6 +33,7 @@ import { AuthShell } from '@/contexts/AuthShell';
 function GlobalEventsConnector() {
   useStoreTokenSync();
   useGlobalEvents();
+  useJobReplayBridge();
   return null;
 }
 
