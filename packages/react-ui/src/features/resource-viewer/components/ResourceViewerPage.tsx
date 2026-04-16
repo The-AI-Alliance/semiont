@@ -38,12 +38,11 @@ import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsCon
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { createBeckonVM } from '@semiont/api-client';
+import { createBeckonVM, createGatherVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
-import { useContextGatherFlow } from '../../../hooks/useContextGatherFlow';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
@@ -198,7 +197,10 @@ export function ResourceViewerPage({
     generationProgress,
     onGenerateDocument,
   } = useYieldFlow(locale, rUri, clearNewAnnotationId);
-  const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow({ resourceId: rUri });
+  const gatherVM = useViewModel(() => createGatherVM(semiont, eventBus, rUri));
+  const gatherContext = useObservable(gatherVM.context$) ?? null;
+  const gatherLoading = useObservable(gatherVM.loading$) ?? false;
+  const gatherError = useObservable(gatherVM.error$) ?? null;
 
   // Wizard state — driven by bind:initiate from ReferenceEntry
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -215,7 +217,7 @@ export function ResourceViewerPage({
       setWizardEntityTypes(event.entityTypes);
       setWizardOpen(true);
 
-      // Trigger context gathering — gather:requested is consumed by useContextGatherFlow
+      // Trigger context gathering — gather:requested is consumed by GatherVM
       eventBus.get('gather:requested').next({ correlationId: crypto.randomUUID(), annotationId: event.annotationId, resourceId: event.resourceId, options: { contextWindow: 2000 } });
     });
     return () => subscription.unsubscribe();

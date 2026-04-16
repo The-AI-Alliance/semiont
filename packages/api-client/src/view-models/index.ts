@@ -20,3 +20,7 @@ export {
   COMMON_PANELS,
   RESOURCE_PANELS,
 } from './flows/browse-vm';
+export {
+  createGatherVM,
+  type GatherVM,
+} from './flows/gather-vm';

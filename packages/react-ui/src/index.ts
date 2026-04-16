@@ -224,7 +224,7 @@ export * from './hooks/useMarkFlow';
 export { createBrowseVM, type BrowseVM, type BrowseVMOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from '@semiont/api-client';
 export * from './hooks/useBrowseVM';
 export * from './hooks/useYieldFlow';
-export * from './hooks/useContextGatherFlow';
+export { createGatherVM, type GatherVM } from '@semiont/api-client';
 export * from './hooks/useBindFlow';
 export * from './hooks/useObservable';
 export * from './hooks/useStoreTokenSync';
