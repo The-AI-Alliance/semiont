@@ -9,7 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import type { components, GatheredContext } from '@semiont/core';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
+import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';

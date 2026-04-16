@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions, useKnowledgeBaseSession } from '@semiont/react-ui';
+import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions, useKnowledgeBaseSession } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 
 // Wrapper component that provides auth props to StatusDisplay
@@ -34,7 +34,8 @@ export default function DevOpsPage() {
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminDevOps.${k}`, p as any) as string;
 
   // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

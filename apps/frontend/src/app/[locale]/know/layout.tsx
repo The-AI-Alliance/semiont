@@ -14,7 +14,8 @@ import {
   useAttentionStream,
   useStoreTokenSync,
   useJobReplayBridge,
-  usePanelBrowse,
+  useBrowseVM,
+  useObservable,
   useTheme,
   useLineNumbers,
   useKnowledgeBaseSession,
@@ -83,7 +84,8 @@ function DiscoverEmptyState() {
 }
 
 function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: string, params?: Record<string, unknown>) => string; keyboardContext: { openKeyboardHelp?: () => void } | null }) {
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme } = useTheme();
   const { showLineNumbers } = useLineNumbers();
 

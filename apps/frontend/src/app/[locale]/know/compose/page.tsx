@@ -15,7 +15,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken, useKnowledgeBaseSession } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
-import { usePanelBrowse } from '@semiont/react-ui';
+import { useBrowseVM, useObservable } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { useHoverDelay } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
@@ -59,7 +59,8 @@ function ComposeResourceContent() {
   const [gatheredContext, setGatheredContext] = useState<GatheredContext | null>(null);
 
   // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();

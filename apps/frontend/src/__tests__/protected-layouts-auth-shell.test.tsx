@@ -81,7 +81,7 @@ vi.mock('@semiont/react-ui', async () => {
     Toolbar: () => null,
     useTheme: () => ({ theme: 'light', resolvedTheme: 'light', setTheme: vi.fn() }),
     useLineNumbers: () => ({ showLineNumbers: false, toggleLineNumbers: vi.fn() }),
-    usePanelBrowse: () => ({ activePanel: null }),
+    useBrowseVM: () => ({ activePanel$: { subscribe: () => ({ unsubscribe: () => {} }) }, dispose: () => {} }),
     useGlobalEvents: () => {},
     useStoreTokenSync: () => {},
     useAttentionStream: () => ({ status: 'connected' }),

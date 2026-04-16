@@ -11,7 +11,7 @@ import { useAdmin, buttonStyles, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
 
@@ -25,7 +25,8 @@ export default function AdminUsers() {
   const queryClient = useQueryClient();
 
   // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

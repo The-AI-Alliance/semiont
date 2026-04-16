@@ -18,7 +18,7 @@ import {
   useResources,
   useEntityTypes,
   useTheme,
-  usePanelBrowse,
+  useBrowseVM,
   useLineNumbers,
   useEventSubscriptions,
   useObservable,
@@ -40,7 +40,8 @@ export default function DiscoverPage() {
   const semiont = useApiClient();
 
   // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

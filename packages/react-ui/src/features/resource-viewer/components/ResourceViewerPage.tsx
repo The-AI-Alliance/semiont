@@ -40,8 +40,8 @@ import { useBindFlow } from '../../../hooks/useBindFlow';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { createBeckonVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
+import { useBrowseVM } from '../../../hooks/useBrowseVM';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
-import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
 import { useContextGatherFlow } from '../../../hooks/useContextGatherFlow';
 import { useTranslations } from '../../../contexts/TranslationContext';
@@ -188,7 +188,11 @@ export function ResourceViewerPage({
   const beckonVM = useViewModel(() => createBeckonVM(eventBus));
   const hoveredAnnotationId = useObservable(beckonVM.hoveredAnnotationId$) ?? null;
   const { assistingMotivation, progress, pendingAnnotation } = useMarkFlow(rUri);
-  const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const activePanel = useObservable(browseVM.activePanel$) ?? null;
+  const scrollToAnnotationId = useObservable(browseVM.scrollToAnnotationId$) ?? null;
+  const panelInitialTab = useObservable(browseVM.panelInitialTab$) ?? null;
+  const onScrollCompleted = browseVM.onScrollCompleted;
   useBindFlow(rUri);
   const {
     generationProgress,

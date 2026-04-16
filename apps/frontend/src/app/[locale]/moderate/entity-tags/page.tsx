@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useEntityTypes, Toolbar } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { EntityTagsPage } from '@semiont/react-ui';
 
 // Authentication is handled by middleware (proxy.ts)
@@ -24,7 +24,8 @@ export default function EntityTagsPageWrapper() {
   const queryClient = useQueryClient();
 
   // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
