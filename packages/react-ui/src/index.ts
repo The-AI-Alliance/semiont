@@ -22,13 +22,14 @@ export * from './lib/codemirror-json-theme';
 export * from './lib/codemirror-widgets';
 export * from './lib/media-shapes';
 export * from './lib/query-keys';
-export * from './lib/search-pipeline';
+export { createSearchPipeline, type SearchPipeline, type SearchPipelineOptions, type SearchState } from '@semiont/api-client';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
 export * from './lib/tag-schemas';
 export * from './lib/validation';
 
 // Hooks
+export * from './hooks/useViewModel';
 export * from './hooks/useDebounce';
 export * from './lib/formatTime';
 export * from './hooks/useKeyboardShortcuts';

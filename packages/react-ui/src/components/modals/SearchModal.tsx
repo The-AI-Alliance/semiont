@@ -3,11 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
-import { getResourceId } from '@semiont/api-client';
+import { getResourceId, createSearchPipeline } from '@semiont/api-client';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 import { useApiClient } from '../../contexts/ApiClientContext';
 import { useObservable } from '../../hooks/useObservable';
-import { createSearchPipeline } from '../../lib/search-pipeline';
 import './SearchModal.css';
 
 const SEARCH_DEBOUNCE_MS = 300;

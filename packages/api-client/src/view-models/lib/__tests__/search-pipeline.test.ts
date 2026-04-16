@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BehaviorSubject, firstValueFrom, of, type Observable } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
 import { filter, take, toArray } from 'rxjs/operators';
 import { createSearchPipeline, type SearchState } from '../search-pipeline';
 
@@ -19,14 +19,6 @@ describe('createSearchPipeline', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
-
-  function collectEmissions<T>(obs$: Observable<T>): T[] {
-    const out: T[] = [];
-    const sub = obs$.subscribe((v) => out.push(v));
-    return out.length === 0 && sub.closed === false
-      ? out // subscription is live; caller will read out after pushing
-      : out;
-  }
 
   it('starts with an idle state — empty results, not searching', () => {
     const fetch = vi.fn(() => of([]));
