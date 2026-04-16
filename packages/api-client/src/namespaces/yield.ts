@@ -10,6 +10,7 @@
 
 import { Observable, merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
+import { jobId as makeJobId } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
@@ -50,6 +51,41 @@ export class YieldNamespace implements IYieldNamespace {
     options: GenerationOptions,
   ): Observable<YieldProgress> {
     return new Observable((subscriber) => {
+      let done = false;
+      let pollTimer: ReturnType<typeof setTimeout> | null = null;
+      let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+      const cleanup = () => {
+        done = true;
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      };
+
+      const resetPollTimer = (jid: string) => {
+        if (pollTimer) clearTimeout(pollTimer);
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        pollTimer = setTimeout(() => {
+          if (done) return;
+          pollInterval = setInterval(() => {
+            if (done) return;
+            this.http.getJobStatus(makeJobId(jid), { auth: this.getToken() })
+              .then((status) => {
+                if (done) return;
+                if (status.status === 'complete') {
+                  cleanup();
+                  const result = status.result as Record<string, unknown> | undefined;
+                  subscriber.next({ referenceId: annotationId as string, resourceId: result?.resourceId as string, status: 'complete' } as unknown as YieldProgress);
+                  subscriber.complete();
+                } else if (status.status === 'failed') {
+                  cleanup();
+                  subscriber.error(new Error(status.error ?? 'Generation failed'));
+                }
+              })
+              .catch(() => {});
+          }, 5_000);
+        }, 10_000);
+      };
+
       const progress$ = this.eventBus.get('yield:progress').pipe(
         filter((e) => e.referenceId === (annotationId as string)),
       );
@@ -60,15 +96,20 @@ export class YieldNamespace implements IYieldNamespace {
         filter((e) => e.referenceId === (annotationId as string)),
       );
 
+      let activeJobId: string | null = null;
+
       const progressSub = progress$
         .pipe(takeUntil(merge(finished$, failed$)))
-        .subscribe((e) => subscriber.next(e));
+        .subscribe((e) => {
+          subscriber.next(e);
+          if (activeJobId) resetPollTimer(activeJobId);
+        });
 
       const finishedSub = finished$.subscribe((event: EventMap['yield:finished']) => {
+        cleanup();
         subscriber.next(event);
         subscriber.complete();
 
-        // Auto-link: bind the generated resource back to the reference annotation
         if (event.resourceId && event.referenceId && event.sourceResourceId) {
           this.eventBus.get('bind:update-body').next({
             correlationId: crypto.randomUUID(),
@@ -80,20 +121,27 @@ export class YieldNamespace implements IYieldNamespace {
       });
 
       const failedSub = failed$.subscribe((e) => {
+        cleanup();
         subscriber.error(new Error(e.error ?? e.message ?? 'Generation failed'));
       });
 
-      // Fire the HTTP POST
       this.http.yieldResourceFromAnnotation(
         resourceId,
         annotationId,
         options,
         { auth: this.getToken() },
-      ).catch((error) => {
+      ).then(({ jobId }) => {
+        if (jobId && !done) {
+          activeJobId = jobId;
+          resetPollTimer(jobId);
+        }
+      }).catch((error) => {
+        cleanup();
         subscriber.error(error);
       });
 
       return () => {
+        cleanup();
         progressSub.unsubscribe();
         finishedSub.unsubscribe();
         failedSub.unsubscribe();
