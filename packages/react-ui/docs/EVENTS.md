@@ -384,7 +384,7 @@ function Component() {
 
 ```tsx
 // ✅ GOOD: Custom hook encapsulates event logic
-export function useMarkFlow(rId: ResourceId) {
+export function createMarkVM(rId: ResourceId) {
   const [pending, setPending] = useState(null);
 
   useEventSubscriptions({
@@ -403,7 +403,7 @@ export function useMarkFlow(rId: ResourceId) {
 
 // Component uses hook
 function MyComponent({ rId }) {
-  const { pendingAnnotation } = useMarkFlow(rId);
+  const { pendingAnnotation } = createMarkVM(rId);
   return <div>{/* Use pendingAnnotation */}</div>;
 }
 ```

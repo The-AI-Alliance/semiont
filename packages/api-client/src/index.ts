@@ -51,6 +51,10 @@ export type {
   SSEClientConfig,
   SSEStreamConnected
 } from './sse/index';
+export { createJobReplayBridge } from './sse/job-replay-bridge';
+
+// View models (MVVM layer)
+export * from './view-models';
 
 // Handwritten utilities
 export * from './utils/index';

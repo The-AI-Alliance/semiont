@@ -6,6 +6,8 @@ import {
   formatTime,
   useApiClient,
   useKnowledgeBaseSession,
+  createSessionVM,
+  useViewModel,
 } from '@semiont/react-ui';
 import { useRouter } from '@/i18n/routing';
 
@@ -25,6 +27,7 @@ export function UserPanel() {
     signOut,
   } = useKnowledgeBaseSession();
   const apiClient = useApiClient();
+  const session = useViewModel(() => createSessionVM(apiClient));
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
@@ -46,11 +49,7 @@ export function UserPanel() {
   })();
 
   const handleSignOut = async () => {
-    try {
-      await apiClient.logout();
-    } catch {
-      // best-effort — cookie already cleared server-side
-    }
+    await session.logout();
     if (activeKnowledgeBase) {
       signOut(activeKnowledgeBase.id);
     }

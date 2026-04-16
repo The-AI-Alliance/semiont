@@ -175,7 +175,7 @@ Resolution is reversible. A user can remove a link via `bind:update-body` with a
 
 ## Implementation
 
-- **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts) — write side (annotation body updates)
+- **ViewModel**: [packages/api-client/src/view-models/flows/bind-vm.ts](../../packages/api-client/src/view-models/flows/bind-vm.ts) — write side (annotation body updates)
 - **Wizard**: [packages/react-ui/src/components/modals/ReferenceWizardModal.tsx](../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — multi-step wizard for Bind/Generate/Compose
 - **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../packages/make-meaning/src/matcher.ts) — context-driven search + inference scoring
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — `BIND FLOW` section

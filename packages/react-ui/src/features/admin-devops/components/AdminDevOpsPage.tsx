@@ -9,7 +9,7 @@ import React from 'react';
 import {
   CommandLineIcon
 } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
+import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
 
 export interface DevOpsFeature {
   title: string;

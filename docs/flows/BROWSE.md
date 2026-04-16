@@ -31,7 +31,7 @@ Navigation is purely a frontend concern. It produces no backend events and no pe
 Emitted from every clickable annotation surface: CodeMirror document view, BrowseView, PDF canvas, image overlay, and all panel entries (HighlightEntry, CommentEntry, AssessmentEntry, TagEntry, ReferenceEntry).
 
 Subscribers:
-- **useBeckonFlow** — relays as `beckon:focus` to scroll the document view to the annotation
+- **createBeckonVM** — relays as `beckon:focus` to scroll the document view to the annotation
 - **ResourceViewer** — opens the annotations panel with scroll-to-annotation coordination
 - **Panel components** (HighlightPanel, CommentsPanel, AssessmentPanel, TaggingPanel, ReferencesPanel) — update focused/selected state to highlight the clicked entry
 

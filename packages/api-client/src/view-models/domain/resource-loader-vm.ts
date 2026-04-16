@@ -1,0 +1,28 @@
+import { type Observable, map } from 'rxjs';
+import type { ResourceId, components } from '@semiont/core';
+import type { ViewModel } from '../lib/view-model';
+import type { SemiontApiClient } from '../../client';
+
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
+export interface ResourceLoaderVM extends ViewModel {
+  resource$: Observable<ResourceDescriptor | undefined>;
+  isLoading$: Observable<boolean>;
+  invalidate(): void;
+}
+
+export function createResourceLoaderVM(
+  client: SemiontApiClient,
+  resourceId: ResourceId,
+): ResourceLoaderVM {
+  const raw$ = client.browse.resource(resourceId);
+  const resource$ = raw$;
+  const isLoading$: Observable<boolean> = raw$.pipe(map((r) => r === undefined));
+
+  return {
+    resource$,
+    isLoading$,
+    invalidate: () => client.browse.invalidateResourceDetail(resourceId),
+    dispose: () => {},
+  };
+}

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
-import { useEntityTypes } from '../../lib/api-hooks';
+import { useApiClient } from '../../contexts/ApiClientContext';
+import { useObservable } from '../../hooks/useObservable';
 
 interface ProposeEntitiesModalProps {
   isOpen: boolean;
@@ -19,10 +20,8 @@ export function ProposeEntitiesModal({
 }: ProposeEntitiesModalProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
-  // Get available entity types
-  const entityTypesAPI = useEntityTypes();
-  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
-  const allEntityTypes = entityTypesData?.entityTypes || [];
+  const semiont = useApiClient();
+  const allEntityTypes = useObservable(semiont!.browse.entityTypes()) ?? [];
 
   // Load saved preferences when modal opens
   useEffect(() => {

@@ -1,6 +1,9 @@
 'use client';
 
-import { useHealth } from '../lib/api-hooks';
+import { useEffect, useState } from 'react';
+import { useApiClient } from '../contexts/ApiClientContext';
+import { useAuthToken } from '../contexts/AuthTokenContext';
+import { accessToken } from '@semiont/core';
 import './StatusDisplay.css';
 
 interface StatusDisplayProps {
@@ -9,36 +12,62 @@ interface StatusDisplayProps {
   hasValidBackendToken?: boolean;
 }
 
+interface StatusData {
+  status: string;
+  version: string;
+}
+
 export function StatusDisplay({
   isFullyAuthenticated = false,
   isAuthenticated = false,
   hasValidBackendToken = false
 }: StatusDisplayProps) {
-  const health = useHealth();
-  const status = health.status.useQuery(30000); // Poll every 30 seconds
+  const semiont = useApiClient();
+  const token = useAuthToken();
+  const [data, setData] = useState<StatusData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!semiont) { setLoading(false); return; }
+
+    const fetchStatus = () => {
+      semiont.getStatus({ auth: token ? accessToken(token) : undefined })
+        .then((result) => {
+          setData(result as StatusData);
+          setError(null);
+          setLoading(false);
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setLoading(false);
+        });
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
+  }, [semiont, token]);
 
   const getStatusContent = () => {
-    // Check for users who are logged in but missing backend token (old sessions)
     if (isAuthenticated && !hasValidBackendToken) {
       return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again to reconnect';
     }
 
-    // If user is not authenticated at all, show appropriate message
     if (!isFullyAuthenticated) {
       return '🚀 Frontend Status: Ready • Backend: Authentication required';
     }
 
-    if (status.data) {
-      return `🚀 Frontend Status: Ready • Backend: ${status.data.status} (v${status.data.version})`;
+    if (data) {
+      return `🚀 Frontend Status: Ready • Backend: ${data.status} (v${data.version})`;
     }
 
-    if (status.isLoading) {
+    if (loading) {
       return '🚀 Frontend Status: Ready • Backend: Connecting...';
     }
 
-    if (status.error) {
-      // Check if this is an auth error that might be fixed by re-login
-      const errorMessage = status.error instanceof Error ? status.error.message : String(status.error);
+    if (error) {
+      const errorMessage = error.message;
       if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
         return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again';
       }
@@ -49,7 +78,6 @@ export function StatusDisplay({
   };
 
   const getStatusType = (): 'warning' | 'info' | 'success' | 'loading' | 'error' => {
-    // Check for users who need to re-authenticate
     if (isAuthenticated && !hasValidBackendToken) {
       return 'warning';
     }
@@ -58,11 +86,11 @@ export function StatusDisplay({
       return 'info';
     }
 
-    if (status.data) {
+    if (data) {
       return 'success';
     }
 
-    if (status.isLoading) {
+    if (loading) {
       return 'loading';
     }
 
@@ -85,7 +113,7 @@ export function StatusDisplay({
         <p className="semiont-status-hint">
           Sign in to view backend status
         </p>
-      ) : status.error ? (
+      ) : error ? (
         <p className="semiont-status-hint semiont-status-error-hint" role="alert">
           <span className="sr-only">Error: </span>
           Check that the backend server is running and accessible

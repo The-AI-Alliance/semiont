@@ -7,34 +7,17 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { components, GatheredContext } from '@semiont/core';
-import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
+import type { GatheredContext } from '@semiont/core';
+import { isImageMimeType, isPdfMimeType, LOCALES, type CloneData, type ReferenceData } from '@semiont/api-client';
+import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-
 export interface ResourceComposePageProps {
-  // Mode detection
   mode: 'new' | 'clone' | 'reference';
-
-  // Clone mode data
-  cloneData?: {
-    sourceResource: ResourceDescriptor;
-    sourceContent: string;
-  };
-
-  // Reference completion data
-  referenceData?: {
-    annotationUri: string;
-    sourceDocumentId: string;
-    name: string;
-    entityTypes: string[];
-  };
-
-  // Gathered context from wizard (optional, for reference mode)
+  cloneData?: CloneData | null;
+  referenceData?: ReferenceData | null;
   gatheredContext?: GatheredContext | null;
 
   // Available options

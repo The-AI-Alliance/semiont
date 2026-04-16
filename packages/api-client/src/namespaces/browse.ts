@@ -74,6 +74,11 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly fetchingReferencedBy = new Set<ResourceId>();
   private readonly referencedByObs$ = new Map<ResourceId, Observable<ReferencedByEntry[] | undefined>>();
 
+  // ── Resource events cache ──────────────────────────────────────────────
+  private readonly resourceEvents$ = new BehaviorSubject<Map<ResourceId, StoredEventResponse[]>>(new Map());
+  private readonly fetchingResourceEvents = new Set<ResourceId>();
+  private readonly resourceEventsObs$ = new Map<ResourceId, Observable<StoredEventResponse[] | undefined>>();
+
   private readonly getToken: TokenGetter;
 
   constructor(
@@ -154,6 +159,18 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (!obs) {
       obs = this.referencedBy$.pipe(map(m => m.get(resourceId)), distinctUntilChanged());
       this.referencedByObs$.set(resourceId, obs);
+    }
+    return obs;
+  }
+
+  events(resourceId: ResourceId): Observable<StoredEventResponse[] | undefined> {
+    if (!this.resourceEvents$.value.has(resourceId) && !this.fetchingResourceEvents.has(resourceId)) {
+      this.fetchResourceEventsCache(resourceId);
+    }
+    let obs = this.resourceEventsObs$.get(resourceId);
+    if (!obs) {
+      obs = this.resourceEvents$.pipe(map(m => m.get(resourceId)), distinctUntilChanged());
+      this.resourceEventsObs$.set(resourceId, obs);
     }
     return obs;
   }
@@ -255,6 +272,13 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.fetchReferencedBy(resourceId);
   }
 
+  invalidateResourceEvents(resourceId: ResourceId): void {
+    const next = new Map(this.resourceEvents$.value);
+    next.delete(resourceId);
+    this.resourceEvents$.next(next);
+    this.fetchResourceEventsCache(resourceId);
+  }
+
   updateAnnotationInPlace(resourceId: ResourceId, annotation: Annotation): void {
     const currentList = this.annotationList$.value.get(resourceId);
     if (!currentList) return;
@@ -284,12 +308,14 @@ export class BrowseNamespace implements IBrowseNamespace {
     bus.get('mark:added').subscribe((stored) => {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
+        this.invalidateResourceEvents(stored.resourceId);
       }
     });
 
     bus.get('mark:removed').subscribe((stored) => {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
+        this.invalidateResourceEvents(stored.resourceId);
       }
       this.invalidateAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
     });
@@ -299,12 +325,14 @@ export class BrowseNamespace implements IBrowseNamespace {
       if (!enriched.resourceId || !enriched.annotation) return;
       this.updateAnnotationInPlace(enriched.resourceId as ResourceId, enriched.annotation);
       this.invalidateAnnotationDetail(makeAnnotationId(enriched.annotation.id));
+      this.invalidateResourceEvents(enriched.resourceId as ResourceId);
     });
 
     bus.get('mark:entity-tag-added').subscribe((stored) => {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
         this.invalidateResourceDetail(stored.resourceId);
+        this.invalidateResourceEvents(stored.resourceId);
       }
     });
 
@@ -312,6 +340,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
         this.invalidateResourceDetail(stored.resourceId);
+        this.invalidateResourceEvents(stored.resourceId);
       }
     });
 
@@ -443,6 +472,21 @@ export class BrowseNamespace implements IBrowseNamespace {
       // Leave cache empty
     } finally {
       this.fetchingReferencedBy.delete(resourceId);
+    }
+  }
+
+  private async fetchResourceEventsCache(resourceId: ResourceId): Promise<void> {
+    if (this.fetchingResourceEvents.has(resourceId)) return;
+    this.fetchingResourceEvents.add(resourceId);
+    try {
+      const result = await this.http.getResourceEvents(resourceId, { auth: this.getToken() });
+      const next = new Map(this.resourceEvents$.value);
+      next.set(resourceId, result.events);
+      this.resourceEvents$.next(next);
+    } catch {
+      // Leave cache empty
+    } finally {
+      this.fetchingResourceEvents.delete(resourceId);
     }
   }
 }

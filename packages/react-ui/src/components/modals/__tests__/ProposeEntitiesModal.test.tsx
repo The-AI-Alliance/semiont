@@ -4,6 +4,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { ProposeEntitiesModal } from '../ProposeEntitiesModal';
+import { BehaviorSubject } from 'rxjs';
 
 // Mock HeadlessUI to avoid jsdom OOM issues
 vi.mock('@headlessui/react', () => ({
@@ -17,15 +18,19 @@ vi.mock('@headlessui/react', () => ({
 
 // Stable entity types array to avoid infinite re-render loops
 const mockEntityTypes = ['Person', 'Organization', 'Location'];
-const stableQueryResult = { data: { entityTypes: mockEntityTypes } };
+const entityTypes$ = new BehaviorSubject<string[]>(mockEntityTypes);
 
-vi.mock('../../../lib/api-hooks', () => ({
-  useEntityTypes: vi.fn(() => ({
-    list: {
-      useQuery: () => stableQueryResult,
-    },
-  })),
-}));
+vi.mock('../../../contexts/ApiClientContext', async () => {
+  const actual = await vi.importActual<typeof import('../../../contexts/ApiClientContext')>('../../../contexts/ApiClientContext');
+  return {
+    ...actual,
+    useApiClient: () => ({
+      browse: {
+        entityTypes: () => entityTypes$,
+      },
+    }),
+  };
+});
 
 describe('ProposeEntitiesModal', () => {
   const defaultProps = {

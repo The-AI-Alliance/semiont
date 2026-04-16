@@ -18,23 +18,18 @@ export interface AnnotationProviderProps {
  *
  * Example usage:
  * ```typescript
- * // In app (apps/frontend/src/hooks/useAnnotationManager.ts)
- *
- * function useAnnotationManager(): AnnotationManager {
- *   const annotations = useAnnotations();
- *   const createMutation = annotations.create.useMutation();
- *   const deleteMutation = annotations.delete.useMutation();
- *
+ * function useAnnotationManager(client: SemiontApiClient): AnnotationManager {
  *   return {
  *     markAnnotation: async (params) => {
- *       const result = await createMutation.mutateAsync({
- *         rUri: params.rUri,
- *         data: { motivation: params.motivation, target: { source: params.rUri, selector: params.selector }, body: params.body }
+ *       const result = await client.markAnnotation(params.rUri, {
+ *         motivation: params.motivation,
+ *         target: { source: params.rUri, selector: params.selector },
+ *         body: params.body,
  *       });
  *       return result.annotation;
  *     },
  *     deleteAnnotation: async (params) => {
- *       await deleteMutation.mutateAsync({ resourceId: params.rUri, annotationId: params.annotationId });
+ *       await client.deleteAnnotation(params.rUri, params.annotationId);
  *     }
  *   };
  * }

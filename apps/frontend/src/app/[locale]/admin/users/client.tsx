@@ -5,36 +5,37 @@
  * and delegates rendering to the pure React AdminUsersPage component.
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAdmin, buttonStyles, Toolbar } from '@semiont/react-ui';
-import type { paths } from '@semiont/core';
-import { useQueryClient } from '@tanstack/react-query';
+import { buttonStyles, Toolbar, useApiClient } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
-
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type AdminUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
-type AdminUserStatsResponse = ResponseContent<paths['/api/admin/users/stats']['get']>;
+import { createAdminUsersVM } from '@semiont/react-ui';
+import { useViewModel } from '@semiont/react-ui';
 
 export default function AdminUsers() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminUsers.${k}`, p as any) as string;
-  const queryClient = useQueryClient();
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const semiont = useApiClient();
+  const browseVM = useBrowseVM();
+  const vm = useViewModel(() => createAdminUsersVM(semiont!, browseVM));
+
+  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
+  const users = useObservable(vm.users$) ?? [];
+  const userStats = useObservable(vm.stats$) ?? null;
+  const usersLoading = useObservable(vm.usersLoading$) ?? true;
+  const statsLoading = useObservable(vm.statsLoading$) ?? true;
+
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  // Handle theme change events
   const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
     setTheme(theme);
   }, [setTheme]);
 
-  // Handle line numbers toggle events
   const handleLineNumbersToggled = useCallback(() => {
     toggleLineNumbers();
   }, [toggleLineNumbers]);
@@ -44,37 +45,26 @@ export default function AdminUsers() {
     'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
-  // API hooks
-  const adminAPI = useAdmin();
-  const { data: usersResponse, isLoading: usersLoading } = adminAPI.users.list.useQuery();
-  const { data: statsResponse, isLoading: statsLoading } = adminAPI.users.stats.useQuery();
-  const updateUserMutation = adminAPI.users.update.useMutation();
-
-  const users = (usersResponse as AdminUsersResponse | undefined)?.users ?? [];
-  const userStats = (statsResponse as AdminUserStatsResponse | undefined)?.stats ?? null;
-
-  const handleUpdateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
+  const handleUpdateUser = useCallback(async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
-      await updateUserMutation.mutateAsync({ id, data });
-      queryClient.invalidateQueries({ queryKey: ['admin.users.list'] });
-      queryClient.invalidateQueries({ queryKey: ['admin.users.stats'] });
+      await vm.updateUser(id, data);
     } catch (error) {
       console.error('Failed to update user:', error);
     }
-  };
+  }, [vm]);
 
-  const handleDeleteUser = async (id: string) => {
+  const handleDeleteUser = useCallback(async (id: string) => {
     console.warn('Delete user not implemented:', id);
     alert('Delete user functionality is not currently available');
-  };
+  }, []);
 
-  const handleAddUser = () => {
+  const handleAddUser = useCallback(() => {
     console.log('Add user clicked');
-  };
+  }, []);
 
-  const handleExportUsers = () => {
+  const handleExportUsers = useCallback(() => {
     console.log('Export users clicked');
-  };
+  }, []);
 
   return (
     <AdminUsersPage

@@ -7,7 +7,6 @@
 // Types
 export * from './types/annotation-props';
 export * from './types/AnnotationManager';
-export * from './types/CacheManager';
 export * from './types/navigation';
 export type { OpenResourcesManager, OpenResource } from './types/OpenResourcesManager';
 export * from './types/knowledge-base';
@@ -16,19 +15,18 @@ export * from './types/resource-viewer';
 
 // Lib utilities
 export * from './lib/annotation-registry';
-export * from './lib/api-hooks';
 export * from './lib/button-styles';
 export * from './lib/codemirror-json-theme';
 export * from './lib/codemirror-widgets';
 export * from './lib/media-shapes';
-export * from './lib/query-keys';
-export * from './lib/search-pipeline';
+export { createSearchPipeline, type SearchPipeline, type SearchPipelineOptions, type SearchState } from '@semiont/api-client';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
 export * from './lib/tag-schemas';
 export * from './lib/validation';
 
 // Hooks
+export * from './hooks/useViewModel';
 export * from './hooks/useDebounce';
 export * from './lib/formatTime';
 export * from './hooks/useKeyboardShortcuts';
@@ -38,6 +36,7 @@ export * from './hooks/useObservableBrowse';
 export * from './hooks/usePanelWidth';
 export * from './hooks/useResourceEvents';
 export * from './hooks/useGlobalEvents';
+export * from './hooks/useJobReplayBridge';
 export * from './hooks/useRovingTabIndex';
 export * from './hooks/useSessionExpiry';
 export * from './contexts/ThemeContext';
@@ -50,7 +49,6 @@ export * from './hooks/useResourceContent';
 export * from './contexts/AnnotationContext';
 export * from './contexts/ApiClientContext';
 export * from './contexts/AuthTokenContext';
-export * from './contexts/CacheContext';
 export * from './contexts/EventBusContext';
 
 export * from './contexts/useEventSubscription';
@@ -215,11 +213,25 @@ export * from './features/resource-compose/components/ResourceComposePage';
 export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
-export * from './hooks/useBeckonFlow';
-export * from './hooks/useMarkFlow';
-export * from './hooks/usePanelBrowse';
-export * from './hooks/useYieldFlow';
-export * from './hooks/useContextGatherFlow';
-export * from './hooks/useBindFlow';
+export * from './hooks/useHoverEmitter';
+export * from './hooks/useAttentionStream';
+export { createBeckonVM, type BeckonVM, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/api-client';
+export { createMarkVM, type MarkVM, type PendingAnnotation } from '@semiont/api-client';
+export { createBrowseVM, type BrowseVM, type BrowseVMOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from '@semiont/api-client';
+export * from './hooks/useBrowseVM';
+export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/api-client';
+export { createGatherVM, type GatherVM } from '@semiont/api-client';
+export { createMatchVM, type MatchVM } from '@semiont/api-client';
+export { createBindVM, type BindVM } from '@semiont/api-client';
+export { createDiscoverVM, type DiscoverVM } from '@semiont/api-client';
+export { createResourceViewerPageVM, type ResourceViewerPageVM, type WizardState, type AnnotationGroups } from '@semiont/api-client';
+export { createComposePageVM, type ComposePageVM, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from '@semiont/api-client';
+export { createEntityTagsVM, type EntityTagsVM } from '@semiont/api-client';
+export { createExchangeVM, type ExchangeVM } from '@semiont/api-client';
+export { createAdminUsersVM, type AdminUsersVM } from '@semiont/api-client';
+export { createAdminSecurityVM, type AdminSecurityVM } from '@semiont/api-client';
+export { createWelcomeVM, type WelcomeVM } from '@semiont/api-client';
+export { createResourceLoaderVM, type ResourceLoaderVM } from '@semiont/api-client';
+export { createSessionVM, type SessionVM } from '@semiont/api-client';
 export * from './hooks/useObservable';
 export * from './hooks/useStoreTokenSync';

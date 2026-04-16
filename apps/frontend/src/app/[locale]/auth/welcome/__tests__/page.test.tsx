@@ -33,7 +33,7 @@ const ACTIVE_KB = {
 
 const mockSignOut = vi.fn();
 const mockUseKbSession = vi.fn();
-const mockMeQuery = vi.fn();
+const mockGetMe = vi.fn();
 const mockAcceptTerms = vi.fn();
 
 vi.mock('@semiont/react-ui', async () => {
@@ -41,15 +41,11 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useKnowledgeBaseSession: () => mockUseKbSession(),
-    useAuthApi: () => ({
-      me: { useQuery: () => mockMeQuery() },
-      acceptTerms: {
-        useMutation: () => ({
-          mutateAsync: mockAcceptTerms,
-          isPending: false,
-        }),
-      },
+    useApiClient: () => ({
+      getMe: mockGetMe,
+      acceptTerms: mockAcceptTerms,
     }),
+    useAuthToken: () => 'test-token',
     useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
     PageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     // The library WelcomePage is a presentational component that takes
@@ -76,7 +72,7 @@ beforeEach(() => {
     activeKnowledgeBase: ACTIVE_KB,
     signOut: mockSignOut,
   });
-  mockMeQuery.mockReturnValue({ data: { termsAcceptedAt: null } });
+  mockGetMe.mockResolvedValue({ termsAcceptedAt: null });
 });
 
 describe('Welcome page — decline terms flow', () => {

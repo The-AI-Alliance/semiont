@@ -1,72 +1,41 @@
-/**
- * Entity Tags Page - Thin Next.js wrapper
- *
- * This page handles Next.js-specific concerns (translations, API calls)
- * and delegates rendering to the pure React EntityTagsPage component.
- */
-
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useEntityTypes, Toolbar } from '@semiont/react-ui';
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  Toolbar,
+  useTheme,
+  useBrowseVM,
+  useObservable,
+  useLineNumbers,
+  useEventSubscriptions,
+  useApiClient,
+  useViewModel,
+  EntityTagsPage,
+} from '@semiont/react-ui';
+import { createEntityTagsVM } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
-import { EntityTagsPage } from '@semiont/react-ui';
-
-// Authentication is handled by middleware (proxy.ts)
-// Only authenticated moderators/admins can reach this page
 
 export default function EntityTagsPageWrapper() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateEntityTags.${k}`, p as any) as string;
-  const [newTag, setNewTag] = useState('');
-  const [error, setError] = useState('');
-  const queryClient = useQueryClient();
+  const client = useApiClient();
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const vm = useViewModel(() => createEntityTagsVM(client, browseVM));
+
+  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
+  const entityTypes = useObservable(vm.entityTypes$) ?? [];
+  const isLoading = useObservable(vm.isLoading$) ?? true;
+  const newTag = useObservable(vm.newTag$) ?? '';
+  const error = useObservable(vm.error$) ?? '';
+  const isAddingTag = useObservable(vm.isAdding$) ?? false;
+
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
-
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
   useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
+    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
+    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
-
-  // API hooks
-  const entityTypesAPI = useEntityTypes();
-
-  // Query entity types with auto-refetch for cross-browser updates
-  const { data: entityTypesData, isLoading } = entityTypesAPI.list.useQuery({
-    refetchInterval: 30000,
-    refetchIntervalInBackground: true,
-  });
-  const entityTypes = entityTypesData?.entityTypes || [];
-
-  // Mutation for creating new entity type
-  const createEntityTypeMutation = entityTypesAPI.add.useMutation();
-
-  const handleAddTag = async () => {
-    if (!newTag.trim()) return;
-
-    setError('');
-
-    try {
-      await createEntityTypeMutation.mutateAsync(newTag.trim());
-      queryClient.invalidateQueries({ queryKey: ['/api/entity-types'] });
-      setNewTag('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorFailedToAdd'));
-    }
-  };
 
   if (isLoading) {
     return (
@@ -78,13 +47,13 @@ export default function EntityTagsPageWrapper() {
 
   return (
     <EntityTagsPage
-      entityTypes={entityTypes as string[]}
+      entityTypes={entityTypes}
       isLoading={isLoading}
       error={error}
       newTag={newTag}
-      onNewTagChange={setNewTag}
-      onAddTag={handleAddTag}
-      isAddingTag={createEntityTypeMutation.isPending}
+      onNewTagChange={vm.setNewTag}
+      onAddTag={vm.addTag}
+      isAddingTag={isAddingTag}
       theme={theme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}

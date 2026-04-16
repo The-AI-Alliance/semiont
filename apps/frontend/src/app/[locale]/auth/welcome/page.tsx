@@ -9,8 +9,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useAuthApi, useKnowledgeBaseSession } from '@semiont/react-ui';
+import { PageLayout, useToast, useKnowledgeBaseSession, useApiClient, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
+import { createWelcomeVM } from '@semiont/react-ui';
+import { useViewModel } from '@semiont/react-ui';
 
 export default function Welcome() {
   const { t: _t } = useTranslation();
@@ -20,14 +22,11 @@ export default function Welcome() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
 
-  // API hooks
-  const authAPI = useAuthApi();
+  const semiont = useApiClient();
+  const vm = useViewModel(() => createWelcomeVM(semiont!));
 
-  // Query user data to check if terms already accepted
-  const { data: userData } = authAPI.me.useQuery();
-
-  // Mutation for accepting terms
-  const acceptTermsMutation = authAPI.acceptTerms.useMutation();
+  const userData = useObservable(vm.userData$);
+  const isProcessing = useObservable(vm.isProcessing$) ?? false;
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -37,14 +36,7 @@ export default function Welcome() {
       return;
     }
 
-    // Check if user has accepted terms
     if (userData?.termsAcceptedAt) {
-      router.push('/');
-      return;
-    }
-
-    // If terms already accepted, redirect to main app
-    if (isAuthenticated && userData !== undefined && userData?.termsAcceptedAt) {
       router.push('/');
       return;
     }
@@ -52,7 +44,6 @@ export default function Welcome() {
 
   const handleTermsAcceptance = async (accepted: boolean) => {
     if (!accepted) {
-      // User declined terms - sign out of the active KB and redirect to home
       if (activeKnowledgeBase) {
         signOut(activeKnowledgeBase.id);
       }
@@ -61,10 +52,9 @@ export default function Welcome() {
     }
 
     try {
-      await acceptTermsMutation.mutateAsync();
+      await vm.acceptTerms();
       setTermsAccepted(true);
 
-      // Small delay to show the acceptance state
       setTimeout(() => {
         router.push('/');
       }, 1000);
@@ -74,7 +64,6 @@ export default function Welcome() {
     }
   };
 
-  // Determine status
   const pageStatus = isLoading ? 'loading' : termsAccepted ? 'accepted' : 'form';
   const firstName = user?.name?.split(' ')[0] ?? '';
 
@@ -84,7 +73,7 @@ export default function Welcome() {
       termsAcceptedAt={userData?.termsAcceptedAt ?? null}
       isNewUser={!userData?.termsAcceptedAt}
       status={pageStatus}
-      isProcessing={acceptTermsMutation.isPending}
+      isProcessing={isProcessing}
       onAccept={() => handleTermsAcceptance(true)}
       onDecline={() => handleTermsAcceptance(false)}
       translations={{

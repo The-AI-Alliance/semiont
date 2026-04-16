@@ -30,6 +30,7 @@ import { printSuccess } from '../io/cli-logger.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
 import type { SemiontApiClient } from '@semiont/api-client';
+import { createMarkVM } from '@semiont/api-client';
 import type { AccessToken } from '@semiont/core';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -75,7 +76,7 @@ export const MarkOptionsSchema = ApiOptionsSchema.extend({
   // ── Delegate mode: shared ──────────────────────────────────────────────
   instructions: z.string().optional(),
   density: z.coerce.number().int().optional(),
-  tone: z.string().optional(),
+  tone: z.enum(['scholarly', 'explanatory', 'conversational', 'technical', 'analytical', 'critical', 'balanced', 'constructive']).optional(),
 
   // ── Delegate mode: linking ─────────────────────────────────────────────
   entityType: z.array(z.string()).default([]),
@@ -229,33 +230,45 @@ async function runDelegate(
   options: MarkOptions,
 ): Promise<{ motivation: string; resourceId: string; createdCount: number }> {
   const rawResourceId = options.resourceIdArr[0];
-  const resourceId = toResourceId(rawResourceId);
+  const rId = toResourceId(rawResourceId);
   const { motivation, instructions, density, tone, entityType, includeDescriptive, schemaId, category } = options;
 
   if (!options.quiet) process.stderr.write(`Annotating ${motivation} on ${rawResourceId}...\n`);
 
-  const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
-    semiont.mark.assist(resourceId, motivation as Motivation, {
-      instructions,
-      density,
-      tone: tone as string | undefined,
-      entityTypes: entityType as string[] | undefined,
-      includeDescriptiveReferences: includeDescriptive,
-      schemaId: schemaId as string | undefined,
-      categories: category as string[] | undefined,
-    }).subscribe({
-      next: (progress) => {
-        if ('foundCount' in progress) {
-          resolve({ createdCount: progress.createdCount ?? 0 });
-        }
-      },
-      error: (err) => reject(err),
-      complete: () => resolve({ createdCount: 0 }),
-    });
-  });
+  const eventBus = semiont.eventBus;
+  const vm = createMarkVM(semiont, eventBus, rId);
 
-  if (!options.quiet) process.stderr.write(`✓ ${result.createdCount} annotations created\n`);
-  return { motivation, resourceId: rawResourceId, createdCount: result.createdCount };
+  try {
+    eventBus.get('mark:assist-request').next({
+      motivation: motivation as Motivation,
+      options: {
+        instructions,
+        density,
+        tone,
+        entityTypes: entityType as string[] | undefined,
+        includeDescriptiveReferences: includeDescriptive,
+        schemaId: schemaId as string | undefined,
+        categories: category as string[] | undefined,
+      },
+    });
+
+    const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
+      const finishedSub = eventBus.get('mark:assist-finished').subscribe((event) => {
+        cleanup();
+        resolve({ createdCount: (event as any).createdCount ?? 0 });
+      });
+      const failedSub = eventBus.get('mark:assist-failed').subscribe((event) => {
+        cleanup();
+        reject(new Error((event as any).message ?? 'Annotation failed'));
+      });
+      function cleanup() { finishedSub.unsubscribe(); failedSub.unsubscribe(); }
+    });
+
+    if (!options.quiet) process.stderr.write(`✓ ${result.createdCount} annotations created\n`);
+    return { motivation, resourceId: rawResourceId, createdCount: result.createdCount };
+  } finally {
+    vm.dispose();
+  }
 }
 
 // =====================================================================

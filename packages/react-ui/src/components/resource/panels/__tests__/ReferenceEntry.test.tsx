@@ -46,7 +46,7 @@ vi.mock('../../../../hooks/useObservableBrowse', () => ({
   useObservableExternalNavigation: () => mockNavigate,
 }));
 
-vi.mock('../../../../hooks/useBeckonFlow', () => ({
+vi.mock('../../../../hooks/useHoverEmitter', () => ({
   useHoverEmitter: () => mockHoverProps,
 }));
 

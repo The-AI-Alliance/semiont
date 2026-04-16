@@ -5,7 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 type Annotation = components['schemas']['Annotation'];
 

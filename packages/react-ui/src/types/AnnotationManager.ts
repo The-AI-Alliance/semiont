@@ -26,19 +26,16 @@ export interface DeleteAnnotationParams {
  * Framework-agnostic interface for annotation mutations.
  * Apps provide implementations via AnnotationProvider.
  *
- * Example implementation (React Query):
+ * Example implementation:
  * ```typescript
- * function useAnnotationManager(): AnnotationManager {
- *   const createMutation = useAnnotations().create.useMutation();
- *   const deleteMutation = useAnnotations().delete.useMutation();
- *
+ * function useAnnotationManager(client: SemiontApiClient): AnnotationManager {
  *   return {
  *     markAnnotation: async (params) => {
- *       const result = await createMutation.mutateAsync({...});
+ *       const result = await client.markAnnotation(params.rUri, {...});
  *       return result.annotation;
  *     },
  *     deleteAnnotation: async (params) => {
- *       await deleteMutation.mutateAsync({...});
+ *       await client.deleteAnnotation(params.rUri, params.annotationId);
  *     }
  *   };
  * }

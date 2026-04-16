@@ -4,11 +4,10 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
 import type { components } from '@semiont/core';
-import { getResourceId, getPrimaryRepresentation } from '@semiont/api-client';
+import { getResourceId, getPrimaryRepresentation, createSearchPipeline } from '@semiont/api-client';
 import { useApiClient } from '../../contexts/ApiClientContext';
 import { useObservable } from '../../hooks/useObservable';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
-import { createSearchPipeline } from '../../lib/search-pipeline';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

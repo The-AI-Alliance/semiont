@@ -11,7 +11,7 @@ import { resourceId as toResourceId, annotationId as toAnnotationId } from '@sem
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
-import { useCacheManager } from '../../contexts/CacheContext';
+import { useApiClient } from '../../contexts/ApiClientContext';
 import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
@@ -120,27 +120,19 @@ export function ResourceViewer({
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
 
-  // Event-based cache invalidation - subscribe to make-meaning events
-  // This replaces manual onRefetchAnnotations calls with automatic updates
-  const cacheManager = useCacheManager();
+  const semiont = useApiClient();
 
   const handleAnnotateAdded = useCallback(() => {
-    if (cacheManager) {
-      cacheManager.invalidateAnnotations(rUri);
-    }
-  }, [cacheManager, rUri]);
+    semiont?.browse.invalidateAnnotationList(rUri);
+  }, [semiont, rUri]);
 
   const handleAnnotateRemoved = useCallback(() => {
-    if (cacheManager) {
-      cacheManager.invalidateAnnotations(rUri);
-    }
-  }, [cacheManager, rUri]);
+    semiont?.browse.invalidateAnnotationList(rUri);
+  }, [semiont, rUri]);
 
   const handleAnnotateBodyUpdated = useCallback(() => {
-    if (cacheManager) {
-      cacheManager.invalidateAnnotations(rUri);
-    }
-  }, [cacheManager, rUri]);
+    semiont?.browse.invalidateAnnotationList(rUri);
+  }, [semiont, rUri]);
 
   // Annotation toolbar state - persisted in localStorage
   const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {

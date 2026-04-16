@@ -2,8 +2,7 @@
 
 import { useMemo } from 'react';
 import type { components } from '@semiont/core';
-import { createHoverHandlers } from '../../hooks/useBeckonFlow';
-import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
+import { createHoverHandlers, getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
 import type { EventBus } from "@semiont/core"
 

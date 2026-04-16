@@ -11,7 +11,7 @@ import { getResourceIcon } from '../../../lib/resource-utils';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 type Annotation = components['schemas']['Annotation'];
 

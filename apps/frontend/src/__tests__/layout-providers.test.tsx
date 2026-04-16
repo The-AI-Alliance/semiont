@@ -12,7 +12,6 @@
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import React from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import {
   useAuthToken,
@@ -56,6 +55,7 @@ vi.mock('@semiont/react-ui', async () => {
     }),
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     getKbSessionStatus: () => 'authenticated',
+    useJobReplayBridge: () => {},
   };
 });
 
@@ -65,12 +65,6 @@ vi.mock('@/hooks/useOpenResourcesManager', () => ({
     openResource: vi.fn(),
     closeResource: vi.fn(),
     setActiveResource: vi.fn(),
-  }),
-}));
-
-vi.mock('@/hooks/useCacheManager', () => ({
-  useCacheManager: () => ({
-    invalidate: vi.fn(),
   }),
 }));
 
@@ -104,15 +98,8 @@ vi.mock('@/contexts/AuthShell', () => ({
 
 
 describe('Layout Providers', () => {
-  let queryClient: QueryClient;
-
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
+    vi.clearAllMocks();
   });
 
   describe('Admin Layout', () => {
@@ -274,17 +261,15 @@ describe('Layout Providers', () => {
       };
 
       render(
-        <QueryClientProvider client={queryClient}>
-          <EventBusProvider>
-            <MemoryRouter initialEntries={['/en/test']}>
-              <Routes>
-                <Route element={<KnowledgeLayout />}>
-                  <Route path="*" element={<TestComponent />} />
-                </Route>
-              </Routes>
-            </MemoryRouter>
-          </EventBusProvider>
-        </QueryClientProvider>
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<KnowledgeLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
       );
 
       expect(screen.getByText(/Token:/)).toBeInTheDocument();
@@ -299,17 +284,15 @@ describe('Layout Providers', () => {
       };
 
       render(
-        <QueryClientProvider client={queryClient}>
-          <EventBusProvider>
-            <MemoryRouter initialEntries={['/en/test']}>
-              <Routes>
-                <Route element={<KnowledgeLayout />}>
-                  <Route path="*" element={<TestComponent />} />
-                </Route>
-              </Routes>
-            </MemoryRouter>
-          </EventBusProvider>
-        </QueryClientProvider>
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<KnowledgeLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
       );
 
       expect(screen.getByText('Client: present')).toBeInTheDocument();
@@ -324,17 +307,15 @@ describe('Layout Providers', () => {
       };
 
       render(
-        <QueryClientProvider client={queryClient}>
-          <EventBusProvider>
-            <MemoryRouter initialEntries={['/en/test']}>
-              <Routes>
-                <Route element={<KnowledgeLayout />}>
-                  <Route path="*" element={<TestComponent />} />
-                </Route>
-              </Routes>
-            </MemoryRouter>
-          </EventBusProvider>
-        </QueryClientProvider>
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<KnowledgeLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
       );
 
       expect(screen.getByText('EventBus: present')).toBeInTheDocument();
@@ -353,17 +334,15 @@ describe('Layout Providers', () => {
       };
 
       render(
-        <QueryClientProvider client={queryClient}>
-          <EventBusProvider>
-            <MemoryRouter initialEntries={['/en/test']}>
-              <Routes>
-                <Route element={<KnowledgeLayout />}>
-                  <Route path="*" element={<TestComponent />} />
-                </Route>
-              </Routes>
-            </MemoryRouter>
-          </EventBusProvider>
-        </QueryClientProvider>
+        <EventBusProvider>
+          <MemoryRouter initialEntries={['/en/test']}>
+            <Routes>
+              <Route element={<KnowledgeLayout />}>
+                <Route path="*" element={<TestComponent />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </EventBusProvider>
       );
 
       expect(screen.getByText('All Providers: yes')).toBeInTheDocument();

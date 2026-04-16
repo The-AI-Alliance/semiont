@@ -1,107 +1,79 @@
-/**
- * Linked Data Client - Thin Next.js wrapper
- *
- * Handles Next.js-specific concerns (translations, API calls, hooks)
- * and delegates rendering to the pure React LinkedDataPage component.
- */
-
-import React, { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useModeration, Toolbar } from '@semiont/react-ui';
+import {
+  Toolbar,
+  useTheme,
+  useBrowseVM,
+  useObservable,
+  useLineNumbers,
+  useEventSubscriptions,
+  useApiClient,
+  useAuthToken,
+  useViewModel,
+  LinkedDataPage,
+} from '@semiont/react-ui';
+import { createExchangeVM } from '@semiont/api-client';
+import { accessToken } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
-import { LinkedDataPage } from '@semiont/react-ui';
-import type { ImportPreview } from '@semiont/react-ui';
 
 export default function LinkedDataClient() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerationLinkedData.${k}`, p as any) as string;
+  const client = useApiClient();
+  const token = useAuthToken();
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseVM = useBrowseVM();
+  const vm = useViewModel(() => createExchangeVM(
+    browseVM,
+    (params, opts) => client.exportKnowledgeBase(params, opts),
+    (file, opts) => client.importKnowledgeBase(file, opts),
+  ));
+
+  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
+  const selectedFile = useObservable(vm.selectedFile$) ?? null;
+  const preview = useObservable(vm.preview$) ?? null;
+  const isExporting = useObservable(vm.isExporting$) ?? false;
+  const isImporting = useObservable(vm.isImporting$) ?? false;
+  const importPhase = useObservable(vm.importPhase$) ?? null;
+  const importMessage = useObservable(vm.importMessage$);
+  const importResult = useObservable(vm.importResult$);
+
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
-
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
   useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
+    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
+    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
 
-  // API hooks
-  const moderationAPI = useModeration();
-  const exportMutation = moderationAPI.exchange.export.useMutation();
-  const importMutation = moderationAPI.exchange.import.useMutation();
+  const auth = token ? accessToken(token) : undefined;
 
-  // Local state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [importPhase, setImportPhase] = useState<string | null>(null);
-  const [importMessage, setImportMessage] = useState<string | undefined>();
-  const [importResult, setImportResult] = useState<Record<string, unknown> | undefined>();
+  const handleExport = useCallback(async () => {
+    if (!auth) return;
+    const { blob, filename } = await vm.doExport(auth);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [vm, auth]);
 
-  const handleExport = useCallback(() => {
-    exportMutation.mutate({});
-  }, [exportMutation]);
-
-  const handleFileSelected = useCallback(async (file: File) => {
-    setSelectedFile(file);
-    setImportPhase(null);
-    setImportMessage(undefined);
-    setImportResult(undefined);
-
-    setPreview({
-      format: file.name.endsWith('.tar.gz') || file.name.endsWith('.gz') ? 'semiont-linked-data' : 'unknown',
-      version: 1,
-      sourceUrl: '',
-      stats: {},
-    });
-  }, []);
-
-  const handleImport = useCallback(() => {
-    if (!selectedFile) return;
-
-    setImportPhase('started');
-    setImportMessage(undefined);
-    setImportResult(undefined);
-
-    importMutation.mutate({
-      file: selectedFile,
-      onProgress: (event) => {
-        setImportPhase(event.phase);
-        setImportMessage(event.message);
-        if (event.result) {
-          setImportResult(event.result);
-        }
-      },
-    });
-  }, [selectedFile, importMutation]);
-
-  const handleCancelImport = useCallback(() => {
-    setSelectedFile(null);
-    setPreview(null);
-    setImportPhase(null);
-    setImportMessage(undefined);
-    setImportResult(undefined);
-  }, []);
+  const handleImport = useCallback(async () => {
+    if (!auth) return;
+    await vm.doImport(auth);
+  }, [vm, auth]);
 
   return (
     <LinkedDataPage
       onExport={handleExport}
-      isExporting={exportMutation.isPending}
-      onFileSelected={handleFileSelected}
+      isExporting={isExporting}
+      onFileSelected={vm.selectFile}
       onImport={handleImport}
-      onCancelImport={handleCancelImport}
+      onCancelImport={vm.cancelImport}
       selectedFile={selectedFile}
       preview={preview}
-      isImporting={importMutation.isPending}
+      isImporting={isImporting}
       importPhase={importPhase}
       importMessage={importMessage}
       importResult={importResult}

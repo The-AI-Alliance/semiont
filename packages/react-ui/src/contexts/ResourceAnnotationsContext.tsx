@@ -1,7 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { useAnnotations } from '../lib/api-hooks';
+import { useApiClient } from './ApiClientContext';
+import { useAuthToken } from './AuthTokenContext';
+import { accessToken } from '@semiont/core';
 import type { components, AnnotationId, ResourceId, Selector } from '@semiont/core';
 import { useLiveRegion } from '../components/LiveRegion';
 
@@ -40,19 +42,16 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // Live region announcements
   const { announce } = useLiveRegion();
 
-  // API hooks
-  const annotations = useAnnotations();
+  const semiont = useApiClient();
+  const token = useAuthToken();
 
-  // Set up mutation hooks
-  const markAnnotationMutation = annotations.create.useMutation();
-
-  // Generic annotation creation function (supports both text and image annotations)
   const markAnnotation = useCallback(async (
     rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body: any[] = []
   ): Promise<string | undefined> => {
+    if (!semiont) throw new Error('Not authenticated');
     try {
       const createData: CreateAnnotationRequest = {
         motivation,
@@ -63,9 +62,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         body,
       };
 
-      const result = await markAnnotationMutation.mutateAsync({
-        resourceId: rUri,
-        data: createData
+      const result = await semiont.markAnnotation(rUri, createData, {
+        auth: token ? accessToken(token) : undefined,
       });
 
       // Track this as a new annotation for sparkle animation
@@ -91,7 +89,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       announce('Failed to create annotation', 'assertive');
       throw err;
     }
-  }, [markAnnotationMutation, announce]);
+  }, [semiont, token, announce]);
 
   const clearNewAnnotationId = useCallback((id: AnnotationId) => {
     setNewAnnotationIds(prev => {

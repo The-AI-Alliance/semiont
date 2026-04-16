@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import { createHoverHandlers } from '../../hooks/useBeckonFlow';
 import type { components } from '@semiont/core';
-import { getTargetSelector } from '@semiont/api-client';
+import { createHoverHandlers, getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"
 import {

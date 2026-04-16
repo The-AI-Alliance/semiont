@@ -9,7 +9,6 @@
 
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   TranslationProvider,
   ApiClientProvider,
@@ -30,11 +29,7 @@ import type {
   OpenResourcesManager,
 } from '@semiont/react-ui';
 
-export interface FrontendTestOptions extends Omit<TestProvidersOptions, 'queryClient'> {
-  /**
-   * Optional QueryClient instance for testing
-   */
-  queryClient?: QueryClient;
+export interface FrontendTestOptions extends TestProvidersOptions {
 }
 
 /**
@@ -49,16 +44,8 @@ export function renderWithProviders(
     apiBaseUrl = 'http://localhost:4000',
     knowledgeBaseSession = defaultMockKnowledgeBaseSession,
     openResourcesManager = defaultMocks.openResourcesManager,
-    queryClient: providedQueryClient,
     ...renderOptions
   } = options || {};
-
-  const testQueryClient: QueryClient = providedQueryClient ?? new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -66,11 +53,9 @@ export function renderWithProviders(
         <ApiClientProvider baseUrl={apiBaseUrl}>
           <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <QueryClientProvider client={testQueryClient}>
-                <ToastProvider>
-                  {children}
-                </ToastProvider>
-              </QueryClientProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
             </OpenResourcesProvider>
           </KnowledgeBaseSessionContext.Provider>
         </ApiClientProvider>

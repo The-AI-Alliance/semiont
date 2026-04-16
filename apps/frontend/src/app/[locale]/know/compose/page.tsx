@@ -1,32 +1,29 @@
 "use client";
 
-/**
- * Resource Compose Page - Thin Next.js wrapper
- *
- * This page handles Next.js-specific concerns (routing, auth, data loading, hooks)
- * and delegates rendering to the pure React ResourceComposePage component.
- */
-
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocale } from '@/i18n/routing';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'react-router-dom';
-import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken, useKnowledgeBaseSession } from '@semiont/react-ui';
-import { useToast } from '@semiont/react-ui';
-import { useTheme } from '@semiont/react-ui';
-import { usePanelBrowse } from '@semiont/react-ui';
-import { useLineNumbers } from '@semiont/react-ui';
-import { useHoverDelay } from '@semiont/react-ui';
-import { useEventSubscriptions } from '@semiont/react-ui';
-import { Toolbar } from '@semiont/react-ui';
+import {
+  useApiClient,
+  useKnowledgeBaseSession,
+  useToast,
+  useTheme,
+  useBrowseVM,
+  useObservable,
+  useLineNumbers,
+  useHoverDelay,
+  useEventSubscriptions,
+  useViewModel,
+  Toolbar,
+  ComposeLoadingState,
+  ResourceComposePage,
+} from '@semiont/react-ui';
+import type { SaveResourceParams as UISaveResourceParams } from '@semiont/react-ui';
+import { createComposePageVM } from '@semiont/api-client';
+import type { AccessToken } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { resourceId as toResourceId, annotationId as toAnnotationId, ContentFormat, AccessToken, type GatheredContext } from '@semiont/core';
-import { getPrimaryMediaType } from '@semiont/api-client';
-import { decodeWithCharset } from '@semiont/api-client';
-import { ComposeLoadingState } from '@semiont/react-ui';
-import { ResourceComposePage } from '@semiont/react-ui';
-import type { SaveResourceParams } from '@semiont/react-ui';
 
 function ComposeResourceContent() {
   const { t: _t } = useTranslation();
@@ -36,224 +33,72 @@ function ComposeResourceContent() {
   const [searchParams] = useSearchParams();
   const { isAuthenticated, isLoading: authLoading, token: authToken } = useKnowledgeBaseSession();
   const { showError, showSuccess } = useToast();
-  const mode = searchParams?.get('mode');
-  const tokenFromUrl = searchParams?.get('token');
+  const client = useApiClient();
 
-  // Authentication guard - redirect to home if not authenticated
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthenticated) {
-      router.push('/');
-    }
+    if (!isAuthenticated) router.push('/');
   }, [authLoading, isAuthenticated, router]);
 
-  // Reference completion parameters
-  const annotationUriParam = searchParams?.get('annotationUri');
-  const sourceDocumentId = searchParams?.get('sourceDocumentId');
-  const nameFromUrl = searchParams?.get('name');
-  const entityTypesFromUrl = searchParams?.get('entityTypes');
+  const browseVM = useBrowseVM();
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [cloneData, setCloneData] = useState<any>(null);
-  const [referenceData, setReferenceData] = useState<any>(null);
-  const [gatheredContext, setGatheredContext] = useState<GatheredContext | null>(null);
+  const contextKey = searchParams?.get('annotationUri')
+    ? `gather-context:${searchParams.get('annotationUri')}`
+    : null;
+  const storedContext = contextKey && typeof sessionStorage !== 'undefined'
+    ? sessionStorage.getItem(contextKey) ?? undefined
+    : undefined;
+  if (contextKey && storedContext && typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem(contextKey);
+  }
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const vm = useViewModel(() => createComposePageVM(client, browseVM, {
+    mode: searchParams?.get('mode') ?? undefined,
+    token: searchParams?.get('token') ?? undefined,
+    annotationUri: searchParams?.get('annotationUri') ?? undefined,
+    sourceDocumentId: searchParams?.get('sourceDocumentId') ?? undefined,
+    name: searchParams?.get('name') ?? undefined,
+    entityTypes: searchParams?.get('entityTypes') ?? undefined,
+    storedContext,
+  }, authToken as AccessToken | undefined));
+
+  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
+  const pageMode = useObservable(vm.mode$) ?? 'new';
+  const isLoading = useObservable(vm.loading$) ?? true;
+  const cloneData = useObservable(vm.cloneData$) ?? null;
+  const referenceData = useObservable(vm.referenceData$) ?? null;
+  const gatheredContext = useObservable(vm.gatheredContext$) ?? null;
+  const availableEntityTypes = useObservable(vm.entityTypes$) ?? [];
+
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
 
-  // Subscribe to settings events
   useEventSubscriptions({
     'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
     'settings:line-numbers-toggled': () => toggleLineNumbers(),
   });
 
-  // API hooks
-  const resources = useResources();
-  const annotations = useAnnotations();
-  const entityTypesAPI = useEntityTypes();
-  const client = useApiClient();
-  const token = useAuthToken();
-
-  // Fetch available entity types
-  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
-  const availableEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
-
-  // Set up mutation hooks
-  const createResourceMutation = resources.create.useMutation();
-  const updateAnnotationBodyMutation = annotations.updateBody.useMutation();
-
-  // Fetch cloned resource data if in clone mode
-  const { data: cloneDataResponse } = resources.getByToken.useQuery(tokenFromUrl || '');
-  const createFromTokenMutation = resources.createFromToken.useMutation();
-
-  // Determine mode
-  const isReferenceMode = Boolean(annotationUriParam && sourceDocumentId && nameFromUrl);
-  const isCloneMode = mode === 'clone' && Boolean(tokenFromUrl);
-  const pageMode = isCloneMode ? 'clone' : isReferenceMode ? 'reference' : 'new';
-
-  // Load cloned resource data or reference completion data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      // Handle reference completion mode
-      if (isReferenceMode) {
-        const entityTypes = entityTypesFromUrl ? entityTypesFromUrl.split(',') : [];
-        setReferenceData({
-          annotationUri: annotationUriParam!,
-          sourceDocumentId: sourceDocumentId!,
-          name: nameFromUrl!,
-          entityTypes,
-        });
-
-        // Read gathered context from sessionStorage (stored by wizard)
-        const contextKey = `gather-context:${annotationUriParam}`;
-        const stored = sessionStorage.getItem(contextKey);
-        if (stored) {
-          try {
-            setGatheredContext(JSON.parse(stored));
-          } catch {
-            // Ignore malformed context
-          }
-          sessionStorage.removeItem(contextKey);
-        }
-
-        setIsLoading(false);
-        return;
-      }
-
-      // Handle clone mode
-      if (isCloneMode && cloneDataResponse) {
-        if (cloneDataResponse.sourceResource && client && token) {
-          try {
-            const rId = toResourceId(cloneDataResponse.sourceResource['@id']);
-            const mediaType = getPrimaryMediaType(cloneDataResponse.sourceResource) || 'text/plain';
-            const { data } = await client.getResourceRepresentation(rId, {
-              accept: mediaType as ContentFormat,
-              auth: token as AccessToken,
-            });
-            const content = decodeWithCharset(data, mediaType);
-
-            setCloneData({
-              sourceResource: cloneDataResponse.sourceResource,
-              sourceContent: content,
-            });
-          } catch (error) {
-            console.error('Failed to fetch representation:', error);
-            showError('Failed to load resource representation');
-          }
-        } else {
-          showError('Invalid or expired clone token');
-          router.push('/know/discover');
-        }
-        setIsLoading(false);
-      } else if (isCloneMode && !tokenFromUrl) {
-        showError('Clone token not found. Please try cloning again.');
-        router.push('/know/discover');
-      } else {
-        setIsLoading(false);
-      }
-    };
-
-    loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, tokenFromUrl, cloneDataResponse, annotationUriParam, sourceDocumentId, nameFromUrl, entityTypesFromUrl, authToken]);
-
-  // Handle save resource
-  const handleSaveResource = async (params: SaveResourceParams) => {
+  const handleSaveResource = async (params: UISaveResourceParams) => {
     try {
-      let newResourceId: string;
-
-      if (params.mode === 'clone') {
-        // Create resource from clone token with edited content
-        const response = await createFromTokenMutation.mutateAsync({
-          token: tokenFromUrl!,
-          name: params.name,
-          content: params.content!,
-          archiveOriginal: params.archiveOriginal ?? true,
-        });
-
-        newResourceId = response.resourceId;
-      } else {
-        // Create a new resource with entity types
-        let fileToUpload: File;
-        let mimeType: string;
-
-        if (params.file) {
-          fileToUpload = params.file;
-          mimeType = params.format ?? 'application/octet-stream';
-        } else {
-          const blob = new Blob([params.content || ''], { type: params.format ?? 'application/octet-stream' });
-          const extension = params.format === 'text/plain' ? '.txt' : params.format === 'text/html' ? '.html' : '.md';
-          fileToUpload = new File([blob], params.name + extension, { type: params.format ?? 'application/octet-stream' });
-          mimeType = params.format ?? 'application/octet-stream';
-        }
-
-        const format = params.charset && !params.file ? `${mimeType}; charset=${params.charset}` : mimeType;
-
-        const response = await createResourceMutation.mutateAsync({
-          name: params.name,
-          file: fileToUpload,
-          format,
-          entityTypes: params.entityTypes || [],
-          language: params.language,
-          creationMethod: 'ui',
-          storageUri: params.storageUri,
-        });
-
-        newResourceId = response.resourceId;
-
-        // If this is a reference completion, update the reference
-        if (params.mode === 'reference' && params.annotationUri && params.sourceDocumentId) {
-          try {
-            await updateAnnotationBodyMutation.mutateAsync({
-              resourceId: toResourceId(params.sourceDocumentId),
-              annotationId: toAnnotationId(params.annotationUri),
-              data: {
-                operations: [{
-                  op: 'add',
-                  item: {
-                    type: 'SpecificResource',
-                    source: newResourceId,
-                    purpose: 'linking',
-                  },
-                }],
-              },
-            });
-            showSuccess('Reference successfully linked to the new resource');
-          } catch (error) {
-            console.error('Failed to update reference:', error);
-            showError('Resource created but failed to update reference. You may need to manually link it.');
-          }
-        }
+      const newResourceId = await vm.save(params);
+      if (params.mode === 'reference' && params.annotationUri) {
+        showSuccess('Reference successfully linked to the new resource');
       }
-
-      // Navigate to the new resource
       router.push(`/know/resource/${encodeURIComponent(newResourceId)}`);
     } catch (error) {
-      console.error('Failed to save resource:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save resource. Please try again.';
       showError(errorMessage);
       throw error;
     }
   };
 
-  // Show loading state
   if (authLoading || isLoading) {
-    return (
-      <ComposeLoadingState
-        message={authLoading ? 'Checking authentication...' : 'Loading cloned resource...'}
-      />
-    );
+    return <ComposeLoadingState message={authLoading ? 'Checking authentication...' : 'Loading cloned resource...'} />;
   }
 
-  // Don't render if not authenticated
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
-  // Render the pure component
   return (
     <ResourceComposePage
       mode={pageMode}
