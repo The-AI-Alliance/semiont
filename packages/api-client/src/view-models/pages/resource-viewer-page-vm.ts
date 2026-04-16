@@ -11,9 +11,18 @@ import { createYieldVM, type YieldVM } from '../flows/yield-vm';
 import { createBindVM } from '../flows/bind-vm';
 import type { SemiontApiClient } from '../../client';
 import { decodeWithCharset } from '../../utils/text-encoding';
+import { isHighlight, isComment, isAssessment, isReference, isTag } from '../../utils/annotations';
 import type { ReferencedByEntry } from '../../namespaces/types';
 
 type Annotation = components['schemas']['Annotation'];
+
+export interface AnnotationGroups {
+  highlights: Annotation[];
+  comments: Annotation[];
+  assessments: Annotation[];
+  references: Annotation[];
+  tags: Annotation[];
+}
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 
 export interface WizardState {
@@ -36,6 +45,7 @@ export interface ResourceViewerPageVM extends ViewModel {
   yield: YieldVM;
 
   annotations$: Observable<Annotation[]>;
+  annotationGroups$: Observable<AnnotationGroups>;
   entityTypes$: Observable<string[]>;
   events$: Observable<StoredEventResponse[]>;
   referencedBy$: Observable<ReferencedByEntry[]>;
@@ -74,6 +84,20 @@ export function createResourceViewerPageVM(
 
   const annotations$: Observable<Annotation[]> = client.browse.annotations(resourceId).pipe(
     map((a) => a ?? []),
+  );
+
+  const annotationGroups$: Observable<AnnotationGroups> = annotations$.pipe(
+    map((anns) => {
+      const groups: AnnotationGroups = { highlights: [], comments: [], assessments: [], references: [], tags: [] };
+      for (const ann of anns) {
+        if (isHighlight(ann)) groups.highlights.push(ann);
+        else if (isComment(ann)) groups.comments.push(ann);
+        else if (isAssessment(ann)) groups.assessments.push(ann);
+        else if (isReference(ann)) groups.references.push(ann);
+        else if (isTag(ann)) groups.tags.push(ann);
+      }
+      return groups;
+    }),
   );
 
   const entityTypes$: Observable<string[]> = client.browse.entityTypes().pipe(
@@ -137,6 +161,7 @@ export function createResourceViewerPageVM(
     gather,
     yield: yieldVM,
     annotations$,
+    annotationGroups$,
     entityTypes$,
     events$,
     referencedBy$,

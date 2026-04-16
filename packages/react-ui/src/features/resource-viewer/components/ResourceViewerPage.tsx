@@ -43,7 +43,6 @@ import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizard
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
 
 export interface ResourceViewerPageProps {
   /**
@@ -166,6 +165,7 @@ export function ResourceViewerPage({
   const vm = useViewModel(() => createResourceViewerPageVM(semiont, eventBus, rUri, locale, browseVM));
 
   const annotations = useObservable(vm.annotations$) ?? [];
+  const groups = useObservable(vm.annotationGroups$);
   const allEntityTypes = useObservable(vm.entityTypes$) ?? [];
   const referencedByRaw = useObservable(vm.referencedBy$);
   const referencedBy = referencedByRaw ?? [];
@@ -437,28 +437,6 @@ export function ResourceViewerPage({
     return false;
   });
 
-  // Group annotations by type using static ANNOTATORS (memoized to avoid re-grouping on unrelated re-renders)
-  const groups = useMemo(() => {
-    const result = {
-      highlights: [] as Annotation[],
-      references: [] as Annotation[],
-      assessments: [] as Annotation[],
-      comments: [] as Annotation[],
-      tags: [] as Annotation[]
-    };
-
-    for (const ann of annotations) {
-      const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
-      if (annotator) {
-        const key = annotator.internalType + 's'; // highlight -> highlights
-        if (result[key as keyof typeof result]) {
-          result[key as keyof typeof result].push(ann);
-        }
-      }
-    }
-
-    return result;
-  }, [annotations]);
 
   // Combine resource with content
   const resourceWithContent = { ...resource, content };
@@ -516,7 +494,7 @@ export function ResourceViewerPage({
               ) : (
                 <ResourceViewer
                   resource={resourceWithContent}
-                  annotations={groups}
+                  annotations={groups ?? { highlights: [], comments: [], assessments: [], references: [], tags: [] }}
                   generatingReferenceId={generationProgress?.referenceId ?? null}
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}

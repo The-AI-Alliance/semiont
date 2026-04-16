@@ -50,6 +50,7 @@ export {
   createResourceViewerPageVM,
   type ResourceViewerPageVM,
   type WizardState,
+  type AnnotationGroups,
 } from './pages/resource-viewer-page-vm';
 export {
   createComposePageVM,
@@ -69,3 +70,15 @@ export {
   type ExchangeVM,
   type ImportPreview,
 } from './pages/exchange-vm';
+export {
+  createAdminUsersPageVM,
+  type AdminUsersPageVM,
+} from './pages/admin-users-page-vm';
+export {
+  createAdminSecurityPageVM,
+  type AdminSecurityPageVM,
+} from './pages/admin-security-page-vm';
+export {
+  createWelcomePageVM,
+  type WelcomePageVM,
+} from './pages/welcome-page-vm';

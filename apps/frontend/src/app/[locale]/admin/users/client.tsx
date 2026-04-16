@@ -5,39 +5,37 @@
  * and delegates rendering to the pure React AdminUsersPage component.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { buttonStyles, Toolbar, useApiClient, useAuthToken } from '@semiont/react-ui';
-import type { paths } from '@semiont/core';
-import { accessToken, userDID } from '@semiont/core';
+import { buttonStyles, Toolbar, useApiClient } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
-
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type AdminUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
-type AdminUserStatsResponse = ResponseContent<paths['/api/admin/users/stats']['get']>;
+import { createAdminUsersPageVM } from '@semiont/react-ui';
+import { useViewModel } from '@semiont/react-ui';
 
 export default function AdminUsers() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminUsers.${k}`, p as any) as string;
 
-  // Toolbar and settings state
+  const semiont = useApiClient();
   const browseVM = useBrowseVM();
-  const activePanel = useObservable(browseVM.activePanel$) ?? null;
+  const vm = useViewModel(() => createAdminUsersPageVM(semiont!, browseVM));
+
+  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
+  const users = useObservable(vm.users$) ?? [];
+  const userStats = useObservable(vm.stats$) ?? null;
+  const usersLoading = useObservable(vm.usersLoading$) ?? true;
+  const statsLoading = useObservable(vm.statsLoading$) ?? true;
+
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const semiont = useApiClient();
-  const token = useAuthToken();
-
-  // Handle theme change events
   const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
     setTheme(theme);
   }, [setTheme]);
 
-  // Handle line numbers toggle events
   const handleLineNumbersToggled = useCallback(() => {
     toggleLineNumbers();
   }, [toggleLineNumbers]);
@@ -47,58 +45,26 @@ export default function AdminUsers() {
     'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
-  const [usersResponse, setUsersResponse] = useState<AdminUsersResponse | undefined>(undefined);
-  const [statsResponse, setStatsResponse] = useState<AdminUserStatsResponse | undefined>(undefined);
-  const [usersLoading, setUsersLoading] = useState(true);
-  const [statsLoading, setStatsLoading] = useState(true);
-
-  const authOpts = token ? { auth: accessToken(token) } : {};
-
-  const fetchUsers = useCallback(() => {
-    if (!semiont) return;
-    setUsersLoading(true);
-    semiont.listUsers(authOpts)
-      .then((data) => { setUsersResponse(data as AdminUsersResponse); setUsersLoading(false); })
-      .catch(() => setUsersLoading(false));
-  }, [semiont, token]);
-
-  const fetchStats = useCallback(() => {
-    if (!semiont) return;
-    setStatsLoading(true);
-    semiont.getUserStats(authOpts)
-      .then((data) => { setStatsResponse(data as AdminUserStatsResponse); setStatsLoading(false); })
-      .catch(() => setStatsLoading(false));
-  }, [semiont, token]);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
-  useEffect(() => { fetchStats(); }, [fetchStats]);
-
-  const users = usersResponse?.users ?? [];
-  const userStats = statsResponse?.stats ?? null;
-
-  const handleUpdateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
-    if (!semiont) return;
+  const handleUpdateUser = useCallback(async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
-      await semiont.updateUser(userDID(id), data, token ? { auth: accessToken(token) } : {});
-      fetchUsers();
-      fetchStats();
+      await vm.updateUser(id, data);
     } catch (error) {
       console.error('Failed to update user:', error);
     }
-  };
+  }, [vm]);
 
-  const handleDeleteUser = async (id: string) => {
+  const handleDeleteUser = useCallback(async (id: string) => {
     console.warn('Delete user not implemented:', id);
     alert('Delete user functionality is not currently available');
-  };
+  }, []);
 
-  const handleAddUser = () => {
+  const handleAddUser = useCallback(() => {
     console.log('Add user clicked');
-  };
+  }, []);
 
-  const handleExportUsers = () => {
+  const handleExportUsers = useCallback(() => {
     console.log('Export users clicked');
-  };
+  }, []);
 
   return (
     <AdminUsersPage

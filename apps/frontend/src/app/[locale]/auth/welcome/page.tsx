@@ -9,9 +9,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useKnowledgeBaseSession, useApiClient, useAuthToken } from '@semiont/react-ui';
+import { PageLayout, useToast, useKnowledgeBaseSession, useApiClient, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
-import { accessToken } from '@semiont/core';
+import { createWelcomePageVM } from '@semiont/react-ui';
+import { useViewModel } from '@semiont/react-ui';
 
 export default function Welcome() {
   const { t: _t } = useTranslation();
@@ -19,20 +20,13 @@ export default function Welcome() {
   const { isAuthenticated, isLoading, user, activeKnowledgeBase, signOut } = useKnowledgeBaseSession();
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const toast = useToast();
 
   const semiont = useApiClient();
-  const token = useAuthToken();
+  const vm = useViewModel(() => createWelcomePageVM(semiont!));
 
-  const [userData, setUserData] = useState<{ termsAcceptedAt?: string } | undefined>(undefined);
-
-  useEffect(() => {
-    if (!semiont) return;
-    semiont.getMe(token ? { auth: accessToken(token) } : {})
-      .then((data) => setUserData(data as { termsAcceptedAt?: string }))
-      .catch(() => {});
-  }, [semiont, token]);
+  const userData = useObservable(vm.userData$);
+  const isProcessing = useObservable(vm.isProcessing$) ?? false;
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -42,14 +36,7 @@ export default function Welcome() {
       return;
     }
 
-    // Check if user has accepted terms
     if (userData?.termsAcceptedAt) {
-      router.push('/');
-      return;
-    }
-
-    // If terms already accepted, redirect to main app
-    if (isAuthenticated && userData !== undefined && userData?.termsAcceptedAt) {
       router.push('/');
       return;
     }
@@ -57,7 +44,6 @@ export default function Welcome() {
 
   const handleTermsAcceptance = async (accepted: boolean) => {
     if (!accepted) {
-      // User declined terms - sign out of the active KB and redirect to home
       if (activeKnowledgeBase) {
         signOut(activeKnowledgeBase.id);
       }
@@ -65,25 +51,19 @@ export default function Welcome() {
       return;
     }
 
-    if (!semiont) return;
     try {
-      setIsProcessing(true);
-      await semiont.acceptTerms(token ? { auth: accessToken(token) } : {});
+      await vm.acceptTerms();
       setTermsAccepted(true);
 
-      // Small delay to show the acceptance state
       setTimeout(() => {
         router.push('/');
       }, 1000);
     } catch (error) {
       console.error('Terms acceptance error:', error);
       toast.showError(t('errorAcceptingTerms'));
-    } finally {
-      setIsProcessing(false);
     }
   };
 
-  // Determine status
   const pageStatus = isLoading ? 'loading' : termsAccepted ? 'accepted' : 'form';
   const firstName = user?.name?.split(' ')[0] ?? '';
 
