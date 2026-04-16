@@ -36,8 +36,7 @@ import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
-import { useBindFlow } from '../../../hooks/useBindFlow';
-import { createBeckonVM, createGatherVM, createMatchVM, createYieldVM, createMarkVM } from '@semiont/api-client';
+import { createBeckonVM, createGatherVM, createMatchVM, createYieldVM, createMarkVM, createBindVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
@@ -194,7 +193,7 @@ export function ResourceViewerPage({
   const panelInitialTab = useObservable(browseVM.panelInitialTab$) ?? null;
   const onScrollCompleted = browseVM.onScrollCompleted;
   useViewModel(() => createMatchVM(semiont, eventBus, rUri));
-  useBindFlow(rUri);
+  useViewModel(() => createBindVM(semiont, eventBus, rUri));
   const yieldVM = useViewModel(() => createYieldVM(semiont, eventBus, rUri, locale));
   const generationProgress = useObservable(yieldVM.progress$) ?? null;
   const gatherVM = useViewModel(() => createGatherVM(semiont, eventBus, rUri));
@@ -381,7 +380,8 @@ export function ResourceViewerPage({
   const handleAnnotateBodyUpdated = useCallback(() => {
     // Success - optimistic update already applied via useResourceEvents
   }, []);
-  const handleAnnotateBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
+  const handleAnnotateBodyUpdateFailed = useCallback(({ message }: { message: string }) =>
+    showError(`Failed to update reference: ${message}`), [showError]);
 
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 

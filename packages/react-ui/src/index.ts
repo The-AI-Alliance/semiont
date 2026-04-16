@@ -226,6 +226,6 @@ export * from './hooks/useBrowseVM';
 export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/api-client';
 export { createGatherVM, type GatherVM } from '@semiont/api-client';
 export { createMatchVM, type MatchVM } from '@semiont/api-client';
-export * from './hooks/useBindFlow';
+export { createBindVM, type BindVM } from '@semiont/api-client';
 export * from './hooks/useObservable';
 export * from './hooks/useStoreTokenSync';

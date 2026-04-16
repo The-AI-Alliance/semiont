@@ -38,3 +38,7 @@ export {
   type MarkVM,
   type PendingAnnotation,
 } from './flows/mark-vm';
+export {
+  createBindVM,
+  type BindVM,
+} from './flows/bind-vm';
