@@ -38,7 +38,7 @@ import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsCon
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { createBeckonVM, createGatherVM } from '@semiont/api-client';
+import { createBeckonVM, createGatherVM, createMatchVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
@@ -192,6 +192,7 @@ export function ResourceViewerPage({
   const scrollToAnnotationId = useObservable(browseVM.scrollToAnnotationId$) ?? null;
   const panelInitialTab = useObservable(browseVM.panelInitialTab$) ?? null;
   const onScrollCompleted = browseVM.onScrollCompleted;
+  useViewModel(() => createMatchVM(semiont, eventBus, rUri));
   useBindFlow(rUri);
   const {
     generationProgress,

@@ -225,6 +225,7 @@ export { createBrowseVM, type BrowseVM, type BrowseVMOptions, type ToolbarPanelT
 export * from './hooks/useBrowseVM';
 export * from './hooks/useYieldFlow';
 export { createGatherVM, type GatherVM } from '@semiont/api-client';
+export { createMatchVM, type MatchVM } from '@semiont/api-client';
 export * from './hooks/useBindFlow';
 export * from './hooks/useObservable';
 export * from './hooks/useStoreTokenSync';

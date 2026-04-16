@@ -91,6 +91,23 @@ describe('createGatherVM', () => {
     vm.dispose();
   });
 
+  it('sets null context when Observable emits progress without context', () => {
+    const gatherFn = vi.fn(() => new Observable((sub) => {
+      sub.next({ response: {} });
+      sub.complete();
+    }));
+    const client = mockClient(gatherFn);
+    const vm = createGatherVM(client, eventBus, RID);
+
+    const ctx: unknown[] = [];
+    vm.context$.subscribe(v => ctx.push(v));
+
+    eventBus.get('gather:requested').next({ annotationId: AID as string } as any);
+    // Initial null, cleared null from gather:requested, no context set (response has no context)
+    expect(ctx.every(v => v === null)).toBe(true);
+    vm.dispose();
+  });
+
   it('sets error when Observable errors', () => {
     const gatherFn = vi.fn(() => new Observable((sub) => {
       sub.error(new Error('gather failed'));

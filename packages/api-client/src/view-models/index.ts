@@ -24,3 +24,7 @@ export {
   createGatherVM,
   type GatherVM,
 } from './flows/gather-vm';
+export {
+  createMatchVM,
+  type MatchVM,
+} from './flows/match-vm';
