@@ -220,7 +220,7 @@ export * from './features/resource-viewer/components/ResourceViewerPage';
 export * from './hooks/useHoverEmitter';
 export * from './hooks/useAttentionStream';
 export { createBeckonVM, type BeckonVM, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/api-client';
-export * from './hooks/useMarkFlow';
+export { createMarkVM, type MarkVM, type PendingAnnotation } from '@semiont/api-client';
 export { createBrowseVM, type BrowseVM, type BrowseVMOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from '@semiont/api-client';
 export * from './hooks/useBrowseVM';
 export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/api-client';

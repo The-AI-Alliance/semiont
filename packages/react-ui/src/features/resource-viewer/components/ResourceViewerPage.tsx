@@ -37,8 +37,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
-import { useMarkFlow } from '../../../hooks/useMarkFlow';
-import { createBeckonVM, createGatherVM, createMatchVM, createYieldVM } from '@semiont/api-client';
+import { createBeckonVM, createGatherVM, createMatchVM, createYieldVM, createMarkVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
@@ -143,7 +142,7 @@ export function ResourceViewerPage({
   const queryClient = useQueryClient(); // retained for non-store queries (events log)
 
   // UI state hooks
-  const { showError, showSuccess } = useToast();
+  const { showError, showSuccess, showInfo } = useToast();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
@@ -185,7 +184,10 @@ export function ResourceViewerPage({
   // Flow state hooks (NO CONTAINERS)
   const beckonVM = useViewModel(() => createBeckonVM(eventBus));
   const hoveredAnnotationId = useObservable(beckonVM.hoveredAnnotationId$) ?? null;
-  const { assistingMotivation, progress, pendingAnnotation } = useMarkFlow(rUri);
+  const markVM = useViewModel(() => createMarkVM(semiont, eventBus, rUri));
+  const pendingAnnotation = useObservable(markVM.pendingAnnotation$) ?? null;
+  const assistingMotivation = useObservable(markVM.assistingMotivation$) ?? null;
+  const progress = useObservable(markVM.progress$) ?? null;
   const browseVM = useBrowseVM();
   const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const scrollToAnnotationId = useObservable(browseVM.scrollToAnnotationId$) ?? null;
@@ -372,8 +374,10 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
-  const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
-  const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
+  const handleAnnotationCreateFailed = useCallback(({ message }: { message?: string }) =>
+    showError(`Failed to create annotation: ${message || 'unknown error'}`), [showError]);
+  const handleAnnotationDeleteFailed = useCallback(({ message }: { message?: string }) =>
+    showError(`Failed to delete annotation: ${message || 'unknown error'}`), [showError]);
   const handleAnnotateBodyUpdated = useCallback(() => {
     // Success - optimistic update already applied via useResourceEvents
   }, []);
@@ -382,13 +386,13 @@ export function ResourceViewerPage({
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
   const handleDetectionComplete = useCallback(() => {
-    // Toast notification is handled by useMarkFlow; store handles annotation refresh
+    showSuccess('Annotation complete');
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [queryClient, rUri]);
-  const handleDetectionFailed = useCallback(() => {
-    // Error notification is handled by useMarkFlow; store handles annotation refresh
+  }, [queryClient, rUri, showSuccess]);
+  const handleDetectionFailed = useCallback(({ message }: { message?: string }) => {
+    showError(message || 'Annotation failed');
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [queryClient, rUri]);
+  }, [queryClient, rUri, showError]);
   const handleGenerationComplete = useCallback((progress: { resourceName?: string }) => {
     showSuccess(progress.resourceName
       ? `Resource "${progress.resourceName}" created successfully!`
@@ -433,6 +437,7 @@ export function ResourceViewerPage({
     'settings:line-numbers-toggled': toggleLineNumbers,
     'mark:assist-finished': handleDetectionComplete,
     'mark:assist-failed': handleDetectionFailed,
+    'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
     'yield:finished': handleGenerationComplete,
     'yield:failed': handleGenerationFailed,
     'browse:reference-navigate': handleReferenceNavigate,

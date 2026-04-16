@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { HOVER_DELAY_MS } from '@semiont/api-client';
 import { useEventBus } from '../contexts/EventBusContext';
 

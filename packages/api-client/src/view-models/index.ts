@@ -33,3 +33,8 @@ export {
   type YieldVM,
   type GenerateDocumentOptions,
 } from './flows/yield-vm';
+export {
+  createMarkVM,
+  type MarkVM,
+  type PendingAnnotation,
+} from './flows/mark-vm';
