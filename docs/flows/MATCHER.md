@@ -172,5 +172,5 @@ When `useSemanticScoring: true`, scores in the 25–49 range may shift significa
 - **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../packages/make-meaning/src/matcher.ts) — retrieval, structural scoring, inference re-ranking, referenced-by
 - **SSE route**: [apps/backend/src/routes/resources/routes/bind-search-stream.ts](../../apps/backend/src/routes/resources/routes/bind-search-stream.ts) — bridges HTTP to EventBus
 - **API client**: `client.sse.bindSearch` and `client.searchResources` in [@semiont/api-client](../../packages/api-client/README.md)
-- **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts) — UI integration
+- **ViewModel**: [packages/api-client/src/view-models/flows/bind-vm.ts](../../packages/api-client/src/view-models/flows/bind-vm.ts) — UI integration
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — `MATCH FLOW` section

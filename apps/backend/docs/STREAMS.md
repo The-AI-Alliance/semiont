@@ -82,7 +82,7 @@ The `BrowseNamespace` in `@semiont/api-client` (`semiont.browse`) subscribes to 
 
 Verb namespaces orchestrate commands: `semiont.bind.body()` calls the HTTP POST; `semiont.mark.assist()` calls the POST and returns an Observable that filters EventBus progress events by correlationId. The events-stream delivers results to all participants.
 
-React hooks (`useResourceEvents`, `useMarkFlow`, `useYieldFlow`, `useContextGatherFlow`) bridge EventBus UI events to namespace method calls and update local React state from EventBus domain events.
+View models (`createMarkVM`, `createYieldVM`, `createGatherVM`) bridge EventBus UI events to namespace method calls and update state from EventBus domain events. The `useResourceEvents` React hook establishes the SSE connection.
 
 ## Adding a new async operation
 

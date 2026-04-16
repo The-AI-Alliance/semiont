@@ -685,5 +685,5 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 - `useDetectionFlow()` - Detection state management (SSE, progress, annotation operations)
 - `useResolutionFlow()` - Annotation body update and reference linking
 - `useGenerationFlow()` - Generation state management (SSE, modal, progress)
-- `useContextGatherFlow()` - Context correlation for generation
+- `createGatherVM()` - Context correlation for generation (in `@semiont/api-client`)
 - `usePanelNavigation()` - Panel state management

@@ -469,7 +469,7 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 ### Frontend
 
 - [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
-- [packages/react-ui/src/hooks/useYieldFlow.ts](../../packages/react-ui/src/hooks/useYieldFlow.ts) - Generation flow hook (manages SSE, modal state, and progress state)
+- [packages/api-client/src/view-models/flows/yield-vm.ts](../../packages/api-client/src/view-models/flows/yield-vm.ts) - Generation flow view model (manages SSE, modal state, and progress state)
 - [packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts) - Resource events hook
 - [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts) - SSE client
 

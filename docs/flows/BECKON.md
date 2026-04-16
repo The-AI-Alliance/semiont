@@ -50,7 +50,7 @@ Hover events synchronize the annotation panel and the document view:
 
 1. Mouse enters annotation element (panel entry or document overlay)
 2. After a **150ms dwell** (debounced to suppress transient mouse movements), `beckon:hover` fires
-3. `useBeckonFlow` sets `hoveredAnnotationId` → both panel and document highlight the annotation
+3. `createBeckonVM` sets `hoveredAnnotationId` → both panel and document highlight the annotation
 4. `beckon:sparkle` fires → document overlay shows a brief sparkle animation
 5. On mouse leave, `beckon:hover` fires with `null` → highlights clear immediately (no delay)
 
@@ -66,7 +66,7 @@ Click events relay through `beckon:focus` to scroll the document view:
 
 1. User clicks an annotation entry in the panel
 2. `browse:click` fires with `annotationId` and `motivation`
-3. `useBeckonFlow` relays as `beckon:focus`
+3. `createBeckonVM` relays as `beckon:focus`
 4. BrowseView subscribes to `beckon:focus` and scrolls the document to the annotation's position
 
 ## Cross-Participant Beckoning
@@ -78,7 +78,7 @@ endpoint and a participant-scoped SSE stream:
 1. CLI posts to `POST /api/participants/{id}/attention`
 2. Backend pushes the signal to `GET /api/participants/me/attention-stream` if the
    participant is connected
-3. Frontend `useAttentionStream` (in `useBeckonFlow.ts`) receives it and emits
+3. Frontend `useAttentionStream` (in `packages/react-ui/src/hooks/useAttentionStream.ts`) receives it and emits
    `beckon:focus` on the local EventBus — the same path as an in-browser click relay
 4. The existing scroll-and-highlight behaviour fires, exactly as if the participant had
    hovered themselves
@@ -89,7 +89,7 @@ ephemeral semantics as all other beckon events.
 
 ## Implementation
 
-- **Hook**: [packages/react-ui/src/hooks/useBeckonFlow.ts](../../packages/react-ui/src/hooks/useBeckonFlow.ts)
+- **ViewModel**: [packages/api-client/src/view-models/flows/beckon-vm.ts](../../packages/api-client/src/view-models/flows/beckon-vm.ts)
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — `BECKON FLOW` section
 - **CLI command**: [apps/cli/src/core/commands/beckon.ts](../../apps/cli/src/core/commands/beckon.ts)
 - **Backend route**: [apps/backend/src/routes/participants/](../../apps/backend/src/routes/participants/)

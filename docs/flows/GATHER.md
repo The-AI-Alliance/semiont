@@ -111,7 +111,7 @@ Current consumers:
 
 ## Implementation
 
-- **Hook**: [packages/react-ui/src/hooks/useContextGatherFlow.ts](../../packages/react-ui/src/hooks/useContextGatherFlow.ts)
+- **ViewModel**: [packages/api-client/src/view-models/flows/gather-vm.ts](../../packages/api-client/src/view-models/flows/gather-vm.ts)
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — `GATHER FLOW` section
 - **API**: `getAnnotationLLMContext` in [@semiont/api-client](../../packages/api-client/README.md)
 - **Backend**: Context assembly in [@semiont/make-meaning](../../packages/make-meaning/docs/api-reference.md)
