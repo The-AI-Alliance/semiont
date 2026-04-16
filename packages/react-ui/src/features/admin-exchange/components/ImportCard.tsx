@@ -5,13 +5,9 @@
  */
 
 import React, { useRef, useState, useCallback } from 'react';
+import type { ImportPreview } from '@semiont/api-client';
 
-export interface ImportPreview {
-  format: string;
-  version: number;
-  sourceUrl: string;
-  stats: Record<string, number>;
-}
+export type { ImportPreview };
 
 export interface ImportCardTranslations {
   title: string;

@@ -227,5 +227,10 @@ export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semi
 export { createGatherVM, type GatherVM } from '@semiont/api-client';
 export { createMatchVM, type MatchVM } from '@semiont/api-client';
 export { createBindVM, type BindVM } from '@semiont/api-client';
+export { createDiscoverPageVM, type DiscoverPageVM } from '@semiont/api-client';
+export { createResourceViewerPageVM, type ResourceViewerPageVM, type WizardState } from '@semiont/api-client';
+export { createComposePageVM, type ComposePageVM, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from '@semiont/api-client';
+export { createEntityTagsPageVM, type EntityTagsPageVM } from '@semiont/api-client';
+export { createExchangeVM, type ExchangeVM } from '@semiont/api-client';
 export * from './hooks/useObservable';
 export * from './hooks/useStoreTokenSync';

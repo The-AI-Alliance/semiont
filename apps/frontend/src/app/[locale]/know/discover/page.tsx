@@ -1,37 +1,20 @@
 "use client";
 
-/**
- * Resource Discovery Page - Thin Next.js wrapper
- *
- * Handles Next.js-specific concerns (routing, data loading, hooks) and
- * delegates rendering to the pure React ResourceDiscoveryPage component.
- *
- * Search is wired through createSearchPipeline (pure RxJS): the pipeline is
- * created once per mount and held in useState. The component pushes typed
- * input to setQuery and reads results via useObservable.
- */
-
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
 import {
-  useResources,
-  useEntityTypes,
   useTheme,
-  useBrowseVM,
   useLineNumbers,
   useEventSubscriptions,
   useObservable,
   useApiClient,
-  createSearchPipeline,
+  useViewModel,
   ResourceDiscoveryPage,
 } from '@semiont/react-ui';
-import type { components } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-
-const SEARCH_LIMIT = 20;
+import { useBrowseVM } from '@semiont/react-ui';
+import { createDiscoverPageVM } from '@semiont/api-client';
 
 export default function DiscoverPage() {
   const { t: _t } = useTranslation();
@@ -39,49 +22,25 @@ export default function DiscoverPage() {
   const router = useRouter();
   const semiont = useApiClient();
 
-  // Toolbar and settings state
   const browseVM = useBrowseVM();
-  const activePanel = useObservable(browseVM.activePanel$) ?? null;
-  const { theme, setTheme, resolvedTheme } = useTheme();
-  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const vm = useViewModel(() => createDiscoverPageVM(semiont, browseVM));
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
-
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
-  useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
-  });
-
-  // Recent documents and entity types via React Query — these aren't
-  // pipeline-building, they're plain reads, so they stay on React Query.
-  const resources = useResources();
-  const entityTypesAPI = useEntityTypes();
-  const { data: recentDocsData, isLoading: isLoadingRecent } = resources.list.useQuery(
-    { limit: 10, archived: false }
-  );
-  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
-
-  // ── Search pipeline ─────────────────────────────────────────────────────
-  const [pipeline] = useState(() =>
-    createSearchPipeline<ResourceDescriptor>((q) =>
-      semiont.browse.resources({ search: q, limit: SEARCH_LIMIT })
-    )
-  );
-  useEffect(() => () => pipeline.dispose(), [pipeline]);
-
-  const searchQuery = useObservable(pipeline.query$) ?? '';
-  const searchState = useObservable(pipeline.state$);
+  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
+  const recentDocuments = useObservable(vm.recentResources$) ?? [];
+  const entityTypes = useObservable(vm.entityTypes$) ?? [];
+  const isLoadingRecent = useObservable(vm.isLoadingRecent$) ?? true;
+  const searchQuery = useObservable(vm.search.query$) ?? '';
+  const searchState = useObservable(vm.search.state$);
   const searchDocuments = searchState?.results ?? [];
   const isSearching = searchState?.isSearching ?? false;
 
-  const recentDocuments = recentDocsData?.resources || [];
-  const entityTypes = entityTypesData?.entityTypes || [];
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+
+  useEventSubscriptions({
+    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
+    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
+  });
 
   return (
     <ResourceDiscoveryPage
@@ -91,16 +50,12 @@ export default function DiscoverPage() {
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
       searchQuery={searchQuery}
-      onSearchQueryChange={pipeline.setQuery}
+      onSearchQueryChange={vm.search.setQuery}
       theme={resolvedTheme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}
-      onNavigateToResource={(resourceId) => {
-        router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
-      }}
-      onNavigateToCompose={() => {
-        router.push('/know/compose');
-      }}
+      onNavigateToResource={(resourceId) => router.push(`/know/resource/${encodeURIComponent(resourceId)}`)}
+      onNavigateToCompose={() => router.push('/know/compose')}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),

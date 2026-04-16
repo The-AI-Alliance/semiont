@@ -42,3 +42,30 @@ export {
   createBindVM,
   type BindVM,
 } from './flows/bind-vm';
+export {
+  createDiscoverPageVM,
+  type DiscoverPageVM,
+} from './pages/discover-page-vm';
+export {
+  createResourceViewerPageVM,
+  type ResourceViewerPageVM,
+  type WizardState,
+} from './pages/resource-viewer-page-vm';
+export {
+  createComposePageVM,
+  type ComposePageVM,
+  type ComposeParams,
+  type ComposeMode,
+  type CloneData,
+  type ReferenceData,
+  type SaveResourceParams,
+} from './pages/compose-page-vm';
+export {
+  createEntityTagsPageVM,
+  type EntityTagsPageVM,
+} from './pages/entity-tags-page-vm';
+export {
+  createExchangeVM,
+  type ExchangeVM,
+  type ImportPreview,
+} from './pages/exchange-vm';

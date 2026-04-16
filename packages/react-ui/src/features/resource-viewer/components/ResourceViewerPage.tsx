@@ -22,7 +22,7 @@ import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
 import { useObservable } from '@semiont/react-ui';
 import { QUERY_KEYS } from '../../../lib/query-keys';
-import { useResources, useEntityTypes } from '../../../lib/api-hooks';
+import { useResources } from '../../../lib/api-hooks';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
 import { useToast } from '../../../components/Toast';
@@ -36,7 +36,7 @@ import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
-import { createBeckonVM, createGatherVM, createMatchVM, createYieldVM, createMarkVM, createBindVM } from '@semiont/api-client';
+import { createResourceViewerPageVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
 import type { StreamStatus } from '../../../hooks/useResourceEvents';
@@ -148,9 +148,8 @@ export function ResourceViewerPage({
   const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
 
-  // API hooks
+  // API hooks (React Query — remaining until Phase 6)
   const resources = useResources();
-  const entityTypesAPI = useEntityTypes();
 
   // Determine MIME category to choose content path
   const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
@@ -168,67 +167,41 @@ export function ResourceViewerPage({
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  const annotationsData = useObservable(semiont.browse.annotations(rUri));
-  const annotations = useMemo(
-    () => annotationsData || [],
-    [annotationsData]
-  );
-
   const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);
   const referencedBy = referencedByData?.referencedBy || [];
 
-  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
-  const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
-
-  // Flow state hooks (NO CONTAINERS)
-  const beckonVM = useViewModel(() => createBeckonVM(eventBus));
-  const hoveredAnnotationId = useObservable(beckonVM.hoveredAnnotationId$) ?? null;
-  const markVM = useViewModel(() => createMarkVM(semiont, eventBus, rUri));
-  const pendingAnnotation = useObservable(markVM.pendingAnnotation$) ?? null;
-  const assistingMotivation = useObservable(markVM.assistingMotivation$) ?? null;
-  const progress = useObservable(markVM.progress$) ?? null;
+  // Composite VM — owns all flow VMs, wizard state, annotations, entity types
   const browseVM = useBrowseVM();
-  const activePanel = useObservable(browseVM.activePanel$) ?? null;
-  const scrollToAnnotationId = useObservable(browseVM.scrollToAnnotationId$) ?? null;
-  const panelInitialTab = useObservable(browseVM.panelInitialTab$) ?? null;
-  const onScrollCompleted = browseVM.onScrollCompleted;
-  useViewModel(() => createMatchVM(semiont, eventBus, rUri));
-  useViewModel(() => createBindVM(semiont, eventBus, rUri));
-  const yieldVM = useViewModel(() => createYieldVM(semiont, eventBus, rUri, locale));
-  const generationProgress = useObservable(yieldVM.progress$) ?? null;
-  const gatherVM = useViewModel(() => createGatherVM(semiont, eventBus, rUri));
-  const gatherContext = useObservable(gatherVM.context$) ?? null;
-  const gatherLoading = useObservable(gatherVM.loading$) ?? false;
-  const gatherError = useObservable(gatherVM.error$) ?? null;
+  const vm = useViewModel(() => createResourceViewerPageVM(semiont, eventBus, rUri, locale, browseVM));
 
-  // Wizard state — driven by bind:initiate from ReferenceEntry
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardAnnotationId, setWizardAnnotationId] = useState<string | null>(null);
-  const [wizardResourceId, setWizardResourceId] = useState<string | null>(null);
-  const [wizardDefaultTitle, setWizardDefaultTitle] = useState('');
-  const [wizardEntityTypes, setWizardEntityTypes] = useState<string[]>([]);
-
-  useEffect(() => {
-    const subscription = eventBus.get('bind:initiate').subscribe((event) => {
-      setWizardAnnotationId(event.annotationId);
-      setWizardResourceId(event.resourceId);
-      setWizardDefaultTitle(event.defaultTitle);
-      setWizardEntityTypes(event.entityTypes);
-      setWizardOpen(true);
-
-      // Trigger context gathering — gather:requested is consumed by GatherVM
-      eventBus.get('gather:requested').next({ correlationId: crypto.randomUUID(), annotationId: event.annotationId, resourceId: event.resourceId, options: { contextWindow: 2000 } });
-    });
-    return () => subscription.unsubscribe();
-  }, [eventBus]);
+  const annotations = useObservable(vm.annotations$) ?? [];
+  const allEntityTypes = useObservable(vm.entityTypes$) ?? [];
+  const hoveredAnnotationId = useObservable(vm.beckon.hoveredAnnotationId$) ?? null;
+  const pendingAnnotation = useObservable(vm.mark.pendingAnnotation$) ?? null;
+  const assistingMotivation = useObservable(vm.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(vm.mark.progress$) ?? null;
+  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
+  const scrollToAnnotationId = useObservable(vm.browse.scrollToAnnotationId$) ?? null;
+  const panelInitialTab = useObservable(vm.browse.panelInitialTab$) ?? null;
+  const onScrollCompleted = vm.browse.onScrollCompleted;
+  const generationProgress = useObservable(vm.yield.progress$) ?? null;
+  const gatherContext = useObservable(vm.gather.context$) ?? null;
+  const gatherLoading = useObservable(vm.gather.loading$) ?? false;
+  const gatherError = useObservable(vm.gather.error$) ?? null;
+  const wizardState = useObservable(vm.wizard$);
+  const wizardOpen = wizardState?.open ?? false;
+  const wizardAnnotationId = wizardState?.annotationId ?? null;
+  const wizardResourceId = wizardState?.resourceId ?? null;
+  const wizardDefaultTitle = wizardState?.defaultTitle ?? '';
+  const wizardEntityTypes = wizardState?.entityTypes ?? [];
 
   const handleWizardClose = useCallback(() => {
-    setWizardOpen(false);
-  }, []);
+    vm.closeWizard();
+  }, [vm]);
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
     clearNewAnnotationId(annotationId(referenceId));
-    yieldVM.generate(referenceId, {
+    vm.yield.generate(referenceId, {
       title: config.title,
       storageUri: config.storagePath,
       prompt: config.prompt,
@@ -237,7 +210,7 @@ export function ResourceViewerPage({
       maxTokens: config.maxTokens,
       context: config.context,
     });
-  }, [yieldVM, clearNewAnnotationId]);
+  }, [vm, clearNewAnnotationId]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
     try {
