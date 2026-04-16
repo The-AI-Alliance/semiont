@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import type { AccessToken } from '@semiont/core';
 import { accessToken } from '@semiont/core';
 import type { BrowseVM } from '../../flows/browse-vm';
 import { createExchangeVM } from '../exchange-vm';

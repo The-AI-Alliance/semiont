@@ -231,5 +231,7 @@ export { createExchangeVM, type ExchangeVM } from '@semiont/api-client';
 export { createAdminUsersVM, type AdminUsersVM } from '@semiont/api-client';
 export { createAdminSecurityVM, type AdminSecurityVM } from '@semiont/api-client';
 export { createWelcomeVM, type WelcomeVM } from '@semiont/api-client';
+export { createResourceLoaderVM, type ResourceLoaderVM } from '@semiont/api-client';
+export { createSessionVM, type SessionVM } from '@semiont/api-client';
 export * from './hooks/useObservable';
 export * from './hooks/useStoreTokenSync';

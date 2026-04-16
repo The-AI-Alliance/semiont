@@ -10,7 +10,7 @@
 import { useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLocale } from '@/i18n/routing';
-import { useApiClient, useObservable } from '@semiont/react-ui';
+import { useApiClient, useObservable, useViewModel, createResourceLoaderVM } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 import { useStreamStatus } from '@/contexts/StreamStatusContext';
@@ -34,9 +34,9 @@ export default function KnowledgeResourcePage() {
   const { activeKnowledgeBase } = useKnowledgeBaseSession();
 
   const semiont = useApiClient();
-  const resourceData = useObservable(semiont!.browse.resource(rId));
-
-  const isLoading = resourceData === undefined;
+  const loader = useViewModel(() => createResourceLoaderVM(semiont!, rId));
+  const resourceData = useObservable(loader.resource$);
+  const isLoading = useObservable(loader.isLoading$) ?? true;
 
   // Log error for debugging
   useEffect(() => {
@@ -46,17 +46,12 @@ export default function KnowledgeResourcePage() {
   }, [isLoading, rId, resourceData]);
 
   const refetchDocument = useCallback(async () => {
-    semiont?.browse.invalidateResourceDetail(rId);
-  }, [semiont, rId]);
+    loader.invalidate();
+  }, [loader]);
 
   // Early return: Loading state
-  if (isLoading) {
+  if (isLoading || !resourceData) {
     return <ResourceLoadingState />;
-  }
-
-  // Early return: ResourceDescriptor not found
-  if (!resourceData) {
-    return <ResourceErrorState error={new Error('Resource not found')} onRetry={refetchDocument} />;
   }
 
   const resource = resourceData as SemiontResource;

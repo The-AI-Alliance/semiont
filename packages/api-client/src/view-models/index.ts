@@ -69,6 +69,14 @@ export {
   createWelcomeVM,
   type WelcomeVM,
 } from './domain/welcome-vm';
+export {
+  createResourceLoaderVM,
+  type ResourceLoaderVM,
+} from './domain/resource-loader-vm';
+export {
+  createSessionVM,
+  type SessionVM,
+} from './domain/session-vm';
 
 // Page composites — React UI layout orchestration
 export {

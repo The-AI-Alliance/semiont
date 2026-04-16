@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontApiClient } from '../../../client';
