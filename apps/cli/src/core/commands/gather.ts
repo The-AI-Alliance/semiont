@@ -10,8 +10,9 @@
 
 import { z } from 'zod';
 import { firstValueFrom } from 'rxjs';
-import { filter, take, timeout } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
+import { createGatherVM } from '@semiont/api-client';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -53,18 +54,24 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
     if (!rawAnnotationId) {
       throw new Error('Usage: semiont gather annotation <resourceId> <annotationId>');
     }
-    const resourceId = toResourceId(rawResourceId);
-    const annotationId = toAnnotationId(rawAnnotationId);
+    const rid = toResourceId(rawResourceId);
+    const aid = toAnnotationId(rawAnnotationId);
+    const vm = createGatherVM(semiont, semiont.eventBus, rid);
 
-    // gather.annotation returns Observable — await the completion event
-    const completion = await firstValueFrom(
-      semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
-        filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
-        take(1),
-        timeout(60_000),
-      ),
-    );
-    result = (completion as any).response;
+    try {
+      semiont.eventBus.get('gather:requested').next({
+        correlationId: crypto.randomUUID(),
+        annotationId: aid as string,
+        resourceId: rid as string,
+        options: { contextWindow: options.contextWindow },
+      });
+
+      result = await firstValueFrom(
+        vm.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
+      );
+    } finally {
+      vm.dispose();
+    }
   } else {
     throw new Error(`Unknown subcommand: ${subcommand}. Use 'resource' or 'annotation'.`);
   }

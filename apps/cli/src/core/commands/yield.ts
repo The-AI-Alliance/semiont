@@ -19,9 +19,10 @@ import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
 import { firstValueFrom } from 'rxjs';
-import { filter, take, timeout } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
+import { createGatherVM, createYieldVM } from '@semiont/api-client';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -103,25 +104,33 @@ async function runDelegate(
 ): Promise<{ resourceId?: string; resourceName?: string }> {
   const rawResourceId = options.resource!;
   const rawAnnotationId = options.annotation!;
-  const resourceId = toResourceId(rawResourceId);
-  const annotationId = toAnnotationId(rawAnnotationId);
+  const rId = toResourceId(rawResourceId);
+  const aId = toAnnotationId(rawAnnotationId);
+  const eventBus = semiont.eventBus;
 
-  // Step 1: gather context via Observable
-  const gatherCompletion = await firstValueFrom(
-    semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
-      filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
-      take(1),
-      timeout(60_000),
-    ),
-  );
-  const context = (gatherCompletion as any).response?.context as GatheredContext;
-  if (!context) throw new Error('No context returned from gatherAnnotation — cannot generate');
+  // Step 1: gather context via GatherVM
+  const gatherVM = createGatherVM(semiont, eventBus, rId);
+  let context: GatheredContext;
+  try {
+    eventBus.get('gather:requested').next({
+      correlationId: crypto.randomUUID(),
+      annotationId: aId as string,
+      resourceId: rId as string,
+      options: { contextWindow: options.contextWindow },
+    });
+    context = await firstValueFrom(
+      gatherVM.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
+    );
+  } finally {
+    gatherVM.dispose();
+  }
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
-  // Step 2: generate via Observable
-  const result = await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-    semiont.yield.fromAnnotation(resourceId, annotationId, {
+  // Step 2: generate via YieldVM
+  const yieldVM = createYieldVM(semiont, eventBus, rId, options.language ?? 'en');
+  try {
+    yieldVM.generate(aId as string, {
       title: options.title ?? rawAnnotationId,
       storageUri: options.storageUri!,
       context,
@@ -129,18 +138,22 @@ async function runDelegate(
       language: options.language,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
-    }).subscribe({
-      next: (progress) => {
-        if (progress.resourceId) {
-          resolve({ resourceId: progress.resourceId, resourceName: progress.resourceName });
-        }
-      },
-      error: (err) => reject(err),
-      complete: () => resolve({}),
     });
-  });
 
-  return result;
+    return await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
+      const finishedSub = eventBus.get('yield:finished').subscribe((event) => {
+        cleanup();
+        resolve({ resourceId: (event as any).resourceId, resourceName: (event as any).resourceName });
+      });
+      const failedSub = eventBus.get('yield:failed').subscribe((event) => {
+        cleanup();
+        reject(new Error((event as any).error ?? 'Generation failed'));
+      });
+      function cleanup() { finishedSub.unsubscribe(); failedSub.unsubscribe(); }
+    });
+  } finally {
+    yieldVM.dispose();
+  }
 }
 
 // =====================================================================

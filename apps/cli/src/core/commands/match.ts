@@ -13,9 +13,10 @@
 
 import { z } from 'zod';
 import { firstValueFrom } from 'rxjs';
-import { filter, take, timeout } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
+import { createGatherVM } from '@semiont/api-client';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -55,27 +56,34 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const rawBusUrl = resolveBusUrl(options.bus);
   const { semiont } = loadCachedClient(rawBusUrl);
 
-  // Step 1: gather context via Observable
-  const gatherCompletion = await firstValueFrom(
-    semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }).pipe(
-      filter((e): e is Extract<typeof e, { response: unknown }> => 'response' in e),
-      take(1),
-      timeout(60_000),
-    ),
-  );
-  let context = (gatherCompletion as any).response?.context as GatheredContext;
-  if (!context) throw new Error('No context returned from gather');
+  // Step 1: gather context via GatherVM
+  const eventBus = semiont.eventBus;
+  const gatherVM = createGatherVM(semiont, eventBus, resourceId);
+  let context: GatheredContext;
+  try {
+    eventBus.get('gather:requested').next({
+      correlationId: crypto.randomUUID(),
+      annotationId: annotationId as string,
+      resourceId: resourceId as string,
+      options: { contextWindow: options.contextWindow },
+    });
+    context = await firstValueFrom(
+      gatherVM.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
+    );
+  } finally {
+    gatherVM.dispose();
+  }
 
   if (options.userHint) {
     context = { ...context, userHint: options.userHint };
   }
 
-  // Step 2: search via Observable
+  // Step 2: search via namespace (MatchVM is EventBus-driven, CLI calls directly)
   const searchResult = await firstValueFrom(
     semiont.match.search(resourceId, rawAnnotationId, context, {
       limit: options.limit,
       useSemanticScoring: !options.noSemantic,
-    }).pipe(take(1), timeout(60_000)),
+    }),
   );
 
   const results = (searchResult as any).response as ScoredResult[];
