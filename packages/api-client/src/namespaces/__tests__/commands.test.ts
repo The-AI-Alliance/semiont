@@ -92,6 +92,80 @@ describe('MarkNamespace', () => {
     await completed;
     expect(progress.length).toBeGreaterThan(0);
   });
+
+  it('assist() falls back to job polling when SSE is silent', async () => {
+    vi.useFakeTimers();
+    const getJobStatus = vi.fn().mockResolvedValue({ status: 'complete', result: { createdCount: 5 } });
+    const httpWithPoll = makeHttp({ getJobStatus });
+    const bus = new EventBus();
+    const m = new MarkNamespace(httpWithPoll, bus, () => 'tok' as any);
+
+    const progress: any[] = [];
+    let completed = false;
+    m.assist(RID, 'highlighting', {}).subscribe({
+      next: (p) => progress.push(p),
+      complete: () => { completed = true; },
+    });
+
+    // Let HTTP dispatch resolve (delivers jobId)
+    await vi.advanceTimersByTimeAsync(100);
+
+    // No SSE events — advance past poll start delay (10s) + first poll interval (5s)
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(getJobStatus).toHaveBeenCalled();
+    expect(completed).toBe(true);
+
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it('assist() SSE completion wins over polling', async () => {
+    vi.useFakeTimers();
+    const getJobStatus = vi.fn();
+    const httpWithPoll = makeHttp({ getJobStatus });
+    const bus = new EventBus();
+    const m = new MarkNamespace(httpWithPoll, bus, () => 'tok' as any);
+
+    let completed = false;
+    m.assist(RID, 'linking', { entityTypes: ['Person'] }).subscribe({
+      next: () => {},
+      complete: () => { completed = true; },
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // SSE delivers before poll starts
+    bus.get('mark:assist-finished').next({ resourceId: 'res-1', motivation: 'linking' } as any);
+    expect(completed).toBe(true);
+    expect(getJobStatus).not.toHaveBeenCalled();
+
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it('assist() progress resets poll timer', async () => {
+    vi.useFakeTimers();
+    const getJobStatus = vi.fn().mockResolvedValue({ status: 'running' });
+    const httpWithPoll = makeHttp({ getJobStatus });
+    const bus = new EventBus();
+    const m = new MarkNamespace(httpWithPoll, bus, () => 'tok' as any);
+
+    m.assist(RID, 'highlighting', {}).subscribe({ next: () => {}, error: () => {} });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // At 9s, send progress — resets the 10s timer
+    await vi.advanceTimersByTimeAsync(9_000);
+    bus.get('mark:progress').next({ resourceId: 'res-1', status: 'scanning', percentage: 50 } as any);
+
+    // At 18s (9s after progress) — still within 10s window, no polling yet
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(getJobStatus).not.toHaveBeenCalled();
+
+    bus.destroy();
+    vi.useRealTimers();
+  });
 });
 
 // ── Bind ────────────────────────────────────────────────────────────────────
@@ -246,5 +320,51 @@ describe('YieldNamespace', () => {
   it('cloneToken() delegates to generateCloneToken', async () => {
     await yld.cloneToken(RID);
     expect(http.generateCloneToken).toHaveBeenCalledWith(RID, { auth: 'tok' });
+  });
+
+  it('fromAnnotation() falls back to job polling when SSE is silent', async () => {
+    vi.useFakeTimers();
+    const getJobStatus = vi.fn().mockResolvedValue({ status: 'complete', result: { resourceId: 'res-poll' } });
+    const httpWithPoll = makeHttp({ getJobStatus });
+    const bus = new EventBus();
+    const y = new YieldNamespace(httpWithPoll, bus, () => 'tok' as any);
+
+    const progress: unknown[] = [];
+    let completed = false;
+    y.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({
+      next: (p) => progress.push(p),
+      complete: () => { completed = true; },
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(getJobStatus).toHaveBeenCalled();
+    expect(completed).toBe(true);
+
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it('fromAnnotation() SSE completion wins over polling', async () => {
+    vi.useFakeTimers();
+    const getJobStatus = vi.fn();
+    const httpWithPoll = makeHttp({ getJobStatus });
+    const bus = new EventBus();
+    const y = new YieldNamespace(httpWithPoll, bus, () => 'tok' as any);
+
+    let completed = false;
+    y.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({
+      next: () => {},
+      complete: () => { completed = true; },
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+    bus.get('yield:finished').next({ referenceId: AID, status: 'complete', resourceId: 'res-sse', sourceResourceId: 'res-1' } as any);
+    expect(completed).toBe(true);
+    expect(getJobStatus).not.toHaveBeenCalled();
+
+    bus.destroy();
+    vi.useRealTimers();
   });
 });
