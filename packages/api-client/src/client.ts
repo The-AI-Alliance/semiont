@@ -785,7 +785,7 @@ export class SemiontApiClient {
 
   async beckonAttention(
     _participantId: string,
-    data: { annotationId: string; resourceId: string },
+    data: { annotationId?: string; resourceId: string; message?: string },
     _options?: RequestOptions
   ): Promise<components['schemas']['BeckonResponse']> {
     await this.actor.emit('beckon:focus', data as unknown as Record<string, unknown>);
