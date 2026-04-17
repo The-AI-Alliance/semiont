@@ -77,6 +77,18 @@ export {
   createSessionVM,
   type SessionVM,
 } from './domain/session-vm';
+export {
+  createWorkerVM,
+  type WorkerVM,
+  type WorkerVMOptions,
+  type JobAssignment,
+  type ActiveJob,
+} from './domain/worker-vm';
+export {
+  createJobQueueVM,
+  type JobQueueVM,
+  type Job,
+} from './domain/job-queue-vm';
 
 // Page composites — React UI layout orchestration
 export {

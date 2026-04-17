@@ -205,6 +205,23 @@ The Browser is the read actor for navigation and content retrieval. It handles d
 
 The Smelter is the vector projection actor. When a resource is created or an annotation is added, the Smelter receives the event, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store (Qdrant). It emits `embedding:compute` commands on the bus so the Stower can persist them as `embedding:computed` domain events in `.semiont/events/` — making them part of the system of record. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
 
+### Two-Process Model: KS and Worker Pool
+
+The backend runs as two processes:
+
+1. **Knowledge System (KS) process** -- the main backend. Runs Stower, Browser, Gatherer, Matcher, Smelter, all KB stores, EventBus, SSE streaming, HTTP API, and a pg-boss job queue (Postgres-backed).
+
+2. **Worker Pool (child process)** -- runs the Generator and the five annotation detection workers (reference, highlight, assessment, comment, tag). The worker pool uses `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE, the same way the frontend connects. Workers are not on the in-process EventBus; they communicate with the KS through three endpoints:
+   - `GET /jobs/stream?type=...` -- SSE push of job assignments from the KS
+   - `POST /jobs/:id/claim` -- atomic job claim
+   - `POST /jobs/:id/events` -- emit domain events back to the KS EventBus
+
+This split isolates CPU-heavy LLM and annotation work from the request-serving event loop. The KS process stays responsive to human users while workers run in a separate V8 isolate.
+
+New VMs in `@semiont/api-client` support this:
+- **WorkerVM** (`domain/`) -- worker-side: SSE subscription for job assignments, claim, and event emission back to KS
+- **JobQueueVM** (`domain/`) -- KS-side: Observable job lifecycle management
+
 ### Feeder and Content Streams
 
 Content streams are external sources of new resources: file uploads, API ingestion, web fetches. The **Feeder** actor sits between content streams and the event bus. It accepts raw content from a source, emits `yield:create` on the bus, and the Stower handles persistence. The Feeder normalizes the intake — regardless of how content arrives, it enters the system as a yield event.

@@ -6,13 +6,11 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/jobs.svg)](https://www.npmjs.com/package/@semiont/jobs)
 [![License](https://img.shields.io/npm/l/@semiont/jobs.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Filesystem-based job queue, worker infrastructure, and annotation workers for [Semiont](https://github.com/The-AI-Alliance/semiont).
+Job queue, worker infrastructure, and annotation workers for [Semiont](https://github.com/The-AI-Alliance/semiont).
 
 ## Architecture Context
 
-In production, the job queue and workers are created by `@semiont/make-meaning`'s `startMakeMeaning()` function. Workers emit commands on the **EventBus** — the **Stower** actor (in @semiont/make-meaning) handles all persistence to the Knowledge Base.
-
-Workers are **not** actors. They use a polling loop, not RxJS subscriptions. But they emit the same EventBus commands as any other caller in the system.
+The job queue is backed by pg-boss (Postgres). Workers run in a separate child process and connect to the Knowledge System (KS) over HTTP/SSE using `WorkerVM` from `@semiont/api-client`. Workers receive job assignments via SSE push, claim jobs atomically, and emit domain events back to the KS via HTTP. The KS ingests these events onto its EventBus for SSE delivery to the frontend.
 
 ## Installation
 

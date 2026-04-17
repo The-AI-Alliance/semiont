@@ -96,7 +96,7 @@ if (databaseUrlConstructed) {
 const eventBus = new EventBus();
 
 // Initialize make-meaning service (job queue, workers, graph consumer)
-const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
+const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger, { port: backendService.port || 4000 });
 
 // Import route definitions
 import { rootRouter } from './routes/root';

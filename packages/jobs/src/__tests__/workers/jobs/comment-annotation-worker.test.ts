@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { CommentAnnotationWorker } from '../../../workers/comment-annotation-worker';
-import { JobQueue, type RunningJob, type CommentDetectionParams, type CommentDetectionProgress, type ContentFetcher } from '@semiont/jobs';
+import { FsJobQueue as JobQueue, type RunningJob, type CommentDetectionParams, type CommentDetectionProgress, type ContentFetcher } from '@semiont/jobs';
 import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, EventBus, jobId, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';

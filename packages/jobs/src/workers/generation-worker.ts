@@ -10,7 +10,7 @@
 
 import { JobWorker } from '../job-worker';
 import type { AnyJob, RunningJob, GenerationParams, YieldProgress, GenerationResult, GenerationJob } from '../types';
-import type { JobQueue } from '../job-queue';
+import type { JobQueue } from '../job-queue-interface';
 import { generateResourceFromTopic } from './generation/resource-generation';
 import { EventBus, type Logger } from '@semiont/core';
 import { getTargetSelector, getExactText } from '@semiont/api-client';

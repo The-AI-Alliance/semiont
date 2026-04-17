@@ -10,8 +10,9 @@ import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
 import type { SemiontProject } from '@semiont/core/node';
 import type { JobId, Logger, EventBus } from '@semiont/core';
+import type { JobQueue } from './job-queue-interface';
 
-export class JobQueue {
+export class FsJobQueue implements JobQueue {
   private jobsDir: string;
   private logger: Logger;
   // In-memory pending queue: avoids fs.readdir() on every poll (6×/sec with 6 workers)

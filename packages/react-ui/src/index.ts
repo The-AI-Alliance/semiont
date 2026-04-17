@@ -233,5 +233,7 @@ export { createAdminSecurityVM, type AdminSecurityVM } from '@semiont/api-client
 export { createWelcomeVM, type WelcomeVM } from '@semiont/api-client';
 export { createResourceLoaderVM, type ResourceLoaderVM } from '@semiont/api-client';
 export { createSessionVM, type SessionVM } from '@semiont/api-client';
+export { createWorkerVM, type WorkerVM, type WorkerVMOptions, type JobAssignment, type ActiveJob } from '@semiont/api-client';
+export { createJobQueueVM, type JobQueueVM, type Job } from '@semiont/api-client';
 export * from './hooks/useObservable';
 export * from './hooks/useStoreTokenSync';

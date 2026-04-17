@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceAnnotationWorker, type DetectedAnnotation } from '../../../workers/reference-annotation-worker';
-import { JobQueue, type ContentFetcher } from '@semiont/jobs';
+import { FsJobQueue as JobQueue, type ContentFetcher } from '@semiont/jobs';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger } from '@semiont/core';
 

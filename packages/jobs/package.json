@@ -26,7 +26,8 @@
     "@semiont/content": "*",
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",
-    "@semiont/inference": "*"
+    "@semiont/inference": "*",
+    "pg-boss": "^12.0.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",

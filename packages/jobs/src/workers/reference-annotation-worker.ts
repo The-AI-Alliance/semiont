@@ -10,7 +10,7 @@
 
 import { JobWorker } from '../job-worker';
 import type { AnyJob, DetectionJob, RunningJob, DetectionParams, DetectionProgress, DetectionResult, ContentFetcher } from '../types';
-import type { JobQueue } from '../job-queue';
+import type { JobQueue } from '../job-queue-interface';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { EventBus, userToAgent } from '@semiont/core';

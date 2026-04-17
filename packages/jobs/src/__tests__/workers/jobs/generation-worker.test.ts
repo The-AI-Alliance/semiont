@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../../workers/generation-worker';
-import { JobQueue, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
+import { FsJobQueue as JobQueue, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
 import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId, EventBus, jobId, type Logger } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';

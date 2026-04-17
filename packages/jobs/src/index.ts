@@ -1,16 +1,20 @@
 /**
  * @semiont/jobs
  *
- * Filesystem-based job queue and worker infrastructure
+ * Job queue and worker infrastructure
  *
  * Provides:
- * - JobQueue: Filesystem-based job queue with status directories
+ * - JobQueue interface: backing-store-agnostic contract
+ * - PgBossJobQueue: Postgres-backed implementation (production)
+ * - FsJobQueue: Filesystem-backed implementation (preserved, not default)
  * - JobWorker: Abstract base class for job workers
  * - Job types: All job type definitions
  */
 
 // Job Queue
-export { JobQueue } from './job-queue';
+export type { JobQueue } from './job-queue-interface';
+export { PgBossJobQueue } from './pgboss-job-queue';
+export { FsJobQueue } from './fs-job-queue';
 
 // Job Worker
 export { JobWorker } from './job-worker';
@@ -69,6 +73,18 @@ export { HighlightAnnotationWorker } from './workers/highlight-annotation-worker
 export { AssessmentAnnotationWorker } from './workers/assessment-annotation-worker';
 export { CommentAnnotationWorker } from './workers/comment-annotation-worker';
 export { TagAnnotationWorker } from './workers/tag-annotation-worker';
+
+// Job processors (extracted, transport-agnostic)
+export {
+  processHighlightJob,
+  processCommentJob,
+  processAssessmentJob,
+  processReferenceJob,
+  processTagJob,
+  processGenerationJob,
+  type OnProgress,
+  type ProcessorResult,
+} from './processors';
 
 // Detection utilities
 export { AnnotationDetection } from './workers/annotation-detection';
