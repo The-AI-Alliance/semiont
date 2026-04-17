@@ -91,7 +91,7 @@ async function authenticate(): Promise<string> {
     return '';
   }
 
-  const response = await fetch(`${baseUrl}/jobs/token`, {
+  const response = await fetch(`${baseUrl}/api/tokens/worker`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ secret: workerSecret }),

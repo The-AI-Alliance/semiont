@@ -1,4 +1,4 @@
-import { Observable, Subject, Subscription } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
 import type { ViewModel } from '../lib/view-model';
 

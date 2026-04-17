@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { filter, take, toArray } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
 import { createActorVM } from '../actor-vm';
 
 const mockFetch = vi.fn();

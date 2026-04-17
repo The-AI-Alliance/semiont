@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { EventBus } from '@semiont/core';
 import type { User } from '@prisma/client';
+import type { EventBus as EventBusType } from '@semiont/core';
 import { createBusRouter } from '../../routes/bus';
+
+type Variables = { user: User; eventBus: EventBusType };
 
 function fakeUser(): User {
   return {
@@ -20,7 +23,7 @@ function fakeUser(): User {
 function buildApp(eventBus: EventBus) {
   const passthrough = async (_c: unknown, next: () => Promise<void>) => next();
   const router = createBusRouter(passthrough as any);
-  const app = new Hono();
+  const app = new Hono<{ Variables: Variables }>();
 
   app.use('*', async (c, next) => {
     c.set('user', fakeUser());

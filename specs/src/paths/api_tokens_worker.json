@@ -1,0 +1,64 @@
+{
+  "post": {
+    "summary": "Worker Token Exchange",
+    "description": "Exchange a shared secret for a bearer JWT. Used by workers and actors connecting to the EventBus.",
+    "tags": ["Authentication"],
+    "security": [],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "secret": {
+                "type": "string",
+                "description": "The shared worker secret (SEMIONT_WORKER_SECRET)"
+              }
+            },
+            "required": ["secret"]
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Token issued",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "description": "Bearer JWT for subsequent authenticated requests"
+                }
+              },
+              "required": ["token"]
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Invalid worker secret",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "503": {
+        "description": "Worker authentication not configured",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}
