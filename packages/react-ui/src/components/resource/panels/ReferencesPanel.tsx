@@ -7,7 +7,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { AnnotateReferencesProgressWidget } from '../../AnnotateReferencesProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
-import type { components, paths, Selector } from '@semiont/core';
+import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
@@ -15,8 +15,7 @@ import type { MarkProgress } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type ReferencedBy = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
+type ReferencedBy = components['schemas']['GetReferencedByResponse']['referencedBy'][number];
 
 // Unified pending annotation type
 interface PendingAnnotation {
