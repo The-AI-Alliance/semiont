@@ -1,14 +1,3 @@
-/**
- * BrowseNamespace — reads from materialized views
- *
- * Absorbs AnnotationStore and ResourceStore logic. Live queries return
- * Observables backed by BehaviorSubjects that update reactively when
- * EventBus events arrive. One-shot reads are Promise wrappers over HTTP.
- *
- * Backend actor: Browser (context classes)
- * Event prefix: browse:*
- */
-
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery } from '@semiont/core';
@@ -20,14 +9,14 @@ import type {
   AccessToken,
   GraphConnection,
   components,
-  paths,
 } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
+import type { ActorVM } from '../view-models/domain/actor-vm';
+import { busRequest } from '../bus-request';
 import type {
   BrowseNamespace as IBrowseNamespace,
   ReferencedByEntry,
   AnnotationHistoryResponse,
-  ResponseContent,
 } from './types';
 
 type Annotation = components['schemas']['Annotation'];
@@ -35,12 +24,8 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type EnrichedResourceEvent = components['schemas']['EnrichedResourceEvent'];
 
-// Response types extracted from OpenAPI schemas.
-// Note: GET /resources/{id} uses application/ld+json, not application/json,
-// so the generic ResponseContent helper resolves to `never` for it.
-// We reference the schema type directly instead.
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
-type AnnotationsListResponse = ResponseContent<paths['/resources/{id}/annotations']['get']>;
+type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
 
 type TokenGetter = () => AccessToken | undefined;
 
@@ -80,13 +65,16 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly resourceEventsObs$ = new Map<ResourceId, Observable<StoredEventResponse[] | undefined>>();
 
   private readonly getToken: TokenGetter;
+  private readonly actor: ActorVM;
 
   constructor(
     private readonly http: SemiontApiClient,
     private readonly eventBus: EventBus,
     getToken: TokenGetter,
+    actor: ActorVM,
   ) {
     this.getToken = getToken;
+    this.actor = actor;
     this.subscribeToEvents();
   }
 
@@ -207,12 +195,24 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   async resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]> {
-    const result = await this.http.getResourceEvents(resourceId, { auth: this.getToken() });
+    const result = await busRequest<{ events: StoredEventResponse[] }>(
+      this.actor,
+      'browse:events-requested',
+      { resourceId },
+      'browse:events-result',
+      'browse:events-failed',
+    );
     return result.events;
   }
 
   async annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse> {
-    return this.http.getAnnotationHistory(resourceId, annotationId, { auth: this.getToken() });
+    return busRequest<AnnotationHistoryResponse>(
+      this.actor,
+      'browse:annotation-history-requested',
+      { resourceId, annotationId },
+      'browse:annotation-history-result',
+      'browse:annotation-history-failed',
+    );
   }
 
   async connections(_resourceId: ResourceId): Promise<GraphConnection[]> {
@@ -230,8 +230,14 @@ export class BrowseNamespace implements IBrowseNamespace {
   async files(
     dirPath?: string,
     sort?: 'name' | 'mtime' | 'annotationCount',
-  ): Promise<ResponseContent<paths['/api/browse/files']['get']>> {
-    return this.http.browseFiles(dirPath, sort, { auth: this.getToken() });
+  ): Promise<components['schemas']['BrowseFilesResponse']> {
+    return busRequest<components['schemas']['BrowseFilesResponse']>(
+      this.actor,
+      'browse:directory-requested',
+      { path: dirPath ?? '.', sort: sort ?? 'name' },
+      'browse:directory-result',
+      'browse:directory-failed',
+    );
   }
 
   // ── Invalidation (exposed for other namespaces) ─────────────────────────
@@ -300,7 +306,6 @@ export class BrowseNamespace implements IBrowseNamespace {
   private subscribeToEvents(): void {
     const bus = this.eventBus;
 
-    // Annotation events
     bus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
       this.invalidateAnnotationDetail(makeAnnotationId(event.annotationId));
     });
@@ -350,7 +355,6 @@ export class BrowseNamespace implements IBrowseNamespace {
       }
     });
 
-    // Resource events
     bus.get('yield:create-ok').subscribe((event: EventMap['yield:create-ok']) => {
       this.fetchResourceDetail(makeResourceId(event.resourceId));
       this.invalidateResourceLists();
@@ -375,7 +379,6 @@ export class BrowseNamespace implements IBrowseNamespace {
       }
     });
 
-    // Entity types (via global-events-stream)
     bus.get('mark:entity-type-added').subscribe(() => {
       this.invalidateEntityTypes();
     });
@@ -387,7 +390,13 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (this.fetchingAnnotationList.has(resourceId)) return;
     this.fetchingAnnotationList.add(resourceId);
     try {
-      const result = await this.http.browseAnnotations(resourceId, undefined, { auth: this.getToken() });
+      const result = await busRequest<AnnotationsListResponse>(
+        this.actor,
+        'browse:annotations-requested',
+        { resourceId },
+        'browse:annotations-result',
+        'browse:annotations-failed',
+      );
       const next = new Map(this.annotationList$.value);
       next.set(resourceId, result);
       this.annotationList$.next(next);
@@ -402,7 +411,13 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (this.fetchingAnnotationDetail.has(annotationId)) return;
     this.fetchingAnnotationDetail.add(annotationId);
     try {
-      const result = await this.http.browseAnnotation(resourceId, annotationId, { auth: this.getToken() });
+      const result = await busRequest<{ annotation: Annotation }>(
+        this.actor,
+        'browse:annotation-requested',
+        { resourceId, annotationId },
+        'browse:annotation-result',
+        'browse:annotation-failed',
+      );
       const next = new Map(this.annotationDetail$.value);
       next.set(annotationId, result.annotation);
       this.annotationDetail$.next(next);
@@ -417,10 +432,13 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (this.fetchingResourceDetail.has(id)) return;
     this.fetchingResourceDetail.add(id);
     try {
-      // browseResource returns GetResourceResponse (application/ld+json),
-      // but ResponseContent resolves to `never` for non-application/json
-      // content types. Cast through the schema type directly.
-      const result = await this.http.browseResource(id, { auth: this.getToken() }) as unknown as GetResourceResponse;
+      const result = await busRequest<GetResourceResponse>(
+        this.actor,
+        'browse:resource-requested',
+        { resourceId: id },
+        'browse:resource-result',
+        'browse:resource-failed',
+      );
       const next = new Map(this.resourceDetail$.value);
       next.set(id, result.resource);
       this.resourceDetail$.next(next);
@@ -436,7 +454,18 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.fetchingResourceList.add(key);
     try {
       const search = filters?.search ? searchQuery(filters.search) : undefined;
-      const result = await this.http.browseResources(filters?.limit, filters?.archived, search, { auth: this.getToken() });
+      const result = await busRequest<{ resources: ResourceDescriptor[] }>(
+        this.actor,
+        'browse:resources-requested',
+        {
+          search,
+          archived: filters?.archived,
+          limit: filters?.limit ?? 100,
+          offset: 0,
+        },
+        'browse:resources-result',
+        'browse:resources-failed',
+      );
       const next = new Map(this.resourceList$.value);
       next.set(key, result.resources);
       this.resourceList$.next(next);
@@ -451,7 +480,13 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (this.fetchingEntityTypes) return;
     this.fetchingEntityTypes = true;
     try {
-      const result = await this.http.listEntityTypes({ auth: this.getToken() });
+      const result = await busRequest<{ entityTypes: string[] }>(
+        this.actor,
+        'browse:entity-types-requested',
+        {},
+        'browse:entity-types-result',
+        'browse:entity-types-failed',
+      );
       this.entityTypes$.next(result.entityTypes);
     } catch {
       // Leave cache empty
@@ -464,7 +499,13 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (this.fetchingReferencedBy.has(resourceId)) return;
     this.fetchingReferencedBy.add(resourceId);
     try {
-      const result = await this.http.browseReferences(resourceId, { auth: this.getToken() });
+      const result = await busRequest<{ referencedBy: ReferencedByEntry[] }>(
+        this.actor,
+        'browse:referenced-by-requested',
+        { resourceId },
+        'browse:referenced-by-result',
+        'browse:referenced-by-failed',
+      );
       const next = new Map(this.referencedBy$.value);
       next.set(resourceId, result.referencedBy);
       this.referencedBy$.next(next);
@@ -479,7 +520,13 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (this.fetchingResourceEvents.has(resourceId)) return;
     this.fetchingResourceEvents.add(resourceId);
     try {
-      const result = await this.http.getResourceEvents(resourceId, { auth: this.getToken() });
+      const result = await busRequest<{ events: StoredEventResponse[] }>(
+        this.actor,
+        'browse:events-requested',
+        { resourceId },
+        'browse:events-result',
+        'browse:events-failed',
+      );
       const next = new Map(this.resourceEvents$.value);
       next.set(resourceId, result.events);
       this.resourceEvents$.next(next);

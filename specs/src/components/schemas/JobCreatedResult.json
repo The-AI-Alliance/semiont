@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "description": "Result of a job:create command",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "response": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string"
+        }
+      },
+      "required": ["jobId"]
+    }
+  },
+  "required": ["correlationId", "response"]
+}

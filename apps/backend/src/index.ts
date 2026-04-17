@@ -98,6 +98,16 @@ const eventBus = new EventBus();
 // Initialize make-meaning service (job queue, workers, graph consumer)
 const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
 
+// Register bus command handlers
+import { registerJobCommandHandlers } from './handlers/job-commands';
+registerJobCommandHandlers(eventBus, makeMeaning.jobQueue);
+
+import { registerAnnotationLookupHandlers } from './handlers/annotation-lookups';
+registerAnnotationLookupHandlers(eventBus, makeMeaning.knowledgeSystem.kb, makeMeaning.knowledgeSystem.gatherer);
+
+import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
+registerAnnotationAssemblyHandler(eventBus);
+
 // Import route definitions
 import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';
@@ -106,13 +116,7 @@ import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
 import { exchangeRouter } from './routes/exchange';
 import { createResourcesRouter } from './routes/resources/index';
-import { annotationsRouter } from './routes/annotations/index';
-import { entityTypesRouter } from './routes/entity-types';
-import { globalEventsRouter } from './routes/global-events-stream';
-import { createJobsRouter } from './routes/jobs/index';
 import { createBusRouter } from './routes/bus';
-import { participantsRouter } from './routes/participants/index';
-import { browseRouter } from './routes/browse';
 import { authMiddleware } from './middleware/auth';
 
 // Import for static OpenAPI spec
@@ -171,17 +175,10 @@ app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
 app.route('/', exchangeRouter);
-const resourcesRouter = createResourcesRouter(makeMeaning.jobQueue);
+const resourcesRouter = createResourcesRouter();
 app.route('/', resourcesRouter);
-app.route('/', annotationsRouter);
-app.route('/', entityTypesRouter);
-app.route('/', globalEventsRouter);
-const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
-app.route('/', jobsRouter);
 const busRouter = createBusRouter(authMiddleware);
 app.route('/', busRouter);
-app.route('/', participantsRouter);
-app.route('/', browseRouter);
 
 // API Resourceation root - redirect to appropriate format
 app.get('/api', (c) => {

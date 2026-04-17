@@ -1,26 +1,15 @@
-/**
- * MarkNamespace — annotation CRUD, entity types, AI assist
- *
- * Commands return Promises that resolve on HTTP acceptance.
- * Results appear on browse Observables via events-stream.
- * assist() returns an Observable for long-running progress.
- *
- * Backend actor: Stower
- * Event prefix: mark:*
- */
-
 import { Observable, merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
-import { jobId as makeJobId } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
   Motivation,
   AccessToken,
-  EntityType,
   EventBus,
 } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
+import type { ActorVM } from '../view-models/domain/actor-vm';
+import { busRequest } from '../bus-request';
 import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
@@ -36,22 +25,31 @@ export class MarkNamespace implements IMarkNamespace {
     private readonly http: SemiontApiClient,
     private readonly eventBus: EventBus,
     private readonly getToken: TokenGetter,
+    private readonly actor: ActorVM,
   ) {}
 
   async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: string }> {
-    return this.http.markAnnotation(resourceId, input, { auth: this.getToken() });
+    return busRequest<{ annotationId: string }>(
+      this.actor,
+      'mark:create-request',
+      { resourceId, request: input as unknown as Record<string, unknown> },
+      'mark:create-ok',
+      'mark:create-failed',
+    );
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
-    return this.http.deleteAnnotation(resourceId, annotationId, { auth: this.getToken() });
+    await this.actor.emit('mark:delete', { annotationId, resourceId });
   }
 
   async entityType(type: string): Promise<void> {
-    return this.http.addEntityType(type as EntityType, { auth: this.getToken() });
+    await this.actor.emit('mark:add-entity-type', { tag: type });
   }
 
   async entityTypes(types: string[]): Promise<void> {
-    return this.http.addEntityTypesBulk(types as EntityType[], { auth: this.getToken() });
+    for (const tag of types) {
+      await this.actor.emit('mark:add-entity-type', { tag });
+    }
   }
 
   async updateResource(resourceId: ResourceId, data: UpdateResourceInput): Promise<void> {
@@ -59,11 +57,11 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async archive(resourceId: ResourceId): Promise<void> {
-    return this.http.updateResource(resourceId, { archived: true }, { auth: this.getToken() });
+    await this.actor.emit('mark:archive', { resourceId });
   }
 
   async unarchive(resourceId: ResourceId): Promise<void> {
-    return this.http.updateResource(resourceId, { archived: false }, { auth: this.getToken() });
+    await this.actor.emit('mark:unarchive', { resourceId });
   }
 
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistProgress> {
@@ -85,8 +83,9 @@ export class MarkNamespace implements IMarkNamespace {
           if (done) return;
           pollInterval = setInterval(() => {
             if (done) return;
-            this.http.getJobStatus(makeJobId(jobId), { auth: this.getToken() })
-              .then((status) => {
+            busRequest<{ status: string; result?: unknown; error?: string }>(
+              this.actor, 'job:status-requested', { jobId }, 'job:status-result', 'job:status-failed',
+            ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
                   cleanup();
@@ -158,39 +157,40 @@ export class MarkNamespace implements IMarkNamespace {
     resourceId: ResourceId,
     motivation: Motivation,
     options: MarkAssistOptions,
-    auth: AccessToken | undefined,
+    _auth: AccessToken | undefined,
   ): Promise<{ jobId: string }> {
+    const jobTypeMap: Record<string, string> = {
+      tagging: 'tag-annotation',
+      linking: 'reference-annotation',
+      highlighting: 'highlight-annotation',
+      assessing: 'assessment-annotation',
+      commenting: 'comment-annotation',
+    };
+    const jobType = jobTypeMap[motivation];
+    if (!jobType) throw new Error(`Unsupported motivation: ${motivation}`);
+
     if (motivation === 'tagging') {
-      const { schemaId, categories } = options;
-      if (!schemaId || !categories?.length) throw new Error('Tag assist requires schemaId and categories');
-      return this.http.annotateTags(resourceId, { schemaId, categories }, { auth });
+      if (!options.schemaId || !options.categories?.length) throw new Error('Tag assist requires schemaId and categories');
     } else if (motivation === 'linking') {
-      const { entityTypes, includeDescriptiveReferences } = options;
-      if (!entityTypes?.length) throw new Error('Reference assist requires entityTypes');
-      return this.http.annotateReferences(resourceId, {
-        entityTypes: entityTypes as string[],
-        includeDescriptiveReferences: includeDescriptiveReferences ?? false,
-      }, { auth });
-    } else if (motivation === 'highlighting') {
-      return this.http.annotateHighlights(resourceId, {
-        instructions: options.instructions,
-        density: options.density,
-      }, { auth });
-    } else if (motivation === 'assessing') {
-      return this.http.annotateAssessments(resourceId, {
-        instructions: options.instructions,
-        tone: options.tone,
-        density: options.density,
-        language: options.language,
-      }, { auth });
-    } else if (motivation === 'commenting') {
-      return this.http.annotateComments(resourceId, {
-        instructions: options.instructions,
-        tone: options.tone,
-        density: options.density,
-        language: options.language,
-      }, { auth });
+      if (!options.entityTypes?.length) throw new Error('Reference assist requires entityTypes');
     }
-    throw new Error(`Unsupported motivation: ${motivation}`);
+
+    const params: Record<string, unknown> = {};
+    if (options.entityTypes) params.entityTypes = options.entityTypes;
+    if (options.includeDescriptiveReferences !== undefined) params.includeDescriptiveReferences = options.includeDescriptiveReferences;
+    if (options.instructions !== undefined) params.instructions = options.instructions;
+    if (options.density !== undefined) params.density = options.density;
+    if (options.tone !== undefined) params.tone = options.tone;
+    if (options.language !== undefined) params.language = options.language;
+    if (options.schemaId !== undefined) params.schemaId = options.schemaId;
+    if (options.categories !== undefined) params.categories = options.categories;
+
+    return busRequest<{ jobId: string }>(
+      this.actor,
+      'job:create',
+      { jobType, resourceId, params },
+      'job:created',
+      'job:create-failed',
+    );
   }
 }

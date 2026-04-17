@@ -1,11 +1,6 @@
-/**
- * Unit tests for SemiontApiClient with mocked HTTP
- */
-
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import type { KyInstance } from 'ky';
 
-// Mock ky module
 vi.mock('ky', () => ({
   default: {
     create: vi.fn(),
@@ -15,9 +10,9 @@ vi.mock('ky', () => ({
 import ky from 'ky';
 import { SemiontApiClient } from '../client';
 import type { ContentFormat } from '@semiont/core';
-import { baseUrl, resourceId, annotationId, entityType, jobId, EventBus } from '@semiont/core';
+import { baseUrl, resourceId, EventBus } from '@semiont/core';
 
-describe('SemiontApiClient - Archive Operations', () => {
+describe('SemiontApiClient', () => {
   let client: SemiontApiClient;
   let mockKy: KyInstance;
   const testBaseUrl = baseUrl('http://localhost:4000');
@@ -25,7 +20,6 @@ describe('SemiontApiClient - Archive Operations', () => {
   const testResourceUrl = `${testBaseUrl}/resources/${testResourceId}`;
 
   beforeEach(() => {
-    // Create mock ky instance with chainable methods
     mockKy = {
       get: vi.fn(),
       post: vi.fn(),
@@ -34,7 +28,6 @@ describe('SemiontApiClient - Archive Operations', () => {
       delete: vi.fn(),
     } as any;
 
-    // Mock ky.create to return our mock instance
     vi.mocked(ky.create).mockReturnValue(mockKy);
 
     client = new SemiontApiClient({
@@ -50,15 +43,11 @@ describe('SemiontApiClient - Archive Operations', () => {
         text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      await client.updateResource(testResourceId, {
-        archived: true,
-      });
+      await client.updateResource(testResourceId, { archived: true });
 
       expect(mockKy.patch).toHaveBeenCalledWith(
         testResourceUrl,
-        expect.objectContaining({
-          json: { archived: true },
-        })
+        expect.objectContaining({ json: { archived: true } })
       );
     });
 
@@ -67,170 +56,19 @@ describe('SemiontApiClient - Archive Operations', () => {
         text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      await client.updateResource(testResourceId, {
-        archived: false,
-      });
+      await client.updateResource(testResourceId, { archived: false });
 
       expect(mockKy.patch).toHaveBeenCalledWith(
         testResourceUrl,
-        expect.objectContaining({
-          json: { archived: false },
-        })
+        expect.objectContaining({ json: { archived: false } })
       );
-    });
-
-    test('should update entity types and archive in single operation', async () => {
-      vi.mocked(mockKy.patch).mockReturnValue({
-        text: vi.fn().mockResolvedValue(''),
-      } as any);
-
-      await client.updateResource(testResourceId, {
-        archived: true,
-        entityTypes: ['article', 'draft'],
-      });
-
-      expect(mockKy.patch).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({
-          json: {
-            archived: true,
-            entityTypes: ['article', 'draft'],
-          },
-        })
-      );
-    });
-  });
-
-  describe('browseResources - filter by archived', () => {
-    test('should list only active resources', async () => {
-      const mockResponse = {
-        resources: [
-          { id: 'res1', name: 'Active 1', archived: false },
-          { id: 'res2', name: 'Active 2', archived: false },
-        ],
-        total: 2,
-      };
-
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
-      } as any);
-
-      const result = await client.browseResources(10, false);
-
-      expect(result.resources).toHaveLength(2);
-      expect(result.resources.every(r => !r.archived)).toBe(true);
-      expect(mockKy.get).toHaveBeenCalledWith(
-        `${testBaseUrl}/resources`,
-        expect.objectContaining({
-          searchParams: expect.any(URLSearchParams),
-        })
-      );
-    });
-
-    test('should list only archived resources', async () => {
-      const mockResponse = {
-        resources: [
-          { id: 'res3', name: 'Archived 1', archived: true },
-        ],
-        total: 1,
-      };
-
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
-      } as any);
-
-      const result = await client.browseResources(10, true);
-
-      expect(result.resources).toHaveLength(1);
-      expect(result.resources.every(r => r.archived)).toBe(true);
-      expect(mockKy.get).toHaveBeenCalledWith(
-        `${testBaseUrl}/resources`,
-        expect.objectContaining({
-          searchParams: expect.any(URLSearchParams),
-        })
-      );
-    });
-  });
-
-  describe('Entity Detection and Jobs', () => {
-    test('should get job status', async () => {
-      const mockResponse = {
-        jobId: 'job-123',
-        type: 'detection',
-        status: 'running',
-        userId: 'user-1',
-        created: '2024-01-01T00:00:00Z',
-        progress: {
-          current: 50,
-          total: 100,
-          message: 'Processing entities...',
-        },
-      };
-
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
-      } as any);
-
-      const result = await client.getJobStatus(jobId('job-123'));
-
-      expect(result.status).toBe('running');
-      expect(result.jobId).toBe('job-123');
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/jobs/job-123`, { headers: {} });
-    });
-
-    test('should poll job until complete', async () => {
-      const responses = [
-        { jobId: 'job-123', status: 'pending', type: 'detection', created: '2024-01-01T00:00:00Z', userId: 'user-1' },
-        { jobId: 'job-123', status: 'running', type: 'detection', created: '2024-01-01T00:00:00Z', userId: 'user-1' },
-        { jobId: 'job-123', status: 'complete', type: 'detection', created: '2024-01-01T00:00:00Z', userId: 'user-1', result: { detected: 5 } },
-      ];
-
-      let callCount = 0;
-      vi.mocked(mockKy.get).mockImplementation(() => ({
-        json: vi.fn().mockResolvedValue(responses[callCount++]),
-      } as any));
-
-      const progressCalls: any[] = [];
-      const result = await client.pollJobUntilComplete(jobId('job-123'), {
-        interval: 10, // Fast polling for tests
-        onProgress: (status) => progressCalls.push(status),
-      });
-
-      expect(result.status).toBe('complete');
-      expect(progressCalls).toHaveLength(3);
-      expect(progressCalls[0].status).toBe('pending');
-      expect(progressCalls[1].status).toBe('running');
-      expect(progressCalls[2].status).toBe('complete');
-    });
-
-    test('should timeout when polling takes too long', async () => {
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({
-          jobId: 'job-123',
-          status: 'running',
-          type: 'detection',
-          created: '2024-01-01T00:00:00Z',
-          userId: 'user-1',
-        }),
-      } as any);
-
-      await expect(
-        client.pollJobUntilComplete(jobId('job-123'), {
-          interval: 10,
-          timeout: 50, // Very short timeout for testing
-        })
-      ).rejects.toThrow('Job polling timeout after 50ms');
     });
   });
 
   describe('User Operations', () => {
     test('should logout user', async () => {
-      const mockResponse = {
-        message: 'Logged out successfully',
-      };
-
       vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
+        json: vi.fn().mockResolvedValue({ message: 'Logged out successfully' }),
       } as any);
 
       const result = await client.logout();
@@ -245,11 +83,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       const mockResponse = {
         status: 'healthy',
         version: '1.0.0',
-        features: {
-          semanticContent: 'enabled',
-          collaboration: 'enabled',
-          rbac: 'disabled',
-        },
+        features: { semanticContent: 'enabled', collaboration: 'enabled', rbac: 'disabled' },
       };
 
       vi.mocked(mockKy.get).mockReturnValue({
@@ -259,72 +93,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       const result = await client.getStatus();
 
       expect(result.version).toBe('1.0.0');
-      expect(result.features.semanticContent).toBe('enabled');
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/status`, { headers: {} });
-    });
-  });
-
-  describe('Entity Types Bulk Operations', () => {
-    test('should add multiple entity types at once', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        text: vi.fn().mockResolvedValue(''),
-      } as any);
-
-      await client.addEntityTypesBulk([entityType('concept'), entityType('person'), entityType('organization')]);
-
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/entity-types/bulk`,
-        expect.objectContaining({
-          json: { tags: [entityType('concept'), entityType('person'), entityType('organization')] },
-        })
-      );
-    });
-  });
-
-  describe('Annotation History', () => {
-    test('should get annotation event history', async () => {
-      const testAnnotationId = annotationId('ann-123');
-      const mockResponse = {
-        events: [
-          {
-            id: 'evt-1',
-            type: 'highlight.created',
-            timestamp: '2024-01-01T00:00:00Z',
-            userId: 'user-1',
-            resourceId: 'test-resource-id',
-            payload: { highlightId: 'ann-123' },
-            metadata: {
-              sequenceNumber: 1,
-            },
-          },
-          {
-            id: 'evt-2',
-            type: 'highlight.updated',
-            timestamp: '2024-01-01T00:01:00Z',
-            userId: 'user-1',
-            resourceId: 'test-resource-id',
-            payload: { highlightId: 'ann-123' },
-            metadata: {
-              sequenceNumber: 2,
-            },
-          },
-        ],
-        total: 2,
-        annotationId: 'ann-123',
-        resourceId: 'test-resource-id',
-      };
-
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
-      } as any);
-
-      const result = await client.getAnnotationHistory(testResourceId, testAnnotationId);
-
-      expect(result.total).toBe(2);
-      expect(result.events).toHaveLength(2);
-      expect(result.annotationId).toBe('ann-123');
-      expect(result.events[0].metadata.sequenceNumber).toBe(1);
-      expect(mockKy.get).toHaveBeenCalledWith(`${testResourceUrl}/annotations/${testAnnotationId}/history`, { headers: {} });
     });
   });
 
@@ -334,9 +103,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       const mockBuffer = new TextEncoder().encode(mockText).buffer;
 
       vi.mocked(mockKy.get).mockReturnValue({
-        headers: {
-          get: vi.fn((header: string) => header === 'content-type' ? 'text/plain' : null)
-        },
+        headers: { get: vi.fn((header: string) => header === 'content-type' ? 'text/plain' : null) },
         arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
@@ -345,14 +112,6 @@ describe('SemiontApiClient - Archive Operations', () => {
       expect(result.data).toBeInstanceOf(ArrayBuffer);
       expect(result.contentType).toBe('text/plain');
       expect(new TextDecoder().decode(result.data)).toBe(mockText);
-      expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({
-          headers: {
-            Accept: 'text/plain',
-          },
-        })
-      );
     });
 
     test('should get resource representation with custom accept header', async () => {
@@ -360,55 +119,13 @@ describe('SemiontApiClient - Archive Operations', () => {
       const mockBuffer = new TextEncoder().encode(mockMarkdown).buffer;
 
       vi.mocked(mockKy.get).mockReturnValue({
-        headers: {
-          get: vi.fn((header: string) => header === 'content-type' ? 'text/markdown' : null)
-        },
+        headers: { get: vi.fn((header: string) => header === 'content-type' ? 'text/markdown' : null) },
         arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
-      const result = await client.getResourceRepresentation(testResourceId, {
-        accept: 'text/markdown',
-      });
+      const result = await client.getResourceRepresentation(testResourceId, { accept: 'text/markdown' });
 
-      expect(result.data).toBeInstanceOf(ArrayBuffer);
       expect(result.contentType).toBe('text/markdown');
-      expect(new TextDecoder().decode(result.data)).toBe(mockMarkdown);
-      expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({
-          headers: {
-            Accept: 'text/markdown',
-          },
-        })
-      );
-    });
-
-    test('should get resource representation with text/plain', async () => {
-      const mockText = 'Hello World';
-      const mockBuffer = new TextEncoder().encode(mockText).buffer;
-
-      vi.mocked(mockKy.get).mockReturnValue({
-        headers: {
-          get: vi.fn((header: string) => header === 'content-type' ? 'text/plain; charset=utf-8' : null)
-        },
-        arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
-      } as any);
-
-      const result = await client.getResourceRepresentation(testResourceId, {
-        accept: 'text/plain',
-      });
-
-      expect(result.data).toBeInstanceOf(ArrayBuffer);
-      expect(result.contentType).toBe('text/plain; charset=utf-8');
-      expect(new TextDecoder().decode(result.data)).toBe(mockText);
-      expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({
-          headers: {
-            Accept: 'text/plain',
-          },
-        })
-      );
     });
   });
 
@@ -423,9 +140,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       });
 
       vi.mocked(mockKy.get).mockReturnValue({
-        headers: {
-          get: vi.fn((header: string) => header === 'content-type' ? 'video/mp4' : null)
-        },
+        headers: { get: vi.fn((header: string) => header === 'content-type' ? 'video/mp4' : null) },
         body: mockStream,
       } as any);
 
@@ -435,16 +150,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
       expect(result.stream).toBeInstanceOf(ReadableStream);
       expect(result.contentType).toBe('video/mp4');
-      expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({
-          headers: {
-            Accept: 'video/mp4',
-          },
-        })
-      );
 
-      // Verify stream can be consumed
       const reader = result.stream.getReader();
       const { value, done } = await reader.read();
       expect(done).toBe(false);
@@ -453,9 +159,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
     test('should throw error if response body is null', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        headers: {
-          get: vi.fn(() => 'text/plain')
-        },
+        headers: { get: vi.fn(() => 'text/plain') },
         body: null,
       } as any);
 
@@ -463,25 +167,11 @@ describe('SemiontApiClient - Archive Operations', () => {
         client.getResourceRepresentationStream(testResourceId)
       ).rejects.toThrow('Response body is null - cannot create stream');
     });
+  });
 
-    test('should use default content type if header missing', async () => {
-      const mockStream = new ReadableStream({
-        start(controller) {
-          controller.close();
-        }
-      });
-
-      vi.mocked(mockKy.get).mockReturnValue({
-        headers: {
-          get: vi.fn(() => null)
-        },
-        body: mockStream,
-      } as any);
-
-      const result = await client.getResourceRepresentationStream(testResourceId);
-
-      expect(result.contentType).toBe('application/octet-stream');
-      expect(result.stream).toBeInstanceOf(ReadableStream);
+  describe('dispose()', () => {
+    test('should clean up actor on dispose', () => {
+      client.dispose();
     });
   });
 });

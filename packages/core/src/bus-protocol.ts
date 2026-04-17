@@ -104,6 +104,7 @@ export type EventMap = {
   'mark:assist-failed': components['schemas']['MarkAssistFailed'];
 
   // Commands
+  'mark:create-request': components['schemas']['MarkCreateRequest'];
   'mark:create': components['schemas']['MarkCreateCommand'];
   'mark:delete': components['schemas']['MarkDeleteCommand'];
   'mark:update-body': components['schemas']['MarkUpdateBodyCommand'];
@@ -164,6 +165,10 @@ export type EventMap = {
   'gather:resource-complete': components['schemas']['GatherResourceComplete'];
   'gather:resource-failed': { correlationId: string; resourceId: string } & components['schemas']['CommandError'];
 
+  'gather:summary-requested': components['schemas']['GatherSummaryRequest'];
+  'gather:summary-result': { correlationId: string; response: Record<string, unknown> };
+  'gather:summary-failed': { correlationId: string } & components['schemas']['CommandError'];
+
   // SSE stream payloads
   'gather:annotation-progress': components['schemas']['GatherProgress'];
   'gather:annotation-finished': components['schemas']['GatherAnnotationFinished'];
@@ -198,6 +203,10 @@ export type EventMap = {
   'browse:annotation-history-requested': components['schemas']['BrowseAnnotationHistoryRequest'];
   'browse:annotation-history-result': components['schemas']['BrowseAnnotationHistoryResult'];
   'browse:annotation-history-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:annotation-context-requested': components['schemas']['BrowseAnnotationContextRequest'];
+  'browse:annotation-context-result': { correlationId: string; response: Record<string, unknown> };
+  'browse:annotation-context-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:referenced-by-requested': components['schemas']['BrowseReferencedByRequest'];
   'browse:referenced-by-result': components['schemas']['BrowseReferencedByResult'];
@@ -251,10 +260,16 @@ export type EventMap = {
   'job:queued': components['schemas']['JobQueuedEvent'];
   'job:cancel-requested': components['schemas']['JobCancelRequest'];
   'job:status-requested': components['schemas']['JobStatusRequest'];
+  'job:create': components['schemas']['JobCreateCommand'];
+  'job:claim': components['schemas']['JobClaimCommand'];
 
   // Results
   'job:status-result': components['schemas']['JobStatusResult'];
   'job:status-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:created': components['schemas']['JobCreatedResult'];
+  'job:create-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:claimed': { correlationId: string; response: Record<string, unknown> };
+  'job:claim-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   // ========================================================================
   // SETTINGS (frontend-only)

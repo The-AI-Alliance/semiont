@@ -1,27 +1,13 @@
-/**
- * GatherNamespace — context assembly
- *
- * Long-running (LLM calls + graph traversal). Returns Observables
- * that emit progress then the gathered context.
- *
- * Backend actor: Gatherer
- * Event prefix: gather:*
- */
-
 import { Observable, merge } from 'rxjs';
 import { filter, map, takeUntil } from 'rxjs/operators';
-import type { AnnotationId, ResourceId, AccessToken, EventBus } from '@semiont/core';
-import { annotationId as makeAnnotationId } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
+import type { AnnotationId, ResourceId, EventBus } from '@semiont/core';
+import type { ActorVM } from '../view-models/domain/actor-vm';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
-
-type TokenGetter = () => AccessToken | undefined;
 
 export class GatherNamespace implements IGatherNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
     private readonly eventBus: EventBus,
-    private readonly getToken: TokenGetter,
+    private readonly actor: ActorVM,
   ) {}
 
   annotation(
@@ -32,7 +18,6 @@ export class GatherNamespace implements IGatherNamespace {
     return new Observable((subscriber) => {
       const correlationId = crypto.randomUUID();
 
-      // Subscribe to progress + completion events filtered by correlationId
       const complete$ = this.eventBus.get('gather:complete').pipe(
         filter((e) => e.correlationId === correlationId),
       );
@@ -42,7 +27,6 @@ export class GatherNamespace implements IGatherNamespace {
 
       const sub = merge(
         this.eventBus.get('gather:annotation-progress').pipe(
-          // Progress events don't carry correlationId, so match by annotationId
           filter((e) => (e as { annotationId?: string }).annotationId === (annotationId as string)),
           map((e) => e as GatherAnnotationProgress),
         ),
@@ -54,7 +38,6 @@ export class GatherNamespace implements IGatherNamespace {
           error: (e) => subscriber.error(e),
         });
 
-      // On complete, emit final value and complete the Observable
       const completeSub = complete$.subscribe((e) => {
         subscriber.next(e as GatherAnnotationProgress);
         subscriber.complete();
@@ -64,13 +47,12 @@ export class GatherNamespace implements IGatherNamespace {
         subscriber.error(new Error(e.message));
       });
 
-      // Fire the HTTP POST
-      this.http.gatherAnnotationContext(
+      this.actor.emit('gather:annotation-request', {
+        correlationId,
+        annotationId,
         resourceId,
-        makeAnnotationId(annotationId as string),
-        { correlationId, contextWindow: options?.contextWindow ?? 2000 },
-        { auth: this.getToken() },
-      ).catch((error) => {
+        contextWindow: options?.contextWindow ?? 2000,
+      }).catch((error) => {
         subscriber.error(error);
       });
 

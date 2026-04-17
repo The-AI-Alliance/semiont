@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap } from '@semiont/core';
+import { userToDid } from '@semiont/core';
 import { validateSchema } from '../utils/openapi-validator';
 import { getLogger } from '../logger';
 
@@ -13,6 +14,7 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
 
 const CHANNEL_SCHEMAS: Record<string, string> = {
   // Mark flow — annotation commands
+  'mark:create-request':      'MarkCreateRequest',
   'mark:create':              'MarkCreateCommand',
   'mark:delete':              'MarkDeleteCommand',
   'mark:update-body':         'MarkUpdateBodyCommand',
@@ -39,6 +41,9 @@ const CHANNEL_SCHEMAS: Record<string, string> = {
   'bind:initiate':            'BindInitiateCommand',
   'bind:update-body':         'BindUpdateBodyCommand',
 
+  // Gather flow (summary)
+  'gather:summary-requested': 'GatherSummaryRequest',
+
   // Match flow
   'match:search-requested':   'MatchSearchRequest',
 
@@ -56,6 +61,7 @@ const CHANNEL_SCHEMAS: Record<string, string> = {
   'browse:entity-types-requested': 'BrowseEntityTypesRequest',
   'browse:directory-requested':    'BrowseDirectoryRequest',
   'browse:annotation-history-requested': 'BrowseAnnotationHistoryRequest',
+  'browse:annotation-context-requested': 'BrowseAnnotationContextRequest',
 
   // Job flow
   'job:queued':               'JobQueuedEvent',
@@ -65,6 +71,8 @@ const CHANNEL_SCHEMAS: Record<string, string> = {
   'job:fail':                 'JobFailCommand',
   'job:status-requested':     'JobStatusRequest',
   'job:cancel-requested':     'JobCancelRequest',
+  'job:create':               'JobCreateCommand',
+  'job:claim':                'JobClaimCommand',
 };
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
@@ -123,6 +131,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         getBusLogger().warn('Bus emit validation failed', { channel, scope, schemaName, errorMessage });
         throw new HTTPException(400, { message: `Invalid payload for ${channel}: ${errorMessage}` });
       }
+    }
+
+    const user = c.get('user') as User | undefined;
+    if (user) {
+      payload._userId = userToDid(user);
     }
 
     const bus = scope ? eventBus.scope(scope) : eventBus;

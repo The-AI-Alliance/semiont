@@ -1,5 +1,4 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
-import type { EntityType } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { BrowseVM } from '../flows/browse-vm';
@@ -37,7 +36,7 @@ export function createEntityTagsVM(
     error$.next('');
     isAdding$.next(true);
     try {
-      await client.addEntityType(tag as EntityType);
+      await client.mark.entityType(tag);
       newTag$.next('');
     } catch (err) {
       error$.next(err instanceof Error ? err.message : 'Failed to add entity type');

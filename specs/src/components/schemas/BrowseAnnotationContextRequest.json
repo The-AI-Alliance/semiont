@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "Request to get contextual text around an annotation",
+  "properties": {
+    "correlationId": { "type": "string" },
+    "annotationId": { "type": "string" },
+    "resourceId": { "type": "string" },
+    "contextBefore": { "type": "integer", "minimum": 0, "maximum": 5000 },
+    "contextAfter": { "type": "integer", "minimum": 0, "maximum": 5000 }
+  },
+  "required": ["correlationId", "annotationId", "resourceId"]
+}
