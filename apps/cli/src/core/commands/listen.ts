@@ -1,7 +1,7 @@
 /**
  * Listen Command
  *
- * Opens a persistent SSE connection and prints domain events to stdout as
+ * Subscribes to the bus gateway and prints domain events to stdout as
  * newline-delimited JSON (one event per line). Runs until the user presses
  * Ctrl-C or the server closes the connection.
  *
@@ -11,8 +11,9 @@
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, EventBus, type PersistedEventType } from '@semiont/core';
-import { CommandResults } from '../command-types.js';
+import { resourceId as toResourceId, type PersistedEventType } from '@semiont/core';
+import { createActorVM } from '@semiont/api-client';
+import type { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 
@@ -40,35 +41,26 @@ export type ListenOptions = z.output<typeof ListenOptionsSchema>;
 // IMPLEMENTATION
 // =====================================================================
 
+const ALL_EVENT_TYPES: PersistedEventType[] = [
+  'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
+  'yield:representation-added', 'yield:representation-removed',
+  'mark:added', 'mark:removed', 'mark:body-updated',
+  'mark:archived', 'mark:unarchived',
+  'mark:entity-tag-added', 'mark:entity-tag-removed',
+  'mark:entity-type-added',
+  'job:started', 'job:progress', 'job:completed', 'job:failed',
+];
+
 export async function runListen(options: ListenOptions): Promise<CommandResults> {
   const startTime = Date.now();
-  
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont, token } = loadCachedClient(rawBusUrl);
+  const { token } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId] = options.args;
   const isResourceScoped = subcommand === 'resource';
 
-  const eventBus = new EventBus();
   let eventCount = 0;
-
-  // Print every domain event as NDJSON — subscribe to all event types
-  const allEventTypes: PersistedEventType[] = [
-    'yield:created', 'yield:cloned', 'yield:updated', 'yield:moved',
-    'yield:representation-added', 'yield:representation-removed',
-    'mark:added', 'mark:removed', 'mark:body-updated',
-    'mark:archived', 'mark:unarchived',
-    'mark:entity-tag-added', 'mark:entity-tag-removed',
-    'mark:entity-type-added',
-    'job:started', 'job:progress', 'job:completed', 'job:failed',
-  ];
-  for (const eventType of allEventTypes) {
-    eventBus.get(eventType as any).subscribe((event) => {
-      eventCount++;
-      process.stdout.write(JSON.stringify(event) + '\n');
-    });
-  }
 
   const label = isResourceScoped
     ? `Listening for events on resource ${rawResourceId}`
@@ -76,14 +68,28 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
 
   if (!options.quiet) process.stderr.write(label + ' (Ctrl-C to stop)\n');
 
-  const stream = isResourceScoped
-    ? semiont.sse.resourceEvents(toResourceId(rawResourceId), { auth: token, eventBus })
-    : semiont.sse.globalEvents({ auth: token, eventBus });
+  const actor = createActorVM({
+    baseUrl: rawBusUrl,
+    token,
+    channels: isResourceScoped ? [] : [...ALL_EVENT_TYPES],
+  });
 
-  // Wait for SIGINT/SIGTERM or stream close
+  if (isResourceScoped) {
+    actor.addChannels([...ALL_EVENT_TYPES], toResourceId(rawResourceId) as string);
+  }
+
+  for (const eventType of ALL_EVENT_TYPES) {
+    actor.on$(eventType).subscribe((event) => {
+      eventCount++;
+      process.stdout.write(JSON.stringify(event) + '\n');
+    });
+  }
+
+  actor.start();
+
   await new Promise<void>((resolve) => {
     const cleanup = () => {
-      stream.close();
+      actor.dispose();
       resolve();
     };
     process.once('SIGINT', cleanup);
@@ -97,35 +103,23 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
     duration: Date.now() - startTime,
     summary: { succeeded: eventCount, failed: 0, total: eventCount, warnings: 0 },
     executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
-    results: [{ entity: rawResourceId ?? 'global', platform: 'posix', success: true, duration: Date.now() - startTime }],
-  };
+  } as CommandResults;
 }
 
 // =====================================================================
-// COMMAND DEFINITION
+// COMMAND
 // =====================================================================
 
 export const listenCmd = new CommandBuilder()
   .name('listen')
-  .description(
-    'Open a persistent SSE connection and stream domain events as NDJSON to stdout. ' +
-    'Without a subcommand, streams global system events. ' +
-    'With `resource <resourceId>`, streams events scoped to that resource. ' +
-    'Runs until Ctrl-C or the server closes the connection.'
-  )
+  .description('Subscribe to real-time domain events from the knowledge base')
   .requiresEnvironment(true)
   .requiresServices(true)
   .examples(
     'semiont listen',
     'semiont listen resource <resourceId>',
-    'semiont listen resource <resourceId> | jq .type',
-    'semiont listen | grep entitytype',
   )
-  .args({
-    ...withApiArgs({}, {}),
-    restAs: 'args',
-    aliases: {},
-  })
+  .args({ ...withApiArgs({}, {}), restAs: 'args', aliases: {} })
   .schema(ListenOptionsSchema)
   .handler(runListen)
   .build();
