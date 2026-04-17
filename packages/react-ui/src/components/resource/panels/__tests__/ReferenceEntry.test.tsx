@@ -5,7 +5,7 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
-import { SemiontApiClient } from '@semiont/api-client';
+import { BindNamespace } from '@semiont/api-client';
 import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 
 type Annotation = components['schemas']['Annotation'];
@@ -308,7 +308,7 @@ describe('ReferenceEntry', () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 
-      const bindSpy = vi.spyOn(SemiontApiClient.prototype, 'bindAnnotation').mockResolvedValue({ correlationId: 'c1' });
+      const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockResolvedValue(undefined);
 
       const { container } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={true} />,
@@ -320,8 +320,7 @@ describe('ReferenceEntry', () => {
       expect(bindSpy).toHaveBeenCalledWith(
         'resource-1',
         'ref-1',
-        { operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc', purpose: 'linking' } }] },
-        expect.anything(),
+        [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc', purpose: 'linking' } }],
       );
 
       bindSpy.mockRestore();
