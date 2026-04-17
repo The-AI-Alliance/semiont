@@ -46,7 +46,12 @@ function readSemiontConfig(): Record<string, string> {
       if (kvMatch) {
         const key = currentSection ? `${currentSection}.${kvMatch[1]}` : kvMatch[1];
         let value = kvMatch[2];
-        value = value.replace(/\$\{(\w+)\}/g, (_, name) => process.env[name] ?? '');
+        value = value.replace(/\$\{([^}]+)\}/g, (_, expr: string) => {
+          const sepIdx = expr.indexOf(':-');
+          const varName = sepIdx >= 0 ? expr.slice(0, sepIdx) : expr;
+          const defaultValue = sepIdx >= 0 ? expr.slice(sepIdx + 2) : '';
+          return process.env[varName] ?? defaultValue;
+        });
         result[key] = value;
       }
     }
@@ -75,19 +80,15 @@ const inferenceConfig: InferenceClientConfig = {
   ...(process.env.ANTHROPIC_API_KEY && { apiKey: process.env.ANTHROPIC_API_KEY }),
 };
 
-const logger = {
-  debug: () => {},
-  info: (...args: unknown[]) => console.log('[worker]', ...args),
-  warn: (...args: unknown[]) => console.warn('[worker]', ...args),
-  error: (...args: unknown[]) => console.error('[worker]', ...args),
-  child: () => logger,
-};
+import { createProcessLogger } from './logger';
+
+const logger = createProcessLogger('worker');
 
 // ── Authenticate and start ────────────────────────────────────────────
 
 async function authenticate(): Promise<string> {
   if (!workerSecret) {
-    console.warn('[worker] No SEMIONT_WORKER_SECRET set — using empty token');
+    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
     return '';
   }
 
@@ -106,9 +107,9 @@ async function authenticate(): Promise<string> {
 }
 
 async function main() {
-  console.log(`[worker] Authenticating with ${baseUrl}...`);
+  logger.info('Authenticating', { baseUrl });
   const token = await authenticate();
-  console.log('[worker] Authenticated');
+  logger.info('Authenticated');
 
   const inferenceClient = createInferenceClient(inferenceConfig, logger);
   const generator: Agent = {
@@ -125,10 +126,10 @@ async function main() {
     jobTypes: ALL_JOB_TYPES,
     inferenceClient,
     generator,
+    logger,
   });
 
-  console.log(`[worker] Connected to ${baseUrl}`);
-  console.log(`[worker] Inference: ${inferenceType} ${inferenceModel} @ ${inferenceEndpoint}`);
+  logger.info('Connected', { baseUrl, inferenceType, inferenceModel, inferenceEndpoint });
 
   const health = createServer((req, res) => {
     if (req.url === '/health') {
@@ -140,11 +141,11 @@ async function main() {
     }
   });
   health.listen(healthPort, () => {
-    console.log(`[worker] Health endpoint on http://localhost:${healthPort}/health`);
+    logger.info('Health endpoint ready', { port: healthPort });
   });
 
   const shutdown = () => {
-    console.log('[worker] Shutting down...');
+    logger.info('Shutting down');
     vm.dispose();
     health.close();
     process.exit(0);
@@ -155,6 +156,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[worker] Fatal:', error);
+  logger.error('Fatal', { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
   process.exit(1);
 });

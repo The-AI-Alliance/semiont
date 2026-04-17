@@ -455,12 +455,21 @@ authRouter.post('/api/tokens/worker', async (c) => {
     return c.json({ error: 'Invalid worker secret' }, 401);
   }
 
+  const prisma = DatabaseConnection.getClient();
+  const workerUser = await prisma.user.findUnique({
+    where: { email: 'worker@semiont.local' },
+  });
+
+  if (!workerUser) {
+    return c.json({ error: 'Worker user not found — run: semiont useradd --email worker@semiont.local --generate-password --upsert' }, 503);
+  }
+
   const token = JWTService.generateToken({
-    userId: makeUserId('worker-pool'),
-    email: makeEmail('worker@semiont.local'),
-    name: 'Worker Pool',
-    domain: 'semiont.local',
-    provider: 'worker',
+    userId: makeUserId(workerUser.id),
+    email: makeEmail(workerUser.email),
+    name: workerUser.name ?? 'Worker Pool',
+    domain: workerUser.domain,
+    provider: workerUser.provider,
     isAdmin: false,
   }, '24h');
 

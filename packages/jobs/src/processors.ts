@@ -14,11 +14,10 @@ import { AnnotationDetection } from './workers/annotation-detection';
 import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { userToAgent, type ResourceId, type components } from '@semiont/core';
+import { didToAgent, type ResourceId, type components } from '@semiont/core';
 import { validateAndCorrectOffsets } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
 import type {
-  JobMetadata,
   HighlightDetectionParams,
   CommentDetectionParams,
   AssessmentDetectionParams,
@@ -42,18 +41,9 @@ export interface ProcessorResult<R> {
   result: R;
 }
 
-function buildCreator(metadata: JobMetadata) {
-  return userToAgent({
-    id: metadata.userId,
-    name: metadata.userName,
-    email: metadata.userEmail,
-    domain: metadata.userDomain,
-  });
-}
-
 function buildTextAnnotation(
   resourceId: ResourceId,
-  metadata: JobMetadata,
+  userId: string,
   generator: Agent,
   motivation: string,
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
@@ -64,7 +54,7 @@ function buildTextAnnotation(
     'type': 'Annotation' as const,
     'id': generateAnnotationId(),
     motivation,
-    creator: buildCreator(metadata),
+    creator: didToAgent(userId),
     generator,
     created: new Date().toISOString(),
     target: {
@@ -88,7 +78,7 @@ export async function processHighlightJob(
   content: string,
   inferenceClient: InferenceClient,
   params: HighlightDetectionParams,
-  metadata: JobMetadata,
+  userId: string,
   generator: Agent,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<HighlightDetectionResult>> {
@@ -102,7 +92,7 @@ export async function processHighlightJob(
   onProgress(60, `Creating ${highlights.length} annotations...`, 'creating');
 
   const annotations = highlights.map((h) =>
-    buildTextAnnotation(params.resourceId, metadata, generator, 'highlighting', h, []),
+    buildTextAnnotation(params.resourceId, userId, generator, 'highlighting', h, []),
   );
 
   onProgress(100, `Complete! Created ${annotations.length} highlights`, 'creating');
@@ -117,7 +107,7 @@ export async function processCommentJob(
   content: string,
   inferenceClient: InferenceClient,
   params: CommentDetectionParams,
-  metadata: JobMetadata,
+  userId: string,
   generator: Agent,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<CommentDetectionResult>> {
@@ -131,7 +121,7 @@ export async function processCommentJob(
   onProgress(60, `Creating ${comments.length} annotations...`, 'creating');
 
   const annotations = comments.map((c) =>
-    buildTextAnnotation(params.resourceId, metadata, generator, 'commenting', c, [
+    buildTextAnnotation(params.resourceId, userId, generator, 'commenting', c, [
       { type: 'TextualBody', value: c.comment, purpose: 'commenting' },
     ]),
   );
@@ -148,7 +138,7 @@ export async function processAssessmentJob(
   content: string,
   inferenceClient: InferenceClient,
   params: AssessmentDetectionParams,
-  metadata: JobMetadata,
+  userId: string,
   generator: Agent,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<AssessmentDetectionResult>> {
@@ -162,7 +152,7 @@ export async function processAssessmentJob(
   onProgress(60, `Creating ${assessments.length} annotations...`, 'creating');
 
   const annotations = assessments.map((a) =>
-    buildTextAnnotation(params.resourceId, metadata, generator, 'assessing', a, [
+    buildTextAnnotation(params.resourceId, userId, generator, 'assessing', a, [
       { type: 'TextualBody', value: a.assessment, purpose: 'describing' },
     ]),
   );
@@ -179,7 +169,7 @@ export async function processReferenceJob(
   content: string,
   inferenceClient: InferenceClient,
   params: DetectionParams,
-  metadata: JobMetadata,
+  userId: string,
   generator: Agent,
   onProgress: OnProgress,
   logger?: import('@semiont/core').Logger,
@@ -206,7 +196,7 @@ export async function processReferenceJob(
     for (const entity of extractedEntities) {
       try {
         const validated = validateAndCorrectOffsets(content, entity.startOffset, entity.endOffset, entity.exact);
-        const ann = buildTextAnnotation(params.resourceId, metadata, generator, 'linking', validated, []);
+        const ann = buildTextAnnotation(params.resourceId, userId, generator, 'linking', validated, []);
         allAnnotations.push(ann);
         totalEmitted++;
       } catch {
@@ -227,7 +217,7 @@ export async function processTagJob(
   content: string,
   inferenceClient: InferenceClient,
   params: TagDetectionParams,
-  metadata: JobMetadata,
+  userId: string,
   generator: Agent,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<TagDetectionResult>> {
@@ -249,7 +239,7 @@ export async function processTagJob(
   const annotations = tags.map((t) => {
     const category = t.category ?? 'unknown';
     byCategory[category] = (byCategory[category] ?? 0) + 1;
-    return buildTextAnnotation(params.resourceId, metadata, generator, 'tagging', t, [
+    return buildTextAnnotation(params.resourceId, userId, generator, 'tagging', t, [
       { type: 'TextualBody', value: category, purpose: 'tagging' },
     ]);
   });

@@ -6,40 +6,43 @@ import { createWorkerVM } from '../worker-vm';
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-function setupEventSource() {
-  const listeners = new Map<string, Function>();
-  const instance = {
-    addEventListener: (event: string, handler: Function) => listeners.set(event, handler),
-    close: vi.fn(),
-    listeners,
-  };
-  const calls: string[] = [];
-  function MockEventSource(this: unknown, url: string) {
-    calls.push(url);
-    Object.assign(this as Record<string, unknown>, instance);
-  }
-  vi.stubGlobal('EventSource', MockEventSource);
-  return { instance, calls };
+function sseChunk(event: string, data: string): string {
+  return `event: ${event}\ndata: ${data}\n\n`;
 }
 
-function emitBusEvent(
-  es: ReturnType<typeof setupEventSource>['instance'],
-  channel: string,
+function createSSEStream() {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) { controller = c; },
+  });
+  return {
+    stream,
+    push: (text: string) => controller.enqueue(encoder.encode(text)),
+    close: () => controller.close(),
+  };
+}
+
+function mockSSEResponse() {
+  const sse = createSSEStream();
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    body: sse.stream,
+  });
+  return sse;
+}
+
+function emitJobQueued(
+  sse: ReturnType<typeof createSSEStream>,
   payload: Record<string, unknown>,
 ) {
-  const handler = es.listeners.get('bus-event')!;
-  handler({ data: JSON.stringify({ channel, payload }) });
+  sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'job:queued', payload })));
 }
 
 describe('createWorkerVM', () => {
-  let esInstance: ReturnType<typeof setupEventSource>['instance'];
-  let esCalls: string[];
-
   beforeEach(() => {
     vi.clearAllMocks();
-    const { instance, calls } = setupEventSource();
-    esInstance = instance;
-    esCalls = calls;
   });
 
   it('initializes with no active job', async () => {
@@ -56,7 +59,9 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('start connects to bus subscribe with job:queued channel', () => {
+  it('start connects to bus subscribe with job:queued channel', async () => {
+    mockSSEResponse();
+
     const vm = createWorkerVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -64,19 +69,24 @@ describe('createWorkerVM', () => {
     });
 
     vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
-    expect(esCalls).toEqual([
-      'http://localhost:4000/bus/subscribe?channel=job%3Aqueued',
-    ]);
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toBe('http://localhost:4000/bus/subscribe?channel=job%3Aqueued');
 
     vm.dispose();
   });
 
   it('claims job on matching job:queued bus event', async () => {
+    const sse = mockSSEResponse();
+
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ params: { density: 5 } }),
+      json: () => Promise.resolve({
+        params: { density: 5 },
+        metadata: { userId: 'did:web:example.com:users:test' },
+      }),
     });
 
     const vm = createWorkerVM({
@@ -86,8 +96,9 @@ describe('createWorkerVM', () => {
     });
 
     vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
-    emitBusEvent(esInstance, 'job:queued', {
+    emitJobQueued(sse, {
       jobId: 'j-1',
       jobType: 'highlight-annotation',
       resourceId: 'res-1',
@@ -95,6 +106,7 @@ describe('createWorkerVM', () => {
 
     const job = await firstValueFrom(vm.activeJob$.pipe(filter((j) => j !== null)));
     expect(job!.jobId).toBe('j-1');
+    expect(job!.userId).toBe('did:web:example.com:users:test');
     expect(job!.params).toEqual({ density: 5 });
 
     expect(mockFetch).toHaveBeenCalledWith(
@@ -106,6 +118,8 @@ describe('createWorkerVM', () => {
   });
 
   it('filters by jobTypes — ignores non-matching types', async () => {
+    const sse = mockSSEResponse();
+
     const vm = createWorkerVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -113,21 +127,24 @@ describe('createWorkerVM', () => {
     });
 
     vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
-    emitBusEvent(esInstance, 'job:queued', {
+    emitJobQueued(sse, {
       jobId: 'j-2',
       jobType: 'comment-annotation',
       resourceId: 'res-1',
     });
 
-    await vi.waitFor(() => {});
-    expect(mockFetch).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(await firstValueFrom(vm.isProcessing$)).toBe(false);
 
     vm.dispose();
   });
 
   it('handles 409 (already claimed) gracefully', async () => {
+    const sse = mockSSEResponse();
+
     mockFetch.mockResolvedValueOnce({ ok: false, status: 409 });
 
     const vm = createWorkerVM({
@@ -137,14 +154,15 @@ describe('createWorkerVM', () => {
     });
 
     vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
-    emitBusEvent(esInstance, 'job:queued', {
+    emitJobQueued(sse, {
       jobId: 'j-2',
       jobType: 'highlight-annotation',
       resourceId: 'res-1',
     });
 
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     expect(await firstValueFrom(vm.activeJob$)).toBeNull();
     expect(await firstValueFrom(vm.isProcessing$)).toBe(false);
@@ -170,6 +188,7 @@ describe('createWorkerVM', () => {
         body: JSON.stringify({
           channel: 'mark:progress',
           payload: { resourceId: 'res-1', percentage: 42 },
+          scope: 'res-1',
         }),
       }),
     );
@@ -206,21 +225,6 @@ describe('createWorkerVM', () => {
     const error = await errorsPromise;
     expect(error).toEqual({ jobId: 'j-3', error: 'LLM timeout' });
     expect(await firstValueFrom(vm.isProcessing$)).toBe(false);
-
-    vm.dispose();
-  });
-
-  it('stop closes EventSource via ActorVM', () => {
-    const vm = createWorkerVM({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      jobTypes: ['highlight-annotation'],
-    });
-
-    vm.start();
-    vm.stop();
-
-    expect(esInstance.close).toHaveBeenCalled();
 
     vm.dispose();
   });

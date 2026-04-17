@@ -422,24 +422,31 @@ export class ViewMaterializer {
       (rid) => (rid as unknown as string) !== '__system__'
     );
     this.logger?.info('[ViewMaterializer] Rebuilding resource views', { count: resourceIds.length });
+    let skipped = 0;
     for (const rid of resourceIds) {
-      const events = await eventLog.getEvents(rid);
-      if (events.length === 0) continue;
+      try {
+        const events = await eventLog.getEvents(rid);
+        if (events.length === 0) continue;
 
-      // Build the view in memory from all events, then write once.
-      const view = this.materializeFromEvents(events, rid);
-      await this.viewStorage.save(rid, view);
+        const view = this.materializeFromEvents(events, rid);
+        await this.viewStorage.save(rid, view);
 
-      // Replay each event through the storage-uri index so URI lookups
-      // also recover from a wiped stateDir.
-      for (const event of events) {
-        await this.materializeStorageUriIndex(rid, event);
+        for (const event of events) {
+          await this.materializeStorageUriIndex(rid, event);
+        }
+      } catch (error) {
+        skipped++;
+        this.logger?.error('[ViewMaterializer] Failed to rebuild resource view', {
+          resourceId: String(rid),
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
     this.logger?.info('[ViewMaterializer] Rebuild complete', {
       systemEvents: systemEvents.length,
       resources: resourceIds.length,
+      skipped,
     });
   }
 

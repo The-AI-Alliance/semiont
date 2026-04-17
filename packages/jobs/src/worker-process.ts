@@ -14,7 +14,7 @@
 
 import { createWorkerVM, type WorkerVM, type ActiveJob } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
-import type { components } from '@semiont/core';
+import type { Logger, components } from '@semiont/core';
 import {
   processHighlightJob,
   processCommentJob,
@@ -33,9 +33,11 @@ export interface WorkerProcessConfig {
   jobTypes: string[];
   inferenceClient: InferenceClient;
   generator: Agent;
+  logger: Logger;
 }
 
 export function startWorkerProcess(config: WorkerProcessConfig): WorkerVM {
+  const { logger } = config;
   const vm = createWorkerVM({
     baseUrl: config.baseUrl,
     token: config.token,
@@ -44,8 +46,10 @@ export function startWorkerProcess(config: WorkerProcessConfig): WorkerVM {
 
   vm.activeJob$.subscribe((job) => {
     if (!job) return;
+    logger.info('Processing job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
     handleJob(vm, config, job).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
       vm.emitEvent('mark:assist-failed', {
         resourceId: job.resourceId,
         message,
@@ -60,8 +64,9 @@ export function startWorkerProcess(config: WorkerProcessConfig): WorkerVM {
 
 async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJob): Promise<void> {
   const { inferenceClient, generator } = config;
-  const metadata = job.params.metadata ?? {};
   const resourceId = job.resourceId;
+  const userId = job.userId;
+
 
   const onProgress: OnProgress = (percentage, message, stage) => {
     vm.emitEvent('mark:progress', {
@@ -73,7 +78,7 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
   };
 
   const fetchContent = async (): Promise<string> => {
-    const response = await fetch(`${config.baseUrl}/api/resources/${resourceId}/representation`, {
+    const response = await fetch(`${config.baseUrl}/api/resources/${resourceId}`, {
       headers: {
         'Authorization': `Bearer ${config.token}`,
         'Accept': 'text/plain',
@@ -86,10 +91,10 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
   if (job.type === 'highlight-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processHighlightJob(
-      content, inferenceClient, job.params as never, metadata as never, generator, onProgress,
+      content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId: (metadata as Record<string, unknown>).userId, resourceId });
+      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
     await vm.emitEvent('mark:assist-finished', {
       motivation: 'highlighting', resourceId, status: 'complete', percentage: 100,
@@ -101,10 +106,10 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
   } else if (job.type === 'comment-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processCommentJob(
-      content, inferenceClient, job.params as never, metadata as never, generator, onProgress,
+      content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId: (metadata as Record<string, unknown>).userId, resourceId });
+      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
     await vm.emitEvent('mark:assist-finished', {
       motivation: 'commenting', resourceId, status: 'complete', percentage: 100,
@@ -116,10 +121,10 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
   } else if (job.type === 'assessment-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processAssessmentJob(
-      content, inferenceClient, job.params as never, metadata as never, generator, onProgress,
+      content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId: (metadata as Record<string, unknown>).userId, resourceId });
+      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
     await vm.emitEvent('mark:assist-finished', {
       motivation: 'assessing', resourceId, status: 'complete', percentage: 100,
@@ -131,10 +136,10 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
   } else if (job.type === 'reference-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processReferenceJob(
-      content, inferenceClient, job.params as never, metadata as never, generator, onProgress,
+      content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId: (metadata as Record<string, unknown>).userId, resourceId });
+      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
     await vm.emitEvent('mark:assist-finished', {
       motivation: 'linking', resourceId, status: 'complete', percentage: 100,
@@ -146,10 +151,10 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
   } else if (job.type === 'tag-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processTagJob(
-      content, inferenceClient, job.params as never, metadata as never, generator, onProgress,
+      content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId: (metadata as Record<string, unknown>).userId, resourceId });
+      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
     await vm.emitEvent('mark:assist-finished', {
       motivation: 'tagging', resourceId, status: 'complete', percentage: 100,

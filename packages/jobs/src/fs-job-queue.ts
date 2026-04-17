@@ -122,13 +122,11 @@ export class FsJobQueue implements JobQueue {
       this.pendingQueue.sort((a, b) => a.metadata.id.localeCompare(b.metadata.id));
     }
 
-    // Emit job:queued event if EventBus is available
     if (this.eventBus && 'params' in job && 'resourceId' in job.params) {
-      const resourceBus = this.eventBus.scope(job.params.resourceId);
-      resourceBus.get('job:queued').next({
+      this.eventBus.get('job:queued').next({
         jobId: job.metadata.id,
         jobType: job.metadata.type,
-        resourceId: job.params.resourceId
+        resourceId: job.params.resourceId,
       });
     }
   }
