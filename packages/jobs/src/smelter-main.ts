@@ -53,7 +53,12 @@ function readSemiontConfig(): Record<string, string> {
       if (kvMatch) {
         const key = currentSection ? `${currentSection}.${kvMatch[1]}` : kvMatch[1];
         let value = kvMatch[2];
-        value = value.replace(/\$\{(\w+)\}/g, (_, name) => process.env[name] ?? '');
+        value = value.replace(/\$\{([^}]+)\}/g, (_, expr: string) => {
+          const sepIdx = expr.indexOf(':-');
+          const varName = sepIdx >= 0 ? expr.slice(0, sepIdx) : expr;
+          const defaultValue = sepIdx >= 0 ? expr.slice(sepIdx + 2) : '';
+          return process.env[varName] ?? defaultValue;
+        });
         result[key] = value;
       }
     }
@@ -86,11 +91,14 @@ const BURST_WINDOW_MS = 50;
 const MAX_BATCH_SIZE = 100;
 const IDLE_TIMEOUT_MS = 200;
 
+import { createProcessLogger } from './logger';
+const logger = createProcessLogger('smelter');
+
 // ── Auth ─────────────────────────────────────────────────────────────
 
 async function authenticate(): Promise<string> {
   if (!workerSecret) {
-    console.warn('[smelter] No SEMIONT_WORKER_SECRET set — using empty token');
+    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
     return '';
   }
 
@@ -114,7 +122,7 @@ let authToken = '';
 
 async function fetchContent(resourceId: string): Promise<string | null> {
   try {
-    const response = await fetch(`${baseUrl}/api/resources/${resourceId}/representation`, {
+    const response = await fetch(`${baseUrl}/api/resources/${resourceId}`, {
       headers: {
         Authorization: `Bearer ${authToken}`,
         Accept: 'text/plain',
@@ -155,7 +163,7 @@ async function processEvent(event: SmelterEvent): Promise<void> {
     }
     eventsProcessed++;
   } catch (err) {
-    console.error(`[smelter] Failed to process ${event.type}`, err);
+    logger.error('Failed to process event', { type: event.type, resourceId: event.resourceId, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -175,7 +183,7 @@ async function handleResourceCreated(event: SmelterEvent): Promise<void> {
   }));
 
   await vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks);
-  console.log(`[smelter] Indexed resource ${rid} (${chunks.length} chunks)`);
+  logger.info('Indexed resource', { resourceId: rid, chunks: chunks.length });
 }
 
 async function handleResourceReembed(event: SmelterEvent): Promise<void> {
@@ -195,14 +203,14 @@ async function handleResourceReembed(event: SmelterEvent): Promise<void> {
 
   await vectorStore.deleteResourceVectors(makeResourceId(rid));
   await vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks);
-  console.log(`[smelter] Re-embedded resource ${rid} (${chunks.length} chunks)`);
+  logger.info('Re-embedded resource', { resourceId: rid, chunks: chunks.length });
 }
 
 async function handleResourceArchived(event: SmelterEvent): Promise<void> {
   const rid = event.resourceId;
   if (!rid) return;
   await vectorStore.deleteResourceVectors(makeResourceId(rid));
-  console.log(`[smelter] Deleted vectors for archived resource ${rid}`);
+  logger.info('Deleted vectors for archived resource', { resourceId: rid });
 }
 
 async function handleAnnotationAdded(event: SmelterEvent): Promise<void> {
@@ -227,7 +235,7 @@ async function handleAnnotationAdded(event: SmelterEvent): Promise<void> {
     exactText,
   };
   await vectorStore.upsertAnnotationVector(aid, embedding, payload);
-  console.log(`[smelter] Indexed annotation ${String(aid)}`);
+  logger.info('Indexed annotation', { annotationId: String(aid) });
 }
 
 async function handleAnnotationRemoved(event: SmelterEvent): Promise<void> {
@@ -235,7 +243,7 @@ async function handleAnnotationRemoved(event: SmelterEvent): Promise<void> {
   if (!annotationId) return;
   const aid = makeAnnotationId(annotationId);
   await vectorStore.deleteAnnotationVector(aid);
-  console.log(`[smelter] Deleted annotation vector ${annotationId}`);
+  logger.info('Deleted annotation vector', { annotationId });
 }
 
 async function processBatch(events: SmelterEvent[]): Promise<void> {
@@ -280,7 +288,7 @@ async function batchResourceCreated(events: SmelterEvent[]): Promise<void> {
       chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
     }));
     await vectorStore.upsertResourceVectors(rid, embeddingChunks);
-    console.log(`[smelter] Batch-indexed resource ${String(rid)} (${chunks.length} chunks)`);
+    logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
     offset += chunks.length;
   }
 
@@ -328,7 +336,7 @@ async function batchAnnotationAdded(events: SmelterEvent[]): Promise<void> {
       annotationId: aid, resourceId: rid, motivation, entityTypes, exactText,
     };
     await vectorStore.upsertAnnotationVector(aid, allEmbeddings[i], payload);
-    console.log(`[smelter] Batch-indexed annotation ${String(aid)}`);
+    logger.info('Batch-indexed annotation', { annotationId: String(aid) });
   }
 
   eventsProcessed += events.length;
@@ -337,16 +345,16 @@ async function batchAnnotationAdded(events: SmelterEvent[]): Promise<void> {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log(`[smelter] Authenticating with ${baseUrl}...`);
+  logger.info('Authenticating', { baseUrl });
   authToken = await authenticate();
-  console.log('[smelter] Authenticated');
+  logger.info('Authenticated');
 
   embeddingProvider = await createEmbeddingProvider({
     type: embeddingType,
     model: embeddingModel,
     baseURL: embeddingBaseURL,
   });
-  console.log(`[smelter] Embedding: ${embeddingType} ${embeddingModel}`);
+  logger.info('Embedding provider ready', { type: embeddingType, model: embeddingModel });
 
   const dimensions = embeddingProvider.dimensions();
   vectorStore = await createVectorStore({
@@ -355,7 +363,7 @@ async function main() {
     port: qdrantPort,
     dimensions,
   });
-  console.log(`[smelter] Qdrant: ${qdrantHost}:${qdrantPort} (${dimensions}d)`);
+  logger.info('Vector store ready', { host: qdrantHost, port: qdrantPort, dimensions });
 
   const actorVM: SmelterActorVM = createSmelterActorVM({
     baseUrl,
@@ -382,17 +390,17 @@ async function main() {
       ),
     ),
   ).subscribe({
-    error: (err) => console.error('[smelter] Pipeline error:', err),
+    error: (err) => logger.error('Pipeline error', { error: err instanceof Error ? err.message : String(err) }),
   });
 
   actorVM.events$.subscribe((event) => {
+    logger.debug('Bus event received', { type: event.type, resourceId: event.resourceId });
     eventSubject.next(event);
   });
 
   actorVM.start();
-  console.log('[smelter] Subscribed to domain events');
+  logger.info('Subscribed to domain events');
 
-  // Health server
   const health = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -403,11 +411,11 @@ async function main() {
     }
   });
   health.listen(healthPort, () => {
-    console.log(`[smelter] Health endpoint on http://localhost:${healthPort}/health`);
+    logger.info('Health endpoint ready', { port: healthPort });
   });
 
   const shutdown = () => {
-    console.log('[smelter] Shutting down...');
+    logger.info('Shutting down');
     actorVM.dispose();
     pipelineSubscription.unsubscribe();
     eventSubject.complete();
@@ -420,6 +428,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[smelter] Fatal:', error);
+  logger.error('Fatal', { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
   process.exit(1);
 });

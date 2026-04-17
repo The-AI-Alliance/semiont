@@ -495,10 +495,8 @@ describe('JobQueue', () => {
 
       const events: any[] = [];
       const job = createPendingDetectionJob('job-with-event');
-      const resourceBus = eventBus.scope(job.params.resourceId);
 
-      // Subscribe to job:queued events
-      resourceBus.get('job:queued').subscribe(event => {
+      eventBus.get('job:queued').subscribe(event => {
         events.push(event);
       });
 

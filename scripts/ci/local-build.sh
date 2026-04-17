@@ -7,6 +7,8 @@ set -euo pipefail
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
 # acquires an auth token, builds, and publishes.
 
+echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build started\033[0m"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REGISTRY="http://localhost:4873"
@@ -273,3 +275,4 @@ echo ""
 
 echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
 echo ""
+echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished\033[0m"

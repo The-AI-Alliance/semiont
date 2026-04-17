@@ -12,6 +12,7 @@ export interface ActiveJob {
   jobId: string;
   type: string;
   resourceId: string;
+  userId: string;
   params: Record<string, unknown>;
 }
 
@@ -65,11 +66,15 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
       });
       if (response.status === 409) return null;
       if (!response.ok) return null;
-      const job = (await response.json()) as { params?: Record<string, unknown> };
+      const job = (await response.json()) as {
+        params?: Record<string, unknown>;
+        metadata?: { userId?: string; userName?: string; userEmail?: string; userDomain?: string };
+      };
       return {
         jobId: assignment.jobId,
         type: assignment.type,
         resourceId: assignment.resourceId,
+        userId: job.metadata?.userId ?? '',
         params: job.params ?? {},
       };
     } catch {
@@ -115,7 +120,8 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
     },
 
     emitEvent: (type: string, payload: Record<string, unknown>): Promise<void> => {
-      return actor.emit(type, payload);
+      const resourceScope = payload.resourceId as string | undefined;
+      return actor.emit(type, payload, resourceScope);
     },
 
     completeJob: () => {

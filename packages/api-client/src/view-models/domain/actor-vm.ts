@@ -18,7 +18,7 @@ export interface ActorVMOptions {
 
 export interface ActorVM extends ViewModel {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
-  emit(channel: string, payload: Record<string, unknown>): Promise<void>;
+  emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void>;
   connected$: Observable<boolean>;
   start(): void;
   stop(): void;
@@ -30,17 +30,12 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
   const events$ = new Subject<BusEvent>();
   const connected$ = new Subject<boolean>();
   let running = false;
-  let eventSource: EventSource | null = null;
+  let abortController: AbortController | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const headers = (): Record<string, string> => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  });
 
   const shared$ = events$.pipe(share());
 
-  const connect = () => {
+  const connect = async () => {
     const params = new URLSearchParams();
     for (const ch of channels) {
       params.append('channel', ch);
@@ -50,28 +45,62 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     }
     const url = `${baseUrl}/bus/subscribe?${params.toString()}`;
 
-    const es = new EventSource(url);
-    eventSource = es;
+    abortController = new AbortController();
 
-    es.addEventListener('bus-event', ((event: MessageEvent) => {
-      if (!running) return;
-      const parsed = JSON.parse(event.data) as BusEvent;
-      events$.next(parsed);
-    }) as EventListener);
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: abortController.signal,
+      });
 
-    es.addEventListener('open', (() => {
+      if (!response.ok || !response.body) {
+        throw new Error(`SSE connect failed: ${response.status}`);
+      }
+
       connected$.next(true);
-    }) as EventListener);
 
-    es.addEventListener('error', () => {
-      if (!running) return;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (running) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        let currentEvent = '';
+        let currentData = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            currentData = line.slice(6);
+          } else if (line === '') {
+            if (currentEvent === 'bus-event' && currentData) {
+              const parsed = JSON.parse(currentData) as BusEvent;
+              events$.next(parsed);
+            }
+            currentEvent = '';
+            currentData = '';
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
+    }
+
+    if (running) {
       connected$.next(false);
-      es.close();
-      eventSource = null;
+      abortController = null;
       reconnectTimer = setTimeout(() => {
         if (running) connect();
       }, reconnectMs);
-    });
+    }
   };
 
   return {
@@ -82,12 +111,16 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
       );
     },
 
-    emit: async (channel: string, payload: Record<string, unknown>): Promise<void> => {
+    emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void> => {
       const body: Record<string, unknown> = { channel, payload };
-      if (scope) body.scope = scope;
+      const effectiveScope = emitScope ?? scope;
+      if (effectiveScope) body.scope = effectiveScope;
       await fetch(`${baseUrl}/bus/emit`, {
         method: 'POST',
-        headers: headers(),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(body),
       });
     },
@@ -103,13 +136,13 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     stop: () => {
       running = false;
       connected$.next(false);
-      if (eventSource) { eventSource.close(); eventSource = null; }
+      if (abortController) { abortController.abort(); abortController = null; }
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     },
 
     dispose: () => {
       running = false;
-      if (eventSource) { eventSource.close(); eventSource = null; }
+      if (abortController) { abortController.abort(); abortController = null; }
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       events$.complete();
       connected$.complete();

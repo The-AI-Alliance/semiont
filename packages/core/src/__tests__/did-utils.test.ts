@@ -152,7 +152,7 @@ describe('@semiont/core - did-utils', () => {
 
       expect(agent).toEqual({
         type: 'Person',
-        id: '',
+        id: 'unknown',
         name: 'unknown',
       });
     });

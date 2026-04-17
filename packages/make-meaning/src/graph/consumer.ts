@@ -431,7 +431,7 @@ export class GraphDBConsumer {
     const events = await query.getResourceEvents(resourceId);
 
     for (const storedEvent of events) {
-      await this.applyEventToGraph(storedEvent);
+      await this.safeApplyEvent(storedEvent);
     }
 
     this.logger.info('Resource rebuild complete', { resourceId, eventCount: events.length });
@@ -463,7 +463,7 @@ export class GraphDBConsumer {
         if (storedEvent.type === 'mark:body-updated') {
           continue;
         }
-        await this.applyEventToGraph(storedEvent);
+        await this.safeApplyEvent(storedEvent);
       }
     }
     this.logger.info('Pass 1 complete - all nodes created');
@@ -475,7 +475,7 @@ export class GraphDBConsumer {
 
       for (const storedEvent of events) {
         if (storedEvent.type === 'mark:body-updated') {
-          await this.applyEventToGraph(storedEvent);
+          await this.safeApplyEvent(storedEvent);
         }
       }
     }

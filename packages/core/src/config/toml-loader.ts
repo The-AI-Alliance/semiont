@@ -41,11 +41,14 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
 
 function resolveEnvVars(obj: unknown, env: Record<string, string | undefined>): unknown {
   if (typeof obj === 'string') {
-    return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
-      if (env[varName] === undefined) {
-        throw new Error(`Environment variable ${varName} is not set (referenced in config as ${match})`);
-      }
-      return env[varName] as string;
+    return obj.replace(/\$\{([^}]+)\}/g, (match, expr: string) => {
+      const sepIdx = expr.indexOf(':-');
+      const varName = sepIdx >= 0 ? expr.slice(0, sepIdx) : expr;
+      const defaultValue = sepIdx >= 0 ? expr.slice(sepIdx + 2) : undefined;
+      const value = env[varName];
+      if (value !== undefined) return value;
+      if (defaultValue !== undefined) return defaultValue;
+      throw new Error(`Environment variable ${varName} is not set (referenced in config as ${match})`);
     });
   }
   if (Array.isArray(obj)) {

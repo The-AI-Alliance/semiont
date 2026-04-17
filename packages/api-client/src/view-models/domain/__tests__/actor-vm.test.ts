@@ -6,34 +6,42 @@ import { createActorVM } from '../actor-vm';
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-function setupEventSource() {
-  const listeners = new Map<string, Function>();
-  const instance = {
-    addEventListener: (event: string, handler: Function) => listeners.set(event, handler),
-    close: vi.fn(),
-    listeners,
+function sseChunk(event: string, data: string): string {
+  return `event: ${event}\ndata: ${data}\n\n`;
+}
+
+function createSSEStream() {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) { controller = c; },
+  });
+  return {
+    stream,
+    push: (text: string) => controller.enqueue(encoder.encode(text)),
+    close: () => controller.close(),
   };
-  const calls: string[] = [];
-  function MockEventSource(this: unknown, url: string) {
-    calls.push(url);
-    Object.assign(this as Record<string, unknown>, instance);
-  }
-  vi.stubGlobal('EventSource', MockEventSource);
-  return { instance, calls };
+}
+
+function mockSSEResponse() {
+  const sse = createSSEStream();
+  const response = {
+    ok: true,
+    status: 200,
+    body: sse.stream,
+  };
+  mockFetch.mockResolvedValueOnce(response);
+  return sse;
 }
 
 describe('createActorVM', () => {
-  let esInstance: ReturnType<typeof setupEventSource>['instance'];
-  let esCalls: string[];
-
   beforeEach(() => {
     vi.clearAllMocks();
-    const { instance, calls } = setupEventSource();
-    esInstance = instance;
-    esCalls = calls;
   });
 
-  it('start connects to SSE with channel params', () => {
+  it('start connects to SSE with channel params', async () => {
+    mockSSEResponse();
+
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -41,15 +49,19 @@ describe('createActorVM', () => {
     });
 
     vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
-    expect(esCalls).toEqual([
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toBe(
       'http://localhost:4000/bus/subscribe?channel=gather%3Arequested&channel=gather%3Acancelled',
-    ]);
+    );
 
     vm.dispose();
   });
 
-  it('start includes scope param when provided', () => {
+  it('start includes scope param when provided', async () => {
+    mockSSEResponse();
+
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -58,13 +70,17 @@ describe('createActorVM', () => {
     });
 
     vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
-    expect(esCalls[0]).toContain('scope=res-123');
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain('scope=res-123');
 
     vm.dispose();
   });
 
   it('on$ delivers typed events filtered by channel', async () => {
+    const sse = mockSSEResponse();
+
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -77,9 +93,10 @@ describe('createActorVM', () => {
       vm.on$<{ resourceId: string }>('gather:requested'),
     );
 
-    const handler = esInstance.listeners.get('bus-event')!;
-    handler({ data: JSON.stringify({ channel: 'match:requested', payload: { id: 'other' } }) });
-    handler({ data: JSON.stringify({ channel: 'gather:requested', payload: { resourceId: 'res-1' } }) });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'match:requested', payload: { id: 'other' } })));
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'gather:requested', payload: { resourceId: 'res-1' } })));
 
     const result = await gathered;
     expect(result).toEqual({ resourceId: 'res-1' });
@@ -88,6 +105,8 @@ describe('createActorVM', () => {
   });
 
   it('on$ is multicast — multiple subscribers share the stream', async () => {
+    const sse = mockSSEResponse();
+
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -95,14 +114,16 @@ describe('createActorVM', () => {
     });
 
     vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     const results1: unknown[] = [];
     const results2: unknown[] = [];
     const sub1 = vm.on$('test:event').subscribe((v) => results1.push(v));
     const sub2 = vm.on$('test:event').subscribe((v) => results2.push(v));
 
-    const handler = esInstance.listeners.get('bus-event')!;
-    handler({ data: JSON.stringify({ channel: 'test:event', payload: { n: 1 } }) });
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'test:event', payload: { n: 1 } })));
+
+    await vi.waitFor(() => expect(results1).toHaveLength(1));
 
     expect(results1).toEqual([{ n: 1 }]);
     expect(results2).toEqual([{ n: 1 }]);
@@ -155,39 +176,52 @@ describe('createActorVM', () => {
     vm.dispose();
   });
 
-  it('connected$ reflects SSE state', async () => {
+  it('connected$ emits true on successful connect', async () => {
+    mockSSEResponse();
+
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
       channels: ['test:event'],
     });
 
+    const connPromise = firstValueFrom(vm.connected$.pipe(filter(Boolean)));
     vm.start();
 
-    const connPromise = firstValueFrom(vm.connected$.pipe(filter(Boolean)));
-    esInstance.listeners.get('open')!();
     expect(await connPromise).toBe(true);
 
     vm.dispose();
   });
 
-  it('stop closes EventSource and emits disconnected', () => {
+  it('ignores ping events', async () => {
+    const sse = mockSSEResponse();
+
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
       channels: ['test:event'],
     });
 
-    vm.start();
-    vm.stop();
+    const results: unknown[] = [];
+    vm.on$('test:event').subscribe((v) => results.push(v));
 
-    expect(esInstance.close).toHaveBeenCalled();
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    sse.push(sseChunk('ping', ''));
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'test:event', payload: { n: 1 } })));
+
+    await vi.waitFor(() => expect(results).toHaveLength(1));
+    expect(results).toEqual([{ n: 1 }]);
 
     vm.dispose();
   });
 
-  it('reconnects on SSE error', async () => {
+  it('reconnects when stream ends', async () => {
     vi.useFakeTimers();
+
+    const sse1 = mockSSEResponse();
+    mockSSEResponse();
 
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
@@ -197,22 +231,23 @@ describe('createActorVM', () => {
     });
 
     vm.start();
-    expect(esCalls).toHaveLength(1);
 
-    esInstance.listeners.get('error')!();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
-    expect(esInstance.close).toHaveBeenCalled();
+    sse1.close();
 
-    vi.advanceTimersByTime(100);
+    await vi.advanceTimersByTimeAsync(150);
 
-    expect(esCalls).toHaveLength(2);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
 
     vm.dispose();
     vi.useRealTimers();
   });
 
-  it('does not reconnect after stop', () => {
+  it('does not reconnect after stop', async () => {
     vi.useFakeTimers();
+
+    mockSSEResponse();
 
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
@@ -222,11 +257,12 @@ describe('createActorVM', () => {
     });
 
     vm.start();
-    esInstance.listeners.get('error')!();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
     vm.stop();
 
-    vi.advanceTimersByTime(200);
-    expect(esCalls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
 
     vm.dispose();
     vi.useRealTimers();
