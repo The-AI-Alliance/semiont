@@ -41,11 +41,12 @@ export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueu
         params: {
           resourceId: resourceId(resId as string),
           ...(params as Record<string, unknown>),
-        },
+        } as Record<string, unknown>,
       };
 
-      if (jobType === 'reference-annotation' && job.params.entityTypes) {
-        job.params.entityTypes = (job.params.entityTypes as string[]).map(et => entityType(et));
+      const jobParams = job.params as Record<string, unknown>;
+      if (jobType === 'reference-annotation' && jobParams.entityTypes) {
+        jobParams.entityTypes = (jobParams.entityTypes as string[]).map(et => entityType(et));
       }
 
       await jobQueue.createJob(job as never);

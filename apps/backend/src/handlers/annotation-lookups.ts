@@ -1,5 +1,5 @@
-import { annotationId, resourceId as makeResourceId } from '@semiont/core';
-import type { EventBus } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
+import type { AnnotationId, ResourceId, EventBus } from '@semiont/core';
 import { AnnotationContext } from '@semiont/make-meaning';
 import type { KnowledgeBase } from '@semiont/make-meaning';
 import { getLogger } from '../logger';
@@ -7,7 +7,7 @@ import { getLogger } from '../logger';
 const logger = () => getLogger().child({ component: 'annotation-lookups' });
 
 interface Gatherer {
-  generateAnnotationSummary(annotationId: ReturnType<typeof annotationId>, resourceId: ReturnType<typeof makeResourceId>): Promise<Record<string, unknown>>;
+  generateAnnotationSummary(annId: AnnotationId, resId: ResourceId): Promise<Record<string, unknown>>;
 }
 
 export function registerAnnotationLookupHandlers(
@@ -24,7 +24,7 @@ export function registerAnnotationLookupHandlers(
 
     try {
       const response = await AnnotationContext.getAnnotationContext(
-        annotationId(annId),
+        makeAnnotationId(annId),
         makeResourceId(resId),
         contextBefore,
         contextAfter,
@@ -51,7 +51,7 @@ export function registerAnnotationLookupHandlers(
 
     try {
       const response = await gatherer.generateAnnotationSummary(
-        annotationId(annId),
+        makeAnnotationId(annId),
         makeResourceId(resId),
       );
 
