@@ -84,6 +84,12 @@ export {
   type BusEvent,
 } from './domain/actor-vm';
 export {
+  createSmelterActorVM,
+  type SmelterActorVM,
+  type SmelterActorVMOptions,
+  type SmelterEvent,
+} from './domain/smelter-actor-vm';
+export {
   createWorkerVM,
   type WorkerVM,
   type WorkerVMOptions,
