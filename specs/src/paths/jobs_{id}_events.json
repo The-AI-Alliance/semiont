@@ -1,0 +1,55 @@
+{
+  "post": {
+    "summary": "Emit Job Event",
+    "description": "Emit a domain event for a running job. The KS ingests the event onto its EventBus, which triggers SSE delivery to the frontend, cache invalidation, and job state transitions (terminal events like mark:assist-finished transition the job to complete).",
+    "tags": [
+      "Worker Pool"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path",
+        "description": "Job ID the event belongs to"
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "EventBus channel name (e.g. mark:progress, mark:assist-finished, yield:progress)"
+              },
+              "resourceId": {
+                "type": "string",
+                "description": "Resource the event pertains to"
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "responses": {
+      "202": {
+        "description": "Event accepted and ingested onto the EventBus"
+      },
+      "400": {
+        "description": "Missing or unknown event type"
+      }
+    }
+  }
+}

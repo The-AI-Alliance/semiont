@@ -42,6 +42,9 @@
     "/api/tokens/media": {
       "$ref": "paths/api_tokens_media.json"
     },
+    "/api/tokens/worker": {
+      "$ref": "paths/api_tokens_worker.json"
+    },
     "/api/users/me": {
       "$ref": "paths/api_users_me.json"
     },
@@ -149,6 +152,15 @@
     },
     "/api/jobs/{id}": {
       "$ref": "paths/api_jobs_{id}.json"
+    },
+    "/jobs/stream": {
+      "$ref": "paths/jobs_stream.json"
+    },
+    "/jobs/{id}/claim": {
+      "$ref": "paths/jobs_{id}_claim.json"
+    },
+    "/jobs/{id}/events": {
+      "$ref": "paths/jobs_{id}_events.json"
     },
     "/api/participants/{id}/attention": {
       "$ref": "paths/api_participants_{id}_attention.json"

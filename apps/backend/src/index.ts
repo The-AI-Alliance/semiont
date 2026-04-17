@@ -110,6 +110,7 @@ import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
 import { globalEventsRouter } from './routes/global-events-stream';
 import { createJobsRouter } from './routes/jobs/index';
+import { createBusRouter } from './routes/bus';
 import { participantsRouter } from './routes/participants/index';
 import { browseRouter } from './routes/browse';
 import { authMiddleware } from './middleware/auth';
@@ -177,6 +178,8 @@ app.route('/', entityTypesRouter);
 app.route('/', globalEventsRouter);
 const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
 app.route('/', jobsRouter);
+const busRouter = createBusRouter(authMiddleware);
+app.route('/', busRouter);
 app.route('/', participantsRouter);
 app.route('/', browseRouter);
 

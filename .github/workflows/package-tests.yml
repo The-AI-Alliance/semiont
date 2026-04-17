@@ -74,6 +74,7 @@ jobs:
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
               npm run build --workspace=@semiont/inference
+              npm run build --workspace=@semiont/vectors
               ;;
             make-meaning)
               npm run openapi:bundle

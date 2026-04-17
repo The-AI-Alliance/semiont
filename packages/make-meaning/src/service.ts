@@ -5,27 +5,23 @@
  *   const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
  */
 
-import { JobQueue } from '@semiont/jobs';
+import { FsJobQueue, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger, type ResourceId, jobId } from '@semiont/core';
-import { resolveActorInference, resolveWorkerInference, type MakeMeaningConfig } from './config';
-import { inferenceConfigToGenerator } from './agent-utils';
-import { Readable } from 'stream';
+import { EventBus, type Logger, jobId } from '@semiont/core';
+import { resolveActorInference, type MakeMeaningConfig } from './config';
 import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import { createInferenceClient } from '@semiont/inference';
 import { getGraphDatabase } from '@semiont/graph';
-import {
+import type {
   ReferenceAnnotationWorker,
   GenerationWorker,
   HighlightAnnotationWorker,
   AssessmentAnnotationWorker,
   CommentAnnotationWorker,
   TagAnnotationWorker,
-  type ContentFetcher,
 } from '@semiont/jobs';
-import type { WorkingTreeStore } from '@semiont/content';
 import { createKnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
@@ -62,7 +58,7 @@ async function createJobQueue(
   logger: Logger,
 ): Promise<{ jobQueue: JobQueue; jobStatusSubscription: Subscription }> {
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = new JobQueue(project, jobQueueLogger, eventBus);
+  const jobQueue = new FsJobQueue(project, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   const jobStatusSubscription = eventBus.get('job:status-requested').pipe(
@@ -136,11 +132,6 @@ async function createKnowledgeSystemFromConfig(
 
   const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, {
     vectorStore,
-    embeddingProvider,
-    chunkingConfig: embeddingConfig?.chunking ? {
-      chunkSize: embeddingConfig.chunking.chunkSize ?? 512,
-      overlap: embeddingConfig.chunking.overlap ?? 64,
-    } : undefined,
     skipRebuild,
   });
 
@@ -175,73 +166,6 @@ async function createKnowledgeSystemFromConfig(
   return ks;
 }
 
-function createContentFetcher(ks: KnowledgeSystem): ContentFetcher {
-  return async (resourceId: ResourceId): Promise<Readable | null> => {
-    const view = await ks.kb.views.get(resourceId);
-    if (!view?.resource.storageUri) return null;
-    const buffer = await ks.kb.content.retrieve(view.resource.storageUri);
-    if (!buffer) return null;
-    return Readable.from([buffer]);
-  };
-}
-
-function createWorkers(
-  jobQueue: JobQueue,
-  contentFetcher: ContentFetcher,
-  contentStore: WorkingTreeStore,
-  eventBus: EventBus,
-  config: MakeMeaningConfig,
-  logger: Logger,
-): Workers {
-  const detection = (() => {
-    const cfg = resolveWorkerInference(config, 'reference-annotation');
-    return new ReferenceAnnotationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-reference-annotation' })), inferenceConfigToGenerator('Reference Worker', cfg), eventBus, contentFetcher, logger.child({ component: 'reference-detection-worker' }));
-  })();
-
-  const generation = (() => {
-    const cfg = resolveWorkerInference(config, 'generation');
-    return new GenerationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-generation' })), inferenceConfigToGenerator('Generation Worker', cfg), eventBus, contentStore, logger.child({ component: 'generation-worker' }));
-  })();
-
-  const highlight = (() => {
-    const cfg = resolveWorkerInference(config, 'highlight-annotation');
-    return new HighlightAnnotationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-highlight-annotation' })), inferenceConfigToGenerator('Highlight Worker', cfg), eventBus, contentFetcher, logger.child({ component: 'highlight-detection-worker' }));
-  })();
-
-  const assessment = (() => {
-    const cfg = resolveWorkerInference(config, 'assessment-annotation');
-    return new AssessmentAnnotationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-assessment-annotation' })), inferenceConfigToGenerator('Assessment Worker', cfg), eventBus, contentFetcher, logger.child({ component: 'assessment-detection-worker' }));
-  })();
-
-  const comment = (() => {
-    const cfg = resolveWorkerInference(config, 'comment-annotation');
-    return new CommentAnnotationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-comment-annotation' })), inferenceConfigToGenerator('Comment Worker', cfg), eventBus, contentFetcher, logger.child({ component: 'comment-detection-worker' }));
-  })();
-
-  const tag = (() => {
-    const cfg = resolveWorkerInference(config, 'tag-annotation');
-    return new TagAnnotationWorker(jobQueue, createInferenceClient(cfg, logger.child({ component: 'inference-client-tag-annotation' })), inferenceConfigToGenerator('Tag Worker', cfg), eventBus, contentFetcher, logger.child({ component: 'tag-detection-worker' }));
-  })();
-
-  return { detection, generation, highlight, assessment, comment, tag };
-}
-
-function startWorkers(workers: Workers, logger: Logger): void {
-  const entries: [keyof Workers, string][] = [
-    ['detection',  'reference-detection-worker'],
-    ['generation', 'generation-worker'],
-    ['highlight',  'highlight-detection-worker'],
-    ['assessment', 'assessment-detection-worker'],
-    ['comment',    'comment-detection-worker'],
-    ['tag',        'tag-detection-worker'],
-  ];
-  for (const [key, component] of entries) {
-    workers[key].start().catch((error: unknown) => {
-      logger.child({ component }).error('Worker stopped unexpectedly', { error });
-    });
-  }
-}
-
 // ─── Public entry point ───────────────────────────────────────────────────────
 
 export async function startMakeMeaning(
@@ -259,17 +183,13 @@ export async function startMakeMeaning(
 
   const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
-  const contentFetcher  = createContentFetcher(knowledgeSystem);
-  const workers         = createWorkers(jobQueue, contentFetcher, knowledgeSystem.kb.content, eventBus, config, logger);
-  startWorkers(workers, logger);
 
   return {
     knowledgeSystem,
     jobQueue,
-    workers,
+    workers: {} as Workers,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
-      await Promise.all(Object.values(workers).map(w => w.stop()));
       jobStatusSubscription.unsubscribe();
       await knowledgeSystem.stop();
       logger.info('Make-Meaning service stopped');

@@ -428,6 +428,46 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
 });
 
 /**
+ * POST /api/tokens/worker
+ *
+ * Worker Token Exchange
+ * Exchange a shared secret for a bearer JWT. Used by workers and actors
+ * connecting to the EventBus. The shared secret is set via the
+ * SEMIONT_WORKER_SECRET environment variable on both the backend and
+ * the worker/actor containers.
+ *
+ * Public endpoint (no authentication required — this IS the auth step).
+ */
+authRouter.post('/api/tokens/worker', async (c) => {
+  const workerSecret = process.env.SEMIONT_WORKER_SECRET;
+  if (!workerSecret) {
+    return c.json({ error: 'Worker authentication not configured' }, 503);
+  }
+
+  let body: { secret?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid request body' }, 400);
+  }
+
+  if (body.secret !== workerSecret) {
+    return c.json({ error: 'Invalid worker secret' }, 401);
+  }
+
+  const token = JWTService.generateToken({
+    userId: makeUserId('worker-pool'),
+    email: makeEmail('worker@semiont.local'),
+    name: 'Worker Pool',
+    domain: 'semiont.local',
+    provider: 'worker',
+    isAdmin: false,
+  }, '24h');
+
+  return c.json({ token }, 200);
+});
+
+/**
  * POST /api/tokens/media
  *
  * Generate a short-lived, resource-scoped media token.

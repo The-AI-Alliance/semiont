@@ -1,0 +1,43 @@
+{
+  "post": {
+    "summary": "Claim Job",
+    "description": "Atomically claim a pending job. Returns 200 with the job payload if claimed, 409 if already claimed by another worker, 404 if the job does not exist.",
+    "tags": [
+      "Worker Pool"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path",
+        "description": "Job ID to claim"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Job claimed successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/JobStatusResponse.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Job not found"
+      },
+      "409": {
+        "description": "Job already claimed by another worker"
+      }
+    }
+  }
+}

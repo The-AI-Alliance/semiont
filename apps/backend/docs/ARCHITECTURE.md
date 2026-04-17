@@ -52,17 +52,17 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
    - Shared configuration and API keys
 
 5. **JobQueue** - Background job processing
-   - Filesystem-based job queue
-   - Atomic job operations
-   - Shared across all background workers
+   - Filesystem-based job queue behind a `JobQueue` interface
+   - Exposes three HTTP endpoints for the worker pool (see below)
 
-6. **Workers** - Background job processors (6 types)
+6. **Worker Pool** - Separate process running 6 worker types
    - ReferenceDetectionWorker
    - GenerationWorker
    - HighlightDetectionWorker
    - AssessmentDetectionWorker
    - CommentDetectionWorker
    - TagDetectionWorker
+   - Workers connect to the KS over HTTP/SSE via WorkerVM (from @semiont/api-client), not via the in-process EventBus
 
 7. **GraphDBConsumer** - Event-to-graph synchronization
    - Subscribes to event store
@@ -252,6 +252,34 @@ router.post('/summarize', async (c) => {
   const summary = await generateSummary(text, inferenceClient, config);  // ✅
 });
 ```
+
+## KS/Worker Process Split
+
+The backend runs as two processes:
+
+1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, the HTTP API, and the job queue.
+
+2. **Worker Pool** -- a separate process external. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE -- the same transport the frontend uses.
+
+### Worker Endpoints
+
+The KS exposes three endpoints for worker communication:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/jobs/stream?type=...` | GET (SSE) | Push job assignments to workers as they become available |
+| `/jobs/:id/claim` | POST | Atomic job claim -- ensures exactly one worker processes each job |
+| `/jobs/:id/events` | POST | Workers emit domain events back to the KS EventBus |
+
+### Why Two Processes
+
+- CPU-heavy LLM inference and annotation detection run in a separate V8 isolate, keeping the KS event loop responsive to user requests.
+- Workers are stateless with respect to the KB. They receive job assignments, do inference, and emit events back. All durable state lives in the KS.
+- The worker pool can crash and restart without affecting the KS or connected frontend clients.
+
+### Job Queue
+
+The job queue is filesystem-based, behind a `JobQueue` interface that allows future backing store swaps (Postgres, Redis, etc.) without changing the HTTP contract or the SDK. Jobs are created by the KS, streamed to workers via SSE, and completed via the claim/events endpoints above.
 
 ## EventBus-Delegated Routes
 

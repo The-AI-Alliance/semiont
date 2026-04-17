@@ -6,7 +6,7 @@
  */
 
 import type { AnyJob, RunningJob, CompleteJob, FailedJob, PendingJob } from './types';
-import type { JobQueue } from './job-queue';
+import type { JobQueue } from './job-queue-interface';
 import type { Logger } from '@semiont/core';
 
 export abstract class JobWorker {

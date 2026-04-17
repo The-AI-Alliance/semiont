@@ -9,10 +9,11 @@
  * - Content Store (working-tree files, URI-addressed) — via WorkingTreeStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
  * - Graph Consumer (event-to-graph projection) — via GraphDBConsumer
- * - Vectors (semantic search) — via VectorStore (optional)
- * - Smelter (event-to-vector projection) — via Smelter (optional)
+ * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
- * The Gatherer and Matcher are the only actors that read from these stores directly.
+ * The Smelter (event-to-vector projection) runs as an external actor
+ * via @semiont/jobs/smelter-main. It subscribes to domain events via
+ * the EventBus gateway, embeds content, and writes to Qdrant directly.
  */
 
 import type { EventStore } from '@semiont/event-sourcing';
@@ -22,10 +23,7 @@ import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
-import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
 import { GraphDBConsumer } from './graph/consumer.js';
-import { Smelter } from './smelter.js';
-import { EmbeddingStore } from './embedding-store.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
@@ -34,14 +32,11 @@ export interface KnowledgeBase {
   graph:         GraphDatabase;
   graphConsumer: GraphDBConsumer;
   vectors?:      VectorStore;
-  smelter?:      Smelter;
   projectionsDir: string;
 }
 
 export interface CreateKnowledgeBaseOptions {
   vectorStore?: VectorStore;
-  embeddingProvider?: EmbeddingProvider;
-  chunkingConfig?: ChunkingConfig;
   skipRebuild?: boolean;
 }
 
@@ -81,26 +76,8 @@ export async function createKnowledgeBase(
     projectionsDir: project.projectionsDir,
   };
 
-  // Initialize vector search if configured
-  if (options?.vectorStore && options?.embeddingProvider) {
+  if (options?.vectorStore) {
     kb.vectors = options.vectorStore;
-    const embeddingStore = new EmbeddingStore(project);
-    kb.smelter = new Smelter(
-      eventStore,
-      eventBus,
-      options.vectorStore,
-      options.embeddingProvider,
-      content,
-      embeddingStore,
-      views,
-      logger.child({ component: 'smelter' }),
-      options.chunkingConfig,
-    );
-    await kb.smelter.initialize();
-
-    if (!options.skipRebuild) {
-      await kb.smelter.rebuildAll();
-    }
   }
 
   return kb;

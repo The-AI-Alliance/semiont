@@ -117,22 +117,6 @@ describe('Make-Meaning Service', () => {
       expect(typeof kb.graphConsumer.stop).toBe('function');
     });
 
-    it('should instantiate all workers', async () => {
-      service = await startMakeMeaning(project, config, eventBus, mockLogger);
-
-      expect(service.workers).toBeDefined();
-      expect(service.workers.detection).toBeDefined();
-      expect(service.workers.generation).toBeDefined();
-      expect(service.workers.highlight).toBeDefined();
-      expect(service.workers.assessment).toBeDefined();
-      expect(service.workers.comment).toBeDefined();
-      expect(service.workers.tag).toBeDefined();
-
-      // Verify workers have start/stop methods
-      expect(typeof service.workers.detection.start).toBe('function');
-      expect(typeof service.workers.detection.stop).toBe('function');
-    });
-
     it('should return service handle with stop method', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
 
@@ -155,29 +139,6 @@ describe('Make-Meaning Service', () => {
       await expect(service.stop()).resolves.not.toThrow();
 
       // Clear service reference since we stopped it
-      service = null;
-    });
-
-    it('should stop all workers on service stop', async () => {
-      service = await startMakeMeaning(project, config, eventBus, mockLogger);
-
-      // Spy on worker stop methods
-      const detectionStopSpy = vi.spyOn(service.workers.detection, 'stop');
-      const generationStopSpy = vi.spyOn(service.workers.generation, 'stop');
-      const highlightStopSpy = vi.spyOn(service.workers.highlight, 'stop');
-      const assessmentStopSpy = vi.spyOn(service.workers.assessment, 'stop');
-      const commentStopSpy = vi.spyOn(service.workers.comment, 'stop');
-      const tagStopSpy = vi.spyOn(service.workers.tag, 'stop');
-
-      await service.stop();
-
-      expect(detectionStopSpy).toHaveBeenCalled();
-      expect(generationStopSpy).toHaveBeenCalled();
-      expect(highlightStopSpy).toHaveBeenCalled();
-      expect(assessmentStopSpy).toHaveBeenCalled();
-      expect(commentStopSpy).toHaveBeenCalled();
-      expect(tagStopSpy).toHaveBeenCalled();
-
       service = null;
     });
 
@@ -245,24 +206,5 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
-    it('should share event bus and inference client across workers', async () => {
-      service = await startMakeMeaning(project, config, eventBus, mockLogger);
-
-      // All workers should share the same eventBus instance
-      const eventBusRefs = [
-        service.workers.detection,
-        service.workers.generation,
-        service.workers.highlight,
-        service.workers.assessment,
-        service.workers.comment,
-        service.workers.tag,
-      ].map(w => (w as any).eventBus);
-
-      // All should be the same instance (compare to the eventBus passed into startMakeMeaning)
-      eventBusRefs.forEach(ref => {
-        expect(ref).toBe(eventBus);
-      });
-
-    });
   });
 });

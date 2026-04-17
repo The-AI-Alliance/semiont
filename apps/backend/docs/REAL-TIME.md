@@ -20,19 +20,29 @@ Semiont uses Server-Sent Events (SSE) to push real-time updates from the backend
 
 ### Event Flow
 
+Events originate from two sources: the KS process (routes, KB actors) and the worker pool (Generator, annotation detectors). Workers are a separate separate process and do not share the in-process EventBus. They emit events back to the KS via `POST /jobs/:id/events`, which injects them into the EventBus for broadcast.
+
 ```
-Event Source (Worker/Route)
-    ↓
-Event Store (append event)
-    ↓
+KS Route / KB Actor              Worker Pool (separate process)
+    |                                  |
+    v                                  | POST /jobs/:id/events
+Event Store (append event)             |
+    |                                  v
+    +--- <--- events injected into EventBus
+    |
+    v
 Event Bus (broadcast to subscribers)
-    ↓
+    |
+    v
 SSE Streams (one per resource per client)
-    ↓
+    |
+    v
 Frontend SSE Client (EventSource wrapper)
-    ↓
+    |
+    v
 React Query Cache Invalidation
-    ↓
+    |
+    v
 UI Update (automatic re-render)
 ```
 
@@ -95,16 +105,18 @@ stream.onAbort(() => {
 **File**: [packages/event-sourcing/src/event-bus.ts](../../packages/event-sourcing/src/event-bus.ts)
 
 **Mechanism**:
-1. Worker/route emits event via `eventStore.append()`
+1. KS route or KB actor emits event via `eventStore.append()`, or a worker posts events via `POST /jobs/:id/events`
 2. Event persisted to append-only log
-3. Event Store broadcasts to all subscribers for that resource
+3. Event Bus broadcasts to all subscribers for that resource
 4. Each subscriber's callback receives the event
 5. SSE stream writes event to client
 
-**Example Event Emission**:
+Workers in the worker pool (Generator, annotation detectors) do not call `eventStore.append()` directly. They run in a separate separate process and use `POST /jobs/:id/events` to send domain events to the KS, which appends them to the Event Store and broadcasts them on the EventBus.
+
+**Example Event Emission (KS-side)**:
 
 ```typescript
-// Worker emits mark:body-updated
+// KS route emits mark:body-updated
 await eventStore.append({
   type: 'mark:body-updated',
   resourceId: sourceResourceId,
@@ -304,6 +316,8 @@ const disconnect = useCallback(() => {
 ```
 
 ### Job Events
+
+The KS creates jobs and streams them to the worker pool via `GET /jobs/stream?type=...` (SSE). Workers claim jobs via `POST /jobs/:id/claim` and emit domain events (including job lifecycle events) back via `POST /jobs/:id/events`. The KS injects these events into the EventBus, which broadcasts them to connected frontend clients via the resource-scoped SSE streams described above.
 
 **`job:started`**: Long-running job initiated
 ```json

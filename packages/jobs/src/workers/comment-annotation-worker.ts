@@ -7,7 +7,7 @@
 
 import { JobWorker } from '../job-worker';
 import type { AnyJob, CommentDetectionJob, RunningJob, CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult, ContentFetcher } from '../types';
-import type { JobQueue } from '../job-queue';
+import type { JobQueue } from '../job-queue-interface';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { EventBus, userToAgent, type Logger, errField } from '@semiont/core';
