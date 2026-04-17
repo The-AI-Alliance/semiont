@@ -20,10 +20,10 @@ Semiont uses Server-Sent Events (SSE) to push real-time updates from the backend
 
 ### Event Flow
 
-Events originate from two sources: the KS process (routes, KB actors) and the worker pool (Generator, annotation detectors). Workers are a separate child process and do not share the in-process EventBus. They emit events back to the KS via `POST /jobs/:id/events`, which injects them into the EventBus for broadcast.
+Events originate from two sources: the KS process (routes, KB actors) and the worker pool (Generator, annotation detectors). Workers are a separate separate process and do not share the in-process EventBus. They emit events back to the KS via `POST /jobs/:id/events`, which injects them into the EventBus for broadcast.
 
 ```
-KS Route / KB Actor              Worker Pool (child process)
+KS Route / KB Actor              Worker Pool (separate process)
     |                                  |
     v                                  | POST /jobs/:id/events
 Event Store (append event)             |
@@ -111,7 +111,7 @@ stream.onAbort(() => {
 4. Each subscriber's callback receives the event
 5. SSE stream writes event to client
 
-Workers in the worker pool (Generator, annotation detectors) do not call `eventStore.append()` directly. They run in a separate child process and use `POST /jobs/:id/events` to send domain events to the KS, which appends them to the Event Store and broadcasts them on the EventBus.
+Workers in the worker pool (Generator, annotation detectors) do not call `eventStore.append()` directly. They run in a separate separate process and use `POST /jobs/:id/events` to send domain events to the KS, which appends them to the Event Store and broadcasts them on the EventBus.
 
 **Example Event Emission (KS-side)**:
 

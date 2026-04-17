@@ -22,8 +22,17 @@ function setupEventSource() {
   return { instance, calls };
 }
 
+function emitBusEvent(
+  es: ReturnType<typeof setupEventSource>['instance'],
+  channel: string,
+  payload: Record<string, unknown>,
+) {
+  const handler = es.listeners.get('bus-event')!;
+  handler({ data: JSON.stringify({ channel, payload }) });
+}
+
 describe('createWorkerVM', () => {
-  let esInstance: { addEventListener: Function; close: ReturnType<typeof vi.fn>; listeners: Map<string, Function> };
+  let esInstance: ReturnType<typeof setupEventSource>['instance'];
   let esCalls: string[];
 
   beforeEach(() => {
@@ -47,7 +56,7 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('start connects to SSE job stream with type filter', () => {
+  it('start connects to bus subscribe with job:queued channel', () => {
     const vm = createWorkerVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -57,14 +66,13 @@ describe('createWorkerVM', () => {
     vm.start();
 
     expect(esCalls).toEqual([
-      'http://localhost:4000/jobs/stream?type=highlight-annotation&type=comment-annotation',
+      'http://localhost:4000/bus/subscribe?channel=job%3Aqueued',
     ]);
 
     vm.dispose();
   });
 
-  it('claims job on job-available SSE event', async () => {
-    const es = esInstance;
+  it('claims job on matching job:queued bus event', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -79,8 +87,11 @@ describe('createWorkerVM', () => {
 
     vm.start();
 
-    const jobAvailableHandler = es.listeners.get('job-available')!;
-    jobAvailableHandler({ data: JSON.stringify({ jobId: 'j-1', type: 'highlight-annotation', resourceId: 'res-1' }) });
+    emitBusEvent(esInstance, 'job:queued', {
+      jobId: 'j-1',
+      jobType: 'highlight-annotation',
+      resourceId: 'res-1',
+    });
 
     const job = await firstValueFrom(vm.activeJob$.pipe(filter((j) => j !== null)));
     expect(job!.jobId).toBe('j-1');
@@ -94,8 +105,29 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
+  it('filters by jobTypes — ignores non-matching types', async () => {
+    const vm = createWorkerVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      jobTypes: ['highlight-annotation'],
+    });
+
+    vm.start();
+
+    emitBusEvent(esInstance, 'job:queued', {
+      jobId: 'j-2',
+      jobType: 'comment-annotation',
+      resourceId: 'res-1',
+    });
+
+    await vi.waitFor(() => {});
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(await firstValueFrom(vm.isProcessing$)).toBe(false);
+
+    vm.dispose();
+  });
+
   it('handles 409 (already claimed) gracefully', async () => {
-    const es = esInstance;
     mockFetch.mockResolvedValueOnce({ ok: false, status: 409 });
 
     const vm = createWorkerVM({
@@ -106,8 +138,11 @@ describe('createWorkerVM', () => {
 
     vm.start();
 
-    const handler = es.listeners.get('job-available')!;
-    handler({ data: JSON.stringify({ jobId: 'j-2', type: 'highlight-annotation', resourceId: 'res-1' }) });
+    emitBusEvent(esInstance, 'job:queued', {
+      jobId: 'j-2',
+      jobType: 'highlight-annotation',
+      resourceId: 'res-1',
+    });
 
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
@@ -117,7 +152,7 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('emitEvent posts to /api/events/emit', async () => {
+  it('emitEvent delegates to ActorVM.emit', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
 
     const vm = createWorkerVM({
@@ -129,10 +164,13 @@ describe('createWorkerVM', () => {
     await vm.emitEvent('mark:progress', { resourceId: 'res-1', percentage: 42 });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4000/jobs/_/events',
+      'http://localhost:4000/bus/emit',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ type: 'mark:progress', resourceId: 'res-1', percentage: 42 }),
+        body: JSON.stringify({
+          channel: 'mark:progress',
+          payload: { resourceId: 'res-1', percentage: 42 },
+        }),
       }),
     );
 
@@ -172,8 +210,7 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('stop closes EventSource', () => {
-    const es = esInstance;
+  it('stop closes EventSource via ActorVM', () => {
     const vm = createWorkerVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
@@ -183,7 +220,7 @@ describe('createWorkerVM', () => {
     vm.start();
     vm.stop();
 
-    expect(es.close).toHaveBeenCalled();
+    expect(esInstance.close).toHaveBeenCalled();
 
     vm.dispose();
   });

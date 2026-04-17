@@ -211,7 +211,7 @@ The backend runs as two processes:
 
 1. **Knowledge System (KS) process** -- the main backend. Runs Stower, Browser, Gatherer, Matcher, Smelter, all KB stores, EventBus, SSE streaming, HTTP API, and the job queue.
 
-2. **Worker Pool (child process)** -- runs the Generator and the five annotation detection workers (reference, highlight, assessment, comment, tag). The worker pool uses `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE, the same way the frontend connects. Workers are not on the in-process EventBus; they communicate with the KS through three endpoints:
+2. **Worker Pool (separate process)** -- runs the Generator and the five annotation detection workers (reference, highlight, assessment, comment, tag). The worker pool uses `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE, the same way the frontend connects. Workers are not on the in-process EventBus; they communicate with the KS through three endpoints:
    - `GET /jobs/stream?type=...` -- SSE push of job assignments from the KS
    - `POST /jobs/:id/claim` -- atomic job claim
    - `POST /jobs/:id/events` -- emit domain events back to the KS EventBus

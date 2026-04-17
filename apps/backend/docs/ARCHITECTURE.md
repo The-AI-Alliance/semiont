@@ -55,7 +55,7 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
    - Filesystem-based job queue behind a `JobQueue` interface
    - Exposes three HTTP endpoints for the worker pool (see below)
 
-6. **Worker Pool** - Separate child process running 6 worker types
+6. **Worker Pool** - Separate process running 6 worker types
    - ReferenceDetectionWorker
    - GenerationWorker
    - HighlightDetectionWorker
@@ -259,7 +259,7 @@ The backend runs as two processes:
 
 1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, the HTTP API, and the job queue.
 
-2. **Worker Pool** -- a child process spawned by the KS. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE -- the same transport the frontend uses.
+2. **Worker Pool** -- a separate process external. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE -- the same transport the frontend uses.
 
 ### Worker Endpoints
 

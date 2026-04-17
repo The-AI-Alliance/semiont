@@ -78,6 +78,12 @@ export {
   type SessionVM,
 } from './domain/session-vm';
 export {
+  createActorVM,
+  type ActorVM,
+  type ActorVMOptions,
+  type BusEvent,
+} from './domain/actor-vm';
+export {
   createWorkerVM,
   type WorkerVM,
   type WorkerVMOptions,

@@ -1,5 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type { ViewModel } from '../lib/view-model';
+import { createActorVM, type ActorVM } from './actor-vm';
 
 export interface JobAssignment {
   jobId: string;
@@ -41,13 +42,19 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
   const isProcessing$ = new BehaviorSubject<boolean>(false);
   const jobsCompleted$ = new BehaviorSubject<number>(0);
   const errors$ = new Subject<{ jobId: string; error: string }>();
-  let running = false;
-  let eventSource: EventSource | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const actor: ActorVM = createActorVM({
+    baseUrl,
+    token,
+    channels: ['job:queued'],
+    reconnectMs,
+  });
+
+  let jobSubscription: { unsubscribe(): void } | null = null;
 
   const headers = (): Record<string, string> => ({
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
   });
 
   const claimJob = async (assignment: JobAssignment): Promise<ActiveJob | null> => {
@@ -58,7 +65,7 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
       });
       if (response.status === 409) return null;
       if (!response.ok) return null;
-      const job = await response.json() as { params?: Record<string, unknown> };
+      const job = (await response.json()) as { params?: Record<string, unknown> };
       return {
         jobId: assignment.jobId,
         type: assignment.type,
@@ -70,81 +77,63 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
     }
   };
 
-  const emitEvent = async (type: string, payload: Record<string, unknown>): Promise<void> => {
-    const job = activeJob$.getValue();
-    const jobPath = job ? `/jobs/${job.jobId}/events` : '/jobs/_/events';
-    await fetch(`${baseUrl}${jobPath}`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ type, ...payload }),
-    });
-  };
-
-  const connectJobStream = () => {
-    const typeParams = jobTypes.map(t => `type=${encodeURIComponent(t)}`).join('&');
-    const url = `${baseUrl}/jobs/stream?${typeParams}`;
-
-    const es = new EventSource(url);
-    eventSource = es;
-
-    es.addEventListener('job-available', ((event: MessageEvent) => {
-      if (!running) return;
-      const assignment: JobAssignment = JSON.parse(event.data);
-
-      if (isProcessing$.getValue()) return;
-
-      isProcessing$.next(true);
-      claimJob(assignment).then((job) => {
-        if (job) {
-          activeJob$.next(job);
-        } else {
-          isProcessing$.next(false);
-        }
-      }).catch(() => {
-        isProcessing$.next(false);
-      });
-    }) as EventListener);
-
-    es.addEventListener('error', () => {
-      if (!running) return;
-      es.close();
-      eventSource = null;
-      reconnectTimer = setTimeout(() => {
-        if (running) connectJobStream();
-      }, reconnectMs);
-    });
-  };
-
   return {
     activeJob$: activeJob$.asObservable(),
     isProcessing$: isProcessing$.asObservable(),
     jobsCompleted$: jobsCompleted$.asObservable(),
     errors$: errors$.asObservable(),
+
     start: () => {
-      if (running) return;
-      running = true;
-      connectJobStream();
+      actor.start();
+
+      jobSubscription = actor
+        .on$<{ jobId: string; jobType: string; resourceId: string }>('job:queued')
+        .subscribe((event) => {
+          const jobType = event.jobType;
+          if (jobTypes.length > 0 && !jobTypes.includes(jobType)) return;
+          if (isProcessing$.getValue()) return;
+
+          isProcessing$.next(true);
+          claimJob({ jobId: event.jobId, type: jobType, resourceId: event.resourceId })
+            .then((job) => {
+              if (job) {
+                activeJob$.next(job);
+              } else {
+                isProcessing$.next(false);
+              }
+            })
+            .catch(() => {
+              isProcessing$.next(false);
+            });
+        });
     },
+
     stop: () => {
-      running = false;
-      if (eventSource) { eventSource.close(); eventSource = null; }
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      jobSubscription?.unsubscribe();
+      jobSubscription = null;
+      actor.stop();
     },
-    emitEvent,
+
+    emitEvent: (type: string, payload: Record<string, unknown>): Promise<void> => {
+      return actor.emit(type, payload);
+    },
+
     completeJob: () => {
       activeJob$.next(null);
       isProcessing$.next(false);
       jobsCompleted$.next(jobsCompleted$.getValue() + 1);
     },
+
     failJob: (jid: string, error: string) => {
       activeJob$.next(null);
       isProcessing$.next(false);
       errors$.next({ jobId: jid, error });
     },
+
     dispose: () => {
-      running = false;
-      if (eventSource) { eventSource.close(); eventSource = null; }
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      jobSubscription?.unsubscribe();
+      jobSubscription = null;
+      actor.dispose();
       activeJob$.complete();
       isProcessing$.complete();
       jobsCompleted$.complete();

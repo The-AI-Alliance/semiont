@@ -178,7 +178,7 @@ export async function startMakeMeaning(
   config: MakeMeaningConfig,
   eventBus: EventBus,
   logger: Logger,
-  options?: { skipRebuild?: boolean; port?: number },
+  options?: { skipRebuild?: boolean },
 ): Promise<MakeMeaningService> {
   if (!config.services?.graph) {
     throw new Error('services.graph is required for make-meaning service');
@@ -189,55 +189,15 @@ export async function startMakeMeaning(
   const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
 
-  const workerProcess = spawnWorkerProcess(options?.port ?? 4000, logger);
-
   return {
     knowledgeSystem,
     jobQueue,
     workers: {} as Workers,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
-      if (workerProcess) {
-        workerProcess.kill('SIGTERM');
-      }
       jobStatusSubscription.unsubscribe();
       await knowledgeSystem.stop();
       logger.info('Make-Meaning service stopped');
     },
   };
-}
-
-function spawnWorkerProcess(port: number, logger: Logger): import('child_process').ChildProcess | null {
-  const { fork } = require('child_process') as typeof import('child_process');
-
-  try {
-    const workerMain = require.resolve('@semiont/jobs/dist/worker-main.js');
-    const child = fork(workerMain, [], {
-      env: {
-        ...process.env,
-        SEMIONT_KS_URL: `http://localhost:${port}`,
-      },
-      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-    });
-
-    child.stdout?.on('data', (data: Buffer) => {
-      logger.info(data.toString().trim());
-    });
-
-    child.stderr?.on('data', (data: Buffer) => {
-      logger.error(data.toString().trim());
-    });
-
-    child.on('exit', (code) => {
-      logger.warn('Worker process exited', { code });
-    });
-
-    logger.info('Worker process spawned', { pid: child.pid });
-    return child;
-  } catch (error) {
-    logger.error('Failed to spawn worker process', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
 }

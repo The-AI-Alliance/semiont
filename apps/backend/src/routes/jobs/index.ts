@@ -30,8 +30,38 @@ interface JobQueue {
 
 export function createJobsRouter(jobQueue: JobQueue, authMiddleware: AuthMiddleware) {
   const jobsRouter = new Hono<{ Variables: { user: User; eventBus: EventBus } }>();
+
+  // ── Worker: token exchange (unauthenticated — this IS the auth step) ─
+
+  jobsRouter.post('/jobs/token', async (c) => {
+    const workerSecret = process.env.SEMIONT_WORKER_SECRET;
+    if (!workerSecret) {
+      throw new HTTPException(503, { message: 'Worker authentication not configured' });
+    }
+
+    const body = await c.req.json();
+    if (body.secret !== workerSecret) {
+      throw new HTTPException(401, { message: 'Invalid worker secret' });
+    }
+
+    const { JWTService } = await import('../../auth/jwt');
+    const token = JWTService.generateToken({
+      userId: 'worker-pool' as Parameters<typeof JWTService.generateToken>[0]['userId'],
+      email: 'worker@semiont.local' as Parameters<typeof JWTService.generateToken>[0]['email'],
+      name: 'Worker Pool',
+      domain: 'semiont.local',
+      provider: 'worker',
+      isAdmin: false,
+    }, '24h');
+
+    return c.json({ token });
+  });
+
+  // ── Auth middleware for all other job routes ─────────────────────────
+
   jobsRouter.use('/api/jobs/*', authMiddleware);
-  jobsRouter.use('/jobs/*', authMiddleware);
+  jobsRouter.use('/jobs/stream', authMiddleware);
+  jobsRouter.use('/jobs/:id/*', authMiddleware);
 
   // ── Frontend: job status query ──────────────────────────────────────
 

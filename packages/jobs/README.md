@@ -10,7 +10,7 @@ Job queue, worker infrastructure, and annotation workers for [Semiont](https://g
 
 ## Architecture Context
 
-Workers run in a separate child process and connect to the Knowledge System (KS) over HTTP/SSE using `WorkerVM` from `@semiont/api-client`. Workers receive job assignments via SSE push, claim jobs atomically, and emit domain events back to the KS via HTTP. The KS ingests these events onto its EventBus for SSE delivery to the frontend.
+Workers run in a separate separate process and connect to the Knowledge System (KS) over HTTP/SSE using `WorkerVM` from `@semiont/api-client`. Workers receive job assignments via SSE push, claim jobs atomically, and emit domain events back to the KS via HTTP. The KS ingests these events onto its EventBus for SSE delivery to the frontend.
 
 ## Installation
 

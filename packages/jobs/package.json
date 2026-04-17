@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./worker-main": {
+      "types": "./dist/worker-main.d.ts",
+      "import": "./dist/worker-main.js"
     }
   },
   "files": [
