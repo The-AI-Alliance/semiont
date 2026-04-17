@@ -52,8 +52,7 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
    - Shared configuration and API keys
 
 5. **JobQueue** - Background job processing
-   - pg-boss (Postgres-backed) job queue
-   - Atomic job claim and completion
+   - Filesystem-based job queue behind a `JobQueue` interface
    - Exposes three HTTP endpoints for the worker pool (see below)
 
 6. **Worker Pool** - Separate child process running 6 worker types
@@ -258,7 +257,7 @@ router.post('/summarize', async (c) => {
 
 The backend runs as two processes:
 
-1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, and the HTTP API. It also runs the pg-boss job queue, which replaced the filesystem-based queue.
+1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, the HTTP API, and the job queue.
 
 2. **Worker Pool** -- a child process spawned by the KS. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE -- the same transport the frontend uses.
 
@@ -278,9 +277,9 @@ The KS exposes three endpoints for worker communication:
 - Workers are stateless with respect to the KB. They receive job assignments, do inference, and emit events back. All durable state lives in the KS.
 - The worker pool can crash and restart without affecting the KS or connected frontend clients.
 
-### pg-boss Job Queue
+### Job Queue
 
-pg-boss (Postgres-backed) replaced the filesystem job queue. Jobs are created by the KS, streamed to workers via SSE, and completed via the claim/events endpoints above. pg-boss provides atomic delivery, retry, and dead-letter semantics.
+The job queue is filesystem-based, behind a `JobQueue` interface that allows future backing store swaps (Postgres, Redis, etc.) without changing the HTTP contract or the SDK. Jobs are created by the KS, streamed to workers via SSE, and completed via the claim/events endpoints above.
 
 ## EventBus-Delegated Routes
 

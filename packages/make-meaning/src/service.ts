@@ -5,7 +5,7 @@
  *   const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
  */
 
-import { PgBossJobQueue, type JobQueue } from '@semiont/jobs';
+import { FsJobQueue, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, jobId } from '@semiont/core';
@@ -53,12 +53,12 @@ type Workers = {
 // ─── Step helpers ─────────────────────────────────────────────────────────────
 
 async function createJobQueue(
-  connectionString: string,
+  project: SemiontProject,
   eventBus: EventBus,
   logger: Logger,
 ): Promise<{ jobQueue: JobQueue; jobStatusSubscription: Subscription }> {
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = new PgBossJobQueue(connectionString, jobQueueLogger, eventBus);
+  const jobQueue = new FsJobQueue(project, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   const jobStatusSubscription = eventBus.get('job:status-requested').pipe(
@@ -186,11 +186,7 @@ export async function startMakeMeaning(
 
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is required for the job queue');
-  }
-  const { jobQueue, jobStatusSubscription } = await createJobQueue(connectionString, eventBus, logger);
+  const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
 
   const workerProcess = spawnWorkerProcess(options?.port ?? 4000, logger);

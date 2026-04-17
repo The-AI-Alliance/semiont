@@ -5,15 +5,14 @@
  *
  * Provides:
  * - JobQueue interface: backing-store-agnostic contract
- * - PgBossJobQueue: Postgres-backed implementation (production)
- * - FsJobQueue: Filesystem-backed implementation (preserved, not default)
+ * - FsJobQueue: Filesystem-backed implementation
  * - JobWorker: Abstract base class for job workers
+ * - Job processors: Extracted functions for each job type
  * - Job types: All job type definitions
  */
 
 // Job Queue
 export type { JobQueue } from './job-queue-interface';
-export { PgBossJobQueue } from './pgboss-job-queue';
 export { FsJobQueue } from './fs-job-queue';
 
 // Job Worker

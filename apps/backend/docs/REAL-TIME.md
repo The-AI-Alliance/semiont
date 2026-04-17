@@ -317,7 +317,7 @@ const disconnect = useCallback(() => {
 
 ### Job Events
 
-Jobs are managed by pg-boss (Postgres-backed). The KS creates jobs and streams them to the worker pool via `GET /jobs/stream?type=...` (SSE). Workers claim jobs atomically via `POST /jobs/:id/claim` and emit domain events (including job lifecycle events) back via `POST /jobs/:id/events`. The KS injects these events into the EventBus, which broadcasts them to connected frontend clients via the resource-scoped SSE streams described above.
+The KS creates jobs and streams them to the worker pool via `GET /jobs/stream?type=...` (SSE). Workers claim jobs via `POST /jobs/:id/claim` and emit domain events (including job lifecycle events) back via `POST /jobs/:id/events`. The KS injects these events into the EventBus, which broadcasts them to connected frontend clients via the resource-scoped SSE streams described above.
 
 **`job:started`**: Long-running job initiated
 ```json
