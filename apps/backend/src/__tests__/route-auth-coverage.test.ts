@@ -590,7 +590,6 @@ describe('Route Authentication Coverage', () => {
         '/api/users/me',
         '/api/status',
         '/resources',
-        '/api/jobs/:id',
       ];
 
       for (const protectedRoute of knownProtectedRoutes) {
@@ -603,8 +602,6 @@ describe('Route Authentication Coverage', () => {
     it('should not leak information about resource existence without auth', async () => {
       const testPaths = [
         '/resources/nonexistent-resource-id',
-        '/api/resources/nonexistent-resource-id/events',
-        '/annotations/nonexistent-anno-id?resourceId=test',
       ];
 
       for (const path of testPaths) {

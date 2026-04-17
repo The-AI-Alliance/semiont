@@ -102,6 +102,12 @@ const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), make
 import { registerJobCommandHandlers } from './handlers/job-commands';
 registerJobCommandHandlers(eventBus, makeMeaning.jobQueue);
 
+import { registerAnnotationLookupHandlers } from './handlers/annotation-lookups';
+registerAnnotationLookupHandlers(eventBus, makeMeaning.knowledgeSystem.kb, makeMeaning.knowledgeSystem.gatherer);
+
+import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
+registerAnnotationAssemblyHandler(eventBus);
+
 // Import route definitions
 import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';
@@ -110,7 +116,6 @@ import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
 import { exchangeRouter } from './routes/exchange';
 import { createResourcesRouter } from './routes/resources/index';
-import { annotationsRouter } from './routes/annotations/index';
 import { createBusRouter } from './routes/bus';
 import { authMiddleware } from './middleware/auth';
 
@@ -172,7 +177,6 @@ app.route('/', adminRouter);
 app.route('/', exchangeRouter);
 const resourcesRouter = createResourcesRouter();
 app.route('/', resourcesRouter);
-app.route('/', annotationsRouter);
 const busRouter = createBusRouter(authMiddleware);
 app.route('/', busRouter);
 

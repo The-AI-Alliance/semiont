@@ -77,9 +77,14 @@ describe('MarkNamespace', () => {
     mark = new MarkNamespace(http, eventBus, () => 'tok' as any, mock.actor);
   });
 
-  it('annotation() delegates to markAnnotation', async () => {
-    const result = await mark.annotation(RID, { motivation: 'highlighting', target: { source: RID }, body: [] } as any);
-    expect(http.markAnnotation).toHaveBeenCalledWith(RID, expect.anything(), { auth: 'tok' });
+  it('annotation() emits mark:create-request on bus', async () => {
+    const mock = createMockActor({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'mark:create-request': () => ({ resultChannel: 'mark:create-ok', response: { annotationId: 'ann-new' } }),
+    });
+    const m = new MarkNamespace(makeHttp(), eventBus, () => 'tok' as any, mock.actor);
+    const result = await m.annotation(RID, { motivation: 'highlighting', target: { source: RID }, body: [] } as any);
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }));
     expect(result.annotationId).toBe('ann-new');
   });
 

@@ -29,7 +29,13 @@ export class MarkNamespace implements IMarkNamespace {
   ) {}
 
   async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: string }> {
-    return this.http.markAnnotation(resourceId, input, { auth: this.getToken() });
+    return busRequest<{ annotationId: string }>(
+      this.actor,
+      'mark:create-request',
+      { resourceId, request: input as unknown as Record<string, unknown> },
+      'mark:create-ok',
+      'mark:create-failed',
+    );
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {

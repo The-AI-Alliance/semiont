@@ -14,6 +14,7 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
 
 const CHANNEL_SCHEMAS: Record<string, string> = {
   // Mark flow — annotation commands
+  'mark:create-request':      'MarkCreateRequest',
   'mark:create':              'MarkCreateCommand',
   'mark:delete':              'MarkDeleteCommand',
   'mark:update-body':         'MarkUpdateBodyCommand',
@@ -40,6 +41,9 @@ const CHANNEL_SCHEMAS: Record<string, string> = {
   'bind:initiate':            'BindInitiateCommand',
   'bind:update-body':         'BindUpdateBodyCommand',
 
+  // Gather flow (summary)
+  'gather:summary-requested': 'GatherSummaryRequest',
+
   // Match flow
   'match:search-requested':   'MatchSearchRequest',
 
@@ -57,6 +61,7 @@ const CHANNEL_SCHEMAS: Record<string, string> = {
   'browse:entity-types-requested': 'BrowseEntityTypesRequest',
   'browse:directory-requested':    'BrowseDirectoryRequest',
   'browse:annotation-history-requested': 'BrowseAnnotationHistoryRequest',
+  'browse:annotation-context-requested': 'BrowseAnnotationContextRequest',
 
   // Job flow
   'job:queued':               'JobQueuedEvent',

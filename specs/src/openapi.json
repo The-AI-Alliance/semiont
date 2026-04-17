@@ -12,12 +12,6 @@
     }
   ],
   "paths": {
-    "/api/annotations/{id}/context": {
-      "$ref": "paths/api_annotations_{id}_context.json"
-    },
-    "/api/annotations/{id}/summary": {
-      "$ref": "paths/api_annotations_{id}_summary.json"
-    },
     "/api/health": {
       "$ref": "paths/api_health.json"
     },
@@ -80,9 +74,6 @@
     },
     "/resources/{id}/events/stream": {
       "$ref": "paths/resources_{id}_events_stream.json"
-    },
-    "/resources/{resourceId}/annotations/{annotationId}/history": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_history.json"
     },
   },
   "components": {
@@ -461,6 +452,7 @@
       "BrowseAnnotationHistoryResult": { "$ref": "components/schemas/BrowseAnnotationHistoryResult.json" },
       "BrowseAnnotationRequest": { "$ref": "components/schemas/BrowseAnnotationRequest.json" },
       "BrowseAnnotationResult": { "$ref": "components/schemas/BrowseAnnotationResult.json" },
+      "BrowseAnnotationContextRequest": { "$ref": "components/schemas/BrowseAnnotationContextRequest.json" },
       "BrowseAnnotationsRequest": { "$ref": "components/schemas/BrowseAnnotationsRequest.json" },
       "BrowseAnnotationsResult": { "$ref": "components/schemas/BrowseAnnotationsResult.json" },
       "BrowseClickEvent": { "$ref": "components/schemas/BrowseClickEvent.json" },
@@ -491,6 +483,7 @@
       "GatheredContext": { "$ref": "components/schemas/GatheredContext.json" },
       "GatherResourceComplete": { "$ref": "components/schemas/GatherResourceComplete.json" },
       "GatherResourceRequest": { "$ref": "components/schemas/GatherResourceRequest.json" },
+      "GatherSummaryRequest": { "$ref": "components/schemas/GatherSummaryRequest.json" },
       "JobAssessmentAnnotationResult": { "$ref": "components/schemas/JobAssessmentAnnotationResult.json" },
       "JobCancelRequest": { "$ref": "components/schemas/JobCancelRequest.json" },
       "JobClaimCommand": { "$ref": "components/schemas/JobClaimCommand.json" },
@@ -516,6 +509,7 @@
       "MarkClickChangedEvent": { "$ref": "components/schemas/MarkClickChangedEvent.json" },
       "MarkCreateCommand": { "$ref": "components/schemas/MarkCreateCommand.json" },
       "MarkCreateOk": { "$ref": "components/schemas/MarkCreateOk.json" },
+      "MarkCreateRequest": { "$ref": "components/schemas/MarkCreateRequest.json" },
       "MarkDeleteCommand": { "$ref": "components/schemas/MarkDeleteCommand.json" },
       "MarkDeleteOk": { "$ref": "components/schemas/MarkDeleteOk.json" },
       "MarkRequestedEvent": { "$ref": "components/schemas/MarkRequestedEvent.json" },

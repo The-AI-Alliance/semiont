@@ -60,6 +60,8 @@ const BUS_RESULT_CHANNELS = [
   'match:search-results', 'match:search-failed',
   'gather:complete', 'gather:failed',
   'gather:annotation-progress',
+  'gather:summary-result', 'gather:summary-failed',
+  'browse:annotation-context-result', 'browse:annotation-context-failed',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
   'job:claimed', 'job:claim-failed',
@@ -621,12 +623,10 @@ export class SemiontApiClient {
   async markAnnotation(
     id: ResourceId,
     data: components['schemas']['CreateAnnotationRequest'],
-    options?: RequestOptions
+    _options?: RequestOptions
   ): Promise<{ annotationId: string }> {
-    return this.http.post(`${this.baseUrl}/resources/${id}/annotations`, {
-      json: data,
-      headers: this.authHeaders(options),
-    }).json();
+    return busRequest<{ annotationId: string }>(this.actor, 'mark:create-request',
+      { resourceId: id, request: data }, 'mark:create-ok', 'mark:create-failed');
   }
 
   async getAnnotation(id: AnnotationId, _options?: RequestOptions): Promise<components['schemas']['GetAnnotationResponse']> {

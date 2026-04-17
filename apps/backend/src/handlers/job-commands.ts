@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { jobId, userId, resourceId, entityType } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
-import type { JobQueue, PendingJob } from '@semiont/jobs';
+import type { JobQueue } from '@semiont/jobs';
 import { getLogger } from '../logger';
 
 const logger = () => getLogger().child({ component: 'job-commands' });
@@ -25,8 +25,8 @@ export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueu
 
       const user = parseDidUser(_userId);
 
-      const job: PendingJob<Record<string, unknown>> = {
-        status: 'pending',
+      const job = {
+        status: 'pending' as const,
         metadata: {
           id: jobId(`job-${nanoid()}`),
           type: jobType as string,
@@ -48,7 +48,7 @@ export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueu
         job.params.entityTypes = (job.params.entityTypes as string[]).map(et => entityType(et));
       }
 
-      await jobQueue.createJob(job);
+      await jobQueue.createJob(job as never);
 
       logger().info('Job created via bus', { jobId: job.metadata.id, jobType, correlationId });
 
@@ -84,12 +84,12 @@ export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueu
 
       const runningJob = {
         ...job,
-        status: 'running',
+        status: 'running' as const,
         startedAt: new Date().toISOString(),
         progress: {},
       };
 
-      await jobQueue.updateJob(runningJob, 'pending');
+      await jobQueue.updateJob(runningJob as never, 'pending');
 
       (eventBus.get('job:claimed') as { next(v: unknown): void }).next({
         correlationId,
