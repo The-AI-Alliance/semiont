@@ -137,6 +137,9 @@ export function createResourceViewerPageVM(
 
   const wizard$ = new BehaviorSubject<WizardState>(WIZARD_CLOSED);
 
+  const unsubscribeResource = client.subscribeToResource(resourceId);
+  disposer.add(unsubscribeResource);
+
   const bindInitiateSub = eventBus.get('bind:initiate').subscribe((event) => {
     wizard$.next({
       open: true,

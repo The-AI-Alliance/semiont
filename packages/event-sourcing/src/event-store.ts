@@ -9,7 +9,8 @@
  * appendEvent() is the single write path:
  *   1. Persist to EventLog
  *   2. Materialize views
- *   3. Publish StoredEvent to global and resource-scoped typed channels
+ *   3. Enrich (optional callback — attach post-materialization data)
+ *   4. Publish StoredEvent to global and resource-scoped typed channels
  */
 
 import type {
@@ -21,21 +22,17 @@ import type {
 import { EventBus as CoreEventBus } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import type { ViewStorage } from './storage/view-storage';
-// Import focused components
 import { EventLog } from './event-log';
 import { ViewManager, type ViewManagerConfig } from './view-manager';
 
-/**
- * EventStore orchestrates event sourcing operations
- * Delegates to specialized components for focused functionality
- * NO state - just coordination between components
- */
+export type EnrichEvent = (event: StoredEvent, resourceId: ResourceId) => Promise<StoredEvent>;
+
 export class EventStore {
-  // Focused components - each with single responsibility
   readonly log: EventLog;
   readonly views: ViewManager;
   readonly viewStorage: ViewStorage;
   readonly coreEventBus: CoreEventBus;
+  private enrichEvent: EnrichEvent | null = null;
 
   constructor(
     project: SemiontProject,
@@ -44,11 +41,9 @@ export class EventStore {
     coreEventBus: CoreEventBus,
     logger?: Logger
   ) {
-    // Store viewStorage for direct access
     this.viewStorage = viewStorage;
     this.coreEventBus = coreEventBus;
 
-    // Initialize focused components
     this.log = new EventLog({ project }, logger?.child({ component: 'EventLog' }));
 
     const viewConfig: ViewManagerConfig = {
@@ -57,20 +52,20 @@ export class EventStore {
     this.views = new ViewManager(viewStorage, viewConfig, logger?.child({ component: 'ViewManager' }));
   }
 
+  setEnrichEvent(fn: EnrichEvent): void {
+    this.enrichEvent = fn;
+  }
+
   /**
    * Append an event to the store
-   * Coordinates: persistence → view → notification
+   * Coordinates: persistence → view → enrich → notification
    *
-   * @param options.correlationId - Optional id propagated from a command. Stored
-   *   on the event's metadata so that subscribers (notably the events-stream
-   *   route) can match command-result events back to the POST that initiated
-   *   them. Pass through from your route handler when handling commands.
+   * @param options.correlationId - Optional id propagated from a command.
    */
   async appendEvent(
     event: EventInput,
     options?: { correlationId?: string },
   ): Promise<StoredEvent> {
-    // System-level events (mark:entity-type-added) have no resourceId - use __system__
     const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 
     // 1. Persist event to log
@@ -78,13 +73,11 @@ export class EventStore {
 
     // 2. Update views
     if (resourceId === '__system__') {
-      // System-level view (entity types, etc.)
       await this.views.materializeSystem(
         storedEvent.type,
         storedEvent.payload
       );
     } else {
-      // Resource view
       await this.views.materializeResource(
         resourceId as ResourceId,
         storedEvent,
@@ -92,14 +85,18 @@ export class EventStore {
       );
     }
 
-    // 3. Publish full StoredEvent to Core EventBus typed channels
-    // Global typed channel (e.g., 'mark:added')
-    this.coreEventBus.getDomainEvent(storedEvent.type).next(storedEvent);
+    // 3. Enrich (attach post-materialization data like annotations)
+    let publishEvent = storedEvent;
+    if (this.enrichEvent && resourceId !== '__system__') {
+      publishEvent = await this.enrichEvent(storedEvent, resourceId as ResourceId);
+    }
 
-    // Resource-scoped typed channel for per-resource subscribers
+    // 4. Publish to Core EventBus typed channels
+    this.coreEventBus.getDomainEvent(publishEvent.type).next(publishEvent);
+
     if (resourceId !== '__system__') {
       const scopedBus = this.coreEventBus.scope(resourceId as string);
-      scopedBus.getDomainEvent(storedEvent.type).next(storedEvent);
+      scopedBus.getDomainEvent(publishEvent.type).next(publishEvent);
     }
 
     return storedEvent;

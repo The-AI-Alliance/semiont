@@ -29,7 +29,6 @@ import type {
   SearchQuery,
   UserDID
 } from '@semiont/core';
-import { SSEClient } from './sse/index';
 import { createActorVM, type ActorVM } from './view-models/domain/actor-vm';
 import { busRequest } from './bus-request';
 import { BrowseNamespace } from './namespaces/browse';
@@ -43,6 +42,13 @@ import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
 import type { Logger } from '@semiont/core';
+import { PERSISTED_EVENT_TYPES, STREAM_COMMAND_RESULT_TYPES } from '@semiont/core';
+import type { Subscription } from 'rxjs';
+
+const RESOURCE_SCOPED_CHANNELS = [
+  ...PERSISTED_EVENT_TYPES.filter(t => t !== 'mark:entity-type-added'),
+  ...STREAM_COMMAND_RESULT_TYPES,
+];
 
 const BUS_RESULT_CHANNELS = [
   'browse:resources-result', 'browse:resources-failed',
@@ -68,6 +74,7 @@ const BUS_RESULT_CHANNELS = [
   'yield:clone-token-generated', 'yield:clone-token-failed',
   'yield:clone-resource-result', 'yield:clone-resource-failed',
   'yield:clone-created', 'yield:clone-create-failed',
+  'mark:entity-type-added',
 ] as const;
 
 // Type helpers to extract request/response types from OpenAPI paths
@@ -151,14 +158,6 @@ export class SemiontApiClient {
   private _getToken: () => AccessToken | undefined = () => undefined;
 
   private _actor: ActorVM | null = null;
-
-  /**
-   * SSE streaming client for real-time operations
-   *
-   * Separate from the main HTTP client to clearly mark streaming endpoints.
-   * Uses native fetch() instead of ky for SSE support.
-   */
-  public readonly sse: SSEClient;
 
   // ── Verb-oriented namespace API ──────────────────────────────────────────
   public readonly browse: BrowseNamespace;
@@ -284,12 +283,6 @@ export class SemiontApiClient {
       },
     });
 
-    // Initialize SSE client (uses native fetch, not ky)
-    this.sse = new SSEClient({
-      baseUrl: this.baseUrl,
-      logger: this.logger
-    });
-
     // Shared token getter — all namespaces read from this closure.
     // Updated via setTokenGetter() from React auth layer.
     if (config.getToken) this._getToken = config.getToken;
@@ -316,6 +309,9 @@ export class SemiontApiClient {
         channels: [...BUS_RESULT_CHANNELS],
       });
       this._actor.start();
+      this._actor.on$<Record<string, unknown>>('mark:entity-type-added').subscribe((payload) => {
+        (this.eventBus.get('mark:entity-type-added') as { next(v: unknown): void }).next(payload);
+      });
     }
     return this._actor;
   }
@@ -329,7 +325,30 @@ export class SemiontApiClient {
     this._getToken = getter;
   }
 
+  private resourceSubscriptions: Subscription[] = [];
+
+  subscribeToResource(resourceId: ResourceId): () => void {
+    this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], resourceId as string);
+
+    const subs: Subscription[] = [];
+    for (const channel of RESOURCE_SCOPED_CHANNELS) {
+      subs.push(
+        this.actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
+          (this.eventBus.get(channel as keyof import('@semiont/core').EventMap) as { next(v: unknown): void }).next(payload);
+        })
+      );
+    }
+    this.resourceSubscriptions = subs;
+
+    return () => {
+      for (const sub of subs) sub.unsubscribe();
+      this.resourceSubscriptions = [];
+      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS]);
+    };
+  }
+
   dispose(): void {
+    for (const sub of this.resourceSubscriptions) sub.unsubscribe();
     if (this._actor) {
       this._actor.dispose();
       this._actor = null;

@@ -11,7 +11,7 @@
  */
 
 // Core event sourcing components
-export { EventStore } from './event-store';
+export { EventStore, type EnrichEvent } from './event-store';
 export { createEventStore } from './event-store-factory';
 export { EventLog, type EventLogConfig } from './event-log';
 export { ViewManager, type ViewManagerConfig } from './view-manager';

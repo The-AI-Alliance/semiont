@@ -82,23 +82,37 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
   busRouter.get('/bus/subscribe', (c) => {
     const channels = c.req.queries('channel') ?? [];
+    const scopedChannels = c.req.queries('scoped') ?? [];
     const scope = c.req.query('scope');
     const eventBus = c.get('eventBus');
 
-    if (channels.length === 0) {
-      throw new HTTPException(400, { message: 'At least one channel parameter is required' });
+    if (channels.length === 0 && scopedChannels.length === 0) {
+      throw new HTTPException(400, { message: 'At least one channel or scoped parameter is required' });
     }
 
     return streamSSE(c, async (stream) => {
       const subs = channels.map((channel) => {
-        const bus = scope ? eventBus.scope(scope) : eventBus;
-        return bus.get(channel as keyof EventMap).subscribe((payload) => {
+        return eventBus.get(channel as keyof EventMap).subscribe((payload) => {
           stream.writeSSE({
             event: 'bus-event',
-            data: JSON.stringify({ channel, payload, scope }),
+            data: JSON.stringify({ channel, payload }),
           }).catch(() => {});
         });
       });
+
+      if (scope && scopedChannels.length > 0) {
+        const scopedBus = eventBus.scope(scope);
+        for (const channel of scopedChannels) {
+          subs.push(
+            scopedBus.get(channel as keyof EventMap).subscribe((payload) => {
+              stream.writeSSE({
+                event: 'bus-event',
+                data: JSON.stringify({ channel, payload, scope }),
+              }).catch(() => {});
+            })
+          );
+        }
+      }
 
       stream.onAbort(() => subs.forEach((s) => s.unsubscribe()));
 

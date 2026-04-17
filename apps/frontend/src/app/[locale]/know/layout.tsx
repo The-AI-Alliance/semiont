@@ -9,10 +9,6 @@ import {
   ApiClientProvider,
   AuthTokenProvider,
   Toolbar,
-  useGlobalEvents,
-  useAttentionStream,
-  useStoreTokenSync,
-  useJobReplayBridge,
   useBrowseVM,
   useObservable,
   useTheme,
@@ -30,9 +26,6 @@ import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 import { AuthShell } from '@/contexts/AuthShell';
 
 function GlobalEventsConnector() {
-  useStoreTokenSync();
-  useGlobalEvents();
-  useJobReplayBridge();
   return null;
 }
 
@@ -116,9 +109,8 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
 }
 
 function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
-  const { status } = useAttentionStream();
   return (
-    <StreamStatusContext.Provider value={status}>
+    <StreamStatusContext.Provider value={'connected'}>
       {children}
     </StreamStatusContext.Provider>
   );

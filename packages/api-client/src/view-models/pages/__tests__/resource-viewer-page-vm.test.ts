@@ -57,6 +57,7 @@ function mockClient(overrides: {
     yield: { fromAnnotation: vi.fn(() => new Observable(() => {})) },
     bind: { body: vi.fn().mockResolvedValue(undefined) },
     eventBus: new EventBus(),
+    subscribeToResource: vi.fn().mockReturnValue(() => {}),
   } as unknown as SemiontApiClient;
 }
 

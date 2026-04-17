@@ -41,19 +41,6 @@ export type * from './namespaces/types';
 // Logger interface for observability (re-export from core)
 export type { Logger } from '@semiont/core';
 
-// SSE streaming types and client
-export type {
-  ReferenceDetectionProgress,
-  YieldProgress,
-  SSEStream
-} from './sse/types';
-export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
-export type {
-  SSEClientConfig,
-  SSEStreamConnected
-} from './sse/index';
-export { createJobReplayBridge } from './sse/job-replay-bridge';
-
 // View models (MVVM layer)
 export * from './view-models';
 
