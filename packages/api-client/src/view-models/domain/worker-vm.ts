@@ -1,4 +1,5 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { firstValueFrom, merge, filter, map, take, timeout } from 'rxjs';
 import type { ViewModel } from '../lib/view-model';
 import { createActorVM, type ActorVM } from './actor-vm';
 
@@ -47,35 +48,41 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
   const actor: ActorVM = createActorVM({
     baseUrl,
     token,
-    channels: ['job:queued'],
+    channels: ['job:queued', 'job:claimed', 'job:claim-failed'],
     reconnectMs,
   });
 
   let jobSubscription: { unsubscribe(): void } | null = null;
 
-  const headers = (): Record<string, string> => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  });
-
   const claimJob = async (assignment: JobAssignment): Promise<ActiveJob | null> => {
     try {
-      const response = await fetch(`${baseUrl}/jobs/${assignment.jobId}/claim`, {
-        method: 'POST',
-        headers: headers(),
-      });
-      if (response.status === 409) return null;
-      if (!response.ok) return null;
-      const job = (await response.json()) as {
+      const correlationId = crypto.randomUUID();
+      const result$ = merge(
+        actor.on$<Record<string, unknown>>('job:claimed').pipe(
+          filter((e) => e.correlationId === correlationId),
+          map((e) => ({ ok: true as const, response: e.response as Record<string, unknown> })),
+        ),
+        actor.on$<Record<string, unknown>>('job:claim-failed').pipe(
+          filter((e) => e.correlationId === correlationId),
+          map(() => ({ ok: false as const })),
+        ),
+      ).pipe(take(1), timeout(10_000));
+
+      const resultPromise = firstValueFrom(result$);
+      await actor.emit('job:claim', { correlationId, jobId: assignment.jobId });
+      const result = await resultPromise;
+
+      if (!result.ok) return null;
+      const job = result.response as {
         params?: Record<string, unknown>;
-        metadata?: { userId?: string; userName?: string; userEmail?: string; userDomain?: string };
+        metadata?: { userId?: string };
       };
       return {
         jobId: assignment.jobId,
         type: assignment.type,
         resourceId: assignment.resourceId,
-        userId: job.metadata?.userId ?? '',
-        params: job.params ?? {},
+        userId: (job.metadata?.userId ?? '') as string,
+        params: (job.params ?? {}) as Record<string, unknown>,
       };
     } catch {
       return null;

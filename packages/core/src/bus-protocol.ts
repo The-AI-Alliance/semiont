@@ -251,10 +251,16 @@ export type EventMap = {
   'job:queued': components['schemas']['JobQueuedEvent'];
   'job:cancel-requested': components['schemas']['JobCancelRequest'];
   'job:status-requested': components['schemas']['JobStatusRequest'];
+  'job:create': components['schemas']['JobCreateCommand'];
+  'job:claim': components['schemas']['JobClaimCommand'];
 
   // Results
   'job:status-result': components['schemas']['JobStatusResult'];
   'job:status-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:created': components['schemas']['JobCreatedResult'];
+  'job:create-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:claimed': { correlationId: string; response: Record<string, unknown> };
+  'job:claim-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   // ========================================================================
   // SETTINGS (frontend-only)

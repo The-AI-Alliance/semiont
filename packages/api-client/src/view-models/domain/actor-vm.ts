@@ -10,7 +10,7 @@ export interface BusEvent {
 
 export interface ActorVMOptions {
   baseUrl: string;
-  token: string;
+  token: string | (() => string);
   channels: string[];
   scope?: string;
   reconnectMs?: number;
@@ -25,7 +25,8 @@ export interface ActorVM extends ViewModel {
 }
 
 export function createActorVM(options: ActorVMOptions): ActorVM {
-  const { baseUrl, token, channels, scope, reconnectMs = 5_000 } = options;
+  const { baseUrl, token: tokenOrGetter, channels, scope, reconnectMs = 5_000 } = options;
+  const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const events$ = new Subject<BusEvent>();
   const connected$ = new Subject<boolean>();
@@ -49,7 +50,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
     try {
       const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${getToken()}` },
         signal: abortController.signal,
       });
 
@@ -119,7 +120,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify(body),
       });

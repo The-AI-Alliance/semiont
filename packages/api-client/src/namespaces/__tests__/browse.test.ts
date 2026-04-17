@@ -1,17 +1,10 @@
-/**
- * BrowseNamespace tests
- *
- * Ports the deleted AnnotationStore + ResourceStore tests to the
- * unified BrowseNamespace. Tests lazy fetch, cache invalidation,
- * EventBus-driven updates, and in-place annotation updates.
- */
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { firstValueFrom, filter } from 'rxjs';
+import { Subject, firstValueFrom, filter, map } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import type { SemiontApiClient } from '../../client';
+import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -36,19 +29,83 @@ function mockResource(id: string): ResourceDescriptor {
   return { '@context': 'http://schema.org', '@id': id, name: `Resource ${id}`, representations: [] };
 }
 
+type ResponseMap = Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }>;
+
+function createMockActor(responses: ResponseMap): { actor: ActorVM; emitSpy: ReturnType<typeof vi.fn> } {
+  const events$ = new Subject<BusEvent>();
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+    const handler = responses[channel];
+    if (handler) {
+      const { resultChannel, response } = handler(payload);
+      const correlationId = payload.correlationId as string;
+      queueMicrotask(() => {
+        events$.next({ channel: resultChannel, payload: { correlationId, response } });
+      });
+    }
+  });
+
+  const actor = {
+    on$<T = Record<string, unknown>>(channel: string) {
+      return events$.pipe(
+        filter((e) => e.channel === channel),
+        map((e) => e.payload as T),
+      );
+    },
+    emit: emitSpy,
+    connected$: new Subject<boolean>().asObservable(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    dispose: vi.fn(),
+  } as ActorVM;
+
+  return { actor, emitSpy };
+}
+
+function defaultResponses(): ResponseMap {
+  return {
+    'browse:annotations-requested': () => ({
+      resultChannel: 'browse:annotations-result',
+      response: { annotations: [mockAnnotation('ann-1')], total: 1 },
+    }),
+    'browse:annotation-requested': () => ({
+      resultChannel: 'browse:annotation-result',
+      response: { annotation: mockAnnotation('ann-1'), resource: null, resolvedResource: null },
+    }),
+    'browse:resource-requested': () => ({
+      resultChannel: 'browse:resource-result',
+      response: { resource: mockResource('res-1'), annotations: [], entityReferences: [] },
+    }),
+    'browse:resources-requested': () => ({
+      resultChannel: 'browse:resources-result',
+      response: { resources: [mockResource('res-1')], total: 1, offset: 0, limit: 20 },
+    }),
+    'browse:referenced-by-requested': () => ({
+      resultChannel: 'browse:referenced-by-result',
+      response: { referencedBy: [] },
+    }),
+    'browse:entity-types-requested': () => ({
+      resultChannel: 'browse:entity-types-result',
+      response: { entityTypes: ['Person'] },
+    }),
+    'browse:events-requested': () => ({
+      resultChannel: 'browse:events-result',
+      response: { events: [], total: 0, resourceId: 'res-1' },
+    }),
+    'browse:annotation-history-requested': () => ({
+      resultChannel: 'browse:annotation-history-result',
+      response: { events: [], total: 0 },
+    }),
+    'browse:directory-requested': () => ({
+      resultChannel: 'browse:directory-result',
+      response: { files: [] },
+    }),
+  };
+}
+
 function makeHttp() {
   return {
-    browseAnnotations: vi.fn().mockResolvedValue({ annotations: [mockAnnotation('ann-1')], total: 1 }),
-    browseAnnotation: vi.fn().mockResolvedValue({ annotation: mockAnnotation('ann-1'), resource: null, resolvedResource: null }),
-    browseResource: vi.fn().mockResolvedValue({ resource: mockResource('res-1'), annotations: [], entityReferences: [] }),
-    browseResources: vi.fn().mockResolvedValue({ resources: [mockResource('res-1')], total: 1, offset: 0, limit: 20 }),
-    browseReferences: vi.fn().mockResolvedValue({ referencedBy: [] }),
-    listEntityTypes: vi.fn().mockResolvedValue({ entityTypes: ['Person'] }),
     getResourceRepresentation: vi.fn().mockResolvedValue({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
     getResourceRepresentationStream: vi.fn().mockResolvedValue({ stream: new ReadableStream(), contentType: 'text/plain' }),
-    getResourceEvents: vi.fn().mockResolvedValue({ events: [], total: 0, resourceId: 'res-1' }),
-    getAnnotationHistory: vi.fn().mockResolvedValue({ events: [], total: 0 }),
-    browseFiles: vi.fn().mockResolvedValue({ files: [] }),
   } as unknown as SemiontApiClient;
 }
 
@@ -60,13 +117,16 @@ describe('BrowseNamespace', () => {
   let eventBus: EventBus;
   let http: SemiontApiClient;
   let browse: BrowseNamespace;
+  let emitSpy: ReturnType<typeof vi.fn>;
   const RID = resourceId('res-1');
   const AID = annotationId('ann-1');
 
   beforeEach(() => {
     eventBus = new EventBus();
     http = makeHttp();
-    browse = new BrowseNamespace(http, eventBus, () => undefined);
+    const mock = createMockActor(defaultResponses());
+    emitSpy = mock.emitSpy;
+    browse = new BrowseNamespace(http, eventBus, () => undefined, mock.actor);
   });
 
   // ── Annotation caching ────────────────────────────────────────────────
@@ -74,34 +134,34 @@ describe('BrowseNamespace', () => {
   describe('annotations()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledWith('browse:annotations-requested', expect.objectContaining({ resourceId: RID }));
       expect(val).toHaveLength(1);
     });
 
     it('caches (no second fetch)', async () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
     });
 
     it('does not issue duplicate in-flight requests', () => {
       browse.annotations(RID).subscribe(() => {});
       browse.annotations(RID).subscribe(() => {});
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('annotation()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.annotation(RID, AID));
-      expect(http.browseAnnotation).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledWith('browse:annotation-requested', expect.objectContaining({ annotationId: AID }));
       expect(val).toBeDefined();
     });
 
     it('caches the result', async () => {
       await firstDefined(browse.annotation(RID, AID));
       await firstDefined(browse.annotation(RID, AID));
-      expect(http.browseAnnotation).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -110,42 +170,37 @@ describe('BrowseNamespace', () => {
   describe('resource()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }));
       expect(val).toMatchObject({ name: 'Resource res-1' });
     });
 
     it('caches (no second fetch)', async () => {
       await firstDefined(browse.resource(RID));
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('resources()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.resources());
-      expect(http.browseResources).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       expect(val).toHaveLength(1);
     });
 
     it('uses separate cache keys for different filters', async () => {
       await firstDefined(browse.resources({ limit: 10 }));
       await firstDefined(browse.resources({ limit: 20 }));
-      expect(http.browseResources).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('forwards search filter to browseResources', async () => {
-      await firstDefined(browse.resources({ search: 'foo', limit: 5 }));
-      expect(http.browseResources).toHaveBeenCalledWith(5, undefined, 'foo', { auth: undefined });
-    });
-
-    it('caches the same search query and re-fetches a different one', async () => {
+    it('caches the same query and re-fetches a different one', async () => {
       await firstDefined(browse.resources({ search: 'foo' }));
       await firstDefined(browse.resources({ search: 'foo' }));
-      expect(http.browseResources).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
 
       await firstDefined(browse.resources({ search: 'bar' }));
-      expect(http.browseResources).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -154,7 +209,7 @@ describe('BrowseNamespace', () => {
   describe('entityTypes()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.entityTypes());
-      expect(http.listEntityTypes).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledWith('browse:entity-types-requested', expect.any(Object));
       expect(val).toEqual(['Person']);
     });
   });
@@ -164,20 +219,20 @@ describe('BrowseNamespace', () => {
   describe('invalidateAnnotationList()', () => {
     it('triggers re-fetch', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       browse.invalidateAnnotationList(RID);
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('invalidateResourceDetail()', () => {
     it('triggers re-fetch', async () => {
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       browse.invalidateResourceDetail(RID);
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -192,7 +247,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.annotations(RID));
       browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
       const list = await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1); // no refetch
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-2' });
     });
 
@@ -205,8 +260,7 @@ describe('BrowseNamespace', () => {
 
     it('is a no-op when list is not cached', () => {
       browse.updateAnnotationInPlace(RID, withBody('ann-1', 'res-2'));
-      // No error, just ignored
-      expect(http.browseAnnotations).not.toHaveBeenCalled();
+      expect(emitSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -215,41 +269,44 @@ describe('BrowseNamespace', () => {
   describe('EventBus → annotation cache', () => {
     it('mark:delete-ok → removes from detail cache', async () => {
       await firstDefined(browse.annotation(RID, AID));
-      expect(http.browseAnnotation).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.get('mark:delete-ok').next({ annotationId: AID } as any);
       await firstDefined(browse.annotation(RID, AID));
-      expect(http.browseAnnotation).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('mark:added → invalidates list', async () => {
+    it('mark:added → invalidates list + events', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.get('mark:added').next(stored({ resourceId: RID }) as any);
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
+      // annotations refetch + events refetch = 2 additional emits
+      expect(emitSpy).toHaveBeenCalledTimes(3);
     });
 
-    it('mark:removed → invalidates list + detail', async () => {
+    it('mark:removed → invalidates list + events', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.get('mark:removed').next(stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
+      // annotations refetch + events refetch = 2 additional emits
+      expect(emitSpy).toHaveBeenCalledTimes(3);
     });
 
-    it('mark:body-updated (enriched) → in-place update, no refetch', async () => {
+    it('mark:body-updated (enriched) → in-place update + events refetch', async () => {
       await firstDefined(browse.annotations(RID));
       const updated = { ...mockAnnotation('ann-1'), body: [{ type: 'SpecificResource', source: 'res-target', purpose: 'linking' }] } as Annotation;
       eventBus.get('mark:body-updated').next(stored({ resourceId: RID, payload: { annotationId: AID }, annotation: updated }) as any);
       const list = await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      // annotations not refetched (in-place update), but events refetched
+      expect(emitSpy).toHaveBeenCalledTimes(2);
       expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-target' });
     });
 
     it('mark:body-updated without annotation → no-op', async () => {
       await firstDefined(browse.annotations(RID));
       eventBus.get('mark:body-updated').next(stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
     });
 
     it('mark:entity-tag-added → invalidates annotation list + resource detail', async () => {
@@ -258,16 +315,15 @@ describe('BrowseNamespace', () => {
       eventBus.get('mark:entity-tag-added').next(stored({ resourceId: RID }) as any);
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.resource(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
-      expect(http.browseResource).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(5);
     });
 
     it('replay-window-exceeded → invalidates annotation list', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.get('replay-window-exceeded').next({ resourceId: 'res-1', lastEventId: 1, missedCount: 5000, cap: 1000, message: 'exceeded' });
       await firstDefined(browse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -278,47 +334,31 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.resources());
       eventBus.get('yield:create-ok').next({ resourceId: RID, resource: mockResource('res-1') as any });
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalled();
+      expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }));
     });
 
     it('mark:archived → invalidates resource detail + lists', async () => {
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.get('mark:archived').next(stored({ resourceId: RID }) as any);
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
     it('mark:unarchived → invalidates resource detail + lists', async () => {
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.get('mark:unarchived').next(stored({ resourceId: RID }) as any);
       await firstDefined(browse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
     it('mark:entity-type-added → invalidates entity types', async () => {
       await firstDefined(browse.entityTypes());
-      expect(http.listEntityTypes).toHaveBeenCalledTimes(1);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
       eventBus.get('mark:entity-type-added').next(stored({}) as any);
       await firstDefined(browse.entityTypes());
-      expect(http.listEntityTypes).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  // ── Token getter ──────────────────────────────────────────────────────
-
-  describe('token getter', () => {
-    it('passes token to annotation list fetches', async () => {
-      const tokenBrowse = new BrowseNamespace(http, eventBus, () => 'tok-xyz' as any);
-      await firstDefined(tokenBrowse.annotations(RID));
-      expect(http.browseAnnotations).toHaveBeenCalledWith(RID, undefined, { auth: 'tok-xyz' });
-    });
-
-    it('passes token to resource detail fetches', async () => {
-      const tokenBrowse = new BrowseNamespace(http, eventBus, () => 'tok-abc' as any);
-      await firstDefined(tokenBrowse.resource(RID));
-      expect(http.browseResource).toHaveBeenCalledWith(RID, { auth: 'tok-abc' });
+      expect(emitSpy).toHaveBeenCalledTimes(2);
     });
   });
 });

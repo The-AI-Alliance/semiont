@@ -1,26 +1,13 @@
-/**
- * MatchNamespace — search and ranking
- *
- * Long-running (semantic search, optional LLM scoring). Returns
- * Observable with results.
- *
- * Backend actor: Matcher
- * Event prefix: match:*
- */
-
 import { Observable } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { ResourceId, AccessToken, GatheredContext, EventBus } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
+import type { ResourceId, GatheredContext, EventBus } from '@semiont/core';
+import type { ActorVM } from '../view-models/domain/actor-vm';
 import type { MatchNamespace as IMatchNamespace, MatchSearchProgress } from './types';
-
-type TokenGetter = () => AccessToken | undefined;
 
 export class MatchNamespace implements IMatchNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
     private readonly eventBus: EventBus,
-    private readonly getToken: TokenGetter,
+    private readonly actor: ActorVM,
   ) {}
 
   search(
@@ -48,18 +35,14 @@ export class MatchNamespace implements IMatchNamespace {
         subscriber.error(new Error(e.error));
       });
 
-      // Fire the HTTP POST
-      this.http.matchSearch(
+      this.actor.emit('match:search-requested', {
+        correlationId,
         resourceId,
-        {
-          correlationId,
-          referenceId,
-          context,
-          limit: options?.limit,
-          useSemanticScoring: options?.useSemanticScoring,
-        },
-        { auth: this.getToken() },
-      ).catch((error) => {
+        referenceId,
+        context: context as unknown as Record<string, unknown>,
+        limit: options?.limit ?? 10,
+        useSemanticScoring: options?.useSemanticScoring ?? true,
+      }).catch((error) => {
         subscriber.error(error);
       });
 

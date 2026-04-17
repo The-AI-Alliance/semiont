@@ -22,6 +22,7 @@
 
 // Export clients
 export * from './client';
+export { busRequest, BusRequestError } from './bus-request';
 
 
 // Verb-oriented namespace API

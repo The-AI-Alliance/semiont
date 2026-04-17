@@ -60,7 +60,7 @@ export type RequestContent<T> = T extends { requestBody?: { content: { 'applicat
 // ── Domain-specific input types ─────────────────────────────────────────────
 
 /** Input for creating an annotation via mark.annotation() */
-export type CreateAnnotationInput = RequestContent<paths['/resources/{id}/annotations']['post']>;
+export type CreateAnnotationInput = components['schemas']['CreateAnnotationRequest'];
 
 /** Input for creating a resource via yield.resource() */
 export interface CreateResourceInput {
@@ -99,13 +99,13 @@ export interface MarkAssistOptions {
 }
 
 /** Options for yield.createFromToken() */
-export type CreateFromTokenOptions = RequestContent<paths['/api/clone-tokens/create-resource']['post']>;
+export type CreateFromTokenOptions = { token: string; name: string; content: string; archiveOriginal?: boolean };
 
 /** Referenced-by entry from browse.referencedBy() */
-export type ReferencedByEntry = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
+export type ReferencedByEntry = components['schemas']['GetReferencedByResponse']['referencedBy'][number];
 
 /** Annotation history from browse.annotationHistory() */
-export type AnnotationHistoryResponse = ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/history']['get']>;
+export type AnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
 
 /** User object from auth/admin responses */
 export type User = AuthResponse['user'];
@@ -161,7 +161,7 @@ export interface BrowseNamespace {
   connections(resourceId: ResourceId): Promise<GraphConnection[]>;
   backlinks(resourceId: ResourceId): Promise<Annotation[]>;
   resourcesByName(query: string, limit?: number): Promise<ResourceDescriptor[]>;
-  files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<ResponseContent<paths['/api/browse/files']['get']>>;
+  files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
 }
 
 /**

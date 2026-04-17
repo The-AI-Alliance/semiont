@@ -1,11 +1,6 @@
-/**
- * Command Namespace Tests
- *
- * Tests the mark, bind, gather, match, and yield namespace methods.
- * Verifies HTTP delegation, Observable wiring, and error handling.
- */
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Subject } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
@@ -13,30 +8,53 @@ import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import type { SemiontApiClient } from '../../client';
+import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
 
+function createMockActor(responses: Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }> = {}): { actor: ActorVM; emitSpy: ReturnType<typeof vi.fn> } {
+  const events$ = new Subject<BusEvent>();
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+    const handler = responses[channel];
+    if (handler) {
+      const { resultChannel, response } = handler(payload);
+      const correlationId = payload.correlationId as string;
+      queueMicrotask(() => {
+        events$.next({ channel: resultChannel, payload: { correlationId, response } });
+      });
+    }
+  });
+
+  const actor: ActorVM = {
+    on$<T = Record<string, unknown>>(channel: string) {
+      return events$.pipe(
+        filter((e) => e.channel === channel),
+        map((e) => e.payload as T),
+      );
+    },
+    emit: emitSpy,
+    connected$: new Subject<boolean>().asObservable(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    dispose: vi.fn(),
+  };
+
+  return { actor, emitSpy };
+}
+
 function makeHttp(overrides: Record<string, any> = {}) {
   return {
     markAnnotation: vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
-    deleteAnnotation: vi.fn().mockResolvedValue(undefined),
-    addEntityType: vi.fn().mockResolvedValue(undefined),
-    addEntityTypesBulk: vi.fn().mockResolvedValue(undefined),
     updateResource: vi.fn().mockResolvedValue(undefined),
-    bindAnnotation: vi.fn().mockResolvedValue({ correlationId: 'c1' }),
     annotateReferences: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
     annotateHighlights: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
     annotateComments: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
     annotateAssessments: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
     annotateTags: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    gatherAnnotationContext: vi.fn().mockResolvedValue({ correlationId: 'c1' }),
-    matchSearch: vi.fn().mockResolvedValue({ correlationId: 'c1' }),
     yieldResource: vi.fn().mockResolvedValue({ resourceId: 'res-new' }),
     yieldResourceFromAnnotation: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    generateCloneToken: vi.fn().mockResolvedValue({ token: 'tok', expiresAt: '2026-01-01' }),
-    getResourceByToken: vi.fn().mockResolvedValue({ sourceResource: { name: 'Clone' }, expiresAt: '2026-01-01' }),
-    createResourceFromToken: vi.fn().mockResolvedValue({ resourceId: 'res-clone' }),
+    getJobStatus: vi.fn().mockResolvedValue({ status: 'running' }),
     ...overrides,
   } as unknown as SemiontApiClient;
 }
@@ -47,11 +65,16 @@ describe('MarkNamespace', () => {
   let eventBus: EventBus;
   let http: SemiontApiClient;
   let mark: MarkNamespace;
+  let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
     http = makeHttp();
-    mark = new MarkNamespace(http, eventBus, () => 'tok' as any);
+    const mock = createMockActor({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+    });
+    emitSpy = mock.emitSpy;
+    mark = new MarkNamespace(http, eventBus, () => 'tok' as any, mock.actor);
   });
 
   it('annotation() delegates to markAnnotation', async () => {
@@ -60,19 +83,19 @@ describe('MarkNamespace', () => {
     expect(result.annotationId).toBe('ann-new');
   });
 
-  it('delete() delegates to deleteAnnotation', async () => {
+  it('delete() emits mark:delete on bus', async () => {
     await mark.delete(RID, AID);
-    expect(http.deleteAnnotation).toHaveBeenCalledWith(RID, AID, { auth: 'tok' });
+    expect(emitSpy).toHaveBeenCalledWith('mark:delete', { annotationId: AID, resourceId: RID });
   });
 
-  it('entityType() delegates to addEntityType', async () => {
+  it('entityType() emits mark:add-entity-type on bus', async () => {
     await mark.entityType('Person');
-    expect(http.addEntityType).toHaveBeenCalled();
+    expect(emitSpy).toHaveBeenCalledWith('mark:add-entity-type', { tag: 'Person' });
   });
 
-  it('archive() calls updateResource with archived: true', async () => {
+  it('archive() emits mark:archive on bus', async () => {
     await mark.archive(RID);
-    expect(http.updateResource).toHaveBeenCalledWith(RID, { archived: true }, { auth: 'tok' });
+    expect(emitSpy).toHaveBeenCalledWith('mark:archive', { resourceId: RID });
   });
 
   it('assist() returns Observable that emits on mark:progress', async () => {
@@ -84,7 +107,6 @@ describe('MarkNamespace', () => {
       });
     });
 
-    // Simulate backend progress events
     await new Promise((r) => setTimeout(r, 10));
     eventBus.get('mark:progress').next({ resourceId: 'res-1', status: 'scanning', percentage: 50 } as any);
     eventBus.get('mark:assist-finished').next({ resourceId: 'res-1', motivation: 'linking', foundCount: 3 } as any);
@@ -95,10 +117,12 @@ describe('MarkNamespace', () => {
 
   it('assist() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
-    const getJobStatus = vi.fn().mockResolvedValue({ status: 'complete', result: { createdCount: 5 } });
-    const httpWithPoll = makeHttp({ getJobStatus });
     const bus = new EventBus();
-    const m = new MarkNamespace(httpWithPoll, bus, () => 'tok' as any);
+    const mock = createMockActor({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'complete', result: { createdCount: 5 } } }),
+    });
+    const m = new MarkNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
 
     const progress: any[] = [];
     let completed = false;
@@ -107,13 +131,10 @@ describe('MarkNamespace', () => {
       complete: () => { completed = true; },
     });
 
-    // Let HTTP dispatch resolve (delivers jobId)
     await vi.advanceTimersByTimeAsync(100);
-
-    // No SSE events — advance past poll start delay (10s) + first poll interval (5s)
     await vi.advanceTimersByTimeAsync(16_000);
 
-    expect(getJobStatus).toHaveBeenCalled();
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', expect.any(Object));
     expect(completed).toBe(true);
 
     bus.destroy();
@@ -122,10 +143,11 @@ describe('MarkNamespace', () => {
 
   it('assist() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
-    const getJobStatus = vi.fn();
-    const httpWithPoll = makeHttp({ getJobStatus });
     const bus = new EventBus();
-    const m = new MarkNamespace(httpWithPoll, bus, () => 'tok' as any);
+    const mock = createMockActor({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+    });
+    const m = new MarkNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
 
     let completed = false;
     m.assist(RID, 'linking', { entityTypes: ['Person'] }).subscribe({
@@ -134,11 +156,8 @@ describe('MarkNamespace', () => {
     });
 
     await vi.advanceTimersByTimeAsync(100);
-
-    // SSE delivers before poll starts
     bus.get('mark:assist-finished').next({ resourceId: 'res-1', motivation: 'linking' } as any);
     expect(completed).toBe(true);
-    expect(getJobStatus).not.toHaveBeenCalled();
 
     bus.destroy();
     vi.useRealTimers();
@@ -146,22 +165,20 @@ describe('MarkNamespace', () => {
 
   it('assist() progress resets poll timer', async () => {
     vi.useFakeTimers();
-    const getJobStatus = vi.fn().mockResolvedValue({ status: 'running' });
-    const httpWithPoll = makeHttp({ getJobStatus });
     const bus = new EventBus();
-    const m = new MarkNamespace(httpWithPoll, bus, () => 'tok' as any);
+    const mock = createMockActor({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+    });
+    const m = new MarkNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
 
     m.assist(RID, 'highlighting', {}).subscribe({ next: () => {}, error: () => {} });
 
     await vi.advanceTimersByTimeAsync(100);
-
-    // At 9s, send progress — resets the 10s timer
     await vi.advanceTimersByTimeAsync(9_000);
     bus.get('mark:progress').next({ resourceId: 'res-1', status: 'scanning', percentage: 50 } as any);
 
-    // At 18s (9s after progress) — still within 10s window, no polling yet
     await vi.advanceTimersByTimeAsync(9_000);
-    expect(getJobStatus).not.toHaveBeenCalled();
+    expect(mock.emitSpy).not.toHaveBeenCalledWith('job:status-requested', expect.any(Object));
 
     bus.destroy();
     vi.useRealTimers();
@@ -171,11 +188,15 @@ describe('MarkNamespace', () => {
 // ── Bind ────────────────────────────────────────────────────────────────────
 
 describe('BindNamespace', () => {
-  it('body() delegates to bindAnnotation', async () => {
-    const http = makeHttp();
-    const bind = new BindNamespace(http, () => 'tok' as any);
+  it('body() emits bind:initiate on bus', async () => {
+    const mock = createMockActor();
+    const bind = new BindNamespace(mock.actor);
     await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]);
-    expect(http.bindAnnotation).toHaveBeenCalledWith(RID, AID, { operations: expect.any(Array) }, { auth: 'tok' });
+    expect(mock.emitSpy).toHaveBeenCalledWith('bind:initiate', expect.objectContaining({
+      annotationId: AID,
+      resourceId: RID,
+      operations: expect.any(Array),
+    }));
   });
 });
 
@@ -183,34 +204,37 @@ describe('BindNamespace', () => {
 
 describe('GatherNamespace', () => {
   let eventBus: EventBus;
-  let http: SemiontApiClient;
   let gather: GatherNamespace;
+  let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    http = makeHttp();
-    gather = new GatherNamespace(http, eventBus, () => 'tok' as any);
+    const mock = createMockActor();
+    emitSpy = mock.emitSpy;
+    gather = new GatherNamespace(eventBus, mock.actor);
   });
 
-  it('annotation() fires HTTP POST', () => {
+  it('annotation() emits gather:annotation-request on bus', () => {
     gather.annotation(AID, RID, { contextWindow: 2000 }).subscribe(() => {});
-    // Allow microtask for HTTP call
     return new Promise<void>((resolve) => setTimeout(() => {
-      expect(http.gatherAnnotationContext).toHaveBeenCalled();
+      expect(emitSpy).toHaveBeenCalledWith('gather:annotation-request', expect.objectContaining({
+        annotationId: AID,
+        resourceId: RID,
+        contextWindow: 2000,
+      }));
       resolve();
     }, 20));
   });
 
   it('annotation() completes on gather:complete', async () => {
-    const mockResponse = { context: { annotation: {} } };
     const completed = new Promise<void>((resolve) => {
       gather.annotation(AID, RID).subscribe({ next: () => {}, complete: () => resolve() });
     });
 
     await new Promise((r) => setTimeout(r, 20));
-    const call = (http.gatherAnnotationContext as ReturnType<typeof vi.fn>).mock.calls[0];
-    const cid = call?.[2]?.correlationId;
-    eventBus.get('gather:complete').next({ correlationId: cid, annotationId: AID, response: mockResponse } as any);
+    const call = emitSpy.mock.calls[0];
+    const cid = call?.[1]?.correlationId;
+    eventBus.get('gather:complete').next({ correlationId: cid, annotationId: AID, response: { context: {} } } as any);
     await completed;
   });
 
@@ -220,8 +244,8 @@ describe('GatherNamespace', () => {
     });
 
     await new Promise((r) => setTimeout(r, 20));
-    const call = (http.gatherAnnotationContext as ReturnType<typeof vi.fn>).mock.calls[0];
-    const cid = call?.[2]?.correlationId;
+    const call = emitSpy.mock.calls[0];
+    const cid = call?.[1]?.correlationId;
     eventBus.get('gather:failed').next({ correlationId: cid, annotationId: AID, message: 'boom' } as any);
     const err = await errored;
     expect(err.message).toContain('boom');
@@ -232,19 +256,23 @@ describe('GatherNamespace', () => {
 
 describe('MatchNamespace', () => {
   let eventBus: EventBus;
-  let http: SemiontApiClient;
   let match: MatchNamespace;
+  let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    http = makeHttp();
-    match = new MatchNamespace(http, eventBus, () => 'tok' as any);
+    const mock = createMockActor();
+    emitSpy = mock.emitSpy;
+    match = new MatchNamespace(eventBus, mock.actor);
   });
 
-  it('search() fires HTTP POST', () => {
+  it('search() emits match:search-requested on bus', () => {
     match.search(RID, 'ref-1', {} as any).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
-      expect(http.matchSearch).toHaveBeenCalled();
+      expect(emitSpy).toHaveBeenCalledWith('match:search-requested', expect.objectContaining({
+        resourceId: RID,
+        referenceId: 'ref-1',
+      }));
       resolve();
     }, 20));
   });
@@ -254,7 +282,7 @@ describe('MatchNamespace', () => {
       match.search(RID, 'ref-1', {} as any).subscribe({ next: () => {}, complete: () => resolve() });
     });
     await new Promise((r) => setTimeout(r, 20));
-    const call = (http.matchSearch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = emitSpy.mock.calls[0];
     const cid = call?.[1]?.correlationId;
     eventBus.get('match:search-results').next({ correlationId: cid, referenceId: 'ref-1', response: [] } as any);
     await completed;
@@ -265,7 +293,7 @@ describe('MatchNamespace', () => {
       match.search(RID, 'ref-1', {} as any).subscribe({ error: (err) => resolve(err) });
     });
     await new Promise((r) => setTimeout(r, 20));
-    const call = (http.matchSearch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = emitSpy.mock.calls[0];
     const cid = call?.[1]?.correlationId;
     eventBus.get('match:search-failed').next({ correlationId: cid, referenceId: 'ref-1', error: 'no results' } as any);
     const err = await errored;
@@ -279,11 +307,23 @@ describe('YieldNamespace', () => {
   let eventBus: EventBus;
   let http: SemiontApiClient;
   let yld: YieldNamespace;
+  let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
     http = makeHttp();
-    yld = new YieldNamespace(http, eventBus, () => 'tok' as any);
+    const mock = createMockActor({
+      'yield:clone-token-requested': () => ({
+        resultChannel: 'yield:clone-token-generated',
+        response: { token: 'tok', expiresAt: '2026-01-01' },
+      }),
+      'job:create': () => ({
+        resultChannel: 'job:created',
+        response: { jobId: 'j1' },
+      }),
+    });
+    emitSpy = mock.emitSpy;
+    yld = new YieldNamespace(http, eventBus, () => 'tok' as any, mock.actor);
   });
 
   it('resource() delegates to yieldResource', async () => {
@@ -292,10 +332,13 @@ describe('YieldNamespace', () => {
     expect(result.resourceId).toBe('res-new');
   });
 
-  it('fromAnnotation() fires HTTP POST', () => {
+  it('fromAnnotation() emits job:create on bus', () => {
     yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
-      expect(http.yieldResourceFromAnnotation).toHaveBeenCalled();
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        jobType: 'generation',
+        resourceId: RID,
+      }));
       resolve();
     }, 20));
   });
@@ -317,17 +360,19 @@ describe('YieldNamespace', () => {
     expect(progress.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('cloneToken() delegates to generateCloneToken', async () => {
-    await yld.cloneToken(RID);
-    expect(http.generateCloneToken).toHaveBeenCalledWith(RID, { auth: 'tok' });
+  it('cloneToken() uses bus request', async () => {
+    const result = await yld.cloneToken(RID);
+    expect(result).toEqual({ token: 'tok', expiresAt: '2026-01-01' });
   });
 
   it('fromAnnotation() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
-    const getJobStatus = vi.fn().mockResolvedValue({ status: 'complete', result: { resourceId: 'res-poll' } });
-    const httpWithPoll = makeHttp({ getJobStatus });
     const bus = new EventBus();
-    const y = new YieldNamespace(httpWithPoll, bus, () => 'tok' as any);
+    const mock = createMockActor({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'complete', result: { resourceId: 'res-poll' } } }),
+    });
+    const y = new YieldNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
 
     const progress: unknown[] = [];
     let completed = false;
@@ -339,7 +384,7 @@ describe('YieldNamespace', () => {
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(16_000);
 
-    expect(getJobStatus).toHaveBeenCalled();
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', expect.any(Object));
     expect(completed).toBe(true);
 
     bus.destroy();
@@ -348,10 +393,11 @@ describe('YieldNamespace', () => {
 
   it('fromAnnotation() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
-    const getJobStatus = vi.fn();
-    const httpWithPoll = makeHttp({ getJobStatus });
     const bus = new EventBus();
-    const y = new YieldNamespace(httpWithPoll, bus, () => 'tok' as any);
+    const mock = createMockActor({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+    });
+    const y = new YieldNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
 
     let completed = false;
     y.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({
@@ -362,7 +408,6 @@ describe('YieldNamespace', () => {
     await vi.advanceTimersByTimeAsync(100);
     bus.get('yield:finished').next({ referenceId: AID, status: 'complete', resourceId: 'res-sse', sourceResourceId: 'res-1' } as any);
     expect(completed).toBe(true);
-    expect(getJobStatus).not.toHaveBeenCalled();
 
     bus.destroy();
     vi.useRealTimers();

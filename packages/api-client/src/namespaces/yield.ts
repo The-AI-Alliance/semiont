@@ -1,21 +1,9 @@
-/**
- * YieldNamespace — resource creation
- *
- * resource() is synchronous file upload (Promise).
- * fromAnnotation() is long-running LLM generation (Observable).
- *
- * Backend actor: Stower + generation worker
- * Event prefix: yield:*
- */
-
 import { Observable, merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
-import { jobId as makeJobId } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
   AccessToken,
-  CloneToken,
   YieldProgress,
   EventBus,
   EventMap,
@@ -23,6 +11,8 @@ import type {
 } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
+import type { ActorVM } from '../view-models/domain/actor-vm';
+import { busRequest } from '../bus-request';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -39,6 +29,7 @@ export class YieldNamespace implements IYieldNamespace {
     private readonly http: SemiontApiClient,
     private readonly eventBus: EventBus,
     private readonly getToken: TokenGetter,
+    private readonly actor: ActorVM,
   ) {}
 
   async resource(data: CreateResourceInput): Promise<{ resourceId: string }> {
@@ -68,13 +59,13 @@ export class YieldNamespace implements IYieldNamespace {
           if (done) return;
           pollInterval = setInterval(() => {
             if (done) return;
-            this.http.getJobStatus(makeJobId(jid), { auth: this.getToken() })
-              .then((status) => {
+            busRequest<{ status: string; result?: Record<string, unknown>; error?: string }>(
+              this.actor, 'job:status-requested', { jobId: jid }, 'job:status-result', 'job:status-failed',
+            ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
                   cleanup();
-                  const result = status.result as Record<string, unknown> | undefined;
-                  subscriber.next({ referenceId: annotationId as string, resourceId: result?.resourceId as string, status: 'complete' } as unknown as YieldProgress);
+                  subscriber.next({ referenceId: annotationId as string, resourceId: status.result?.resourceId as string, status: 'complete' } as unknown as YieldProgress);
                   subscriber.complete();
                 } else if (status.status === 'failed') {
                   cleanup();
@@ -125,11 +116,25 @@ export class YieldNamespace implements IYieldNamespace {
         subscriber.error(new Error(e.error ?? e.message ?? 'Generation failed'));
       });
 
-      this.http.yieldResourceFromAnnotation(
-        resourceId,
-        annotationId,
-        options,
-        { auth: this.getToken() },
+      busRequest<{ jobId: string }>(
+        this.actor,
+        'job:create',
+        {
+          jobType: 'generation',
+          resourceId,
+          params: {
+            referenceId: annotationId,
+            title: options.title,
+            prompt: options.prompt,
+            language: options.language,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            storageUri: options.storageUri,
+            context: options.context as unknown as Record<string, unknown>,
+          },
+        },
+        'job:created',
+        'job:create-failed',
       ).then(({ jobId }) => {
         if (jobId && !done) {
           activeJobId = jobId;
@@ -150,16 +155,33 @@ export class YieldNamespace implements IYieldNamespace {
   }
 
   async cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }> {
-    const result = await this.http.generateCloneToken(resourceId, { auth: this.getToken() });
-    return result as unknown as { token: string; expiresAt: string };
+    return busRequest<{ token: string; expiresAt: string }>(
+      this.actor,
+      'yield:clone-token-requested',
+      { resourceId },
+      'yield:clone-token-generated',
+      'yield:clone-token-failed',
+    );
   }
 
   async fromToken(token: string): Promise<ResourceDescriptor> {
-    const result = await this.http.getResourceByToken(token as CloneToken, { auth: this.getToken() });
-    return (result as unknown as GetResourceByTokenResponse).sourceResource;
+    const result = await busRequest<GetResourceByTokenResponse>(
+      this.actor,
+      'yield:clone-resource-requested',
+      { token },
+      'yield:clone-resource-result',
+      'yield:clone-resource-failed',
+    );
+    return result.sourceResource;
   }
 
   async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: string }> {
-    return this.http.createResourceFromToken(options, { auth: this.getToken() });
+    return busRequest<{ resourceId: string }>(
+      this.actor,
+      'yield:clone-create',
+      options as unknown as Record<string, unknown>,
+      'yield:clone-created',
+      'yield:clone-create-failed',
+    );
   }
 }

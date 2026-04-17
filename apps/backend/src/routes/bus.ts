@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap } from '@semiont/core';
+import { userToDid } from '@semiont/core';
 import { validateSchema } from '../utils/openapi-validator';
 import { getLogger } from '../logger';
 
@@ -65,6 +66,8 @@ const CHANNEL_SCHEMAS: Record<string, string> = {
   'job:fail':                 'JobFailCommand',
   'job:status-requested':     'JobStatusRequest',
   'job:cancel-requested':     'JobCancelRequest',
+  'job:create':               'JobCreateCommand',
+  'job:claim':                'JobClaimCommand',
 };
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
@@ -123,6 +126,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         getBusLogger().warn('Bus emit validation failed', { channel, scope, schemaName, errorMessage });
         throw new HTTPException(400, { message: `Invalid payload for ${channel}: ${errorMessage}` });
       }
+    }
+
+    const user = c.get('user') as User | undefined;
+    if (user) {
+      payload._userId = userToDid(user);
     }
 
     const bus = scope ? eventBus.scope(scope) : eventBus;

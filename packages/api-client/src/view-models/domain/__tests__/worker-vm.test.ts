@@ -40,6 +40,17 @@ function emitJobQueued(
   sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'job:queued', payload })));
 }
 
+function emitClaimResult(
+  sse: ReturnType<typeof createSSEStream>,
+  correlationId: string,
+  response: Record<string, unknown>,
+) {
+  sse.push(sseChunk('bus-event', JSON.stringify({
+    channel: 'job:claimed',
+    payload: { correlationId, response },
+  })));
+}
+
 describe('createWorkerVM', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -59,35 +70,32 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('start connects to bus subscribe with job:queued channel', async () => {
+  it('start connects to bus subscribe with required channels', async () => {
     mockSSEResponse();
 
     const vm = createWorkerVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      jobTypes: ['highlight-annotation', 'comment-annotation'],
+      jobTypes: ['highlight-annotation'],
     });
 
     vm.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toBe('http://localhost:4000/bus/subscribe?channel=job%3Aqueued');
+    expect(url).toContain('/bus/subscribe');
+    expect(url).toContain('channel=job%3Aqueued');
+    expect(url).toContain('channel=job%3Aclaimed');
+    expect(url).toContain('channel=job%3Aclaim-failed');
 
     vm.dispose();
   });
 
-  it('claims job on matching job:queued bus event', async () => {
+  it('claims job on matching job:queued bus event via bus emit', async () => {
     const sse = mockSSEResponse();
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({
-        params: { density: 5 },
-        metadata: { userId: 'did:web:example.com:users:test' },
-      }),
-    });
+    // The claim will go through bus emit (POST /bus/emit)
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 202 });
 
     const vm = createWorkerVM({
       baseUrl: 'http://localhost:4000',
@@ -104,15 +112,30 @@ describe('createWorkerVM', () => {
       resourceId: 'res-1',
     });
 
+    // Wait for the bus emit (claim request)
+    await vi.waitFor(() => {
+      const calls = mockFetch.mock.calls;
+      return calls.some((c: unknown[]) => {
+        const url = c[0] as string;
+        return url.includes('/bus/emit');
+      });
+    });
+
+    // Extract correlationId from the claim emit
+    const emitCall = mockFetch.mock.calls.find((c: unknown[]) => (c[0] as string).includes('/bus/emit'));
+    const body = JSON.parse((emitCall![1] as { body: string }).body);
+    expect(body.channel).toBe('job:claim');
+
+    // Simulate the backend responding with job:claimed
+    emitClaimResult(sse, body.payload.correlationId, {
+      params: { density: 5 },
+      metadata: { userId: 'did:web:example.com:users:test' },
+    });
+
     const job = await firstValueFrom(vm.activeJob$.pipe(filter((j) => j !== null)));
     expect(job!.jobId).toBe('j-1');
     expect(job!.userId).toBe('did:web:example.com:users:test');
     expect(job!.params).toEqual({ density: 5 });
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4000/jobs/j-1/claim',
-      expect.objectContaining({ method: 'POST' }),
-    );
 
     vm.dispose();
   });
@@ -142,10 +165,10 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('handles 409 (already claimed) gracefully', async () => {
+  it('handles claim failure gracefully', async () => {
     const sse = mockSSEResponse();
 
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 409 });
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 202 });
 
     const vm = createWorkerVM({
       baseUrl: 'http://localhost:4000',
@@ -162,8 +185,21 @@ describe('createWorkerVM', () => {
       resourceId: 'res-1',
     });
 
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => {
+      const calls = mockFetch.mock.calls;
+      return calls.some((c: unknown[]) => (c[0] as string).includes('/bus/emit'));
+    });
 
+    const emitCall = mockFetch.mock.calls.find((c: unknown[]) => (c[0] as string).includes('/bus/emit'));
+    const body = JSON.parse((emitCall![1] as { body: string }).body);
+
+    // Respond with claim failure
+    sse.push(sseChunk('bus-event', JSON.stringify({
+      channel: 'job:claim-failed',
+      payload: { correlationId: body.payload.correlationId, message: 'Job already claimed' },
+    })));
+
+    await new Promise((r) => setTimeout(r, 50));
     expect(await firstValueFrom(vm.activeJob$)).toBeNull();
     expect(await firstValueFrom(vm.isProcessing$)).toBe(false);
 

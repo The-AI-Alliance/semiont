@@ -1,77 +1,29 @@
-// Main resources router that combines all individual route files
 import { createResourceRouter } from './shared';
 import type { ResourcesRouterType } from './shared';
-import type { JobQueue } from '@semiont/jobs';
 
-// Import registration functions for all routes
 import { registerCreateResource } from './routes/create';
 import { registerGetResourceUri } from './routes/get-uri';
-import { registerListResources } from './routes/list';
 import { registerUpdateResource } from './routes/update';
-import { registerAnnotateReferences } from './routes/annotate-references';
-import { registerAnnotateHighlights } from './routes/annotate-highlights';
-import { registerAnnotateAssessments } from './routes/annotate-assessments';
-import { registerAnnotateComments } from './routes/annotate-comments';
-import { registerAnnotateTags } from './routes/annotate-tags';
-import { registerGetReferencedBy } from './routes/referenced-by';
-import { registerMatchSearch } from './routes/match-search';
-import { registerTokenRoutes } from './routes/token';
-import { registerGetResourceAnnotations } from './routes/get-annotations';
-import { registerGetEvents } from './routes/events';
 import { registerGetEventStream } from './routes/events-stream';
-
-// Nested annotation routes
 import { registerCreateAnnotation } from './routes/create-annotation';
-import { registerGetAnnotation } from './routes/get-annotation';
-import { registerDeleteAnnotation } from './routes/delete-annotation';
-import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
-import { registerBindAnnotation } from './routes/bind-annotation';
-import { registerYieldResource } from './routes/yield-resource';
-import { registerGatherAnnotation } from './routes/gather-annotation';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
-// Factory function to create resources router with JobQueue
-export function createResourcesRouter(jobQueue: JobQueue): ResourcesRouterType {
+export function createResourcesRouter(): ResourcesRouterType {
   const resourcesRouter: ResourcesRouterType = createResourceRouter();
 
-// Register all routes
-// NOTE: Register specific paths before generic :id patterns to avoid route conflicts
-// Order: exact paths → literal segments → :id with suffixes → generic :id
+  // Binary upload
+  registerCreateResource(resourcesRouter);
 
-// Exact collection paths (no params)
-registerCreateResource(resourcesRouter);  // POST /resources
-registerListResources(resourcesRouter);  // GET /resources
+  // Annotation creation (Step 5 — assembly moves to Stower)
+  registerCreateAnnotation(resourcesRouter);
+  registerGetAnnotationHistory(resourcesRouter);
 
-// Routes with literal second segment (before :id routes)
-registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /api/clone-tokens/create-resource, POST /resources/:id/clone-with-token
+  // SSE event stream (Step 6 — needs Last-Event-ID replay)
+  registerGetEventStream(resourcesRouter);
 
-  // Routes with :id and specific suffixes
-  registerAnnotateReferences(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-references
-  registerAnnotateHighlights(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-highlights
-  registerAnnotateAssessments(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-assessments
-  registerAnnotateComments(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments
-  registerAnnotateTags(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags
-  registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
-  registerMatchSearch(resourcesRouter);  // POST /resources/:id/match-search
-
-  // Annotation routes (nested under resources) - must be before generic :id route
-  registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)
-  registerCreateAnnotation(resourcesRouter);  // POST /resources/:id/annotations
-  registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
-  registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
-  registerBindAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/bind
-  registerYieldResource(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/yield-resource
-  registerGatherAnnotation(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/gather
-  registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
-  registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId
-
-  // Event routes
-  registerGetEvents(resourcesRouter);  // GET /resources/:id/events
-  registerGetEventStream(resourcesRouter);  // GET /resources/:id/events/stream
-
-  // Generic routes with :id parameter - MUST BE LAST
-  registerGetResourceUri(resourcesRouter);  // W3C content negotiation for /resources/:id - handles both metadata and raw representations
-  registerUpdateResource(resourcesRouter);  // PATCH /resources/:id (handles archive via {archived: true})
+  // Binary content + PATCH (stays HTTP)
+  registerGetResourceUri(resourcesRouter);
+  registerUpdateResource(resourcesRouter);
 
   return resourcesRouter;
 }
