@@ -42,6 +42,8 @@ import type { GenerationConfig } from '../../../components/modals/ConfigureGener
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 
+export type StreamStatus = 'connecting' | 'connected' | 'disconnected';
+
 export interface ResourceViewerPageProps {
   /**
    * The resource to display
@@ -81,7 +83,7 @@ export interface ResourceViewerPageProps {
   /**
    * Bus connection status for the active workspace
    */
-  streamStatus: 'connecting' | 'connected' | 'disconnected';
+  streamStatus: StreamStatus;
 
   /**
    * Name of the active knowledge base (for display in panels)
