@@ -10,7 +10,7 @@
  * proxy handles HTTP, auth, SSE, and caching internally.
  *
  * Return type conventions:
- * - Browse live queries → Observable (events-stream driven, cached)
+ * - Browse live queries → Observable (bus gateway driven, cached)
  * - Browse one-shot reads → Promise (fetch once, no cache)
  * - Commands (mark, bind, yield.resource) → Promise (fire-and-forget)
  * - Long-running ops (gather, match, yield.fromAnnotation, mark.assist) → Observable (progress + result)
@@ -137,13 +137,13 @@ export type MarkAssistProgress = MarkProgress | MarkAssistFinished;
  * Browse — reads from materialized views
  *
  * Live queries return Observables that emit initial state and re-emit
- * on events-stream updates. One-shot reads return Promises.
+ * on bus gateway updates. One-shot reads return Promises.
  *
  * Backend actor: Browser (context classes)
  * Event prefix: browse:*
  */
 export interface BrowseNamespace {
-  // Live queries (Observable — events-stream driven, cached in BehaviorSubject)
+  // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
   resource(resourceId: ResourceId): Observable<ResourceDescriptor | undefined>;
   resources(filters?: { limit?: number; archived?: boolean; search?: string }): Observable<ResourceDescriptor[] | undefined>;
   annotations(resourceId: ResourceId): Observable<Annotation[] | undefined>;
@@ -168,7 +168,7 @@ export interface BrowseNamespace {
  * Mark — annotation CRUD, entity types, AI assist
  *
  * Commands return Promises that resolve on HTTP acceptance (202).
- * Results appear on browse Observables via events-stream.
+ * Results appear on browse Observables via bus gateway.
  * assist() returns an Observable for long-running progress.
  *
  * Backend actor: Stower
