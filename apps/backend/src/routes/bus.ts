@@ -156,6 +156,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const subject = bus.get(channel as keyof EventMap);
     subject.next(payload as never);
 
+    getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
+
     return c.json(null, 202);
   });
 

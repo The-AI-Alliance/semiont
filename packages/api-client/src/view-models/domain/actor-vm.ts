@@ -134,8 +134,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
     emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void> => {
       const body: Record<string, unknown> = { channel, payload };
-      const effectiveScope = emitScope ?? activeScope;
-      if (effectiveScope) body.scope = effectiveScope;
+      if (emitScope) body.scope = emitScope;
       await fetch(`${baseUrl}/bus/emit`, {
         method: 'POST',
         headers: {
