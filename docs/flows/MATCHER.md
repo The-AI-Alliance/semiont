@@ -13,65 +13,47 @@
 
 The Matcher resolves entity mentions to concrete resources. Given a `GatheredContext` — the passage, entity type tags, and graph neighborhood assembled by the Gatherer — the Matcher retrieves candidates from multiple knowledge base sources, scores them using a composite of structural signals (entity type overlap, graph connectivity, citation weight, name match quality, recency), and optionally re-ranks the top candidates via LLM-based semantic scoring. AI agents retrieve and rank candidates, performing coreference resolution and grounding; human collaborators review the ranked list and select the correct match. Hallucination — binding to a nonexistent or incorrect referent — is the primary failure mode and the reason human review of low-confidence results is important.
 
-The Matcher handles only the read side of resolution. Writing the chosen link (adding a `SpecificResource` body item to the annotation) is done by the Bind flow via `client.updateAnnotationBody`.
+The Matcher handles only the read side of resolution. Writing the chosen link (adding a `SpecificResource` body item to the annotation) is done by the Bind flow via `client.bind.body()`.
 
 ## Using the API Client
 
-**Via the SSE Matcher endpoint** — preferred for full composite scoring:
+`client.match.search()` returns an Observable of `MatchSearchProgress`
+— for the Matcher, that's a single final event containing scored
+results. The namespace emits `match:search-requested` via the bus
+gateway and filters `match:search-results` / `match:search-failed` by
+correlationId.
 
 ```typescript
-import { SemiontApiClient, resourceId, annotationId } from '@semiont/api-client';
-import { EventBus } from '@semiont/core';
-
-const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 
 // Gather context first (see Gather flow)
-const { context } = await client.getAnnotationLLMContext(rId, annId, { contextWindow: 2000 });
+const gather = await lastValueFrom(
+  client.gather.annotation(annId, rId, { contextWindow: 2000 }),
+);
+const context = (gather as { context: GatheredContext }).context;
 
-const eventBus = new EventBus();
-
-const results = await new Promise<any[]>((resolve, reject) => {
-  eventBus.get('bind:search-results').subscribe(e => resolve(e.results));
-  eventBus.get('bind:search-failed').subscribe(({ error }) => reject(error));
-
-  client.sse.bindSearch(rId, {
-    referenceId: annotation.id,
-    context,
+// Run the match search
+const result = await firstValueFrom(
+  client.match.search(rId, annotation.id, context, {
     limit: 10,
     useSemanticScoring: true,
-  }, {
-    auth: client.accessToken,
-    eventBus,
-  });
-});
-
-eventBus.destroy();
+  }),
+);
 
 // results are sorted by score descending; each has .score and .matchReason
-const top = results[0];
+const top = result.response[0];
 console.log(`Best match: ${top?.name} (score ${top?.score}, reason: ${top?.matchReason})`);
-```
-
-**Via the api-client namespace** — Observable with scored results:
-
-```typescript
-semiont.match.search(resourceId, referenceId, gatheredContext, {
-  limit: 10,
-  useSemanticScoring: true,
-}).subscribe((result) => {
-  console.log('Results:', result.response);
-});
 ```
 
 ## Events
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `bind:search-requested` | `{ referenceId, context: GatheredContext, limit?, useSemanticScoring?, correlationId }` | Trigger a Matcher search |
-| `bind:search-results` | `{ referenceId, results, correlationId }` | Scored, sorted candidate list from the Matcher |
-| `bind:search-failed` | `{ referenceId, error, correlationId }` | Search failed |
-| `bind:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a given resource |
-| `bind:referenced-by-result` | `{ correlationId, response }` | Referenced-by results |
+| `match:search-requested` | `{ referenceId, context: GatheredContext, limit?, useSemanticScoring?, correlationId }` | Trigger a Matcher search |
+| `match:search-results` | `{ referenceId, response, correlationId }` | Scored, sorted candidate list from the Matcher |
+| `match:search-failed` | `{ referenceId, error, correlationId }` | Search failed |
+| `browse:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a given resource |
+| `browse:referenced-by-result` | `{ correlationId, response }` | Referenced-by results |
 
 ## Candidate Retrieval
 
@@ -121,13 +103,13 @@ The Matcher also handles reverse-lookup: given a resource, which annotations ref
 // Via api-client namespace
 const referencedBy = await firstValueFrom(semiont.browse.referencedBy(resourceId));
 
-// Or via EventBus directly
-eventBus.get('bind:referenced-by-requested').next({
+// Or via the bus gateway directly
+client.actor.emit('browse:referenced-by-requested', {
   correlationId: crypto.randomUUID(),
   resourceId: rId,
   motivation: 'linking',
 });
-// Listen for bind:referenced-by-result
+// Listen for browse:referenced-by-result on the bus actor
 ```
 
 Each result includes the annotation ID, source resource name, and the exact text of the annotation target.
@@ -145,13 +127,13 @@ gather:complete → Wizard Step 1 shows context preview
     |
 User clicks "Bind" → Configure Search (Step 2A)
     |
-User submits → bind:search-requested fires with { context, limit, useSemanticScoring }
+User submits → match:search-requested emitted via /bus/emit with { correlationId, context, limit, useSemanticScoring }
     |
 Matcher retrieves candidates, scores, optionally re-ranks via LLM
     |
-bind:search-results → Wizard Step 3A shows ranked candidates
+match:search-results → Wizard Step 3A shows ranked candidates
     |
-User clicks "Link" → bind:update-body → annotation body updated
+User clicks "Link" → client.bind.body(...) emits bind:initiate → annotation body updated
 ```
 
 ## Score Interpretation
@@ -170,7 +152,7 @@ When `useSemanticScoring: true`, scores in the 25–49 range may shift significa
 ## Implementation
 
 - **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../packages/make-meaning/src/matcher.ts) — retrieval, structural scoring, inference re-ranking, referenced-by
-- **SSE route**: [apps/backend/src/routes/resources/routes/bind-search-stream.ts](../../apps/backend/src/routes/resources/routes/bind-search-stream.ts) — bridges HTTP to EventBus
-- **API client**: `client.sse.bindSearch` and `client.searchResources` in [@semiont/api-client](../../packages/api-client/README.md)
-- **ViewModel**: [packages/api-client/src/view-models/flows/bind-vm.ts](../../packages/api-client/src/view-models/flows/bind-vm.ts) — UI integration
+- **Bus gateway**: [apps/backend/src/routes/bus.ts](../../apps/backend/src/routes/bus.ts) — `/bus/emit` + `/bus/subscribe`; the Matcher subscribes to `match:search-requested` on the EventBus
+- **API client**: `client.match.search()` in [@semiont/api-client](../../packages/api-client/README.md) — Observable of scored results
+- **ViewModels**: [packages/api-client/src/view-models/flows/match-vm.ts](../../packages/api-client/src/view-models/flows/match-vm.ts) and [bind-vm.ts](../../packages/api-client/src/view-models/flows/bind-vm.ts)
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — `MATCH FLOW` section

@@ -17,19 +17,27 @@ Gathering is triggered automatically when the Reference Resolution Wizard opens 
 
 ## Using the API Client
 
-Fetch the assembled context for an annotation:
+Gathering is a long-running operation (LLM calls + graph traversal).
+`client.gather.annotation()` returns an Observable that emits progress
+events while the Gatherer assembles context, then emits the final
+`GatheredContext` on completion.
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 
-const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+// Subscribe for progress + result
+client.gather.annotation(annotationId, resourceId, { contextWindow: 2000 })
+  .subscribe({
+    next: (event) => console.log('progress:', event),
+    complete: () => console.log('done'),
+    error: (err) => console.error(err),
+  });
 
-// Get LLM-ready context for an annotation
-const { context } = await client.getAnnotationLLMContext(
-  resourceId,
-  annotationId,
-  { contextWindow: 2000 }
+// Or await the final context (one-shot)
+const final = await lastValueFrom(
+  client.gather.annotation(annotationId, resourceId, { contextWindow: 2000 }),
 );
+const context = (final as { context?: GatheredContext }).context;
 
 // Source context (passage text)
 console.log(context.sourceContext.selected);  // The exact text the annotation targets
@@ -50,6 +58,12 @@ console.log(context.graphContext.inferredRelationshipSummary); // LLM-generated 
 console.log(context.metadata.entityTypes);   // Entity type tags on the annotation
 console.log(context.metadata.resourceName);  // Source resource name
 ```
+
+Under the hood: the namespace emits `gather:annotation-request` via
+`/bus/emit` with a correlationId, then filters `gather:complete` and
+`gather:annotation-progress` events coming back through the bus for
+that correlationId. The Gatherer actor on the backend handles the
+command. See [`apps/backend/docs/STREAMS.md`](../../apps/backend/docs/STREAMS.md).
 
 ## Events
 

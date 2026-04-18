@@ -108,6 +108,17 @@ The source-of-truth events, subscribed to via `scoped` channels:
 System-wide (not resource-scoped):
 - `mark:entity-type-added`
 
+### Ephemeral cross-participant signals
+
+Attention coordination signals, broadcast globally (not persisted):
+
+- `beckon:focus` — directs a participant to scroll/pulse an annotation
+- `beckon:sparkle` — triggers a sparkle animation on an annotation
+
+Delivered to every connected browser. The originator's own emit echoes
+back through the bus, so their UI responds too — intentional for
+`client.beckon.attention()`-style programmatic calls.
+
 ### Command-result events (from actors)
 
 Ephemeral progress and completion events. Non-persisted:
