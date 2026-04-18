@@ -248,7 +248,7 @@ These update automatically when backend domain events arrive through the bus gat
 
 These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `api-client` package.
 
-**React integration**: `useStoreTokenSync()` (called once at the workspace root) keeps the entity stores' token getters current as the auth token changes.
+**React integration**: `AuthTokenProvider` holds the current token in a `BehaviorSubject`, and `ApiClientProvider` passes that subject to `SemiontApiClient` as `token$`. The client reads the observable's current value on every request; token changes propagate automatically without any React-specific wiring.
 
 ### Binary Content (Media Tokens)
 

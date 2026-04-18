@@ -17,7 +17,7 @@ The API is organized by the domain's verbs — the same verbs that organize the 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
 
-const semiont = new SemiontApiClient({ baseUrl, eventBus, getToken });
+const semiont = new SemiontApiClient({ baseUrl, eventBus, token$ });
 
 // Browse — reads from materialized views
 const resource = semiont.browse.resource(resourceId);       // Observable
@@ -58,22 +58,34 @@ semiont.beckon.attention(annotationId, resourceId);           // void (ephemeral
 
 ## Auth is Internal
 
-The client takes a `getToken` function at construction. No per-call auth:
+The client takes an observable `token$` at construction. All namespace
+calls and the bus SSE connection read the current value. Update by
+calling `.next(newToken)` on the BehaviorSubject — the client auto-starts
+the bus actor the first time the token transitions from null to a real
+value, and the actor reconnects with the new token after refresh.
 
 ```typescript
+import { BehaviorSubject } from 'rxjs';
+
+const token$ = new BehaviorSubject<AccessToken | null>(accessToken(token));
+
 const semiont = new SemiontApiClient({
   baseUrl: baseUrl('http://localhost:4000'),
   eventBus: new EventBus(),
-  getToken: () => accessToken(token),
+  token$,
 });
 
 // No auth on individual calls
 const annotations = semiont.browse.annotations(resourceId);
 await semiont.mark.annotation(resourceId, input);
 await semiont.bind.body(resourceId, annotationId, operations);
+
+// Token rotation — e.g. after refresh
+token$.next(accessToken(newToken));
 ```
 
-Update the token getter at any time via `semiont.setTokenGetter(getter)`.
+Omit `token$` entirely for unauthenticated usage (public endpoints only).
+The bus actor will not connect until a non-null token is available.
 
 ## Installation
 

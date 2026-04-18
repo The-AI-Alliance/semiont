@@ -274,11 +274,14 @@ export function useTranslationManager() {
 
 export function useApiClientManager() {
   const { data: session } = useSession();
+  const [token$] = useState(() => new BehaviorSubject<AccessToken | null>(null));
+
+  useEffect(() => {
+    token$.next(session?.backendToken ? accessToken(session.backendToken) : null);
+  }, [session?.backendToken, token$]);
 
   return {
-    client: session?.backendToken
-      ? new SemiontApiClient({ accessToken: session.backendToken })
-      : null
+    client: new SemiontApiClient({ baseUrl, eventBus, token$ }),
   };
 }
 ```

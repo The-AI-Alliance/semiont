@@ -90,7 +90,8 @@ The proxy performs four key functions:
    ```typescript
    const client = new SemiontApiClient({
      baseUrl: backendUrl as BaseUrl,
-     accessToken: session.backendToken as AccessToken,
+     eventBus: new EventBus(),
+     token$: new BehaviorSubject<AccessToken | null>(session.backendToken as AccessToken),
    });
    ```
 

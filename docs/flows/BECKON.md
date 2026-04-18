@@ -75,13 +75,14 @@ Click events relay through `beckon:focus` to scroll the document view:
 agent) delivers the same `beckon:focus` signal to a named participant via a backend
 endpoint and a participant-scoped SSE stream:
 
-1. CLI posts to `POST /api/participants/{id}/attention`
-2. Backend pushes the signal to `GET /api/participants/me/attention-stream` if the
-   participant is connected
-3. Frontend `useAttentionStream` (in `packages/react-ui/src/hooks/useAttentionStream.ts`) receives it and emits
-   `beckon:focus` on the local EventBus — the same path as an in-browser click relay
-4. The existing scroll-and-highlight behaviour fires, exactly as if the participant had
-   hovered themselves
+1. CLI emits `beckon:focus` via `POST /bus/emit`
+2. Backend broadcasts it on the EventBus; any participant subscribed to the
+   `beckon:focus` channel via `/bus/subscribe` receives it
+3. Frontend's `SemiontApiClient` has `beckon:focus` in its channel list and
+   bridges the event into the local EventBus — same path as an in-browser
+   click relay
+4. The existing scroll-and-highlight behaviour fires, exactly as if the
+   participant had hovered themselves
 
 If the participant is not connected, the signal is dropped. No queue, no retry — same
 ephemeral semantics as all other beckon events.

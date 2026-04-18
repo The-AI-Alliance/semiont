@@ -12,15 +12,30 @@ new SemiontApiClient(config: SemiontApiClientConfig)
 |---|---|---|---|
 | `baseUrl` | `BaseUrl` | yes | Backend API URL |
 | `eventBus` | `EventBus` | yes | Workspace-scoped EventBus |
-| `getToken` | `() => AccessToken \| undefined` | no | Token getter for all namespace methods |
+| `token$` | `BehaviorSubject<AccessToken \| null>` | no | Observable access token. Namespaces and the bus actor read the current value. Update by calling `.next(newToken)`. Omit for unauthenticated usage. |
 | `timeout` | `number` | no | Request timeout ms (default: 30000) |
 | `retry` | `number` | no | Retry attempts (default: 2) |
 | `logger` | `Logger` | no | Logger for HTTP/SSE observability |
 | `tokenRefresher` | `() => Promise<string \| null>` | no | 401-recovery hook |
 
-### `setTokenGetter(getter)`
+### `subscribeToResource(resourceId)`
 
-Update the token getter for all namespaces. Called from the auth layer when the token changes.
+Adds resource-scoped domain event channels (`mark:added`, `mark:body-updated`,
+`yield:create-ok`, etc.) to the bus actor's subscription for a specific
+resource. Bridges those events into the local EventBus so `semiont.browse.*`
+Observables update in real-time. Returns a cleanup function — call it on
+unmount to remove the channels.
+
+```typescript
+const cleanup = semiont.subscribeToResource(resourceId);
+// ... later
+cleanup();
+```
+
+### `dispose()`
+
+Stop and clean up the bus actor. Call before the client goes out of scope
+in long-running processes (CLI, MCP server).
 
 ## semiont.browse
 

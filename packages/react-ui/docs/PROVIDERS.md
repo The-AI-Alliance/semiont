@@ -209,52 +209,46 @@ See [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md) for complete list.
 
 ### ApiClientProvider
 
-Provides authenticated API client for all API operations.
+Provides the `SemiontApiClient` to consumer components. Must be nested
+inside `EventBusProvider` and `AuthTokenProvider` — it reads the
+`BehaviorSubject<AccessToken | null>` from `AuthTokenContext` and
+passes it to the client. The client auto-starts its bus actor when the
+token transitions to a non-null value.
 
-**Interface:**
+**Props:**
 
-```typescript
-interface ApiClientManager {
-  client: SemiontApiClient | null; // null when unauthenticated
-}
-```
+- `baseUrl: string` — backend API URL
+- `tokenRefresher?: () => Promise<string | null>` — optional 401-recovery hook
 
 **Usage:**
 
 ```tsx
-import { ApiClientProvider, useApiClient } from '@semiont/react-ui';
-import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
+import {
+  ApiClientProvider,
+  AuthTokenProvider,
+  EventBusProvider,
+  useApiClient,
+} from '@semiont/react-ui';
 
-// App implementation (example using next-auth)
-function useApiClientManager(): ApiClientManager {
+function App() {
   const { data: session } = useSession();
 
-  const client = useMemo(() => {
-    if (!session?.backendToken) {
-      return null;
-    }
-
-    return new SemiontApiClient({
-      baseUrl: baseUrl(''), // Relative URLs for browser
-      accessToken: accessToken(session.backendToken),
-      timeout: 30000
-    });
-  }, [session?.backendToken]);
-
-  return { client };
+  return (
+    <EventBusProvider>
+      <AuthTokenProvider token={session?.backendToken ?? null}>
+        <ApiClientProvider baseUrl={process.env.NEXT_PUBLIC_API_URL!}>
+          <Content />
+        </ApiClientProvider>
+      </AuthTokenProvider>
+    </EventBusProvider>
+  );
 }
 
-// In your app
-<ApiClientProvider apiClientManager={apiClientManager}>
-  {children}
-</ApiClientProvider>
-
-// In components (usually via API hooks)
 function MyComponent() {
-  const resources = useResources();
-  const { data } = resources.list.useQuery();
-
-  return <div>{data?.length} resources</div>;
+  const semiont = useApiClient();
+  const resource$ = semiont.browse.resource(resourceId);
+  const resource = useObservable(resource$);
+  return <div>{resource?.name}</div>;
 }
 ```
 
@@ -605,10 +599,8 @@ it('should render with providers', () => {
 });
 
 it('should work with authenticated client', () => {
-  const mockClient = new SemiontApiClient({ ... });
-
   renderWithProviders(<MyComponent />, {
-    apiClientManager: { client: mockClient }
+    apiBaseUrl: 'http://test.local:4000',
   });
 });
 ```

@@ -21,16 +21,29 @@
 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, EventBus } from '@semiont/core';
+import { baseUrl, accessToken, EventBus, type AccessToken } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
+
+const token$ = new BehaviorSubject<AccessToken | null>(accessToken(myToken));
 
 const semiont = new SemiontApiClient({
   baseUrl: baseUrl('http://localhost:4000'),
   eventBus: new EventBus(),
-  getToken: () => accessToken(myToken),
+  token$,
 });
 ```
 
-The `getToken` function is called on each request. Update it via `semiont.setTokenGetter()` when the token changes (e.g., after refresh).
+All namespace calls and the bus SSE connection read the current value
+from `token$`. Update by calling `.next(newToken)` — the client's bus
+actor reconnects with the new token automatically.
+
+```typescript
+// After token refresh
+token$.next(accessToken(newToken));
+```
+
+Omit `token$` for unauthenticated usage (public endpoints only). The
+bus actor will not connect until a non-null token is available.
 
 ## Browse
 
@@ -286,7 +299,7 @@ try {
 const semiont = new SemiontApiClient({
   baseUrl: baseUrl('http://localhost:4000'),
   eventBus: new EventBus(),
-  getToken: () => accessToken(token),
+  token$,
   logger, // winston, pino, etc.
 });
 ```

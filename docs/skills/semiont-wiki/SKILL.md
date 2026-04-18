@@ -31,13 +31,16 @@ import {
   resourceId,
   annotationId,
 } from '@semiont/api-client';
-import { EventBus, entityType } from '@semiont/core';
-import { firstValueFrom } from 'rxjs';
+import { EventBus, accessToken, entityType, type AccessToken } from '@semiont/core';
+import { firstValueFrom, BehaviorSubject } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 const client = new SemiontApiClient({
   baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-  accessToken: process.env.SEMIONT_ACCESS_TOKEN,
+  eventBus: new EventBus(),
+  token$: new BehaviorSubject<AccessToken | null>(
+    process.env.SEMIONT_ACCESS_TOKEN ? accessToken(process.env.SEMIONT_ACCESS_TOKEN) : null
+  ),
 });
 ```
 
@@ -216,7 +219,10 @@ const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location').split(',').map(t =
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
   const client = new SemiontApiClient({
     baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-    accessToken: process.env.SEMIONT_ACCESS_TOKEN,
+    eventBus: new EventBus(),
+    token$: new BehaviorSubject<AccessToken | null>(
+      process.env.SEMIONT_ACCESS_TOKEN ? accessToken(process.env.SEMIONT_ACCESS_TOKEN) : null
+    ),
   });
 
   const rId = resourceId(resourceIdStr);
