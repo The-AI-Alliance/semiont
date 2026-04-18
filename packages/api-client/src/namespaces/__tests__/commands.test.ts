@@ -195,11 +195,11 @@ describe('MarkNamespace', () => {
 // ── Bind ────────────────────────────────────────────────────────────────────
 
 describe('BindNamespace', () => {
-  it('body() emits bind:initiate on bus', async () => {
+  it('body() emits bind:update-body on bus', async () => {
     const mock = createMockActor();
     const bind = new BindNamespace(mock.actor);
     await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]);
-    expect(mock.emitSpy).toHaveBeenCalledWith('bind:initiate', expect.objectContaining({
+    expect(mock.emitSpy).toHaveBeenCalledWith('bind:update-body', expect.objectContaining({
       annotationId: AID,
       resourceId: RID,
       operations: expect.any(Array),

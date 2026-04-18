@@ -291,37 +291,30 @@ export type EventMap = {
 export type EventName = keyof EventMap;
 
 /**
- * Non-persisted event types that the per-resource events-stream should deliver
- * to all connected clients. These are ephemeral command-result and progress
- * events that don't go through EventStore.appendEvent but still need to reach
- * every participant viewing the resource for real-time collaboration.
+ * Genuine resource-bound broadcast event types.
  *
- * Actors (Binder, Gatherer, workers) publish these on the scoped EventBus
- * (`eventBus.scope(resourceId)`). The events-stream route subscribes to them
- * alongside the persisted event types.
+ * Publishers emit these on the scoped EventBus (`eventBus.scope(resourceId)`)
+ * because every participant viewing the resource should receive them — not
+ * just the caller who triggered the originating action. Examples: resource
+ * generation progress, which multiple viewers of a generating resource all
+ * want to see.
  *
- * Unlike PERSISTED_EVENT_TYPES, there's no compile-time exhaustiveness check
- * here because these event types are a curated subset of EventMap — not every
- * non-persisted event should flow to all participants. Adding a new one is a
- * deliberate choice, not an automatic cascade.
+ * Non-broadcast progress (AI-assist progress for one user, search results
+ * for one caller) does NOT belong here. Those are per-caller correlation-ID
+ * responses and publish globally — the caller filters by `correlationId`.
+ *
+ * The frontend's `subscribeToResource(id)` wires these channels via
+ * `scope=id&scoped=<channel>` so the SSE route delivers them to that
+ * participant. WorkerVM uses this list to decide which emitted events to
+ * scope to their resource.
  */
-export const STREAM_COMMAND_RESULT_TYPES = [
-  // Match flow — search results for binding candidates
-  'match:search-results',
-  'match:search-failed',
-  // Gather flow — assembled context for reference resolution
-  'gather:complete',
-  'gather:failed',
-  'gather:annotation-progress',
-  // Mark flow — AI-assisted annotation progress
-  'mark:progress',
-  'mark:assist-finished',
-  'mark:assist-failed',
-  // Yield flow — resource generation progress
+export const RESOURCE_BROADCAST_TYPES = [
   'yield:progress',
   'yield:finished',
   'yield:failed',
 ] as const satisfies readonly EventName[];
+
+export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];
 
 /**
  * Authoritative map from bus channel to OpenAPI schema name.

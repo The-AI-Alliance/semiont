@@ -8,7 +8,6 @@ import { createMarkVM, type MarkVM } from '../flows/mark-vm';
 import { createGatherVM, type GatherVM } from '../flows/gather-vm';
 import { createMatchVM } from '../flows/match-vm';
 import { createYieldVM, type YieldVM } from '../flows/yield-vm';
-import { createBindVM } from '../flows/bind-vm';
 import type { SemiontApiClient } from '../../client';
 import { decodeWithCharset } from '../../utils/text-encoding';
 import { isHighlight, isComment, isAssessment, isReference, isTag } from '../../utils/annotations';
@@ -71,7 +70,6 @@ export function createResourceViewerPageVM(
   const mark = createMarkVM(client, eventBus, resourceId);
   const gather = createGatherVM(client, eventBus, resourceId);
   const matchVM = createMatchVM(client, eventBus, resourceId);
-  const bindVM = createBindVM(client, eventBus, resourceId);
   const yieldVM = createYieldVM(client, eventBus, resourceId, locale);
 
   disposer.add(beckon);
@@ -79,7 +77,6 @@ export function createResourceViewerPageVM(
   disposer.add(mark);
   disposer.add(gather);
   disposer.add(matchVM);
-  disposer.add(bindVM);
   disposer.add(yieldVM);
 
   const annotations$: Observable<Annotation[]> = client.browse.annotations(resourceId).pipe(

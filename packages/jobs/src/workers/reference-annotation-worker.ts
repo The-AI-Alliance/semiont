@@ -295,10 +295,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
       result,
     });
 
-    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
-    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
-    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
-    resourceBus.get('mark:assist-finished').next({
+    this.eventBus.get('mark:assist-finished').next({
       motivation: 'linking',
       resourceId: String(job.params.resourceId),
       status: 'complete',
@@ -325,9 +322,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
         error: 'Entity detection failed. Please try again later.',
       });
 
-      // Emit mark:assist-failed on the resource-scoped bus
-      const resourceBus = this.eventBus.scope(String(detJob.params.resourceId));
-      resourceBus.get('mark:assist-failed').next({
+      this.eventBus.get('mark:assist-failed').next({
         resourceId: String(detJob.params.resourceId),
         message: 'Entity detection failed. Please try again later.',
       });
@@ -362,12 +357,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
       : -1;
     const isBeforeProcessing = currentIndex !== -1 && detJob.progress.processedEntityTypes === currentIndex;
 
-    // Get resource-scoped EventBus for progress events
-    const resourceBus = this.eventBus.scope(detJob.params.resourceId);
-    this.logger?.debug('[EventBus] Scoping to resourceId', { resourceId: detJob.params.resourceId });
-
     if (isFirstUpdate) {
-      // First progress update - record job started via EventBus
       this.eventBus.get('job:start').next({
         resourceId: detJob.params.resourceId,
         userId: userId(detJob.metadata.userId),
@@ -375,12 +365,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
         jobType: detJob.metadata.type,
       });
 
-      // ALSO emit initial mark:progress for immediate frontend feedback
-      this.logger?.debug('[EventBus] Emitting initial mark:progress', {
-        resourceId: detJob.params.resourceId,
-        currentEntityType: detJob.progress.currentEntityType
-      });
-      resourceBus.get('mark:progress').next({
+      this.eventBus.get('mark:progress').next({
         status: 'started',
         message: detJob.progress.currentEntityType
           ? `Starting ${detJob.progress.currentEntityType}...`
@@ -390,18 +375,13 @@ export class ReferenceAnnotationWorker extends JobWorker {
       });
     } else if (isBeforeProcessing) {
       const percentage = 0;
-      this.logger?.debug('[EventBus] Emitting mark:progress (before processing)', {
-        resourceId: detJob.params.resourceId,
-        currentEntityType: detJob.progress.currentEntityType
-      });
-      resourceBus.get('mark:progress').next({
+      this.eventBus.get('mark:progress').next({
         status: 'scanning',
         message: `Starting ${detJob.progress.currentEntityType}...`,
         currentEntityType: detJob.progress.currentEntityType,
         percentage,
       });
     } else {
-      // After processing an entity type - record progress via EventBus
       const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
       this.eventBus.get('job:report-progress').next({
         resourceId: detJob.params.resourceId,
@@ -423,13 +403,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
         },
       });
 
-      // PROGRESS EVENT: Emit mark:progress directly to EventBus (ephemeral)
-      this.logger?.debug('[EventBus] Emitting mark:progress', {
-        resourceId: detJob.params.resourceId,
-        currentEntityType: detJob.progress.currentEntityType,
-        percentage
-      });
-      resourceBus.get('mark:progress').next({
+      this.eventBus.get('mark:progress').next({
         status: 'scanning',
         message: `Processing ${detJob.progress.currentEntityType}`,
         currentEntityType: detJob.progress.currentEntityType,

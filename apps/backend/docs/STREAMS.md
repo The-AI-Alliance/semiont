@@ -40,9 +40,13 @@ the client cares about is listed at connect time.
 
 Two endpoints:
 
-- `POST /bus/emit` — `{ channel, payload, scope? }` → 202. Validates
-  payload against `CHANNEL_SCHEMAS` (Ajv), injects `_userId`, emits on
-  the (possibly scoped) EventBus.
+- `POST /bus/emit` — `{ channel, payload, scope? }` → 202. Rejects
+  unknown channels. Validates payload against `CHANNEL_SCHEMAS` (from
+  `@semiont/core`, Ajv-validated; `null` entries pass through),
+  injects `_userId`, emits on the (possibly scoped) EventBus. The
+  `scope` parameter is only meaningful for genuine resource-bound
+  broadcasts — in practice only WorkerVM uses it (see "When to
+  scope").
 
 - `GET /bus/subscribe?channel=X&channel=Y&scoped=Z&scope=res-123` —
   long-lived SSE.
@@ -52,6 +56,45 @@ Two endpoints:
     resource-scoped domain events (`mark:added`, `yield:create-ok`, etc.).
   - Each SSE frame carries `event: bus-event` with data
     `{ channel, payload, scope? }`.
+
+## When to scope
+
+Scope is a **broadcast-narrowing** mechanism for resource-bound events
+— nothing more. It is not addressing (the channel name is). Every
+event on the bus faces two independent questions: "who reacts to it?"
+(channel) and "does it concern one resource, all resources, or none?"
+(scope).
+
+| Event kind | Scoped? | Why |
+|---|---|---|
+| Command (one handler) | **No** | No fan-out to narrow. Handler subscribes by channel name; that's sufficient. |
+| Correlation-ID response (e.g. `mark:create-ok`) | **No** | Caller filters by `correlationId`. Scope adds nothing and would require the emitter to know which resource the caller is on. |
+| Resource-bound broadcast (persisted domain events; actor progress meant for all viewers) | **Yes** | Many viewers, only some care. Scope narrows fan-out to viewers of that resource. |
+| System-wide broadcast (`mark:entity-type-added`, `beckon:focus`) | **No** | Concerns everyone — not about a specific resource. |
+
+Consequences:
+
+- **All backend handlers subscribe on the global bus.** A command has
+  one handler; where the user was standing when they issued it is
+  irrelevant.
+- **`EventStore.appendEvent` double-publishes** persisted domain
+  events — global (for backend subsystems that want every event:
+  graph materializer, smelter) plus scoped (for per-resource SSE
+  delivery). System events (`resourceId === '__system__'`) publish
+  global only.
+- **Backend actors** (Gatherer, Matcher) publish **correlation-ID
+  responses globally** (`match:search-results`, `gather:complete`,
+  etc.). The caller filters by `correlationId`.
+- **Workers** publish `RESOURCE_BROADCAST_TYPES` (currently
+  `yield:progress`/`finished`/`failed` — genuine "everyone viewing
+  this resource wants to see progress" events) on the scoped bus.
+  Everything else they emit is global.
+- **Frontend** never passes a `scope` to `actor.emit`. Commands go
+  global; handlers live on the global bus.
+
+This rule is enforced structurally: see `RESOURCE_BROADCAST_TYPES` in
+`packages/core/src/bus-protocol.ts`, and the worker's `emitEvent`
+logic in `packages/api-client/src/view-models/domain/worker-vm.ts`.
 
 ## Handlers subscribe directly
 
@@ -118,12 +161,17 @@ instances.
 ## Adding a new async operation
 
 1. Define OpenAPI schemas for the request and result payloads.
-2. Add channels to the `EventMap` in `bus-protocol.ts`.
-3. Add entries to `CHANNEL_SCHEMAS` in `bus.ts` so `/bus/emit`
-   validates the payload.
-4. Add a handler that subscribes to the request channel and emits on
-   the result channel.
+2. Add channels to `EventMap` **and** `CHANNEL_SCHEMAS` in
+   `packages/core/src/bus-protocol.ts` — the `satisfies Record<EventName, ...>`
+   constraint forces you to do both. Use `null` for compound / void /
+   branded payloads that have no single schema.
+3. Decide scope per the "When to scope" table above. For a broadcast-
+   style result, add the channel to `RESOURCE_BROADCAST_TYPES`.
+4. Add a handler that subscribes to the request channel on the
+   **global** bus and emits on the result channel (global for
+   correlation-ID responses, scoped only for genuine broadcasts).
 5. Add a method to the verb namespace that calls `busRequest()` for
-   request-response or `actor.emit()` for fire-and-forget.
+   request-response or `actor.emit()` for fire-and-forget. Never pass
+   a scope from the frontend.
 
 No new routes. No new SSE endpoint. No handshake.

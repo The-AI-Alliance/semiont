@@ -43,12 +43,12 @@ import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
 import type { Logger } from '@semiont/core';
-import { PERSISTED_EVENT_TYPES, STREAM_COMMAND_RESULT_TYPES } from '@semiont/core';
+import { PERSISTED_EVENT_TYPES, RESOURCE_BROADCAST_TYPES } from '@semiont/core';
 import type { Subscription } from 'rxjs';
 
 const RESOURCE_SCOPED_CHANNELS = [
   ...PERSISTED_EVENT_TYPES.filter(t => t !== 'mark:entity-type-added'),
-  ...STREAM_COMMAND_RESULT_TYPES,
+  ...RESOURCE_BROADCAST_TYPES,
 ];
 
 const BUS_RESULT_CHANNELS = [
@@ -61,10 +61,15 @@ const BUS_RESULT_CHANNELS = [
   'browse:referenced-by-result', 'browse:referenced-by-failed',
   'browse:entity-types-result', 'browse:entity-types-failed',
   'browse:directory-result', 'browse:directory-failed',
+  'browse:annotation-context-result', 'browse:annotation-context-failed',
   'mark:delete-ok', 'mark:delete-failed',
   'mark:create-ok', 'mark:create-failed',
+  'mark:progress', 'mark:assist-finished', 'mark:assist-failed',
+  'match:search-results', 'match:search-failed',
+  'gather:complete', 'gather:failed',
+  'gather:annotation-progress', 'gather:annotation-finished',
   'gather:summary-result', 'gather:summary-failed',
-  'browse:annotation-context-result', 'browse:annotation-context-failed',
+  'bind:body-update-failed',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
   'job:claimed', 'job:claim-failed',
@@ -338,7 +343,25 @@ export class SemiontApiClient {
 
   private resourceSubscriptions: Subscription[] = [];
 
+  /**
+   * Subscribe the bus actor to the resource-scoped SSE stream for a single
+   * resource and bridge incoming scoped events into the workspace event bus.
+   *
+   * **Single-resource contract**: at most one resource may be active at a
+   * time. Calling this while a previous subscription is still live throws —
+   * the caller must invoke the returned unsubscribe first. See
+   * `.plans/SIMPLE-BUS.md` Gap #9 for the multi-resource extension path.
+   *
+   * @returns a disposer that tears down both the SSE scope and the bridge.
+   */
   subscribeToResource(resourceId: ResourceId): () => void {
+    if (this.resourceSubscriptions.length > 0) {
+      throw new Error(
+        'SemiontApiClient already has an active resource subscription; ' +
+        'call the unsubscribe returned from the previous subscribeToResource before subscribing to another.',
+      );
+    }
+
     this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], resourceId as string);
 
     const subs: Subscription[] = [];
@@ -686,7 +709,7 @@ export class SemiontApiClient {
     _options?: RequestOptions
   ): Promise<{ correlationId: string }> {
     const correlationId = crypto.randomUUID();
-    await this.actor.emit('bind:initiate', { correlationId, annotationId, resourceId, operations: data.operations });
+    await this.actor.emit('bind:update-body', { correlationId, annotationId, resourceId, operations: data.operations });
     return { correlationId };
   }
 

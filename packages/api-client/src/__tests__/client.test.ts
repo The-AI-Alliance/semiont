@@ -423,12 +423,12 @@ describe('SemiontApiClient', () => {
       expect(actorHarness.emitSpy).toHaveBeenNthCalledWith(2, 'mark:add-entity-type', { tag: 'Place' });
     });
 
-    test('bindAnnotation emits bind:initiate with correlationId', async () => {
+    test('bindAnnotation emits bind:update-body with correlationId', async () => {
       const result = await client.bindAnnotation(testResourceId, testAnnotationId, {
         operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'r' } }],
       });
       expect(actorHarness.emitSpy).toHaveBeenCalledWith(
-        'bind:initiate',
+        'bind:update-body',
         expect.objectContaining({
           annotationId: testAnnotationId,
           resourceId: testResourceId,

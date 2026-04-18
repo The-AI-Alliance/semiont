@@ -60,6 +60,22 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     });
   });
 
+  /**
+   * Accepts bus events from clients. See `.plans/SIMPLE-BUS.md` for the
+   * scope rule.
+   *
+   * - **Commands** (frontend → backend handler) and **correlation-ID
+   *   responses** arrive un-scoped. Handlers subscribe on the global bus.
+   * - **Resource-bound broadcasts** (WorkerVM-emitted progress for
+   *   resource generation — the `RESOURCE_BROADCAST_TYPES` set) arrive
+   *   with `scope: resourceId`. These are published on
+   *   `eventBus.scope(resourceId)` so the per-resource SSE subscription
+   *   can deliver them only to viewers of that resource.
+   *
+   * The `scope` parameter is **not** derived from any UI context — it is
+   * meaningful only for publishers of resource-bound broadcasts. Frontend
+   * commands must never set it.
+   */
   busRouter.post('/bus/emit', async (c) => {
     const eventBus = c.get('eventBus');
     const body = await c.req.json();

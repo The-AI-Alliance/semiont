@@ -85,10 +85,6 @@ export class Gatherer {
   // ========================================================================
 
   private async handleAnnotationGather(event: EventMap['gather:requested']): Promise<void> {
-    // Publish results on the resource-scoped bus so the events-stream
-    // delivers them to all participants viewing this resource.
-    const resultBus = this.eventBus.scope(event.resourceId);
-
     try {
       this.logger.debug('Gathering annotation context', {
         annotationId: event.annotationId,
@@ -105,7 +101,7 @@ export class Gatherer {
         this.embeddingProvider,
       );
 
-      resultBus.get('gather:complete').next({
+      this.eventBus.get('gather:complete').next({
         correlationId: event.correlationId,
         annotationId: event.annotationId,
         response,
@@ -115,7 +111,7 @@ export class Gatherer {
         annotationId: event.annotationId,
         error: errField(error),
       });
-      resultBus.get('gather:failed').next({
+      this.eventBus.get('gather:failed').next({
         correlationId: event.correlationId,
         annotationId: event.annotationId,
         message: error instanceof Error ? error.message : String(error),
@@ -124,9 +120,6 @@ export class Gatherer {
   }
 
   private async handleResourceGather(event: EventMap['gather:resource-requested']): Promise<void> {
-    // Publish results on the resource-scoped bus
-    const resultBus = this.eventBus.scope(event.resourceId);
-
     try {
       this.logger.debug('Gathering resource context', {
         resourceId: event.resourceId,
@@ -139,7 +132,7 @@ export class Gatherer {
         this.inferenceClient,
       );
 
-      resultBus.get('gather:resource-complete').next({
+      this.eventBus.get('gather:resource-complete').next({
         correlationId: event.correlationId,
         resourceId: event.resourceId,
         response: result,
@@ -149,7 +142,7 @@ export class Gatherer {
         resourceId: event.resourceId,
         error: errField(error),
       });
-      resultBus.get('gather:resource-failed').next({
+      this.eventBus.get('gather:resource-failed').next({
         correlationId: event.correlationId,
         resourceId: event.resourceId,
         message: error instanceof Error ? error.message : String(error),

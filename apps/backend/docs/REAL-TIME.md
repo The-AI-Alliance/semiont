@@ -42,6 +42,24 @@ Frontend (browser)                     Backend
   Flow VM progress UI updates
 ```
 
+## When scope matters
+
+Scope is a broadcast-narrowing filter, not addressing. See the "When
+to scope" section of [STREAMS.md](./STREAMS.md) for the full rule.
+Short version for SSE delivery:
+
+- Global channels (`channel=X`) carry commands' correlation-ID
+  responses, system-wide signals (`mark:entity-type-added`,
+  `beckon:*`), and everything the backend publishes un-scoped.
+- Scoped channels (`scope=rId&scoped=Y`) carry persisted domain
+  events for resource `rId` (via `EventStore`'s dual publish) and
+  the curated list of genuine resource-wide broadcasts
+  (`RESOURCE_BROADCAST_TYPES` — today just `yield:progress/finished/
+  failed`).
+
+Callers never need to subscribe to a scope to receive the result of
+their own request — correlation-ID responses are always global.
+
 ## Single SSE connection
 
 `SemiontApiClient` creates one `ActorVM` lazily on first bus use. The
@@ -119,25 +137,33 @@ Delivered to every connected browser. The originator's own emit echoes
 back through the bus, so their UI responds too — intentional for
 `client.beckon.attention()`-style programmatic calls.
 
-### Command-result events (from actors)
+### Correlation-ID responses (global, from handlers and actors)
 
-Ephemeral progress and completion events. Non-persisted:
-
-- `match:search-results`, `match:search-failed`
-- `gather:complete`, `gather:failed`, `gather:annotation-progress`
-- `mark:progress`, `mark:assist-finished`, `mark:assist-failed`
-- `yield:progress`, `yield:finished`, `yield:failed`
-- `bind:body-updated`, `bind:body-update-failed`
-
-### Request-response result channels (from handlers)
-
-Correlated by `correlationId`:
+Non-persisted results matched back to their originating request by
+`correlationId`. Published on the **global** bus, received via the
+`channel=X` SSE subscription. The caller — whether UI, CLI, MCP, or
+worker — filters by its own `correlationId`.
 
 - `browse:*-result` / `browse:*-failed`
 - `mark:*-ok` / `mark:*-failed`
-- `job:created` / `job:create-failed`, `job:claimed` / `job:claim-failed`
+- `bind:body-update-failed`
+- `match:search-results` / `match:search-failed`
+- `gather:complete` / `gather:failed` / `gather:annotation-progress`
+- `gather:summary-result` / `gather:summary-failed`
+- `mark:progress` / `mark:assist-finished` / `mark:assist-failed`
+- `job:created` / `job:create-failed` / `job:claimed` / `job:claim-failed`
 - `yield:clone-token-generated` / `yield:clone-token-failed`
 - `yield:clone-resource-result` / `yield:clone-resource-failed`
+
+### Resource-bound broadcasts (scoped)
+
+Events a participant wants to see because they're viewing a specific
+resource, regardless of who triggered them. Published on
+`eventBus.scope(resourceId)`. Received via `scope=rId&scoped=X`
+subscription, which `subscribeToResource()` wires up. Constant:
+`RESOURCE_BROADCAST_TYPES` in `packages/core/src/bus-protocol.ts`.
+
+- `yield:progress`, `yield:finished`, `yield:failed`
 
 ## Debugging
 

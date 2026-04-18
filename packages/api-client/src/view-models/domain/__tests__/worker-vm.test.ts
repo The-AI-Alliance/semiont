@@ -206,7 +206,7 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('emitEvent delegates to ActorVM.emit', async () => {
+  it('emitEvent delegates to ActorVM.emit — global for non-broadcast events', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
 
     const vm = createWorkerVM({
@@ -223,6 +223,31 @@ describe('createWorkerVM', () => {
         method: 'POST',
         body: JSON.stringify({
           channel: 'mark:progress',
+          payload: { resourceId: 'res-1', percentage: 42 },
+        }),
+      }),
+    );
+
+    vm.dispose();
+  });
+
+  it('emitEvent scopes resource-broadcast events to payload.resourceId', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const vm = createWorkerVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      jobTypes: ['generation'],
+    });
+
+    await vm.emitEvent('yield:progress', { resourceId: 'res-1', percentage: 42 });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:4000/bus/emit',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          channel: 'yield:progress',
           payload: { resourceId: 'res-1', percentage: 42 },
           scope: 'res-1',
         }),

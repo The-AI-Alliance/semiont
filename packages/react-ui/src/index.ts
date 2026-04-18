@@ -218,7 +218,6 @@ export * from './hooks/useBrowseVM';
 export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/api-client';
 export { createGatherVM, type GatherVM } from '@semiont/api-client';
 export { createMatchVM, type MatchVM } from '@semiont/api-client';
-export { createBindVM, type BindVM } from '@semiont/api-client';
 export { createDiscoverVM, type DiscoverVM } from '@semiont/api-client';
 export { createResourceViewerPageVM, type ResourceViewerPageVM, type WizardState, type AnnotationGroups } from '@semiont/api-client';
 export { createComposePageVM, type ComposePageVM, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from '@semiont/api-client';

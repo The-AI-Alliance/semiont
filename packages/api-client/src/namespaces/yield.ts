@@ -102,12 +102,11 @@ export class YieldNamespace implements IYieldNamespace {
         subscriber.complete();
 
         if (event.resourceId && event.referenceId && event.sourceResourceId) {
-          this.eventBus.get('bind:update-body').next({
-            correlationId: crypto.randomUUID(),
-            annotationId: makeAnnotationId(event.referenceId),
-            resourceId: makeResourceId(event.sourceResourceId),
-            operations: [{ op: 'add', item: { type: 'SpecificResource', source: event.resourceId } }],
-          });
+          this.http.bind.body(
+            makeResourceId(event.sourceResourceId),
+            makeAnnotationId(event.referenceId),
+            [{ op: 'add', item: { type: 'SpecificResource', source: event.resourceId } }],
+          ).catch(() => {});
         }
       });
 

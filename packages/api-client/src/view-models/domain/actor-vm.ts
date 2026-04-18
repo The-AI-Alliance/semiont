@@ -168,6 +168,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
         if (scopedChannels.delete(ch)) changed = true;
         if (globalChannels.delete(ch)) changed = true;
       }
+      if (scopedChannels.size === 0) activeScope = undefined;
       if (changed) reconnect();
     },
 

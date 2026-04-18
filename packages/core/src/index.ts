@@ -100,13 +100,14 @@ export type {
   EventMap,
   EventName,
   EmittableChannel,
+  ResourceBroadcastType,
   Selector,
   GatheredContext,
   YieldProgress,
   MarkProgress,
   SelectionData,
 } from './bus-protocol';
-export { STREAM_COMMAND_RESULT_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+export { RESOURCE_BROADCAST_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';

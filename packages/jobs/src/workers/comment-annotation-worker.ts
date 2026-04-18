@@ -72,10 +72,7 @@ export class CommentAnnotationWorker extends JobWorker {
       result,
     });
 
-    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
-    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
-    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
-    resourceBus.get('mark:assist-finished').next({
+    this.eventBus.get('mark:assist-finished').next({
       motivation: 'commenting',
       resourceId: String(job.params.resourceId),
       status: 'complete',
@@ -121,9 +118,7 @@ export class CommentAnnotationWorker extends JobWorker {
         percentage: cdJob.progress.percentage,
         progress: { stage: cdJob.progress.stage, percentage: cdJob.progress.percentage, message: cdJob.progress.message || '' },
       });
-      // Ephemeral progress for real-time UI updates
-      const resourceBus = this.eventBus.scope(cdJob.params.resourceId);
-      resourceBus.get('mark:progress').next({
+      this.eventBus.get('mark:progress').next({
         status: cdJob.progress.stage,
         message: cdJob.progress.message,
         percentage: cdJob.progress.percentage
@@ -147,9 +142,7 @@ export class CommentAnnotationWorker extends JobWorker {
         error: 'Comment detection failed. Please try again later.',
       });
 
-      // Emit mark:assist-failed on the resource-scoped bus
-      const resourceBus = this.eventBus.scope(String(cdJob.params.resourceId));
-      resourceBus.get('mark:assist-failed').next({
+      this.eventBus.get('mark:assist-failed').next({
         resourceId: String(cdJob.params.resourceId),
         message: 'Comment detection failed. Please try again later.',
       });

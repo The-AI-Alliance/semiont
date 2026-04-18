@@ -108,6 +108,9 @@ registerAnnotationLookupHandlers(eventBus, makeMeaning.knowledgeSystem.kb, makeM
 import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
 registerAnnotationAssemblyHandler(eventBus);
 
+import { registerBindUpdateBodyHandler } from './handlers/bind-update-body';
+registerBindUpdateBodyHandler(eventBus);
+
 // Import route definitions
 import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';

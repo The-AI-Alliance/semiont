@@ -17,7 +17,8 @@ export interface EventBusProviderProps {
  * - Tests get isolation naturally — no resetEventBusForTesting needed
  *
  * Operation handlers (API calls triggered by events) are set up separately via
- * flow VMs (createBindVM, etc.), which should be instantiated at the resource page level.
+ * flow VMs (createMarkVM, createYieldVM, etc.), which should be instantiated at
+ * the resource page level.
  */
 export function EventBusProvider({ children }: EventBusProviderProps) {
   const eventBusRef = useRef<EventBus | null>(null);
