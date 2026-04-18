@@ -221,10 +221,10 @@ describe('GatherNamespace', () => {
     gather = new GatherNamespace(eventBus, mock.actor);
   });
 
-  it('annotation() emits gather:annotation-request on bus', () => {
+  it('annotation() emits gather:requested on bus', () => {
     gather.annotation(AID, RID, { contextWindow: 2000 }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
-      expect(emitSpy).toHaveBeenCalledWith('gather:annotation-request', expect.objectContaining({
+      expect(emitSpy).toHaveBeenCalledWith('gather:requested', expect.objectContaining({
         annotationId: AID,
         resourceId: RID,
         contextWindow: 2000,

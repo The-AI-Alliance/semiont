@@ -99,13 +99,14 @@ export { PERSISTED_EVENT_TYPES } from './persisted-events';
 export type {
   EventMap,
   EventName,
+  EmittableChannel,
   Selector,
   GatheredContext,
   YieldProgress,
   MarkProgress,
   SelectionData,
 } from './bus-protocol';
-export { STREAM_COMMAND_RESULT_TYPES } from './bus-protocol';
+export { STREAM_COMMAND_RESULT_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';

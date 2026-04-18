@@ -322,3 +322,205 @@ export const STREAM_COMMAND_RESULT_TYPES = [
   'yield:finished',
   'yield:failed',
 ] as const satisfies readonly EventName[];
+
+/**
+ * Authoritative map from bus channel to OpenAPI schema name.
+ *
+ * Every {@link EventName} must appear. The `satisfies` clause below
+ * enforces completeness at compile time — adding a channel to
+ * {@link EventMap} without adding an entry here is a build error.
+ *
+ * Values:
+ *   - `<SchemaName>`: payload validates against `components['schemas'][SchemaName]`.
+ *   - `null`: no single-schema validation. Used for branded
+ *     `StoredEvent` wrappers, `void` UI signals, and compound inline
+ *     types (e.g. `{ correlationId } & CommandError`). These are not
+ *     validated by `/bus/emit`.
+ *
+ * The `/bus/emit` route reads this map to validate incoming payloads.
+ * Consumers can also use it to do client-side pre-flight validation
+ * before emitting.
+ */
+export const CHANNEL_SCHEMAS = {
+  // ── YIELD FLOW ──────────────────────────────────────────────────
+  'yield:created':                    null, // StoredEvent
+  'yield:cloned':                     null,
+  'yield:updated':                    null,
+  'yield:moved':                      null,
+  'yield:representation-added':       null,
+  'yield:representation-removed':     null,
+  'yield:progress':                   'YieldProgress',
+  'yield:finished':                   'YieldProgress',
+  'yield:failed':                     'YieldStreamError',
+  'yield:request':                    'YieldRequestCommand',
+  'yield:create':                     'YieldCreateCommand',
+  'yield:update':                     'YieldUpdateCommand',
+  'yield:mv':                         'YieldMvCommand',
+  'yield:clone':                      null, // void
+  'yield:clone-token-requested':      'YieldCloneTokenRequest',
+  'yield:clone-resource-requested':   'YieldCloneResourceRequest',
+  'yield:clone-create':               'YieldCloneCreateCommand',
+  'yield:create-ok':                  'YieldCreateOk',
+  'yield:create-failed':              'CommandError',
+  'yield:update-ok':                  'YieldUpdateOk',
+  'yield:update-failed':              null, // YieldUpdateOk & CommandError
+  'yield:move-ok':                    'YieldMoveOk',
+  'yield:move-failed':                null, // { fromUri } & CommandError
+  'yield:clone-token-generated':      null, // { correlationId; response: CloneResourceWithTokenResponse }
+  'yield:clone-token-failed':         null, // { correlationId } & CommandError
+  'yield:clone-resource-result':      null, // { correlationId; response: GetResourceByTokenResponse }
+  'yield:clone-resource-failed':      null, // { correlationId } & CommandError
+  'yield:clone-created':              'YieldCloneCreated',
+  'yield:clone-create-failed':        null, // { correlationId } & CommandError
+
+  // ── MARK FLOW ───────────────────────────────────────────────────
+  'mark:added':                       null, // StoredEvent
+  'mark:removed':                     null,
+  'mark:body-updated':                null,
+  'mark:entity-tag-added':            null,
+  'mark:entity-tag-removed':          null,
+  'mark:entity-type-added':           null,
+  'mark:archived':                    null,
+  'mark:unarchived':                  null,
+  'mark:progress':                    'MarkProgress',
+  'mark:assist-finished':             'MarkAssistFinished',
+  'mark:assist-failed':               'MarkAssistFailed',
+  'mark:create-request':              'MarkCreateRequest',
+  'mark:create':                      'MarkCreateCommand',
+  'mark:delete':                      'MarkDeleteCommand',
+  'mark:update-body':                 'MarkUpdateBodyCommand',
+  'mark:archive':                     'MarkArchiveCommand',
+  'mark:unarchive':                   'MarkUnarchiveCommand',
+  'mark:update-entity-types':         'MarkUpdateEntityTypesCommand',
+  'mark:add-entity-type':             'MarkAddEntityTypeCommand',
+  'mark:create-ok':                   'MarkCreateOk',
+  'mark:create-failed':               'CommandError',
+  'mark:delete-ok':                   'MarkDeleteOk',
+  'mark:delete-failed':               'CommandError',
+  'mark:body-update-failed':          'CommandError',
+  'mark:entity-type-add-failed':      'CommandError',
+  'mark:select-comment':              'SelectionData',
+  'mark:select-tag':                  'SelectionData',
+  'mark:select-assessment':           'SelectionData',
+  'mark:select-reference':            'SelectionData',
+  'mark:requested':                   'MarkRequestedEvent',
+  'mark:cancel-pending':              null, // void
+  'mark:submit':                      'MarkSubmitEvent',
+  'mark:assist-request':              'MarkAssistRequestEvent',
+  'mark:assist-cancelled':            null, // void
+  'mark:progress-dismiss':            null, // void
+  'mark:mode-toggled':                null, // void
+  'mark:selection-changed':           'MarkSelectionChangedEvent',
+  'mark:click-changed':               'MarkClickChangedEvent',
+  'mark:shape-changed':               'MarkShapeChangedEvent',
+
+  // ── BIND FLOW ───────────────────────────────────────────────────
+  'bind:initiate':                    'BindInitiateCommand',
+  'bind:update-body':                 'BindUpdateBodyCommand',
+  'bind:body-update-failed':          'CommandError',
+
+  // ── MATCH FLOW ──────────────────────────────────────────────────
+  'match:search-requested':           'MatchSearchRequest',
+  'match:search-results':             'MatchSearchResult',
+  'match:search-failed':              'MatchSearchFailed',
+
+  // ── GATHER FLOW ─────────────────────────────────────────────────
+  'gather:requested':                 'GatherAnnotationRequest',
+  'gather:complete':                  'GatherAnnotationComplete',
+  'gather:failed':                    null, // { correlationId; annotationId } & CommandError
+  'gather:resource-requested':        'GatherResourceRequest',
+  'gather:resource-complete':         'GatherResourceComplete',
+  'gather:resource-failed':           null, // { correlationId; resourceId } & CommandError
+  'gather:summary-requested':         'GatherSummaryRequest',
+  'gather:summary-result':            null, // { correlationId; response: Record<string, unknown> }
+  'gather:summary-failed':            null, // { correlationId } & CommandError
+  'gather:annotation-progress':       'GatherProgress',
+  'gather:annotation-finished':       'GatherAnnotationFinished',
+  'gather:progress':                  'GatherProgress',
+  'gather:finished':                  'GatherFinished',
+
+  // ── BROWSE FLOW ─────────────────────────────────────────────────
+  'browse:resource-requested':        'BrowseResourceRequest',
+  'browse:resource-result':           'BrowseResourceResult',
+  'browse:resource-failed':           null, // { correlationId } & CommandError
+  'browse:resources-requested':       'BrowseResourcesRequest',
+  'browse:resources-result':          'BrowseResourcesResult',
+  'browse:resources-failed':          null,
+  'browse:annotations-requested':     'BrowseAnnotationsRequest',
+  'browse:annotations-result':        'BrowseAnnotationsResult',
+  'browse:annotations-failed':        null,
+  'browse:annotation-requested':      'BrowseAnnotationRequest',
+  'browse:annotation-result':         'BrowseAnnotationResult',
+  'browse:annotation-failed':         null,
+  'browse:events-requested':          'BrowseEventsRequest',
+  'browse:events-result':             'BrowseEventsResult',
+  'browse:events-failed':             null,
+  'browse:annotation-history-requested': 'BrowseAnnotationHistoryRequest',
+  'browse:annotation-history-result': 'BrowseAnnotationHistoryResult',
+  'browse:annotation-history-failed': null,
+  'browse:annotation-context-requested': 'BrowseAnnotationContextRequest',
+  'browse:annotation-context-result': null, // { correlationId; response: Record<string, unknown> }
+  'browse:annotation-context-failed': null,
+  'browse:referenced-by-requested':   'BrowseReferencedByRequest',
+  'browse:referenced-by-result':      'BrowseReferencedByResult',
+  'browse:referenced-by-failed':      null,
+  'browse:entity-types-requested':    'BrowseEntityTypesRequest',
+  'browse:entity-types-result':       'BrowseEntityTypesResult',
+  'browse:entity-types-failed':       null,
+  'browse:directory-requested':       'BrowseDirectoryRequest',
+  'browse:directory-result':          'BrowseDirectoryResult',
+  'browse:directory-failed':          null, // { correlationId; path } & CommandError
+  'browse:click':                     'BrowseClickEvent',
+  'browse:panel-toggle':              'BrowsePanelToggleEvent',
+  'browse:panel-open':                'BrowsePanelOpenEvent',
+  'browse:panel-close':               null, // void
+  'browse:sidebar-toggle':            null, // void
+  'browse:resource-close':            'BrowseResourceCloseEvent',
+  'browse:resource-reorder':          'BrowseResourceReorderEvent',
+  'browse:link-clicked':              'BrowseLinkClickedEvent',
+  'browse:router-push':               'BrowseRouterPushEvent',
+  'browse:external-navigate':         null, // includes runtime `cancelFallback: () => void`
+  'browse:reference-navigate':        'BrowseReferenceNavigateEvent',
+  'browse:entity-type-clicked':       'BrowseEntityTypeClickedEvent',
+
+  // ── BECKON FLOW ─────────────────────────────────────────────────
+  'beckon:hover':                     'BeckonHoverEvent',
+  'beckon:focus':                     'BeckonFocusEvent',
+  'beckon:sparkle':                   'BeckonSparkleEvent',
+
+  // ── JOB FLOW ────────────────────────────────────────────────────
+  'job:started':                      null, // StoredEvent
+  'job:progress':                     null,
+  'job:completed':                    null,
+  'job:failed':                       null,
+  'job:start':                        'JobStartCommand',
+  'job:report-progress':              'JobReportProgressCommand',
+  'job:complete':                     'JobCompleteCommand',
+  'job:fail':                         'JobFailCommand',
+  'job:queued':                       'JobQueuedEvent',
+  'job:cancel-requested':             'JobCancelRequest',
+  'job:status-requested':             'JobStatusRequest',
+  'job:create':                       'JobCreateCommand',
+  'job:claim':                        'JobClaimCommand',
+  'job:status-result':                'JobStatusResult',
+  'job:status-failed':                null, // { correlationId } & CommandError
+  'job:created':                      'JobCreatedResult',
+  'job:create-failed':                null,
+  'job:claimed':                      null, // { correlationId; response: Record<string, unknown> }
+  'job:claim-failed':                 null,
+
+  // ── SETTINGS (frontend-only) ────────────────────────────────────
+  'settings:theme-changed':           'SettingsThemeChangedEvent',
+  'settings:line-numbers-toggled':    null, // void
+  'settings:locale-changed':          'SettingsLocaleChangedEvent',
+  'settings:hover-delay-changed':     'SettingsHoverDelayChangedEvent',
+
+  // ── SSE infrastructure ──────────────────────────────────────────
+  'stream-connected':                 null, // Record<string, never>
+  'replay-window-exceeded':           null, // inline payload
+} as const satisfies Record<EventName, keyof components['schemas'] | null>;
+
+/** Channels where `/bus/emit` validates the payload (non-null schema). */
+export type EmittableChannel = {
+  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K
+}[EventName];

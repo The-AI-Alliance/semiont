@@ -47,7 +47,7 @@ export class GatherNamespace implements IGatherNamespace {
         subscriber.error(new Error(e.message));
       });
 
-      this.actor.emit('gather:annotation-request', {
+      this.actor.emit('gather:requested', {
         correlationId,
         annotationId,
         resourceId,

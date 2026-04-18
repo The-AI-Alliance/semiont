@@ -54,14 +54,14 @@ describe('bus routes', () => {
   describe('POST /bus/emit', () => {
     it('emits an event onto the bus and returns 202 for unvalidated channel', async () => {
       const received: unknown[] = [];
-      eventBus.get('gather:complete' as any).subscribe((v) => received.push(v));
+      eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
 
       const res = await app.request('/bus/emit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channel: 'gather:complete',
-          payload: { correlationId: 'c-1', context: { summary: 'test' } },
+          channel: 'mark:added',
+          payload: { annotationId: 'a-1' },
         }),
       });
 
@@ -148,10 +148,7 @@ describe('bus routes', () => {
       expect(received).toHaveLength(1);
     });
 
-    it('passes through unknown channels without validation', async () => {
-      const received: unknown[] = [];
-      eventBus.get('custom:whatever' as any).subscribe((v) => received.push(v));
-
+    it('rejects unknown channels with 400', async () => {
       const res = await app.request('/bus/emit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -161,8 +158,7 @@ describe('bus routes', () => {
         }),
       });
 
-      expect(res.status).toBe(202);
-      expect(received).toHaveLength(1);
+      expect(res.status).toBe(400);
     });
   });
 

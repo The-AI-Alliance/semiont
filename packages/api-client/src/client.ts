@@ -766,7 +766,7 @@ export class SemiontApiClient {
     data: { correlationId: string; contextWindow?: number },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string }> {
-    await this.actor.emit('gather:annotation-request', {
+    await this.actor.emit('gather:requested', {
       correlationId: data.correlationId,
       annotationId,
       resourceId,

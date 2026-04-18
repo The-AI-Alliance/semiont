@@ -163,7 +163,8 @@ describe('createActorVM', () => {
     vm.dispose();
   });
 
-  it('emit includes scope when set', async () => {
+  it('emit includes scope only when explicitly passed', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true });
     mockFetch.mockResolvedValueOnce({ ok: true });
 
     const vm = createActorVM({
@@ -174,9 +175,12 @@ describe('createActorVM', () => {
     });
 
     await vm.emit('mark:added', { annotationId: 'a-1' });
+    const unscoped = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(unscoped.scope).toBeUndefined();
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(body.scope).toBe('res-42');
+    await vm.emit('mark:added', { annotationId: 'a-2' }, 'res-99');
+    const scoped = JSON.parse(mockFetch.mock.calls[1][1].body);
+    expect(scoped.scope).toBe('res-99');
 
     vm.dispose();
   });

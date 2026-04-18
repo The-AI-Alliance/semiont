@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Request payload sent on the gather:resource-request bus channel to gather context for a resource.",
+  "description": "Request payload sent on the gather:resource-requested bus channel to gather context for a resource.",
   "properties": {
     "correlationId": {
       "type": "string",

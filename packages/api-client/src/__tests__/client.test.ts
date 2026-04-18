@@ -449,12 +449,12 @@ describe('SemiontApiClient', () => {
       );
     });
 
-    test('gatherAnnotationContext emits gather:annotation-request', async () => {
+    test('gatherAnnotationContext emits gather:requested', async () => {
       await client.gatherAnnotationContext(testResourceId, testAnnotationId, {
         correlationId: 'c1', contextWindow: 500,
       });
       expect(actorHarness.emitSpy).toHaveBeenCalledWith(
-        'gather:annotation-request',
+        'gather:requested',
         expect.objectContaining({
           correlationId: 'c1',
           contextWindow: 500,
