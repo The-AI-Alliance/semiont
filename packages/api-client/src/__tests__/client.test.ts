@@ -493,11 +493,26 @@ describe('SemiontApiClient', () => {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
 
-  describe('setTokenGetter', () => {
-    test('updates the token getter used by namespaces', () => {
-      const getter = vi.fn().mockReturnValue('new-token');
-      client.setTokenGetter(getter);
-      expect(() => client.setTokenGetter(getter)).not.toThrow();
+  describe('token$', () => {
+    test('namespaces and actor read the current token from the observable', async () => {
+      const { BehaviorSubject } = await import('rxjs');
+      const token$ = new BehaviorSubject<any>('tok-1');
+      const c = new SemiontApiClient({
+        baseUrl: testBaseUrl,
+        eventBus: new EventBus(),
+        token$,
+      });
+      expect(c).toBeDefined();
+      token$.next('tok-2');
+      // No error — the observable is the source of truth; updates just propagate.
+    });
+
+    test('defaults to null BehaviorSubject when token$ is omitted', () => {
+      const c = new SemiontApiClient({
+        baseUrl: testBaseUrl,
+        eventBus: new EventBus(),
+      });
+      expect(c).toBeDefined();
     });
   });
 

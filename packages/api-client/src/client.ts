@@ -31,6 +31,7 @@ import type {
 } from '@semiont/core';
 import { createActorVM, type ActorVM } from './view-models/domain/actor-vm';
 import { busRequest } from './bus-request';
+import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
@@ -116,18 +117,18 @@ export interface SemiontApiClientConfig {
   baseUrl: BaseUrl;
   /** Per-workspace EventBus. Required — one bus per workspace, constructed externally. */
   eventBus: EventBus;
+  /**
+   * Observable access token. All auth (HTTP + bus) reads the current value.
+   * Update by calling `.next(newToken)` on the BehaviorSubject. The bus actor
+   * auto-starts when the value transitions from null to a real token.
+   * If omitted, the client operates unauthenticated (public endpoints only).
+   */
+  token$?: BehaviorSubject<AccessToken | null>;
   timeout?: number;
   retry?: number;
   logger?: Logger;
   /** Optional 401-recovery hook. See {@link TokenRefresher}. */
   tokenRefresher?: TokenRefresher;
-  /**
-   * Token getter for the verb-namespace API (client.browse, client.mark, etc.).
-   * When provided, auth is managed internally — no per-call auth needed.
-   * The getter is called on each request to get the current token.
-   * If not provided, namespace methods use undefined auth (public endpoints only).
-   */
-  getToken?: () => AccessToken | undefined;
 }
 
 /**
@@ -152,10 +153,9 @@ export class SemiontApiClient {
   private logger?: Logger;
 
   /**
-   * Shared mutable token getter. All verb namespaces read from this.
-   * Updated via setTokenGetter() from the React auth layer.
+   * Observable token source. All auth reads from this.
    */
-  private _getToken: () => AccessToken | undefined = () => undefined;
+  private readonly token$: BehaviorSubject<AccessToken | null>;
 
   private _actor: ActorVM | null = null;
 
@@ -283,10 +283,10 @@ export class SemiontApiClient {
       },
     });
 
-    // Shared token getter — all namespaces read from this closure.
-    // Updated via setTokenGetter() from React auth layer.
-    if (config.getToken) this._getToken = config.getToken;
-    const getToken = () => this._getToken();
+    // Observable token source. Namespaces read the current value synchronously
+    // via token$.getValue(). The bus actor's token getter does the same.
+    this.token$ = config.token$ ?? new BehaviorSubject<AccessToken | null>(null);
+    const getToken = () => this.token$.getValue() ?? undefined;
 
     // Verb-oriented namespace API
     this.browse = new BrowseNamespace(this, this.eventBus, getToken, this.actor);
@@ -299,30 +299,32 @@ export class SemiontApiClient {
     this.job = new JobNamespace(this.actor);
     this.auth = new AuthNamespace(this, getToken);
     this.admin = new AdminNamespace(this, getToken);
+
+    // Auto-start the bus actor when the token transitions from null to a
+    // real value. This avoids unauthenticated connect attempts during
+    // bootstrap and lets refresh-after-expiry resume cleanly.
+    this.token$.subscribe((token) => {
+      if (token && !this._actorStarted) {
+        this._actorStarted = true;
+        this.actor.start();
+      }
+    });
   }
+
+  private _actorStarted = false;
 
   get actor(): ActorVM {
     if (!this._actor) {
       this._actor = createActorVM({
         baseUrl: this.baseUrl,
-        token: () => this._getToken() ?? '',
+        token: () => this.token$.getValue() ?? '',
         channels: [...BUS_RESULT_CHANNELS],
       });
-      this._actor.start();
       this._actor.on$<Record<string, unknown>>('mark:entity-type-added').subscribe((payload) => {
         (this.eventBus.get('mark:entity-type-added') as { next(v: unknown): void }).next(payload);
       });
     }
     return this._actor;
-  }
-
-  /**
-   * Update the token getter for all verb namespaces.
-   * Called from the React auth layer when the token changes.
-   * All namespaces share this getter via closure — no per-namespace sync needed.
-   */
-  setTokenGetter(getter: () => AccessToken | undefined): void {
-    this._getToken = getter;
   }
 
   private resourceSubscriptions: Subscription[] = [];
