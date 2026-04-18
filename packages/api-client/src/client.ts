@@ -76,6 +76,17 @@ const BUS_RESULT_CHANNELS = [
   'yield:clone-resource-result', 'yield:clone-resource-failed',
   'yield:clone-created', 'yield:clone-create-failed',
   'mark:entity-type-added',
+  'beckon:focus', 'beckon:sparkle',
+] as const;
+
+// Channels the client bridges from the bus actor into the local
+// EventBus. Subscribing to these on the local bus — via flow VMs,
+// components, etc. — gets you both in-browser emissions and
+// cross-participant signals delivered via /bus/subscribe.
+const ACTOR_TO_LOCAL_BRIDGES = [
+  'mark:entity-type-added',
+  'beckon:focus',
+  'beckon:sparkle',
 ] as const;
 
 // Type helpers to extract request/response types from OpenAPI paths
@@ -320,9 +331,11 @@ export class SemiontApiClient {
         token: () => this.token$.getValue() ?? '',
         channels: [...BUS_RESULT_CHANNELS],
       });
-      this._actor.on$<Record<string, unknown>>('mark:entity-type-added').subscribe((payload) => {
-        (this.eventBus.get('mark:entity-type-added') as { next(v: unknown): void }).next(payload);
-      });
+      for (const channel of ACTOR_TO_LOCAL_BRIDGES) {
+        this._actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
+          (this.eventBus.get(channel as keyof import('@semiont/core').EventMap) as { next(v: unknown): void }).next(payload);
+        });
+      }
     }
     return this._actor;
   }
