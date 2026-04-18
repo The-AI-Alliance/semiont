@@ -72,9 +72,6 @@
     "/resources/{id}/gather-resource-stream": {
       "$ref": "paths/resources_{id}_gather-resource-stream.json"
     },
-    "/resources/{id}/events/stream": {
-      "$ref": "paths/resources_{id}_events_stream.json"
-    },
   },
   "components": {
     "schemas": {

@@ -26,7 +26,6 @@ import { useToast } from '../../../components/Toast';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
-import { useResourceEvents } from '../../../hooks/useResourceEvents';
 import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 // Import EventBus hooks directly from context to avoid mocking issues in tests
 import { useEventBus } from '../../../contexts/EventBusContext';
@@ -37,12 +36,13 @@ import { useAuthToken } from '../../../contexts/AuthTokenContext';
 import { createResourceViewerPageVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
-import type { StreamStatus } from '../../../hooks/useResourceEvents';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
+
+export type StreamStatus = 'connecting' | 'connected' | 'disconnected';
 
 export interface ResourceViewerPageProps {
   /**
@@ -81,7 +81,7 @@ export interface ResourceViewerPageProps {
   refetchDocument: () => Promise<unknown>;
 
   /**
-   * SSE attention stream connection status for the active workspace
+   * Bus connection status for the active workspace
    */
   streamStatus: StreamStatus;
 
@@ -251,46 +251,10 @@ export function ResourceViewerPage({
     }
   }, [resource, rUri, addResource]);
 
-  // Real-time document events (SSE)
-  // Annotation updates are handled by AnnotationStore reacting to EventBus events.
-  // Callbacks here only handle non-annotation side effects.
-  useResourceEvents({
-    rUri,
-    autoConnect: true,
-
-    onAnnotationAdded: useCallback((_event: any) => {
-    }, []),
-
-    onAnnotationRemoved: useCallback((_event: any) => {
-    }, []),
-
-    onAnnotationBodyUpdated: useCallback((_event: any) => {
-    }, []),
-
-    // Document status events
-    onDocumentArchived: useCallback((_event: any) => {
-      refetchDocument();
-      showSuccess('This document has been archived');
-    }, [refetchDocument, showSuccess]),
-
-    onDocumentUnarchived: useCallback((_event: any) => {
-      refetchDocument();
-      showSuccess('This document has been unarchived');
-    }, [refetchDocument, showSuccess]),
-
-    // Entity tag events
-    onEntityTagAdded: useCallback((_event: any) => {
-      refetchDocument();
-    }, [refetchDocument]),
-
-    onEntityTagRemoved: useCallback((_event: any) => {
-      refetchDocument();
-    }, [refetchDocument]),
-
-    onError: useCallback((error: any) => {
-      console.error('[RealTime] Event stream error:', error);
-    }, []),
-  });
+  // Domain events flow through the bus gateway (ActorVM → local EventBus).
+  // BrowseNamespace cache invalidation handles annotation/resource updates.
+  // The resource-viewer-page-vm calls client.subscribeToResource(resourceId)
+  // which bridges scoped domain events into the local EventBus.
 
   const authToken = useAuthToken();
   const authOpts = useMemo(() => ({ auth: authToken ? accessToken(authToken) : undefined }), [authToken]);
@@ -342,7 +306,7 @@ export function ResourceViewerPage({
   const handleAnnotationDeleteFailed = useCallback(({ message }: { message?: string }) =>
     showError(`Failed to delete annotation: ${message || 'unknown error'}`), [showError]);
   const handleAnnotateBodyUpdated = useCallback(() => {
-    // Success - optimistic update already applied via useResourceEvents
+    // Success - optimistic update already applied via EventBus
   }, []);
   const handleAnnotateBodyUpdateFailed = useCallback(({ message }: { message: string }) =>
     showError(`Failed to update reference: ${message}`), [showError]);

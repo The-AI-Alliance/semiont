@@ -20,13 +20,19 @@ export interface ActorVM extends ViewModel {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
   emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void>;
   connected$: Observable<boolean>;
+  addChannels(channels: string[], scope?: string): void;
+  removeChannels(channels: string[]): void;
   start(): void;
   stop(): void;
 }
 
 export function createActorVM(options: ActorVMOptions): ActorVM {
-  const { baseUrl, token: tokenOrGetter, channels, scope, reconnectMs = 5_000 } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, scope: initialScope, reconnectMs = 5_000 } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
+
+  const globalChannels = new Set(initialChannels);
+  const scopedChannels = new Set<string>();
+  let activeScope = initialScope;
 
   const events$ = new Subject<BusEvent>();
   const connected$ = new Subject<boolean>();
@@ -36,13 +42,21 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
   const shared$ = events$.pipe(share());
 
+  const disconnect = () => {
+    if (abortController) { abortController.abort(); abortController = null; }
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  };
+
   const connect = async () => {
     const params = new URLSearchParams();
-    for (const ch of channels) {
+    for (const ch of globalChannels) {
       params.append('channel', ch);
     }
-    if (scope) {
-      params.append('scope', scope);
+    if (activeScope && scopedChannels.size > 0) {
+      params.append('scope', activeScope);
+      for (const ch of scopedChannels) {
+        params.append('scoped', ch);
+      }
     }
     const url = `${baseUrl}/bus/subscribe?${params.toString()}`;
 
@@ -104,6 +118,12 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     }
   };
 
+  const reconnect = () => {
+    if (!running) return;
+    disconnect();
+    connect();
+  };
+
   return {
     on$<T = Record<string, unknown>>(channel: string): Observable<T> {
       return shared$.pipe(
@@ -114,7 +134,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
     emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void> => {
       const body: Record<string, unknown> = { channel, payload };
-      const effectiveScope = emitScope ?? scope;
+      const effectiveScope = emitScope ?? activeScope;
       if (effectiveScope) body.scope = effectiveScope;
       await fetch(`${baseUrl}/bus/emit`, {
         method: 'POST',
@@ -128,6 +148,30 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
     connected$: connected$.asObservable(),
 
+    addChannels: (channels: string[], scope?: string) => {
+      let changed = false;
+      if (scope !== undefined) {
+        for (const ch of channels) {
+          if (!scopedChannels.has(ch)) { scopedChannels.add(ch); changed = true; }
+        }
+        if (scope !== activeScope) { activeScope = scope; changed = true; }
+      } else {
+        for (const ch of channels) {
+          if (!globalChannels.has(ch)) { globalChannels.add(ch); changed = true; }
+        }
+      }
+      if (changed) reconnect();
+    },
+
+    removeChannels: (channels: string[]) => {
+      let changed = false;
+      for (const ch of channels) {
+        if (scopedChannels.delete(ch)) changed = true;
+        if (globalChannels.delete(ch)) changed = true;
+      }
+      if (changed) reconnect();
+    },
+
     start: () => {
       if (running) return;
       running = true;
@@ -137,14 +181,12 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     stop: () => {
       running = false;
       connected$.next(false);
-      if (abortController) { abortController.abort(); abortController = null; }
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      disconnect();
     },
 
     dispose: () => {
       running = false;
-      if (abortController) { abortController.abort(); abortController = null; }
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      disconnect();
       events$.complete();
       connected$.complete();
     },

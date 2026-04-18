@@ -53,6 +53,8 @@ function createMockActor(responses: ResponseMap): { actor: ActorVM; emitSpy: Ret
     },
     emit: emitSpy,
     connected$: new Subject<boolean>().asObservable(),
+    addChannels: vi.fn(),
+    removeChannels: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
     dispose: vi.fn(),

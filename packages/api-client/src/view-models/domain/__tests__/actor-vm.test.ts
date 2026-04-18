@@ -59,20 +59,25 @@ describe('createActorVM', () => {
     vm.dispose();
   });
 
-  it('start includes scope param when provided', async () => {
+  it('addChannels with scope uses scoped param', async () => {
     mockSSEResponse();
 
     const vm = createActorVM({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['mark:added'],
-      scope: 'res-123',
+      channels: ['browse:resources-result'],
     });
 
     vm.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
-    const url = mockFetch.mock.calls[0][0] as string;
+    mockSSEResponse();
+    vm.addChannels(['mark:added'], 'res-123');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    const url = mockFetch.mock.calls[1][0] as string;
+    expect(url).toContain('channel=browse%3Aresources-result');
+    expect(url).toContain('scoped=mark%3Aadded');
     expect(url).toContain('scope=res-123');
 
     vm.dispose();

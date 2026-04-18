@@ -27,6 +27,7 @@ import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
 import { Stower } from './stower';
 import { Browser } from './browser';
+import { eventAnnotationId, readAnnotationFromView } from './event-enrichment';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
@@ -133,6 +134,14 @@ async function createKnowledgeSystemFromConfig(
   const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, {
     vectorStore,
     skipRebuild,
+  });
+
+  eventStore.setEnrichEvent(async (event, resourceId) => {
+    const annId = eventAnnotationId(event);
+    if (annId === null) return event;
+    const annotation = await readAnnotationFromView(kb, resourceId, annId);
+    if (annotation === null) return event;
+    return { ...event, annotation } as unknown as typeof event;
   });
 
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));

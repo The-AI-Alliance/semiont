@@ -55,7 +55,6 @@ vi.mock('@semiont/react-ui', async () => {
     }),
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     getKbSessionStatus: () => 'authenticated',
-    useJobReplayBridge: () => {},
   };
 });
 

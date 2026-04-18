@@ -37,9 +37,6 @@ vi.mock('../../../hooks/useResourceContent', () => ({
   useResourceContent: () => ({ content: 'Test content', loading: false }),
 }));
 
-vi.mock('../../../hooks/useResourceEvents', () => ({
-  useResourceEvents: () => null,
-}));
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
