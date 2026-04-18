@@ -306,6 +306,24 @@ export class BrowseNamespace implements IBrowseNamespace {
   private subscribeToEvents(): void {
     const bus = this.eventBus;
 
+    // Gap detection on reconnect: after the bus connection drops and comes
+    // back, events may have been missed during the outage. Invalidate all
+    // active caches so live queries refetch.
+    let seenDisconnect = false;
+    this.actor.connected$.subscribe((connected) => {
+      if (!connected) {
+        seenDisconnect = true;
+      } else if (seenDisconnect) {
+        seenDisconnect = false;
+        this.invalidateResourceLists();
+        for (const rId of this.annotationList$.value.keys()) this.invalidateAnnotationList(rId);
+        for (const rId of this.resourceDetail$.value.keys()) this.invalidateResourceDetail(rId);
+        for (const rId of this.resourceEvents$.value.keys()) this.invalidateResourceEvents(rId);
+        for (const rId of this.referencedBy$.value.keys()) this.invalidateReferencedBy(rId);
+        this.invalidateEntityTypes();
+      }
+    });
+
     bus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
       this.invalidateAnnotationDetail(makeAnnotationId(event.annotationId));
     });
