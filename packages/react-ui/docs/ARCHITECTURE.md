@@ -126,16 +126,16 @@ export function useResources() {
 
 **Three-Layer Pattern:**
 
-1. **Service Layer**: SSE connection management (`useResourceEvents`)
+1. **Service Layer**: Bus subscription (`SemiontApiClient.subscribeToResource`, called by page view model)
 2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
 3. **Component Layer**: Pure React (hooks + JSX)
 
 **Example - Three Layers in Action:**
 
 ```tsx
-// Layer 1 (Service): SSE connection
+// Layer 1 (Service): bus subscription happens in the page view model
+// via client.subscribeToResource(rId) — no component-level hook needed.
 function ResourceViewerPage({ rId }) {
-  useResourceEvents(rId);  // Opens SSE, emits events to bus
   // ...
 }
 

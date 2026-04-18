@@ -50,7 +50,7 @@ semiont.beckon.attention(annotationId, resourceId);           // void (ephemeral
 
 ## Return Type Conventions
 
-- **Browse live queries** → `Observable` (events-stream driven, cached in BehaviorSubject)
+- **Browse live queries** → `Observable` (bus-gateway driven, cached in BehaviorSubject)
 - **Browse one-shot reads** → `Promise` (fetch once, no cache)
 - **Commands** (mark, bind, yield.resource) → `Promise` (fire-and-forget)
 - **Long-running ops** (gather, match, yield.fromAnnotation, mark.assist) → `Observable` (progress + result)
@@ -94,7 +94,7 @@ npm install @semiont/api-client
 
 - **Verb-oriented** — 7 domain namespaces mirror `@semiont/make-meaning`'s actor model
 - **Type-safe** — OpenAPI types from `@semiont/core`, branded identifiers
-- **Observable reads** — live-updating views via EventBus + events-stream SSE
+- **Observable reads** — live-updating views via the bus gateway (single SSE connection)
 - **Framework-agnostic** — pure TypeScript + RxJS, no React dependency
 
 ## License

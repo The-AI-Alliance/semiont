@@ -78,7 +78,7 @@ The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic
 #### Hooks & Utilities
 - **API Hooks**: React Query wrappers for all Semiont API operations
 - **UI Hooks**: useTheme, useKeyboardShortcuts, useToast, useDebounce
-- **Resource Hooks**: useResourceEvents, useDetectionFlow, useGenerationFlow
+- **Resource Hooks**: useResourceContent, useMediaToken
 - **Form Hooks**: useFormValidation with built-in validation rules
 
 #### Provider Pattern
@@ -235,9 +235,9 @@ High-churn entity data and browser-persistent application state are managed as o
 |---|---|---|
 | Browse | `semiont.browse.resource(id)` | Resource descriptors, lazily fetched, invalidated by EventBus domain events |
 | Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
-| Browse | `semiont.browse.entityTypes()` | Entity types, updated by global-events-stream |
+| Browse | `semiont.browse.entityTypes()` | Entity types, updated via `mark:entity-type-added` bus channel |
 
-These update automatically when backend SSE events arrive (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/api-client` README](../../../packages/api-client/README.md) for the full verb namespace API.
+These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/api-client` README](../../../packages/api-client/README.md) for the full verb namespace API.
 
 **Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
 
@@ -463,15 +463,17 @@ User action (e.g., click save)
                     └── UI updates with fresh data
 ```
 
-### Real-Time Updates (SSE)
+### Real-Time Updates (Bus Gateway)
 
 ```
-Component mounts
-    └── useResourceEvents hook connects to SSE
-        └── EventSource with Bearer token auth
-            └── Backend sends events
-                └── Event handler refetches queries
-                    └── UI updates automatically
+SemiontApiClient creates one ActorVM (single SSE to /bus/subscribe)
+    └── ResourceViewerPage mounts
+        └── client.subscribeToResource(id) adds scoped channels
+            └── Backend emits domain events on scoped bus
+                └── ActorVM bridges events into local EventBus
+                    └── BrowseNamespace invalidates caches
+                        └── Live query Observables re-emit
+                            └── UI updates automatically
 ```
 
 ## Provider Hierarchy
@@ -544,7 +546,6 @@ apps/frontend/src/
 │   ├── KeyboardShortcutsContext.tsx
 │   └── ...
 ├── hooks/                 # App-specific custom hooks
-│   ├── useResourceEvents.ts
 │   └── ...
 ├── i18n/                  # i18next config and routing wrappers
 │   ├── config.ts          # i18next initialisation

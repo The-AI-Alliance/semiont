@@ -371,29 +371,25 @@ stream.onError((error) => {
 
 ### Real-Time Reference Resolution
 
-**Two SSE Streams Work Together**:
+**Single bus connection delivers everything**:
 
-1. **Generation Progress Stream** (`POST /resources/{id}/generate-resource-from-annotation-stream`)
-   - Job-specific progress updates
-   - Closes when generation completes
-   - Shows progress in modal
+Progress events (`yield:progress`, `yield:finished`) and domain events
+(`mark:body-updated`) all flow through the same `/bus/subscribe` SSE
+connection. The frontend's `YieldVM` filters progress events by
+correlationId for the modal UI, while `BrowseNamespace` handles the
+domain event for cache invalidation.
 
-2. **Resource Events Stream** (`GET /resources/{id}/events/stream`)
-   - Long-lived connection per document viewer
-   - Receives `mark:body-updated` event
-   - Triggers React Query cache invalidation
-   - UI updates icon: ❓ → 🔗
+**No Page Refresh Required**
 
-**Critical: No Page Refresh Required**
+The `mark:body-updated` event flow:
+1. Worker emits `mark:update-body` → EventBus → Stower persists →
+   EventStore publishes enriched `mark:body-updated` on scoped bus
+2. Frontend ActorVM receives event, bridges to local EventBus
+3. `BrowseNamespace.updateAnnotationInPlace` writes the enriched
+   annotation into the cached Observable
+4. UI re-renders with resolved reference (❓ → 🔗)
 
-The `mark:body-updated` event flow ensures real-time updates:
-1. Worker emits `mark:update-body` → EventBus → Stower persists → emits `mark:body-updated`
-2. Document viewer's SSE receives event (<50ms latency)
-3. Frontend `onAnnotationBodyUpdated` handler invalidates React Query cache
-4. Annotations refetch from Materialized Views
-5. UI re-renders with resolved reference
-
-See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE architecture details.
+See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for the bus gateway architecture.
 
 ## Error Handling
 
@@ -461,22 +457,22 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 - [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md#generationworker) - Architecture and flow
 - [Make-Meaning Examples](../../packages/make-meaning/docs/examples.md) - Usage patterns
 
-### Backend Routes
+### Backend
 
-- [apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts](../../apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts) - Generation route
-- [apps/backend/src/routes/resources/routes/events-stream.ts](../../apps/backend/src/routes/resources/routes/events-stream.ts) - Resource events SSE endpoint
+- [apps/backend/src/routes/bus.ts](../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
+- [apps/backend/src/handlers/job-commands.ts](../../apps/backend/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers
 
 ### Frontend
 
 - [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
-- [packages/api-client/src/view-models/flows/yield-vm.ts](../../packages/api-client/src/view-models/flows/yield-vm.ts) - Generation flow view model (manages SSE, modal state, and progress state)
-- [packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts) - Resource events hook
-- [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts) - SSE client
+- [packages/api-client/src/view-models/flows/yield-vm.ts](../../packages/api-client/src/view-models/flows/yield-vm.ts) - Generation flow view model (bus commands + progress)
+- [packages/api-client/src/view-models/domain/actor-vm.ts](../../packages/api-client/src/view-models/domain/actor-vm.ts) - Bus actor primitive
 
 ### Documentation
 
 - [@semiont/make-meaning](../../packages/make-meaning/README.md) - Package overview
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
-- [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming details
+- [Bus Gateway Architecture](../../apps/backend/docs/STREAMS.md) - Bus model end-to-end
+- [Real-Time Event Delivery](../../apps/backend/docs/REAL-TIME.md) - Enrichment + gap detection
 - [Mark Flow](./MARK.md) - Reference detection

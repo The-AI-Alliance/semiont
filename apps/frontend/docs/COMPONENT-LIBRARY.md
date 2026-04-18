@@ -58,7 +58,7 @@ The factoring of @semiont/react-ui creates a clear architectural boundary:
 #### Hooks
 - **API Hooks**: All React Query wrappers for API operations
 - **UI Hooks**: useTheme, useKeyboardShortcuts, useToast
-- **Resource Hooks**: useResourceEvents, useDetectionProgress
+- **Resource Hooks**: useResourceContent, useMediaToken, useLineNumbers
 - **Form Hooks**: useFormValidation, useDebounce
 
 #### Contexts & Providers

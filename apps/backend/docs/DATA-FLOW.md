@@ -175,32 +175,35 @@ sequenceDiagram
     API-->>Client: SSE: job complete
 ```
 
-## Real-Time Updates (SSE)
+## Real-Time Updates (Bus Gateway)
 
 ### Event Streaming
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API
+    participant Bus as /bus/subscribe
     participant EventStore
     participant EventBus
 
-    Client->>API: GET /resources/:id/events/stream
-    API->>EventBus: subscribe(resourceId)
-    EventBus-->>API: subscription
+    Client->>Bus: GET /bus/subscribe?channel=X&scoped=Y&scope=res-123
+    Bus->>EventBus: subscribe(channels, scope)
+    EventBus-->>Bus: subscriptions
 
-    Note over Client,API: SSE connection established
+    Note over Client,Bus: Single long-lived SSE connection
 
     loop On each event
-        EventStore->>EventBus: notify(event)
-        EventBus->>API: event callback
-        API-->>Client: SSE: event data
+        EventStore->>EventBus: publish enriched event
+        EventBus->>Bus: event callback
+        Bus-->>Client: SSE: bus-event { channel, payload }
     end
 
-    Client->>API: Connection close
-    API->>EventBus: unsubscribe()
+    Client->>Bus: Connection close
+    Bus->>EventBus: unsubscribe all
 ```
+
+See [REAL-TIME.md](./REAL-TIME.md) and [STREAMS.md](./STREAMS.md) for
+details on the bus gateway architecture.
 
 ## Storage Layers
 
