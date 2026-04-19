@@ -105,7 +105,7 @@ describe('Matcher', () => {
       ];
       mockSearchFn.mockResolvedValue(mockResults);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -134,7 +134,7 @@ describe('Matcher', () => {
     it('should emit match:search-failed on error', async () => {
       mockSearchFn.mockRejectedValue(new Error('Graph connection failed'));
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -151,7 +151,7 @@ describe('Matcher', () => {
     it('should handle empty search results', async () => {
       mockSearchFn.mockResolvedValue([]);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -204,7 +204,7 @@ describe('Matcher', () => {
     it('should search with minimal context (sourceContext only)', async () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -223,7 +223,7 @@ describe('Matcher', () => {
     it('should score exact name match higher than contains match', async () => {
       mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -253,7 +253,7 @@ describe('Matcher', () => {
       const resWithoutTypes = { ...RES_B };
       mockSearchFn2.mockResolvedValue([resWithTypes, resWithoutTypes]);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -283,7 +283,7 @@ describe('Matcher', () => {
       // RES_B is also a bidirectional connection
       mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -315,7 +315,7 @@ describe('Matcher', () => {
         return Promise.resolve(null);
       });
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -343,7 +343,7 @@ describe('Matcher', () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
       mockListResources.mockResolvedValue({ resources: [RES_A], total: 1 });
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -369,7 +369,7 @@ describe('Matcher', () => {
       const resGamma = { ...RES_C, name: 'Alphaville' }; // prefix match for "Alpha"
       mockSearchFn2.mockResolvedValue([RES_A, RES_B, resGamma]);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -410,7 +410,7 @@ describe('Matcher', () => {
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
       await matcher.initialize();
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -456,7 +456,7 @@ describe('Matcher', () => {
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
       await matcher.initialize();
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -478,7 +478,7 @@ describe('Matcher', () => {
       // Use the default matcher (no inference client)
       mockSearchFn2.mockResolvedValue([RES_A]);
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -497,7 +497,7 @@ describe('Matcher', () => {
     it('should emit search-failed when context search throws', async () => {
       mockSearchFn2.mockRejectedValue(new Error('DB down'));
 
-      const resultPromise = eventBus.scope('test-resource').get('match:search-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -543,7 +543,7 @@ describe('Matcher', () => {
         // Score > 1 should be ignored, score < 0 should be ignored
         mockInference.generateText.mockResolvedValue('1. 1.5\n2. -0.3\n3. 0.7');
 
-        const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -569,7 +569,7 @@ describe('Matcher', () => {
           'Here are my scores:\n1. 0.8\nThis is not a score line\n2. invalid\n3. 0.5'
         );
 
-        const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -591,7 +591,7 @@ describe('Matcher', () => {
       it('should handle empty inference response', async () => {
         mockInference.generateText.mockResolvedValue('');
 
-        const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -611,7 +611,7 @@ describe('Matcher', () => {
         // Index 5 doesn't exist (only 3 candidates)
         mockInference.generateText.mockResolvedValue('1. 0.8\n5. 0.9\n3. 0.6');
 
-        const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -631,7 +631,7 @@ describe('Matcher', () => {
       it('should not add semantic match reason when score is exactly 0.5', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.5\n2. 0.51\n3. 0.49');
 
-        const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',
@@ -656,7 +656,7 @@ describe('Matcher', () => {
       it('should include inferredRelationshipSummary in semantic scoring prompt', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.8\n2. 0.3\n3. 0.5');
 
-        const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         const summary = 'This passage discusses Greek mythology figures.';
         eventBus.get('match:search-requested').next({
@@ -684,7 +684,7 @@ describe('Matcher', () => {
       it('should pass passage text and entity types to semantic scoring prompt', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.5');
 
-        const resultPromise = eventBus.scope('test-resource').get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
         resourceId: 'test-resource',

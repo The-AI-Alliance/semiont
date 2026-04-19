@@ -13,7 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, annotationId, EventBus, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -27,7 +27,12 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 
 /**
  * Create an annotation and await Stower persistence.
- * Subscribes to mark:created BEFORE emitting, then filters by annotation ID.
+ *
+ * These tests bypass the `mark:create-request` → annotation-assembly
+ * pipeline and emit `mark:create` directly, so `mark:create-ok` (emitted
+ * only by annotation-assembly on observing `mark:added`) is never fired.
+ * The right completion signal for the direct-emit path is the persisted
+ * `mark:added` domain event published by Stower after appendEvent.
  */
 async function createAnnotationAndAwait(
   request: CreateAnnotationRequest,
@@ -36,10 +41,9 @@ async function createAnnotationAndAwait(
 ) {
   const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus);
-  // Wait for THIS annotation's mark:created (filter by ID to avoid picking up a stale event)
-  const expectedId = annotationId(result.annotation.id);
-  await firstValueFrom(eventBus.get('mark:create-ok').pipe(
-    filter(e => e.annotationId === expectedId),
+  const expectedId = result.annotation.id;
+  await firstValueFrom(eventBus.get('mark:added').pipe(
+    filter((e) => e.payload?.annotation?.id === expectedId),
     take(1),
   ));
   return result;
