@@ -57,6 +57,10 @@ function makeHttp(overrides: Record<string, any> = {}) {
     yieldResource: vi.fn().mockResolvedValue({ resourceId: 'res-new' }),
     yieldResourceFromAnnotation: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
     getJobStatus: vi.fn().mockResolvedValue({ status: 'running' }),
+    // YieldNamespace.fromAnnotation's yield:finished handler calls
+    // client.bind.body(...) to attach the generated resource as a
+    // SpecificResource on the source annotation.
+    bind: { body: vi.fn().mockResolvedValue(undefined) },
     ...overrides,
   } as unknown as SemiontApiClient;
 }
