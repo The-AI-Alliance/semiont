@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Introduceți numele resursei...",
     "entityTypes": "Etichete de tip entitate",
     "entityTypesHint": "Etichetează resursa cu tipuri de entitate",
-    "noEntityTypesAvailable": "Nu sunt disponibile tipuri de entitate",
     "contentSource": "Sursa conținutului",
     "uploadFile": "Încarcă fișier",
     "uploadFileDescription": "Imagini, documente, fișiere text",

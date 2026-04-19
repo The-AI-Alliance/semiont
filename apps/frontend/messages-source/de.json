@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Ressourcenname eingeben...",
     "entityTypes": "Entitätstyp-Tags",
     "entityTypesHint": "Versehen Sie Ihre Ressource mit Entitätstyp-Tags",
-    "noEntityTypesAvailable": "Keine Entitätstypen verfügbar",
     "contentSource": "Inhaltsquelle",
     "uploadFile": "Datei hochladen",
     "uploadFileDescription": "Bilder, Dokumente, Textdateien",

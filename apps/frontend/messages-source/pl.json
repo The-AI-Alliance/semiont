@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Wprowadź nazwę zasobu...",
     "entityTypes": "Tagi typów encji",
     "entityTypesHint": "Oznacz zasób tagami typów encji",
-    "noEntityTypesAvailable": "Brak dostępnych typów encji",
     "contentSource": "Źródło treści",
     "uploadFile": "Prześlij plik",
     "uploadFileDescription": "Obrazy, dokumenty, pliki tekstowe",

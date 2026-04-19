@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "กรอกชื่อทรัพยากร...",
     "entityTypes": "แท็กประเภทเอนทิตี",
     "entityTypesHint": "ติดแท็กทรัพยากรของคุณด้วยประเภทเอนทิตี",
-    "noEntityTypesAvailable": "ไม่มีประเภทเอนทิตีที่พร้อมใช้งาน",
     "contentSource": "แหล่งเนื้อหา",
     "uploadFile": "อัปโหลดไฟล์",
     "uploadFileDescription": "รูปภาพ เอกสาร ไฟล์ข้อความ",

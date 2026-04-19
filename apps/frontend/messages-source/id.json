@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Masukkan nama sumber daya...",
     "entityTypes": "Tag Tipe Entitas",
     "entityTypesHint": "Tandai sumber daya Anda dengan tipe entitas",
-    "noEntityTypesAvailable": "Tidak ada tipe entitas yang tersedia",
     "contentSource": "Sumber Konten",
     "uploadFile": "Unggah Berkas",
     "uploadFileDescription": "Gambar, dokumen, berkas teks",

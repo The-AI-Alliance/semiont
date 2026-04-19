@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Skriv inn ressursnavn...",
     "entityTypes": "Entitetstypemerker",
     "entityTypesHint": "Merk ressursen din med entitetstyper",
-    "noEntityTypesAvailable": "Ingen entitetstyper tilgjengelig",
     "contentSource": "Innholdskilde",
     "uploadFile": "Last opp fil",
     "uploadFileDescription": "Bilder, dokumenter, tekstfiler",

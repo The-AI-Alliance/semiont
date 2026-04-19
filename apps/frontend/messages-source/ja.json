@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "リソース名を入力...",
     "entityTypes": "エンティティタイプタグ",
     "entityTypesHint": "リソースにエンティティタイプをタグ付け",
-    "noEntityTypesAvailable": "利用可能なエンティティタイプがありません",
     "contentSource": "コンテンツソース",
     "uploadFile": "ファイルをアップロード",
     "uploadFileDescription": "画像、ドキュメント、テキストファイル",

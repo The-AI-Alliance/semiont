@@ -305,7 +305,6 @@ The library uses **namespace-based** translations. Each component or feature are
 **Modals:**
 - `KeyboardShortcutsModal` - Keyboard shortcuts help
 - `SessionExpiredModal` - Session expiration messages
-- `ProposeEntitiesModal` - Entity proposal UI
 
 **Resource Management:**
 - `ResourceInfoPanel` - Resource metadata

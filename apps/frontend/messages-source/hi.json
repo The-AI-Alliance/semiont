@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "संसाधन का नाम दर्ज करें...",
     "entityTypes": "इकाई प्रकार टैग",
     "entityTypesHint": "अपने संसाधन को इकाई प्रकारों से टैग करें",
-    "noEntityTypesAvailable": "कोई इकाई प्रकार उपलब्ध नहीं",
     "contentSource": "सामग्री स्रोत",
     "uploadFile": "फ़ाइल अपलोड करें",
     "uploadFileDescription": "चित्र, दस्तावेज़, टेक्स्ट फ़ाइलें",

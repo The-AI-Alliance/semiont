@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "הזינו שם משאב...",
     "entityTypes": "תגיות סוג ישות",
     "entityTypesHint": "תייגו את המשאב שלכם עם סוגי ישויות",
-    "noEntityTypesAvailable": "אין סוגי ישויות זמינים",
     "contentSource": "מקור תוכן",
     "uploadFile": "העלאת קובץ",
     "uploadFileDescription": "תמונות, מסמכים, קבצי טקסט",

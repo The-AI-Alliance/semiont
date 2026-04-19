@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Masukkan nama sumber...",
     "entityTypes": "Tag Jenis Entiti",
     "entityTypesHint": "Tandai sumber anda dengan jenis entiti",
-    "noEntityTypesAvailable": "Tiada jenis entiti tersedia",
     "contentSource": "Sumber Kandungan",
     "uploadFile": "Muat Naik Fail",
     "uploadFileDescription": "Imej, dokumen, fail teks",

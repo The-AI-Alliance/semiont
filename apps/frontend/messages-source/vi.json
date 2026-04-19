@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Nhập tên tài nguyên...",
     "entityTypes": "Thẻ loại thực thể",
     "entityTypesHint": "Gắn thẻ loại thực thể cho tài nguyên của bạn",
-    "noEntityTypesAvailable": "Không có loại thực thể nào",
     "contentSource": "Nguồn nội dung",
     "uploadFile": "Tải tệp lên",
     "uploadFileDescription": "Hình ảnh, tài liệu, tệp văn bản",
