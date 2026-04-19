@@ -34,7 +34,7 @@ import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { EventMap, Logger } from '@semiont/core';
-import { EventBus, resourceId, userId as makeUserId, annotationId as makeAnnotationId, CREATION_METHODS, generateUuid } from '@semiont/core';
+import { EventBus, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { resolveStorageUri } from '@semiont/event-sourcing';
@@ -224,17 +224,22 @@ export class Stower {
   private async handleMarkCreate(event: EventMap['mark:create']): Promise<void> {
     try {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
-      await this.kb.eventStore.appendEvent({
-        type: 'mark:added',
-        resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event.userId),
-        version: 1,
-        payload: { annotation: event.annotation },
-      });
-      this.eventBus.get('mark:create-ok').next({ annotationId: makeAnnotationId(event.annotation.id) });
+      await this.kb.eventStore.appendEvent(
+        {
+          type: 'mark:added',
+          resourceId: resourceId(event.resourceId),
+          userId: makeUserId(event.userId),
+          version: 1,
+          payload: { annotation: event.annotation },
+        },
+        event.correlationId ? { correlationId: event.correlationId } : undefined,
+      );
+      // annotation-assembly emits mark:create-ok after it observes the
+      // persisted mark:added event (keyed by correlationId in metadata).
     } catch (error) {
       this.logger.error('Failed to create annotation', { error });
       this.eventBus.get('mark:create-failed').next({
+        correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
     }
@@ -280,6 +285,7 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error });
       this.eventBus.get('mark:body-update-failed').next({
+        correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
     }

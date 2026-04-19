@@ -143,6 +143,7 @@ export type EventMap = {
 
   'bind:initiate': components['schemas']['BindInitiateCommand'];
   'bind:update-body': components['schemas']['BindUpdateBodyCommand'];
+  'bind:body-updated': components['schemas']['BindBodyUpdated'];
   'bind:body-update-failed': components['schemas']['CommandError'];
 
   // ========================================================================
@@ -410,6 +411,7 @@ export const CHANNEL_SCHEMAS = {
   // ── BIND FLOW ───────────────────────────────────────────────────
   'bind:initiate':                    'BindInitiateCommand',
   'bind:update-body':                 'BindUpdateBodyCommand',
+  'bind:body-updated':                'BindBodyUpdated',
   'bind:body-update-failed':          'CommandError',
 
   // ── MATCH FLOW ──────────────────────────────────────────────────

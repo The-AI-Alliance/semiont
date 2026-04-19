@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Success result emitted on the bind:body-updated bus channel after bind:update-body has been applied.",
+  "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation ID echoed from the originating bind:update-body command"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Branded AnnotationId of the annotation whose body was updated"
+    }
+  },
+  "required": ["correlationId", "annotationId"]
+}

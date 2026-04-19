@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Bus command to create an annotation on a resource.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Optional correlation id threaded from the originating mark:create-request. Propagated into event metadata by Stower so annotation-assembly can emit mark:create-ok after persistence completes."
+    },
     "annotation": {
       "$ref": "./Annotation.json"
     },

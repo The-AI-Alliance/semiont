@@ -69,7 +69,7 @@ const BUS_RESULT_CHANNELS = [
   'gather:complete', 'gather:failed',
   'gather:annotation-progress', 'gather:annotation-finished',
   'gather:summary-result', 'gather:summary-failed',
-  'bind:body-update-failed',
+  'bind:body-updated', 'bind:body-update-failed',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
   'job:claimed', 'job:claim-failed',

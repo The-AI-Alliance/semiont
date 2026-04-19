@@ -441,6 +441,7 @@
       "BeckonFocusEvent": { "$ref": "components/schemas/BeckonFocusEvent.json" },
       "BeckonHoverEvent": { "$ref": "components/schemas/BeckonHoverEvent.json" },
       "BeckonSparkleEvent": { "$ref": "components/schemas/BeckonSparkleEvent.json" },
+      "BindBodyUpdated": { "$ref": "components/schemas/BindBodyUpdated.json" },
       "BindInitiateCommand": { "$ref": "components/schemas/BindInitiateCommand.json" },
       "BindUpdateBodyCommand": { "$ref": "components/schemas/BindUpdateBodyCommand.json" },
       "BodyPurpose": { "$ref": "components/schemas/BodyPurpose.json" },
