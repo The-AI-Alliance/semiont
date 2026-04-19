@@ -253,6 +253,73 @@ describe('createActorVM', () => {
     vi.useRealTimers();
   });
 
+  it('addChannels reconnects with connected$ emitting false then true so gap detection can fire', async () => {
+    // Regression: abort-driven reconnects used to return early from the
+    // connect loop on AbortError, skipping connected$.next(false). The
+    // frontend's gap-detection (BrowseNamespace) relies on seeing a
+    // false-then-true cycle to invalidate caches after an SSE rotation —
+    // without the false emission, responses delivered to the torn-down
+    // connection were lost and caches stayed stale forever. See
+    // .plans/SIMPLE-BUS.md and the SSE-reconnect-storm bug.
+    mockSSEResponse();
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    const emissions: boolean[] = [];
+    vm.connected$.subscribe((v) => emissions.push(v));
+
+    vm.start();
+    await vi.waitFor(() => expect(emissions).toContain(true));
+
+    vm.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    // After addChannels, the sequence must include false before the next true,
+    // so `.subscribe(c => if(!c) seenDisconnect=true else if(seenDisconnect) invalidate())`
+    // sees a complete reconnect cycle.
+    const firstFalseIndex = emissions.indexOf(false);
+    expect(firstFalseIndex).toBeGreaterThanOrEqual(0);
+    const lastTrueIndex = emissions.lastIndexOf(true);
+    expect(lastTrueIndex).toBeGreaterThan(firstFalseIndex);
+
+    vm.dispose();
+  });
+
+  it('removeChannels also cycles connected$ through false and back to true', async () => {
+    mockSSEResponse();
+    mockSSEResponse();
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    vm.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    const emissions: boolean[] = [];
+    vm.connected$.subscribe((v) => emissions.push(v));
+
+    vm.removeChannels(['mark:added']);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(emissions).toContain(true));
+
+    expect(emissions).toContain(false);
+    expect(emissions.lastIndexOf(true)).toBeGreaterThan(emissions.indexOf(false));
+
+    vm.dispose();
+  });
+
   it('does not reconnect after stop', async () => {
     vi.useFakeTimers();
 
