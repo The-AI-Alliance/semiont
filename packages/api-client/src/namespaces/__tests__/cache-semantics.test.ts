@@ -364,27 +364,62 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
     });
   });
 
-  describe('B13 — reconnect gap-detection invalidates all live keys', () => {
-    it('connected$ false→true refetches every live key across all caches', async () => {
+  describe('B13 — reconnect gap-detection (post-BUS-RESUMPTION)', () => {
+    it('a bare connected$ false→true cycle does NOT refetch — resumption handles it', async () => {
       const connected$ = new BehaviorSubject<boolean>(true);
       const { browse, emitSpy } = createHarness({ connected$ });
 
-      // Prime two caches.
       await firstDefined(browse.resource(RID));
       await firstDefined(browse.annotations(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
 
-      // Simulate disconnect → reconnect.
       connected$.next(false);
       connected$.next(true);
       await flush();
 
-      // Each primed cache has been re-fetched.
+      // No new fetches — the client assumes resumption covered the gap.
+      // Old contract (pre-BUS-RESUMPTION) would have refetched everything.
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('`bus:resume-gap` with a scope invalidates only keys for that scope', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      const RID_A = resourceId('res-A');
+      const RID_B = resourceId('res-B');
+      await firstDefined(browse.resource(RID_A));
+      await firstDefined(browse.annotations(RID_A));
+      await firstDefined(browse.resource(RID_B));
+      expect(emitSpy).toHaveBeenCalledTimes(3);
+
+      eventBus.get('bus:resume-gap').next({
+        scope: RID_A,
+        reason: 'retention-exceeded',
+      } as any);
+      await flush();
+
+      // Keys in scope A refetched; key in scope B untouched (aside from
+      // the entity-types refetch that always fires on any gap).
+      const channels = emitSpy.mock.calls.map(([ch]) => ch);
+      // Count post-gap resource fetches by scope.
+      const postGap = channels.slice(3);
+      expect(postGap.filter((c) => c === 'browse:resource-requested').length).toBe(1);
+      expect(postGap.filter((c) => c === 'browse:annotations-requested').length).toBe(1);
+      expect(postGap.filter((c) => c === 'browse:entity-types-requested').length).toBe(1);
+    });
+
+    it('`bus:resume-gap` without a scope invalidates every live key (fallback)', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      await firstDefined(browse.resource(RID));
+      await firstDefined(browse.annotations(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+
+      eventBus.get('bus:resume-gap').next({ reason: 'unparseable-last-event-id' } as any);
+      await flush();
+
       const channels = emitSpy.mock.calls.map(([ch]) => ch);
       const refetchCount = channels.filter((c) =>
         c === 'browse:resource-requested' || c === 'browse:annotations-requested',
       ).length;
-      // At least 2 original + 1 each after reconnect; typical actual is 4.
       expect(refetchCount).toBeGreaterThanOrEqual(4);
     });
   });

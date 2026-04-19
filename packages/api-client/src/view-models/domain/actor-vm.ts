@@ -72,17 +72,50 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
   const events$ = new Subject<BusEvent>();
   const connected$ = new Subject<boolean>();
   let running = false;
-  let abortController: AbortController | null = null;
+  /**
+   * All in-flight SSE fetch controllers. Tracked as a Set because
+   * connect() may race with itself under mount-churn or rapid channel-
+   * set changes — whenever a new connect() starts we abort ALL previous
+   * in-flight fetches rather than only the last-tracked one. A previous
+   * single-slot implementation leaked orphaned streams (diagnosed by
+   * observing 3 concurrent SSE subscribes in the /bus/subscribe network
+   * log, each delivering duplicate RECV frames). Using a Set guarantees
+   * at most one live stream post-reconnect regardless of race order.
+   */
+  const inflightControllers = new Set<AbortController>();
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * `Last-Event-ID` of the most recently delivered SSE event from the
+   * server. Sent as a request header on each connect so the server can
+   * replay persisted events missed during the disconnect (see
+   * `apps/backend/src/routes/bus.ts` subscribe handler). Initialised
+   * `null` — fresh connections send no header.
+   *
+   * We track both persisted (`p-*`) and ephemeral (`e-*`) ids. The server
+   * treats ephemeral ids as "no resumption context" and responds live-
+   * only; persisted ids drive replay.
+   */
+  let lastEventId: string | null = null;
 
   const shared$ = events$.pipe(share());
 
   const disconnect = () => {
-    if (abortController) { abortController.abort(); abortController = null; }
+    for (const c of inflightControllers) {
+      try { c.abort(); } catch { /* noop */ }
+    }
+    inflightControllers.clear();
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   };
 
   const connect = async () => {
+    // Abort every previous in-flight fetch before starting a new one.
+    // This closes the orphan-stream leak described above.
+    for (const c of inflightControllers) {
+      try { c.abort(); } catch { /* noop */ }
+    }
+    inflightControllers.clear();
+
     const params = new URLSearchParams();
     for (const ch of globalChannels) {
       params.append('channel', ch);
@@ -95,13 +128,13 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     }
     const url = `${baseUrl}/bus/subscribe?${params.toString()}`;
 
-    abortController = new AbortController();
+    const controller = new AbortController();
+    inflightControllers.add(controller);
 
     try {
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-        signal: abortController.signal,
-      });
+      const headers: Record<string, string> = { Authorization: `Bearer ${getToken()}` };
+      if (lastEventId) headers['Last-Event-ID'] = lastEventId;
+      const response = await fetch(url, { headers, signal: controller.signal });
 
       if (!response.ok || !response.body) {
         throw new Error(`SSE connect failed: ${response.status}`);
@@ -113,7 +146,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
       const decoder = new TextDecoder();
       let buffer = '';
 
-      while (running) {
+      while (running && inflightControllers.has(controller)) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -124,30 +157,36 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
         let currentEvent = '';
         let currentData = '';
+        let currentId: string | undefined;
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {
             currentEvent = line.slice(7);
           } else if (line.startsWith('data: ')) {
             currentData = line.slice(6);
+          } else if (line.startsWith('id: ')) {
+            currentId = line.slice(4);
           } else if (line === '') {
             if (currentEvent === 'bus-event' && currentData) {
+              if (currentId !== undefined) lastEventId = currentId;
               const parsed = JSON.parse(currentData) as BusEvent;
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
               events$.next(parsed);
             }
             currentEvent = '';
             currentData = '';
+            currentId = undefined;
           }
         }
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
+    } finally {
+      inflightControllers.delete(controller);
     }
 
     if (running) {
       connected$.next(false);
-      abortController = null;
       reconnectTimer = setTimeout(() => {
         if (running) connect();
       }, reconnectMs);

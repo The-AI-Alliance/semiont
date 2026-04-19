@@ -321,22 +321,40 @@ export class BrowseNamespace implements IBrowseNamespace {
   private subscribeToEvents(): void {
     const bus = this.eventBus;
 
-    // Gap detection on reconnect: after the bus connection drops and comes
-    // back, events may have been missed during the outage. Invalidate all
-    // active caches so live queries refetch.
-    let seenDisconnect = false;
-    this.actor.connected$.subscribe((connected) => {
-      if (!connected) {
-        seenDisconnect = true;
-      } else if (seenDisconnect) {
-        seenDisconnect = false;
+    // Gap-detection contract:
+    //
+    // The server stamps persisted events on `/bus/subscribe` with
+    // `id: p-<scope>-<seq>`. The client sends the last seen id back as
+    // `Last-Event-ID` on reconnect; the server replays persisted events
+    // missed during the gap. No blanket invalidation is needed on the
+    // `connected$: false → true` edge — the usual case is a clean
+    // resume with zero missed events.
+    //
+    // The server emits a `bus:resume-gap` event when it can't cover the
+    // gap (retention window exceeded, scope mismatch, or unparseable
+    // `Last-Event-ID`). Receiving one means the client's caches for the
+    // affected scope may be stale — fall back to blanket invalidation
+    // for that scope (or all scopes, if the gap carries no scope).
+    bus.get('bus:resume-gap').subscribe((event: EventMap['bus:resume-gap']) => {
+      const gapScope = event.scope;
+      if (gapScope) {
+        // Scope-specific invalidation: only touch keys related to this scope.
+        const rId = gapScope as ResourceId;
+        this.invalidateAnnotationList(rId);
+        this.invalidateResourceDetail(rId);
+        this.invalidateResourceEvents(rId);
+        this.invalidateReferencedBy(rId);
+      } else {
+        // Scope-wide gap (unparseable id, unknown shape) — invalidate
+        // everything, same as the pre-resumption blanket behavior.
         this.invalidateResourceLists();
         for (const rId of this.annotationList$.value.keys()) this.invalidateAnnotationList(rId);
         for (const rId of this.resourceDetail$.value.keys()) this.invalidateResourceDetail(rId);
         for (const rId of this.resourceEvents$.value.keys()) this.invalidateResourceEvents(rId);
         for (const rId of this.referencedBy$.value.keys()) this.invalidateReferencedBy(rId);
-        this.invalidateEntityTypes();
       }
+      // Entity-types is a KB-wide list — always refetch on any gap.
+      this.invalidateEntityTypes();
     });
 
     bus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {

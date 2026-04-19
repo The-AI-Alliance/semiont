@@ -79,6 +79,7 @@ const BUS_RESULT_CHANNELS = [
   'yield:clone-created', 'yield:clone-create-failed',
   'mark:entity-type-added',
   'beckon:focus', 'beckon:sparkle',
+  'bus:resume-gap',
 ] as const;
 
 // Every global-SSE-delivered channel is bridged from the bus actor

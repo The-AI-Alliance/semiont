@@ -343,4 +343,97 @@ describe('createActorVM', () => {
     vm.dispose();
     vi.useRealTimers();
   });
+
+  // ── BUS-RESUMPTION.md behavior ────────────────────────────────────────
+
+  it('tracks the last SSE id and sends it as Last-Event-ID on the next connect', async () => {
+    const sse1 = mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['mark:added'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    // Server sends a persisted event with id: p-res-1-47
+    sse1.push(
+      'event: bus-event\nid: p-res-1-47\ndata: ' +
+        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' } }) +
+        '\n\n',
+    );
+    // Give the parser a tick to process the frame.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Trigger a reconnect via addChannels.
+    mockSSEResponse();
+    vm.addChannels(['other:channel']);
+    // RECONNECT_DEBOUNCE_MS = 100 in actor-vm; wait past it.
+    await new Promise((r) => setTimeout(r, 120));
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    const initOpts = mockFetch.mock.calls[1][1] as { headers: Record<string, string> };
+    expect(initOpts.headers['Last-Event-ID']).toBe('p-res-1-47');
+
+    vm.dispose();
+  });
+
+  it('does not send Last-Event-ID header on the first connect', async () => {
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    const initOpts = mockFetch.mock.calls[0][1] as { headers: Record<string, string> };
+    expect(initOpts.headers['Last-Event-ID']).toBeUndefined();
+
+    vm.dispose();
+  });
+
+  it('aborts previous in-flight fetch when a reconnect starts (orphan-stream fix)', async () => {
+    // Regression: prior versions kept a single `abortController` slot,
+    // so a rapid sequence of connect() calls could orphan earlier
+    // fetches — their signals were replaced before they could be
+    // aborted. Post-fix, every previous controller is aborted before a
+    // new connect starts. Diagnosed from the suite-flake investigation
+    // which captured 3 concurrent SSE subscribes in a single 8ms window.
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const firstSignal = (mockFetch.mock.calls[0][1] as { signal: AbortSignal }).signal;
+    expect(firstSignal.aborted).toBe(false);
+
+    mockSSEResponse();
+    vm.addChannels(['other:one']);
+    await new Promise((r) => setTimeout(r, 150));
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    // First fetch's signal must now be aborted — the connect() that
+    // produced the second fetch is responsible for aborting all prior
+    // in-flight controllers.
+    expect(firstSignal.aborted).toBe(true);
+
+    // And the second fetch's signal is still live.
+    const secondSignal = (mockFetch.mock.calls[1][1] as { signal: AbortSignal }).signal;
+    expect(secondSignal.aborted).toBe(false);
+
+    vm.dispose();
+  });
 });

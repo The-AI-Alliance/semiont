@@ -273,6 +273,22 @@ export type EventMap = {
 
   'stream-connected': Record<string, never>;
   'replay-window-exceeded': { resourceId?: string; lastEventId: number; missedCount: number; cap: number; message: string };
+  /**
+   * Emitted by the `/bus/subscribe` handler when a client reconnected
+   * with `Last-Event-ID: p-<scope>-<seq>` but the server could not
+   * replay all missed persisted events for that scope (retention
+   * window exceeded, scope unknown, or request unparseable). The
+   * client should treat this as a signal to fall back to the pre-
+   * resumption contract: invalidate caches for the affected scope
+   * and re-read from scratch. Analogous to `replay-window-exceeded`
+   * but scoped to the bus gateway rather than the per-resource
+   * events stream.
+   *
+   * `scope` is the scope string the client asked about (omitted for
+   * global-persisted resumption gaps, if that path ever exists).
+   * `reason` is human-readable, for logging.
+   */
+  'bus:resume-gap': { scope?: string; lastSeenId?: string; reason: string };
 };
 
 /** Any valid channel name on the EventBus. */
@@ -510,6 +526,7 @@ export const CHANNEL_SCHEMAS = {
   // ── SSE infrastructure ──────────────────────────────────────────
   'stream-connected':                 null, // Record<string, never>
   'replay-window-exceeded':           null, // inline payload
+  'bus:resume-gap':                   null, // inline payload
 } as const satisfies Record<EventName, keyof components['schemas'] | null>;
 
 /** Channels where `/bus/emit` validates the payload (non-null schema). */
