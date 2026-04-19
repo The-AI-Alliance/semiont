@@ -69,6 +69,7 @@ const BUS_RESULT_CHANNELS = [
   'gather:complete', 'gather:failed',
   'gather:annotation-progress', 'gather:annotation-finished',
   'gather:summary-result', 'gather:summary-failed',
+  'yield:progress',
   'bind:body-updated', 'bind:body-update-failed',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
@@ -80,15 +81,16 @@ const BUS_RESULT_CHANNELS = [
   'beckon:focus', 'beckon:sparkle',
 ] as const;
 
-// Channels the client bridges from the bus actor into the local
-// EventBus. Subscribing to these on the local bus — via flow VMs,
-// components, etc. — gets you both in-browser emissions and
-// cross-participant signals delivered via /bus/subscribe.
-const ACTOR_TO_LOCAL_BRIDGES = [
-  'mark:entity-type-added',
-  'beckon:focus',
-  'beckon:sparkle',
-] as const;
+// Every global-SSE-delivered channel is bridged from the bus actor
+// into the local EventBus so namespace Observables, flow VMs, and UI
+// components subscribing via `eventBus.get(channel)` receive events
+// without needing to know about the actor or SSE wire format.
+//
+// In practice this is all `BUS_RESULT_CHANNELS` plus cross-participant
+// UI signals — the set is identical, since every channel the frontend
+// subscribes to globally is one we want on the local bus. Scoped
+// channels are bridged separately inside `subscribeToResource`.
+const ACTOR_TO_LOCAL_BRIDGES = BUS_RESULT_CHANNELS;
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }

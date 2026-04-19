@@ -240,19 +240,36 @@ describe('createWorkerVM', () => {
       jobTypes: ['generation'],
     });
 
-    await vm.emitEvent('yield:progress', { resourceId: 'res-1', percentage: 42 });
+    await vm.emitEvent('yield:finished', { resourceId: 'res-1', percentage: 100 });
 
     expect(mockFetch).toHaveBeenCalledWith(
       'http://localhost:4000/bus/emit',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          channel: 'yield:progress',
-          payload: { resourceId: 'res-1', percentage: 42 },
+          channel: 'yield:finished',
+          payload: { resourceId: 'res-1', percentage: 100 },
           scope: 'res-1',
         }),
       }),
     );
+
+    vm.dispose();
+  });
+
+  it('emitEvent does NOT scope non-broadcast events (e.g. yield:progress is per-caller)', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const vm = createWorkerVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      jobTypes: ['generation'],
+    });
+
+    await vm.emitEvent('yield:progress', { resourceId: 'res-1', percentage: 42 });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.scope).toBeUndefined();
 
     vm.dispose();
   });

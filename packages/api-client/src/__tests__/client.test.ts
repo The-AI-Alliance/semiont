@@ -560,6 +560,86 @@ describe('SemiontApiClient', () => {
     });
   });
 
+  // ── Integration: global correlation-ID responses don't require subscribeToResource ──
+
+  describe('results without subscribeToResource (SIMPLE-BUS gap #1 closed)', () => {
+    test('client.match.search() resolves from a global match:search-results event without calling subscribeToResource', async () => {
+      const { firstValueFrom } = await import('rxjs');
+      const gatheredContext = { sourceContext: {}, targetContext: {} } as any;
+
+      // NOTE: no subscribeToResource call. If the Phase 1 reclassification
+      // and the BUS_RESULT_CHANNELS → local-bus bridge are both correct,
+      // the Observable resolves purely from a globally-delivered result.
+
+      const searchP = firstValueFrom(
+        client.match.search(testResourceId, 'ref-1', gatheredContext, { limit: 5 }),
+      );
+
+      await new Promise((r) => setTimeout(r, 10));
+      const emitted = actorHarness.emitSpy.mock.calls.find(
+        (call) => call[0] === 'match:search-requested',
+      );
+      expect(emitted).toBeTruthy();
+      const cid = emitted![1].correlationId as string;
+
+      actorHarness.events$.next({
+        channel: 'match:search-results',
+        payload: { correlationId: cid, referenceId: 'ref-1', response: [] },
+      });
+
+      const result = await searchP;
+      expect((result as any).correlationId).toBe(cid);
+    });
+
+    test('client.gather.annotation() resolves from a global gather:complete event without calling subscribeToResource', async () => {
+      const { lastValueFrom } = await import('rxjs');
+
+      const gatherP = lastValueFrom(
+        client.gather.annotation(testAnnotationId, testResourceId, { contextWindow: 500 }),
+      );
+
+      await new Promise((r) => setTimeout(r, 10));
+      const emitted = actorHarness.emitSpy.mock.calls.find(
+        (call) => call[0] === 'gather:requested',
+      );
+      expect(emitted).toBeTruthy();
+      const cid = emitted![1].correlationId as string;
+
+      actorHarness.events$.next({
+        channel: 'gather:complete',
+        payload: {
+          correlationId: cid,
+          annotationId: testAnnotationId,
+          response: { sourceContext: {} },
+        },
+      });
+
+      const result = await gatherP;
+      expect((result as any).correlationId).toBe(cid);
+    });
+
+    test('a failed match:search-failed event resolves the Observable with an error', async () => {
+      const { firstValueFrom } = await import('rxjs');
+      const gatheredContext = { sourceContext: {}, targetContext: {} } as any;
+
+      const searchP = firstValueFrom(
+        client.match.search(testResourceId, 'ref-x', gatheredContext),
+      );
+
+      await new Promise((r) => setTimeout(r, 10));
+      const cid = actorHarness.emitSpy.mock.calls.find(
+        (call) => call[0] === 'match:search-requested',
+      )![1].correlationId as string;
+
+      actorHarness.events$.next({
+        channel: 'match:search-failed',
+        payload: { correlationId: cid, referenceId: 'ref-x', error: 'inference provider down' },
+      });
+
+      await expect(searchP).rejects.toThrow(/inference provider down/);
+    });
+  });
+
   describe('dispose', () => {
     test('disposes actor and cleans up subscriptions', () => {
       client.subscribeToResource(testResourceId);

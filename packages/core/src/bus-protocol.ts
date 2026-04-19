@@ -296,8 +296,18 @@ export type EventName = keyof EventMap;
  * participant. WorkerVM uses this list to decide which emitted events to
  * scope to their resource.
  */
+/**
+ * Audit note (SIMPLE-BUS Phase 3 close): `yield:progress` was
+ * considered for inclusion but has only one consumer — the
+ * yield-initiator's Observable in `packages/api-client/src/namespaces/yield.ts`.
+ * No viewer of the resource other than the initiator subscribes to
+ * progress. Scoping therefore serves no fan-out-narrowing purpose for
+ * that channel, so it stays global (as a correlation-ID-shaped
+ * response, filtered by `referenceId`). Only `yield:finished` and
+ * `yield:failed` have a genuine multi-participant consumer (the
+ * ResourceViewerPage toast on the source resource).
+ */
 export const RESOURCE_BROADCAST_TYPES = [
-  'yield:progress',
   'yield:finished',
   'yield:failed',
 ] as const satisfies readonly EventName[];
