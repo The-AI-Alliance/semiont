@@ -1,0 +1,373 @@
+# Bus Gateway Transport Contract
+
+**Purpose**: define the contract the bus gateway actually honors
+between the browser (or any headless client) and the backend. If the
+code deviates from what's written here, the code is wrong — or this
+doc is wrong and needs updating, deliberately. No third option.
+
+The two existing docs next door describe different things:
+
+- [STREAMS.md](./STREAMS.md) — the architecture (what routes exist, what
+  handlers subscribe to what).
+- [REAL-TIME.md](./REAL-TIME.md) — the event inventory (which channels
+  carry what kind of payload, scoped vs. global).
+
+This doc is the formal **contract** — delivery guarantees, ordering,
+lifecycle, failure modes. It's what a consumer should be able to rely
+on without reading every line of `@semiont/api-client`.
+
+## Non-goals
+
+- **Not an implementation guide.** `STREAMS.md` does that.
+- **Not a scope tutorial.** `SIMPLE-BUS.md` does that.
+- **Not a wishlist.** This doc describes what *is*, not what should
+  be. Known gaps are called out in a dedicated section at the bottom
+  so they can't be confused with guarantees.
+
+## The two primitives
+
+```
+Browser / headless client                         Backend
+  │                                                  │
+  │    POST /bus/emit                                │
+  │    { channel, payload, scope? }  →  202          │
+  │ ─────────────────────────────────────►           │
+  │                                                  │
+  │    GET  /bus/subscribe?channel=X&scope=&scoped=  │
+  │ ◄── event-stream ──────────────────────────────  │
+  │                                                  │
+```
+
+- `POST /bus/emit` — fire-and-forget. Body is a single
+  `{channel, payload, scope?}`. 202 on accepted; 400 on validation
+  failure or unknown channel; 401 on auth failure.
+
+- `GET /bus/subscribe` — long-lived SSE. Query string selects global
+  channels (`channel=X` may repeat) and a single resource-scoped
+  channel group (`scope=rId&scoped=Y` with `scoped` repeatable).
+
+Every event carries an `event:` line of `bus-event` and a `data:` line
+of `{channel, payload, scope?}`.
+
+No other transport is used for bus traffic. Regular HTTP is for auth,
+health, and binary resources.
+
+## Authentication and authorization
+
+Both endpoints require a valid JWT (`Authorization: Bearer …`).
+
+- 401: token missing, malformed, expired, or signed with a key the
+  backend doesn't recognize (e.g. the backend was restarted with a
+  different secret, making earlier-issued tokens invalid).
+- 403: currently not used. All authenticated users see all channels.
+  That's a known gap — see "Known gaps" below.
+
+The gateway injects `_userId` (the token subject's DID) into every
+emitted payload. Handlers read it via `command._userId`; it's the
+only identity signal they can trust.
+
+## Delivery semantics
+
+### `POST /bus/emit`
+
+- **At-most-once**, from the client's perspective. The client emits;
+  the server accepts with 202 or rejects with 4xx. There's no
+  acknowledgement that a subscriber received the event, only that the
+  backend dispatched it onto the `EventBus`.
+- **No ordering across emits** from the same client. Two emits made
+  back-to-back may hit the handler in either order, because they're
+  two independent HTTP requests. Handlers that require ordering must
+  encode it in the payload (e.g. via `sequence` or `previous`).
+- **Synchronous dispatch, asynchronous processing.** By the time the
+  client receives 202, the `EventBus.next()` has fired and any
+  registered handler has been notified. What the handler *does* with
+  the event is asynchronous and out of the emit's control.
+
+### `GET /bus/subscribe`
+
+- **At-most-once, live-only.** An event is delivered to every SSE
+  connection subscribed to its channel at the moment the event is
+  published. Connections that weren't live at that moment don't see
+  the event — there is **no replay, no resume, no buffer**. A client
+  that disconnects and reconnects misses whatever happened during the
+  gap.
+- **Per-channel ordering within a single connection.** Events on a
+  single channel are delivered in the order they were published on
+  that bus. Events across channels have no ordering guarantee.
+- **No deduplication.** If the same event is published twice (e.g. by
+  two handlers), a subscriber sees it twice.
+- **Persisted domain events are special**. These events go through
+  `EventStore.appendEvent`, which publishes on BOTH the global bus AND
+  the resource-scoped bus. A client subscribed to a resource scope
+  receives each persisted event once via the scoped delivery; a
+  client subscribed globally receives each persisted event once via
+  the global delivery; a client subscribed both ways receives it
+  twice.
+
+### Combined request-response (`busRequest`)
+
+The `busRequest` helper ([packages/api-client/src/bus-request.ts](../../../packages/api-client/src/bus-request.ts))
+layers a request-response pattern on top of the two primitives:
+
+- Client mints a fresh `correlationId`.
+- Subscribes on the actor to `resultChannel` and `failureChannel`,
+  filtered by that correlationId.
+- Emits the request payload via `actor.emit()`.
+- First matching response resolves; first matching failure rejects.
+- Default timeout: 30 s. On timeout, the subscription is torn down;
+  any late-arriving response is dropped.
+
+The guarantee is **at-most-once response delivery**. Specifically:
+
+- If the SSE connection is live when the backend publishes the
+  response, the client receives it.
+- **If the SSE connection was torn down and replaced during the
+  request window, the response was published to a dead subscriber
+  and is lost.** The client sees only the 30s timeout. There is no
+  retry.
+
+This last bullet is the load-bearing quirk. A consumer that cares
+about eventual correctness must either (a) accept the timeout and
+retry the whole request, or (b) layer a cache that can
+refetch-on-reconnect (which is what `BrowseNamespace` does).
+
+## Connection lifecycle
+
+Exposed to the frontend as `actor.connected$: Observable<boolean>`.
+Booleans, with well-defined transitions:
+
+| Transition | What it signals |
+|---|---|
+| *(stream starts)* → `true` | First SSE connect succeeded. |
+| `true` → `false` | The connection is ending or has ended. Two causes: (1) the server closed the stream or the network errored, (2) the client is intentionally reconnecting (e.g. channel set changed). Both emit the same value. |
+| `false` → `true` | A fresh SSE connection is live. |
+
+The consumer can't tell the two `true`→`false` causes apart today.
+That's not a bug; it's a deliberate simplification — any time the
+connection goes down, the client must assume it may have missed
+events and revalidate state. See "Reconnect discipline" below.
+
+### Reconnect discipline (client side)
+
+The client-side `ActorVM` handles three reconnect triggers:
+
+1. **Server/network disconnect.** The SSE read loop exits. `connect()`
+   is retried after `reconnectMs` (default 5 s). `connected$`
+   emits `false` before the retry, `true` when the new connection
+   succeeds.
+2. **Channel-set change** (`addChannels` / `removeChannels`). The
+   current SSE is aborted and a new one is opened with the updated
+   query string. Reconnects are **debounced 100 ms** so React Strict
+   Mode's mount → cleanup → mount sequence collapses into one
+   reconnect. `connected$` emits `false` once, `true` once per
+   debounced batch.
+3. **Explicit `stop()` / `dispose()`.** No reconnect; `connected$`
+   emits `false` once and the observable completes.
+
+Consumers observing `connected$` for gap detection should react to
+the `false`→`true` transition regardless of cause. This is
+deliberate: the client cannot know which events it might have missed
+across the gap, so it must revalidate either way.
+
+## Event categorization and scope
+
+Every channel falls into exactly one of three categories. The
+category determines scoping semantics and delivery path.
+
+| Category | Scope on wire | Receivers |
+|---|---|---|
+| Command (one handler) | None | The single global handler. |
+| Correlation-ID response | None | The caller, filtering by correlationId. |
+| Resource-bound broadcast | `resourceId` | Every SSE connection subscribed to that scope. |
+
+System-wide broadcasts (`beckon:focus`, `mark:entity-type-added`,
+etc.) are a special case of correlation-ID responses in terms of
+scoping: they go global, but they're received by every connected
+client, not filtered.
+
+This table is the single source of scope truth. Any new channel must
+fit in one of the three rows. If it doesn't, the channel is wrong.
+
+See [STREAMS.md § "When to scope"](./STREAMS.md) for the rule's
+statement; this doc just references it as the settled contract.
+
+## Schema validation
+
+Every inbound event at `POST /bus/emit` is validated against the
+schema declared in `CHANNEL_SCHEMAS` ([packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts)).
+
+- Channels with a named schema: payload must match, or 400.
+- Channels with a `null` schema entry: no validation (payload is a
+  compound / branded type not expressible as a single OpenAPI schema).
+- Channels not present in `CHANNEL_SCHEMAS`: 400 with "Unknown
+  channel". The map's `satisfies Record<EventName, ...>` forces it to
+  cover every `EventName` — a new channel added to `EventMap` that
+  isn't added here is a build error.
+
+Outbound events on `/bus/subscribe` are not validated; they're
+produced by backend code that's already type-checked. If a handler
+publishes a malformed payload, the client will fail to parse the
+JSON frame.
+
+## Contract summary for consumers
+
+A consumer that wants correctness must assume:
+
+- Every `/bus/emit` either succeeds (202) or fails (4xx). There's no
+  third outcome.
+- Every event on the SSE stream is live-only. If the consumer wasn't
+  connected at publish time, the event is gone.
+- Every reconnect is a cache-invalidation signal. The consumer has
+  no way to know which events it missed during the gap. It must
+  revalidate everything it depends on.
+- `busRequest` has a 30 s timeout and no retry. Callers that require
+  retry must wrap.
+- CorrelationIds are the only way to match a request to its response.
+  They must be UUIDs or equivalently-unique. The backend does not
+  deduplicate them.
+
+## Known gaps (deliberately surfaced)
+
+These are gaps in the contract above. They're listed so future work
+can reference them specifically instead of rediscovering them.
+
+### Suggested execution order
+
+Each gap has its own plan; the plans interact at specific points.
+Suggested sequence:
+
+1. **[CONNECTION-STATE.md](../../../.plans/CONNECTION-STATE.md)** — small change, touches one file's public API, immediately improves observability (UI banner, test assertions) and gives the invalidation logic in the next two plans a richer signal than a boolean.
+2. **[BUS-RESUMPTION.md](../../../.plans/BUS-RESUMPTION.md)** — biggest protocol win. Eliminates blanket cache invalidation and lets us delete the 100 ms reconnect debounce. Must land before CACHE-LIBRARY Phase 2 so the library layer is wired to the simplified invalidation model, not the current blanket one.
+3. **[CACHE-LIBRARY.md](../../../.plans/CACHE-LIBRARY.md)** — Phase 1 (semantics doc + audit) can start any time and is cheap. Phase 2 (adopt `@tanstack/query-core`) should follow BUS-RESUMPTION so the wrapper isn't built twice.
+4. **[CHANNEL-AUTHZ.md](../../../.plans/CHANNEL-AUTHZ.md)** — independent of the above and latent in single-tenant deployments. Sequence it when multi-tenant becomes a real product requirement; absent that driver it's pure infrastructure work.
+
+[MULTI-RESOURCE-SCOPE.md](../../../.plans/MULTI-RESOURCE-SCOPE.md)
+is deferred per its own trigger conditions and slots in wherever a
+product requirement unblocks it.
+
+### No `Last-Event-ID` resumption
+
+The SSE spec defines `Last-Event-ID` for exactly this use case: the
+server tags each event with an `id:`, the browser tracks it, and on
+reconnect the client sends `Last-Event-ID: <last-seen>` so the
+server can replay from there. We don't use this.
+
+Consequence: reconnect-driven gap detection is a blanket "invalidate
+everything," which correlates with thrashing when reconnects come in
+bursts (and in turn motivated the 100 ms debounce). Adopting
+`Last-Event-ID` would let clients resume exactly where they left off
+and make gap-detection unnecessary for persisted events.
+
+The work required: monotonic event ids on every persisted emit,
+backend support for replay-from-id (reading from the event store),
+client tracking of the last id seen per scope. See
+[BUS-RESUMPTION.md](../../../.plans/BUS-RESUMPTION.md).
+
+### Cache layer reimplements SWR / React Query
+
+`packages/api-client/src/namespaces/browse.ts` implements
+stale-while-revalidate, in-flight dedup, and event-driven
+invalidation by hand. These are solved problems in library form. The
+constraint we're honoring is framework-agnosticism — the same client
+is used by React, the CLI, MCP server, and workers.
+
+Consequence: every race in the cache (stuck guard, invalidate-loop,
+concurrent refetches) is a bug SWR's implementation has documented
+fixes for, which we rediscover by bisection.
+
+The options: (a) document the exact SWR semantics we mean to mimic
+and audit `browse.ts` against them; (b) extract a
+framework-agnostic cache library (there are several) and use it as
+the cache primitive. See
+[CACHE-LIBRARY.md](../../../.plans/CACHE-LIBRARY.md).
+
+### Connection state is a boolean
+
+Real streaming libraries (Phoenix Channels, ActionCable, Centrifugo)
+expose a state machine: `initial | connecting | open | reconnecting
+| degraded | closed`. We expose a boolean and infer the rest from
+timing. That's why we can't distinguish a Strict-Mode abort-driven
+reconnect from a genuine network-lost reconnect; they look the same
+on the wire.
+
+Promoting to a state machine would let consumers react appropriately
+to each transition (e.g. differentiate "short lived reconnect during
+mount churn, don't panic" from "3+ seconds disconnected, surface a
+banner to the user"). See
+[CONNECTION-STATE.md](../../../.plans/CONNECTION-STATE.md).
+
+### Scope is per-connection, not per-channel
+
+The SSE URL format takes one `scope=X` and many `scoped=Y` channel
+names within that scope. A single connection can subscribe to many
+channels under one resource scope, but cannot mix two resource
+scopes. See [MULTI-RESOURCE-SCOPE.md](../../../.plans/MULTI-RESOURCE-SCOPE.md)
+for the proper fix.
+
+### No channel-level authorization
+
+Any authenticated user who subscribes to a channel receives
+everything on that channel. Resources don't have per-user ACLs in
+the transport layer. Handlers may enforce authorization in the
+handler body (e.g. by checking `_userId`), but `/bus/subscribe`
+itself does not filter. This is a genuine limitation for any
+multi-tenant deployment. See
+[CHANNEL-AUTHZ.md](../../../.plans/CHANNEL-AUTHZ.md).
+
+## Rules of thumb for consumer code
+
+### Effects that subscribe MUST be idempotent across cleanup cycles
+
+React Strict Mode double-invokes effects (mount → cleanup → mount)
+to shake out cleanup bugs. Any code that interacts with the bus —
+calling `subscribeToResource`, registering an event handler, wiring
+a ViewModel — must survive this. Concretely:
+
+- `subscribeToResource(X)` called twice in a row with the same `X`
+  must be a no-op on the second call (ref-counted today; first call
+  adds, second increments a count, both unsubscribes required before
+  the scope is actually removed).
+- A ViewModel whose factory captures props must be keyed on those
+  props (`<Inner key={rId} />`) so the factory reruns when they
+  change. `useViewModel`'s factory does NOT re-run across renders
+  by design — see the tests in
+  `packages/react-ui/src/hooks/__tests__/useViewModel.test.tsx` for
+  the locked-in semantic.
+
+### Request-response callers must handle response-lost
+
+Because responses are at-most-once and a reconnect during the
+request window drops them, any caller that must eventually complete
+needs one of:
+
+- A cache-layer refetch on reconnect (`BrowseNamespace`'s gap
+  detection is the reference example).
+- An explicit retry on timeout.
+- Acceptance that the operation is fire-and-forget and re-request on
+  demand is sufficient.
+
+### New channels must be classified at definition time
+
+A new channel is either a command, a correlation-ID response, or a
+resource-bound broadcast. Pick one and commit. The three-row table
+above is the decision tree.
+
+## Where the code implementing this contract lives
+
+- `apps/backend/src/routes/bus.ts` — the `/bus/emit` and
+  `/bus/subscribe` routes.
+- `packages/core/src/bus-protocol.ts` — `EventMap`, `CHANNEL_SCHEMAS`,
+  `EmittableChannel`, `RESOURCE_BROADCAST_TYPES`.
+- `packages/api-client/src/view-models/domain/actor-vm.ts` — the
+  client-side SSE reader, reconnect logic, channel-set management.
+- `packages/api-client/src/bus-request.ts` — correlation-ID matcher.
+- `packages/event-sourcing/src/event-store.ts` — persisted-event
+  dual-publish (global + scoped).
+
+## Revision log
+
+A deliberate choice to keep this as a separate section so changes to
+the contract are visible.
+
+- **2026-04-19** — initial draft, reflecting the contract after the
+  SIMPLE-BUS work plus the reconnect debounce fix.
