@@ -1,5 +1,6 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { attachBusLog, type BusLogCapture } from './bus-log';
 
 /**
  * Polyfill crypto.randomUUID for non-secure-context test environments.
@@ -119,11 +120,18 @@ async function isAlreadySignedIn(page: Page): Promise<boolean> {
  *     // already at /en/know/discover with a valid session
  *   });
  */
-export const test = base.extend<{ signedInPage: Page }>({
-  signedInPage: async ({ page }, use) => {
+export const test = base.extend<{ signedInPage: Page; bus: BusLogCapture }>({
+  bus: async ({ page }, use) => {
+    const capture = await attachBusLog(page);
+    await use(capture);
+  },
+  signedInPage: async ({ page, bus: _bus }, use) => {
+    // Depend on `bus` so the init script runs before signIn. `_bus`
+    // isn't referenced here; it just forces fixture ordering.
     await signIn(page);
     await use(page);
   },
 });
 
 export { expect };
+export type { BusLogCapture } from './bus-log';

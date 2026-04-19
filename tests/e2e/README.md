@@ -128,6 +128,73 @@ of these paths fails the corresponding test.
    populates with entity types (guards the entity-types-lost-in-reconnect
    bug from a different UI surface than test 2).
 
+## Bus logging — protocol-level debugging and assertions
+
+The frontend has an opt-in, runtime-toggleable logger at the
+browser↔backend boundary. When enabled, every event that crosses the
+wire in either direction is logged as a single `console.debug` line
+with a grep-friendly format:
+
+```
+[bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
+[bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
+```
+
+Both call sites live in `ActorVM` ([`packages/api-client/src/view-models/domain/actor-vm.ts`](../../packages/api-client/src/view-models/domain/actor-vm.ts))
+— one inside `emit()` (outgoing) and one inside the SSE parser
+(incoming). Anything that crosses the wire goes through one of those
+two lines, so the log is exhaustive. Local-only events (purely
+in-browser) stay invisible; that's by design.
+
+Cost when disabled is a single truthy check; zero allocations.
+
+### Enable in a running browser
+
+From DevTools console:
+
+```js
+window.__SEMIONT_BUS_LOG__ = true;
+```
+
+Then reproduce. Clears on refresh.
+
+### Enable in e2e tests
+
+Automatic. Every test written against `fixtures/auth.ts` gets a `bus`
+capture object by default:
+
+```ts
+import { test, expect } from '../fixtures/auth';
+
+test('...', async ({ signedInPage: page, bus }) => {
+  bus.clear();  // drop earlier traffic if you want to scope assertions
+  await page.getByRole('button', { name: /open/i }).click();
+
+  // Wait for a request/response pair with matching correlationId:
+  await bus.expectRequestResponse('browse:resource-requested', 'browse:resource-result');
+
+  // Or target individual events:
+  await bus.waitForEmit('mark:create-request');
+  await bus.waitForRecv('mark:create-ok', { cid: '...' });
+
+  // Or inspect the full log after the fact:
+  const emits = bus.emits('browse:resource-requested');
+  expect(new Set(emits.map(e => e.cid)).size).toBeGreaterThanOrEqual(2);
+});
+```
+
+The fixture toggles `__SEMIONT_BUS_LOG__` before page init (via
+`page.addInitScript`) and captures `console.debug` messages matching
+the `[bus ...]` format.
+
+**Why this matters**: it lets tests assert **protocol-level**
+behavior, not just UI outcomes. "The highlight appeared" is weaker
+than "`mark:create-request` was emitted, `mark:create-ok` arrived with
+matching correlationId." The latter catches regressions where the UI
+accidentally ends up right via a different code path (e.g. stale
+cache, wrong endpoint, broken handler that got backfilled by
+refetch).
+
 ## Known gotchas
 
 A few sharp edges that took real debugging the first time. Documented
