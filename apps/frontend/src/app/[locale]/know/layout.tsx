@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
@@ -9,6 +9,7 @@ import {
   ApiClientProvider,
   AuthTokenProvider,
   Toolbar,
+  useApiClient,
   useBrowseVM,
   useObservable,
   useTheme,
@@ -16,6 +17,7 @@ import {
   useKnowledgeBaseSession,
   kbBackendUrl,
   getKbSessionStatus,
+  type StreamStatus,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -108,9 +110,29 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
   );
 }
 
+/**
+ * Drives `StreamStatusContext` from the api-client's `actor.connected$`
+ * observable so downstream consumers (e.g. CollaborationPanel's
+ * connection indicator) reflect actual SSE state rather than a
+ * hardcoded "connected". Initial state is "connecting" until the first
+ * emission arrives.
+ *
+ * Mounts inside `ApiClientProvider` (see `KnowledgeLayoutBody` below)
+ * so `useApiClient()` resolves.
+ */
 function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
+  const client = useApiClient();
+  const [status, setStatus] = useState<StreamStatus>('connecting');
+
+  useEffect(() => {
+    const sub = client.actor.connected$.subscribe((connected) => {
+      setStatus(connected ? 'connected' : 'disconnected');
+    });
+    return () => sub.unsubscribe();
+  }, [client]);
+
   return (
-    <StreamStatusContext.Provider value={'connected'}>
+    <StreamStatusContext.Provider value={status}>
       {children}
     </StreamStatusContext.Provider>
   );

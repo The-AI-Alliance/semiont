@@ -85,8 +85,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
       /**
        * Write an event-bus payload to the SSE stream with an `id:` stamp.
-       * Updates `lastDeliveredSeq` so the live tail can dedup against
-       * already-replayed events.
+       * Updates `lastDeliveredSeq` so live events arriving during/after
+       * replay get deduplicated against already-delivered sequences.
        */
       const writeBusEvent = async (
         channel: string,
@@ -96,7 +96,6 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         const seq = extractSequence(payload);
         let id: string;
         if (seq !== null && eventScope) {
-          // Skip if this sequence was already delivered via replay.
           const delivered = lastDeliveredSeq.get(eventScope);
           if (delivered !== undefined && seq <= delivered) return;
           lastDeliveredSeq.set(eventScope, seq);
@@ -110,24 +109,6 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         await stream.writeSSE({ event: 'bus-event', data, id }).catch(() => {});
       };
 
-      // ── Replay phase ──────────────────────────────────────────────────
-      //
-      // If the client supplied `Last-Event-ID: p-<scope>-<N>` AND the
-      // subscription's `scope` query param matches `<scope>`, query the
-      // event store for events with sequenceNumber > N in that scope,
-      // filtered to the subscribed scoped channels. Writes them to the
-      // stream before the live subscription starts.
-      //
-      // Failure modes:
-      //   - unparseable Last-Event-ID (not a `p-*` id, or malformed): the
-      //     server emits `bus:resume-gap` with reason and continues with
-      //     live tail only.
-      //   - scope mismatch (Last-Event-ID scope ≠ subscription scope):
-      //     same as above — gap event, no replay.
-      //   - event-store query fails: same — gap event, continue live.
-      //   - replay succeeds but earliest returned seq > N+1: the gap is
-      //     outside the retention window. Replay what we have and emit
-      //     `bus:resume-gap`.
       const emitResumeGap = async (reason: string, gapScope?: string) => {
         const payload: { scope?: string; lastSeenId?: string; reason: string } = { reason };
         if (gapScope !== undefined) payload.scope = gapScope;
@@ -139,6 +120,68 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         }).catch(() => {});
       };
 
+      // ── Subscribe-first, buffer-during-replay, drain-then-live ────────
+      //
+      // We subscribe to the live tail BEFORE running the replay query, so
+      // that any event emitted between queryEvents returning and the live
+      // subscription starting can't be lost in a race. While replay is
+      // in progress, live events are queued in `liveBuffer`. After
+      // replay writes complete, we drain the buffer (writeBusEvent's
+      // seq-dedup drops any event already covered by the replay) and
+      // only then flip to direct-write mode.
+      //
+      // The subscriber callbacks are synchronous with `Subject.next()`,
+      // so no yield happens between event emission and buffer append.
+      // The drain loop checks the buffer again after each await to
+      // catch events emitted during the drain itself; only when the
+      // buffer drains to empty do we flip to live mode. JS's single-
+      // threaded model guarantees no event slips between the final
+      // "buffer empty" check and the mode flip.
+      type Queued = { channel: string; payload: unknown; scope: string | undefined };
+      const liveBuffer: Queued[] = [];
+      let mode: 'buffering' | 'live' = 'live';
+
+      const emitOrBuffer = (channel: string, payload: unknown, eventScope: string | undefined) => {
+        if (mode === 'buffering') {
+          liveBuffer.push({ channel, payload, scope: eventScope });
+        } else {
+          void writeBusEvent(channel, payload, eventScope);
+        }
+      };
+
+      const willReplay = Boolean(
+        lastEventId && parsePersistedId(lastEventId) && scope && scopedChannels.length > 0,
+      );
+      if (willReplay) mode = 'buffering';
+
+      const subs = channels.map((channel) =>
+        eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+          emitOrBuffer(channel, payload, undefined);
+        }),
+      );
+      if (scope && scopedChannels.length > 0) {
+        const scopedBus = eventBus.scope(scope);
+        for (const channel of scopedChannels) {
+          subs.push(
+            scopedBus.get(channel as keyof EventMap).subscribe((payload) => {
+              emitOrBuffer(channel, payload, scope);
+            }),
+          );
+        }
+      }
+      stream.onAbort(() => subs.forEach((s) => s.unsubscribe()));
+
+      // ── Replay phase ──────────────────────────────────────────────────
+      //
+      // Failure modes:
+      //   - unparseable Last-Event-ID (not `p-*` or malformed): emit
+      //     `bus:resume-gap` and continue with live tail only.
+      //   - scope mismatch (Last-Event-ID scope ≠ subscription scope):
+      //     same — gap event, no replay.
+      //   - event-store query fails: same — gap event, continue live.
+      //   - replay succeeds but earliest returned seq > N+1: the gap is
+      //     outside the retention window. Replay what we have and emit
+      //     `bus:resume-gap`.
       if (lastEventId) {
         const parsed = parsePersistedId(lastEventId);
         if (!parsed) {
@@ -157,12 +200,6 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             });
             const replayable: StoredEvent[] = events.filter((e) => allowedTypes.has(e.type as string));
 
-            // Detect a retention-window gap: if the earliest replayable
-            // event has a sequence ≠ parsed.sequence + 1, events between
-            // the client's last-seen and the earliest-stored are gone.
-            // (Events can be filtered by channel, so a channel-filter hit
-            // that skips a gap is allowed; the concern is whether the
-            // store has events at all in that range.)
             if (events.length > 0 && events[0]!.metadata.sequenceNumber > parsed.sequence + 1) {
               await emitResumeGap('retention-exceeded', scope);
             }
@@ -181,27 +218,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         }
       }
 
-      // ── Live tail ──────────────────────────────────────────────────────
-
-      const subs = channels.map((channel) =>
-        eventBus.get(channel as keyof EventMap).subscribe((payload) => {
-          writeBusEvent(channel, payload, undefined);
-        }),
-      );
-
-      if (scope && scopedChannels.length > 0) {
-        const scopedBus = eventBus.scope(scope);
-        for (const channel of scopedChannels) {
-          subs.push(
-            scopedBus.get(channel as keyof EventMap).subscribe((payload) => {
-              writeBusEvent(channel, payload, scope);
-            }),
-          );
-        }
+      // ── Drain buffer and switch to live mode ─────────────────────────
+      while (liveBuffer.length > 0) {
+        const next = liveBuffer.shift()!;
+        await writeBusEvent(next.channel, next.payload, next.scope);
       }
+      mode = 'live';
 
-      stream.onAbort(() => subs.forEach((s) => s.unsubscribe()));
-
+      // Heartbeat loop — runs for the lifetime of the connection.
       while (true) {
         await stream.writeSSE({ event: 'ping', data: '' });
         await stream.sleep(15_000);

@@ -1,10 +1,73 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { User } from '@prisma/client';
-import type { EventBus as EventBusType } from '@semiont/core';
+import type {
+  EventBus as EventBusType,
+  StoredEvent,
+  EventOfType,
+  UserId,
+  EventMetadata,
+  components,
+} from '@semiont/core';
 import { createBusRouter } from '../../routes/bus';
 import { initializeLogger } from '../../logger';
+
+const TEST_USER_ID = 'did:web:test:users:test' as UserId;
+
+/**
+ * Build a fully-typed StoredEvent<EventOfType<'mark:added'>> with
+ * sensible defaults. Tests care about (sequenceNumber, annotation.id);
+ * the rest of the shape is filled to match the OpenAPI schema so no
+ * `as any` casts are needed.
+ */
+function fakeStoredMarkAdded(
+  seq: number,
+  rIdStr: string,
+  annIdStr: string,
+): StoredEvent<EventOfType<'mark:added'>> {
+  const annotation: components['schemas']['Annotation'] = {
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: annIdStr,
+    motivation: 'commenting',
+    target: { source: rIdStr },
+    body: [],
+  };
+  return {
+    id: `evt-${seq}`,
+    type: 'mark:added',
+    resourceId: makeResourceId(rIdStr),
+    userId: TEST_USER_ID,
+    version: 1,
+    timestamp: '2026-01-01T00:00:00Z',
+    payload: { annotation },
+    metadata: { sequenceNumber: seq, streamPosition: seq - 1 } as EventMetadata,
+  };
+}
+
+function fakeStoredYieldCreated(
+  seq: number,
+  rIdStr: string,
+): StoredEvent<EventOfType<'yield:created'>> {
+  const payload: components['schemas']['ResourceCreatedPayload'] = {
+    name: `fake-${rIdStr}`,
+    format: 'text/plain' as components['schemas']['ContentFormat'],
+    contentChecksum: 'sha256:stub',
+    creationMethod: 'api',
+  };
+  return {
+    id: `evt-${seq}`,
+    type: 'yield:created',
+    resourceId: makeResourceId(rIdStr),
+    userId: TEST_USER_ID,
+    version: 1,
+    timestamp: '2026-01-01T00:00:00Z',
+    payload,
+    metadata: { sequenceNumber: seq, streamPosition: seq - 1 } as EventMetadata,
+  };
+}
+
 
 type Variables = { user: User; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; makeMeaning: unknown };
 
@@ -252,11 +315,7 @@ describe('bus routes', () => {
       expect(res.status).toBe(200);
 
       setTimeout(() => {
-        eventBus.scope('res-99').get('mark:added' as any).next({
-          type: 'mark:added',
-          metadata: { sequenceNumber: 42 },
-          annotationId: 'a-1',
-        } as any);
+        eventBus.scope('res-99').get('mark:added').next(fakeStoredMarkAdded(42, 'res-99', 'a-1'));
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('p-res-99-42'));
@@ -267,16 +326,8 @@ describe('bus routes', () => {
   describe('Last-Event-ID resumption', () => {
     it('replays persisted events from the event store when Last-Event-ID is a valid p-<scope>-<seq>', async () => {
       const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
-        {
-          type: 'mark:added',
-          metadata: { sequenceNumber: 8 },
-          annotationId: 'replayed-1',
-        },
-        {
-          type: 'mark:added',
-          metadata: { sequenceNumber: 9 },
-          annotationId: 'replayed-2',
-        },
+        fakeStoredMarkAdded(8, 'res-1', 'replayed-1'),
+        fakeStoredMarkAdded(9, 'res-1', 'replayed-2'),
       ]);
       const mm = fakeMakeMeaning(queryEvents);
       const app2 = buildApp(eventBus, mm);
@@ -288,16 +339,16 @@ describe('bus routes', () => {
 
       const body = await readSSE(res, (b) => b.includes('replayed-2'));
       expect(queryEvents).toHaveBeenCalledWith('res-1', { fromSequence: 8 });
-      expect(body).toContain('"annotationId":"replayed-1"');
-      expect(body).toContain('"annotationId":"replayed-2"');
+      expect(body).toContain('replayed-1');
+      expect(body).toContain('replayed-2');
       expect(body).toMatch(/id: p-res-1-8/);
       expect(body).toMatch(/id: p-res-1-9/);
     });
 
     it('filters replayed events by the subscribed `scoped=` channel set', async () => {
       const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
-        { type: 'mark:added', metadata: { sequenceNumber: 8 }, annotationId: 'keep' },
-        { type: 'yield:created', metadata: { sequenceNumber: 9 }, resourceId: 'skip' },
+        fakeStoredMarkAdded(8, 'res-1', 'keep-ann'),
+        fakeStoredYieldCreated(9, 'skip-res'),
       ]);
       const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
 
@@ -306,14 +357,16 @@ describe('bus routes', () => {
         { headers: { 'Last-Event-ID': 'p-res-1-7' } },
       );
 
-      const body = await readSSE(res, (b) => b.includes('keep'));
-      expect(body).toContain('"annotationId":"keep"');
-      expect(body).not.toContain('"resourceId":"skip"');
+      const body = await readSSE(res, (b) => b.includes('keep-ann'));
+      expect(body).toContain('keep-ann');
+      // yield:created isn't in the subscribed `scoped=` set so it's
+      // filtered out of the replay.
+      expect(body).not.toContain('skip-res');
     });
 
     it('emits bus:resume-gap when the earliest stored event is past the requested sequence', async () => {
       const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
-        { type: 'mark:added', metadata: { sequenceNumber: 20 }, annotationId: 'far-ahead' },
+        fakeStoredMarkAdded(20, 'res-1', 'far-ahead'),
       ]);
       const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
 
@@ -361,6 +414,114 @@ describe('bus routes', () => {
 
       const body = await readSSE(res, (b) => b.includes('bus:resume-gap'));
       expect(body).toContain('"reason":"scope-mismatch"');
+    });
+
+    /**
+     * End-to-end integration test for replay correctness.
+     *
+     * Simulates the full "client missed events during a disconnect, then
+     * reconnected" scenario:
+     *
+     *   1. Three persisted events (seq 8,9,10) exist in the event store.
+     *   2. Client reconnects with `Last-Event-ID: p-res-1-7`.
+     *   3. While the server's replay query is executing (artificially
+     *      slowed), two MORE live persisted events (seq 11,12) are
+     *      emitted onto the scoped bus.
+     *   4. Option A requires the server to: (a) subscribe to the live
+     *      tail first so live events are captured during the replay
+     *      window, (b) write replayed events in order, (c) drain
+     *      buffered live events in order, (d) skip any live event whose
+     *      seq was already covered by replay (should be none here, but
+     *      the dedup machinery must be exercised).
+     *
+     * The assertion: all 5 event ids (p-res-1-8..12) appear in the SSE
+     * output in strictly increasing sequence order, each exactly once.
+     */
+    it('delivers replay + live events interleaved correctly and without duplicates', async () => {
+      const replayedEvents = [
+        fakeStoredMarkAdded(8, 'res-1', 'r-8'),
+        fakeStoredMarkAdded(9, 'res-1', 'r-9'),
+        fakeStoredMarkAdded(10, 'res-1', 'r-10'),
+      ];
+
+      // Resolve the query only AFTER we've had a chance to emit live
+      // events. This forces the server to be in the buffer-during-replay
+      // window when the live events land.
+      let resolveQuery: (events: unknown[]) => void;
+      const queryEvents = vi.fn<QueryEventsStub>().mockImplementation(() => {
+        return new Promise<unknown[]>((r) => {
+          resolveQuery = r;
+        });
+      });
+      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+
+      const res = await app2.request(
+        '/bus/subscribe?scope=res-1&scoped=mark%3Aadded',
+        { headers: { 'Last-Event-ID': 'p-res-1-7' } },
+      );
+
+      // Let the subscribe handler set up its live subscription and start
+      // the query. The query is hanging on `resolveQuery` — the server is
+      // now in buffering mode.
+      await new Promise((r) => setTimeout(r, 30));
+
+      // Emit two live persisted events while replay is in-flight.
+      eventBus.scope('res-1').get('mark:added').next(fakeStoredMarkAdded(11, 'res-1', 'live-11'));
+      eventBus.scope('res-1').get('mark:added').next(fakeStoredMarkAdded(12, 'res-1', 'live-12'));
+
+      // Now resolve the replay query. The server writes seq 8,9,10 to
+      // the stream, then drains the buffered 11 and 12.
+      resolveQuery!(replayedEvents);
+
+      const body = await readSSE(res, (b) => b.includes('live-12'), 1500);
+
+      // Extract ids in order from the SSE body.
+      const ids = [...body.matchAll(/^id: (p-res-1-\d+)$/gm)].map((m) => m[1]);
+      expect(ids).toEqual(['p-res-1-8', 'p-res-1-9', 'p-res-1-10', 'p-res-1-11', 'p-res-1-12']);
+
+      // Each annotation.id appears exactly once (no duplicates from the
+      // replay/live race).
+      for (const expected of ['r-8', 'r-9', 'r-10', 'live-11', 'live-12']) {
+        const matches = [...body.matchAll(new RegExp(`"id":"${expected}"`, 'g'))];
+        expect(matches.length, `expected "${expected}" exactly once`).toBe(1);
+      }
+    });
+
+    it('dedups events that appear both in replay and as live emissions', async () => {
+      // This can happen if a persisted event was published to the bus
+      // (live) AFTER the client's Last-Event-ID sequence but BEFORE the
+      // live subscription was set up. The replay query returns it,
+      // and the live subscription also fires for it. The server must
+      // deliver it exactly once — writeBusEvent's per-scope seq tracking
+      // enforces this.
+      const replayedEvents = [fakeStoredMarkAdded(8, 'res-1', 'shared-ann')];
+
+      let resolveQuery: (events: unknown[]) => void;
+      const queryEvents = vi.fn<QueryEventsStub>().mockImplementation(() => {
+        return new Promise<unknown[]>((r) => {
+          resolveQuery = r;
+        });
+      });
+      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+
+      const res = await app2.request(
+        '/bus/subscribe?scope=res-1&scoped=mark%3Aadded',
+        { headers: { 'Last-Event-ID': 'p-res-1-7' } },
+      );
+
+      await new Promise((r) => setTimeout(r, 30));
+
+      // Simulate the race: the same event fires live (buffered), and
+      // the replay resolves with the same event.
+      eventBus.scope('res-1').get('mark:added').next(fakeStoredMarkAdded(8, 'res-1', 'shared-ann'));
+      resolveQuery!(replayedEvents);
+
+      const body = await readSSE(res, (b) => b.includes('shared-ann'), 800);
+
+      const matches = [...body.matchAll(/"id":"shared-ann"/g)];
+      expect(matches.length).toBe(1);
+      const ids = [...body.matchAll(/^id: (p-res-1-\d+)$/gm)].map((m) => m[1]);
+      expect(ids).toEqual(['p-res-1-8']);
     });
   });
 });

@@ -12,13 +12,16 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Subject, firstValueFrom, filter, map, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
-import type { components } from '@semiont/core';
+import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import type { SemiontApiClient } from '../../client';
 import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
+const TEST_USER_ID = 'did:web:test:users:test' as UserId;
+const TEST_METADATA = { sequenceNumber: 1, streamPosition: 0 } as EventMetadata;
 
 function mockAnnotation(id: string, source = 'res-1'): Annotation {
   return {
@@ -34,6 +37,63 @@ function mockAnnotation(id: string, source = 'res-1'): Annotation {
 
 function mockResource(id: string, name?: string): ResourceDescriptor {
   return { '@context': 'http://schema.org', '@id': id, name: name ?? `Resource ${id}`, representations: [] };
+}
+
+/**
+ * Build a fully-typed StoredEvent for the bus channels BrowseNamespace
+ * subscribes to. Tests only care about the fields the handler reads
+ * (resourceId, payload.annotation); the rest is filled out to satisfy
+ * the schema without `as any` casts.
+ */
+function fakeMarkAdded(rId: ResourceId, annIdStr: string): StoredEvent<EventOfType<'mark:added'>> {
+  return {
+    id: `evt-${annIdStr}`,
+    type: 'mark:added',
+    resourceId: rId,
+    userId: TEST_USER_ID,
+    version: 1,
+    timestamp: '2026-01-01T00:00:00Z',
+    payload: { annotation: mockAnnotation(annIdStr) },
+    metadata: TEST_METADATA,
+  };
+}
+
+function fakeMarkRemoved(rId: ResourceId, annIdStr: string): StoredEvent<EventOfType<'mark:removed'>> {
+  return {
+    id: `evt-${annIdStr}-removed`,
+    type: 'mark:removed',
+    resourceId: rId,
+    userId: TEST_USER_ID,
+    version: 1,
+    timestamp: '2026-01-01T00:00:00Z',
+    payload: { annotationId: annIdStr },
+    metadata: TEST_METADATA,
+  };
+}
+
+function fakeMarkBodyUpdated(
+  rId: ResourceId,
+  updated: Annotation,
+): StoredEvent<EventOfType<'mark:body-updated'>> {
+  return {
+    id: `evt-${updated.id}-body-updated`,
+    type: 'mark:body-updated',
+    resourceId: rId,
+    userId: TEST_USER_ID,
+    version: 1,
+    timestamp: '2026-01-01T00:00:00Z',
+    // The on-the-wire AnnotationBodyUpdatedPayload describes ops, not
+    // the final annotation. The enriched-event shape (what handlers
+    // actually receive after ViewMaterializer runs) carries the full
+    // annotation as a top-level `annotation` field; the test augments
+    // this StoredEvent with that field after construction.
+    payload: { annotationId: updated.id, operations: [] },
+    metadata: TEST_METADATA,
+  };
+}
+
+function fakeBusResumeGap(scope: string | undefined, reason: string): EventMap['bus:resume-gap'] {
+  return scope === undefined ? { reason } : { scope, reason };
 }
 
 /**
@@ -353,11 +413,11 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       await firstDefined(browse.annotations(RID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:added').next({ resourceId: RID, payload: {} } as any);
+      eventBus.get('mark:added').next(fakeMarkAdded(RID, AID));
       await flush();
       expect(emitSpy).toHaveBeenCalledTimes(3); // annotations + events refetched
 
-      eventBus.get('mark:removed').next({ resourceId: RID, payload: { annotationId: AID } } as any);
+      eventBus.get('mark:removed').next(fakeMarkRemoved(RID, AID));
       await flush();
       // Each is independent; mark:removed also fires annotations + events refetch.
       expect(emitSpy).toHaveBeenCalledTimes(5);
@@ -391,10 +451,7 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       await firstDefined(browse.resource(RID_B));
       expect(emitSpy).toHaveBeenCalledTimes(3);
 
-      eventBus.get('bus:resume-gap').next({
-        scope: RID_A,
-        reason: 'retention-exceeded',
-      } as any);
+      eventBus.get('bus:resume-gap').next(fakeBusResumeGap(RID_A, 'retention-exceeded'));
       await flush();
 
       // Keys in scope A refetched; key in scope B untouched (aside from
@@ -413,7 +470,7 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       await firstDefined(browse.annotations(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
 
-      eventBus.get('bus:resume-gap').next({ reason: 'unparseable-last-event-id' } as any);
+      eventBus.get('bus:resume-gap').next(fakeBusResumeGap(undefined, 'unparseable-last-event-id'));
       await flush();
 
       const channels = emitSpy.mock.calls.map(([ch]) => ch);
@@ -432,7 +489,8 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       expect(emitSpy).toHaveBeenCalledTimes(1);
 
       // mark:delete-ok → remove path.
-      eventBus.get('mark:delete-ok').next({ annotationId: AID } as any);
+      const deleteOkPayload: components['schemas']['MarkDeleteOk'] = { annotationId: AID };
+      eventBus.get('mark:delete-ok').next(deleteOkPayload);
       await flush();
 
       // Nothing else was fetched after the remove: no refetch side effect.
@@ -447,24 +505,31 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       await firstDefined(browse.annotation(RID, AID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
 
+      const newBody: components['schemas']['TextualBody'] = {
+        type: 'TextualBody',
+        value: 'new body',
+        purpose: 'commenting',
+      };
       const updated: Annotation = {
         ...mockAnnotation(AID, 'res-1'),
-        body: [{ type: 'TextualBody', value: 'new body', purpose: 'commenting' } as any],
+        body: [newBody],
       };
 
-      eventBus.get('mark:body-updated').next({
-        resourceId: RID,
-        annotation: updated,
-        payload: { annotationId: AID },
-      } as any);
+      // browse.ts's `mark:body-updated` handler reads `.annotation` via an
+      // EnrichedResourceEvent cast that's off the main StoredEvent type.
+      // We construct a StoredEvent (type-valid for Subject.next) and
+      // augment it with the enriched-annotation field the handler expects.
+      const storedBody = fakeMarkBodyUpdated(RID, updated);
+      (storedBody as unknown as { annotation: Annotation }).annotation = updated;
+      eventBus.get('mark:body-updated').next(storedBody);
       await flush();
 
       const list = await firstDefined(browse.annotations(RID));
       const detail = await firstDefined(browse.annotation(RID, AID));
-      // @ts-expect-error body shape is loose in the test fixture
-      expect(list![0].body[0]).toMatchObject({ value: 'new body' });
-      // @ts-expect-error body shape is loose in the test fixture
-      expect(detail!.body[0]).toMatchObject({ value: 'new body' });
+      const firstListBody = list![0].body;
+      const firstDetailBody = detail!.body;
+      expect(Array.isArray(firstListBody) ? firstListBody[0] : firstListBody).toMatchObject({ value: 'new body' });
+      expect(Array.isArray(firstDetailBody) ? firstDetailBody[0] : firstDetailBody).toMatchObject({ value: 'new body' });
 
       // Detail arrived without a refetch: the emit count did not grow for that channel.
       const channels = emitSpy.mock.calls.map(([ch]) => ch);
