@@ -22,41 +22,34 @@ This architecture leverages RxJS EventBus for event routing, eliminates callback
 
 **Rules**:
 - ✅ Opens and manages SSE connections
-- ✅ SSE streams automatically emit to EventBus (no callbacks)
-- ✅ Handles connection errors and cleanup
+- ✅ Bus events automatically bridge into the local EventBus (no callbacks)
+- ✅ Handles reconnection and gap detection
 - ❌ NO React state (`useState`, `useEffect` for state)
 - ❌ NO JSX rendering
-- ❌ NO manual event forwarding (streams are EventBus-native)
+- ❌ NO manual event forwarding (the ActorVM bridge is EventBus-native)
 
-**Implementation**: `useResourceEvents` hook
+**Implementation**: `SemiontApiClient.subscribeToResource(resourceId)`
+
+Called from the page view model (`resource-viewer-page-vm`), not from
+a React hook. Returns a cleanup function that the VM's disposer runs
+on unmount.
 
 ```typescript
-// packages/react-ui/src/hooks/useResourceEvents.ts
-export function useResourceEvents(rId: ResourceId) {
-  const eventBus = useEventBus();
-  const client = useApiClient();
-
-  useEffect(() => {
-    // Open SSE connection - events auto-emit to EventBus
-    const stream = client!.sse.resourceEvents(rId, {
-      auth: accessToken(token),
-      eventBus  // ← Stream auto-emits to EventBus
-    });
-
-    // No callbacks needed - EventBus handles everything
-    // Cleanup on unmount
-    return () => stream.close();
-  }, [rId, eventBus, client]);
-}
+// packages/api-client/src/view-models/pages/resource-viewer-page-vm.ts
+const unsubscribeResource = client.subscribeToResource(resourceId);
+disposer.add(unsubscribeResource);
 ```
 
-**Usage**: Called once per resource page, typically in the main page component.
+Under the hood: `subscribeToResource` calls
+`actor.addChannels([...DOMAIN_CHANNELS], resourceId)` and sets up a
+bridge that forwards each bus event onto the same channel in the local
+EventBus.
 
 **Key Architecture Points**:
-- SSE streams are **EventBus-native** - they emit directly to EventBus
-- No manual `eventBus.get(...).next(...)` calls needed
-- No callbacks (`onProgress`, `onComplete`, `onError`) - deprecated
-- Cleaner separation: SSE layer just manages connections, EventBus handles routing
+- One ActorVM per client — one SSE connection to `/bus/subscribe`
+- Resource-scoped channels added/removed as pages mount/unmount
+- Events auto-bridge to the local EventBus for layer 2 consumption
+- No callbacks; pure pub/sub
 
 ---
 
@@ -156,8 +149,8 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
   const { detectingMotivation, detectionProgress } = useDetectionFlow(rId);
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
 
-  // Layer 1: SSE connection
-  useResourceEvents(rId);
+  // Layer 1: bus subscription happens inside the page view model
+  // (client.subscribeToResource(rId)) — no per-component hook needed
 
   // Event emission (user interaction)
   const eventBus = useEventBus();
@@ -223,9 +216,9 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
                    │ auto-emits from SSE streams
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Layer 1: Service (useResourceEvents)                        │
+│ Layer 1: Service (client.subscribeToResource)               │
 │                                                              │
-│  - Opens SSE connection                                     │
+│  - Adds scoped bus channels to the ActorVM                  │
 │  - Passes eventBus to stream                                │
 │  - Stream auto-emits to EventBus                            │
 └─────────────────────────────────────────────────────────────┘
@@ -240,8 +233,8 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
 ```typescript
 // In ResourceViewerPage.tsx
 export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
-  // Layer 1: Establish SSE connection for this resource
-  useResourceEvents(rId);
+  // Layer 1: the page view model calls client.subscribeToResource(rId)
+  // internally — no per-component hook needed.
 
   // ... rest of component
 }
@@ -355,8 +348,8 @@ function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
   const { generationModalOpen } = useGenerationFlow(locale, rId, ...);
 
-  // Layer 1: SSE connection
-  useResourceEvents(rId);
+  // Layer 1: bus subscription happens inside the page view model
+  // (client.subscribeToResource(rId)) — no per-component hook needed
 
   // Layer 3: Render UI directly
   return (
@@ -482,7 +475,7 @@ These violations will cause the compliance audit to fail:
    - Detection: AST analysis finds `eventBus.off()` calls in component files
 
 3. **Components creating `new EventSource()`**
-   - Should use: `useResourceEvents` hook
+   - Should use: `client.subscribeToResource(id)` via the page view model
    - Detection: AST analysis finds `new EventSource()` in component files
 
 4. **Hooks returning JSX**
@@ -501,7 +494,7 @@ The automated compliance checker generates detailed reports:
 Layer Separation Violations (❌)
 - Components using eventBus.on(): 0 (should use useEventSubscriptions)
 - Components using eventBus.off(): 0 (useEventSubscriptions handles cleanup)
-- Components creating EventSource: 0 (should use useResourceEvents)
+- Components creating EventSource: 0 (bus connection managed by SemiontApiClient)
 - Hooks returning JSX: 0 (hooks should return data, not JSX)
 - Global eventBus imports: 0 (should use useEventBus() hook)
 ```
@@ -517,18 +510,16 @@ See [RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPO
 Test SSE connection and event emission:
 
 ```typescript
-it('should emit detection:progress events from SSE', async () => {
-  const mockStream = createMockSSEStream();
+it('should emit detection:progress events from bus', async () => {
   const eventBus = createEventBus();
 
-  // Setup SSE connection
-  useResourceEvents(testUri);
+  // The bus connection is managed internally by SemiontApiClient.
+  // In tests, emit directly onto the EventBus to simulate a bus event.
 
-  // Simulate SSE data
-  mockStream.onProgressCallback({
+  eventBus.get('detection:progress').next({
     type: 'detection:progress',
     payload: { message: 'Scanning...' }
-  });
+  } as any);
 
   // Verify event was emitted
   expect(eventBus).toHaveEmitted('detection:progress', {
@@ -669,7 +660,7 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 
 - **Components**: Call hooks, emit events, render JSX
 - **Hooks**: Use `useEventSubscriptions`, manage state with `useState`, return data objects
-- **Service**: Manage SSE connections with `useResourceEvents`
+- **Service**: Bus connection managed by `SemiontApiClient` (one ActorVM per client; resource-scoped channels added via `client.subscribeToResource(id)`)
 
 ### ❌ DON'T
 
@@ -681,8 +672,8 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 
 - `useEventBus()` - Access event bus (for emitting events)
 - `useEventSubscriptions()` - Subscribe to events (for receiving events)
-- `useResourceEvents()` - Establish SSE connection
-- `useDetectionFlow()` - Detection state management (SSE, progress, annotation operations)
+- `client.subscribeToResource(id)` - Adds resource-scoped bus channels (called by page view model)
+- `useDetectionFlow()` - Detection state management (bus events, progress, annotation operations)
 - `useResolutionFlow()` - Annotation body update and reference linking
 - `useGenerationFlow()` - Generation state management (SSE, modal, progress)
 - `createGatherVM()` - Context correlation for generation (in `@semiont/api-client`)

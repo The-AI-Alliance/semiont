@@ -1,5 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { firstValueFrom, merge, filter, map, take, timeout } from 'rxjs';
+import { RESOURCE_BROADCAST_TYPES } from '@semiont/core';
 import type { ViewModel } from '../lib/view-model';
 import { createActorVM, type ActorVM } from './actor-vm';
 
@@ -127,7 +128,10 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
     },
 
     emitEvent: (type: string, payload: Record<string, unknown>): Promise<void> => {
-      const resourceScope = payload.resourceId as string | undefined;
+      // Scope only genuine resource broadcasts. Commands and per-caller
+      // correlation-ID responses go global — see RESOURCE_BROADCAST_TYPES.
+      const isBroadcast = (RESOURCE_BROADCAST_TYPES as readonly string[]).includes(type);
+      const resourceScope = isBroadcast ? (payload.resourceId as string | undefined) : undefined;
       return actor.emit(type, payload, resourceScope);
     },
 

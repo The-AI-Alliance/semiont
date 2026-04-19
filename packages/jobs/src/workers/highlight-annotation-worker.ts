@@ -72,10 +72,7 @@ export class HighlightAnnotationWorker extends JobWorker {
       result,
     });
 
-    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
-    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
-    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
-    resourceBus.get('mark:assist-finished').next({
+    this.eventBus.get('mark:assist-finished').next({
       motivation: 'highlighting',
       resourceId: String(job.params.resourceId),
       status: 'complete',
@@ -121,9 +118,7 @@ export class HighlightAnnotationWorker extends JobWorker {
         percentage: hlJob.progress.percentage,
         progress: { stage: hlJob.progress.stage, percentage: hlJob.progress.percentage, message: hlJob.progress.message || '' },
       });
-      // Ephemeral progress for real-time UI updates
-      const resourceBus = this.eventBus.scope(hlJob.params.resourceId);
-      resourceBus.get('mark:progress').next({
+      this.eventBus.get('mark:progress').next({
         status: hlJob.progress.stage,
         message: hlJob.progress.message,
         percentage: hlJob.progress.percentage
@@ -147,9 +142,7 @@ export class HighlightAnnotationWorker extends JobWorker {
         error: 'Highlight detection failed. Please try again later.',
       });
 
-      // Emit mark:assist-failed on the resource-scoped bus
-      const resourceBus = this.eventBus.scope(String(hlJob.params.resourceId));
-      resourceBus.get('mark:assist-failed').next({
+      this.eventBus.get('mark:assist-failed').next({
         resourceId: String(hlJob.params.resourceId),
         message: 'Highlight detection failed. Please try again later.',
       });

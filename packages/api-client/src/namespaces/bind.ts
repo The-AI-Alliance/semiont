@@ -8,7 +8,7 @@ export class BindNamespace implements IBindNamespace {
   ) {}
 
   async body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void> {
-    await this.actor.emit('bind:initiate', {
+    await this.actor.emit('bind:update-body', {
       correlationId: crypto.randomUUID(),
       annotationId,
       resourceId,

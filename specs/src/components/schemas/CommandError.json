@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Optional correlation id echoed from the originating command. When present, the failure event can be matched back to the specific command that failed."
+    },
     "message": {
       "type": "string",
       "description": "Human-readable error message"

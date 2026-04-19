@@ -322,8 +322,6 @@ export class GenerationWorker extends JobWorker {
 
     const genJob = job as RunningJob<GenerationParams, YieldProgress>;
 
-    const resourceBus = this.eventBus.scope(genJob.params.sourceResourceId);
-
     // Emit appropriate event based on progress stage
     if (genJob.progress.stage === 'fetching' && genJob.progress.percentage === 20) {
       // First progress update - record job started via EventBus
@@ -347,7 +345,10 @@ export class GenerationWorker extends JobWorker {
           message: genJob.progress.message || '',
         },
       });
-      resourceBus.get('yield:progress').next({
+      // yield:progress is filtered by referenceId on the caller side;
+      // only the initiator consumes it. Publish globally — scope would
+      // narrow fan-out to zero additional subscribers.
+      this.eventBus.get('yield:progress').next({
         status: genJob.progress.stage as 'fetching' | 'generating' | 'creating',
         referenceId: genJob.params.referenceId,
         sourceResourceId: genJob.params.sourceResourceId,

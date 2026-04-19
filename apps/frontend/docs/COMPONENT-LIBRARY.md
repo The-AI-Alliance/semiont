@@ -2,24 +2,25 @@
 
 ## Overview
 
-The Semiont frontend leverages **@semiont/react-ui**, a framework-agnostic React component library that was factored out from the frontend to enable reuse across different applications and frameworks. This document explains how the frontend integrates with and uses this component library.
+The Semiont frontend leverages **`@semiont/react-ui`**, a framework-
+agnostic React component library extracted from the frontend to enable
+reuse across different applications and frameworks. This document
+explains the package boundary, what lives where, and how the frontend
+composes the library.
 
-## Architecture Impact
+## Architecture
 
 ### Separation of Concerns
-
-The factoring of @semiont/react-ui creates a clear architectural boundary:
 
 ```
 ┌─────────────────────────────────────┐
 │         apps/frontend               │
-│  (Vite + React Router v7)           │
+│    (Vite + React Router v7)         │
 │                                     │
-│  • Routing & Pages                  │
-│  • Authentication                   │
-│  • i18n (i18next)                  │
-│  • App-specific components          │
-│  • Tailwind for layouts            │
+│  • Routing & pages                  │
+│  • Authentication wiring            │
+│  • i18next                          │
+│  • App-specific composition         │
 └─────────────┬───────────────────────┘
               │ uses
               ▼
@@ -27,460 +28,238 @@ The factoring of @semiont/react-ui creates a clear architectural boundary:
 │    packages/react-ui                │
 │  (Framework-agnostic library)       │
 │                                     │
-│  • Core UI Components               │
-│  • Hooks & Utilities                │
-│  • Provider Pattern                 │
-│  • API Integration                  │
-│  • Semantic CSS (BEM)              │
+│  • UI components                    │
+│  • Flow view models (RxJS)          │
+│  • Providers and hooks              │
+│  • API integration                  │
+│  • Semantic CSS (BEM)               │
 └─────────────────────────────────────┘
 ```
 
-### What Moved to @semiont/react-ui
+### What Lives in `@semiont/react-ui`
 
 #### Components
-- **Core UI Components**: Button, Card, Toolbar, StatusDisplay, Toast
-- **Resource Components**: ResourceViewer, AnnotateView, BrowseView
-- **Annotation System**: All annotation components and popups
-- **Panels**: All resource panels (Comments, References, Tags, etc.)
-- **Navigation**:
-  - Footer, NavigationMenu, SkipLinks
-  - **SidebarNavigation**: Reusable sidebar navigation for admin/moderation
-  - **CollapsibleResourceNavigation**: Full-featured collapsible navigation with drag & drop
-  - **SortableResourceTab**: Draggable resource tabs with sorting
-- **Modals**:
-  - **SearchModal**: Global search with navigation
-  - **ResourceSearchModal**: Resource-specific search modal
-  - KeyboardShortcutsHelpModal, ProposeEntitiesModal
-- **Layout Components**: UnifiedHeader, LeftSidebar, PageLayout
-- **Branding**: SemiontBranding component
-- **Session Components**: SessionTimer, SessionExpiryBanner
+- **Core UI** — Toolbar, StatusDisplay, Toast, CookiePreferences
+- **Resource viewer** — ResourceViewer, ResourceViewerPage
+- **Annotation system** — panels (Comments, References, Tags, Assessments, Highlights), entry components, popups
+- **Navigation** — Footer, NavigationMenu, SkipLinks, SidebarNavigation, CollapsibleResourceNavigation, SortableResourceTab
+- **Modals** — SearchModal, ResourceSearchModal, KeyboardShortcutsHelpModal, ProposeEntitiesModal, SessionExpiredModal, PermissionDeniedModal
+- **Layout** — UnifiedHeader, LeftSidebar, PageLayout
+- **Session** — SessionTimer, SessionExpiryBanner
+- **Branding** — SemiontBranding
 
-#### Hooks
-- **API Hooks**: All React Query wrappers for API operations
-- **UI Hooks**: useTheme, useKeyboardShortcuts, useToast
-- **Resource Hooks**: useResourceEvents, useDetectionProgress
-- **Form Hooks**: useFormValidation, useDebounce
+#### Hooks and utilities
+- `useObservable`, `useBrowseVM`, `useResourceContent`, `useMediaToken`, `useLineNumbers`, `useHoverDelay`, `useKeyboardShortcuts`, `useToast`, `useSessionExpiry`, `useTheme`
+- `useEventBus`, `useEventSubscriptions`, `useApiClient`, `useAuthToken`, `useAuthToken$`, `useKnowledgeBaseSession`
 
-#### Contexts & Providers
-- **ApiClientProvider**: Manages API client instance
-- **KnowledgeBaseSessionProvider**: Single source of truth for the active KB and the validated session against it (merged provider; throws if used outside the protected boundary)
-- **TranslationProvider**: Manages i18n translations
-- **AnnotationProvider**: Manages annotation state
-- **CacheProvider**: Manages client-side caching
+#### Providers and contexts
+- `EventBusProvider` — per-workspace RxJS EventBus
+- `AuthTokenProvider` — holds the token as a `BehaviorSubject<AccessToken | null>`
+- `ApiClientProvider` — constructs the `SemiontApiClient` from `baseUrl` + token observable
+- `KnowledgeBaseSessionProvider` — active KB + validated session; owns per-KB JWT storage
+- `TranslationProvider` — pluggable i18n manager
+- `OpenResourcesProvider`, `ResourceAnnotationsProvider` — workspace state
 
-#### Utilities
-- **Annotation Registry**: Centralized annotation type management
-- **Query Keys**: Consistent React Query key management
-- **Validation**: Form validation rules and utilities
-- **CodeMirror Extensions**: Custom editor widgets and themes
+#### Flow view models (from `@semiont/api-client`, re-exported)
+- `createMarkVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBindVM`, `createBeckonVM`, `createBrowseVM`
+- Resource-page composition: `createResourceViewerPageVM`
 
-### What Stays in Frontend
+### What Stays in `apps/frontend`
 
-#### Next.js Specific
-- **Pages & Routing**: All Next.js app router pages
-- **API Routes**: Server-side API endpoints
-- **Middleware**: Authentication and locale detection
-- **next.config.js**: Next.js configuration
+#### Routing and app shell
+- Vite + React Router v7 routes
+- Locale-scoped layouts (`[locale]/know`, `[locale]/admin`, `[locale]/moderate`)
+- `AuthShell` composition and protected boundaries
+- Middleware and per-route data loading
 
-#### App-Specific Components
-- **Page Components**: Home, About, Privacy, Terms pages
-- **Auth Pages**: Sign-in, Sign-up, Error pages
-- **Admin Pages**: User management, DevOps dashboard
-- **Moderation Pages**: Entity tags, schemas management
+#### App-specific pages
+- Home, About, Privacy, Terms
+- Sign-in / Sign-up / Error pages
+- Admin pages (user management, DevOps dashboard)
+- Moderation pages (entity tags, schemas)
 
-#### Integration Layer
-- **Provider Implementations**: Next.js specific implementations of provider interfaces
-- **Link Components**: Next.js Link wrapper for routing
-- **Image Optimization**: Next.js Image component usage
+#### Framework integration
+- React Router `Link` component adapter
+- Route builders and locale prefixing
+- Custom hooks (e.g. `useOpenResourcesManager`) that bridge app state into library providers
 
-## Provider Pattern Implementation
+## Provider Composition
 
-The frontend mounts providers from `@semiont/react-ui` directly. Auth-dependent providers are bundled in `AuthShell` and mounted only inside protected layouts.
+The frontend mounts library providers directly — there is no app-side
+wrapper layer to maintain.
 
-### KnowledgeBaseSessionProvider
-
-The merged provider lives in the library — the frontend mounts it via `AuthShell`:
+### The Authenticated Provider Stack
 
 ```tsx
-// apps/frontend/src/contexts/AuthShell.tsx
-import {
-  KnowledgeBaseSessionProvider,
-  ProtectedErrorBoundary,
-  SessionExpiredModal,
-  PermissionDeniedModal,
-} from '@semiont/react-ui';
+// apps/frontend/src/app/[locale]/know/layout.tsx (excerpt)
+<AuthTokenProvider token={authToken}>
+  <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
+    <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+      <ResourceAnnotationsProvider>
+        {/* page content */}
+      </ResourceAnnotationsProvider>
+    </OpenResourcesProvider>
+  </ApiClientProvider>
+</AuthTokenProvider>
+```
 
-export function AuthShell({ children }: { children: React.ReactNode }) {
-  return (
-    <KnowledgeBaseSessionProvider>
-      <ProtectedErrorBoundary>
-        <SessionExpiredModal />
-        <PermissionDeniedModal />
-        {children}
-      </ProtectedErrorBoundary>
-    </KnowledgeBaseSessionProvider>
-  );
+`EventBusProvider` is mounted higher in the tree (one bus per
+workspace). `AuthShell` wraps the whole authenticated subtree:
+
+```tsx
+<AuthShell>
+  {/* the stack above, including AuthTokenProvider and everything it nests */}
+</AuthShell>
+```
+
+The library owns provider implementations; the frontend owns the
+decision about where to mount them. For the provider API reference
+(props, hooks, behavior), see
+[`packages/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md).
+
+## Using Library Components
+
+### Basic usage
+
+```tsx
+import { Toolbar, ResourceViewer, useApiClient } from '@semiont/react-ui';
+```
+
+Components read from the provider stack via hooks — no explicit props
+for the client, event bus, or token. Layouts mount providers once; any
+component in the subtree has access.
+
+### Subscribing to observable data
+
+Flow VMs and namespace methods return RxJS Observables. The
+`useObservable` hook bridges them into React state:
+
+```tsx
+import { useApiClient, useObservable } from '@semiont/react-ui';
+
+function ResourceTitle({ resourceId }) {
+  const semiont = useApiClient();
+  const resource = useObservable(semiont.browse.resource(resourceId));
+  return <h1>{resource?.name}</h1>;
 }
 ```
 
-Wrap any layout that hosts authenticated routes with `<AuthShell>`. Pre-app routes (landing, OAuth flow) intentionally do NOT mount it.
+Cache invalidation, refetching, and bus-driven updates happen inside
+`BrowseNamespace` — the component only sees the current value.
 
-### Translation Provider
+### Custom styling
 
-```tsx
-// app/providers/TranslationProvider.tsx
-import { TranslationProvider } from '@semiont/react-ui';
-import { useTranslation } from 'react-i18next';
-
-export function I18nextTranslationProvider({ children }) {
-  const { t, i18n } = useTranslation();
-
-  const translationManager = {
-    t: (key, params) => t(key, params),
-    locale: i18n.language,
-    setLocale: (locale) => {
-      // Handle locale change with Next.js routing
-    }
-  };
-
-  return (
-    <TranslationProvider translationManager={translationManager}>
-      {children}
-    </TranslationProvider>
-  );
-}
-```
-
-### API Client Provider
+Library components carry semantic CSS class names (BEM-style) with
+default styles. Apps layer layout utilities over them; they should not
+override component-internal styling.
 
 ```tsx
-// app/providers/ApiClientProvider.tsx
-import { ApiClientProvider } from '@semiont/react-ui';
-import { createApiClient } from '@semiont/api-client';
+// Good — layout utility only
+<Button variant="primary" className="mt-4 w-full">Submit</Button>
 
-export function AppApiClientProvider({ children }) {
-  const apiClientManager = {
-    getClient: () => createApiClient({
-      baseURL: process.env.NEXT_PUBLIC_API_URL,
-      getToken: async () => {
-        const session = await getSession();
-        return session?.accessToken;
-      }
-    })
-  };
-
-  return (
-    <ApiClientProvider apiClientManager={apiClientManager}>
-      {children}
-    </ApiClientProvider>
-  );
-}
+// Bad — overrides component styling
+<Button variant="primary" className="bg-blue-500">Submit</Button>
 ```
 
-## Using Components from @semiont/react-ui
+## Benefits
 
-### Basic Component Usage
-
-```tsx
-import { Button, Card, ResourceViewer } from '@semiont/react-ui';
-
-export function MyPage() {
-  return (
-    <Card>
-      <Card.Header>
-        <h2>My Resource</h2>
-      </Card.Header>
-      <Card.Content>
-        <ResourceViewer resourceId="123" />
-        <Button variant="primary" onClick={handleSave}>
-          Save Changes
-        </Button>
-      </Card.Content>
-    </Card>
-  );
-}
-```
-
-### Using Hooks
-
-```tsx
-import { useResources, useToast } from '@semiont/react-ui';
-
-export function ResourceList() {
-  const { showToast } = useToast();
-  const resources = useResources();
-
-  const { data, isLoading } = resources.list.useQuery();
-
-  const createMutation = resources.create.useMutation({
-    onSuccess: () => {
-      showToast('Resource created successfully', 'success');
-    }
-  });
-
-  // Component logic...
-}
-```
-
-### Custom Styling Integration
-
-Components from @semiont/react-ui come with semantic CSS classes. You can add additional Tailwind classes for spacing and layout:
-
-```tsx
-import { Button } from '@semiont/react-ui';
-
-// Good - adds layout utilities
-<Button variant="primary" className="mt-4 w-full">
-  Submit
-</Button>
-
-// Bad - overrides component styling
-<Button variant="primary" className="bg-blue-500 hover:bg-blue-600">
-  Submit
-</Button>
-```
-
-## Migration from Monolithic Frontend
-
-### Before (Everything in Frontend)
-
-```tsx
-// components/Button.tsx - in frontend
-export function Button({ children, ...props }) {
-  return (
-    <button className="px-4 py-2 bg-blue-500 text-white rounded">
-      {children}
-    </button>
-  );
-}
-
-// pages/resource.tsx
-import { Button } from '../components/Button';
-```
-
-### After (Using @semiont/react-ui)
-
-```tsx
-// No Button.tsx in frontend anymore
-
-// pages/resource.tsx
-import { Button } from '@semiont/react-ui';
-
-// Button now has semantic CSS from react-ui
-<Button variant="primary">Click me</Button>
-```
-
-## Benefits of This Architecture
-
-### 1. **Framework Independence**
-- @semiont/react-ui can be used with any React framework
-- Not tied to any specific framework
-- Enables building Vite, CRA, or Remix apps with same components
-
-### 2. **Consistent Design System**
-- All apps using @semiont/react-ui share the same components
-- Centralized design tokens and styling
-- Consistent behavior and accessibility features
-
-### 3. **Improved Testing**
-- Component library has its own comprehensive test suite
-- Frontend only needs to test app-specific logic
-- Over 1250 tests in @semiont/react-ui
-
-### 4. **Better Separation of Concerns**
-- Clear boundary between framework code and UI components
-- Easier to reason about dependencies
-- Simplified maintenance and updates
-
-### 5. **Type Safety**
-- Shared TypeScript types between frontend and library
-- Consistent API interfaces
-- Better IDE support and autocomplete
+1. **Framework independence** — `@semiont/react-ui` works with any React framework (Vite, Next.js, etc.). Nothing in the library imports framework-specific modules.
+2. **Consistent design system** — shared components and tokens across apps.
+3. **Testing split** — components + flow VMs tested in isolation in react-ui; app tests focus on composition.
+4. **Clear dependency direction** — `apps/frontend` depends on `@semiont/react-ui`, never the reverse.
+5. **Observable-first** — dynamic state is modeled as RxJS Observables end-to-end, so consumers can compose and transform without framework coupling.
 
 ## Development Workflow
 
-### Local Development
+### Local development
 
 When developing features that span both packages:
 
 ```bash
-# Terminal 1 - Watch react-ui for changes
-cd packages/react-ui
-npm run dev
+# Watch react-ui for changes
+cd packages/react-ui && npm run dev
 
-# Terminal 2 - Run frontend with hot reload
-cd apps/frontend
-npm run dev
+# Run frontend
+cd apps/frontend && npm run dev
 ```
 
-### Adding New Components
+### Adding components
 
-1. **Determine Location**:
-   - Framework-agnostic? → Add to @semiont/react-ui
-   - Next.js specific? → Keep in frontend
+Decide where the component lives:
 
-2. **For @semiont/react-ui Components**:
-   ```bash
-   cd packages/react-ui
-   # Create component in src/components/
-   # Export from src/index.ts
-   # Add tests in src/components/__tests__/
-   # Add styles in src/styles/
-   ```
+- **Framework-agnostic UI, reusable outside the frontend** → `@semiont/react-ui`.
+- **App-specific (routing, auth wiring, feature composition)** → `apps/frontend`.
 
-3. **For Frontend Components**:
-   ```bash
-   cd apps/frontend
-   # Create in src/components/
-   # Use Tailwind for styling
-   # Import react-ui components as needed
-   ```
+For library components:
 
-### Testing Strategy
+1. Create in `packages/react-ui/src/components/`
+2. Export from `packages/react-ui/src/index.ts`
+3. Add tests in `packages/react-ui/src/components/__tests__/`
+4. Add styles in `packages/react-ui/src/styles/`
 
-```bash
-# Test react-ui components
-cd packages/react-ui
-npm test
+For frontend components: create in `apps/frontend/src/`, compose
+library components as needed, use framework-specific APIs directly.
 
-# Test frontend integration
-cd apps/frontend
-npm test
+### Testing strategy
 
-# E2E tests (frontend)
-npm run test:e2e
-```
+- Unit tests for library components + hooks live in `packages/react-ui`.
+- Integration tests (provider stack, page-level behavior) live in `apps/frontend`.
+- E2E tests live at the repo root.
 
-## Common Patterns
+## Platform-Agnostic Components
 
-### Platform-Agnostic Navigation Pattern
-
-The new navigation components demonstrate best practices for platform-agnostic design:
+Library components that need framework-specific capabilities accept
+them as props rather than importing them. Example — a navigation
+component takes a `LinkComponent` prop rather than importing from
+`next/link` or `react-router`:
 
 ```tsx
-// Example: Using CollapsibleResourceNavigation
 import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { Link } from '@/i18n/routing'; // Next.js specific
-import { ChevronLeftIcon, Bars3Icon } from '@heroicons/react/24/outline'; // Icons passed as props
+import { Link } from '@/lib/routing';
 
-export function KnowledgeNavigation() {
-  // Platform-specific routing
-  const router = useRouter();
-
-  return (
-    <CollapsibleResourceNavigation
-      // Pass platform-specific components as props
-      LinkComponent={Link}
-      icons={{
-        chevronLeft: ChevronLeftIcon,
-        bars: Bars3Icon
-      }}
-      // Handle navigation with platform-specific router
-      onNavigate={(path) => router.push(path)}
-      // All other props are platform-agnostic
-      fixedItems={navigationItems}
-      resources={openResources}
-    />
-  );
-}
+<CollapsibleResourceNavigation
+  LinkComponent={Link}
+  onNavigate={(path) => router.navigate(path)}
+  fixedItems={items}
+  resources={openResources}
+/>
 ```
 
-This pattern allows the same component to work in:
-- Next.js apps (with next/link)
-- Vite apps (with react-router)
-- Mobile apps (with react-navigation)
-- Desktop apps (with electron routing)
-
-### Wrapping react-ui Components
-
-Sometimes you need to add app-specific behavior:
-
-```tsx
-// components/AppButton.tsx
-import { Button } from '@semiont/react-ui';
-import { useRouter } from 'next/router';
-
-export function AppButton({ href, ...props }) {
-  const router = useRouter();
-
-  if (href) {
-    return (
-      <Button {...props} onClick={() => router.push(href)} />
-    );
-  }
-
-  return <Button {...props} />;
-}
-```
-
-### Composing Complex Features
-
-```tsx
-import {
-  ResourceViewer,
-  useResources,
-  AnnotationProvider
-} from '@semiont/react-ui';
-
-export function ResourcePage({ id }) {
-  // App-specific logic
-  const { data: resource } = useResources().get.useQuery(id);
-
-  // Compose with react-ui components
-  return (
-    <AnnotationProvider resourceId={id}>
-      <div className="flex gap-4"> {/* Tailwind for layout */}
-        <main className="flex-1">
-          <ResourceViewer resource={resource} />
-        </main>
-        <aside className="w-80">
-          {/* App-specific sidebar */}
-        </aside>
-      </div>
-    </AnnotationProvider>
-  );
-}
-```
+Same pattern for icons, date pickers, file uploaders — anything that
+would otherwise force a framework dependency.
 
 ## Troubleshooting
 
-### Component Styles Not Loading
+**Styles not loading**: import the package CSS once in your app entry:
 
-**Problem**: @semiont/react-ui components appear unstyled
-
-**Solution**: Ensure CSS is imported in globals.css:
 ```css
 @import '@semiont/react-ui/styles';
 ```
 
-### TypeScript Errors
+**Provider errors (`useX must be used within XProvider`)**: check
+provider nesting in the layout. Auth-dependent providers must be
+inside `AuthShell`.
 
-**Problem**: Types not found from @semiont/react-ui
+**Type mismatches after schema changes**: rebuild the core + api-client
+packages so the generated OpenAPI types propagate:
 
-**Solution**: Rebuild the package:
 ```bash
-cd packages/react-ui
-npm run build
+npm run generate:openapi --workspace=@semiont/core
+npm run build --workspace=@semiont/core --workspace=@semiont/api-client
 ```
-
-### Provider Errors
-
-**Problem**: "useTranslations must be used within TranslationProvider"
-
-**Solution**: Ensure all providers are properly wrapped in _app.tsx or layout.tsx
 
 ## Best Practices
 
-1. **Don't Duplicate**: If a component exists in @semiont/react-ui, use it
-2. **Extend, Don't Override**: Add classes for layout, not styling
-3. **Follow the Pattern**: Use provider pattern for framework integration
-4. **Test at the Right Level**: Unit test in react-ui, integration test in frontend
-5. **Document Decisions**: Clear comments when choosing location for new code
+1. **Don't duplicate** — if a component exists in `@semiont/react-ui`, use it.
+2. **Extend, don't override** — add layout classes, not styling overrides.
+3. **Mount providers once** — at the layout level, not in components.
+4. **Prefer Observables for shared state** — the library uses RxJS for anything dynamic; stay on that rail.
+5. **Test at the right level** — unit in react-ui, integration in frontend.
 
 ## Related Documentation
 
-- [@semiont/react-ui README](../../../packages/react-ui/README.md)
-- [@semiont/react-ui Provider Patterns](../../../packages/react-ui/docs/PROVIDERS.md)
-- [Style Guide](./style-guide.md)
+- [`@semiont/react-ui` README](../../../packages/react-ui/README.md)
+- [`@semiont/react-ui` providers](../../../packages/react-ui/docs/PROVIDERS.md)
+- [`@semiont/react-ui` architecture](../../../packages/react-ui/docs/ARCHITECTURE.md)
 - [API Integration](./API-INTEGRATION.md)
-- [Architecture](./ARCHITECTURE.md)
+- [Frontend Architecture](./ARCHITECTURE.md)

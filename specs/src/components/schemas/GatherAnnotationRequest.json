@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Request payload sent on the gather:annotation-request bus channel to gather context for an annotation.",
+  "description": "Request payload sent on the gather:requested bus channel to gather context for an annotation.",
   "properties": {
     "correlationId": {
       "type": "string",

@@ -37,17 +37,21 @@ Uses `createMarkVM` from `@semiont/api-client` to manage the assist lifecycle, i
 
 ```typescript
 import { SemiontApiClient, createMarkVM, resourceId } from '@semiont/api-client';
-import { EventBus } from '@semiont/core';
-import { firstValueFrom } from 'rxjs';
+import { EventBus, accessToken, type AccessToken } from '@semiont/core';
+import { firstValueFrom, BehaviorSubject } from 'rxjs';
 import { filter } from 'rxjs/operators';
+
+const eventBus = new EventBus();
 
 const client = new SemiontApiClient({
   baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-  accessToken: process.env.SEMIONT_ACCESS_TOKEN,
+  eventBus,
+  token$: new BehaviorSubject<AccessToken | null>(
+    process.env.SEMIONT_ACCESS_TOKEN ? accessToken(process.env.SEMIONT_ACCESS_TOKEN) : null
+  ),
 });
 
 const rId = resourceId('doc-123');
-const eventBus = new EventBus();
 const markVM = createMarkVM(client, eventBus, rId);
 
 eventBus.get('mark:assist-request').next({

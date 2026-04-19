@@ -31,6 +31,7 @@ import type {
 } from '@semiont/core';
 import { createActorVM, type ActorVM } from './view-models/domain/actor-vm';
 import { busRequest } from './bus-request';
+import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
@@ -42,12 +43,12 @@ import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
 import type { Logger } from '@semiont/core';
-import { PERSISTED_EVENT_TYPES, STREAM_COMMAND_RESULT_TYPES } from '@semiont/core';
+import { PERSISTED_EVENT_TYPES, RESOURCE_BROADCAST_TYPES } from '@semiont/core';
 import type { Subscription } from 'rxjs';
 
 const RESOURCE_SCOPED_CHANNELS = [
   ...PERSISTED_EVENT_TYPES.filter(t => t !== 'mark:entity-type-added'),
-  ...STREAM_COMMAND_RESULT_TYPES,
+  ...RESOURCE_BROADCAST_TYPES,
 ];
 
 const BUS_RESULT_CHANNELS = [
@@ -60,14 +61,16 @@ const BUS_RESULT_CHANNELS = [
   'browse:referenced-by-result', 'browse:referenced-by-failed',
   'browse:entity-types-result', 'browse:entity-types-failed',
   'browse:directory-result', 'browse:directory-failed',
+  'browse:annotation-context-result', 'browse:annotation-context-failed',
   'mark:delete-ok', 'mark:delete-failed',
   'mark:create-ok', 'mark:create-failed',
-  'bind:body-updated', 'bind:body-update-failed',
+  'mark:progress', 'mark:assist-finished', 'mark:assist-failed',
   'match:search-results', 'match:search-failed',
   'gather:complete', 'gather:failed',
-  'gather:annotation-progress',
+  'gather:annotation-progress', 'gather:annotation-finished',
   'gather:summary-result', 'gather:summary-failed',
-  'browse:annotation-context-result', 'browse:annotation-context-failed',
+  'yield:progress',
+  'bind:body-updated', 'bind:body-update-failed',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
   'job:claimed', 'job:claim-failed',
@@ -75,7 +78,19 @@ const BUS_RESULT_CHANNELS = [
   'yield:clone-resource-result', 'yield:clone-resource-failed',
   'yield:clone-created', 'yield:clone-create-failed',
   'mark:entity-type-added',
+  'beckon:focus', 'beckon:sparkle',
 ] as const;
+
+// Every global-SSE-delivered channel is bridged from the bus actor
+// into the local EventBus so namespace Observables, flow VMs, and UI
+// components subscribing via `eventBus.get(channel)` receive events
+// without needing to know about the actor or SSE wire format.
+//
+// In practice this is all `BUS_RESULT_CHANNELS` plus cross-participant
+// UI signals — the set is identical, since every channel the frontend
+// subscribes to globally is one we want on the local bus. Scoped
+// channels are bridged separately inside `subscribeToResource`.
+const ACTOR_TO_LOCAL_BRIDGES = BUS_RESULT_CHANNELS;
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
@@ -116,18 +131,18 @@ export interface SemiontApiClientConfig {
   baseUrl: BaseUrl;
   /** Per-workspace EventBus. Required — one bus per workspace, constructed externally. */
   eventBus: EventBus;
+  /**
+   * Observable access token. All auth (HTTP + bus) reads the current value.
+   * Update by calling `.next(newToken)` on the BehaviorSubject. The bus actor
+   * auto-starts when the value transitions from null to a real token.
+   * If omitted, the client operates unauthenticated (public endpoints only).
+   */
+  token$?: BehaviorSubject<AccessToken | null>;
   timeout?: number;
   retry?: number;
   logger?: Logger;
   /** Optional 401-recovery hook. See {@link TokenRefresher}. */
   tokenRefresher?: TokenRefresher;
-  /**
-   * Token getter for the verb-namespace API (client.browse, client.mark, etc.).
-   * When provided, auth is managed internally — no per-call auth needed.
-   * The getter is called on each request to get the current token.
-   * If not provided, namespace methods use undefined auth (public endpoints only).
-   */
-  getToken?: () => AccessToken | undefined;
 }
 
 /**
@@ -152,10 +167,9 @@ export class SemiontApiClient {
   private logger?: Logger;
 
   /**
-   * Shared mutable token getter. All verb namespaces read from this.
-   * Updated via setTokenGetter() from the React auth layer.
+   * Observable token source. All auth reads from this.
    */
-  private _getToken: () => AccessToken | undefined = () => undefined;
+  private readonly token$: BehaviorSubject<AccessToken | null>;
 
   private _actor: ActorVM | null = null;
 
@@ -283,10 +297,10 @@ export class SemiontApiClient {
       },
     });
 
-    // Shared token getter — all namespaces read from this closure.
-    // Updated via setTokenGetter() from React auth layer.
-    if (config.getToken) this._getToken = config.getToken;
-    const getToken = () => this._getToken();
+    // Observable token source. Namespaces read the current value synchronously
+    // via token$.getValue(). The bus actor's token getter does the same.
+    this.token$ = config.token$ ?? new BehaviorSubject<AccessToken | null>(null);
+    const getToken = () => this.token$.getValue() ?? undefined;
 
     // Verb-oriented namespace API
     this.browse = new BrowseNamespace(this, this.eventBus, getToken, this.actor);
@@ -299,56 +313,103 @@ export class SemiontApiClient {
     this.job = new JobNamespace(this.actor);
     this.auth = new AuthNamespace(this, getToken);
     this.admin = new AdminNamespace(this, getToken);
+
+    // Auto-start the bus actor when the token transitions from null to a
+    // real value. This avoids unauthenticated connect attempts during
+    // bootstrap and lets refresh-after-expiry resume cleanly.
+    this.token$.subscribe((token) => {
+      if (token && !this._actorStarted) {
+        this._actorStarted = true;
+        this.actor.start();
+      }
+    });
   }
+
+  private _actorStarted = false;
 
   get actor(): ActorVM {
     if (!this._actor) {
       this._actor = createActorVM({
         baseUrl: this.baseUrl,
-        token: () => this._getToken() ?? '',
+        token: () => this.token$.getValue() ?? '',
         channels: [...BUS_RESULT_CHANNELS],
       });
-      this._actor.start();
-      this._actor.on$<Record<string, unknown>>('mark:entity-type-added').subscribe((payload) => {
-        (this.eventBus.get('mark:entity-type-added') as { next(v: unknown): void }).next(payload);
-      });
+      for (const channel of ACTOR_TO_LOCAL_BRIDGES) {
+        this._actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
+          (this.eventBus.get(channel as keyof import('@semiont/core').EventMap) as { next(v: unknown): void }).next(payload);
+        });
+      }
     }
     return this._actor;
   }
 
+  private activeResource: {
+    resourceId: ResourceId;
+    refCount: number;
+    bridgeSubs: Subscription[];
+  } | null = null;
+
   /**
-   * Update the token getter for all verb namespaces.
-   * Called from the React auth layer when the token changes.
-   * All namespaces share this getter via closure — no per-namespace sync needed.
+   * Subscribe the bus actor to the resource-scoped SSE stream for a single
+   * resource and bridge incoming scoped events into the workspace event bus.
+   *
+   * **One distinct scope at a time**: the client supports subscriptions
+   * to a single resource scope concurrently. Multiple calls with the
+   * **same** resourceId are ref-counted — each returns an independent
+   * unsubscribe; the underlying SSE scope is torn down only when the
+   * last unsubscribe fires. Calling with a **different** resourceId
+   * while a subscription is live throws. See `.plans/SIMPLE-BUS.md`
+   * Gap #9 for the multi-resource extension path.
+   *
+   * @returns a disposer that decrements the ref count (and tears down
+   *          the SSE scope + bridges when it reaches zero).
    */
-  setTokenGetter(getter: () => AccessToken | undefined): void {
-    this._getToken = getter;
-  }
-
-  private resourceSubscriptions: Subscription[] = [];
-
   subscribeToResource(resourceId: ResourceId): () => void {
+    if (this.activeResource) {
+      if (this.activeResource.resourceId !== resourceId) {
+        throw new Error(
+          `SemiontApiClient already subscribed to resource ${this.activeResource.resourceId}; ` +
+          `call the unsubscribe returned from the previous subscribeToResource before subscribing to ${resourceId}.`,
+        );
+      }
+      this.activeResource.refCount++;
+      return this.makeUnsubscriber();
+    }
+
     this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], resourceId as string);
 
-    const subs: Subscription[] = [];
+    const bridgeSubs: Subscription[] = [];
     for (const channel of RESOURCE_SCOPED_CHANNELS) {
-      subs.push(
+      bridgeSubs.push(
         this.actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
           (this.eventBus.get(channel as keyof import('@semiont/core').EventMap) as { next(v: unknown): void }).next(payload);
         })
       );
     }
-    this.resourceSubscriptions = subs;
 
+    this.activeResource = { resourceId, refCount: 1, bridgeSubs };
+    return this.makeUnsubscriber();
+  }
+
+  private makeUnsubscriber(): () => void {
+    let called = false;
     return () => {
-      for (const sub of subs) sub.unsubscribe();
-      this.resourceSubscriptions = [];
+      if (called) return;
+      called = true;
+      if (!this.activeResource) return;
+      this.activeResource.refCount--;
+      if (this.activeResource.refCount > 0) return;
+      for (const sub of this.activeResource.bridgeSubs) sub.unsubscribe();
       this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS]);
+      this.activeResource = null;
     };
   }
 
   dispose(): void {
-    for (const sub of this.resourceSubscriptions) sub.unsubscribe();
+    if (this.activeResource) {
+      for (const sub of this.activeResource.bridgeSubs) sub.unsubscribe();
+      this.activeResource = null;
+    }
     if (this._actor) {
       this._actor.dispose();
       this._actor = null;
@@ -675,7 +736,7 @@ export class SemiontApiClient {
     _options?: RequestOptions
   ): Promise<{ correlationId: string }> {
     const correlationId = crypto.randomUUID();
-    await this.actor.emit('bind:initiate', { correlationId, annotationId, resourceId, operations: data.operations });
+    await this.actor.emit('bind:update-body', { correlationId, annotationId, resourceId, operations: data.operations });
     return { correlationId };
   }
 
@@ -755,7 +816,7 @@ export class SemiontApiClient {
     data: { correlationId: string; contextWindow?: number },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string }> {
-    await this.actor.emit('gather:annotation-request', {
+    await this.actor.emit('gather:requested', {
       correlationId: data.correlationId,
       annotationId,
       resourceId,

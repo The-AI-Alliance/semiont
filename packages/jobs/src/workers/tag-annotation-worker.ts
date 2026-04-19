@@ -74,10 +74,7 @@ export class TagAnnotationWorker extends JobWorker {
       result,
     });
 
-    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
-    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
-    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
-    resourceBus.get('mark:assist-finished').next({
+    this.eventBus.get('mark:assist-finished').next({
       motivation: 'tagging',
       resourceId: String(job.params.resourceId),
       status: 'complete',
@@ -123,9 +120,7 @@ export class TagAnnotationWorker extends JobWorker {
         percentage: tdJob.progress.percentage,
         progress: { stage: tdJob.progress.stage, percentage: tdJob.progress.percentage, message: tdJob.progress.message || '', currentCategory: tdJob.progress.currentCategory, processedCategories: tdJob.progress.processedCategories, totalCategories: tdJob.progress.totalCategories },
       });
-      // Ephemeral progress for real-time UI updates
-      const resourceBus = this.eventBus.scope(tdJob.params.resourceId);
-      resourceBus.get('mark:progress').next({
+      this.eventBus.get('mark:progress').next({
         status: tdJob.progress.stage,
         message: tdJob.progress.message,
         percentage: tdJob.progress.percentage,
@@ -152,9 +147,7 @@ export class TagAnnotationWorker extends JobWorker {
         error: 'Tag detection failed. Please try again later.',
       });
 
-      // Emit mark:assist-failed on the resource-scoped bus
-      const resourceBus = this.eventBus.scope(String(tdJob.params.resourceId));
-      resourceBus.get('mark:assist-failed').next({
+      this.eventBus.get('mark:assist-failed').next({
         resourceId: String(tdJob.params.resourceId),
         message: 'Tag detection failed. Please try again later.',
       });

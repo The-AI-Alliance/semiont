@@ -10,6 +10,7 @@ import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
+import { AuthTokenProvider } from './contexts/AuthTokenContext';
 import {
   KnowledgeBaseSessionContext,
   type KnowledgeBaseSessionValue,
@@ -145,21 +146,23 @@ export function renderWithProviders(
     return (
       <TranslationProvider translationManager={translationManager}>
         <EventBusProvider>
-          <ApiClientProvider baseUrl={apiBaseUrl}>
-            <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
-              <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-                <ToastProvider>
-                  {returnEventBus ? (
-                    <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
-                      {children}
-                    </EventBusCapture>
-                  ) : (
-                    children
-                  )}
-                </ToastProvider>
-              </OpenResourcesProvider>
-            </KnowledgeBaseSessionContext.Provider>
-          </ApiClientProvider>
+          <AuthTokenProvider token={null}>
+            <ApiClientProvider baseUrl={apiBaseUrl}>
+              <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
+                <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+                  <ToastProvider>
+                    {returnEventBus ? (
+                      <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
+                        {children}
+                      </EventBusCapture>
+                    ) : (
+                      children
+                    )}
+                  </ToastProvider>
+                </OpenResourcesProvider>
+              </KnowledgeBaseSessionContext.Provider>
+            </ApiClientProvider>
+          </AuthTokenProvider>
         </EventBusProvider>
       </TranslationProvider>
     );

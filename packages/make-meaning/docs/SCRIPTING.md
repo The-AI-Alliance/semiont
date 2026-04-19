@@ -175,13 +175,13 @@ For most scripting use cases, `SemiontApiClient` with verb namespaces is the sim
 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, EventBus, resourceId } from '@semiont/core';
-import { firstValueFrom } from 'rxjs';
+import { baseUrl, accessToken, EventBus, resourceId, type AccessToken } from '@semiont/core';
+import { firstValueFrom, BehaviorSubject } from 'rxjs';
 
 const semiont = new SemiontApiClient({
   baseUrl: baseUrl('http://localhost:4000'),
   eventBus: new EventBus(),
-  getToken: () => accessToken(token),
+  token$: new BehaviorSubject<AccessToken | null>(accessToken(token)),
 });
 
 // Browse resources

@@ -1,219 +1,99 @@
 # API Integration Guide
 
-**Last Updated**: 2025-01-12
-
-How the Semiont frontend integrates with the backend API through the framework-agnostic @semiont/react-ui library, including the provider pattern, type-safe client usage, and W3C annotation model.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Provider Pattern Architecture](#provider-pattern-architecture)
-- [API Client Usage](#api-client-usage)
-- [W3C Web Annotation Model](#w3c-web-annotation-model)
-- [Synchronous vs Asynchronous Operations](#synchronous-vs-asynchronous-operations)
-- [Real-Time Progress Tracking](#real-time-progress-tracking)
-- [API Endpoints Reference](#api-endpoints-reference)
-- [Error Handling](#error-handling)
-- [Related Documentation](#related-documentation)
+How the Semiont frontend integrates with the backend through the
+framework-agnostic `@semiont/react-ui` library and the `@semiont/api-client`
+package — including the provider pattern, bus gateway transport, and
+W3C annotation model.
 
 ## Overview
 
-The frontend integrates with the backend API through a layered architecture that maintains framework independence:
+The frontend integrates with the backend through a layered architecture
+that maintains framework independence:
 
 ```
 ┌─────────────────────────────────────┐
 │         apps/frontend               │
-│      (Next.js Application)          │
+│         (Vite + React Router v7)    │
 │                                     │
-│  Implements Provider Interfaces:    │
-│  • NextAuth Session Provider        │
-│  • API Client Configuration         │
-│  • React Query Setup                │
+│  • Auth + session wiring            │
+│  • Page layouts and routing         │
+│  • App-specific feature composition │
 └─────────────┬───────────────────────┘
-              │ uses
+              │ mounts
               ▼
 ┌─────────────────────────────────────┐
 │    packages/react-ui                │
 │  (Framework-agnostic library)       │
 │                                     │
-│  Provides:                          │
-│  • ApiClientProvider Interface      │
-│  • API Hooks (useResources, etc.)   │
-│  • Query Key Management             │
+│  • ApiClientProvider                │
+│  • AuthTokenProvider                │
+│  • Flow view models (RxJS)          │
+│  • UI components & hooks            │
 └─────────────┬───────────────────────┘
               │ uses
               ▼
 ┌─────────────────────────────────────┐
 │    packages/api-client              │
-│  (Type-safe API Client)             │
+│  (Type-safe API client)             │
 │                                     │
-│  • OpenAPI Generated Types          │
-│  • HTTP Client                      │
-│  • Request/Response Handling        │
+│  • OpenAPI-generated types          │
+│  • Namespace verb API               │
+│  • Bus gateway (single SSE)         │
+│  • HTTP for binary + auth           │
 └─────────────────────────────────────┘
 ```
 
 All API interactions feature:
-- **Type-safety**: TypeScript types generated from OpenAPI specification
-- **Framework-agnostic**: API client injected via Provider Pattern
-- **Authenticated**: Automatic JWT token inclusion via session management
-- **Error-handled**: Structured error responses with proper HTTP status codes
-- **Cached**: React Query integration for intelligent caching
+
+- **Type-safety** — TypeScript types generated from the OpenAPI spec
+- **Framework-agnostic react-ui** — plugs into any React framework via providers
+- **Observable auth** — `token$: BehaviorSubject<AccessToken | null>` reactively drives bus auth
+- **One bus connection** — `SemiontApiClient` maintains a single SSE subscription to `/bus/subscribe`
+- **Structured errors** — consistent error shape from the backend, surfaced through `APIError`
 
 ## Provider Pattern Architecture
 
-The Provider Pattern enables @semiont/react-ui to work with any React framework by abstracting framework-specific implementations behind interfaces.
+The Provider Pattern lets `@semiont/react-ui` run in any React framework
+by abstracting framework-specific pieces (session, token source, routing)
+behind a small set of context providers.
 
 ### How It Works
 
-1. **@semiont/react-ui defines interfaces** for external dependencies
-2. **Frontend implements these interfaces** using Next.js specific tools
-3. **Components use the interfaces**, not the implementations
+1. `@semiont/react-ui` exposes providers that take a minimal, framework-neutral shape (e.g. `AuthTokenProvider` takes `token: string | null`).
+2. The frontend mounts those providers with values sourced from its own auth system.
+3. Components inside read from the providers via hooks — they never touch the framework directly.
 
-### ApiClientProvider Implementation
+This boundary lets the same library power a Vite app, a Next.js app, or
+a mobile shell without code changes to the components.
 
-The frontend provides the API client to @semiont/react-ui components:
+### Provider Stack
 
-```typescript
-// apps/frontend/src/app/providers/ApiClientProvider.tsx
-import { ApiClientProvider } from '@semiont/react-ui';
-import { createApiClient } from '@semiont/api-client';
-import { useSession } from 'next-auth/react';
+For an authenticated area of the app the provider stack looks like:
 
-export function NextApiClientProvider({ children }) {
-  const session = useSession();
-
-  const apiClientManager = {
-    getClient: () => createApiClient({
-      baseURL: process.env.NEXT_PUBLIC_API_URL,
-      getToken: async () => session.data?.accessToken
-    }),
-
-    // React Query configuration
-    queryOptions: {
-      defaultOptions: {
-        queries: {
-          staleTime: 5 * 60 * 1000, // 5 minutes
-          cacheTime: 10 * 60 * 1000, // 10 minutes
-          retry: 3,
-          retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
-        }
-      }
-    }
-  };
-
-  return (
-    <ApiClientProvider apiClientManager={apiClientManager}>
-      {children}
-    </ApiClientProvider>
-  );
-}
+```
+EventBusProvider
+  └── AuthTokenProvider (token: string | null from your auth system)
+       └── ApiClientProvider (baseUrl, tokenRefresher?)
+            └── your components
 ```
 
-### Using API Hooks from @semiont/react-ui
+`ApiClientProvider` reads the `BehaviorSubject` from `AuthTokenContext`
+and passes it to `SemiontApiClient` as `token$`. The client uses
+`token$.getValue()` on every request and subscribes to it to start its
+bus actor the first time a real token arrives.
 
-Components can now use the framework-agnostic hooks:
+**Reference implementation**: see
+[`packages/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md)
+for the exact provider API. See
+[`packages/api-client/docs/Usage.md`](../../../packages/api-client/docs/Usage.md)
+for how the client consumes `token$`.
 
-```typescript
-// Any component in the app
-import { useResources, useAnnotations } from '@semiont/react-ui';
+## Authentication Flow
 
-export function ResourceList() {
-  // These hooks work regardless of whether the app uses
-  // Next.js, Vite, CRA, or any other React framework
-  const resources = useResources();
-  const { data, isLoading } = resources.list.useQuery();
-
-  const createMutation = resources.create.useMutation({
-    onSuccess: (newResource) => {
-      // Handle success
-    }
-  });
-
-  // Component logic...
-}
-```
-
-### Benefits of This Architecture
-
-1. **Framework Independence**: @semiont/react-ui works with any React framework
-2. **Testability**: Easy to mock providers for testing
-3. **Flexibility**: Each app can implement providers differently
-4. **Type Safety**: Full TypeScript support across boundaries
-5. **Separation of Concerns**: UI logic separate from infrastructure
-
-## API Client Usage
-
-### Component Library Integration
-
-With @semiont/react-ui factored out, API calls are made through the library's hooks which use the injected API client:
-
-```typescript
-// Components use @semiont/react-ui hooks, not direct API calls
-import { useResources, useAnnotations, useToast } from '@semiont/react-ui';
-
-export function DocumentList() {
-  const resources = useResources();
-  const { showToast } = useToast();
-
-  // React Query hooks provided by @semiont/react-ui
-  const { data, error, isLoading } = resources.list.useQuery();
-
-  const createMutation = resources.create.useMutation({
-    onSuccess: () => {
-      showToast('Resource created successfully', 'success');
-    }
-  });
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
-  return (
-    <ul>
-      {data?.resources.map(doc => (
-        <li key={doc.id}>{doc.name}</li>
-      ))}
-    </ul>
-  );
-}
-```
-
-### Direct API Client Usage
-
-For app-specific API calls not covered by @semiont/react-ui hooks:
-
-```typescript
-// apps/frontend/src/lib/api-client.ts
-import { createApiClient } from '@semiont/api-client';
-import { getSession } from 'next-auth/react';
-
-// Create a Next.js specific API client instance
-export const apiClient = createApiClient({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-  getToken: async () => {
-    const session = await getSession();
-    return session?.accessToken;
-  }
-});
-
-// Use for custom endpoints
-async function callCustomEndpoint() {
-  try {
-    const response = await apiClient.request({
-      method: 'POST',
-      path: '/api/custom/endpoint',
-      body: { data: 'value' }
-    });
-    console.log('Success:', response);
-  } catch (error) {
-    console.error('Failed:', error);
-  }
-}
-```
-
-### Authentication Flow
-
-A user is always authenticated against a specific KB. The merged `KnowledgeBaseSessionProvider` (mounted by `AuthShell`) owns the active KB, the per-KB JWT in localStorage, and the validated session. The frontend mounts the library provider directly — there's no app-side wrapper to write.
+A user is always authenticated against a specific Knowledge Base.
+`KnowledgeBaseSessionProvider` (mounted via `AuthShell` in protected
+layouts) owns the active KB, the per-KB JWT in localStorage, and the
+validated session.
 
 ```tsx
 // apps/frontend/src/contexts/AuthShell.tsx
@@ -224,7 +104,7 @@ import {
   PermissionDeniedModal,
 } from '@semiont/react-ui';
 
-export function AuthShell({ children }: { children: React.ReactNode }) {
+export function AuthShell({ children }) {
   return (
     <KnowledgeBaseSessionProvider>
       <ProtectedErrorBoundary>
@@ -237,13 +117,14 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 }
 ```
 
-Components inside the shell read or mutate session state with `useKnowledgeBaseSession()`:
+Components inside the shell read session state with `useKnowledgeBaseSession()`:
 
 ```tsx
 import { useKnowledgeBaseSession } from '@semiont/react-ui';
 
 function UserBadge() {
-  const { isAuthenticated, displayName, signOut, activeKnowledgeBase } = useKnowledgeBaseSession();
+  const { isAuthenticated, displayName, signOut, activeKnowledgeBase } =
+    useKnowledgeBaseSession();
   if (!isAuthenticated || !activeKnowledgeBase) return null;
   return (
     <button onClick={() => signOut(activeKnowledgeBase.id)}>
@@ -253,459 +134,178 @@ function UserBadge() {
 }
 ```
 
-The hook **throws** if called outside the provider — there is no fallback. This enforces that auth-aware components are always mounted inside the protected boundary.
+The hook throws if called outside the provider — there is no fallback.
+Auth-aware components must always be inside the protected boundary.
 
-**Key Points**:
-- **Per-KB sessions** — there is no global session; switching KBs switches sessions atomically
-- **No manual token management** — `useKnowledgeBaseSession` exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`) that handle storage
-- **Type-safe** — Full TypeScript support from OpenAPI specs
+**Key points:**
+
+- **Per-KB sessions** — there is no global session; switching KBs switches sessions atomically.
+- **No manual token management** — the session provider handles storage; the api-client reads the token observably.
+- **Type-safe** — types flow from the OpenAPI spec through the api-client to components.
+
+## Bus Gateway Transport
+
+Every domain operation (commands and queries) flows through a single
+SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
+
+- **Request-response queries** — `busRequest` generates a correlationId, subscribes to the result channel, and emits the request. The client filters incoming events by correlationId.
+- **Fire-and-forget commands** — `actor.emit(channel, payload)` POSTs to `/bus/emit`; results arrive as separate events.
+- **Live domain events** — `mark:added`, `yield:create-ok`, etc. flow on resource-scoped channels. `SemiontApiClient.subscribeToResource(id)` adds those channels to the bus actor's subscription when a resource page mounts.
+- **Gap detection** — on reconnect after a disconnect, `BrowseNamespace` invalidates all active caches and refetches. No server-side replay.
+
+See [`apps/backend/docs/STREAMS.md`](../../backend/docs/STREAMS.md) and
+[`apps/backend/docs/REAL-TIME.md`](../../backend/docs/REAL-TIME.md) for
+the backend side; see
+[`packages/api-client/docs/Usage.md`](../../../packages/api-client/docs/Usage.md)
+for the client side.
 
 ## W3C Web Annotation Model
 
-Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) for full interoperability with other annotation systems.
+Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/)
+for interoperability with other annotation systems.
 
 ### Annotation Structure
-
-All annotations follow this W3C-compliant structure:
 
 ```typescript
 interface Annotation {
   "@context": "http://www.w3.org/ns/anno.jsonld";
   type: "Annotation";
-  id: string;                    // Annotation ID
-  created: string;               // ISO 8601 timestamp
-  creator: {
-    id: string;                  // User ID
-    type: "Person";
-  };
+  id: string;
+  created: string;                 // ISO 8601
+  creator: { id: string; type: "Person" };
   target: {
-    source: string;              // Document ID
-    selector: Selector[];        // Text position/quote selectors
+    source: string;                // resource id
+    selector: Selector[];          // position + quote
   };
-  body: AnnotationBody[];        // Multi-body array (entity tags + links)
+  body: AnnotationBody[];          // multi-body: tags + links
 }
 ```
 
 ### Multi-Body Annotations
 
-Semiont supports **multi-body annotations** combining entity type tags and document links:
+Annotations combine entity-type tags and resource links:
 
-**Entity Tag Body** (`TextualBody`):
+**Entity tag** (`TextualBody`):
 ```typescript
-{
-  type: "TextualBody",
-  purpose: "tagging",
-  value: "Person"               // Entity type (Person, Organization, etc.)
-}
+{ type: "TextualBody", purpose: "tagging", value: "Person" }
 ```
 
-**Document Link Body** (`SpecificResource`):
+**Resource link** (`SpecificResource`):
 ```typescript
 {
   type: "SpecificResource",
   purpose: "linking",
-  source: "doc_456",            // Linked document ID
-  relationship: "citation"      // citation, definition, elaboration, etc.
-}
-```
-
-**Combined Example**:
-```json
-{
-  "@context": "http://www.w3.org/ns/anno.jsonld",
-  "type": "Annotation",
-  "id": "anno_123",
-  "target": {
-    "source": "doc_789",
-    "selector": [
-      {
-        "type": "TextPositionSelector",
-        "start": 42,
-        "end": 57
-      },
-      {
-        "type": "TextQuoteSelector",
-        "exact": "Albert Einstein",
-        "prefix": "physicist ",
-        "suffix": " developed"
-      }
-    ]
-  },
-  "body": [
-    {
-      "type": "TextualBody",
-      "purpose": "tagging",
-      "value": "Person"
-    },
-    {
-      "type": "SpecificResource",
-      "purpose": "linking",
-      "source": "doc_einstein_bio",
-      "relationship": "definition"
-    }
-  ]
+  source: "doc-einstein-bio",
+  relationship: "definition",
 }
 ```
 
 ### Selectors
 
-Semiont uses two W3C selector types for robust text anchoring:
+Two complementary selector types anchor annotations to text:
 
-**TextPositionSelector** (character offsets):
+**TextPositionSelector** — character offsets (fast, precise):
 ```typescript
-{
-  type: "TextPositionSelector",
-  start: 100,      // Character offset from document start
-  end: 115         // Character offset (end is exclusive)
-}
+{ type: "TextPositionSelector", start: 100, end: 115 }
 ```
 
-**TextQuoteSelector** (text content with context):
+**TextQuoteSelector** — text with context (resilient to edits):
 ```typescript
 {
   type: "TextQuoteSelector",
-  exact: "knowledge graph",      // Exact selected text
-  prefix: "building a ",          // Text before (for disambiguation)
-  suffix: " using annotations"    // Text after (for disambiguation)
+  exact: "knowledge graph",
+  prefix: "building a ",
+  suffix: " using annotations",
 }
 ```
 
-**Why Both?**: TextPositionSelector is fast and precise. TextQuoteSelector is resilient to document edits (can find text even if offsets change).
+Together they survive both precise edits (offsets shift) and large
+rewrites (text moves) — the position is tried first, then quote
+matching locates the text if offsets are stale.
 
 ### JSON-LD Export
 
-All annotations can be exported as standard JSON-LD for semantic web integration:
-
-```typescript
-// Export button in UI
-const exportAnnotation = async (annotationId: string) => {
-  const response = await fetch(`/api/annotations/${annotationId}`, {
-    headers: { 'Accept': 'application/ld+json' }
-  });
-  const jsonLD = await response.json();
-  // Download or share with other W3C-compliant systems
-};
-```
+Annotations are serialized as standard JSON-LD on the wire and in
+exports — any W3C-compliant consumer can ingest them.
 
 ## Synchronous vs Asynchronous Operations
 
-The API provides both synchronous (immediate response) and asynchronous (background job) operations.
+Two conceptual patterns:
 
-### Synchronous APIs
+**Synchronous (request-response)** — commands that complete quickly on
+the backend handler: create annotation, delete annotation, browse
+queries. The frontend awaits a result event matched by correlationId.
 
-These return immediate responses:
+**Asynchronous (job-based)** — operations that run minutes to hours:
+entity detection, resource generation. The frontend emits `job:create`,
+gets back `job:created` with a `jobId`, then listens for `job:progress`
+/ `job:completed` / `mark:progress` events scoped to the resource.
 
-**Document Operations**:
-- `POST /api/documents` - Create document
-- `GET /api/documents/:id` - Get document
-- `PATCH /api/documents/:id` - Update document
-- `DELETE /api/documents/:id` - Delete document
-- `GET /api/documents/search?q=query` - Search documents
-
-**Annotation Operations**:
-- `POST /api/documents/:id/annotations` - Create annotation
-- `GET /api/documents/:id/annotations` - List annotations
-- `PATCH /api/documents/:id/annotations/:annotationId` - Update annotation
-- `DELETE /api/documents/:id/annotations/:annotationId` - Delete annotation
-
-**Example**:
-```typescript
-// Synchronous - immediate response
-const { data } = api.documents.create.useMutation();
-await data({ name: 'Doc', content: '# Hello' });
-// Document created instantly
-```
-
-### Asynchronous APIs
-
-These create background jobs with progress tracking:
-
-**Entity Detection** - Find entities in resources using AI:
-```typescript
-POST /resources/:id/detect-annotations-stream
-```
-
-**Resource Generation** - AI-generated resources from annotations:
-```typescript
-POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
-```
-
-**Why Asynchronous?**:
-- Entity detection can take minutes for large resources with many entity types
-- Resource generation requires LLM API calls (slow)
-- Jobs continue even if user closes browser
-- Real-time progress updates via Server-Sent Events (SSE)
-
-**Example**:
-```typescript
-// Asynchronous - uses SSE streaming for real-time progress
-const stream = client.sse.detectAnnotations(resourceId, {
-  entityTypes: ['Person', 'Organization']
-});
-
-stream.onProgress((p) => console.log(p.message));
-stream.onComplete((r) => console.log('Done!'));
-```
-
-## Real-Time Progress Tracking
-
-Asynchronous operations support two patterns for tracking progress:
-
-### Server-Sent Events (SSE) - Recommended
-
-SSE provides real-time progress updates pushed from the server:
-
-**Entity Detection with SSE**:
-```typescript
-'use client';
-
-import { useEffect, useState } from 'react';
-
-export function EntityDetectionProgress({ resourceId }: { resourceId: string }) {
-  const [progress, setProgress] = useState(null);
-  const [status, setStatus] = useState<'running' | 'complete' | 'failed'>('running');
-
-  useEffect(() => {
-    const eventSource = new EventSource(
-      `/resources/${resourceId}/detect-annotations-stream?entityTypes=Person,Organization`
-    );
-
-    eventSource.onmessage = (event) => {
-      const job = JSON.parse(event.data);
-
-      setProgress(job:progress);
-      setStatus(job.status);
-
-      if (job.status === 'complete' || job.status === 'failed') {
-        eventSource.close();
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('SSE error:', error);
-      eventSource.close();
-      setStatus('failed');
-    };
-
-    return () => eventSource.close();
-  }, [resourceId]);
-
-  if (status === 'complete') {
-    return <div>Detection complete! Found {progress?.foundCount} entities.</div>;
-  }
-
-  if (status === 'failed') {
-    return <div>Detection failed. Please try again.</div>;
-  }
-
-  return (
-    <div>
-      <p>Processing entity type: {progress?.currentEntityType}</p>
-      <p>Progress: {progress?.processedEntityTypes}/{progress?.totalEntityTypes}</p>
-      <p>Entities found: {progress?.foundCount}</p>
-    </div>
-  );
-}
-```
-
-**Resource Generation with SSE**:
-```typescript
-export function ResourceGenerationProgress({
-  resourceId,
-  annotationId
-}: {
-  resourceId: string;
-  annotationId: string;
-}) {
-  const [progress, setProgress] = useState(null);
-
-  useEffect(() => {
-    const eventSource = new EventSource(
-      `/resources/${resourceId}/annotations/${annotationId}/generate-resource-stream`
-    );
-
-    eventSource.onmessage = (event) => {
-      const job = JSON.parse(event.data);
-      setProgress(job:progress);
-
-      if (job.status === 'complete') {
-        eventSource.close();
-        // Navigate to generated resource
-        window.location.href = `/resources/${job.result.resourceId}`;
-      }
-    };
-
-    return () => eventSource.close();
-  }, [resourceId, annotationId]);
-
-  return (
-    <div>
-      <p>Stage: {progress?.stage}</p>
-      <p>Progress: {progress?.percentage}%</p>
-      {progress?.message && <p>{progress.message}</p>}
-    </div>
-  );
-}
-```
-
-### Polling Job Status
-
-Alternative to SSE - poll the job status endpoint:
-
-```typescript
-async function pollJobStatus(jobId: string) {
-  const maxAttempts = 60;
-  const pollInterval = 2000; // 2 seconds
-
-  for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`/api/jobs/${jobId}`);
-    const job = await response.json();
-
-    if (job.status === 'complete') {
-      return job.result;
-    }
-
-    if (job.status === 'failed') {
-      throw new Error(job.error || 'Job failed');
-    }
-
-    // Job still running, wait and retry
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
-  }
-
-  throw new Error('Job timed out');
-}
-```
-
-**SSE vs Polling**:
-- **SSE**: Real-time, efficient, recommended for UI
-- **Polling**: Simpler, works without SSE support, more server load
-
-## API Endpoints Reference
-
-### Resource APIs (Synchronous)
-
-| Endpoint | Method | Description | Returns |
-|----------|--------|-------------|---------|
-| `/resources` | POST | Create new resource | `{ resource }` |
-| `/resources/:id` | GET | Get resource by ID | `Resource` |
-| `/resources/:id` | PATCH | Update resource | `Resource` |
-| `/resources/:id` | DELETE | Delete resource | `{ success: true }` |
-| `/resources` | GET | List resources (paginated) | `{ resources, total }` |
-| `/resources/search?q=query` | GET | Search resources | `{ resources }` |
-
-### Annotation APIs (Synchronous)
-
-| Endpoint | Method | Description | Returns |
-|----------|--------|-------------|---------|
-| `/resources/:id/annotations` | POST | Create annotation | `Annotation` |
-| `/resources/:id/annotations` | GET | List resource annotations | `{ annotations }` |
-| `/resources/:id/annotations/:annoId` | PATCH | Update annotation | `Annotation` |
-| `/resources/:id/annotations/:annoId` | DELETE | Delete annotation | `{ success: true }` |
-
-### Asynchronous Job APIs (SSE Streaming)
-
-| Endpoint | Method | Description | Returns |
-|----------|--------|-------------|---------|
-| `/resources/:id/detect-annotations-stream` | POST | Entity detection with SSE | SSE stream |
-| `/resources/:resourceId/annotations/:annotationId/generate-resource-stream` | POST | Resource generation with SSE | SSE stream |
-| `/jobs/:jobId` | GET | Get job status and progress | `Job` |
-
-### Authentication APIs
-
-| Endpoint | Method | Description | Returns |
-|----------|--------|-------------|---------|
-| `/api/auth/session` | GET | Get current session | `{ user, accessToken }` |
-| `/api/users/me` | GET | Get current user info | `User` |
+Both flow through the same bus gateway. The difference is whether the
+final result event arrives in the same HTTP turnaround as the command
+(sync) or later, driven by worker processes (async).
 
 ## Error Handling
 
-### HTTP Status Codes
+### Error Shape
 
-The API uses standard HTTP status codes:
-
-- **200 OK**: Successful request
-- **201 Created**: Resource created
-- **400 Bad Request**: Invalid input (validation errors)
-- **401 Unauthorized**: Authentication required or JWT expired
-- **403 Forbidden**: Insufficient permissions
-- **404 Not Found**: Resource not found
-- **500 Internal Server Error**: Server error
-
-### Error Response Format
-
-All errors follow a consistent format:
+Backend errors follow a consistent shape:
 
 ```typescript
 {
-  error: string;           // Human-readable error message
-  code: string;            // Machine-readable error code
-  details?: unknown;       // Additional error context
+  error: string;       // human-readable
+  code: string;        // machine-readable
+  details?: unknown;   // context
 }
 ```
 
-### Handling Errors in Components
+### In the Client
 
-**Using React Query**:
+HTTP errors from the api-client surface as `APIError`:
+
 ```typescript
-const { data, error, isError } = api.documents.get.useQuery('doc_123');
+import { APIError } from '@semiont/api-client';
 
-if (isError) {
-  // error is typed as APIError
-  if (error.code === 'DOCUMENT_NOT_FOUND') {
-    return <div>Document not found</div>;
+try {
+  await semiont.mark.annotation(resourceId, input);
+} catch (err) {
+  if (err instanceof APIError) {
+    if (err.status === 401) { /* session expired */ }
+    if (err.status === 403) { /* permission denied */ }
   }
-  return <div>Error: {error.message}</div>;
 }
 ```
 
-**Automatic Error Handling**:
-- **401 Errors**: API client automatically redirects to `/auth/signin`
-- **403 Errors**: API client shows "Permission Denied" message
-- **Network Errors**: React Query retry logic (3 attempts with exponential backoff)
+Bus command errors surface as `BusRequestError` (from failure channels
+like `browse:resources-failed`), raised from the promise returned by
+`busRequest`.
 
-### Custom Error Boundaries
+### Automatic Recovery
 
-Wrap components in error boundaries for graceful degradation:
-
-```typescript
-import { AsyncErrorBoundary } from '@/components/ErrorBoundary';
-
-export function DocumentPage() {
-  return (
-    <AsyncErrorBoundary>
-      <DocumentContent />
-    </AsyncErrorBoundary>
-  );
-}
-```
+- **401 errors** — if `ApiClientProvider` is given a `tokenRefresher`, the client retries once with a fresh token before propagating the error.
+- **Session expired** — `KnowledgeBaseSessionProvider` detects expiry and surfaces `SessionExpiredModal`.
+- **Permission denied** — surfaced via `PermissionDeniedModal`.
 
 ## Related Documentation
 
-### React UI Library
-- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) - Provider Pattern architecture
-- [`@semiont/react-ui/docs/API-INTEGRATION.md`](../../../packages/react-ui/docs/API-INTEGRATION.md) - API client integration guide
-- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
+### React UI library
 
-### Backend Documentation
-- [Backend README](../../backend/README.md) - Backend API overview
-- [Jobs Package](../../../packages/jobs/) - Background job processing implementation
-- [W3C Web Annotation](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C annotation data flow
+- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) — provider reference
+- [`@semiont/react-ui/docs/ARCHITECTURE.md`](../../../packages/react-ui/docs/ARCHITECTURE.md) — architectural overview
+- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) — annotation UI components
 
-### Frontend Documentation
-- [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
-- [Authentication](./AUTHENTICATION.md) - OAuth, JWT, session management
-- [Annotations](./ANNOTATIONS.md) - W3C annotation UI components
+### API client
 
-### External Resources
-- [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) - Official specification
-- [TanStack Query Documentation](https://tanstack.com/query) - React Query guide
-- [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) - SSE specification
+- [`@semiont/api-client/README.md`](../../../packages/api-client/README.md) — API overview
+- [`@semiont/api-client/docs/Usage.md`](../../../packages/api-client/docs/Usage.md) — setup + bus subscription
+- [`@semiont/api-client/docs/API-Reference.md`](../../../packages/api-client/docs/API-Reference.md) — namespace reference
 
----
+### Backend
 
-**Packages**:
-- `@semiont/api-client` - [packages/api-client/](../../../packages/api-client/)
-- `@semiont/react-ui` - [packages/react-ui/](../../../packages/react-ui/)
+- [Backend README](../../backend/README.md)
+- [`apps/backend/docs/STREAMS.md`](../../backend/docs/STREAMS.md) — bus gateway
+- [`apps/backend/docs/REAL-TIME.md`](../../backend/docs/REAL-TIME.md) — real-time delivery
 
-**Last Updated**: 2025-01-03
+### External
+
+- [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/)

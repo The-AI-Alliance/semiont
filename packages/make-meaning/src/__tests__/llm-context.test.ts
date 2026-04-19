@@ -165,8 +165,11 @@ describe('LLM Context', () => {
 
   describe('annotation inclusion', () => {
     it('should include annotations in context', async () => {
-      // Create an annotation on the resource and await Stower persistence
-      const created$ = firstValueFrom(eventBus.get('mark:create-ok').pipe(take(1)));
+      // Create an annotation on the resource and await Stower persistence.
+      // mark:create-ok is emitted by annotation-assembly in response to
+      // mark:added; this test emits mark:create directly, so we await the
+      // persisted mark:added domain event instead.
+      const created$ = firstValueFrom(eventBus.get('mark:added').pipe(take(1)));
       const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
       await AnnotationOperations.createAnnotation(
         {

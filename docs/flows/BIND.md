@@ -23,49 +23,43 @@ Both paths result in an `mark:body-updated` event that adds the `SpecificResourc
 
 ## Using the API Client
 
-Resolve a reference annotation by adding a `SpecificResource` link to its body:
+Resolve a reference annotation by adding a `SpecificResource` link to
+its body. The `bind` namespace emits `bind:initiate` on the bus gateway
+— the backend Stower handler persists the body change and broadcasts
+the enriched `mark:body-updated` event to everyone viewing the resource.
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-
-const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
-
 // Link a reference annotation to an existing resource
-await client.updateAnnotationBody(resourceId, annotationId, {
-  operations: [{
-    op: 'add',
-    item: {
-      type: 'SpecificResource',
-      source: 'resource://target-doc-789',
-      purpose: 'linking',
-    },
-  }],
-});
+await client.bind.body(resourceId, annotationId, [{
+  op: 'add',
+  item: {
+    type: 'SpecificResource',
+    source: 'resource://target-doc-789',
+    purpose: 'linking',
+  },
+}]);
 
 // Unlink — remove the SpecificResource body item
-await client.updateAnnotationBody(resourceId, annotationId, {
-  operations: [{
-    op: 'remove',
-    oldItem: {
-      type: 'SpecificResource',
-      source: 'resource://target-doc-789',
-      purpose: 'linking',
-    },
-  }],
-});
+await client.bind.body(resourceId, annotationId, [{
+  op: 'remove',
+  item: {
+    type: 'SpecificResource',
+    source: 'resource://target-doc-789',
+    purpose: 'linking',
+  },
+}]);
 ```
 
 ## Events
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `bind:initiate` | `{ annotationId, resourceId, defaultTitle, entityTypes }` | User clicked wizard button on unresolved reference |
-| `bind:search-requested` | `{ referenceId, context, limit?, useSemanticScoring? }` | Search for binding candidates using gathered context |
-| `bind:search-results` | `{ referenceId, results }` | Scored search results from Matcher |
-| `bind:search-failed` | `{ referenceId, error }` | Search failed |
-| `bind:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a resource |
-| `bind:referenced-by-result` | `{ correlationId, response }` | Referenced-by results from Matcher via Graph |
-| `bind:update-body` | `{ annotationId, resourceId, operations }` | Update annotation body (add/remove link) |
+| `bind:initiate` | `{ correlationId, annotationId, resourceId, operations }` | Frontend emits; Stower handles via bus gateway. Wizard-style UI also uses this channel to signal the wizard should open. |
+| `match:search-requested` | `{ correlationId, referenceId, context, limit?, useSemanticScoring? }` | Search for binding candidates using gathered context |
+| `match:search-results` | `{ correlationId, referenceId, response }` | Scored search results from Matcher |
+| `match:search-failed` | `{ correlationId, referenceId, error }` | Search failed |
+| `browse:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a resource |
+| `browse:referenced-by-result` | `{ correlationId, response }` | Referenced-by results |
 | `bind:body-updated` | `{ annotationId }` | Annotation body successfully updated |
 | `bind:body-update-failed` | `{ error }` | Annotation body update failed |
 
@@ -88,19 +82,20 @@ gather:complete → Wizard shows gathered context (Step 1)
     |
 User clicks "Bind" → Configure Search (Step 2A)
     |
-User submits search → bind:search-requested fires with { context, limit, useSemanticScoring }
+User submits search → match:search-requested emitted via /bus/emit with { correlationId, context, limit, useSemanticScoring }
     |
 Matcher runs context-driven search (structural scoring + optional inference scoring)
     |
-bind:search-results → Wizard shows scored candidates (Step 3A)
+match:search-results → Wizard shows scored candidates (Step 3A)
     |
 User clicks "Link" on a result
     |
-bind:update-body → POST /resources/:id/annotations/:aid/bind → 202 {correlationId}
+client.bind.body(...) → bind:initiate emitted via /bus/emit → 202
     |
 backend Stower persists mark:body-updated event, materializes view
     |
-events-stream delivers enriched mark:body-updated to all connected clients
+EventStore enrichment attaches post-materialization annotation,
+publishes on scoped EventBus → /bus/subscribe → frontend ActorVM
     |
 BrowseNamespace.updateAnnotationInPlace writes the annotation into the cached Observable
     |
@@ -109,11 +104,11 @@ useObservable re-renders → ReferenceEntry recomputes isBodyResolved → 🔗
 
 ### How the link icon flip works
 
-The `mark:body-updated` event delivered via the events-stream is an `EnrichedResourceEvent` carrying the post-materialization annotation. The `BrowseNamespace`'s EventBus subscriber writes it directly into the cached Observable via `updateAnnotationInPlace` — no HTTP refetch needed. This is the single delivery path for all annotation mutations: locally-initiated binds and remote mutations from other participants all arrive the same way. See `apps/backend/docs/STREAMS.md` for the unified-stream architecture.
+The `mark:body-updated` event delivered through the bus gateway carries the post-materialization annotation (attached by the event store enrichment callback). The `BrowseNamespace`'s EventBus subscriber writes it directly into the cached Observable via `updateAnnotationInPlace` — no HTTP refetch needed. This is the single delivery path for all annotation mutations: locally-initiated binds and remote mutations from other participants all arrive the same way. See `apps/backend/docs/STREAMS.md` for the bus-gateway architecture.
 
 ### Context-Driven Search
 
-When `bind:search-requested` includes a `context` field (a `GatheredContext`), the Matcher uses multi-source candidate retrieval and composite scoring:
+When `match:search-requested` includes a `context` field (a `GatheredContext`), the Matcher uses multi-source candidate retrieval and composite scoring:
 
 **Candidate Sources**:
 1. Name match — direct text search against resource names
@@ -150,7 +145,7 @@ mark:body-updated event links the reference
 
 ### Unlinking
 
-Resolution is reversible. A user can remove a link via `bind:update-body` with an `op: 'remove'` operation, returning the reference to its unresolved state.
+Resolution is reversible. A user can remove a link via `client.bind.body()` with an `op: 'remove'` operation, returning the reference to its unresolved state.
 
 ## Annotation Body Structure
 

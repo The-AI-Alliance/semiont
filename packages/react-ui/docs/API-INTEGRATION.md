@@ -17,31 +17,37 @@ The library provides **React Query hooks** for all Semiont API operations. These
 
 ### 1. Configure API Client Provider
 
-```tsx
-import { ApiClientProvider } from '@semiont/react-ui';
-import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
+`ApiClientProvider` must be nested inside `EventBusProvider` and
+`AuthTokenProvider`. Pass the backend URL; the provider reads the
+auth token from `AuthTokenContext` as a `BehaviorSubject` and wires
+it into the client automatically.
 
-function useApiClientManager() {
+```tsx
+import {
+  ApiClientProvider,
+  AuthTokenProvider,
+  EventBusProvider,
+} from '@semiont/react-ui';
+
+function App() {
   const { data: session } = useSession(); // Your auth system
 
-  const client = useMemo(() => {
-    if (!session?.backendToken) return null;
-
-    return new SemiontApiClient({
-      baseUrl: baseUrl(''), // Relative URLs for browser
-      accessToken: accessToken(session.backendToken),
-      timeout: 30000
-    });
-  }, [session?.backendToken]);
-
-  return { client };
+  return (
+    <EventBusProvider>
+      <AuthTokenProvider token={session?.backendToken ?? null}>
+        <ApiClientProvider baseUrl="/">
+          {children}
+        </ApiClientProvider>
+      </AuthTokenProvider>
+    </EventBusProvider>
+  );
 }
-
-// In your app
-<ApiClientProvider apiClientManager={apiClientManager}>
-  {children}
-</ApiClientProvider>
 ```
+
+The client uses an observable `token$: BehaviorSubject<AccessToken | null>`
+internally — when the token transitions from null to a real value, the
+bus SSE connection starts. Token rotation (e.g. after refresh) propagates
+automatically.
 
 ### 2. Configure React Query
 
@@ -719,17 +725,15 @@ See [TESTING.md](TESTING.md) for comprehensive testing guide.
 
 ```tsx
 import { renderWithProviders } from '@semiont/react-ui/test-utils';
-import { SemiontApiClient } from '@semiont/api-client';
+import { BrowseNamespace } from '@semiont/api-client';
+import { of } from 'rxjs';
 
 it('should fetch resources', async () => {
-  const mockClient = new SemiontApiClient({ ... });
-  vi.spyOn(mockClient, 'listResources').mockResolvedValue({
-    resources: [{ id: 'r1', name: 'Test' }]
-  });
+  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
+    of([{ id: 'r1', name: 'Test' } as any]),
+  );
 
-  renderWithProviders(<ResourceList />, {
-    apiClientManager: { client: mockClient }
-  });
+  renderWithProviders(<ResourceList />);
 
   await screen.findByText('Test');
 });

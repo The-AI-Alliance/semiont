@@ -264,16 +264,18 @@ function MyComponent({ rId }) {
 
 The event bus is part of a three-layer architecture:
 
-1. **Service Layer**: SSE connection management (`useResourceEvents`)
+1. **Service Layer**: Bus connection (`SemiontApiClient.subscribeToResource`)
 2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
 3. **Component Layer**: Pure React (hooks + JSX)
 
 ### Example: Detection Flow
 
-**Layer 1 (Service)**: Establish SSE connection
+**Layer 1 (Service)**: Subscribe to resource-scoped bus channels
 ```tsx
 function ResourceViewerPage({ rId }) {
-  useResourceEvents(rId);  // Opens SSE, emits events to bus
+  // resource-viewer-page-vm calls client.subscribeToResource(rId)
+  // which adds scoped channels to the ActorVM and bridges events
+  // into the local EventBus.
   // ...
 }
 ```
@@ -534,5 +536,6 @@ useEventSubscriptions({
 
 - Event bus context: `packages/react-ui/src/contexts/EventBusContext.tsx`
 - Event subscriptions hook: `packages/react-ui/src/hooks/useEventSubscriptions.ts`
-- SSE integration: `packages/react-ui/src/hooks/useResourceEvents.ts`
+- Bus actor primitive: `packages/api-client/src/view-models/domain/actor-vm.ts`
+- Client bus integration: `packages/api-client/src/client.ts` (`subscribeToResource`)
 - mitt library: https://github.com/developit/mitt

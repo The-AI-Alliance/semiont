@@ -14,21 +14,30 @@ The Beckon flow directs user focus to specific annotations or regions of interes
 
 The Beckon flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the frontend event bus.
 
-Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a frontend concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the CLI or another agent) goes through a lightweight backend endpoint and a participant-scoped SSE stream, but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
+Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a frontend concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the CLI or another agent) flows through the unified bus gateway (`POST /bus/emit` + `GET /bus/subscribe`), but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
 
 ## Using the API Client
 
-Attention is a frontend concern — it coordinates focus through the event bus, not through backend API calls. However, the annotations that attention targets are fetched via `@semiont/api-client`:
+Attention is primarily a frontend concern — in-browser hover/click
+signals coordinate through the local event bus without touching the
+backend. The annotations that attention targets are fetched via the
+namespace API, and programmatic cross-participant beckoning goes
+through the `beckon` namespace:
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-
-const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+import { firstValueFrom } from 'rxjs';
 
 // Fetch annotations for a resource (the targets of attention)
-const { annotations } = await client.listAnnotations(resourceId);
+const annotations = await firstValueFrom(
+  client.browse.annotations(resourceId),
+);
 
-// Programmatically direct attention via the event bus
+// Programmatically direct attention — broadcasts across participants
+// via the bus gateway.
+client.beckon.attention(annotations[0].id, resourceId);
+
+// Or, for local-only scroll (no broadcast), emit directly on the
+// workspace EventBus:
 eventBus.get('beckon:focus').next({ annotationId: annotations[0].id });
 ```
 
@@ -71,25 +80,32 @@ Click events relay through `beckon:focus` to scroll the document view:
 
 ## Cross-Participant Beckoning
 
-`semiont beckon <participantId> --resource <resourceId>` from the CLI (or from another
-agent) delivers the same `beckon:focus` signal to a named participant via a backend
-endpoint and a participant-scoped SSE stream:
+`semiont beckon <resourceId> --annotation <annotationId>` from the CLI
+(or a programmatic call to `client.beckon.attention(...)`) delivers the
+same `beckon:focus` signal to everyone watching the workspace, through
+the unified bus gateway:
 
-1. CLI posts to `POST /api/participants/{id}/attention`
-2. Backend pushes the signal to `GET /api/participants/me/attention-stream` if the
-   participant is connected
-3. Frontend `useAttentionStream` (in `packages/react-ui/src/hooks/useAttentionStream.ts`) receives it and emits
-   `beckon:focus` on the local EventBus — the same path as an in-browser click relay
-4. The existing scroll-and-highlight behaviour fires, exactly as if the participant had
-   hovered themselves
+1. Originator calls `client.beckon.attention(annotationId, resourceId)`, which
+   invokes `actor.emit('beckon:focus', ...)` → `POST /bus/emit`.
+2. Backend emits the event on the in-process EventBus.
+3. Every connected `SemiontApiClient` has `beckon:focus` and
+   `beckon:sparkle` in its bus-subscription channel list; the backend
+   broadcasts on these channels via `GET /bus/subscribe` (SSE).
+4. The client bridges the event into the local workspace EventBus —
+   same delivery path as an in-browser click relay.
+5. BrowseView scrolls + pulses; ResourceViewerPage triggers the sparkle
+   animation. The originator's own view responds too (their emit echoes
+   through the bus, which is the intended behaviour).
 
-If the participant is not connected, the signal is dropped. No queue, no retry — same
-ephemeral semantics as all other beckon events.
+If a participant is not connected, the signal is dropped. No queue, no
+retry — same ephemeral semantics as all other beckon events.
 
 
 ## Implementation
 
 - **ViewModel**: [packages/api-client/src/view-models/flows/beckon-vm.ts](../../packages/api-client/src/view-models/flows/beckon-vm.ts)
+- **Namespace**: [packages/api-client/src/namespaces/beckon.ts](../../packages/api-client/src/namespaces/beckon.ts)
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts) — `BECKON FLOW` section
+- **Bus bridge (client)**: [packages/api-client/src/client.ts](../../packages/api-client/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`
 - **CLI command**: [apps/cli/src/core/commands/beckon.ts](../../apps/cli/src/core/commands/beckon.ts)
-- **Backend route**: [apps/backend/src/routes/participants/](../../apps/backend/src/routes/participants/)
+- **Bus gateway**: [apps/backend/src/routes/bus.ts](../../apps/backend/src/routes/bus.ts)

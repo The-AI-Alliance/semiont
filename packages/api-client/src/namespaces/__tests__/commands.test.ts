@@ -57,6 +57,10 @@ function makeHttp(overrides: Record<string, any> = {}) {
     yieldResource: vi.fn().mockResolvedValue({ resourceId: 'res-new' }),
     yieldResourceFromAnnotation: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
     getJobStatus: vi.fn().mockResolvedValue({ status: 'running' }),
+    // YieldNamespace.fromAnnotation's yield:finished handler calls
+    // client.bind.body(...) to attach the generated resource as a
+    // SpecificResource on the source annotation.
+    bind: { body: vi.fn().mockResolvedValue(undefined) },
     ...overrides,
   } as unknown as SemiontApiClient;
 }
@@ -195,11 +199,11 @@ describe('MarkNamespace', () => {
 // ── Bind ────────────────────────────────────────────────────────────────────
 
 describe('BindNamespace', () => {
-  it('body() emits bind:initiate on bus', async () => {
+  it('body() emits bind:update-body on bus', async () => {
     const mock = createMockActor();
     const bind = new BindNamespace(mock.actor);
     await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]);
-    expect(mock.emitSpy).toHaveBeenCalledWith('bind:initiate', expect.objectContaining({
+    expect(mock.emitSpy).toHaveBeenCalledWith('bind:update-body', expect.objectContaining({
       annotationId: AID,
       resourceId: RID,
       operations: expect.any(Array),
@@ -221,10 +225,10 @@ describe('GatherNamespace', () => {
     gather = new GatherNamespace(eventBus, mock.actor);
   });
 
-  it('annotation() emits gather:annotation-request on bus', () => {
+  it('annotation() emits gather:requested on bus', () => {
     gather.annotation(AID, RID, { contextWindow: 2000 }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
-      expect(emitSpy).toHaveBeenCalledWith('gather:annotation-request', expect.objectContaining({
+      expect(emitSpy).toHaveBeenCalledWith('gather:requested', expect.objectContaining({
         annotationId: AID,
         resourceId: RID,
         contextWindow: 2000,

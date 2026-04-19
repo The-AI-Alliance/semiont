@@ -27,15 +27,14 @@ Semiont creates W3C-compliant annotations through two complementary paths: **man
 
 ## Using the API Client
 
-**Manual annotation** — create an annotation directly:
+**Manual annotation** — create an annotation directly. The `mark`
+namespace emits `mark:create-request` via the bus gateway; the backend
+annotation-assembly handler builds the full W3C annotation from the
+intent (using the authenticated user's DID as the creator) and passes
+it to Stower.
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-
-const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
-
-// Create a highlight annotation on selected text
-await client.createAnnotation(resourceId, {
+const { annotationId } = await client.mark.annotation(resourceId, {
   motivation: 'highlighting',
   target: {
     source: resourceId,
@@ -50,20 +49,28 @@ await client.createAnnotation(resourceId, {
 });
 ```
 
-**AI-assisted annotation** — stream detection results via SSE:
+**AI-assisted annotation** — long-running job that streams progress
+events. `client.mark.assist()` returns an Observable; internally it
+emits `job:create` (with `jobType` derived from the motivation) on the
+bus gateway. A worker claims the job, runs detection, and publishes
+`mark:progress` / `mark:assist-finished` / `mark:assist-failed` events
+as it goes.
 
 ```typescript
-// Detect highlights with AI (results stream via event bus)
-client.sse.annotateHighlights(resourceId, {
+// Detect highlights with AI
+client.mark.assist(resourceId, 'highlighting', {
   instructions: 'Focus on key technical points',
   density: 5,
-}, { eventBus });
+}).subscribe({
+  next: (event) => console.log('progress:', event),
+  complete: () => console.log('done'),
+});
 
 // Detect entity references
-client.sse.annotateReferences(resourceId, {
-  entityTypes: [entityType('Person'), entityType('Location')],
+client.mark.assist(resourceId, 'linking', {
+  entityTypes: ['Person', 'Location'],
   includeDescriptiveReferences: false,
-}, { eventBus });
+}).subscribe({ /* ... */ });
 ```
 
 ## Supported Detection Types
@@ -415,61 +422,37 @@ return parsed.filter((h: any) =>
 ```
 User clicks ✨ button or selects entity types
     ↓
-Frontend → POST /resources/{id}/detect-{highlights|assessments|comments|annotations}-stream
+Frontend → client.mark.assist(rId, motivation, options) emits job:create
+          via /bus/emit with jobType derived from motivation
+          (highlight-annotation | assessment-annotation | comment-annotation |
+           tag-annotation | reference-annotation)
     ↓
-Route validates request, creates job → submits to queue
+Backend job:create handler builds a PendingJob, persists to queue,
+returns job:created { jobId }
     ↓
-Route subscribes to EventBus for job events (resourceId)
+Worker (separate process, subscribed to job:queued) claims via job:claim
     ↓
-Worker picks up job from queue
+Worker runs detection, emits mark:progress / mark:assist-finished /
+mark:assist-failed via /bus/emit (scoped to resourceId)
     ↓
-Worker emits events → EventBus → Stower persists to Event Store
+Worker also emits mark:create per annotation; Stower persists and
+EventStore publishes enriched mark:added events
     ↓
-Route forwards events → SSE stream to frontend
-    ↓
-Frontend updates UI in real-time (<50ms latency)
+Every connected frontend receives events on /bus/subscribe;
+BrowseNamespace invalidates caches; UI updates in real-time (<50ms)
 ```
 
-### Backend Routes (SSE Streaming)
+Commands and result channels:
 
-**Highlights**: [apps/backend/src/routes/resources/routes/detect-highlights-stream.ts](../../apps/backend/src/routes/resources/routes/detect-highlights-stream.ts)
+| Trigger | Request | Success | Failure |
+|---|---|---|---|
+| `client.mark.assist(..., 'highlighting', ...)` | `job:create` (jobType: `highlight-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
+| `client.mark.assist(..., 'assessing', ...)` | `job:create` (jobType: `assessment-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
+| `client.mark.assist(..., 'commenting', ...)` | `job:create` (jobType: `comment-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
+| `client.mark.assist(..., 'tagging', ...)` | `job:create` (jobType: `tag-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
+| `client.mark.assist(..., 'linking', ...)` | `job:create` (jobType: `reference-annotation`) | `mark:assist-finished` | `mark:assist-failed` |
 
-**Assessments**: [apps/backend/src/routes/resources/routes/detect-assessments-stream.ts](../../apps/backend/src/routes/resources/routes/detect-assessments-stream.ts)
-
-**Comments**: [apps/backend/src/routes/resources/routes/detect-comments-stream.ts](../../apps/backend/src/routes/resources/routes/detect-comments-stream.ts)
-
-**References**: [apps/backend/src/routes/resources/routes/detect-annotations-stream.ts](../../apps/backend/src/routes/resources/routes/detect-annotations-stream.ts)
-
-**Responsibilities**:
-
-1. Validate request body:
-   - Highlights: instructions (optional), density (optional, 1-15)
-   - Assessments: instructions (optional), tone (optional: analytical/critical/balanced/constructive), density (optional, 1-10)
-   - Comments: instructions (optional), tone (optional: scholarly/explanatory/conversational/technical), density (optional, 2-12)
-   - References: entityTypes (required array), includeDescriptiveReferences (optional boolean)
-2. Check authentication and resource existence
-3. Create job and submit to queue
-4. Subscribe to EventBus for job events
-5. Forward events to client via SSE (<50ms latency)
-6. Handle client disconnection gracefully (job continues)
-
-**SSE Event Types**:
-
-Highlights:
-
-- `highlight-detection-started`, `highlight-detection-progress`, `highlight-detection-complete`, `highlight-detection-error`
-
-Assessments:
-
-- `assessment-detection-started`, `assessment-detection-progress`, `assessment-detection-complete`, `assessment-detection-error`
-
-Comments:
-
-- `comment-detection-started`, `comment-detection-progress`, `comment-detection-complete`, `comment-detection-error`
-
-References:
-
-- `detection-started`, `detection-progress`, `detection-complete`, `detection-error`
+All progress events flow on `mark:progress` scoped to the resource.
 
 ### Backend Workers (Job Processing)
 
@@ -512,19 +495,26 @@ All annotation workers follow the same pattern, inheriting from `JobWorker` base
 
 ### Real-Time Updates
 
-Detection events flow through the EventBus to subscribed clients via Server-Sent Events (SSE), enabling real-time UI updates:
+Detection events flow through the bus gateway's single SSE connection,
+enabling real-time UI updates for every connected participant:
 
-**Progress Updates**: Route subscribes to EventBus for job events, forwards progress to client (<50ms latency)
+**Progress Updates**: Workers emit `mark:progress` on the resource-scoped
+EventBus. The frontend's `SemiontApiClient` subscribes to these events
+via `/bus/subscribe`; MarkVM surfaces them through an Observable.
 
-**Annotation Creation**: When worker emits `mark:create` on the EventBus:
-1. Stower persists to Event Store and emits `mark:created`
-2. View Materializer updates Materialized Views
-3. Graph Consumer updates Graph Database
-4. SSE subscribers receive the domain event
-5. Frontend invalidates React Query cache → refetches annotations
-6. UI updates automatically
+**Annotation Creation**: When a worker emits `mark:create` on the bus:
+1. Stower persists to the Event Store.
+2. The EventStore enrichment callback attaches the post-materialization
+   annotation to the published event.
+3. Every connected frontend receives the enriched `mark:added` via the
+   bus subscription.
+4. BrowseNamespace updates its cached Observable in place — no HTTP
+   refetch needed.
 
-See [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) for complete SSE implementation details including Event Handler Refs Pattern, reconnection strategy, and Envoy proxy configuration.
+See [bus gateway architecture](../../apps/backend/docs/STREAMS.md) and
+[real-time event delivery](../../apps/backend/docs/REAL-TIME.md) for
+details on enrichment, gap detection on reconnect, and the single-SSE
+delivery model.
 
 ### Data Flow Through Backend Layers
 
@@ -595,36 +585,40 @@ Entity type selection UI:
 - Detection progress widget showing per-entity-type progress
 - Completion log showing counts per entity type
 
-### SSE Streaming Client
+### Mark Namespace (Observable API)
 
-**File**: [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts)
+**File**: [packages/api-client/src/namespaces/mark.ts](../../packages/api-client/src/namespaces/mark.ts)
+
+The `mark.assist()` Observable handles the full detection lifecycle —
+command emission, progress delivery, completion, and failure — over
+the bus gateway. Components subscribe with RxJS operators; cleanup is
+automatic on unsubscribe.
 
 ```typescript
-// Initiate detection
-const stream = client.sse.detectHighlights(resourceId, { instructions });
-// or
-const stream = client.sse.detectAnnotations(resourceId, { entityTypes });
-
-// Handle progress events
-stream.onProgress((progress) => {
-  setDetectionProgress({
-    status: progress.status,
-    percentage: progress.percentage,
-    message: progress.message
-  });
+const subscription = client.mark.assist(resourceId, 'highlighting', {
+  instructions: 'Focus on key technical points',
+  density: 5,
+}).subscribe({
+  next: (progress) => {
+    setDetectionProgress({
+      status: progress.status,
+      percentage: progress.percentage,
+      message: progress.message,
+    });
+  },
+  complete: () => {
+    toast.success('Detection complete');
+    // BrowseNamespace auto-invalidates on mark:added events — no
+    // explicit refetch needed.
+  },
+  error: (err) => {
+    toast.error(err.message);
+    setIsDetecting(false);
+  },
 });
 
-// Handle completion
-stream.onComplete((result) => {
-  toast.success(`Created ${result.createdCount} annotations`);
-  refetchAnnotations();  // Reload from View Storage
-});
-
-// Handle errors
-stream.onError((error) => {
-  toast.error(error.message);
-  setIsDetecting(false);
-});
+// Cleanup
+subscription.unsubscribe();
 ```
 
 ### Progress Display

@@ -72,10 +72,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
       result,
     });
 
-    // Emit mark:assist-finished on the resource-scoped bus so the events-stream
-    // delivers it to all participants. Previously synthesized by the per-operation SSE route.
-    const resourceBus = this.eventBus.scope(String(job.params.resourceId));
-    resourceBus.get('mark:assist-finished').next({
+    this.eventBus.get('mark:assist-finished').next({
       motivation: 'assessing',
       resourceId: String(job.params.resourceId),
       status: 'complete',
@@ -121,9 +118,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
         percentage: assJob.progress.percentage,
         progress: { stage: assJob.progress.stage, percentage: assJob.progress.percentage, message: assJob.progress.message || '' },
       });
-      // Ephemeral progress for real-time UI updates
-      const resourceBus = this.eventBus.scope(assJob.params.resourceId);
-      resourceBus.get('mark:progress').next({
+      this.eventBus.get('mark:progress').next({
         status: assJob.progress.stage,
         message: assJob.progress.message,
         percentage: assJob.progress.percentage
@@ -147,9 +142,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
         error: 'Assessment detection failed. Please try again later.',
       });
 
-      // Emit mark:assist-failed on the resource-scoped bus
-      const resourceBus = this.eventBus.scope(String(aJob.params.resourceId));
-      resourceBus.get('mark:assist-failed').next({
+      this.eventBus.get('mark:assist-failed').next({
         resourceId: String(aJob.params.resourceId),
         message: 'Assessment detection failed. Please try again later.',
       });

@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { SemiontApiClient } from '@semiont/api-client';
+import { BehaviorSubject } from 'rxjs';
 import {
   email as toEmail,
   accessToken as toAccessToken,
@@ -123,8 +124,14 @@ export function loadCachedClient(rawBusUrl: string): AuthenticatedClient {
     );
   }
 
-  const semiont = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl), eventBus: new EventBus() });
-  return { semiont, token: toAccessToken(cached.token) };
+  const token = toAccessToken(cached.token);
+  const token$ = new BehaviorSubject<AccessToken | null>(token);
+  const semiont = new SemiontApiClient({
+    baseUrl: toBaseUrl(rawBusUrl),
+    eventBus: new EventBus(),
+    token$,
+  });
+  return { semiont, token };
 }
 
 /**

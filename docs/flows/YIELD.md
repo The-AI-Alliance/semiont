@@ -26,33 +26,37 @@ The Yield flow creates new resources from reference annotations (motivation: `li
 
 ## Using the API Client
 
-Generate a new resource from a reference annotation via SSE:
+Generation is a long-running job. `client.yield.fromAnnotation()`
+returns an Observable that emits `yield:progress` events during LLM
+generation and finally `yield:finished` on completion (or errors on
+`yield:failed`). Under the hood it emits `job:create` via the bus
+gateway with `jobType: 'generation'`, then the Yield worker picks it
+up and publishes progress events back on the bus.
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
+import { lastValueFrom } from 'rxjs';
 
-const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
-
-// First, correlate context for the annotation (see Gather flow)
-const { context } = await client.getAnnotationLLMContext(
-  resourceId, annotationId, { contextWindow: 2000 }
+// First, gather context for the annotation (see Gather flow)
+const gather = await lastValueFrom(
+  client.gather.annotation(annotationId, resourceId, { contextWindow: 2000 }),
 );
+const context = (gather as { context: GatheredContext }).context;
 
 // Generate a new resource from the reference annotation
-client.sse.generateResourceFromAnnotation(
-  resourceId,
-  annotationId,
-  {
-    title: 'Ouranos',
-    language: 'en',
-    context,
-  },
-  { eventBus }
-);
+client.yield.fromAnnotation(resourceId, annotationId, {
+  title: 'Ouranos',
+  language: 'en',
+  storageUri: 'file://...',
+  context,
+}).subscribe({
+  next: (event) => console.log('progress:', event),
+  complete: () => console.log('done'),
+  error: (err) => console.error(err),
+});
 
-// Progress and completion events auto-emit to the event bus:
+// Events seen by subscribers:
 //   yield:progress  — { status, percentage, message }
-//   yield:finished  — { resourceId, resourceName }
+//   yield:finished  — { resourceId, referenceId, sourceResourceId, ... }
 //   yield:failed    — { error }
 ```
 
@@ -125,19 +129,21 @@ client.sse.generateResourceFromAnnotation(
 ```
 User clicks "Generate" on reference annotation ❓
     ↓
-Frontend → POST /resources/{sourceId}/generate-resource-from-annotation-stream
+Frontend → client.yield.fromAnnotation(...) emits job:create via /bus/emit
     ↓
-Route validates request, creates job → submits to queue
+Backend job:create handler builds a PendingJob, persists to queue, returns job:created
     ↓
-Route subscribes to job progress events (job-specific SSE)
-    ↓
-Worker picks up job from queue
+Worker (separate process, subscribed to job:queued) claims it via job:claim bus command
     ↓
 Worker generates content → creates resource → updates annotation
     ↓
-Worker emits mark:update-body → EventBus → Stower persists → mark:body-updated
+Worker emits yield:progress, yield:finished via /bus/emit
     ↓
-Document viewer's SSE receives event → invalidates cache → refetches annotations
+Worker also emits mark:update-body → EventBus → Stower persists → mark:body-updated
+    ↓
+Every connected frontend receives the enriched mark:body-updated on /bus/subscribe
+    ↓
+BrowseNamespace updates the cached annotation in place
     ↓
 UI updates: ❓ → 🔗 in real-time (<50ms latency)
 ```
@@ -328,72 +334,67 @@ Both events flow through EventBus → Stower → Event Store → Materialized Vi
   - "Complete! View resource →"
 - Link to view newly generated resource
 
-### SSE Client Usage
+### Yield Namespace (Observable API)
 
-**File**: [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts)
+**File**: [packages/api-client/src/namespaces/yield.ts](../../packages/api-client/src/namespaces/yield.ts)
+
+`yield.fromAnnotation()` returns an Observable of progress events,
+backed by the bus gateway. The namespace emits `job:create` (jobType:
+`generation`) via `/bus/emit`; the Yield worker picks it up, generates
+the resource, and publishes `yield:progress` / `yield:finished` /
+`yield:failed` events as it works.
 
 ```typescript
-// Initiate generation
-const stream = client.sse.generateResourceFromAnnotation(
-  resourceId,
-  referenceId,
-  {
-    tone: 'scholarly',
-    length: 'moderate',
-    language: 'en'
-  }
-);
-
-// Handle progress
-stream.onProgress((progress) => {
-  setYieldProgress({
-    status: progress.status,
-    percentage: progress.percentage,
-    message: progress.message
-  });
+const subscription = client.yield.fromAnnotation(resourceId, referenceId, {
+  title: 'Ouranos',
+  storageUri: 'file://...',
+  context,
+  tone: 'scholarly',
+  language: 'en',
+}).subscribe({
+  next: (progress) => {
+    setYieldProgress({
+      status: progress.status,
+      percentage: progress.percentage,
+      message: progress.message,
+    });
+  },
+  complete: () => {
+    toast.success('Resource generated successfully');
+    // The worker also emits mark:body-updated on the bus;
+    // BrowseNamespace updates the cached annotation in place,
+    // UI flips ❓ → 🔗 automatically.
+  },
+  error: (err) => {
+    toast.error(err.message);
+    setIsGenerating(false);
+  },
 });
 
-// Handle completion
-stream.onComplete((result) => {
-  toast.success('Resource generated successfully');
-  // Generation progress SSE closes
-  // Document viewer's resource events SSE receives mark:body-updated
-  // React Query cache invalidates and refetches
-  // UI updates: ❓ → 🔗
-});
-
-// Handle errors
-stream.onError((error) => {
-  toast.error(error.message);
-  setIsGenerating(false);
-});
+subscription.unsubscribe();  // cleanup
 ```
 
 ### Real-Time Reference Resolution
 
-**Two SSE Streams Work Together**:
+**Single bus connection delivers everything**:
 
-1. **Generation Progress Stream** (`POST /resources/{id}/generate-resource-from-annotation-stream`)
-   - Job-specific progress updates
-   - Closes when generation completes
-   - Shows progress in modal
+Progress events (`yield:progress`, `yield:finished`) and domain events
+(`mark:body-updated`) all flow through the same `/bus/subscribe` SSE
+connection. The frontend's `YieldVM` filters progress events by
+correlationId for the modal UI, while `BrowseNamespace` handles the
+domain event for cache invalidation.
 
-2. **Resource Events Stream** (`GET /resources/{id}/events/stream`)
-   - Long-lived connection per document viewer
-   - Receives `mark:body-updated` event
-   - Triggers React Query cache invalidation
-   - UI updates icon: ❓ → 🔗
+**No Page Refresh Required**
 
-**Critical: No Page Refresh Required**
+The `mark:body-updated` event flow:
+1. Worker emits `mark:update-body` → EventBus → Stower persists →
+   EventStore publishes enriched `mark:body-updated` on scoped bus
+2. Frontend ActorVM receives event, bridges to local EventBus
+3. `BrowseNamespace.updateAnnotationInPlace` writes the enriched
+   annotation into the cached Observable
+4. UI re-renders with resolved reference (❓ → 🔗)
 
-The `mark:body-updated` event flow ensures real-time updates:
-1. Worker emits `mark:update-body` → EventBus → Stower persists → emits `mark:body-updated`
-2. Document viewer's SSE receives event (<50ms latency)
-3. Frontend `onAnnotationBodyUpdated` handler invalidates React Query cache
-4. Annotations refetch from Materialized Views
-5. UI re-renders with resolved reference
-
-See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE architecture details.
+See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for the bus gateway architecture.
 
 ## Error Handling
 
@@ -461,22 +462,22 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 - [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md#generationworker) - Architecture and flow
 - [Make-Meaning Examples](../../packages/make-meaning/docs/examples.md) - Usage patterns
 
-### Backend Routes
+### Backend
 
-- [apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts](../../apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts) - Generation route
-- [apps/backend/src/routes/resources/routes/events-stream.ts](../../apps/backend/src/routes/resources/routes/events-stream.ts) - Resource events SSE endpoint
+- [apps/backend/src/routes/bus.ts](../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
+- [apps/backend/src/handlers/job-commands.ts](../../apps/backend/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers
 
 ### Frontend
 
 - [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
-- [packages/api-client/src/view-models/flows/yield-vm.ts](../../packages/api-client/src/view-models/flows/yield-vm.ts) - Generation flow view model (manages SSE, modal state, and progress state)
-- [packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts) - Resource events hook
-- [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts) - SSE client
+- [packages/api-client/src/view-models/flows/yield-vm.ts](../../packages/api-client/src/view-models/flows/yield-vm.ts) - Generation flow view model (bus commands + progress)
+- [packages/api-client/src/view-models/domain/actor-vm.ts](../../packages/api-client/src/view-models/domain/actor-vm.ts) - Bus actor primitive
 
 ### Documentation
 
 - [@semiont/make-meaning](../../packages/make-meaning/README.md) - Package overview
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
-- [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming details
+- [Bus Gateway Architecture](../../apps/backend/docs/STREAMS.md) - Bus model end-to-end
+- [Real-Time Event Delivery](../../apps/backend/docs/REAL-TIME.md) - Enrichment + gap detection
 - [Mark Flow](./MARK.md) - Reference detection

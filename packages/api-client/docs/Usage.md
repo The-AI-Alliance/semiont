@@ -21,20 +21,33 @@
 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, EventBus } from '@semiont/core';
+import { baseUrl, accessToken, EventBus, type AccessToken } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
+
+const token$ = new BehaviorSubject<AccessToken | null>(accessToken(myToken));
 
 const semiont = new SemiontApiClient({
   baseUrl: baseUrl('http://localhost:4000'),
   eventBus: new EventBus(),
-  getToken: () => accessToken(myToken),
+  token$,
 });
 ```
 
-The `getToken` function is called on each request. Update it via `semiont.setTokenGetter()` when the token changes (e.g., after refresh).
+All namespace calls and the bus SSE connection read the current value
+from `token$`. Update by calling `.next(newToken)` — the client's bus
+actor reconnects with the new token automatically.
+
+```typescript
+// After token refresh
+token$.next(accessToken(newToken));
+```
+
+Omit `token$` for unauthenticated usage (public endpoints only). The
+bus actor will not connect until a non-null token is available.
 
 ## Browse
 
-Browse methods read from materialized views. Live queries return Observables that emit initial state and re-emit when the events-stream delivers relevant domain events.
+Browse methods read from materialized views. Live queries return Observables that emit initial state and re-emit when the bus gateway delivers relevant domain events.
 
 ### Live Queries (Observable)
 
@@ -83,7 +96,7 @@ const files = await semiont.browse.files('/docs', 'mtime');
 
 ## Mark
 
-Commands return Promises that resolve on HTTP acceptance. Results appear on browse Observables via the events-stream.
+Commands return Promises that resolve on HTTP acceptance. Results appear on browse Observables via the bus gateway.
 
 ```typescript
 // Create an annotation
@@ -227,22 +240,43 @@ const final = await semiont.job.pollUntilComplete(jobId, {
 });
 ```
 
-## SSE Streams
+## Bus Connection
 
-Three long-lived SSE connections (managed internally by the browse namespace for Observable updates):
+The client lazily creates one `ActorVM` that opens a single SSE
+connection to `/bus/subscribe`. All subscriptions — result channels,
+global events, resource-scoped domain events — flow through it.
+
+To receive live updates for a specific resource:
 
 ```typescript
-// Resource events (per-resource, auto-reconnect with Last-Event-ID replay)
-const stream = semiont.sse.resourceEvents(resourceId, { auth, eventBus });
+// Adds resource-scoped channels to the bus subscription and bridges
+// them into the local EventBus so `semiont.browse.*` Observables
+// update in real-time. Call on mount; call the returned cleanup
+// function on unmount.
+const cleanup = semiont.subscribeToResource(resourceId);
 
-// Global events (system-wide, entity type additions, etc.)
-const stream = semiont.sse.globalEvents({ auth, eventBus });
+// ... later
+cleanup();
+```
 
-// Attention stream (participant-scoped, ephemeral presence signals)
-const stream = semiont.sse.attentionStream({ auth, eventBus });
+The ActorVM auto-reconnects with exponential backoff. On reconnect
+after a disconnect, `BrowseNamespace` invalidates all active caches
+and refetches — no Last-Event-ID replay needed.
 
-// Close when done
-stream.close();
+For direct access (advanced use — CLI, workers, smelter):
+
+```typescript
+import { createActorVM } from '@semiont/api-client';
+
+const actor = createActorVM({
+  baseUrl,
+  token,
+  channels: ['my:channel'],
+});
+actor.start();
+actor.on$('my:channel').subscribe((payload) => { ... });
+await actor.emit('another:channel', { ... });
+actor.dispose();
 ```
 
 ## Error Handling
@@ -265,7 +299,7 @@ try {
 const semiont = new SemiontApiClient({
   baseUrl: baseUrl('http://localhost:4000'),
   eventBus: new EventBus(),
-  getToken: () => accessToken(token),
+  token$,
   logger, // winston, pino, etc.
 });
 ```
