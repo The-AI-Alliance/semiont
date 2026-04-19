@@ -241,24 +241,24 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   // ── Invalidation (exposed for other namespaces) ─────────────────────────
-
-  // All invalidate* methods must clear any in-flight fetch guards before
-  // calling the corresponding fetch helper. An in-flight busRequest from
-  // a previous SSE can be orphaned when the connection is torn down
-  // (response delivered to a dead subscriber); its guard stays set for
-  // up to 30s waiting for a timeout. Without clearing the guard, the
-  // gap-detection refetch short-circuits and the cache stays empty
-  // forever — observed as "Loading resource..." that never resolves.
+  //
+  // Behavioral contract: packages/api-client/docs/CACHE-SEMANTICS.md.
+  //
+  //  - `invalidate*`  — stale-while-revalidate (B7): keep the previous
+  //    value visible to observers, clear the in-flight guard (B7 step 1,
+  //    prevents the orphaned-fetch deadlock from commit 845c6b24), and
+  //    issue a fresh fetch.
+  //  - `remove*`      — drop the entry from the cache (B13a). Used when
+  //    the underlying entity no longer exists.
+  //  - `update*InPlace` — write the known new value directly (B13b).
+  //    Used when the bus-event payload contains the full entity.
 
   invalidateAnnotationList(resourceId: ResourceId): void {
-    const next = new Map(this.annotationList$.value);
-    next.delete(resourceId);
-    this.annotationList$.next(next);
     this.fetchingAnnotationList.delete(resourceId);
     this.fetchAnnotationList(resourceId);
   }
 
-  invalidateAnnotationDetail(annotationId: AnnotationId): void {
+  removeAnnotationDetail(annotationId: AnnotationId): void {
     const next = new Map(this.annotationDetail$.value);
     next.delete(annotationId);
     this.annotationDetail$.next(next);
@@ -266,58 +266,54 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   invalidateResourceDetail(id: ResourceId): void {
-    // Stale-while-revalidate: keep the previous value in the map so
-    // `browse.resource(id)` continues to emit it while the refetch is
-    // in flight. Deleting first would make the page's isLoading$ flip
-    // true mid-flight, which unmounts ResourceViewerPage, disposes its
-    // VM, removes the scoped channels — and re-triggers reconnect/
-    // gap-detect on remount. That feedback loop pegged entity-types
-    // refetches at 120+ per navigation.
     this.fetchingResourceDetail.delete(id);
     this.fetchResourceDetail(id);
   }
 
   invalidateResourceLists(): void {
-    this.resourceList$.next(new Map());
+    const keys = [...this.resourceList$.value.keys()];
     this.fetchingResourceList.clear();
+    for (const key of keys) {
+      const filters = JSON.parse(key) as { limit?: number; archived?: boolean; search?: string };
+      this.fetchResourceList(key, filters);
+    }
   }
 
   invalidateEntityTypes(): void {
-    this.entityTypes$.next(undefined);
     this.fetchingEntityTypes = false;
     this.fetchEntityTypes();
   }
 
   invalidateReferencedBy(resourceId: ResourceId): void {
-    const next = new Map(this.referencedBy$.value);
-    next.delete(resourceId);
-    this.referencedBy$.next(next);
     this.fetchingReferencedBy.delete(resourceId);
     this.fetchReferencedBy(resourceId);
   }
 
   invalidateResourceEvents(resourceId: ResourceId): void {
-    const next = new Map(this.resourceEvents$.value);
-    next.delete(resourceId);
-    this.resourceEvents$.next(next);
     this.fetchingResourceEvents.delete(resourceId);
     this.fetchResourceEventsCache(resourceId);
   }
 
   updateAnnotationInPlace(resourceId: ResourceId, annotation: Annotation): void {
     const currentList = this.annotationList$.value.get(resourceId);
-    if (!currentList) return;
+    if (currentList) {
+      const existingIdx = currentList.annotations.findIndex((a) => a.id === annotation.id);
+      const nextAnnotations =
+        existingIdx >= 0
+          ? currentList.annotations.map((a, i) => (i === existingIdx ? annotation : a))
+          : [...currentList.annotations, annotation];
 
-    const existingIdx = currentList.annotations.findIndex((a) => a.id === annotation.id);
-    const nextAnnotations =
-      existingIdx >= 0
-        ? currentList.annotations.map((a, i) => (i === existingIdx ? annotation : a))
-        : [...currentList.annotations, annotation];
+      const nextList: AnnotationsListResponse = { ...currentList, annotations: nextAnnotations };
+      const nextMap = new Map(this.annotationList$.value);
+      nextMap.set(resourceId, nextList);
+      this.annotationList$.next(nextMap);
+    }
 
-    const nextList: AnnotationsListResponse = { ...currentList, annotations: nextAnnotations };
-    const nextMap = new Map(this.annotationList$.value);
-    nextMap.set(resourceId, nextList);
-    this.annotationList$.next(nextMap);
+    // Also write-through to the per-annotation detail cache so observers
+    // of `browse.annotation(id)` see the new value without a refetch.
+    const nextDetail = new Map(this.annotationDetail$.value);
+    nextDetail.set(makeAnnotationId(annotation.id), annotation);
+    this.annotationDetail$.next(nextDetail);
   }
 
   // ── EventBus subscriptions ──────────────────────────────────────────────
@@ -344,7 +340,8 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     bus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
-      this.invalidateAnnotationDetail(makeAnnotationId(event.annotationId));
+      // B13a: annotation is deleted — drop from cache, no refetch.
+      this.removeAnnotationDetail(makeAnnotationId(event.annotationId));
     });
 
     bus.get('mark:added').subscribe((stored) => {
@@ -359,14 +356,16 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.invalidateAnnotationList(stored.resourceId);
         this.invalidateResourceEvents(stored.resourceId);
       }
-      this.invalidateAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
+      // B13a: annotation is removed — drop from cache, no refetch.
+      this.removeAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
     });
 
     bus.get('mark:body-updated').subscribe((event) => {
+      // B13b: event payload contains the full updated annotation.
+      // Write-through directly to both list and detail caches; no fetch.
       const enriched = event as unknown as EnrichedResourceEvent;
       if (!enriched.resourceId || !enriched.annotation) return;
       this.updateAnnotationInPlace(enriched.resourceId as ResourceId, enriched.annotation);
-      this.invalidateAnnotationDetail(makeAnnotationId(enriched.annotation.id));
       this.invalidateResourceEvents(enriched.resourceId as ResourceId);
     });
 
