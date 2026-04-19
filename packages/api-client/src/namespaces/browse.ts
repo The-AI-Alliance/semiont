@@ -266,9 +266,13 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   invalidateResourceDetail(id: ResourceId): void {
-    const next = new Map(this.resourceDetail$.value);
-    next.delete(id);
-    this.resourceDetail$.next(next);
+    // Stale-while-revalidate: keep the previous value in the map so
+    // `browse.resource(id)` continues to emit it while the refetch is
+    // in flight. Deleting first would make the page's isLoading$ flip
+    // true mid-flight, which unmounts ResourceViewerPage, disposes its
+    // VM, removes the scoped channels — and re-triggers reconnect/
+    // gap-detect on remount. That feedback loop pegged entity-types
+    // refetches at 120+ per navigation.
     this.fetchingResourceDetail.delete(id);
     this.fetchResourceDetail(id);
   }

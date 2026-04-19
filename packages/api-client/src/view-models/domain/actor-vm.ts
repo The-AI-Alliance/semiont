@@ -2,6 +2,41 @@ import { Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
 import type { ViewModel } from '../lib/view-model';
 
+/**
+ * Runtime-toggleable cross-wire bus logging. Off by default — zero
+ * cost on the hot path when `window.__SEMIONT_BUS_LOG__` is falsy.
+ *
+ * Turn on from DevTools:
+ *   window.__SEMIONT_BUS_LOG__ = true
+ * Or from a Playwright test:
+ *   page.addInitScript(() => { window.__SEMIONT_BUS_LOG__ = true; });
+ *
+ * Output format (grep-friendly):
+ *   [bus EMIT] <channel> [scope=X] [cid=<first 8>] <payload>
+ *   [bus RECV] <channel> [scope=X] [cid=<first 8>] <payload>
+ *
+ * This covers only events that cross the browser↔backend boundary —
+ * local-only eventBus emissions stay invisible here (by design:
+ * they don't go through ActorVM). For full local-bus observation,
+ * hook `@semiont/core`'s EventBus separately.
+ */
+function busLog(
+  direction: 'EMIT' | 'RECV',
+  channel: string,
+  payload: Record<string, unknown>,
+  scope?: string,
+): void {
+  if (typeof globalThis === 'undefined') return;
+  const g = globalThis as { __SEMIONT_BUS_LOG__?: boolean };
+  if (!g.__SEMIONT_BUS_LOG__) return;
+  const cid = (payload as { correlationId?: string } | undefined)?.correlationId;
+  const tag = `[bus ${direction}] ${channel}` +
+    (scope ? ` scope=${scope}` : '') +
+    (cid ? ` cid=${String(cid).slice(0, 8)}` : '');
+  // eslint-disable-next-line no-console
+  console.debug(tag, payload);
+}
+
 export interface BusEvent {
   channel: string;
   payload: Record<string, unknown>;
@@ -98,6 +133,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
           } else if (line === '') {
             if (currentEvent === 'bus-event' && currentData) {
               const parsed = JSON.parse(currentData) as BusEvent;
+              busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
               events$.next(parsed);
             }
             currentEvent = '';
@@ -130,6 +166,23 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     connect();
   };
 
+  // Debounce channel-set-change reconnects. React StrictMode in dev
+  // produces mount → cleanup → mount synchronously, which previously
+  // translated into three back-to-back reconnects — enough to tear down
+  // in-flight responses, fire gap detection, refetch, tear that down
+  // again, and leave the page stuck in "Loading..." while caches
+  // thrashed. With a short debounce the whole sequence collapses into
+  // one reconnect after the final channel-set is stable.
+  let reconnectTimer2: ReturnType<typeof setTimeout> | null = null;
+  const RECONNECT_DEBOUNCE_MS = 100;
+  const scheduleReconnect = () => {
+    if (reconnectTimer2) clearTimeout(reconnectTimer2);
+    reconnectTimer2 = setTimeout(() => {
+      reconnectTimer2 = null;
+      reconnect();
+    }, RECONNECT_DEBOUNCE_MS);
+  };
+
   return {
     on$<T = Record<string, unknown>>(channel: string): Observable<T> {
       return shared$.pipe(
@@ -139,6 +192,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     },
 
     emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void> => {
+      busLog('EMIT', channel, payload, emitScope);
       const body: Record<string, unknown> = { channel, payload };
       if (emitScope) body.scope = emitScope;
       await fetch(`${baseUrl}/bus/emit`, {
@@ -165,7 +219,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
           if (!globalChannels.has(ch)) { globalChannels.add(ch); changed = true; }
         }
       }
-      if (changed) reconnect();
+      if (changed) scheduleReconnect();
     },
 
     removeChannels: (channels: string[]) => {
@@ -175,7 +229,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
         if (globalChannels.delete(ch)) changed = true;
       }
       if (scopedChannels.size === 0) activeScope = undefined;
-      if (changed) reconnect();
+      if (changed) scheduleReconnect();
     },
 
     start: () => {
@@ -187,11 +241,13 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     stop: () => {
       running = false;
       connected$.next(false);
+      if (reconnectTimer2) { clearTimeout(reconnectTimer2); reconnectTimer2 = null; }
       disconnect();
     },
 
     dispose: () => {
       running = false;
+      if (reconnectTimer2) { clearTimeout(reconnectTimer2); reconnectTimer2 = null; }
       disconnect();
       events$.complete();
       connected$.complete();
