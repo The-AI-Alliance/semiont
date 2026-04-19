@@ -242,10 +242,19 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── Invalidation (exposed for other namespaces) ─────────────────────────
 
+  // All invalidate* methods must clear any in-flight fetch guards before
+  // calling the corresponding fetch helper. An in-flight busRequest from
+  // a previous SSE can be orphaned when the connection is torn down
+  // (response delivered to a dead subscriber); its guard stays set for
+  // up to 30s waiting for a timeout. Without clearing the guard, the
+  // gap-detection refetch short-circuits and the cache stays empty
+  // forever — observed as "Loading resource..." that never resolves.
+
   invalidateAnnotationList(resourceId: ResourceId): void {
     const next = new Map(this.annotationList$.value);
     next.delete(resourceId);
     this.annotationList$.next(next);
+    this.fetchingAnnotationList.delete(resourceId);
     this.fetchAnnotationList(resourceId);
   }
 
@@ -253,26 +262,24 @@ export class BrowseNamespace implements IBrowseNamespace {
     const next = new Map(this.annotationDetail$.value);
     next.delete(annotationId);
     this.annotationDetail$.next(next);
+    this.fetchingAnnotationDetail.delete(annotationId);
   }
 
   invalidateResourceDetail(id: ResourceId): void {
     const next = new Map(this.resourceDetail$.value);
     next.delete(id);
     this.resourceDetail$.next(next);
+    this.fetchingResourceDetail.delete(id);
     this.fetchResourceDetail(id);
   }
 
   invalidateResourceLists(): void {
     this.resourceList$.next(new Map());
+    this.fetchingResourceList.clear();
   }
 
   invalidateEntityTypes(): void {
     this.entityTypes$.next(undefined);
-    // Clear the in-flight guard: a busRequest from a previous SSE may be
-    // orphaned (its response landed on a torn-down connection) but still
-    // holding the flag until its 30s timeout. Without this reset, the
-    // gap-detection refetch would short-circuit and the cache would stay
-    // undefined for 30s.
     this.fetchingEntityTypes = false;
     this.fetchEntityTypes();
   }
@@ -281,6 +288,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     const next = new Map(this.referencedBy$.value);
     next.delete(resourceId);
     this.referencedBy$.next(next);
+    this.fetchingReferencedBy.delete(resourceId);
     this.fetchReferencedBy(resourceId);
   }
 
@@ -288,6 +296,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     const next = new Map(this.resourceEvents$.value);
     next.delete(resourceId);
     this.resourceEvents$.next(next);
+    this.fetchingResourceEvents.delete(resourceId);
     this.fetchResourceEventsCache(resourceId);
   }
 
