@@ -210,8 +210,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
   });
 
   /**
-   * Accepts bus events from clients. See `.plans/SIMPLE-BUS.md` for the
-   * scope rule.
+   * Accepts bus events from clients.
+   *
+   * Scope rule:
    *
    * - **Commands** (frontend → backend handler) and **correlation-ID
    *   responses** arrive un-scoped. Handlers subscribe on the global bus.

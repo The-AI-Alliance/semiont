@@ -5,10 +5,6 @@ This document specifies the behavior of the read-through cache in
 `api-client`). It is the behavioral contract that implementation must
 satisfy and that tests must verify.
 
-The motivating history is in
-[.plans/CACHE-LIBRARY.md](../../../.plans/CACHE-LIBRARY.md). This doc
-is the Phase 1 deliverable from that plan.
-
 ## Why write this down
 
 The cache is implemented by hand because `api-client` is
@@ -249,24 +245,33 @@ avoids the roundtrip of an invalidate-triggered refetch. It also
 ensures both related caches stay in sync when a handler has reason
 to update more than one.
 
-### B13 — Reconnect gap-detection invalidates all live keys
+### B13 — Reconnect gap-detection is server-driven, not edge-driven
 
-On the `connected$: false → true` transition, the cache MUST
-invalidate every currently-cached key in every cache map, plus the
-entity-types singleton. This is the blanket-invalidation
-documented in [.plans/BUS-RESUMPTION.md](../../../.plans/BUS-RESUMPTION.md)
-as the reason resumption is wanted: without resumption, we don't
-know which events were missed, so we conservatively refetch
-everything.
+A bare `connected$: false → true` transition does NOT trigger cache
+invalidation. The server stamps every persisted event on
+`/bus/subscribe` with `id: p-<scope>-<seq>`; the client sends the
+last seen id as `Last-Event-ID` on reconnect; the server replays
+persisted events missed during the gap. The usual reconnect path
+(mount-churn, scope-change, brief network blip) finishes with
+**zero events missed** — no cache invalidation needed.
 
-With B7 (SWR), blanket invalidation is not destructive — observers
+When the server can't cover the gap — retention window exceeded,
+`Last-Event-ID` unparseable, scope mismatch — it emits a
+`bus:resume-gap` event. On that event, the cache MUST invalidate:
+
+- If `scope` is provided: every key related to that scope
+  (`annotationList[scope]`, `resourceDetail[scope]`,
+  `resourceEvents[scope]`, `referencedBy[scope]`) plus the KB-wide
+  `entityTypes`.
+- If `scope` is omitted: every live key in every cache (the
+  pre-resumption blanket behavior).
+
+The `entityTypes` singleton always refetches on any gap because the
+resumption protocol currently covers only resource-scoped events.
+
+With B7 (SWR), these invalidations are not destructive — observers
 keep seeing their stale data until the refetches return. Only
 network work is wasted, not UX.
-
-When [BUS-RESUMPTION.md](../../../.plans/BUS-RESUMPTION.md) lands,
-gap-detection will shrink to a targeted invalidation of only the
-scopes the server reports as resumption-gapped. This doc's contract
-does not change when that happens.
 
 ## Mapping: bus events → cache invalidations
 
@@ -276,7 +281,8 @@ code.
 
 | Bus event | Effect |
 |---|---|
-| `actor.connected$: false → true` | invalidate all live keys in all caches (B13) |
+| `actor.connected$: false → true` | **no effect** — resumption handles the gap (B13) |
+| `bus:resume-gap` | scope-targeted invalidation (if `scope`) or full blanket (if not); always refetch `entityTypes` (B13) |
 | `mark:delete-ok` | invalidate `annotationDetail[annotationId]` |
 | `mark:added` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]` |
 | `mark:removed` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]`, `annotationDetail[annotationId]` |

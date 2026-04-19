@@ -85,12 +85,12 @@ only identity signal they can trust.
 
 ### `GET /bus/subscribe`
 
-- **At-most-once, live-only.** An event is delivered to every SSE
-  connection subscribed to its channel at the moment the event is
-  published. Connections that weren't live at that moment don't see
-  the event — there is **no replay, no resume, no buffer**. A client
-  that disconnects and reconnects misses whatever happened during the
-  gap.
+- **At-most-once delivery with resumption for persisted events.** An
+  event is delivered to every SSE connection subscribed to its
+  channel at the moment the event is published. Connections that
+  weren't live at that moment don't see the live delivery, but
+  **persisted events can be replayed** — see "Event id and
+  resumption" below.
 - **Per-channel ordering within a single connection.** Events on a
   single channel are delivered in the order they were published on
   that bus. Events across channels have no ordering guarantee.
@@ -103,6 +103,38 @@ only identity signal they can trust.
   client subscribed globally receives each persisted event once via
   the global delivery; a client subscribed both ways receives it
   twice.
+
+#### Event id and resumption
+
+Every event on the SSE stream carries an `id:` field of one of two
+shapes:
+
+| Shape | Meaning | Resumable |
+|---|---|---|
+| `p-<scope>-<seq>` | Persisted event, scoped. `<scope>` is the resource id, `<seq>` is `event.metadata.sequenceNumber`. | **Yes.** |
+| `e-<connectionId>-<counter>` | Ephemeral event or persisted event delivered on an unscoped channel. The id is unique per connection but carries no replay meaning. | No. |
+
+Clients SHOULD track the last `id:` seen and send it as the
+`Last-Event-ID` request header on every reconnect. When the server
+receives `Last-Event-ID: p-<scope>-<seq>`:
+
+1. If the subscription's `scope=` query param matches `<scope>`, the
+   server queries the event store for persisted events in that scope
+   with `sequenceNumber > <seq>`, filtered to the subscribed
+   `scoped=` channels, and replays them on the stream before the live
+   tail starts.
+2. If replay can't cover the gap (retention window exceeded, scope
+   mismatch, unparseable id, query error), the server emits a
+   synthetic `bus:resume-gap` event describing the reason and
+   optional `scope`. The client should treat this as a signal to
+   fall back to blanket invalidation for the affected scope.
+
+Ephemeral ids sent back as `Last-Event-ID` are accepted without
+replay and without a gap event — they simply establish "no
+resumption context," as if the client had sent no header.
+
+Clients that never send `Last-Event-ID` get live-only behavior, same
+as before resumption was introduced.
 
 ### Combined request-response (`busRequest`)
 
@@ -142,10 +174,10 @@ Booleans, with well-defined transitions:
 | `true` → `false` | The connection is ending or has ended. Two causes: (1) the server closed the stream or the network errored, (2) the client is intentionally reconnecting (e.g. channel set changed). Both emit the same value. |
 | `false` → `true` | A fresh SSE connection is live. |
 
-The consumer can't tell the two `true`→`false` causes apart today.
-That's not a bug; it's a deliberate simplification — any time the
-connection goes down, the client must assume it may have missed
-events and revalidate state. See "Reconnect discipline" below.
+The consumer can't tell the two `true`→`false` causes apart.
+That's deliberate — gap detection is handled by the resumption
+protocol (see "Event id and resumption" above), not by the consumer
+interpreting the boolean edges.
 
 ### Reconnect discipline (client side)
 
@@ -164,10 +196,18 @@ The client-side `ActorVM` handles three reconnect triggers:
 3. **Explicit `stop()` / `dispose()`.** No reconnect; `connected$`
    emits `false` once and the observable completes.
 
-Consumers observing `connected$` for gap detection should react to
-the `false`→`true` transition regardless of cause. This is
-deliberate: the client cannot know which events it might have missed
-across the gap, so it must revalidate either way.
+On every reconnect, the client sends the last seen `id:` as the
+`Last-Event-ID` request header. For a clean reconnect (no persisted
+events missed), the server replays nothing and live delivery
+resumes. Consumers should NOT revalidate caches on the
+`false`→`true` edge — that work is now driven by the `bus:resume-gap`
+event, which the server emits only when it genuinely can't cover the
+gap.
+
+**All in-flight fetches are aborted when a new connect starts.** The
+client tracks SSE fetch controllers as a set; every previous one is
+aborted before the new one begins. This prevents orphaned streams
+from accumulating when rapid channel-set changes race each other.
 
 ## Event categorization and scope
 
@@ -215,11 +255,15 @@ A consumer that wants correctness must assume:
 
 - Every `/bus/emit` either succeeds (202) or fails (4xx). There's no
   third outcome.
-- Every event on the SSE stream is live-only. If the consumer wasn't
-  connected at publish time, the event is gone.
-- Every reconnect is a cache-invalidation signal. The consumer has
-  no way to know which events it missed during the gap. It must
-  revalidate everything it depends on.
+- Every event on the SSE stream is live unless delivered as part of
+  a replay response to `Last-Event-ID`. Ephemeral events (command
+  responses, progress) are never replayed; persisted domain events
+  are replayed only when the client sent a `p-*` resumption id on
+  reconnect.
+- A bare reconnect (no gap) requires no cache action from the
+  consumer. A gap the server couldn't cover arrives as a
+  `bus:resume-gap` event; on that event, the consumer must revalidate
+  state for the affected scope.
 - `busRequest` has a 30 s timeout and no retry. Callers that require
   retry must wrap.
 - CorrelationIds are the only way to match a request to its response.
@@ -228,58 +272,26 @@ A consumer that wants correctness must assume:
 
 ## Known gaps (deliberately surfaced)
 
-These are gaps in the contract above. They're listed so future work
-can reference them specifically instead of rediscovering them.
-
-### Suggested execution order
-
-Each gap has its own plan; the plans interact at specific points.
-Suggested sequence:
-
-1. **[CONNECTION-STATE.md](../../../.plans/CONNECTION-STATE.md)** — small change, touches one file's public API, immediately improves observability (UI banner, test assertions) and gives the invalidation logic in the next two plans a richer signal than a boolean.
-2. **[BUS-RESUMPTION.md](../../../.plans/BUS-RESUMPTION.md)** — biggest protocol win. Eliminates blanket cache invalidation and lets us delete the 100 ms reconnect debounce. Must land before CACHE-LIBRARY Phase 2 so the library layer is wired to the simplified invalidation model, not the current blanket one.
-3. **[CACHE-LIBRARY.md](../../../.plans/CACHE-LIBRARY.md)** — Phase 1 (semantics doc + audit) can start any time and is cheap. Phase 2 (adopt `@tanstack/query-core`) should follow BUS-RESUMPTION so the wrapper isn't built twice.
-4. **[CHANNEL-AUTHZ.md](../../../.plans/CHANNEL-AUTHZ.md)** — independent of the above and latent in single-tenant deployments. Sequence it when multi-tenant becomes a real product requirement; absent that driver it's pure infrastructure work.
-
-[MULTI-RESOURCE-SCOPE.md](../../../.plans/MULTI-RESOURCE-SCOPE.md)
-is deferred per its own trigger conditions and slots in wherever a
-product requirement unblocks it.
-
-### No `Last-Event-ID` resumption
-
-The SSE spec defines `Last-Event-ID` for exactly this use case: the
-server tags each event with an `id:`, the browser tracks it, and on
-reconnect the client sends `Last-Event-ID: <last-seen>` so the
-server can replay from there. We don't use this.
-
-Consequence: reconnect-driven gap detection is a blanket "invalidate
-everything," which correlates with thrashing when reconnects come in
-bursts (and in turn motivated the 100 ms debounce). Adopting
-`Last-Event-ID` would let clients resume exactly where they left off
-and make gap-detection unnecessary for persisted events.
-
-The work required: monotonic event ids on every persisted emit,
-backend support for replay-from-id (reading from the event store),
-client tracking of the last id seen per scope. See
-[BUS-RESUMPTION.md](../../../.plans/BUS-RESUMPTION.md).
+These are open limitations of the contract above. They're listed so
+future work can reference them specifically instead of rediscovering
+them.
 
 ### Cache layer reimplements SWR / React Query
 
 `packages/api-client/src/namespaces/browse.ts` implements
 stale-while-revalidate, in-flight dedup, and event-driven
-invalidation by hand. These are solved problems in library form. The
-constraint we're honoring is framework-agnosticism — the same client
-is used by React, the CLI, MCP server, and workers.
+invalidation by hand. See
+[`packages/api-client/docs/CACHE-SEMANTICS.md`](../../../packages/api-client/docs/CACHE-SEMANTICS.md)
+for the full behavioral spec. The constraint we're honoring is
+framework-agnosticism — the same client is used by React, the CLI,
+MCP server, and workers.
 
 Consequence: every race in the cache (stuck guard, invalidate-loop,
-concurrent refetches) is a bug SWR's implementation has documented
-fixes for, which we rediscover by bisection.
-
-The options: (a) document the exact SWR semantics we mean to mimic
-and audit `browse.ts` against them; (b) extract a
-framework-agnostic cache library (there are several) and use it as
-the cache primitive. See
-[CACHE-LIBRARY.md](../../../.plans/CACHE-LIBRARY.md).
+concurrent refetches) is a bug that published SWR implementations
+have documented fixes for, which we rediscover by bisection. The
+current state: SWR semantics are landed everywhere with a contract
+test suite, but the cache is still a collection of ad-hoc maps
+rather than a reusable primitive.
 
 ### Connection state is a boolean
 
@@ -291,18 +303,22 @@ reconnect from a genuine network-lost reconnect; they look the same
 on the wire.
 
 Promoting to a state machine would let consumers react appropriately
-to each transition (e.g. differentiate "short lived reconnect during
+to each transition (e.g. differentiate "short-lived reconnect during
 mount churn, don't panic" from "3+ seconds disconnected, surface a
-banner to the user"). See
-[CONNECTION-STATE.md](../../../.plans/CONNECTION-STATE.md).
+banner to the user").
 
 ### Scope is per-connection, not per-channel
 
 The SSE URL format takes one `scope=X` and many `scoped=Y` channel
 names within that scope. A single connection can subscribe to many
 channels under one resource scope, but cannot mix two resource
-scopes. See [MULTI-RESOURCE-SCOPE.md](../../../.plans/MULTI-RESOURCE-SCOPE.md)
-for the proper fix.
+scopes.
+
+This is a floor that matches current UX (one resource viewer at a
+time). Triggers for widening: a UI feature requiring two resource
+viewers simultaneously, a headless client watching many resources
+in parallel, or legitimate different-scope concurrent subscribe
+calls firing in production.
 
 ### No channel-level authorization
 
@@ -311,8 +327,7 @@ everything on that channel. Resources don't have per-user ACLs in
 the transport layer. Handlers may enforce authorization in the
 handler body (e.g. by checking `_userId`), but `/bus/subscribe`
 itself does not filter. This is a genuine limitation for any
-multi-tenant deployment. See
-[CHANNEL-AUTHZ.md](../../../.plans/CHANNEL-AUTHZ.md).
+multi-tenant deployment.
 
 ## Rules of thumb for consumer code
 
@@ -371,3 +386,11 @@ the contract are visible.
 
 - **2026-04-19** — initial draft, reflecting the contract after the
   SIMPLE-BUS work plus the reconnect debounce fix.
+- **2026-04-19** — `Last-Event-ID` resumption landed. Persisted
+  events now carry `p-<scope>-<seq>` ids; scoped-subscribe requests
+  with `Last-Event-ID` trigger event-store replay. `bus:resume-gap`
+  is the server's signal that it couldn't cover the gap. Consumer
+  contract changes: bare reconnects no longer require cache
+  invalidation. Also: actor-vm now tracks all in-flight fetch
+  controllers and aborts every previous one on new connect, closing
+  an orphan-stream leak.

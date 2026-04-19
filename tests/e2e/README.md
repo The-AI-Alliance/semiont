@@ -4,9 +4,6 @@ Real-browser Playwright tests that drive the frontend against a locally
 running backend. Intended to catch cross-layer regressions (SSE timing,
 React lifecycle, bus round-trips) that unit and component tests can't.
 
-See [.plans/E2E-SMOKE.md](../../.plans/E2E-SMOKE.md) for the design
-rationale and the five-test roadmap.
-
 ## Requirements
 
 - A running backend with a known user account.
@@ -268,6 +265,3 @@ Update the selector in the test, not the test's assertion.
 - Not testing real OAuth. Credentials sign-in only.
 - Not parallel. Single worker until fixtures are per-test-isolated.
 - Not cross-browser. Chromium only.
-
-Each of these is addressed in the phased plan at
-[.plans/E2E-SMOKE.md](../../.plans/E2E-SMOKE.md).

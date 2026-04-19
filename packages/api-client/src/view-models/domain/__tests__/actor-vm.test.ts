@@ -259,8 +259,7 @@ describe('createActorVM', () => {
     // frontend's gap-detection (BrowseNamespace) relies on seeing a
     // false-then-true cycle to invalidate caches after an SSE rotation —
     // without the false emission, responses delivered to the torn-down
-    // connection were lost and caches stayed stale forever. See
-    // .plans/SIMPLE-BUS.md and the SSE-reconnect-storm bug.
+    // connection were lost and caches stayed stale forever.
     mockSSEResponse();
     mockSSEResponse();
 

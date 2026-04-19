@@ -138,10 +138,9 @@ export class EventStorage {
    * Creates ID, timestamp, metadata, sequence tracking, and writes to disk.
    *
    * Integrity is provided by git at the commit level (when gitSync is enabled),
-   * not by per-event chaining metadata. See .plans/CROSS-KB-FEDERATION.md for
-   * the future federation story; per-event signatures (the unused
+   * not by per-event chaining metadata. Per-event signatures (the unused
    * `EventSignature` field on StoredEvent) are the planned mechanism for
-   * cross-KB authorship binding.
+   * cross-KB authorship binding when federation becomes a real requirement.
    *
    * @param options.correlationId - Optional id propagated from a command. Stored
    *   on the event's metadata so subscribers (notably the events-stream → frontend
