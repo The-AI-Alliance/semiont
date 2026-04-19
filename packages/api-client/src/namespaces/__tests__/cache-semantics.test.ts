@@ -257,6 +257,60 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
       const b = browse.resource(RID);
       expect(a).toBe(b);
     });
+
+    // Identity coverage for every live-query method. Absence of this
+    // coverage previously hid a regression in `annotations()` where the
+    // transformed observable (`.pipe(map(r => r?.annotations))`) was
+    // rebuilt on every call. React consumers that compare observable
+    // identity re-subscribe on every render when B4 breaks.
+    it('resources(): identical for same filter; different for different filter', () => {
+      const { browse } = createHarness();
+      const a = browse.resources({ limit: 10 });
+      const b = browse.resources({ limit: 10 });
+      expect(a).toBe(b);
+      const c = browse.resources({ limit: 20 });
+      expect(a).not.toBe(c);
+    });
+
+    it('annotations(): identical for same resourceId', () => {
+      const { browse } = createHarness();
+      const a = browse.annotations(RID);
+      const b = browse.annotations(RID);
+      expect(a).toBe(b);
+    });
+
+    it('annotation(): identical for same annotationId regardless of resourceId', () => {
+      const { browse } = createHarness();
+      const RID2 = resourceId('res-2');
+      const a = browse.annotation(RID, AID);
+      const b = browse.annotation(RID, AID);
+      expect(a).toBe(b);
+      // The cache is keyed by annotationId alone, so the same annotation
+      // observed through a different resourceId returns the same observable.
+      const c = browse.annotation(RID2, AID);
+      expect(a).toBe(c);
+    });
+
+    it('entityTypes(): identical across calls', () => {
+      const { browse } = createHarness();
+      const a = browse.entityTypes();
+      const b = browse.entityTypes();
+      expect(a).toBe(b);
+    });
+
+    it('referencedBy(): identical for same resourceId', () => {
+      const { browse } = createHarness();
+      const a = browse.referencedBy(RID);
+      const b = browse.referencedBy(RID);
+      expect(a).toBe(b);
+    });
+
+    it('events(): identical for same resourceId', () => {
+      const { browse } = createHarness();
+      const a = browse.events(RID);
+      const b = browse.events(RID);
+      expect(a).toBe(b);
+    });
   });
 
   describe('B5 — fetch success updates the store atomically', () => {
@@ -397,13 +451,67 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
   });
 
   describe('B11 — per-cache observer observables live for the cache lifetime', () => {
-    it('observables for a given key are stable across invalidations', async () => {
+    it('resource(): stable across invalidation', async () => {
       const { browse } = createHarness();
       const obs = browse.resource(RID);
       await firstDefined(obs);
       browse.invalidateResourceDetail(RID);
       await flush();
       expect(browse.resource(RID)).toBe(obs);
+    });
+
+    it('resources(): stable across invalidateResourceLists', async () => {
+      const { browse } = createHarness();
+      const obs = browse.resources({ limit: 10 });
+      await firstDefined(obs);
+      browse.invalidateResourceLists();
+      await flush();
+      expect(browse.resources({ limit: 10 })).toBe(obs);
+    });
+
+    it('annotations(): stable across invalidateAnnotationList', async () => {
+      const { browse } = createHarness();
+      const obs = browse.annotations(RID);
+      await firstDefined(obs);
+      browse.invalidateAnnotationList(RID);
+      await flush();
+      expect(browse.annotations(RID)).toBe(obs);
+    });
+
+    it('annotation(): stable across removeAnnotationDetail', async () => {
+      const { browse } = createHarness();
+      const obs = browse.annotation(RID, AID);
+      await firstDefined(obs);
+      browse.removeAnnotationDetail(AID);
+      await flush();
+      expect(browse.annotation(RID, AID)).toBe(obs);
+    });
+
+    it('entityTypes(): stable across invalidateEntityTypes', async () => {
+      const { browse } = createHarness();
+      const obs = browse.entityTypes();
+      await firstDefined(obs);
+      browse.invalidateEntityTypes();
+      await flush();
+      expect(browse.entityTypes()).toBe(obs);
+    });
+
+    it('referencedBy(): stable across invalidateReferencedBy', async () => {
+      const { browse } = createHarness();
+      const obs = browse.referencedBy(RID);
+      await firstDefined(obs);
+      browse.invalidateReferencedBy(RID);
+      await flush();
+      expect(browse.referencedBy(RID)).toBe(obs);
+    });
+
+    it('events(): stable across invalidateResourceEvents', async () => {
+      const { browse } = createHarness();
+      const obs = browse.events(RID);
+      await firstDefined(obs);
+      browse.invalidateResourceEvents(RID);
+      await flush();
+      expect(browse.events(RID)).toBe(obs);
     });
   });
 
