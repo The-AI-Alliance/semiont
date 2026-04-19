@@ -121,12 +121,18 @@ of these paths fails the corresponding test.
 3. `03-navigate-resources.spec.ts` — click between two open-resource
    sidebar tabs, content actually updates (guards the
    `useViewModel`-stale-factory bug).
-4. `04-manual-highlight.spec.ts` — select text, confirm a highlight is
-   persisted (guards the `mark:create-request`-to-dead-channel bug),
-   survives reload.
-5. `05-entity-types-modal.spec.ts` — "Detect Entity References" modal
-   populates with entity types (guards the entity-types-lost-in-reconnect
-   bug from a different UI surface than test 2).
+4. `04-manual-highlight.spec.ts` — select text with motivation=highlight,
+   confirm a highlight is persisted (guards the
+   `mark:create-request`-to-dead-channel bug), survives reload.
+5. `05-manual-reference.spec.ts` — select text with motivation=linking
+   and an entity-type chip, confirm a tagged reference is persisted
+   (guards the chip-selection-to-submit-body threading), survives
+   reload.
+6. `06-assisted-reference.spec.ts` — click the assist widget's
+   "Annotate" button with entity types selected, confirm a `job:create`
+   / `job:created` pair crosses the wire (guards the assist-dispatch
+   regression on a different UI surface than test 2's entity-types
+   fetch).
 
 ## Bus logging — protocol-level debugging and assertions
 
