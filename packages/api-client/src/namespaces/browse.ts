@@ -268,6 +268,12 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   invalidateEntityTypes(): void {
     this.entityTypes$.next(undefined);
+    // Clear the in-flight guard: a busRequest from a previous SSE may be
+    // orphaned (its response landed on a torn-down connection) but still
+    // holding the flag until its 30s timeout. Without this reset, the
+    // gap-detection refetch would short-circuit and the cache would stay
+    // undefined for 30s.
+    this.fetchingEntityTypes = false;
     this.fetchEntityTypes();
   }
 

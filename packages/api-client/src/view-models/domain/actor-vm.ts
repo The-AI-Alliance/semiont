@@ -120,6 +120,12 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
   const reconnect = () => {
     if (!running) return;
+    // Emit false before abort so BrowseNamespace's gap-detection treats
+    // this as a disconnect cycle and invalidates caches. Without this,
+    // abort-driven reconnects (from addChannels/removeChannels) cause
+    // in-flight request responses to be delivered to the torn-down
+    // connection and silently lost, with no retry signal.
+    connected$.next(false);
     disconnect();
     connect();
   };
