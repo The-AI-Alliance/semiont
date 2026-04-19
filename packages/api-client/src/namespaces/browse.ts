@@ -349,9 +349,55 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── EventBus subscriptions ──────────────────────────────────────────────
 
-  private subscribeToEvents(): void {
-    const bus = this.eventBus;
+  /**
+   * Typed shorthand for `eventBus.get(channel).subscribe(handler)`.
+   * Preserves per-channel payload typing so handlers read
+   * `EventMap[K]` without any casts.
+   */
+  private on<K extends keyof EventMap>(
+    channel: K,
+    handler: (payload: EventMap[K]) => void,
+  ): void {
+    (this.eventBus.get(channel) as { subscribe(fn: (p: EventMap[K]) => void): unknown }).subscribe(handler);
+  }
 
+  /**
+   * Handler shared by `mark:entity-tag-added` and `mark:entity-tag-removed`.
+   * Both events carry the same effect: the annotation list, the
+   * resource descriptor, and the event log for that resource all may
+   * now reflect different entity tagging, so invalidate all three.
+   */
+  private onEntityTagChanged = (stored: { resourceId?: ResourceId }): void => {
+    if (!stored.resourceId) return;
+    this.invalidateAnnotationList(stored.resourceId);
+    this.invalidateResourceDetail(stored.resourceId);
+    this.invalidateResourceEvents(stored.resourceId);
+  };
+
+  /**
+   * Handler shared by `mark:archived` and `mark:unarchived`. Both
+   * change a resource's archived flag, which is stored on the resource
+   * descriptor and affects the resource-list filter.
+   */
+  private onArchiveToggled = (stored: { resourceId?: ResourceId }): void => {
+    if (!stored.resourceId) return;
+    this.invalidateResourceDetail(stored.resourceId);
+    this.invalidateResourceLists();
+  };
+
+  /**
+   * Handler shared by `yield:create-ok` and `yield:update-ok`. Both
+   * report a resource mutation with the resourceId as a string (not
+   * yet branded), so we brand and apply the same effect as
+   * `onArchiveToggled`.
+   */
+  private onYieldResourceMutated = (event: { resourceId: string }): void => {
+    const rId = makeResourceId(event.resourceId);
+    this.invalidateResourceDetail(rId);
+    this.invalidateResourceLists();
+  };
+
+  private subscribeToEvents(): void {
     // Gap-detection contract:
     //
     // The server stamps persisted events on `/bus/subscribe` with
@@ -366,7 +412,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     // `Last-Event-ID`). Receiving one means the client's caches for the
     // affected scope may be stale — fall back to blanket invalidation
     // for that scope (or all scopes, if the gap carries no scope).
-    bus.get('bus:resume-gap').subscribe((event: EventMap['bus:resume-gap']) => {
+    this.on('bus:resume-gap', (event) => {
       const gapScope = event.scope;
       if (gapScope) {
         const rId = gapScope as ResourceId;
@@ -385,18 +431,18 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.invalidateEntityTypes();
     });
 
-    bus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
+    this.on('mark:delete-ok', (event) => {
       this.removeAnnotationDetail(makeAnnotationId(event.annotationId));
     });
 
-    bus.get('mark:added').subscribe((stored) => {
+    this.on('mark:added', (stored) => {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
         this.invalidateResourceEvents(stored.resourceId);
       }
     });
 
-    bus.get('mark:removed').subscribe((stored) => {
+    this.on('mark:removed', (stored) => {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
         this.invalidateResourceEvents(stored.resourceId);
@@ -404,61 +450,28 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.removeAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
     });
 
-    bus.get('mark:body-updated').subscribe((event) => {
+    this.on('mark:body-updated', (event) => {
       const enriched = event as unknown as EnrichedResourceEvent;
       if (!enriched.resourceId || !enriched.annotation) return;
       this.updateAnnotationInPlace(enriched.resourceId as ResourceId, enriched.annotation);
       this.invalidateResourceEvents(enriched.resourceId as ResourceId);
     });
 
-    bus.get('mark:entity-tag-added').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateAnnotationList(stored.resourceId);
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceEvents(stored.resourceId);
-      }
-    });
+    this.on('mark:entity-tag-added', this.onEntityTagChanged);
+    this.on('mark:entity-tag-removed', this.onEntityTagChanged);
 
-    bus.get('mark:entity-tag-removed').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateAnnotationList(stored.resourceId);
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceEvents(stored.resourceId);
-      }
-    });
-
-    bus.get('replay-window-exceeded').subscribe((event) => {
+    this.on('replay-window-exceeded', (event) => {
       if (event.resourceId) {
         this.invalidateAnnotationList(event.resourceId as ResourceId);
       }
     });
 
-    bus.get('yield:create-ok').subscribe((event: EventMap['yield:create-ok']) => {
-      this.invalidateResourceDetail(makeResourceId(event.resourceId));
-      this.invalidateResourceLists();
-    });
+    this.on('yield:create-ok', this.onYieldResourceMutated);
+    this.on('yield:update-ok', this.onYieldResourceMutated);
 
-    bus.get('yield:update-ok').subscribe((event: EventMap['yield:update-ok']) => {
-      this.invalidateResourceDetail(makeResourceId(event.resourceId));
-      this.invalidateResourceLists();
-    });
+    this.on('mark:archived', this.onArchiveToggled);
+    this.on('mark:unarchived', this.onArchiveToggled);
 
-    bus.get('mark:archived').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceLists();
-      }
-    });
-
-    bus.get('mark:unarchived').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceLists();
-      }
-    });
-
-    bus.get('mark:entity-type-added').subscribe(() => {
-      this.invalidateEntityTypes();
-    });
+    this.on('mark:entity-type-added', () => this.invalidateEntityTypes());
   }
 }
