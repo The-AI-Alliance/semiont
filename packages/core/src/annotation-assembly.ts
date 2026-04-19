@@ -6,7 +6,7 @@
  */
 
 import type { components } from './types';
-import type { Selector } from './bus-protocol';
+import type { Selector } from './payload-types';
 import { generateUuid } from './id-generation';
 
 type Agent = components['schemas']['Agent'];

@@ -20,19 +20,6 @@ import type { components } from './types';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
 
-// ── Shared type aliases (re-exported for convenience) ────────────────────────
-
-export type Selector =
-  | components['schemas']['TextPositionSelector']
-  | components['schemas']['TextQuoteSelector']
-  | components['schemas']['SvgSelector']
-  | components['schemas']['FragmentSelector'];
-
-export type GatheredContext = components['schemas']['GatheredContext'];
-export type YieldProgress = components['schemas']['YieldProgress'];
-export type MarkProgress = components['schemas']['MarkProgress'];
-export type SelectionData = components['schemas']['SelectionData'];
-
 /**
  * The unified EventMap — every channel on the EventBus.
  *

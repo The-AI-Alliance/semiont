@@ -101,13 +101,17 @@ export type {
   EventName,
   EmittableChannel,
   ResourceBroadcastType,
+} from './bus-protocol';
+export { RESOURCE_BROADCAST_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+
+// Payload type aliases (OpenAPI schema shortcuts used across the codebase)
+export type {
   Selector,
   GatheredContext,
   YieldProgress,
   MarkProgress,
   SelectionData,
-} from './bus-protocol';
-export { RESOURCE_BROADCAST_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+} from './payload-types';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';
