@@ -527,6 +527,37 @@ describe('SemiontApiClient', () => {
       cleanup();
       expect(actorHarness.removeChannels).toHaveBeenCalled();
     });
+
+    test('same-resource re-entry is ref-counted (no extra addChannels, no teardown until last unsubscribe)', () => {
+      const addBefore = actorHarness.addChannels.mock.calls.length;
+      const removeBefore = actorHarness.removeChannels.mock.calls.length;
+
+      const first = client.subscribeToResource(testResourceId);
+      const second = client.subscribeToResource(testResourceId);
+      expect(actorHarness.addChannels.mock.calls.length - addBefore).toBe(1);
+
+      first();
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(0);
+
+      second();
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(1);
+    });
+
+    test('calling an unsubscribe twice is a no-op (idempotent)', () => {
+      const removeBefore = actorHarness.removeChannels.mock.calls.length;
+      const cleanup = client.subscribeToResource(testResourceId);
+      cleanup();
+      cleanup();
+      expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(1);
+    });
+
+    test('different-resource re-entry throws', () => {
+      client.subscribeToResource(testResourceId);
+      const otherResourceId = 'other-resource' as typeof testResourceId;
+      expect(() => client.subscribeToResource(otherResourceId)).toThrow(
+        /already subscribed to resource/,
+      );
+    });
   });
 
   describe('dispose', () => {

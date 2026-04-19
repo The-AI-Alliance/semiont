@@ -341,48 +341,73 @@ export class SemiontApiClient {
     return this._actor;
   }
 
-  private resourceSubscriptions: Subscription[] = [];
+  private activeResource: {
+    resourceId: ResourceId;
+    refCount: number;
+    bridgeSubs: Subscription[];
+  } | null = null;
 
   /**
    * Subscribe the bus actor to the resource-scoped SSE stream for a single
    * resource and bridge incoming scoped events into the workspace event bus.
    *
-   * **Single-resource contract**: at most one resource may be active at a
-   * time. Calling this while a previous subscription is still live throws —
-   * the caller must invoke the returned unsubscribe first. See
-   * `.plans/SIMPLE-BUS.md` Gap #9 for the multi-resource extension path.
+   * **One distinct scope at a time**: the client supports subscriptions
+   * to a single resource scope concurrently. Multiple calls with the
+   * **same** resourceId are ref-counted — each returns an independent
+   * unsubscribe; the underlying SSE scope is torn down only when the
+   * last unsubscribe fires. Calling with a **different** resourceId
+   * while a subscription is live throws. See `.plans/SIMPLE-BUS.md`
+   * Gap #9 for the multi-resource extension path.
    *
-   * @returns a disposer that tears down both the SSE scope and the bridge.
+   * @returns a disposer that decrements the ref count (and tears down
+   *          the SSE scope + bridges when it reaches zero).
    */
   subscribeToResource(resourceId: ResourceId): () => void {
-    if (this.resourceSubscriptions.length > 0) {
-      throw new Error(
-        'SemiontApiClient already has an active resource subscription; ' +
-        'call the unsubscribe returned from the previous subscribeToResource before subscribing to another.',
-      );
+    if (this.activeResource) {
+      if (this.activeResource.resourceId !== resourceId) {
+        throw new Error(
+          `SemiontApiClient already subscribed to resource ${this.activeResource.resourceId}; ` +
+          `call the unsubscribe returned from the previous subscribeToResource before subscribing to ${resourceId}.`,
+        );
+      }
+      this.activeResource.refCount++;
+      return this.makeUnsubscriber();
     }
 
     this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], resourceId as string);
 
-    const subs: Subscription[] = [];
+    const bridgeSubs: Subscription[] = [];
     for (const channel of RESOURCE_SCOPED_CHANNELS) {
-      subs.push(
+      bridgeSubs.push(
         this.actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
           (this.eventBus.get(channel as keyof import('@semiont/core').EventMap) as { next(v: unknown): void }).next(payload);
         })
       );
     }
-    this.resourceSubscriptions = subs;
 
+    this.activeResource = { resourceId, refCount: 1, bridgeSubs };
+    return this.makeUnsubscriber();
+  }
+
+  private makeUnsubscriber(): () => void {
+    let called = false;
     return () => {
-      for (const sub of subs) sub.unsubscribe();
-      this.resourceSubscriptions = [];
+      if (called) return;
+      called = true;
+      if (!this.activeResource) return;
+      this.activeResource.refCount--;
+      if (this.activeResource.refCount > 0) return;
+      for (const sub of this.activeResource.bridgeSubs) sub.unsubscribe();
       this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS]);
+      this.activeResource = null;
     };
   }
 
   dispose(): void {
-    for (const sub of this.resourceSubscriptions) sub.unsubscribe();
+    if (this.activeResource) {
+      for (const sub of this.activeResource.bridgeSubs) sub.unsubscribe();
+      this.activeResource = null;
+    }
     if (this._actor) {
       this._actor.dispose();
       this._actor = null;
