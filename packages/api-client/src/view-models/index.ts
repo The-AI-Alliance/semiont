@@ -78,6 +78,8 @@ export {
   type ActorVM,
   type ActorVMOptions,
   type BusEvent,
+  type ConnectionState,
+  DEGRADED_THRESHOLD_MS,
 } from './domain/actor-vm';
 export {
   createSmelterActorVM,

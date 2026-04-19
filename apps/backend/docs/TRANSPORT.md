@@ -165,44 +165,60 @@ refetch-on-reconnect (which is what `BrowseNamespace` does).
 
 ## Connection lifecycle
 
-Exposed to the frontend as `actor.connected$: Observable<boolean>`.
-Booleans, with well-defined transitions:
+Exposed to consumers as `actor.state$: Observable<ConnectionState>`,
+a six-state machine:
 
-| Transition | What it signals |
+| State | Meaning |
 |---|---|
-| *(stream starts)* → `true` | First SSE connect succeeded. |
-| `true` → `false` | The connection is ending or has ended. Two causes: (1) the server closed the stream or the network errored, (2) the client is intentionally reconnecting (e.g. channel set changed). Both emit the same value. |
-| `false` → `true` | A fresh SSE connection is live. |
+| `initial` | Before `start()` has been called. |
+| `connecting` | `fetch()` is in flight; no bytes received yet. |
+| `open` | SSE stream is live; at least one frame received. |
+| `reconnecting` | Was open or connecting; now retrying. May be transient (mount churn, channel-set change) or sustained (network loss). |
+| `degraded` | Has been in `reconnecting` for longer than `DEGRADED_THRESHOLD_MS` (3 s). UI banner threshold — distinguishes brief churn from real disconnection. |
+| `closed` | `stop()` or `dispose()` was called. Terminal. |
 
-The consumer can't tell the two `true`→`false` causes apart.
-That's deliberate — gap detection is handled by the resumption
-protocol (see "Event id and resumption" above), not by the consumer
-interpreting the boolean edges.
+Transitions are enforced by an internal helper that throws on
+invalid moves, so a buggy reconnect path surfaces in tests rather
+than stranding the observable at a lying value.
+
+Allowed transitions:
+
+```
+initial      → connecting | closed
+connecting   → open | reconnecting | closed
+open         → reconnecting | closed
+reconnecting → connecting | degraded | closed
+degraded     → connecting | closed
+closed       → (terminal)
+```
+
+Gap detection is handled by the resumption protocol (see "Event id
+and resumption" above), not by the consumer interpreting state edges.
 
 ### Reconnect discipline (client side)
 
 The client-side `ActorVM` handles three reconnect triggers:
 
-1. **Server/network disconnect.** The SSE read loop exits. `connect()`
-   is retried after `reconnectMs` (default 5 s). `connected$`
-   emits `false` before the retry, `true` when the new connection
-   succeeds.
+1. **Server/network disconnect.** The SSE read loop exits; state
+   transitions to `reconnecting`; `connect()` is retried after
+   `reconnectMs` (default 5 s). If the retry takes longer than
+   `DEGRADED_THRESHOLD_MS`, state enters `degraded`.
 2. **Channel-set change** (`addChannels` / `removeChannels`). The
    current SSE is aborted and a new one is opened with the updated
    query string. Reconnects are **debounced 100 ms** so React Strict
    Mode's mount → cleanup → mount sequence collapses into one
-   reconnect. `connected$` emits `false` once, `true` once per
-   debounced batch.
-3. **Explicit `stop()` / `dispose()`.** No reconnect; `connected$`
-   emits `false` once and the observable completes.
+   reconnect. State cycles `open → reconnecting → connecting →
+   open` without reaching `degraded` (the round-trip is sub-second).
+3. **Explicit `stop()` / `dispose()`.** State transitions to
+   `closed`; the observable completes. No retry.
 
 On every reconnect, the client sends the last seen `id:` as the
 `Last-Event-ID` request header. For a clean reconnect (no persisted
 events missed), the server replays nothing and live delivery
 resumes. Consumers should NOT revalidate caches on the
-`false`→`true` edge — that work is now driven by the `bus:resume-gap`
-event, which the server emits only when it genuinely can't cover the
-gap.
+`reconnecting → open` transition — that work is driven by the
+`bus:resume-gap` event, which the server emits only when it
+genuinely can't cover the gap.
 
 **All in-flight fetches are aborted when a new connect starts.** The
 client tracks SSE fetch controllers as a set; every previous one is
@@ -293,20 +309,6 @@ current state: SWR semantics are landed everywhere with a contract
 test suite, but the cache is still a collection of ad-hoc maps
 rather than a reusable primitive.
 
-### Connection state is a boolean
-
-Real streaming libraries (Phoenix Channels, ActionCable, Centrifugo)
-expose a state machine: `initial | connecting | open | reconnecting
-| degraded | closed`. We expose a boolean and infer the rest from
-timing. That's why we can't distinguish a Strict-Mode abort-driven
-reconnect from a genuine network-lost reconnect; they look the same
-on the wire.
-
-Promoting to a state machine would let consumers react appropriately
-to each transition (e.g. differentiate "short-lived reconnect during
-mount churn, don't panic" from "3+ seconds disconnected, surface a
-banner to the user").
-
 ### Scope is per-connection, not per-channel
 
 The SSE URL format takes one `scope=X` and many `scoped=Y` channel
@@ -394,3 +396,10 @@ the contract are visible.
   invalidation. Also: actor-vm now tracks all in-flight fetch
   controllers and aborts every previous one on new connect, closing
   an orphan-stream leak.
+- **2026-04-19** — connection-state machine landed.
+  `actor.connected$: Observable<boolean>` replaced with
+  `actor.state$: Observable<ConnectionState>` (initial / connecting
+  / open / reconnecting / degraded / closed). Transitions are
+  enforced; `degraded` fires after 3 s in `reconnecting`, giving
+  UI a non-timing-heuristic signal to differentiate mount churn
+  from sustained disconnection.

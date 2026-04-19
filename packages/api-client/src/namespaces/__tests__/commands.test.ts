@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
@@ -8,7 +8,7 @@ import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import type { SemiontApiClient } from '../../client';
-import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
+import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
@@ -34,7 +34,7 @@ function createMockActor(responses: Record<string, (payload: Record<string, unkn
       );
     },
     emit: emitSpy,
-    connected$: new Subject<boolean>().asObservable(),
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     addChannels: vi.fn(),
     removeChannels: vi.fn(),
     start: vi.fn(),

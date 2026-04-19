@@ -404,8 +404,8 @@ export class BrowseNamespace implements IBrowseNamespace {
     // `id: p-<scope>-<seq>`. The client sends the last seen id back as
     // `Last-Event-ID` on reconnect; the server replays persisted events
     // missed during the gap. No blanket invalidation is needed on the
-    // `connected$: false → true` edge — the usual case is a clean
-    // resume with zero missed events.
+    // `reconnecting → open` state-machine transition — the usual case
+    // is a clean resume with zero missed events.
     //
     // The server emits a `bus:resume-gap` event when it can't cover the
     // gap (retention window exceeded, scope mismatch, or unparseable

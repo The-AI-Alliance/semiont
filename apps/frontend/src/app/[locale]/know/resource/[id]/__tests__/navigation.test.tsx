@@ -42,7 +42,7 @@ vi.mock('@/components/toolbar/ToolbarPanels', () => ({
   ToolbarPanels: () => null,
 }));
 vi.mock('@/contexts/StreamStatusContext', () => ({
-  useStreamStatus: () => 'connected',
+  useStreamStatus: () => 'open',
 }));
 
 const vmFactoryCalls: string[] = [];

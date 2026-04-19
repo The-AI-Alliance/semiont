@@ -1,4 +1,4 @@
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
 import type { ViewModel } from '../lib/view-model';
 
@@ -51,15 +51,52 @@ export interface ActorVMOptions {
   reconnectMs?: number;
 }
 
+/**
+ * Connection state exposed by the SSE bus actor.
+ *
+ *   initial      ─ before start() has been called
+ *   connecting   ─ fetch() in flight, no bytes yet
+ *   open         ─ SSE stream live, first byte seen
+ *   reconnecting ─ open → dropped, retrying; may be transient
+ *   degraded     ─ has been reconnecting for > DEGRADED_THRESHOLD_MS;
+ *                  UI banner threshold; distinguishes brief mount-
+ *                  churn cycles from sustained disconnection
+ *   closed       ─ stop()/dispose() called; terminal
+ *
+ * Transition rules are enforced by a helper that throws on invalid
+ * transitions — catches bugs in the reconnect loop that would
+ * otherwise strand the observable in a lying value.
+ */
+export type ConnectionState =
+  | 'initial'
+  | 'connecting'
+  | 'open'
+  | 'reconnecting'
+  | 'degraded'
+  | 'closed';
+
+/** Time in the `reconnecting` state before transitioning to `degraded`. */
+export const DEGRADED_THRESHOLD_MS = 3_000;
+
 export interface ActorVM extends ViewModel {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
   emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void>;
-  connected$: Observable<boolean>;
+  state$: Observable<ConnectionState>;
   addChannels(channels: string[], scope?: string): void;
   removeChannels(channels: string[]): void;
   start(): void;
   stop(): void;
 }
+
+/** Allowed transitions in the connection state machine. */
+const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState>> = {
+  initial:      ['connecting', 'closed'],
+  connecting:   ['open', 'reconnecting', 'closed'],
+  open:         ['reconnecting', 'closed'],
+  reconnecting: ['connecting', 'degraded', 'closed'],
+  degraded:     ['connecting', 'closed'],
+  closed:       [],
+};
 
 export function createActorVM(options: ActorVMOptions): ActorVM {
   const { baseUrl, token: tokenOrGetter, channels: initialChannels, scope: initialScope, reconnectMs = 5_000 } = options;
@@ -70,7 +107,45 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
   let activeScope = initialScope;
 
   const events$ = new Subject<BusEvent>();
-  const connected$ = new Subject<boolean>();
+  const state$ = new BehaviorSubject<ConnectionState>('initial');
+  let currentState: ConnectionState = 'initial';
+  let degradedTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Move the state machine to `next`. Throws on invalid transitions.
+   * The throw is deliberate — a bad transition means a bug in the
+   * reconnect loop; silent correction would hide it. The reconnect
+   * timer logic is responsible for ensuring we only transition
+   * between valid states.
+   *
+   * Side effect: manages the `degraded` timer. Enters on
+   * `reconnecting`, cleared on exit.
+   */
+  const transition = (next: ConnectionState): void => {
+    if (currentState === next) return;
+    const allowed = ALLOWED_TRANSITIONS[currentState];
+    if (!allowed.includes(next)) {
+      throw new Error(`Invalid connection state transition: ${currentState} → ${next}`);
+    }
+    const prev = currentState;
+    currentState = next;
+
+    if (next === 'reconnecting' && prev !== 'reconnecting') {
+      // Starting a reconnect cycle — arm the degraded-threshold timer.
+      if (degradedTimer) clearTimeout(degradedTimer);
+      degradedTimer = setTimeout(() => {
+        if (currentState === 'reconnecting') transition('degraded');
+      }, DEGRADED_THRESHOLD_MS);
+    }
+    if (prev === 'reconnecting' && next !== 'reconnecting') {
+      // Leaving reconnecting (to connecting, degraded, or closed) —
+      // the timer is either no longer relevant or has just fired.
+      if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null; }
+    }
+
+    state$.next(next);
+  };
+
   let running = false;
   /**
    * All in-flight SSE fetch controllers. Tracked as a Set because
@@ -109,6 +184,10 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
   };
 
   const connect = async () => {
+    // Transition to `connecting` from whichever reconnect-ish state
+    // we're currently in (`initial`, `reconnecting`, `degraded`).
+    transition('connecting');
+
     // Abort every previous in-flight fetch before starting a new one.
     // This closes the orphan-stream leak described above.
     for (const c of inflightControllers) {
@@ -140,7 +219,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
         throw new Error(`SSE connect failed: ${response.status}`);
       }
 
-      connected$.next(true);
+      transition('open');
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -181,12 +260,16 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
+      // Any non-abort error falls through to the reconnect-retry block.
     } finally {
       inflightControllers.delete(controller);
     }
 
+    // If we reached here without an AbortError, the connection dropped
+    // or the fetch failed. Transition to reconnecting and schedule a
+    // retry after `reconnectMs`.
     if (running) {
-      connected$.next(false);
+      transition('reconnecting');
       reconnectTimer = setTimeout(() => {
         if (running) connect();
       }, reconnectMs);
@@ -195,12 +278,16 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
   const reconnect = () => {
     if (!running) return;
-    // Emit false before abort so BrowseNamespace's gap-detection treats
-    // this as a disconnect cycle and invalidates caches. Without this,
-    // abort-driven reconnects (from addChannels/removeChannels) cause
-    // in-flight request responses to be delivered to the torn-down
-    // connection and silently lost, with no retry signal.
-    connected$.next(false);
+    // Transition to `reconnecting` BEFORE aborting the current
+    // connection. This matches the pre-state-machine contract where
+    // gap-detection relied on seeing a "dropped" signal before a
+    // subsequent "connected" signal; with the state machine, the
+    // transition sequence `open → reconnecting → connecting → open`
+    // is what BrowseNamespace's gap-detection (pre-BUS-RESUMPTION
+    // code path) watches for.
+    if (currentState === 'open' || currentState === 'connecting' || currentState === 'degraded') {
+      transition('reconnecting');
+    }
     disconnect();
     connect();
   };
@@ -244,7 +331,7 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
       });
     },
 
-    connected$: connected$.asObservable(),
+    state$: state$.asObservable(),
 
     addChannels: (channels: string[], scope?: string) => {
       let changed = false;
@@ -279,17 +366,20 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
     stop: () => {
       running = false;
-      connected$.next(false);
+      if (currentState !== 'closed') transition('closed');
       if (reconnectTimer2) { clearTimeout(reconnectTimer2); reconnectTimer2 = null; }
+      if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null; }
       disconnect();
     },
 
     dispose: () => {
       running = false;
+      if (currentState !== 'closed') transition('closed');
       if (reconnectTimer2) { clearTimeout(reconnectTimer2); reconnectTimer2 = null; }
+      if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null; }
       disconnect();
       events$.complete();
-      connected$.complete();
+      state$.complete();
     },
   };
 }

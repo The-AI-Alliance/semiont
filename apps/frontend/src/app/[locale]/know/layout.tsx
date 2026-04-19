@@ -17,8 +17,8 @@ import {
   useKnowledgeBaseSession,
   kbBackendUrl,
   getKbSessionStatus,
-  type StreamStatus,
 } from '@semiont/react-ui';
+import type { ConnectionState } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
@@ -111,28 +111,24 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
 }
 
 /**
- * Drives `StreamStatusContext` from the api-client's `actor.connected$`
- * observable so downstream consumers (e.g. CollaborationPanel's
- * connection indicator) reflect actual SSE state rather than a
- * hardcoded "connected". Initial state is "connecting" until the first
- * emission arrives.
+ * Drives `StreamStatusContext` from the api-client's `actor.state$`
+ * observable so downstream consumers (CollaborationPanel, future
+ * reconnecting banner, tests) see the full six-state machine rather
+ * than a collapsed boolean or tri-state summary.
  *
- * Mounts inside `ApiClientProvider` (see `KnowledgeLayoutBody` below)
- * so `useApiClient()` resolves.
+ * Mounts inside `ApiClientProvider` so `useApiClient()` resolves.
  */
 function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
   const client = useApiClient();
-  const [status, setStatus] = useState<StreamStatus>('connecting');
+  const [state, setState] = useState<ConnectionState>('initial');
 
   useEffect(() => {
-    const sub = client.actor.connected$.subscribe((connected) => {
-      setStatus(connected ? 'connected' : 'disconnected');
-    });
+    const sub = client.actor.state$.subscribe((next) => setState(next));
     return () => sub.unsubscribe();
   }, [client]);
 
   return (
-    <StreamStatusContext.Provider value={status}>
+    <StreamStatusContext.Provider value={state}>
       {children}
     </StreamStatusContext.Provider>
   );

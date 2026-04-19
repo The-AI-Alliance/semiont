@@ -1,22 +1,44 @@
 'use client';
 
+import type { ConnectionState } from '@semiont/api-client';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import './CollaborationPanel.css';
 
 interface Props {
-  isConnected: boolean;
+  /**
+   * Connection state from `client.actor.state$`. See
+   * `packages/api-client/src/view-models/domain/actor-vm.ts`.
+   *
+   * UI mapping:
+   *   `open` | `reconnecting` | `initial` | `connecting`
+   *     → treated as "healthy" (green dot, "Live" label, event count visible).
+   *     `reconnecting` is specifically INCLUDED in healthy because a
+   *     brief reconnect (mount churn, channel-set change, quick blip)
+   *     shouldn't alarm the user. The 100 ms reconnect debounce and
+   *     sub-second fetch retry make `reconnecting` a transient state.
+   *   `degraded` | `closed`
+   *     → treated as "disconnected" (red dot, "Disconnected" label).
+   *     `degraded` is the 3 s threshold at which the state machine
+   *     decides the disconnect is sustained; this is the UI-banner
+   *     trigger the plan was designed around.
+   */
+  state: ConnectionState;
   eventCount: number;
   lastEventTimestamp?: string;
   knowledgeBaseName?: string;
 }
 
 export function CollaborationPanel({
-  isConnected,
+  state,
   eventCount,
   lastEventTimestamp,
   knowledgeBaseName
 }: Props) {
   const t = useTranslations('CollaborationPanel');
+
+  // Healthy = live, or briefly flapping. Only genuinely sustained
+  // disconnects surface as "Disconnected" in the UI.
+  const isHealthy = state === 'open' || state === 'reconnecting' || state === 'initial' || state === 'connecting';
 
   // Format last sync time
   let lastSyncText: string;
@@ -71,16 +93,16 @@ export function CollaborationPanel({
           <span className="semiont-collaboration-panel__indicator">
             <span
               className="semiont-collaboration-panel__dot"
-              data-connected={isConnected ? 'true' : 'false'}
+              data-connected={isHealthy ? 'true' : 'false'}
             ></span>
             <span
               className="semiont-collaboration-panel__status-text"
-              data-connected={isConnected ? 'true' : 'false'}
+              data-connected={isHealthy ? 'true' : 'false'}
             >
-              {isConnected ? t('live') : t('disconnected')}
+              {isHealthy ? t('live') : t('disconnected')}
             </span>
           </span>
-          {isConnected && eventCount > 0 && (
+          {isHealthy && eventCount > 0 && (
             <span className="semiont-collaboration-panel__event-count">
               ({t('events', { count: eventCount })})
             </span>
@@ -93,7 +115,7 @@ export function CollaborationPanel({
             <span className="semiont-collaboration-panel__label">{t('lastSync')}</span> {lastSyncText}
           </div>
           <div>
-            {isConnected
+            {isHealthy
               ? t('realtimeActive')
               : t('reconnecting')}
           </div>

@@ -13,6 +13,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Subject, firstValueFrom, filter, map, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
+import type { ConnectionState } from '../../view-models/domain/actor-vm';
 import { BrowseNamespace } from '../browse';
 import type { SemiontApiClient } from '../../client';
 import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
@@ -106,8 +107,8 @@ interface HarnessOptions {
   annotationCountAfterReset?: number;
   /** If set, cause the next N fetches to reject. */
   rejectNext?: number;
-  /** Connected$ subject so tests can drive reconnect behavior. */
-  connected$?: BehaviorSubject<boolean>;
+  /** State subject so tests can drive reconnect-lifecycle behavior. */
+  state$?: BehaviorSubject<ConnectionState>;
 }
 
 function createHarness(opts: HarnessOptions = {}) {
@@ -191,7 +192,7 @@ function createHarness(opts: HarnessOptions = {}) {
       );
     },
     emit: emitSpy,
-    connected$: (opts.connected$ ?? new Subject<boolean>()).asObservable(),
+    state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable(),
     addChannels: vi.fn(),
     removeChannels: vi.fn(),
     start: vi.fn(),
@@ -533,16 +534,20 @@ describe('Cache semantics — behaviors B1–B13 against BrowseNamespace', () =>
   });
 
   describe('B13 — reconnect gap-detection (post-BUS-RESUMPTION)', () => {
-    it('a bare connected$ false→true cycle does NOT refetch — resumption handles it', async () => {
-      const connected$ = new BehaviorSubject<boolean>(true);
-      const { browse, emitSpy } = createHarness({ connected$ });
+    it('a bare state machine reconnect cycle does NOT refetch — resumption handles it', async () => {
+      const state$ = new BehaviorSubject<ConnectionState>('open');
+      const { browse, emitSpy } = createHarness({ state$ });
 
       await firstDefined(browse.resource(RID));
       await firstDefined(browse.annotations(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
 
-      connected$.next(false);
-      connected$.next(true);
+      // Simulate a full reconnect lifecycle: open → reconnecting →
+      // connecting → open. Nothing here asks for invalidation —
+      // resumption is assumed to have covered any gap.
+      state$.next('reconnecting');
+      state$.next('connecting');
+      state$.next('open');
       await flush();
 
       // No new fetches — the client assumes resumption covered the gap.
