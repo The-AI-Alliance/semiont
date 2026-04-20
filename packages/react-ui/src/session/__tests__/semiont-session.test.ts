@@ -1,7 +1,6 @@
 /**
  * SemiontSession — unit tests for lifecycle, token wiring, and modal state.
- * Uses the same vi.mock pattern as KnowledgeBaseSessionContext's tests for
- * SemiontApiClient (no real HTTP, no real SSE).
+ * SemiontApiClient is mocked via `vi.mock` so no real HTTP or SSE fires.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

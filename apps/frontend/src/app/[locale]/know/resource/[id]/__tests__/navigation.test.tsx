@@ -50,14 +50,16 @@ vi.mock('@semiont/react-ui', async () => {
   );
   const { BehaviorSubject } = await vi.importActual<typeof import('rxjs')>('rxjs');
   const stableMockClient = {} as any;
-  const stableActiveSession$ = new BehaviorSubject<any>({ client: stableMockClient });
+  const TEST_KB = { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' };
+  const stableActiveSession$ = new BehaviorSubject<any>({
+    client: stableMockClient,
+    kb: TEST_KB,
+    streamState$: new BehaviorSubject('initial'),
+  });
   const stableMockBrowser = { activeSession$: stableActiveSession$ };
   return {
     ...actual,
     useSemiont: () => stableMockBrowser,
-    useKnowledgeBaseSession: () => ({
-      activeKnowledgeBase: { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
-    }),
     createResourceLoaderVM: (_client: any, rId: string) => {
       vmFactoryCalls.push(rId);
       return {

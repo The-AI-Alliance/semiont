@@ -4,10 +4,8 @@
  * Holds the list of configured KBs, the active KB selection, the active
  * SemiontSession, the NextAuth identity token, the open-resources list,
  * and a session-level error stream. Module-scoped singleton — survives
- * every React re-render, remount, and route change.
- *
- * Replaces the app-level responsibilities of KnowledgeBaseSessionProvider
- * and the old OpenResources context.
+ * every React re-render, remount, and route change. `SemiontProvider`
+ * hands the singleton to the React tree; `useSemiont()` returns it.
  */
 
 import { BehaviorSubject, Subject } from 'rxjs';

@@ -1,14 +1,14 @@
 /**
  * SemiontSession — per-KB session lifetime object. Owns the SemiontApiClient,
- * the per-KB EventBus, the access token BehaviorSubject, and the authenticated
- * user. One SemiontSession exists per active KB; lifetime is decoupled from
- * React mount lifetime. Constructed via SemiontBrowser's registry, disposed
- * via SemiontBrowser.setActiveKb (or signOut).
+ * the access token BehaviorSubject, and the authenticated user. One
+ * SemiontSession exists per active KB; lifetime is decoupled from React
+ * mount lifetime. Constructed via SemiontBrowser's registry, disposed via
+ * SemiontBrowser.setActiveKb (or signOut).
  *
- * Replaces the per-KB responsibilities of AuthTokenProvider, ApiClientProvider,
- * and KnowledgeBaseSessionProvider's per-KB state. Owns its own EventBus so
- * components can emit via `session.emit(channel, payload)` without a
- * separate bus provider in the React tree.
+ * The session's EventBus is owned by the client and re-exposed via
+ * `session.emit` / `session.on`. React components subscribe via
+ * `useEventSubscription[s]`. Nothing outside the session reaches for the
+ * bus directly (see UNREACT.md D7).
  */
 
 import { BehaviorSubject, type Observable } from 'rxjs';

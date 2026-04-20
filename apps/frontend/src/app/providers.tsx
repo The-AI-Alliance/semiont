@@ -26,13 +26,13 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
  * routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
  * they have no session UI.
  *
- * There is no separate `ApiClientProvider` — the `SemiontApiClient` is
- * owned by the per-KB `SemiontSession`, which `SemiontBrowser` constructs
- * on demand. Components read `useObservable(useSemiont().activeSession$)?.client`.
+ * The `SemiontApiClient` is owned by the per-KB `SemiontSession`, which
+ * `SemiontBrowser` constructs on demand. Components read
+ * `useObservable(useSemiont().activeSession$)?.client`.
  *
- * The event bus lives inside `SemiontSession` (owned by `SemiontBrowser`),
- * not in a separate provider. Components emit via `session?.emit(...)` and
- * subscribe via `useEventSubscription[s]`.
+ * The event bus lives inside the client (owned by `SemiontSession`).
+ * Components emit via `session?.emit(...)` and subscribe via
+ * `useEventSubscription[s]`.
  *
  * Provider order — outer to inner:
  * 1. TranslationProvider     — i18n

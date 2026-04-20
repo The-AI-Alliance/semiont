@@ -19,10 +19,9 @@ import { SemiontProvider } from './session/SemiontProvider';
 
 /**
  * Minimal fake SemiontBrowser for tests. Emits a fake session whose `client`
- * is a fresh SemiontApiClient constructed off `apiBaseUrl` — matching the
- * behavior the old `<ApiClientProvider>` wrapper provided. Tests that spy on
- * client methods (e.g. `BindNamespace.prototype.body`) can therefore rely on
- * the real-ish client surface.
+ * is a fresh SemiontApiClient constructed off `apiBaseUrl`. Tests that spy
+ * on client methods (e.g. `BindNamespace.prototype.body`) rely on the
+ * real-ish client surface.
  */
 function createFakeBrowserForTests(
   apiBaseUrl: string,
