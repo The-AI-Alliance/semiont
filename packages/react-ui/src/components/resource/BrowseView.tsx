@@ -22,7 +22,8 @@ import {
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { useEventBus } from '../../contexts/EventBusContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 interface Props {
@@ -77,7 +78,7 @@ export const BrowseView = memo(function BrowseView({
   hoverDelayMs = 150
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const category = getMimeCategory(mimeType);
@@ -118,6 +119,7 @@ export const BrowseView = memo(function BrowseView({
   // Attach click handler, hover handler, and animations after render
   useEffect(() => {
     if (!containerRef.current) return;
+    if (!session) return;
 
     const container = containerRef.current;
 
@@ -133,13 +135,13 @@ export const BrowseView = memo(function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.get('browse:click').next({ annotationId, motivation: annotation.motivation });
+          session.emit('browse:click', { annotationId, motivation: annotation.motivation });
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.get('beckon:hover').next({ annotationId }),
+      (annotationId) => session.emit('beckon:hover', { annotationId }),
       hoverDelayMs
     );
 
@@ -179,7 +181,7 @@ export const BrowseView = memo(function BrowseView({
       container.removeEventListener('mouseout', handleMouseOut);
       cleanupHover();
     };
-  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs]);
+  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs, session]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {

@@ -7,7 +7,7 @@
 
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { buttonStyles, Toolbar, useApiClient } from '@semiont/react-ui';
+import { buttonStyles, Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
@@ -19,7 +19,7 @@ export default function AdminUsers() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminUsers.${k}`, p as any) as string;
 
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const browseVM = useBrowseVM();
   const vm = useViewModel(() => createAdminUsersVM(semiont!, browseVM));
 

@@ -9,9 +9,9 @@ import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { components } from '@semiont/core';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
-import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
-import { useApiClient } from '../../contexts/ApiClientContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
@@ -29,7 +29,7 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
  * - No manual refetch needed - events handle cache invalidation
  *
  * Requirements:
- * - Must be wrapped in MakeMeaningEventBusProvider (provides event bus)
+ * - Must be wrapped in SemiontProvider (which owns the session's event bus)
  * - Must be wrapped in CacheContext (provides cache manager)
  *
  * Event flow:
@@ -71,8 +71,7 @@ export function ResourceViewer({
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
-  // Get unified event bus for emitting UI events
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   // Get observable navigation for event-driven routing
   const navigate = useObservableExternalNavigation();
@@ -120,7 +119,7 @@ export function ResourceViewer({
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
 
-  const semiont = useApiClient();
+  const semiont = session?.client;
 
   const handleAnnotateAdded = useCallback(() => {
     semiont?.browse.invalidateAnnotationList(rUri);
@@ -243,8 +242,8 @@ export function ResourceViewer({
 
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
-    eventBus.get('mark:delete').next({ annotationId: toAnnotationId(id) });
-  }, []); // eventBus is stable
+    session?.emit('mark:delete', { annotationId: toAnnotationId(id) });
+  }, [session]);
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
@@ -329,8 +328,8 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.get('browse:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
-  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
+    session?.emit('browse:panel-open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, session]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
   // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders

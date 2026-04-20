@@ -8,8 +8,8 @@ import { annotationId, resourceId } from '@semiont/core';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import { useApiClient } from '../../../contexts/ApiClientContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
@@ -41,8 +41,8 @@ export function ReferenceEntry({
   ref,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
-  const eventBus = useEventBus();
-  const semiont = useApiClient();
+  const session = useObservable(useSemiont().activeSession$);
+  const semiont = session?.client;
   const navigate = useObservableExternalNavigation();
   const hoverProps = useHoverEmitter(reference.id);
 
@@ -75,7 +75,7 @@ export function ReferenceEntry({
     : '';
 
   const handleUnlink = () => {
-    if (source && resolvedResourceUri) {
+    if (source && resolvedResourceUri && semiont) {
       semiont.bind.body(
         resourceId(source),
         annotationId(reference.id),
@@ -85,7 +85,7 @@ export function ReferenceEntry({
   };
 
   const handleInitiateWizard = () => {
-    eventBus.get('bind:initiate').next({
+    session?.emit('bind:initiate', {
       annotationId: annotationId(reference.id),
       resourceId: resourceId(source),
       defaultTitle: selectedText,
@@ -112,7 +112,7 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('browse:click').next({ annotationId: reference.id, motivation: reference.motivation });
+        session?.emit('browse:click', { annotationId: reference.id, motivation: reference.motivation });
       }}
       {...hoverProps}
     >

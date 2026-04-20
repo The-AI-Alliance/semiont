@@ -4,7 +4,7 @@ import {
   LiveRegionProvider,
   TranslationProvider,
   ThemeProvider,
-  EventBusProvider,
+  SemiontProvider,
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
@@ -13,24 +13,34 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
 /**
  * Root Provider Composition for Semiont Frontend.
  *
- * Wires up GLOBAL contexts that every page needs — auth-independent.
+ * Wires up GLOBAL contexts that every page needs.
  *
- * Auth-dependent providers (KnowledgeBaseSessionProvider, ProtectedErrorBoundary,
- * SessionExpiredModal, PermissionDeniedModal) are bundled in `AuthShell` and
- * mounted only in protected layouts (know/, admin/, moderate/, auth/welcome/).
- * Pre-app routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
- * they have no need to validate JWTs.
+ * The module-scoped `SemiontBrowser` singleton (KB list, active KB,
+ * per-KB SemiontSession) is made available via `<SemiontProvider>` at
+ * the app root — mounting it here is cheap because the singleton itself
+ * survives every React re-render and route change.
  *
- * ApiClientProvider is added in feature-specific layouts (e.g. /know) that
- * require API access. Public pages don't need it.
+ * Auth-dependent UI (ProtectedErrorBoundary, SessionExpiredModal,
+ * PermissionDeniedModal) is bundled in `AuthShell` and mounted only in
+ * protected layouts (know/, admin/, moderate/, auth/welcome/). Pre-app
+ * routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
+ * they have no session UI.
+ *
+ * There is no separate `ApiClientProvider` — the `SemiontApiClient` is
+ * owned by the per-KB `SemiontSession`, which `SemiontBrowser` constructs
+ * on demand. Components read `useObservable(useSemiont().activeSession$)?.client`.
+ *
+ * The event bus lives inside `SemiontSession` (owned by `SemiontBrowser`),
+ * not in a separate provider. Components emit via `session?.emit(...)` and
+ * subscribe via `useEventSubscription[s]`.
  *
  * Provider order — outer to inner:
  * 1. TranslationProvider     — i18n
- * 2. ToastProvider           — toast notifications
- * 3. LiveRegionProvider      — a11y live region
- * 4. KeyboardShortcutsProvider — keyboard shortcuts
- * 5. ThemeProvider           — theme
- * 6. EventBusProvider        — RxJS event bus
+ * 2. SemiontProvider         — SemiontBrowser singleton
+ * 3. ToastProvider           — toast notifications
+ * 4. LiveRegionProvider      — a11y live region
+ * 5. KeyboardShortcutsProvider — keyboard shortcuts
+ * 6. ThemeProvider           — theme
  *    + NavigationHandler
  */
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -38,18 +48,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <TranslationProvider translationManager={translationManager}>
-      <ToastProvider>
-        <LiveRegionProvider>
-          <KeyboardShortcutsProvider>
-            <ThemeProvider>
-              <EventBusProvider>
+      <SemiontProvider>
+        <ToastProvider>
+          <LiveRegionProvider>
+            <KeyboardShortcutsProvider>
+              <ThemeProvider>
                 <NavigationHandler />
                 {children}
-              </EventBusProvider>
-            </ThemeProvider>
-          </KeyboardShortcutsProvider>
-        </LiveRegionProvider>
-      </ToastProvider>
+              </ThemeProvider>
+            </KeyboardShortcutsProvider>
+          </LiveRegionProvider>
+        </ToastProvider>
+      </SemiontProvider>
     </TranslationProvider>
   );
 }

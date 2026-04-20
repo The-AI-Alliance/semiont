@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   handleAnnotationClick,
   handleWidgetClick,
@@ -18,14 +18,13 @@ function makeSegment(id: string, motivation: string): TextSegment {
   };
 }
 
-function makeEventBus() {
-  const subjects: Record<string, { next: ReturnType<typeof vi.fn> }> = {};
+function makeSession() {
+  const calls: Array<{ channel: string; payload: unknown }> = [];
   return {
-    get: vi.fn((name: string) => {
-      if (!subjects[name]) subjects[name] = { next: vi.fn() };
-      return subjects[name]!;
+    emit: vi.fn((channel: string, payload: unknown) => {
+      calls.push({ channel, payload });
     }),
-    subjects,
+    calls,
   } as any;
 }
 
@@ -42,14 +41,14 @@ function createElement(tag: string, attrs: Record<string, string> = {}, parent?:
 describe('handleAnnotationClick', () => {
   it('returns false when target has no annotation-id', () => {
     const target = document.createElement('span');
-    const result = handleAnnotationClick(target, new Map(), makeEventBus());
+    const result = handleAnnotationClick(target, new Map(), makeSession());
     expect(result).toBe(false);
   });
 
   it('returns false when annotation not in segments map', () => {
     const parent = createElement('span', { 'data-annotation-id': 'missing' });
     const child = createElement('span', {}, parent);
-    const result = handleAnnotationClick(child, new Map(), makeEventBus());
+    const result = handleAnnotationClick(child, new Map(), makeSession());
     expect(result).toBe(false);
   });
 
@@ -59,12 +58,11 @@ describe('handleAnnotationClick', () => {
 
     const parent = createElement('span', { 'data-annotation-id': 'ann-1' });
     const child = createElement('span', {}, parent);
-    const eventBus = makeEventBus();
+    const session = makeSession();
 
-    const result = handleAnnotationClick(child, segmentsById, eventBus);
+    const result = handleAnnotationClick(child, segmentsById, session);
     expect(result).toBe(true);
-    expect(eventBus.get).toHaveBeenCalledWith('browse:click');
-    expect(eventBus.subjects['browse:click']!.next).toHaveBeenCalledWith({
+    expect(session.emit).toHaveBeenCalledWith('browse:click', {
       annotationId: 'ann-1',
       motivation: 'highlighting',
     });
@@ -134,35 +132,33 @@ describe('handleWidgetClick', () => {
 
 describe('dispatchWidgetClick', () => {
   it('does nothing when not handled', () => {
-    const eventBus = makeEventBus();
-    dispatchWidgetClick({ handled: false }, eventBus);
-    expect(eventBus.get).not.toHaveBeenCalled();
+    const session = makeSession();
+    dispatchWidgetClick({ handled: false }, session);
+    expect(session.emit).not.toHaveBeenCalled();
   });
 
   it('emits browse:reference-navigate for navigate action', () => {
-    const eventBus = makeEventBus();
+    const session = makeSession();
     const result: WidgetClickResult = {
       handled: true,
       action: 'navigate',
       resourceId: 'doc-1',
       annotationId: 'ann-1',
     };
-    dispatchWidgetClick(result, eventBus);
-    expect(eventBus.get).toHaveBeenCalledWith('browse:reference-navigate');
-    expect(eventBus.subjects['browse:reference-navigate']!.next).toHaveBeenCalledWith({ resourceId: 'doc-1' });
+    dispatchWidgetClick(result, session);
+    expect(session.emit).toHaveBeenCalledWith('browse:reference-navigate', { resourceId: 'doc-1' });
   });
 
   it('emits browse:click for browse-click action', () => {
-    const eventBus = makeEventBus();
+    const session = makeSession();
     const result: WidgetClickResult = {
       handled: true,
       action: 'browse-click',
       annotationId: 'ann-1',
       motivation: 'linking' as any,
     };
-    dispatchWidgetClick(result, eventBus);
-    expect(eventBus.get).toHaveBeenCalledWith('browse:click');
-    expect(eventBus.subjects['browse:click']!.next).toHaveBeenCalledWith({
+    dispatchWidgetClick(result, session);
+    expect(session.emit).toHaveBeenCalledWith('browse:click', {
       annotationId: 'ann-1',
       motivation: 'linking',
     });

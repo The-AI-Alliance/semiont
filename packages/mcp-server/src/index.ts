@@ -8,7 +8,7 @@ import {
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, EventBus } from '@semiont/core';
+import { baseUrl, accessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 
 import * as handlers from './handlers.js';
@@ -33,7 +33,6 @@ const token = accessToken(SEMIONT_ACCESS_TOKEN);
 
 const semiont = new SemiontApiClient({
   baseUrl: baseUrl(SEMIONT_API_URL),
-  eventBus: new EventBus(),
   token$: new BehaviorSubject<typeof token | null>(token),
 });
 

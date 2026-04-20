@@ -3,7 +3,8 @@
 import type { Ref } from 'react';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 type Annotation = components['schemas']['Annotation'];
@@ -74,7 +75,7 @@ export function AssessmentEntry({
   isHovered = false,
   ref,
 }: AssessmentEntryProps) {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const hoverProps = useHoverEmitter(assessment.id);
 
   const selectedText = getAnnotationExactText(assessment);
@@ -87,7 +88,7 @@ export function AssessmentEntry({
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('browse:click').next({ annotationId: assessment.id, motivation: assessment.motivation });
+        session?.emit('browse:click', { annotationId: assessment.id, motivation: assessment.motivation });
       }}
       {...hoverProps}
     >

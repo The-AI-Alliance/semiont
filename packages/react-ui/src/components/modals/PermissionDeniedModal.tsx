@@ -1,24 +1,22 @@
 'use client';
 
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useKnowledgeBaseSession } from '../../contexts/KnowledgeBaseSessionContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 
 /**
  * Modal that surfaces when a 403 forbidden error is reported via
  * `notifyPermissionDenied` (called from QueryCache.onError).
  *
- * Reads `permissionDeniedAt` and `permissionDeniedMessage` from
- * KnowledgeBaseSessionContext. The provider clears the flag when the user
- * dismisses the modal.
- *
- * Must be mounted inside KnowledgeBaseSessionProvider.
+ * Reads `permissionDeniedAt$` and `permissionDeniedMessage$` from the active
+ * SemiontSession. The session clears the flag when the user dismisses the
+ * modal.
  */
 export function PermissionDeniedModal() {
-  const {
-    permissionDeniedAt,
-    permissionDeniedMessage,
-    acknowledgePermissionDenied,
-  } = useKnowledgeBaseSession();
+  const session = useObservable(useSemiont().activeSession$);
+  const permissionDeniedAt = useObservable(session?.permissionDeniedAt$) ?? null;
+  const permissionDeniedMessage = useObservable(session?.permissionDeniedMessage$) ?? null;
+  const acknowledgePermissionDenied = () => session?.acknowledgePermissionDenied();
   const showModal = permissionDeniedAt !== null;
   const message = permissionDeniedMessage ?? 'You do not have permission to perform this action.';
 

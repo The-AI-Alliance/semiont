@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
-import { useEventBus } from '../contexts/EventBusContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 import './toolbar/Toolbar.css';
 
 type ToolbarContext = 'document' | 'simple';
@@ -25,10 +26,10 @@ export function Toolbar<T extends string = string>({
   isArchived = false
 }: Props<T>) {
   const t = useTranslations('Toolbar');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   const handlePanelToggle = (panel: string) => {
-    eventBus.get('browse:panel-toggle').next({ panel });
+    session?.emit('browse:panel-toggle', { panel });
   };
 
   return (

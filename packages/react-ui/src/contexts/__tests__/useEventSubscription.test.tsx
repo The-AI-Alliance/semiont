@@ -1,14 +1,22 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EventBusProvider, useEventBus } from '../EventBusContext';
+import type { EventBus } from '@semiont/core';
 import { useEventSubscription, useEventSubscriptions } from '../useEventSubscription';
+import { createTestSemiontWrapper } from '../../test-utils';
 import type { ReactNode } from 'react';
 
-describe('useEventSubscription', () => {
+function makeWrapper(): {
+  wrapper: (props: { children: ReactNode }) => JSX.Element;
+  eventBus: EventBus;
+} {
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <EventBusProvider>{children}</EventBusProvider>
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return { wrapper, eventBus };
+}
 
+describe('useEventSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -16,18 +24,15 @@ describe('useEventSubscription', () => {
   describe('Single event subscription', () => {
     it('should call handler when event is emitted', () => {
       const handler = vi.fn();
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { result } = renderHook(
-        () => {
-          const eventBus = useEventBus();
-          useEventSubscription('beckon:hover', handler);
-          return eventBus;
-        },
-        { wrapper }
+      renderHook(
+        () => useEventSubscription('beckon:hover', handler),
+        { wrapper },
       );
 
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
       });
 
       expect(handler).toHaveBeenCalledWith({ annotationId: 'ann-1' });
@@ -37,34 +42,27 @@ describe('useEventSubscription', () => {
     it('should always use latest handler (no stale closure)', () => {
       const calls: string[] = [];
       let message = 'initial';
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { rerender, result } = renderHook(
+      const { rerender } = renderHook(
         () => {
-          const eventBus = useEventBus();
-
-          // Handler captures 'message' from current render
           useEventSubscription('beckon:hover', () => {
             calls.push(message);
           });
-
-          return eventBus;
         },
-        { wrapper }
+        { wrapper },
       );
 
-      // Emit with initial message
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
       });
       expect(calls).toEqual(['initial']);
 
-      // Change message and re-render
       message = 'updated';
       rerender();
 
-      // Emit again - should use UPDATED message (not stale 'initial')
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-2' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-2' });
       });
       expect(calls).toEqual(['initial', 'updated']);
     });
@@ -73,60 +71,48 @@ describe('useEventSubscription', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
       let currentHandler = handler1;
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { rerender, result } = renderHook(
-        () => {
-          const eventBus = useEventBus();
-          useEventSubscription('beckon:hover', currentHandler);
-          return eventBus;
-        },
-        { wrapper }
+      const { rerender } = renderHook(
+        () => useEventSubscription('beckon:hover', currentHandler),
+        { wrapper },
       );
 
-      // Emit with first handler
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
       });
       expect(handler1).toHaveBeenCalledTimes(1);
 
-      // Change handler (but don't change subscription)
       currentHandler = handler2;
       rerender();
 
-      // Emit again - should call NEW handler
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-2' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-2' });
       });
-      expect(handler1).toHaveBeenCalledTimes(1); // Still only called once
-      expect(handler2).toHaveBeenCalledTimes(1); // New handler called
+      expect(handler1).toHaveBeenCalledTimes(1);
+      expect(handler2).toHaveBeenCalledTimes(1);
     });
 
     it('should cleanup subscription on unmount', () => {
       const handler = vi.fn();
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { unmount, result } = renderHook(
-        () => {
-          const eventBus = useEventBus();
-          useEventSubscription('beckon:hover', handler);
-          return eventBus;
-        },
-        { wrapper }
+      const { unmount } = renderHook(
+        () => useEventSubscription('beckon:hover', handler),
+        { wrapper },
       );
 
-      // Emit before unmount
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
       });
       expect(handler).toHaveBeenCalledTimes(1);
 
-      // Unmount
       unmount();
 
-      // Emit after unmount - handler should NOT be called
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-2' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-2' });
       });
-      expect(handler).toHaveBeenCalledTimes(1); // Still only 1
+      expect(handler).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -134,24 +120,21 @@ describe('useEventSubscription', () => {
     it('should subscribe to multiple events', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { result } = renderHook(
+      renderHook(
         () => {
-          const eventBus = useEventBus();
-
           useEventSubscriptions({
             'beckon:hover': handler1,
             'browse:click': handler2,
           });
-
-          return eventBus;
         },
-        { wrapper }
+        { wrapper },
       );
 
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
-        result.current.get('browse:click').next({ annotationId: 'ann-2' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-1' });
@@ -161,32 +144,28 @@ describe('useEventSubscription', () => {
     it('should use latest handlers without re-subscribing', () => {
       const calls: string[] = [];
       let message = 'initial';
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { rerender, result } = renderHook(
+      const { rerender } = renderHook(
         () => {
-          const eventBus = useEventBus();
-
           useEventSubscriptions({
             'beckon:hover': () => calls.push(`hover:${message}`),
             'browse:click': () => calls.push(`click:${message}`),
           });
-
-          return eventBus;
         },
-        { wrapper }
+        { wrapper },
       );
 
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
       });
       expect(calls).toEqual(['hover:initial']);
 
-      // Change message and re-render
       message = 'updated';
       rerender();
 
       act(() => {
-        result.current.get('browse:click').next({ annotationId: 'ann-2' });
+        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
       });
       expect(calls).toEqual(['hover:initial', 'click:updated']);
     });
@@ -194,26 +173,23 @@ describe('useEventSubscription', () => {
     it('should cleanup all subscriptions on unmount', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { unmount, result } = renderHook(
+      const { unmount } = renderHook(
         () => {
-          const eventBus = useEventBus();
-
           useEventSubscriptions({
             'beckon:hover': handler1,
             'browse:click': handler2,
           });
-
-          return eventBus;
         },
-        { wrapper }
+        { wrapper },
       );
 
       unmount();
 
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
-        result.current.get('browse:click').next({ annotationId: 'ann-2' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).not.toHaveBeenCalled();
@@ -222,28 +198,24 @@ describe('useEventSubscription', () => {
 
     it('should handle optional subscriptions (undefined handlers)', () => {
       const handler1 = vi.fn();
+      const { wrapper, eventBus } = makeWrapper();
 
-      const { result } = renderHook(
+      renderHook(
         () => {
-          const eventBus = useEventBus();
-
           useEventSubscriptions({
             'beckon:hover': handler1,
-            'browse:click': undefined, // Optional
+            'browse:click': undefined,
           });
-
-          return eventBus;
         },
-        { wrapper }
+        { wrapper },
       );
 
       act(() => {
-        result.current.get('beckon:hover').next({ annotationId: 'ann-1' });
-        result.current.get('browse:click').next({ annotationId: 'ann-2' });
+        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).toHaveBeenCalledTimes(1);
-      // No error from undefined handler
     });
   });
 });

@@ -21,7 +21,6 @@ import type {
   ContentFormat,
   Email,
   EntityType,
-  EventBus,
   GoogleCredential,
   JobId,
   Motivation,
@@ -29,6 +28,7 @@ import type {
   SearchQuery,
   UserDID
 } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 import { createActorVM, type ActorVM } from './view-models/domain/actor-vm';
 import { busRequest } from './bus-request';
 import { BehaviorSubject } from 'rxjs';
@@ -130,8 +130,6 @@ export type TokenRefresher = () => Promise<string | null>;
 
 export interface SemiontApiClientConfig {
   baseUrl: BaseUrl;
-  /** Per-workspace EventBus. Required — one bus per workspace, constructed externally. */
-  eventBus: EventBus;
   /**
    * Observable access token. All auth (HTTP + bus) reads the current value.
    * Update by calling `.next(newToken)` on the BehaviorSubject. The bus actor
@@ -163,7 +161,16 @@ export interface RequestOptions {
 export class SemiontApiClient {
   private http: KyInstance;
   readonly baseUrl: BaseUrl;
-  /** The workspace-scoped EventBus this client was constructed with. */
+  /**
+   * Workspace-scoped EventBus — owned by the client, NOT accepted as
+   * config. Kept accessible on the instance so **library internals**
+   * (ViewModel factories like `createBrowseVM`, `createMarkVM`, etc.)
+   * can wire themselves to the same bus the namespaces use.
+   *
+   * **Components must NOT reach for `client.eventBus` directly** — route
+   * bus access through `SemiontSession.emit` / `session.on` / the
+   * `useEventSubscription` hook. See UNREACT.md D7.
+   */
   readonly eventBus: EventBus;
   private logger?: Logger;
 
@@ -187,9 +194,9 @@ export class SemiontApiClient {
   public readonly admin: AdminNamespace;
 
   constructor(config: SemiontApiClientConfig) {
-    const { baseUrl, eventBus, timeout = 30000, retry = 2, logger, tokenRefresher } = config;
+    const { baseUrl, timeout = 30000, retry = 2, logger, tokenRefresher } = config;
 
-    this.eventBus = eventBus;
+    this.eventBus = new EventBus();
 
     // Store logger and baseUrl for constructing full URLs
     this.logger = logger;
@@ -418,8 +425,16 @@ export class SemiontApiClient {
     }
   }
 
+  /**
+   * Build the `Authorization: Bearer <token>` header. If the caller passed
+   * an explicit `{ auth }` it wins (used by session-internal throwaway
+   * clients that need to run a validation request with a specific token).
+   * Otherwise the current value of `this.token$` is used, so external
+   * callers never have to plumb the token themselves.
+   */
   private authHeaders(options?: { auth?: AccessToken }): Record<string, string> {
-    return options?.auth ? { Authorization: `Bearer ${options.auth}` } : {};
+    const token = options?.auth ?? this.token$.getValue() ?? undefined;
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   // ============================================================================

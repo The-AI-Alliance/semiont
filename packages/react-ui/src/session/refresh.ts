@@ -1,16 +1,13 @@
 /**
- * Refresh-token coordination for the KnowledgeBaseSession provider.
+ * Refresh-token coordination for the Semiont session layer.
  *
  * Module-scoped state: an in-flight Promise per KB so concurrent 401s for
- * the same KB deduplicate to a single network call. No React, no provider
- * dependency — the React provider calls `performRefresh(kb)` and the
- * api-client's `tokenRefresher` hook indirectly calls it via the provider's
- * `refreshActive` method.
+ * the same KB deduplicate to a single network call.
  */
 
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, EventBus, refreshToken as makeRefreshToken } from '@semiont/core';
-import type { KnowledgeBase } from '../../types/knowledge-base';
+import { baseUrl, refreshToken as makeRefreshToken } from '@semiont/core';
+import type { KnowledgeBase } from '../types/knowledge-base';
 import { getStoredSession, setStoredSession, kbBackendUrl } from './storage';
 
 /**
@@ -24,11 +21,11 @@ const inFlightRefreshes: Map<string, Promise<string | null>> = new Map();
  * null if no refresh token is available or the refresh failed.
  *
  * IMPORTANT: this constructs a fresh `SemiontApiClient` *without* a
- * `tokenRefresher`. Do not be tempted to reuse the configured client (e.g.
- * via `useApiClient()` from a layout): a refresh-call returning 401 would
- * recursively re-enter the refresher, calling `/api/tokens/refresh` again,
- * in an infinite loop. The throwaway client deliberately has no recovery
- * path — a 401 here propagates as `null` and surfaces the modal upstream.
+ * `tokenRefresher`. Do not be tempted to reuse the configured client: a
+ * refresh-call returning 401 would recursively re-enter the refresher,
+ * calling `/api/tokens/refresh` again, in an infinite loop. The throwaway
+ * client deliberately has no recovery path — a 401 here propagates as `null`
+ * and surfaces the modal upstream.
  *
  * Concurrent calls for the same KB deduplicate via the in-flight Promise
  * Map keyed by `kb.id`, so simultaneous 401s on different requests trigger
@@ -44,7 +41,6 @@ export async function performRefresh(kb: KnowledgeBase): Promise<string | null> 
 
     const client = new SemiontApiClient({
       baseUrl: baseUrl(kbBackendUrl(kb)),
-      eventBus: new EventBus(),
     });
 
     try {

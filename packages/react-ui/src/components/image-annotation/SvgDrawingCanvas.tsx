@@ -5,7 +5,7 @@ import type { components } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
-import type { EventBus } from "@semiont/core"
+import type { SemiontSession } from '../../session/semiont-session';
 import { useHoverDelay } from '../../hooks/useHoverDelay';
 
 type Annotation = components['schemas']['Annotation'];
@@ -40,7 +40,7 @@ interface SvgDrawingCanvasProps {
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  eventBus?: EventBus;
+  session?: SemiontSession | null | undefined;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
   hoverDelayMs?: number;
@@ -57,7 +57,7 @@ export function SvgDrawingCanvas({
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
-  eventBus,
+  session,
   hoveredAnnotationId,
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
@@ -212,7 +212,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('browse:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          session?.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -274,8 +274,8 @@ export function SvgDrawingCanvas({
     );
 
     // Emit annotation:requested event with SvgSelector
-    if (eventBus && selectedMotivation) {
-      eventBus.get('mark:requested').next({
+    if (session && selectedMotivation) {
+      session.emit('mark:requested', {
         selector: {
           type: 'SvgSelector',
           value: nativeSvg
@@ -338,7 +338,7 @@ export function SvgDrawingCanvas({
               displayWidth={displayDimensions.width}
               displayHeight={displayDimensions.height}
               hoverDelayMs={hoverDelayMs}
-              {...(eventBus && { eventBus })}
+              {...(session && { session })}
               {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
               {...(selectedAnnotationId !== undefined && { selectedAnnotationId })}
             />

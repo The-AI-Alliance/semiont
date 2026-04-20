@@ -1,32 +1,9 @@
 /**
- * Open Resources Manager Interface
+ * OpenResource — a single entry in the open-resources list (tabs).
  *
- * Manages a list of open resources (documents/files) with persistence.
- * This interface allows apps to provide their own implementation of resource management
- * (localStorage, sessionStorage, database, etc.) while components remain framework-agnostic.
- *
- * Components accept this manager as a prop instead of consuming from Context.
- *
- * @example
- * ```tsx
- * // In app (e.g., frontend/src/hooks/useOpenResourcesManager.ts)
- * export function useOpenResourcesManager(): OpenResourcesManager {
- *   const [openResources, setOpenResources] = useState<OpenResource[]>([]);
- *
- *   // Implementation details...
- *
- *   return {
- *     openResources,
- *     addResource,
- *     removeResource,
- *     updateResourceName,
- *     reorderResources
- *   };
- * }
- *
- * // Pass to components as props
- * <KnowledgeNavigation openResourcesManager={openResourcesManager} />
- * ```
+ * The list itself lives on `SemiontBrowser.openResources$`. The CRUD
+ * methods (`addOpenResource`, `removeOpenResource`, `updateOpenResourceName`,
+ * `reorderOpenResources`) live on `SemiontBrowser` too.
  */
 
 export interface OpenResource {
@@ -47,38 +24,4 @@ export interface OpenResource {
 
   /** Working-tree URI (e.g. "file://docs/overview.md") — used as tooltip in navigation */
   storageUri?: string;
-}
-
-export interface OpenResourcesManager {
-  /** List of currently open resources */
-  openResources: OpenResource[];
-
-  /**
-   * Add a new resource to the open list or update if already exists
-   * @param id - Unique resource identifier
-   * @param name - Display name of the resource
-   * @param mediaType - Optional media type for icon display
-   * @param storageUri - Optional working-tree URI (e.g. "file://docs/overview.md")
-   */
-  addResource: (id: string, name: string, mediaType?: string, storageUri?: string) => void;
-
-  /**
-   * Remove a resource from the open list
-   * @param id - Resource identifier to remove
-   */
-  removeResource: (id: string) => void;
-
-  /**
-   * Update the display name of an open resource
-   * @param id - Resource identifier
-   * @param name - New display name
-   */
-  updateResourceName: (id: string, name: string) => void;
-
-  /**
-   * Reorder resources by moving from one index to another
-   * @param oldIndex - Current position index
-   * @param newIndex - Desired position index
-   */
-  reorderResources: (oldIndex: number, newIndex: number) => void;
 }

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, email as makeEmail, accessToken, EventBus } from '@semiont/core';
+import { baseUrl, email as makeEmail, accessToken } from '@semiont/core';
 import {
-  useKnowledgeBaseSession,
+  useSemiont,
+  useObservable,
   defaultProtocol,
   isValidHostname,
   getKbSessionStatus,
@@ -133,7 +134,7 @@ function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
 
 async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; label: string; gitBranch?: string }> {
   const origin = `${protocol}://${host}:${port}`;
-  const client = new SemiontApiClient({ baseUrl: baseUrl(origin), eventBus: new EventBus() });
+  const client = new SemiontApiClient({ baseUrl: baseUrl(origin) });
 
   const authResult = await client.authenticatePassword(makeEmail(emailStr), password);
   const token = (authResult as any).token ?? (authResult as any).accessToken;
@@ -155,16 +156,15 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
 export function KnowledgeBasePanel() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
-  const {
-    knowledgeBases,
-    activeKnowledgeBase,
-    setActiveKnowledgeBase,
-    addKnowledgeBase,
-    removeKnowledgeBase,
-    updateKnowledgeBase,
-    signIn,
-    signOut,
-  } = useKnowledgeBaseSession();
+  const semiont = useSemiont();
+  const knowledgeBases = useObservable(semiont.kbs$) ?? [];
+  const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
+  const setActiveKnowledgeBase = (id: string) => { void semiont.setActiveKb(id); };
+  const addKnowledgeBase = semiont.addKb.bind(semiont);
+  const removeKnowledgeBase = semiont.removeKb.bind(semiont);
+  const updateKnowledgeBase = semiont.updateKb.bind(semiont);
+  const signIn = (id: string, access: string, refresh: string) => { void semiont.signIn(id, access, refresh); };
+  const signOut = (id: string) => { void semiont.signOut(id); };
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);

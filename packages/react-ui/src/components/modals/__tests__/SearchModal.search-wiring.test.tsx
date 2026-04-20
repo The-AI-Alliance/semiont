@@ -36,19 +36,22 @@ vi.mock('@headlessui/react', () => ({
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
 const browseResourcesMock = vi.fn(() => browseResourcesSubject.asObservable());
 
-// Stable client reference — useApiClient is called on every render, so a
+// Stable client reference — useSemiont is called on every render, so a
 // fresh object literal would invalidate useMemo deps and restart the RxJS
-// pipeline on every keystroke. The real ApiClientProvider holds a single
-// instance; the mock must do the same.
+// pipeline on every keystroke. The real SemiontBrowser holds a single
+// activeSession$ BehaviorSubject; the mock must do the same.
 const stableMockClient = { browse: { resources: browseResourcesMock } };
+const stableMockSession = { client: stableMockClient };
+const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
+const stableMockBrowser = { activeSession$: stableActiveSession$ };
 
-vi.mock('../../../contexts/ApiClientContext', async () => {
-  const actual = await vi.importActual<typeof import('../../../contexts/ApiClientContext')>(
-    '../../../contexts/ApiClientContext'
+vi.mock('../../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(
+    '../../../session/SemiontProvider'
   );
   return {
     ...actual,
-    useApiClient: () => stableMockClient,
+    useSemiont: () => stableMockBrowser,
   };
 });
 

@@ -2,31 +2,24 @@
  * Frontend-specific test utilities
  *
  * Provides renderWithProviders that wraps components with the providers a
- * frontend test typically needs. The KnowledgeBaseSession context is mocked
- * via the library context provider so tests can supply a fake session value
- * without going through localStorage / JWT validation.
+ * frontend test typically needs.
  */
 
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import {
   TranslationProvider,
-  ApiClientProvider,
-  OpenResourcesProvider,
   ToastProvider,
-  KnowledgeBaseSessionContext,
+  SemiontProvider,
+  SemiontBrowser,
 } from '@semiont/react-ui';
 import {
   defaultMocks,
-  defaultMockKnowledgeBaseSession,
-  createMockKnowledgeBaseSession,
   TestProvidersOptions,
   createMockTranslationManager,
-  createMockOpenResourcesManager,
 } from '@semiont/react-ui/test-utils';
 import type {
   TranslationManager,
-  OpenResourcesManager,
 } from '@semiont/react-ui';
 
 export interface FrontendTestOptions extends TestProvidersOptions {
@@ -41,24 +34,20 @@ export function renderWithProviders(
 ): RenderResult {
   const {
     translationManager = defaultMocks.translationManager,
-    apiBaseUrl = 'http://localhost:4000',
-    knowledgeBaseSession = defaultMockKnowledgeBaseSession,
-    openResourcesManager = defaultMocks.openResourcesManager,
+    browser,
     ...renderOptions
   } = options || {};
+
+  const effectiveBrowser = browser ?? new SemiontBrowser();
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider baseUrl={apiBaseUrl}>
-          <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
-            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <ToastProvider>
-                {children}
-              </ToastProvider>
-            </OpenResourcesProvider>
-          </KnowledgeBaseSessionContext.Provider>
-        </ApiClientProvider>
+        <SemiontProvider browser={effectiveBrowser}>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </SemiontProvider>
       </TranslationProvider>
     );
   }
@@ -71,13 +60,9 @@ export * from '@testing-library/react';
 export { vi } from 'vitest';
 export {
   defaultMocks,
-  defaultMockKnowledgeBaseSession,
-  createMockKnowledgeBaseSession,
   createMockTranslationManager,
-  createMockOpenResourcesManager,
 };
 export type {
   TestProvidersOptions,
   TranslationManager,
-  OpenResourcesManager,
 };

@@ -1,27 +1,24 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
+import { BehaviorSubject } from 'rxjs';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../test-utils';
 import { StatusDisplay } from '../StatusDisplay';
 
 let mockGetStatus: ReturnType<typeof vi.fn>;
+const stableMockClient = {
+  get getStatus() { return mockGetStatus; },
+};
+const stableMockSession = { client: stableMockClient };
+const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
+const stableMockBrowser = { activeSession$: stableActiveSession$ };
 
-vi.mock('../../contexts/ApiClientContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../contexts/ApiClientContext')>();
+vi.mock('../../session/SemiontProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../session/SemiontProvider')>();
   return {
     ...actual,
-    useApiClient: () => ({
-      getStatus: mockGetStatus,
-    }),
-  };
-});
-
-vi.mock('../../contexts/AuthTokenContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../contexts/AuthTokenContext')>();
-  return {
-    ...actual,
-    useAuthToken: () => null,
+    useSemiont: () => stableMockBrowser,
   };
 });
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useEventBus } from '../contexts/EventBusContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from './useObservable';
 
 /**
  * Generic router interface - works with any router that has push/replace methods
@@ -37,32 +38,32 @@ interface Router {
  * ```
  */
 export function useObservableRouter<T extends Router>(baseRouter: T): T {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   const push = useCallback((path: string, options?: { reason?: string }) => {
     // Emit event for observability
-    eventBus.get('browse:router-push').next({
+    session?.emit('browse:router-push', {
       path,
       reason: options?.reason
     });
 
     // Perform actual navigation
     baseRouter.push(path);
-  }, []); // baseRouter and eventBus are both stable
+  }, [session]);
 
   const replace = useCallback((path: string, options?: { reason?: string }) => {
     // Only wrap replace if the router has it
     if (!baseRouter.replace) return;
 
     // Emit event for observability
-    eventBus.get('browse:router-push').next({
+    session?.emit('browse:router-push', {
       path,
       reason: options?.reason ? `replace:${options.reason}` : 'replace'
     });
 
     // Perform actual navigation
     baseRouter.replace(path);
-  }, []); // baseRouter and eventBus are both stable
+  }, [session]);
 
   return {
     ...baseRouter,
@@ -104,7 +105,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
  * ```
  */
 export function useObservableExternalNavigation() {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   return useCallback((url: string, metadata?: { resourceId?: string }) => {
     // Fallback: If no subscriber cancels within 10ms, use window.location
@@ -118,10 +119,10 @@ export function useObservableExternalNavigation() {
       window.location.href = url;
     }, 10);
 
-    eventBus.get('browse:external-navigate').next({
+    session?.emit('browse:external-navigate', {
       url,
       resourceId: metadata?.resourceId,
       cancelFallback: () => clearTimeout(fallbackTimer),
     });
-  }, []); // eventBus is stable
+  }, [session]);
 }

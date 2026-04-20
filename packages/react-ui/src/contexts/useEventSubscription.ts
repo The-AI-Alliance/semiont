@@ -1,52 +1,43 @@
 import { useEffect, useRef, useMemo } from 'react';
 import type { EventMap } from '@semiont/core';
-import { useEventBus } from './EventBusContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 
 /**
- * Subscribe to an event bus event with automatic cleanup.
+ * Subscribe to a session-bus event with automatic cleanup.
  *
- * This hook solves the "stale closure" problem by always using the latest
- * version of the handler without re-subscribing.
+ * Routes through `session.on(channel, handler)` — components never touch
+ * the bus directly (D7). If no session is active, the subscription is a
+ * no-op; when a session becomes active, the effect re-runs and binds.
+ *
+ * Stable-handler pattern: the ref-wrapped handler means `handler` itself
+ * can change on every render without causing a re-subscription.
  *
  * @example
  * ```tsx
  * useEventSubscription('mark:create-ok', ({ annotationId }) => {
- *   // This always uses the latest props/state
- *   triggerSparkleAnimation(annotation.id);
+ *   triggerSparkleAnimation(annotationId);
  * });
  * ```
  */
 export function useEventSubscription<K extends keyof EventMap>(
   eventName: K,
-  handler: (payload: EventMap[K]) => void
+  handler: (payload: EventMap[K]) => void,
 ): void {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
-  // Store the latest handler in a ref to avoid stale closures
   const handlerRef = useRef(handler);
+  useEffect(() => { handlerRef.current = handler; });
 
-  // Update ref on every render (no re-subscription needed)
   useEffect(() => {
-    handlerRef.current = handler;
-  });
-
-  // Subscribe once, using a stable wrapper that calls the current handler
-  useEffect(() => {
-    const stableHandler = (payload: EventMap[K]) => {
-      handlerRef.current(payload);
-    };
-
-    // RxJS EventBus.get() returns Subject, subscribe returns Subscription
-    const subscription = eventBus.get(eventName).subscribe(stableHandler);
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [eventName, eventBus]); // eventBus is stable, only re-subscribe if event name changes
+    if (!session) return;
+    return session.on(eventName, (payload) => handlerRef.current(payload));
+  }, [eventName, session]);
 }
 
 /**
- * Subscribe to multiple events at once.
+ * Subscribe to multiple session-bus events at once. Same semantics as
+ * `useEventSubscription`, batched. No component ever sees the bus.
  *
  * @example
  * ```tsx
@@ -59,50 +50,35 @@ export function useEventSubscription<K extends keyof EventMap>(
 export function useEventSubscriptions(
   subscriptions: {
     [K in keyof EventMap]?: (payload: EventMap[K]) => void;
-  }
+  },
 ): void {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
-  // Store the latest handlers in refs
   const handlersRef = useRef(subscriptions);
+  useEffect(() => { handlersRef.current = subscriptions; });
 
-  // Update refs on every render
-  useEffect(() => {
-    handlersRef.current = subscriptions;
-  });
-
-  // Get stable list of event names to subscribe to
+  // Stable key derived from the subscribed event names; re-subscribe
+  // only when the set changes, not when handlers change.
   const eventNames = useMemo(
     () => Object.keys(subscriptions).sort(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [Object.keys(subscriptions).sort().join(',')]
+    [Object.keys(subscriptions).sort().join(',')],
   );
 
-  // Subscribe once per event - only re-subscribe if event names actually change
   useEffect(() => {
-    const subscriptions: Array<{ unsubscribe: () => void }> = [];
-
-    // Create stable wrappers for each subscription
+    if (!session) return;
+    const unsubs: Array<() => void> = [];
     for (const eventName of eventNames) {
-      const stableHandler = (payload: any) => {
-        const currentHandler = handlersRef.current[eventName as keyof EventMap];
-        if (currentHandler) {
-          currentHandler(payload);
-        } else {
-          console.warn('[useEventSubscriptions] No current handler found for:', eventName);
-        }
-      };
-
-      // RxJS EventBus.get() returns Subject, subscribe returns Subscription
-      const subscription = eventBus.get(eventName as keyof EventMap).subscribe(stableHandler);
-      subscriptions.push(subscription);
+      const channel = eventName as keyof EventMap;
+      unsubs.push(
+        session.on(channel, (payload) => {
+          const current = handlersRef.current[channel];
+          if (current) (current as (p: EventMap[keyof EventMap]) => void)(payload);
+        }),
+      );
     }
-
-    // Cleanup: unsubscribe from all subscriptions
     return () => {
-      for (const subscription of subscriptions) {
-        subscription.unsubscribe();
-      }
+      for (const unsub of unsubs) unsub();
     };
-  }, [eventNames, eventBus]); // eventBus is stable singleton - never in deps; only re-subscribe if event names change
+  }, [eventNames, session]);
 }

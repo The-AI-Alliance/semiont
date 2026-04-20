@@ -19,7 +19,8 @@ import {
 import { SortableResourceTab } from './SortableResourceTab';
 import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
 import { useTranslations } from '../../contexts/TranslationContext';
-import { useEventBus } from '../../contexts/EventBusContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 import './CollapsibleResourceNavigation.css';
 
@@ -53,7 +54,7 @@ export function CollapsibleResourceNavigation({
 
   const { announcePickup, announceDrop, announceKeyboardReorder, announceCannotMove } = useDragAnnouncements();
   const t = useTranslations('CollapsibleResourceNavigation');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   // Use translations from context, with fallback to props for backward compatibility
   const mergedTranslations = {
@@ -110,12 +111,12 @@ export function CollapsibleResourceNavigation({
     }
 
     // Emit event
-    eventBus.get('browse:resource-reorder').next({ oldIndex: currentIndex, newIndex });
+    session?.emit('browse:resource-reorder', { oldIndex: currentIndex, newIndex });
 
     // Announce the change
     const resource = resources[currentIndex];
     announceKeyboardReorder(resource.name, direction, newIndex + 1, resources.length);
-  }, [resources]);
+  }, [resources, session]);
 
   // Handle resource close
   const handleResourceClose = (resourceId: string, e: React.MouseEvent) => {
@@ -123,7 +124,7 @@ export function CollapsibleResourceNavigation({
     e.stopPropagation();
 
     // Emit event
-    eventBus.get('browse:resource-close').next({ resourceId });
+    session?.emit('browse:resource-close', { resourceId });
 
     // If we're closing the currently viewed resource, navigate to first fixed item or trigger callback
     const resourceHref = getResourceHref(resourceId);
@@ -151,7 +152,7 @@ export function CollapsibleResourceNavigation({
       const newIndex = resources.findIndex((resource) => resource.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         // Emit event
-        eventBus.get('browse:resource-reorder').next({ oldIndex, newIndex });
+        session?.emit('browse:resource-reorder', { oldIndex, newIndex });
         const resource = resources[oldIndex];
         announceDrop(resource.name, newIndex + 1, resources.length);
       }
@@ -189,7 +190,7 @@ export function CollapsibleResourceNavigation({
               <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>
             )}
             <button
-              onClick={() => eventBus.get('browse:sidebar-toggle').next(undefined)}
+              onClick={() => session?.emit('browse:sidebar-toggle', undefined)}
               className="semiont-nav-section__header-icon"
               title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
               aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}

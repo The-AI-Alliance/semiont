@@ -14,26 +14,33 @@ vi.mock('@/lib/routing', () => ({
   routes: {},
 }));
 
-const TEST_KB = { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'admin@example.com' };
+// vi.hoisted keeps TEST_KB accessible from the vi.mock factory below,
+// which is itself hoisted above normal top-level statements.
+const { TEST_KB } = vi.hoisted(() => ({
+  TEST_KB: { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'admin@example.com' },
+}));
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  const { BehaviorSubject } = await vi.importActual<typeof import('rxjs')>('rxjs');
+  const stubUser$ = new BehaviorSubject({ isAdmin: true, isModerator: false });
+  const stubToken$ = new BehaviorSubject('mock-token');
+  const stubSession = {
+    client: { actor: { state$: { subscribe: () => ({ unsubscribe: () => {} }) } } },
+    kb: TEST_KB,
+    user$: stubUser$,
+    token$: stubToken$,
+    refresh: async () => null,
+  };
+  const stubActiveSession$ = new BehaviorSubject(stubSession);
+  const stubBrowser = {
+    activeSession$: stubActiveSession$,
+    kbs$: new BehaviorSubject([TEST_KB]),
+    activeKbId$: new BehaviorSubject(TEST_KB.id),
+  };
   return {
     ...actual,
-    useKnowledgeBaseSession: () => ({
-      knowledgeBases: [TEST_KB],
-      activeKnowledgeBase: TEST_KB,
-      isAuthenticated: true,
-      isAdmin: true,
-      isModerator: false,
-      isFullyAuthenticated: true,
-      hasValidBackendToken: true,
-      token: 'mock-token',
-      isLoading: false,
-    }),
-    kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-    EventBusProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    useSemiont: () => stubBrowser,
     LeftSidebar: ({ children }: { children: React.ReactNode | Function }) => (
       <aside data-testid="admin-sidebar">
         {typeof children === 'function'

@@ -4,7 +4,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
-import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
+import type { EventBus } from '@semiont/core';
+import { createTestSemiontWrapper } from '../../../../test-utils';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -14,59 +15,27 @@ interface TrackedEvent {
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<() => void> = [];
-
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
-      const panelEvents = ['mark:assist-request'] as const;
-
-      panelEvents.forEach(eventName => {
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
-      });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
   return {
-    EventTrackingWrapper,
     events,
-    clear: () => {
-      events.length = 0;
+    clear: () => { events.length = 0; },
+    _attach(eventBus: EventBus) {
+      const panelEvents = ['mark:assist-request'] as const;
+      panelEvents.forEach((eventName) => {
+        eventBus.get(eventName).subscribe((payload: any) => {
+          events.push({ event: eventName, payload });
+        });
+      });
     },
   };
 }
 
-// Helper to render with EventBusProvider
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  if (tracker) {
-    return render(
-      <EventBusProvider>
-        <tracker.EventTrackingWrapper>
-          {component}
-        </tracker.EventTrackingWrapper>
-      </EventBusProvider>
-    );
-  }
-
-  return render(
-    <EventBusProvider>
-      {component}
-    </EventBusProvider>
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
 // Mock TranslationContext
@@ -344,26 +313,22 @@ describe('ReferencesPanel Component', () => {
 
       // Simulate detection starting
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={true}
-            progress={{ completedEntityTypes: [] }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
+        />
       );
 
       // Simulate detection completing
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={false}
-            progress={{
-              completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
-            }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={false}
+          progress={{
+            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+          }}
+        />
       );
 
       // UI should reset but we can't directly test internal state
@@ -473,13 +438,11 @@ describe('ReferencesPanel Component', () => {
 
       // Parent clears progress after completion
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={false}
-            progress={null}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={false}
+          progress={null}
+        />
       );
 
       expect(screen.getByText('Person:')).toBeInTheDocument();
@@ -498,9 +461,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
       expect(screen.getByText(/Found.*5/i)).toBeInTheDocument();
     });
@@ -517,9 +478,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
       expect(screen.getByText('✓')).toBeInTheDocument();
     });
@@ -536,9 +495,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       // Should show both the completed log AND the selection UI
@@ -558,9 +515,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       // Selection UI should be immediately available (no button click needed)
@@ -594,13 +549,11 @@ describe('ReferencesPanel Component', () => {
 
       // Start detecting
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={true}
-            progress={{ completedEntityTypes: [] }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
+        />
       );
 
       // Detecting state
@@ -622,22 +575,18 @@ describe('ReferencesPanel Component', () => {
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={false}
-            progress={{
-              completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
-            }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={false}
+          progress={{
+            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+          }}
+        />
       );
 
       // Then clear progress to show the log
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       expect(screen.queryByTestId('annotation-progress-widget')).not.toBeInTheDocument();
@@ -659,18 +608,14 @@ describe('ReferencesPanel Component', () => {
 
       // Clear progress to show the log
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       // Selection UI should be immediately available
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} />
       );
 
       expect(screen.getByText('Select entity types')).toBeInTheDocument();

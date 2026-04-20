@@ -1,14 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { accessToken } from '@semiont/core';
 import type { BrowseVM } from '../../flows/browse-vm';
 import { createExchangeVM } from '../exchange-vm';
 
 function mockBrowse(): BrowseVM {
   return { dispose: vi.fn() } as unknown as BrowseVM;
 }
-
-const AUTH = accessToken('test-token');
 
 function makeMockFile(name: string): File {
   return new File(['content'], name, { type: 'application/gzip' });
@@ -75,7 +72,7 @@ describe('createExchangeVM', () => {
 
     const vm = createExchangeVM(mockBrowse(), exportFn, vi.fn());
 
-    const result = await vm.doExport(AUTH);
+    const result = await vm.doExport();
     expect(result.filename).toBe('export.tar.gz');
     expect(result.blob).toBe(blob);
 
@@ -93,7 +90,7 @@ describe('createExchangeVM', () => {
 
     const vm = createExchangeVM(mockBrowse(), exportFn, vi.fn());
 
-    await expect(vm.doExport(AUTH)).rejects.toThrow('Export failed');
+    await expect(vm.doExport()).rejects.toThrow('Export failed');
     expect(await firstValueFrom(vm.isExporting$)).toBe(false);
 
     vm.dispose();
@@ -109,7 +106,7 @@ describe('createExchangeVM', () => {
     const vm = createExchangeVM(mockBrowse(), vi.fn(), importFn);
     vm.selectFile(makeMockFile('import.tar.gz'));
 
-    await vm.doImport(AUTH);
+    await vm.doImport();
 
     expect(importFn).toHaveBeenCalledOnce();
     expect(await firstValueFrom(vm.importResult$)).toEqual({ resources: 10 });
@@ -122,7 +119,7 @@ describe('createExchangeVM', () => {
     const importFn = vi.fn();
     const vm = createExchangeVM(mockBrowse(), vi.fn(), importFn);
 
-    await vm.doImport(AUTH);
+    await vm.doImport();
     expect(importFn).not.toHaveBeenCalled();
 
     vm.dispose();

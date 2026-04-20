@@ -7,26 +7,23 @@ import {
   useObservable,
   useLineNumbers,
   useEventSubscriptions,
-  useApiClient,
-  useAuthToken,
+  useSemiont,
   useViewModel,
   AdminExchangePage,
 } from '@semiont/react-ui';
 import { createExchangeVM } from '@semiont/api-client';
-import { accessToken } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function AdminExchangeClient() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminExchange.${k}`, p as any) as string;
-  const client = useApiClient();
-  const token = useAuthToken();
+  const client = useObservable(useSemiont().activeSession$)?.client;
 
   const browseVM = useBrowseVM();
   const vm = useViewModel(() => createExchangeVM(
     browseVM,
-    (_params, opts) => client.backupKnowledgeBase(opts),
-    (file, opts) => client.restoreKnowledgeBase(file, opts),
+    () => client!.backupKnowledgeBase(),
+    (file, opts) => client!.restoreKnowledgeBase(file, opts),
   ));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
@@ -46,23 +43,19 @@ export default function AdminExchangeClient() {
     'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
 
-  const auth = token ? accessToken(token) : undefined;
-
   const handleExport = useCallback(async () => {
-    if (!auth) return;
-    const { blob, filename } = await vm.doExport(auth);
+    const { blob, filename } = await vm.doExport();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  }, [vm, auth]);
+  }, [vm]);
 
   const handleImport = useCallback(async () => {
-    if (!auth) return;
-    await vm.doImport(auth);
-  }, [vm, auth]);
+    await vm.doImport();
+  }, [vm]);
 
   return (
     <AdminExchangePage

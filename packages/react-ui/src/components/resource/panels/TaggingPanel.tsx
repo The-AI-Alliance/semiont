@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
@@ -75,7 +76,7 @@ export function TaggingPanel({
   hoveredAnnotationId,
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
@@ -195,7 +196,7 @@ export function TaggingPanel({
 
   const handleAssist = () => {
     if (selectedCategories.size > 0) {
-      eventBus.get('mark:assist-request').next({
+      session?.emit('mark:assist-request', {
         motivation: 'tagging',
         options: {
           schemaId: selectedSchemaId,
@@ -212,13 +213,13 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.emit('mark:cancel-pending', undefined);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   // Color schemes are now handled via CSS data attributes
 
@@ -274,7 +275,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
-                      eventBus.get('mark:submit').next({
+                      session?.emit('mark:submit', {
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [
@@ -305,7 +306,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.get('mark:cancel-pending').next(undefined)}
+                onClick={() => session?.emit('mark:cancel-pending', undefined)}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >

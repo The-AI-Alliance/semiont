@@ -8,7 +8,7 @@
 export * from './types/annotation-props';
 export * from './types/AnnotationManager';
 export * from './types/navigation';
-export type { OpenResourcesManager, OpenResource } from './types/OpenResourcesManager';
+export type { OpenResource } from './types/OpenResourcesManager';
 export * from './types/knowledge-base';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
@@ -42,17 +42,15 @@ export * from './contexts/ThemeContext';
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 export * from './hooks/useResourceContent';
 
+// Session (new React ↔ Semiont boundary — see UNREACT plan)
+export * from './session';
+
 // Contexts
 export * from './contexts/AnnotationContext';
-export * from './contexts/ApiClientContext';
-export * from './contexts/AuthTokenContext';
-export * from './contexts/EventBusContext';
 
 export * from './contexts/useEventSubscription';
-export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
 export * from './contexts/RoutingContext';
-export * from './contexts/KnowledgeBaseSessionContext';
 export * from './contexts/TranslationContext';
 
 // Components - Top level

@@ -4,10 +4,8 @@ import { useTranslation } from 'react-i18next';
 import {
   LeftSidebar,
   Footer,
-  ApiClientProvider,
-  AuthTokenProvider,
-  useKnowledgeBaseSession,
-  kbBackendUrl,
+  useSemiont,
+  useObservable,
 } from '@semiont/react-ui';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -19,7 +17,10 @@ import { AuthShell } from '@/contexts/AuthShell';
 function ModerateLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
-  const { isAuthenticated, isAdmin, isModerator, token: authToken, activeKnowledgeBase, refreshActive } = useKnowledgeBaseSession();
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$);
+  const activeKnowledgeBase = session?.kb ?? null;
   const router = useRouter();
 
   if (!activeKnowledgeBase) {
@@ -27,47 +28,47 @@ function ModerateLayoutBody() {
     return null;
   }
 
+  const isAuthenticated = !!user;
+  const isAdmin = user?.isAdmin ?? false;
+  const isModerator = user?.isModerator ?? false;
+
   return (
-    <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-          <div className="flex flex-1">
-            <LeftSidebar
-              Link={Link}
-              routes={routes}
-              t={(key: string) => t(`Navigation.${key}`)}
-              tHome={(key: string) => t(`Home.${key}`)}
-              brandingLink="/"
-              collapsible={true}
-              storageKey="moderation-sidebar-collapsed"
-              isAuthenticated={isAuthenticated}
-              isAdmin={isAdmin}
-              isModerator={isModerator}
-            >
-              {(isCollapsed, toggleCollapsed, navigationMenu) => (
-                <ModerationNavigation
-                  isCollapsed={isCollapsed}
-                  toggleCollapsed={toggleCollapsed}
-                  navigationMenu={navigationMenu}
-                />
-              )}
-            </LeftSidebar>
-            <main className="flex-1 p-6 flex flex-col">
-              <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
-                <Outlet />
-              </div>
-            </main>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <div className="flex flex-1">
+        <LeftSidebar
+          Link={Link}
+          routes={routes}
+          t={(key: string) => t(`Navigation.${key}`)}
+          tHome={(key: string) => t(`Home.${key}`)}
+          brandingLink="/"
+          collapsible={true}
+          storageKey="moderation-sidebar-collapsed"
+          isAuthenticated={isAuthenticated}
+          isAdmin={isAdmin}
+          isModerator={isModerator}
+        >
+          {(isCollapsed, toggleCollapsed, navigationMenu) => (
+            <ModerationNavigation
+              isCollapsed={isCollapsed}
+              toggleCollapsed={toggleCollapsed}
+              navigationMenu={navigationMenu}
+            />
+          )}
+        </LeftSidebar>
+        <main className="flex-1 p-6 flex flex-col">
+          <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
+            <Outlet />
           </div>
-          <Footer
-            Link={Link}
-            routes={routes}
-            t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-            CookiePreferences={CookiePreferences}
-            {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-          />
-        </div>
-      </ApiClientProvider>
-    </AuthTokenProvider>
+        </main>
+      </div>
+      <Footer
+        Link={Link}
+        routes={routes}
+        t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
+        CookiePreferences={CookiePreferences}
+        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+      />
+    </div>
   );
 }
 

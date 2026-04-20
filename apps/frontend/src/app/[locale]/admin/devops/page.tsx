@@ -14,17 +14,21 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions, useKnowledgeBaseSession } from '@semiont/react-ui';
+import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions, useSemiont } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 
-// Wrapper component that provides auth props to StatusDisplay
+// Wrapper component that provides auth props to StatusDisplay.
+// The three booleans collapse to the same value (is the user authenticated?)
+// now that token and user are both session-owned.
 function StatusDisplayWithAuth() {
-  const { isFullyAuthenticated, isAuthenticated, hasValidBackendToken } = useKnowledgeBaseSession();
+  const session = useObservable(useSemiont().activeSession$);
+  const user = useObservable(session?.user$);
+  const authed = !!user;
   return (
     <StatusDisplay
-      isFullyAuthenticated={isFullyAuthenticated}
-      isAuthenticated={isAuthenticated}
-      hasValidBackendToken={hasValidBackendToken}
+      isFullyAuthenticated={authed}
+      isAuthenticated={authed}
+      hasValidBackendToken={authed}
     />
   );
 }

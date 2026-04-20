@@ -18,27 +18,59 @@ vi.mock('@/i18n/routing', () => ({
   useRouter: () => ({ push: mockRouterPush }),
 }));
 
-// Mock react-ui (covers useKnowledgeBaseSession + the UI helpers UserPanel uses)
-const mockSignOut = vi.fn();
-const mockUseKbSession = vi.fn();
-const mockUseSessionExpiry = vi.fn();
-const mockFormatTime = vi.fn();
-const mockSanitizeImageURL = vi.fn();
-const mockLogout = vi.fn().mockResolvedValue(undefined);
-
-// Stable client reference: useApiClient is called per render. The real provider
-// holds one instance; the mock must do the same to keep useMemo deps stable.
-const stableMockClient = { logout: mockLogout };
+// Mock react-ui. The UserPanel now reads user info, kb, and client off
+// `useSemiont().activeSession$`, and signs out via `semiont.signOut(kb.id)`.
+// The mock browser exposes controllable subjects so tests can flip the shape
+// the panel sees.
+const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL, mockLogout, mockBrowser, user$, activeSession$ } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { BehaviorSubject } = require('rxjs');
+  const mockLogout = vi.fn().mockResolvedValue(undefined);
+  const mockClient = { logout: mockLogout };
+  const user$ = new BehaviorSubject(null);
+  const token$ = new BehaviorSubject(null);
+  const ACTIVE_KB = {
+    id: 'test',
+    label: 'Test KB',
+    host: 'localhost',
+    port: 4000,
+    protocol: 'http',
+    email: 'admin@example.com',
+  };
+  const activeSession$ = new BehaviorSubject({
+    client: mockClient,
+    kb: ACTIVE_KB,
+    user$,
+    token$,
+    refresh: async () => null,
+  });
+  const mockSignOut = vi.fn().mockResolvedValue(undefined);
+  const mockBrowser = {
+    activeSession$,
+    kbs$: new BehaviorSubject([ACTIVE_KB]),
+    activeKbId$: new BehaviorSubject(ACTIVE_KB.id),
+    signOut: mockSignOut,
+  };
+  return {
+    mockSignOut,
+    mockUseSessionExpiry: vi.fn(),
+    mockFormatTime: vi.fn(),
+    mockSanitizeImageURL: vi.fn(),
+    mockLogout,
+    mockBrowser,
+    user$,
+    activeSession$,
+  };
+});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
-    useKnowledgeBaseSession: () => mockUseKbSession(),
     useSessionExpiry: () => mockUseSessionExpiry(),
     formatTime: (time: number) => mockFormatTime(time),
     sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),
-    useApiClient: () => stableMockClient,
+    useSemiont: () => mockBrowser,
   };
 });
 
@@ -51,17 +83,39 @@ const ACTIVE_KB = {
   email: 'admin@example.com',
 };
 
-function withDefaults(overrides: Record<string, any> = {}) {
-  return {
-    activeKnowledgeBase: ACTIVE_KB,
-    signOut: mockSignOut,
-    displayName: 'John Doe',
-    avatarUrl: 'https://example.com/avatar.jpg',
-    userDomain: 'example.com',
+function setUser(overrides: Record<string, any> = {}) {
+  const base = {
+    name: 'John Doe',
+    image: 'https://example.com/avatar.jpg',
+    domain: 'example.com',
+    email: 'john@example.com',
     isAdmin: false,
     isModerator: false,
-    ...overrides,
   };
+  // Support legacy test shape (displayName/avatarUrl/userDomain)
+  const translated: Record<string, any> = { ...base };
+  if ('displayName' in overrides) {
+    translated.name = overrides.displayName;
+    delete overrides.displayName;
+  }
+  if ('avatarUrl' in overrides) {
+    translated.image = overrides.avatarUrl;
+    delete overrides.avatarUrl;
+  }
+  if ('userDomain' in overrides) {
+    translated.domain = overrides.userDomain;
+    delete overrides.userDomain;
+  }
+  user$.next({ ...translated, ...overrides });
+}
+
+function setActiveKnowledgeBase(kb: typeof ACTIVE_KB | null) {
+  const current = activeSession$.getValue();
+  if (kb === null) {
+    activeSession$.next({ ...current, kb: null });
+  } else {
+    activeSession$.next({ ...current, kb });
+  }
 }
 
 describe('UserPanel Component', () => {
@@ -87,7 +141,8 @@ describe('UserPanel Component', () => {
       return translations[key] || key;
     });
 
-    mockUseKbSession.mockReturnValue(withDefaults());
+    setUser();
+    setActiveKnowledgeBase(ACTIVE_KB);
     mockUseSessionExpiry.mockReturnValue({ timeRemaining: 3600000 });
     mockFormatTime.mockReturnValue('1 hour');
     mockSanitizeImageURL.mockImplementation((url: string) => url);
@@ -131,18 +186,14 @@ describe('UserPanel Component', () => {
   describe('Profile Display', () => {
     it('should use sanitized avatar URL', () => {
       const avatarUrl = 'https://example.com/avatar.jpg';
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: 'Jane Smith', avatarUrl, userDomain: 'test.com',
-      }));
+      setUser({ name: 'Jane Smith', image: avatarUrl, domain: 'test.com' });
 
       render(<UserPanel />);
       expect(mockSanitizeImageURL).toHaveBeenCalledWith(avatarUrl);
     });
 
     it('should use fallback avatar when avatarUrl is null', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: 'Jane Smith', avatarUrl: null, userDomain: 'test.com',
-      }));
+      setUser({ name: 'Jane Smith', image: null, domain: 'test.com' });
 
       render(<UserPanel />);
       const image = screen.getByAltText('Profile picture of Jane Smith');
@@ -166,17 +217,14 @@ describe('UserPanel Component', () => {
     });
 
     it('should display "User" when displayName is null', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: null, avatarUrl: null, userDomain: null,
-      }));
+      // user$ null => displayName falls through to 'User'
+      user$.next(null);
       render(<UserPanel />);
       expect(screen.getByText('User')).toBeInTheDocument();
     });
 
     it('should not render domain when userDomain is null', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        avatarUrl: null, userDomain: null,
-      }));
+      setUser({ image: null, domain: undefined, email: 'someone' });
       render(<UserPanel />);
       expect(screen.queryByText(/@/)).not.toBeInTheDocument();
     });
@@ -210,36 +258,28 @@ describe('UserPanel Component', () => {
     });
 
     it('should show administrator badge when user is admin', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: 'Admin User', avatarUrl: null, isAdmin: true,
-      }));
+      setUser({ name: 'Admin User', image: null, isAdmin: true });
       render(<UserPanel />);
       expect(screen.getByText('Privileges')).toBeInTheDocument();
       expect(screen.getByText('Administrator')).toBeInTheDocument();
     });
 
     it('should show moderator badge when user is moderator', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: 'Mod User', avatarUrl: null, isModerator: true,
-      }));
+      setUser({ name: 'Mod User', image: null, isModerator: true });
       render(<UserPanel />);
       expect(screen.getByText('Privileges')).toBeInTheDocument();
       expect(screen.getByText('Moderator')).toBeInTheDocument();
     });
 
     it('should show both badges when user is admin and moderator', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: 'Super User', avatarUrl: null, isAdmin: true, isModerator: true,
-      }));
+      setUser({ name: 'Super User', image: null, isAdmin: true, isModerator: true });
       render(<UserPanel />);
       expect(screen.getByText('Administrator')).toBeInTheDocument();
       expect(screen.getByText('Moderator')).toBeInTheDocument();
     });
 
     it('should style administrator badge', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: 'Admin User', avatarUrl: null, isAdmin: true,
-      }));
+      setUser({ name: 'Admin User', image: null, isAdmin: true });
       render(<UserPanel />);
       const adminBadge = screen.getByText('Administrator');
       expect(adminBadge).toHaveClass('semiont-privilege-text');
@@ -247,9 +287,7 @@ describe('UserPanel Component', () => {
     });
 
     it('should style moderator badge', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: 'Mod User', avatarUrl: null, isModerator: true,
-      }));
+      setUser({ name: 'Mod User', image: null, isModerator: true });
       render(<UserPanel />);
       const modBadge = screen.getByText('Moderator');
       expect(modBadge).toHaveClass('semiont-privilege-text');
@@ -271,7 +309,7 @@ describe('UserPanel Component', () => {
       // Defensive branch: if Sign Out is somehow clicked while activeKnowledgeBase
       // is null, the handler must NOT call signOut(...) (no id to pass) but
       // must still log out the API client and navigate home.
-      mockUseKbSession.mockReturnValue(withDefaults({ activeKnowledgeBase: null }));
+      setActiveKnowledgeBase(null);
 
       render(<UserPanel />);
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
@@ -305,9 +343,7 @@ describe('UserPanel Component', () => {
     });
 
     it('should have proper alt text for fallback avatar', () => {
-      mockUseKbSession.mockReturnValue(withDefaults({
-        displayName: null, avatarUrl: null, userDomain: null,
-      }));
+      user$.next(null);
       render(<UserPanel />);
       expect(screen.getByAltText('Profile picture of User')).toBeInTheDocument();
     });

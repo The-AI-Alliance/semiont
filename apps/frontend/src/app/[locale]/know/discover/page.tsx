@@ -8,7 +8,7 @@ import {
   useLineNumbers,
   useEventSubscriptions,
   useObservable,
-  useApiClient,
+  useSemiont,
   useViewModel,
   ResourceDiscoveryPage,
 } from '@semiont/react-ui';
@@ -20,10 +20,10 @@ export default function DiscoverPage() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`Discover.${k}`, p as any) as string;
   const router = useRouter();
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
 
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createDiscoverVM(semiont, browseVM));
+  const vm = useViewModel(() => createDiscoverVM(semiont!, browseVM));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
   const recentDocuments = useObservable(vm.recentResources$) ?? [];

@@ -36,31 +36,15 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ),
 }));
 
-// Mock SimpleNavigation component and event bus hooks
+// Mock SimpleNavigation component and event-subscription hooks
 const mockSimpleNavigation = vi.fn();
-const mockEventBus = {
-  on: vi.fn(),
-  off: vi.fn(),
-  emit: vi.fn(),
-};
 
 vi.mock('@semiont/react-ui', () => {
-  // Use factory function to properly handle mock references
-  const mockEventBusLocal = {
-    on: vi.fn(),
-    off: vi.fn(),
-    emit: vi.fn(),
-  };
-
   return {
     SimpleNavigation: (props: any) => {
       mockSimpleNavigation(props);
       return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
     },
-    useNavigationEvents: () => mockEventBusLocal,
-    useEventBus: () => mockEventBusLocal,
-    useMakeMeaningEvents: () => mockEventBusLocal,
-    useGlobalSettingsEvents: () => mockEventBusLocal,
     useEventSubscriptions: vi.fn(),
   };
 });

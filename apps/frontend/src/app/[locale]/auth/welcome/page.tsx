@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useKnowledgeBaseSession, useApiClient, useObservable } from '@semiont/react-ui';
+import { PageLayout, useToast, useSemiont, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
 import { createWelcomeVM } from '@semiont/react-ui';
 import { useViewModel } from '@semiont/react-ui';
@@ -17,13 +17,21 @@ import { useViewModel } from '@semiont/react-ui';
 export default function Welcome() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AuthWelcome.${k}`, p as any) as string;
-  const { isAuthenticated, isLoading, user, activeKnowledgeBase, signOut } = useKnowledgeBaseSession();
+  const semiont = useSemiont();
+  const activeKbId = useObservable(semiont.activeKbId$);
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$) ?? null;
+  const activeKnowledgeBase = session?.kb ?? null;
+  const isAuthenticated = !!user;
+  // "Loading" = KB is selected but session not yet constructed.
+  const isLoading = activeKbId != null && session == null;
+  const signOut = (id: string) => { void semiont.signOut(id); };
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
 
-  const semiont = useApiClient();
-  const vm = useViewModel(() => createWelcomeVM(semiont!));
+  const client = session?.client;
+  const vm = useViewModel(() => createWelcomeVM(client!));
 
   const userData = useObservable(vm.userData$);
   const isProcessing = useObservable(vm.isProcessing$) ?? false;

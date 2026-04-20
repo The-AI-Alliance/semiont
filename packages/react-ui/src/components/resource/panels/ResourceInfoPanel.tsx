@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { formatLocaleDisplay } from '@semiont/api-client';
 import { resourceId as makeResourceId, type components } from '@semiont/core';
 import './ResourceInfoPanel.css';
@@ -47,7 +48,7 @@ export function ResourceInfoPanel({
   generator,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   return (
     <div className="semiont-resource-info-panel">
@@ -148,7 +149,7 @@ export function ResourceInfoPanel({
                     <button
                       key={id}
                       className="semiont-resource-info-panel__link"
-                      onClick={() => eventBus.get('browse:reference-navigate').next({ resourceId: id })}
+                      onClick={() => session?.emit('browse:reference-navigate', { resourceId: id })}
                     >
                       {i > 0 && ', '}{id}
                     </button>
@@ -191,7 +192,7 @@ export function ResourceInfoPanel({
       {/* Clone Action */}
       <div className="semiont-resource-info-panel__action-section">
         <button
-          onClick={() => eventBus.get('yield:clone').next(undefined)}
+          onClick={() => session?.emit('yield:clone', undefined)}
           className="semiont-resource-button semiont-resource-button--secondary"
         >
           🔗 {t('clone')}
@@ -206,7 +207,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => eventBus.get('mark:unarchive').next({ resourceId: makeResourceId(resourceId) })}
+              onClick={() => session?.emit('mark:unarchive', { resourceId: makeResourceId(resourceId) })}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -218,7 +219,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => eventBus.get('mark:archive').next({ resourceId: makeResourceId(resourceId) })}
+              onClick={() => session?.emit('mark:archive', { resourceId: makeResourceId(resourceId) })}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}

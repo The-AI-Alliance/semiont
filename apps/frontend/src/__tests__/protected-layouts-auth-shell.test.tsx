@@ -37,48 +37,43 @@ vi.mock('@/lib/routing', () => ({
   routes: {},
 }));
 
-// Mock heavy hooks/managers to avoid wiring real implementations
-vi.mock('@/hooks/useOpenResourcesManager', () => ({
-  useOpenResourcesManager: () => ({
-    openResources: [],
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    updateResourceName: vi.fn(),
-    reorderResources: vi.fn(),
-  }),
+// vi.hoisted so the vi.mock factory below can reference TEST_KB.
+const { TEST_KB } = vi.hoisted(() => ({
+  TEST_KB: { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' },
 }));
-
-const TEST_KB = { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' };
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  const { BehaviorSubject } = await vi.importActual<typeof import('rxjs')>('rxjs');
   // Minimal stub client — KnowledgeLayoutInner reads `client.actor.state$`
   // to drive the stream-status context. It doesn't care about the value.
   const stubClient = {
     actor: { state$: { subscribe: () => ({ unsubscribe: () => {} }) } },
   };
+  const stubUser$ = new BehaviorSubject<any>({ isAdmin: true, isModerator: true });
+  const stubToken$ = new BehaviorSubject<any>('test-token');
+  const stubSession = {
+    client: stubClient,
+    kb: TEST_KB,
+    user$: stubUser$,
+    token$: stubToken$,
+    refresh: async () => null,
+  };
+  const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
+  const stubKbs$ = new BehaviorSubject<any[]>([TEST_KB]);
+  const stubActiveKbId$ = new BehaviorSubject<string | null>(TEST_KB.id);
+  const stubBrowser = {
+    activeSession$: stubActiveSession$,
+    kbs$: stubKbs$,
+    activeKbId$: stubActiveKbId$,
+    setActiveKb: async () => {},
+  };
   return {
     ...actual,
-    useKnowledgeBaseSession: () => ({
-      knowledgeBases: [TEST_KB],
-      activeKnowledgeBase: TEST_KB,
-      isAuthenticated: true,
-      isAdmin: true,
-      isModerator: true,
-      isFullyAuthenticated: true,
-      hasValidBackendToken: true,
-      token: 'test-token',
-      isLoading: false,
-    }),
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     getKbSessionStatus: () => 'authenticated',
-    AuthTokenProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    OpenResourcesProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    // Layouts mock `ApiClientProvider` to passthrough, so `useApiClient()`
-    // would fall through to an empty context. Stub it here.
-    useApiClient: () => stubClient,
+    useSemiont: () => stubBrowser,
     LeftSidebar: () => <div data-testid="left-sidebar" />,
     Footer: () => null,
     Toolbar: () => null,
@@ -93,9 +88,6 @@ vi.mock('@/components/admin/AdminNavigation', () => ({ AdminNavigation: () => nu
 vi.mock('@/components/moderation/ModerationNavigation', () => ({ ModerationNavigation: () => null }));
 vi.mock('@/components/knowledge/KnowledgeSidebarWrapper', () => ({ KnowledgeSidebarWrapper: () => null }));
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({ ToolbarPanels: () => null }));
-vi.mock('@/contexts/StreamStatusContext', () => ({
-  StreamStatusContext: { Provider: ({ children }: { children: React.ReactNode }) => <>{children}</> },
-}));
 
 import KnowLayout from '@/app/[locale]/know/layout';
 import AdminLayout from '@/app/[locale]/admin/layout';

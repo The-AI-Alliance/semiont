@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
@@ -72,7 +73,7 @@ export function AssessmentPanel({
   hoveredAnnotationId,
 }: AssessmentPanelProps) {
   const t = useTranslations('AssessmentPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [newAssessmentText, setNewAssessmentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -143,7 +144,7 @@ export function AssessmentPanel({
         ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
         : [];
 
-      eventBus.get('mark:submit').next({
+      session?.emit('mark:submit', {
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         body,
@@ -158,14 +159,14 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.emit('mark:cancel-pending', undefined);
         setNewAssessmentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   // Event handler for annotation clicks (extracted to avoid inline arrow function)
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
@@ -211,7 +212,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('mark:cancel-pending').next(undefined);
+                  session?.emit('mark:cancel-pending', undefined);
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

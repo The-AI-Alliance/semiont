@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import type { Motivation } from '@semiont/core';
 import './AssistSection.css';
 
@@ -43,7 +44,7 @@ export function AssistSection({
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
   const t = useTranslations(panelName);
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [instructions, setInstructions] = useState('');
   type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
   const [tone, setTone] = useState<ToneValue>('');
@@ -73,7 +74,7 @@ export function AssistSection({
       'commenting';
 
     // Emit mark:assist-request event with options
-    eventBus.get('mark:assist-request').next({
+    session?.emit('mark:assist-request', {
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
@@ -86,11 +87,11 @@ export function AssistSection({
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across assists
-  }, [annotationType, instructions, tone, useDensity, density, locale]); // eventBus is stable singleton - never in deps
+  }, [annotationType, instructions, tone, useDensity, density, locale, session]);
 
   const handleDismissProgress = useCallback(() => {
-    eventBus.get('mark:progress-dismiss').next(undefined);
-  }, []); // eventBus is stable singleton - never in deps
+    session?.emit('mark:progress-dismiss', undefined);
+  }, [session]);
 
   return (
     <div className="semiont-panel__section">

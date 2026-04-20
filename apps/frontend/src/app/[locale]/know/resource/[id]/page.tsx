@@ -10,13 +10,12 @@
 import { useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLocale } from '@/i18n/routing';
-import { useApiClient, useObservable, useViewModel, createResourceLoaderVM } from '@semiont/react-ui';
+import { useSemiont, useObservable, useViewModel, createResourceLoaderVM } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
-import { useStreamStatus } from '@/contexts/StreamStatusContext';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, useKnowledgeBaseSession } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import type { SemiontResource } from '@semiont/react-ui';
 
@@ -38,10 +37,11 @@ export default function KnowledgeResourcePage() {
 function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId> }) {
   const locale = useLocale();
 
-  const streamStatus = useStreamStatus();
-  const { activeKnowledgeBase } = useKnowledgeBaseSession();
+  const session = useObservable(useSemiont().activeSession$);
+  const streamStatus = useObservable(session?.streamState$) ?? 'initial';
+  const activeKnowledgeBase = session?.kb ?? null;
 
-  const semiont = useApiClient();
+  const semiont = session?.client;
   const loader = useViewModel(() => createResourceLoaderVM(semiont!, rId));
   const resourceData = useObservable(loader.resource$);
   const isLoading = useObservable(loader.isLoading$) ?? true;

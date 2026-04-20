@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
 import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
-import { EventBusProvider } from '../../../contexts/EventBusContext';
+import { createTestSemiontWrapper } from '../../../test-utils';
 
 const createMockResource = (id: string, name: string, entityTypes: string[] = []) => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
@@ -58,9 +58,10 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
   ...overrides,
 });
 
-// Helper to render with EventBusProvider
+// Helper to render with SemiontProvider (gives components access to session.emit)
 const renderWithProviders = (ui: React.ReactElement) => {
-  return render(<EventBusProvider>{ui}</EventBusProvider>);
+  const { SemiontWrapper } = createTestSemiontWrapper();
+  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
 };
 
 describe('ResourceDiscoveryPage', () => {

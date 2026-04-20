@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { LeftSidebar, useKnowledgeBaseSession } from '@semiont/react-ui';
+import { LeftSidebar, useSemiont, useObservable } from '@semiont/react-ui';
 import { KnowledgeNavigation } from './KnowledgeNavigation';
 import { Link, routes } from '@/lib/routing';
 
@@ -9,7 +9,11 @@ export function KnowledgeSidebarWrapper() {
   const t = (k: string, p?: Record<string, unknown>) => _t(`Navigation.${k}`, p as any) as string;
   const { t: _tHome } = useTranslation();
   const tHome = (k: string, p?: Record<string, unknown>) => _tHome(`Home.${k}`, p as any) as string;
-  const { isAuthenticated, isAdmin, isModerator } = useKnowledgeBaseSession();
+  const session = useObservable(useSemiont().activeSession$);
+  const user = useObservable(session?.user$);
+  const isAuthenticated = !!user;
+  const isAdmin = user?.isAdmin ?? false;
+  const isModerator = user?.isModerator ?? false;
 
   return (
     <LeftSidebar

@@ -6,8 +6,7 @@ import { useLocale } from '@/i18n/routing';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'react-router-dom';
 import {
-  useApiClient,
-  useKnowledgeBaseSession,
+  useSemiont,
   useToast,
   useTheme,
   useBrowseVM,
@@ -22,7 +21,6 @@ import {
 } from '@semiont/react-ui';
 import type { SaveResourceParams as UISaveResourceParams } from '@semiont/react-ui';
 import { createComposePageVM } from '@semiont/api-client';
-import type { AccessToken } from '@semiont/core';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 function ComposeResourceContent() {
@@ -31,9 +29,17 @@ function ComposeResourceContent() {
   const locale = useLocale();
   const router = useRouter();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, isLoading: authLoading, token: authToken } = useKnowledgeBaseSession();
+  const semiont = useSemiont();
+  const activeKbId = useObservable(semiont.activeKbId$);
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$);
+  const authToken = useObservable(session?.token$);
+  const isAuthenticated = !!user;
+  // "Loading" = a KB is selected but the session hasn't finished constructing
+  // yet, so we don't know if auth succeeded.
+  const authLoading = activeKbId != null && session == null;
   const { showError, showSuccess } = useToast();
-  const client = useApiClient();
+  const client = session?.client;
 
   useEffect(() => {
     if (authLoading) return;
@@ -52,7 +58,7 @@ function ComposeResourceContent() {
     sessionStorage.removeItem(contextKey);
   }
 
-  const vm = useViewModel(() => createComposePageVM(client, browseVM, {
+  const vm = useViewModel(() => createComposePageVM(client!, browseVM, {
     mode: searchParams?.get('mode') ?? undefined,
     token: searchParams?.get('token') ?? undefined,
     annotationUri: searchParams?.get('annotationUri') ?? undefined,
@@ -60,7 +66,7 @@ function ComposeResourceContent() {
     name: searchParams?.get('name') ?? undefined,
     entityTypes: searchParams?.get('entityTypes') ?? undefined,
     storedContext,
-  }, authToken as AccessToken | undefined));
+  }, authToken ?? undefined));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
   const pageMode = useObservable(vm.mode$) ?? 'new';

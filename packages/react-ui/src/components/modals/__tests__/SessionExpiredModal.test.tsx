@@ -48,7 +48,7 @@ describe('SessionExpiredModal', () => {
   describe('initial render', () => {
     it('does not render modal content when sessionExpiredAt is null', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        knowledgeBaseSession: createMockKnowledgeBaseSession({
+        browser: createMockKnowledgeBaseSession({
           sessionExpiredAt: null,
         }),
       });
@@ -59,7 +59,7 @@ describe('SessionExpiredModal', () => {
   describe('when sessionExpiredAt is set', () => {
     it('renders the modal with default message', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        knowledgeBaseSession: createMockKnowledgeBaseSession({
+        browser: createMockKnowledgeBaseSession({
           sessionExpiredAt: Date.now(),
         }),
       });
@@ -71,7 +71,7 @@ describe('SessionExpiredModal', () => {
 
     it('renders the custom message from sessionExpiredMessage', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        knowledgeBaseSession: createMockKnowledgeBaseSession({
+        browser: createMockKnowledgeBaseSession({
           sessionExpiredAt: Date.now(),
           sessionExpiredMessage: 'Your token expired at 5pm',
         }),
@@ -85,7 +85,7 @@ describe('SessionExpiredModal', () => {
       const ack = vi.fn();
       mockLocation.pathname = '/know/discover';
       renderWithProviders(<SessionExpiredModal />, {
-        knowledgeBaseSession: createMockKnowledgeBaseSession({
+        browser: createMockKnowledgeBaseSession({
           sessionExpiredAt: Date.now(),
           acknowledgeSessionExpired: ack,
         }),
@@ -100,7 +100,7 @@ describe('SessionExpiredModal', () => {
     it('calls acknowledgeSessionExpired and navigates to / on Go to Home', () => {
       const ack = vi.fn();
       renderWithProviders(<SessionExpiredModal />, {
-        knowledgeBaseSession: createMockKnowledgeBaseSession({
+        browser: createMockKnowledgeBaseSession({
           sessionExpiredAt: Date.now(),
           acknowledgeSessionExpired: ack,
         }),

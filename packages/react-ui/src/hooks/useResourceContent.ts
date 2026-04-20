@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import type { ResourceId } from '@semiont/core';
 import { getPrimaryMediaType, decodeWithCharset } from '@semiont/api-client';
 import { useToast } from '../components/Toast';
-import { useApiClient } from '../contexts/ApiClientContext';
-import { useAuthToken } from '../contexts/AuthTokenContext';
-import { accessToken } from '@semiont/core';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from './useObservable';
 import type { components } from '@semiont/core';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -20,8 +19,7 @@ export function useResourceContent(
   enabled = true
 ): UseResourceContentResult {
   const { showError } = useToast();
-  const semiont = useApiClient();
-  const token = useAuthToken();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const mediaType = enabled ? (getPrimaryMediaType(resource) || 'text/plain') : '';
 
   const [content, setContent] = useState('');
@@ -32,7 +30,6 @@ export function useResourceContent(
     setLoading(true);
     semiont.getResourceRepresentation(rUri, {
       accept: mediaType as components['schemas']['ContentFormat'],
-      auth: token ? accessToken(token) : undefined,
     }).then(({ data }) => {
       setContent(decodeWithCharset(data, mediaType));
       setLoading(false);
@@ -41,7 +38,7 @@ export function useResourceContent(
       showError('Failed to load resource representation');
       setLoading(false);
     });
-  }, [semiont, rUri, mediaType, enabled, token, showError]);
+  }, [semiont, rUri, mediaType, enabled, showError]);
 
   return { content, loading };
 }

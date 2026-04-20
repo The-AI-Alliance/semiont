@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useApiClient } from '../contexts/ApiClientContext';
-import { useAuthToken } from '../contexts/AuthTokenContext';
-import { accessToken } from '@semiont/core';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 import './StatusDisplay.css';
 
 interface StatusDisplayProps {
@@ -22,8 +21,7 @@ export function StatusDisplay({
   isAuthenticated = false,
   hasValidBackendToken = false
 }: StatusDisplayProps) {
-  const semiont = useApiClient();
-  const token = useAuthToken();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -32,7 +30,7 @@ export function StatusDisplay({
     if (!semiont) { setLoading(false); return; }
 
     const fetchStatus = () => {
-      semiont.getStatus({ auth: token ? accessToken(token) : undefined })
+      semiont.getStatus()
         .then((result) => {
           setData(result as StatusData);
           setError(null);
@@ -47,7 +45,7 @@ export function StatusDisplay({
     fetchStatus();
     const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
-  }, [semiont, token]);
+  }, [semiont]);
 
   const getStatusContent = () => {
     if (isAuthenticated && !hasValidBackendToken) {
