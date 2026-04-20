@@ -29,7 +29,7 @@ export function Toolbar<T extends string = string>({
   const session = useObservable(useSemiont().activeSession$);
 
   const handlePanelToggle = (panel: string) => {
-    session?.emit('browse:panel-toggle', { panel });
+    session?.client.emit('browse:panel-toggle', { panel });
   };
 
   return (

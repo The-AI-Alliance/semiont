@@ -161,16 +161,11 @@ export class SemiontApiClient {
   private http: KyInstance;
   readonly baseUrl: BaseUrl;
   /**
-   * Workspace-scoped EventBus — owned by the client, NOT accepted as
-   * config. Kept accessible on the instance so **library internals**
-   * (ViewModel factories like `createBrowseVM`, `createMarkVM`, etc.)
-   * can wire themselves to the same bus the namespaces use.
-   *
-   * **Components must NOT reach for `client.eventBus` directly** — route
-   * bus access through `SemiontSession.emit` / `session.on` / the
-   * `useEventSubscription` hook. See UNREACT.md D7.
+   * Workspace-scoped EventBus — owned by the client, constructed
+   * internally, never accepted from config. Private: all bus access
+   * goes through `client.emit` / `client.on` / `client.stream`.
    */
-  readonly eventBus: EventBus;
+  private readonly eventBus: EventBus;
   private logger?: Logger;
 
   /**

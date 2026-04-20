@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { SemiontApiClient } from '../../../client';
+import { resourceId as makeResourceId } from '@semiont/core';
 import type { BrowseVM } from '../../flows/browse-vm';
 import { createResourceViewerPageVM } from '../resource-viewer-page-vm';
+import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 
 const RID = makeResourceId('res-1');
 
@@ -20,20 +20,20 @@ function mockBrowse(): BrowseVM {
   } as unknown as BrowseVM;
 }
 
-function mockClient(overrides: {
+function clientWithNamespaces(overrides: {
   annotations$?: BehaviorSubject<unknown[] | undefined>;
   entityTypes$?: BehaviorSubject<string[] | undefined>;
   events$?: BehaviorSubject<unknown[] | undefined>;
   referencedBy$?: BehaviorSubject<unknown[] | undefined>;
   resourceRepresentation?: ReturnType<typeof vi.fn>;
   mediaToken?: ReturnType<typeof vi.fn>;
-} = {}): SemiontApiClient {
+} = {}): TestClient {
   const annotations$ = overrides.annotations$ ?? new BehaviorSubject<unknown[] | undefined>([]);
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person']);
   const events$ = overrides.events$ ?? new BehaviorSubject<unknown[] | undefined>([]);
   const referencedBy$ = overrides.referencedBy$ ?? new BehaviorSubject<unknown[] | undefined>([]);
 
-  return {
+  return makeTestClient({
     browse: {
       annotations: () => annotations$.asObservable(),
       entityTypes: () => entityTypes$.asObservable(),
@@ -56,19 +56,18 @@ function mockClient(overrides: {
     match: { search: vi.fn(() => new Observable(() => {})) },
     yield: { fromAnnotation: vi.fn(() => new Observable(() => {})) },
     bind: { body: vi.fn().mockResolvedValue(undefined) },
-    eventBus: new EventBus(),
     subscribeToResource: vi.fn().mockReturnValue(() => {}),
-  } as unknown as SemiontApiClient;
+  });
 }
 
 describe('createResourceViewerPageVM', () => {
-  let eventBus: EventBus;
+  let tc: TestClient;
 
-  beforeEach(() => { eventBus = new EventBus(); });
-  afterEach(() => { eventBus.destroy(); });
+  afterEach(() => { tc?.bus.destroy(); });
 
   it('exposes flow VMs', () => {
-    const vm = createResourceViewerPageVM(mockClient(), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces();
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     expect(vm.beckon).toBeDefined();
     expect(vm.mark).toBeDefined();
@@ -83,7 +82,8 @@ describe('createResourceViewerPageVM', () => {
     const annotations$ = new BehaviorSubject<unknown[] | undefined>([
       { id: 'a1', motivation: 'highlighting' },
     ]);
-    const vm = createResourceViewerPageVM(mockClient({ annotations$ }), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces({ annotations$ });
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     const anns = await firstValueFrom(vm.annotations$);
     expect(anns).toHaveLength(1);
@@ -96,7 +96,8 @@ describe('createResourceViewerPageVM', () => {
       { id: 'a1', motivation: 'highlighting', target: { selector: { type: 'TextQuoteSelector', exact: 'x' } } },
       { id: 'a2', motivation: 'commenting', body: [{ type: 'TextualBody', value: 'note' }], target: { selector: { type: 'TextQuoteSelector', exact: 'y' } } },
     ]);
-    const vm = createResourceViewerPageVM(mockClient({ annotations$ }), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces({ annotations$ });
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     const groups = await firstValueFrom(vm.annotationGroups$);
     expect(groups.highlights.length + groups.comments.length).toBeGreaterThanOrEqual(1);
@@ -105,7 +106,8 @@ describe('createResourceViewerPageVM', () => {
   });
 
   it('exposes entity types', async () => {
-    const vm = createResourceViewerPageVM(mockClient(), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces();
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     const types = await firstValueFrom(vm.entityTypes$);
     expect(types).toEqual(['Person']);
@@ -115,7 +117,8 @@ describe('createResourceViewerPageVM', () => {
 
   it('exposes events from browse namespace', async () => {
     const events$ = new BehaviorSubject<unknown[] | undefined>([{ id: 'e1', type: 'mark:added' }]);
-    const vm = createResourceViewerPageVM(mockClient({ events$ }), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces({ events$ });
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     const events = await firstValueFrom(vm.events$);
     expect(events).toEqual([{ id: 'e1', type: 'mark:added' }]);
@@ -125,7 +128,8 @@ describe('createResourceViewerPageVM', () => {
 
   it('exposes referencedBy from browse namespace', async () => {
     const referencedBy$ = new BehaviorSubject<unknown[] | undefined>([{ resourceId: 'r2' }]);
-    const vm = createResourceViewerPageVM(mockClient({ referencedBy$ }), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces({ referencedBy$ });
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     const refs = await firstValueFrom(vm.referencedBy$);
     expect(refs).toEqual([{ resourceId: 'r2' }]);
@@ -135,9 +139,9 @@ describe('createResourceViewerPageVM', () => {
 
   it('fetches media token for binary types', async () => {
     const mediaToken = vi.fn().mockResolvedValue({ token: 'tok-456' });
+    tc = clientWithNamespaces({ mediaToken });
     const vm = createResourceViewerPageVM(
-      mockClient({ mediaToken }),
-      eventBus, RID, 'en', mockBrowse(),
+      tc.client, RID, 'en', mockBrowse(),
       { mediaType: 'image/png' },
     );
 
@@ -148,7 +152,8 @@ describe('createResourceViewerPageVM', () => {
   });
 
   it('wizard initializes closed', async () => {
-    const vm = createResourceViewerPageVM(mockClient(), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces();
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     const wizard = await firstValueFrom(vm.wizard$);
     expect(wizard.open).toBe(false);
@@ -157,11 +162,12 @@ describe('createResourceViewerPageVM', () => {
   });
 
   it('bind:initiate opens wizard and fires gather:requested', async () => {
-    const vm = createResourceViewerPageVM(mockClient(), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces();
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
     const gatherEvents: unknown[] = [];
-    eventBus.get('gather:requested').subscribe((e) => gatherEvents.push(e));
+    tc.client.on('gather:requested', (e) => gatherEvents.push(e));
 
-    eventBus.get('bind:initiate').next({
+    tc.client.emit('bind:initiate', {
       annotationId: 'ann-1',
       resourceId: 'res-1',
       defaultTitle: 'Test',
@@ -176,9 +182,10 @@ describe('createResourceViewerPageVM', () => {
   });
 
   it('closeWizard resets wizard state', async () => {
-    const vm = createResourceViewerPageVM(mockClient(), eventBus, RID, 'en', mockBrowse());
+    tc = clientWithNamespaces();
+    const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
-    eventBus.get('bind:initiate').next({
+    tc.client.emit('bind:initiate', {
       annotationId: 'ann-1',
       resourceId: 'res-1',
       defaultTitle: 'Test',

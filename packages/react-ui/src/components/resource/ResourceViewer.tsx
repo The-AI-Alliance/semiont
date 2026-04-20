@@ -242,7 +242,7 @@ export function ResourceViewer({
 
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
-    session?.emit('mark:delete', { annotationId: toAnnotationId(id) });
+    session?.client.emit('mark:delete', { annotationId: toAnnotationId(id) });
   }, [session]);
 
   // Handle annotation clicks - memoized
@@ -328,7 +328,7 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    session?.emit('browse:panel-open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    session?.client.emit('browse:panel-open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, session]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues

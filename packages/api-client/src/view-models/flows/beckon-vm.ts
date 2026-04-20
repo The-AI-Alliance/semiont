@@ -1,5 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import type { EventBus } from '@semiont/core';
+import type { SemiontApiClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
 export interface BeckonVM extends ViewModel {
@@ -9,26 +9,26 @@ export interface BeckonVM extends ViewModel {
   sparkle(annotationId: string): void;
 }
 
-export function createBeckonVM(eventBus: EventBus): BeckonVM {
+export function createBeckonVM(client: SemiontApiClient): BeckonVM {
   const subs: Subscription[] = [];
   const hovered$ = new BehaviorSubject<string | null>(null);
 
-  subs.push(eventBus.get('beckon:hover').subscribe(({ annotationId }) => {
+  subs.push(client.stream('beckon:hover').subscribe(({ annotationId }) => {
     hovered$.next(annotationId);
     if (annotationId) {
-      eventBus.get('beckon:sparkle').next({ annotationId });
+      client.emit('beckon:sparkle', { annotationId });
     }
   }));
 
-  subs.push(eventBus.get('browse:click').subscribe(({ annotationId }) => {
-    eventBus.get('beckon:focus').next({ annotationId });
+  subs.push(client.stream('browse:click').subscribe(({ annotationId }) => {
+    client.emit('beckon:focus', { annotationId });
   }));
 
   return {
     hoveredAnnotationId$: hovered$.asObservable(),
-    hover: (annotationId) => eventBus.get('beckon:hover').next({ annotationId }),
-    focus: (annotationId) => eventBus.get('beckon:focus').next({ annotationId }),
-    sparkle: (annotationId) => eventBus.get('beckon:sparkle').next({ annotationId }),
+    hover: (annotationId) => client.emit('beckon:hover', { annotationId }),
+    focus: (annotationId) => client.emit('beckon:focus', { annotationId }),
+    sparkle: (annotationId) => client.emit('beckon:sparkle', { annotationId }),
     dispose() {
       subs.forEach(s => s.unsubscribe());
       hovered$.complete();

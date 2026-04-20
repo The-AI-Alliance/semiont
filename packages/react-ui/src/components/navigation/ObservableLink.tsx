@@ -71,7 +71,7 @@ export function ObservableLink({
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability
-    session?.emit('browse:link-clicked', {
+    session?.client.emit('browse:link-clicked', {
       href,
       label
     });

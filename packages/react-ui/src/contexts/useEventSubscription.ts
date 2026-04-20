@@ -6,8 +6,8 @@ import { useObservable } from '../hooks/useObservable';
 /**
  * Subscribe to a session-bus event with automatic cleanup.
  *
- * Routes through `session.on(channel, handler)` — components never touch
- * the bus directly (D7). If no session is active, the subscription is a
+ * Routes through `session.client.on(channel, handler)` — components never
+ * touch the bus directly. If no session is active, the subscription is a
  * no-op; when a session becomes active, the effect re-runs and binds.
  *
  * Stable-handler pattern: the ref-wrapped handler means `handler` itself
@@ -31,7 +31,7 @@ export function useEventSubscription<K extends keyof EventMap>(
 
   useEffect(() => {
     if (!session) return;
-    return session.on(eventName, (payload) => handlerRef.current(payload));
+    return session.client.on(eventName, (payload) => handlerRef.current(payload));
   }, [eventName, session]);
 }
 
@@ -71,7 +71,7 @@ export function useEventSubscriptions(
     for (const eventName of eventNames) {
       const channel = eventName as keyof EventMap;
       unsubs.push(
-        session.on(channel, (payload) => {
+        session.client.on(channel, (payload) => {
           const current = handlersRef.current[channel];
           if (current) (current as (p: EventMap[keyof EventMap]) => void)(payload);
         }),

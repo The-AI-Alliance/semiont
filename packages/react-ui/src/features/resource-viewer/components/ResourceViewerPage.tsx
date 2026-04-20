@@ -132,7 +132,6 @@ export function ResourceViewerPage({
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
   const semiont = session?.client;
-  const eventBus = semiont?.eventBus;
 
   // UI state hooks
   const { showError, showSuccess, showInfo } = useToast();
@@ -159,7 +158,7 @@ export function ResourceViewerPage({
 
   // Composite VM — owns all flow VMs, wizard state, annotations, entity types
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, eventBus!, rUri, locale, browseVM));
+  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, rUri, locale, browseVM));
 
   const annotations = useObservable(vm.annotations$) ?? [];
   const groups = useObservable(vm.annotationGroups$);
@@ -232,7 +231,7 @@ export function ResourceViewerPage({
       name: title,
       entityTypes: entTypes.join(','),
     });
-    session?.emit('browse:router-push', {
+    session?.client.emit('browse:router-push', {
       path: `/know/compose?${params.toString()}`,
       reason: 'compose-from-wizard',
     });
@@ -281,7 +280,7 @@ export function ResourceViewerPage({
     try {
       const result = await semiont.generateCloneToken(rUri);
       const token = result.token;
-      session?.emit('browse:router-push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
+      session?.client.emit('browse:router-push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
@@ -327,14 +326,14 @@ export function ResourceViewerPage({
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
-      session?.emit('browse:router-push', { path, reason: 'reference-link' });
+      session?.client.emit('browse:router-push', { path, reason: 'reference-link' });
     }
   }, [routes.resourceDetail, session]);
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
       const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      session?.emit('browse:router-push', { path, reason: 'entity-type-filter' });
+      session?.client.emit('browse:router-push', { path, reason: 'entity-type-filter' });
     }
   }, [routes.know, session]);
 
@@ -403,7 +402,7 @@ export function ResourceViewerPage({
   // Handlers for AnnotationHistory (legacy event-based interaction)
   const handleEventHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
-      session?.emit('beckon:sparkle', { annotationId });
+      session?.client.emit('beckon:sparkle', { annotationId });
     }
   }, [session]);
 

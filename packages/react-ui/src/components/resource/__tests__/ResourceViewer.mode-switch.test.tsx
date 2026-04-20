@@ -33,11 +33,12 @@ vi.mock('../../../hooks/useObservableBrowse', () => ({
 const stubClient = {
   browse: { invalidateAnnotationList: vi.fn() },
   markAnnotation: vi.fn(),
+  on: vi.fn(() => () => {}),
+  emit: vi.fn(),
+  stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
 };
 const stubSession = {
   client: stubClient,
-  on: vi.fn(() => () => {}),
-  emit: vi.fn(),
 };
 const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
 const stubBrowser = { activeSession$: stubActiveSession$ };

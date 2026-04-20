@@ -133,7 +133,7 @@ export function HighlightPanel({
   // immediately emit mark:submit event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      session?.emit('mark:submit', {
+      session?.client.emit('mark:submit', {
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
         body: [],

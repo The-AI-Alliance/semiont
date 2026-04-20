@@ -212,7 +212,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          session?.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          session?.client.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -275,7 +275,7 @@ export function SvgDrawingCanvas({
 
     // Emit annotation:requested event with SvgSelector
     if (session && selectedMotivation) {
-      session.emit('mark:requested', {
+      session.client.emit('mark:requested', {
         selector: {
           type: 'SvgSelector',
           value: nativeSvg

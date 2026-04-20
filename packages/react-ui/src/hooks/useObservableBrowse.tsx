@@ -42,7 +42,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
 
   const push = useCallback((path: string, options?: { reason?: string }) => {
     // Emit event for observability
-    session?.emit('browse:router-push', {
+    session?.client.emit('browse:router-push', {
       path,
       reason: options?.reason
     });
@@ -56,7 +56,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
     if (!baseRouter.replace) return;
 
     // Emit event for observability
-    session?.emit('browse:router-push', {
+    session?.client.emit('browse:router-push', {
       path,
       reason: options?.reason ? `replace:${options.reason}` : 'replace'
     });
@@ -119,7 +119,7 @@ export function useObservableExternalNavigation() {
       window.location.href = url;
     }, 10);
 
-    session?.emit('browse:external-navigate', {
+    session?.client.emit('browse:external-navigate', {
       url,
       resourceId: metadata?.resourceId,
       cancelFallback: () => clearTimeout(fallbackTimer),

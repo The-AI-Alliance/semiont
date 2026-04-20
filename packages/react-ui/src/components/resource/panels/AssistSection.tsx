@@ -74,7 +74,7 @@ export function AssistSection({
       'commenting';
 
     // Emit mark:assist-request event with options
-    session?.emit('mark:assist-request', {
+    session?.client.emit('mark:assist-request', {
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
@@ -90,7 +90,7 @@ export function AssistSection({
   }, [annotationType, instructions, tone, useDensity, density, locale, session]);
 
   const handleDismissProgress = useCallback(() => {
-    session?.emit('mark:progress-dismiss', undefined);
+    session?.client.emit('mark:progress-dismiss', undefined);
   }, [session]);
 
   return (

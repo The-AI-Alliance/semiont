@@ -278,7 +278,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          session?.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          session?.client.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -317,7 +317,7 @@ export function PdfAnnotationCanvas({
 
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
-      session.emit('mark:requested', {
+      session.client.emit('mark:requested', {
         selector: {
           type: 'FragmentSelector',
           conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
@@ -355,7 +355,7 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => session?.emit('beckon:hover', { annotationId }), hoverDelayMs),
+    () => createHoverHandlers((annotationId) => session?.client.emit('beckon:hover', { annotationId }), hoverDelayMs),
     [session, hoverDelayMs]
   );
 
@@ -455,7 +455,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => session?.emit('browse:click', { annotationId: ann.id, motivation: ann.motivation })}
+                      onClick={() => session?.client.emit('browse:click', { annotationId: ann.id, motivation: ann.motivation })}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

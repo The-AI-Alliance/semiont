@@ -57,11 +57,10 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const { semiont } = loadCachedClient(rawBusUrl);
 
   // Step 1: gather context via GatherVM
-  const eventBus = semiont.eventBus;
-  const gatherVM = createGatherVM(semiont, eventBus, resourceId);
+  const gatherVM = createGatherVM(semiont, resourceId);
   let context: GatheredContext;
   try {
-    eventBus.get('gather:requested').next({
+    semiont.emit('gather:requested', {
       correlationId: crypto.randomUUID(),
       annotationId: annotationId as string,
       resourceId: resourceId as string,

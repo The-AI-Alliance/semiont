@@ -1016,6 +1016,6 @@ This architecture is the foundation for P2P real-time collaboration.
 ## See Also
 
 - [EVENTS.md](EVENTS.md) - Event-driven architecture and event-based cache invalidation
-- [PROVIDERS.md](PROVIDERS.md) - ApiClientProvider setup
+- [SESSION.md](SESSION.md) - ApiClientProvider setup
 - [TESTING.md](TESTING.md) - Testing API hooks
 - [@semiont/api-client](../../api-client) - API client documentation

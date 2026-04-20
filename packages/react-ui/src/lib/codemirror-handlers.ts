@@ -29,7 +29,7 @@ export function handleAnnotationClick(
   const segment = segmentsById.get(annotationId);
   if (!segment?.annotation) return false;
 
-  session.emit('browse:click', {
+  session.client.emit('browse:click', {
     annotationId,
     motivation: segment.annotation.motivation,
   });
@@ -87,9 +87,9 @@ export function dispatchWidgetClick(result: WidgetClickResult, session: SemiontS
   if (!result.handled) return;
 
   if (result.action === 'navigate' && result.resourceId) {
-    session.emit('browse:reference-navigate', { resourceId: result.resourceId });
+    session.client.emit('browse:reference-navigate', { resourceId: result.resourceId });
   } else if (result.action === 'browse-click' && result.annotationId) {
-    session.emit('browse:click', {
+    session.client.emit('browse:click', {
       annotationId: result.annotationId,
       motivation: result.motivation || 'linking',
     });

@@ -1,26 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { EventBus } from '@semiont/core';
 import { createJobQueueVM } from '../job-queue-vm';
+import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 
 describe('createJobQueueVM', () => {
-  let eventBus: EventBus;
+  let tc: TestClient;
 
-  beforeEach(() => { eventBus = new EventBus(); });
-  afterEach(() => { eventBus.destroy(); });
+  beforeEach(() => { tc = makeTestClient(); });
+  afterEach(() => { tc.bus.destroy(); });
 
   it('initializes with empty jobs list', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
     const jobs = await firstValueFrom(vm.jobs$);
     expect(jobs).toEqual([]);
     vm.dispose();
   });
 
   it('tracks job:queued as pending job', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
 
-    eventBus.get('job:queued').next({
+    tc.client.emit('job:queued', {
       jobId: 'j-1',
       jobType: 'highlight-annotation',
       resourceId: 'res-1',
@@ -36,10 +36,10 @@ describe('createJobQueueVM', () => {
   });
 
   it('emits jobCreated$ on job:queued', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
     const created = firstValueFrom(vm.jobCreated$);
 
-    eventBus.get('job:queued').next({
+    tc.client.emit('job:queued', {
       jobId: 'j-2',
       jobType: 'generation',
       resourceId: 'res-2',
@@ -52,15 +52,15 @@ describe('createJobQueueVM', () => {
   });
 
   it('updates job to complete on job:complete', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
 
-    eventBus.get('job:queued').next({
+    tc.client.emit('job:queued', {
       jobId: 'j-3',
       jobType: 'highlight-annotation',
       resourceId: 'res-1',
     });
 
-    eventBus.get('job:complete').next({
+    tc.client.emit('job:complete', {
       jobId: 'j-3',
       jobType: 'highlight-annotation',
       resourceId: 'res-1',
@@ -76,10 +76,10 @@ describe('createJobQueueVM', () => {
   });
 
   it('emits jobCompleted$ on job:complete', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
     const completed = firstValueFrom(vm.jobCompleted$);
 
-    eventBus.get('job:complete').next({
+    tc.client.emit('job:complete', {
       jobId: 'j-4',
       jobType: 'highlight-annotation',
       resourceId: 'res-1',
@@ -95,15 +95,15 @@ describe('createJobQueueVM', () => {
   });
 
   it('updates job to failed on job:fail', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
 
-    eventBus.get('job:queued').next({
+    tc.client.emit('job:queued', {
       jobId: 'j-5',
       jobType: 'generation',
       resourceId: 'res-1',
     });
 
-    eventBus.get('job:fail').next({
+    tc.client.emit('job:fail', {
       jobId: 'j-5',
       jobType: 'generation',
       resourceId: 'res-1',
@@ -119,11 +119,11 @@ describe('createJobQueueVM', () => {
   });
 
   it('pendingByType$ counts pending jobs by type', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
 
-    eventBus.get('job:queued').next({ jobId: 'j-a', jobType: 'highlight-annotation', resourceId: 'r-1' });
-    eventBus.get('job:queued').next({ jobId: 'j-b', jobType: 'highlight-annotation', resourceId: 'r-2' });
-    eventBus.get('job:queued').next({ jobId: 'j-c', jobType: 'generation', resourceId: 'r-3' });
+    tc.client.emit('job:queued', { jobId: 'j-a', jobType: 'highlight-annotation', resourceId: 'r-1' });
+    tc.client.emit('job:queued', { jobId: 'j-b', jobType: 'highlight-annotation', resourceId: 'r-2' });
+    tc.client.emit('job:queued', { jobId: 'j-c', jobType: 'generation', resourceId: 'r-3' });
 
     const counts = await firstValueFrom(vm.pendingByType$.pipe(
       filter((m) => m.size > 0),
@@ -135,9 +135,9 @@ describe('createJobQueueVM', () => {
   });
 
   it('runningJobs$ filters to running status', async () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
 
-    eventBus.get('job:queued').next({ jobId: 'j-x', jobType: 'highlight-annotation', resourceId: 'r-1' });
+    tc.client.emit('job:queued', { jobId: 'j-x', jobType: 'highlight-annotation', resourceId: 'r-1' });
 
     const running = await firstValueFrom(vm.runningJobs$);
     expect(running).toHaveLength(0);
@@ -146,13 +146,13 @@ describe('createJobQueueVM', () => {
   });
 
   it('stops responding after dispose', () => {
-    const vm = createJobQueueVM(eventBus);
+    const vm = createJobQueueVM(tc.client);
     vm.dispose();
 
     const received: unknown[] = [];
     vm.jobCreated$.subscribe((j) => received.push(j));
 
-    eventBus.get('job:queued').next({ jobId: 'j-z', jobType: 'generation', resourceId: 'r-1' });
+    tc.client.emit('job:queued', { jobId: 'j-z', jobType: 'generation', resourceId: 'r-1' });
     expect(received).toHaveLength(0);
   });
 });

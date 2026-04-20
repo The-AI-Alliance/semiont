@@ -29,7 +29,7 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
 
   const handleCancel = () => {
     // Emit event for job cancellation
-    session?.emit('job:cancel-requested', { jobType: 'annotation' });
+    session?.client.emit('job:cancel-requested', { jobType: 'annotation' });
   };
 
   if (!progress) return null;

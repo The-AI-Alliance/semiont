@@ -940,6 +940,6 @@ Our codebase includes 1300+ tests demonstrating these patterns:
 
 ## See Also
 
-- [PROVIDERS.md](PROVIDERS.md) - Provider configuration
+- [SESSION.md](SESSION.md) - Provider configuration
 - [API-INTEGRATION.md](API-INTEGRATION.md) - Testing API hooks
 - [COMPONENTS.md](COMPONENTS.md) - Component testing examples

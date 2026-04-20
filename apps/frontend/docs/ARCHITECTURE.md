@@ -294,7 +294,7 @@ These providers are framework-independent and can work with Next.js, Vite, or an
 - `ToastProvider` - Toast notification queue
 - `LiveRegionProvider` - ARIA live region for screen reader announcements
 
-See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete Provider Pattern documentation.
+See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete Provider Pattern documentation.
 
 ## API Integration
 
@@ -525,7 +525,7 @@ The provider tree has two distinct layers:
 - **`KnowledgeBaseSessionProvider` re-validates internally when the active KB changes** so switching KBs forces a fresh validation against the new backend — no external bridge component needed.
 - **Protected layouts mount their own `ApiClientProvider`** pointing at the active KB's backend URL — they read the URL from `useKnowledgeBaseSession().activeKnowledgeBase`.
 
-See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for details on the Provider Pattern architecture.
+See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for details on the Provider Pattern architecture.
 
 ## Directory Structure
 
@@ -659,7 +659,7 @@ const cacheManager: CacheManager = {
 - ✅ Easy to test with mock implementations
 - ✅ Clear separation of concerns
 
-See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete documentation.
+See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete documentation.
 
 ### 2. No Default Values
 
@@ -792,7 +792,7 @@ Annotation overlays and panel entries synchronize via hover events for all media
 ## Related Documentation
 
 ### React UI Library
-- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) - Provider Pattern architecture
+- [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) - Provider Pattern architecture
 - [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
 - [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) - Complete library documentation
 

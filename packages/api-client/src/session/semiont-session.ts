@@ -9,19 +9,16 @@
  * construction — the session never touches `localStorage` or `window`
  * directly.
  *
- * The session's EventBus is owned by the client and re-exposed via
- * `session.emit` / `session.on`. React components subscribe via
- * `useEventSubscription[s]`. Nothing outside the session reaches for the
- * bus directly (see UNREACT.md D7).
+ * The session holds the `SemiontApiClient` as a public `readonly` field.
+ * Components reach the bus via `session.client.emit/on/stream` — the
+ * session itself does not wrap those methods.
  */
 
 import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
   baseUrl,
-  EventBus,
   type AccessToken,
-  type EventMap,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { SemiontApiClient, APIError } from '../client';
@@ -67,7 +64,6 @@ export class SemiontSession {
   readonly ready: Promise<void>;
 
   private readonly storage: SessionStorage;
-  private readonly eventBus: EventBus;
   private readonly onError: (err: SemiontError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubscribeStorage: (() => void) | null = null;
@@ -94,9 +90,6 @@ export class SemiontSession {
       token$: this.token$,
       tokenRefresher: () => this.refresh().then((t) => t ?? null),
     });
-    // The client now owns its EventBus; the session re-exposes it
-    // internally for emit/on routing.
-    this.eventBus = this.client.eventBus;
 
     this.streamState$ = this.client.actor.state$;
 
@@ -241,30 +234,6 @@ export class SemiontSession {
     } catch {
       // Malformed payload — ignore.
     }
-  }
-
-  /**
-   * Emit an event onto the session's internal bus. The ONE gated entry
-   * for every component emission (D7). Kept here rather than on
-   * `client.eventBus` (which is not exposed publicly) so the session
-   * can log, validate, scope-guard, or add metrics in one place.
-   */
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
-    if (this.disposed) return;
-    (this.eventBus.get(channel) as unknown as { next(v: EventMap[K]): void }).next(payload);
-  }
-
-  /**
-   * Subscribe to an event on the session's internal bus. Returns an
-   * unsubscribe callback. Paired with `useEventSubscription` on the
-   * React side — direct callers are the session's internals and tests.
-   */
-  on<K extends keyof EventMap>(
-    channel: K,
-    handler: (payload: EventMap[K]) => void,
-  ): () => void {
-    const sub = (this.eventBus.get(channel) as unknown as { subscribe(h: (v: EventMap[K]) => void): { unsubscribe(): void } }).subscribe(handler);
-    return () => sub.unsubscribe();
   }
 
   notifySessionExpired(message: string | null): void {

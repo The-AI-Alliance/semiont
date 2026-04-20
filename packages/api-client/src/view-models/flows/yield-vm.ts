@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import type { EventBus, ResourceId, YieldProgress, GatheredContext } from '@semiont/core';
+import type { ResourceId, YieldProgress, GatheredContext } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
@@ -23,7 +23,6 @@ export interface YieldVM extends ViewModel {
 
 export function createYieldVM(
   client: SemiontApiClient,
-  eventBus: EventBus,
   resourceId: ResourceId,
   locale: string,
 ): YieldVM {
@@ -31,21 +30,21 @@ export function createYieldVM(
   const isGenerating$ = new BehaviorSubject<boolean>(false);
   const progress$ = new BehaviorSubject<YieldProgress | null>(null);
 
-  subs.push(eventBus.get('yield:progress').subscribe((chunk: YieldProgress) => {
+  subs.push(client.stream('yield:progress').subscribe((chunk: YieldProgress) => {
     progress$.next(chunk);
     isGenerating$.next(true);
   }));
 
   let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
-  subs.push(eventBus.get('yield:finished').subscribe((final: YieldProgress) => {
+  subs.push(client.stream('yield:finished').subscribe((final: YieldProgress) => {
     progress$.next(final);
     isGenerating$.next(false);
     if (clearTimer) clearTimeout(clearTimer);
     clearTimer = setTimeout(() => { progress$.next(null); clearTimer = null; }, 2000);
   }));
 
-  subs.push(eventBus.get('yield:failed').subscribe(() => {
+  subs.push(client.stream('yield:failed').subscribe(() => {
     progress$.next(null);
     isGenerating$.next(false);
   }));
@@ -65,7 +64,7 @@ export function createYieldVM(
       error: (error: unknown) => {
         progress$.next(null);
         isGenerating$.next(false);
-        eventBus.get('yield:failed').next({
+        client.emit('yield:failed', {
           error: error instanceof Error ? error.message : 'Generation failed',
         });
       },

@@ -625,7 +625,7 @@ it('should have no accessibility violations', async () => {
 
 ## See Also
 
-- [PROVIDERS.md](PROVIDERS.md) - Context providers for components
+- [SESSION.md](SESSION.md) - Context providers for components
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API hooks used by components
 - [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md) - Translation usage
 - [ROUTING.md](ROUTING.md) - Navigation in components

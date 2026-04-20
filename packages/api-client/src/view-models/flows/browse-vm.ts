@@ -1,5 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import type { EventBus } from '@semiont/core';
+import type { SemiontApiClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
 export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'knowledge-base';
@@ -32,7 +32,7 @@ export interface BrowseVMOptions {
   onPanelChange?: (panel: ToolbarPanelType | null) => void;
 }
 
-export function createBrowseVM(eventBus: EventBus, options?: BrowseVMOptions): BrowseVM {
+export function createBrowseVM(client: SemiontApiClient, options?: BrowseVMOptions): BrowseVM {
   const subs: Subscription[] = [];
   const activePanel$ = new BehaviorSubject<ToolbarPanelType | null>(options?.initialPanel ?? null);
   const scrollToAnnotationId$ = new BehaviorSubject<string | null>(null);
@@ -43,12 +43,12 @@ export function createBrowseVM(eventBus: EventBus, options?: BrowseVMOptions): B
     subs.push(activePanel$.subscribe(cb));
   }
 
-  subs.push(eventBus.get('browse:panel-toggle').subscribe(({ panel }) => {
+  subs.push(client.stream('browse:panel-toggle').subscribe(({ panel }) => {
     const current = activePanel$.getValue();
     activePanel$.next(current === panel ? null : panel as ToolbarPanelType);
   }));
 
-  subs.push(eventBus.get('browse:panel-open').subscribe(({ panel, scrollToAnnotationId, motivation }) => {
+  subs.push(client.stream('browse:panel-open').subscribe(({ panel, scrollToAnnotationId, motivation }) => {
     if (scrollToAnnotationId) {
       scrollToAnnotationId$.next(scrollToAnnotationId);
     }
@@ -59,7 +59,7 @@ export function createBrowseVM(eventBus: EventBus, options?: BrowseVMOptions): B
     activePanel$.next(panel as ToolbarPanelType);
   }));
 
-  subs.push(eventBus.get('browse:panel-close').subscribe(() => {
+  subs.push(client.stream('browse:panel-close').subscribe(() => {
     activePanel$.next(null);
   }));
 
@@ -67,9 +67,9 @@ export function createBrowseVM(eventBus: EventBus, options?: BrowseVMOptions): B
     activePanel$: activePanel$.asObservable(),
     scrollToAnnotationId$: scrollToAnnotationId$.asObservable(),
     panelInitialTab$: panelInitialTab$.asObservable(),
-    openPanel: (panel) => eventBus.get('browse:panel-open').next({ panel }),
-    closePanel: () => eventBus.get('browse:panel-close').next(undefined),
-    togglePanel: (panel) => eventBus.get('browse:panel-toggle').next({ panel }),
+    openPanel: (panel) => client.emit('browse:panel-open', { panel }),
+    closePanel: () => client.emit('browse:panel-close', undefined),
+    togglePanel: (panel) => client.emit('browse:panel-toggle', { panel }),
     onScrollCompleted: () => scrollToAnnotationId$.next(null),
     dispose() {
       subs.forEach(s => s.unsubscribe());

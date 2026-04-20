@@ -111,7 +111,7 @@ export function CollapsibleResourceNavigation({
     }
 
     // Emit event
-    session?.emit('browse:resource-reorder', { oldIndex: currentIndex, newIndex });
+    session?.client.emit('browse:resource-reorder', { oldIndex: currentIndex, newIndex });
 
     // Announce the change
     const resource = resources[currentIndex];
@@ -124,7 +124,7 @@ export function CollapsibleResourceNavigation({
     e.stopPropagation();
 
     // Emit event
-    session?.emit('browse:resource-close', { resourceId });
+    session?.client.emit('browse:resource-close', { resourceId });
 
     // If we're closing the currently viewed resource, navigate to first fixed item or trigger callback
     const resourceHref = getResourceHref(resourceId);
@@ -152,7 +152,7 @@ export function CollapsibleResourceNavigation({
       const newIndex = resources.findIndex((resource) => resource.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         // Emit event
-        session?.emit('browse:resource-reorder', { oldIndex, newIndex });
+        session?.client.emit('browse:resource-reorder', { oldIndex, newIndex });
         const resource = resources[oldIndex];
         announceDrop(resource.name, newIndex + 1, resources.length);
       }
@@ -190,7 +190,7 @@ export function CollapsibleResourceNavigation({
               <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>
             )}
             <button
-              onClick={() => session?.emit('browse:sidebar-toggle', undefined)}
+              onClick={() => session?.client.emit('browse:sidebar-toggle', undefined)}
               className="semiont-nav-section__header-icon"
               title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
               aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}

@@ -135,13 +135,13 @@ export const BrowseView = memo(function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          session.emit('browse:click', { annotationId, motivation: annotation.motivation });
+          session.client.emit('browse:click', { annotationId, motivation: annotation.motivation });
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => session.emit('beckon:hover', { annotationId }),
+      (annotationId) => session.client.emit('beckon:hover', { annotationId }),
       hoverDelayMs
     );
 

@@ -306,7 +306,7 @@ interface TranslationManager {
 </TranslationProvider>
 ```
 
-See [PROVIDERS.md](PROVIDERS.md) for details.
+See [SESSION.md](SESSION.md) for details.
 
 ---
 
@@ -352,7 +352,7 @@ packages/react-ui/
 │   ├── index.ts           # Main exports
 │   └── test-utils.tsx     # Testing utilities
 ├── docs/                  # Documentation
-│   ├── PROVIDERS.md
+│   ├── SESSION.md
 │   ├── API-INTEGRATION.md
 │   ├── TESTING.md
 │   ├── COMPONENTS.md
@@ -817,7 +817,7 @@ See [STYLES.md](STYLES.md) for comprehensive CSS architecture and conventions.
 ## See Also
 
 - [EVENTS.md](EVENTS.md) - Event-driven architecture and event bus usage
-- [PROVIDERS.md](PROVIDERS.md) - Provider Pattern implementation
+- [SESSION.md](SESSION.md) - Provider Pattern implementation
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API architecture
 - [TESTING.md](TESTING.md) - Testing architecture
 - [STYLES.md](STYLES.md) - CSS architecture and conventions

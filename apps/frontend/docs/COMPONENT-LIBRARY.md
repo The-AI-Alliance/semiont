@@ -115,7 +115,7 @@ workspace). `AuthShell` wraps the whole authenticated subtree:
 The library owns provider implementations; the frontend owns the
 decision about where to mount them. For the provider API reference
 (props, hooks, behavior), see
-[`packages/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md).
+[`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md).
 
 ## Using Library Components
 
@@ -259,7 +259,7 @@ npm run build --workspace=@semiont/core --workspace=@semiont/api-client
 ## Related Documentation
 
 - [`@semiont/react-ui` README](../../../packages/react-ui/README.md)
-- [`@semiont/react-ui` providers](../../../packages/react-ui/docs/PROVIDERS.md)
+- [`@semiont/react-ui` providers](../../../packages/react-ui/docs/SESSION.md)
 - [`@semiont/react-ui` architecture](../../../packages/react-ui/docs/ARCHITECTURE.md)
 - [API Integration](./API-INTEGRATION.md)
 - [Frontend Architecture](./ARCHITECTURE.md)

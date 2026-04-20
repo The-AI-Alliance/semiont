@@ -18,8 +18,8 @@ function persistPanel(panel: ToolbarPanelType | null): void {
 }
 
 export function useBrowseVM(): BrowseVM {
-  const eventBus = useObservable(useSemiont().activeSession$)?.client.eventBus;
-  return useViewModel(() => createBrowseVM(eventBus!, {
+  const client = useObservable(useSemiont().activeSession$)?.client;
+  return useViewModel(() => createBrowseVM(client!, {
     initialPanel: readPanel(),
     onPanelChange: persistPanel,
   }));

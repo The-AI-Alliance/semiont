@@ -301,7 +301,7 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => sessionRef.current?.emit('beckon:hover', { annotationId }),
+      (annotationId) => sessionRef.current?.client.emit('beckon:hover', { annotationId }),
       hoverDelayMs
     );
 
