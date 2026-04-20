@@ -42,6 +42,9 @@ export * from './contexts/ThemeContext';
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 export * from './hooks/useResourceContent';
 
+// Session (new React ↔ Semiont boundary — see UNREACT plan)
+export * from './session';
+
 // Contexts
 export * from './contexts/AnnotationContext';
 export * from './contexts/ApiClientContext';
