@@ -9,8 +9,6 @@ import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import {
   TranslationProvider,
-  ApiClientProvider,
-  OpenResourcesProvider,
   ToastProvider,
   SemiontProvider,
   SemiontBrowser,
@@ -19,11 +17,9 @@ import {
   defaultMocks,
   TestProvidersOptions,
   createMockTranslationManager,
-  createMockOpenResourcesManager,
 } from '@semiont/react-ui/test-utils';
 import type {
   TranslationManager,
-  OpenResourcesManager,
 } from '@semiont/react-ui';
 
 export interface FrontendTestOptions extends TestProvidersOptions {
@@ -38,8 +34,6 @@ export function renderWithProviders(
 ): RenderResult {
   const {
     translationManager = defaultMocks.translationManager,
-    apiBaseUrl = 'http://localhost:4000',
-    openResourcesManager = defaultMocks.openResourcesManager,
     browser,
     ...renderOptions
   } = options || {};
@@ -50,13 +44,9 @@ export function renderWithProviders(
     return (
       <TranslationProvider translationManager={translationManager}>
         <SemiontProvider browser={effectiveBrowser}>
-          <ApiClientProvider baseUrl={apiBaseUrl}>
-            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <ToastProvider>
-                {children}
-              </ToastProvider>
-            </OpenResourcesProvider>
-          </ApiClientProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </SemiontProvider>
       </TranslationProvider>
     );
@@ -71,10 +61,8 @@ export { vi } from 'vitest';
 export {
   defaultMocks,
   createMockTranslationManager,
-  createMockOpenResourcesManager,
 };
 export type {
   TestProvidersOptions,
   TranslationManager,
-  OpenResourcesManager,
 };

@@ -4,7 +4,8 @@ import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
-  useOpenResources,
+  useSemiont,
+  useObservable,
   useEventSubscriptions,
   CollapsibleResourceNavigation,
   type NavigationItem,
@@ -32,7 +33,10 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
   const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
   const pathname = usePathname();
   const router = useRouter();
-  const { openResources, removeResource, reorderResources } = useOpenResources();
+  const semiont = useSemiont();
+  const openResources = useObservable(semiont.openResources$) ?? [];
+  const removeResource = semiont.removeOpenResource.bind(semiont);
+  const reorderResources = semiont.reorderOpenResources.bind(semiont);
 
   const fixedNavigation: NavigationItem[] = [
     {

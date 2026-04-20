@@ -41,9 +41,6 @@ vi.mock('@/lib/routing', () => ({
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({
   ToolbarPanels: () => null,
 }));
-vi.mock('@/contexts/StreamStatusContext', () => ({
-  useStreamStatus: () => 'open',
-}));
 
 const vmFactoryCalls: string[] = [];
 

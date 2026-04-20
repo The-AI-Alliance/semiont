@@ -41,8 +41,6 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => stubBrowser,
-    kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-    ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     LeftSidebar: ({ children }: { children: React.ReactNode | Function }) => (
       <aside data-testid="admin-sidebar">
         {typeof children === 'function'

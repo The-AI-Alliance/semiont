@@ -37,17 +37,6 @@ vi.mock('@/lib/routing', () => ({
   routes: {},
 }));
 
-// Mock heavy hooks/managers to avoid wiring real implementations
-vi.mock('@/hooks/useOpenResourcesManager', () => ({
-  useOpenResourcesManager: () => ({
-    openResources: [],
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    updateResourceName: vi.fn(),
-    reorderResources: vi.fn(),
-  }),
-}));
-
 // vi.hoisted so the vi.mock factory below can reference TEST_KB.
 const { TEST_KB } = vi.hoisted(() => ({
   TEST_KB: { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' },
@@ -83,8 +72,6 @@ vi.mock('@semiont/react-ui', async () => {
     ...actual,
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     getKbSessionStatus: () => 'authenticated',
-    ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    OpenResourcesProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useSemiont: () => stubBrowser,
     LeftSidebar: () => <div data-testid="left-sidebar" />,
@@ -101,9 +88,6 @@ vi.mock('@/components/admin/AdminNavigation', () => ({ AdminNavigation: () => nu
 vi.mock('@/components/moderation/ModerationNavigation', () => ({ ModerationNavigation: () => null }));
 vi.mock('@/components/knowledge/KnowledgeSidebarWrapper', () => ({ KnowledgeSidebarWrapper: () => null }));
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({ ToolbarPanels: () => null }));
-vi.mock('@/contexts/StreamStatusContext', () => ({
-  StreamStatusContext: { Provider: ({ children }: { children: React.ReactNode }) => <>{children}</> },
-}));
 
 import KnowLayout from '@/app/[locale]/know/layout';
 import AdminLayout from '@/app/[locale]/admin/layout';

@@ -45,7 +45,7 @@ vi.mock('../view-models/domain/actor-vm', async () => {
 import ky from 'ky';
 import { SemiontApiClient } from '../client';
 import type { ContentFormat } from '@semiont/core';
-import { baseUrl, resourceId, annotationId, jobId, cloneToken, entityType, EventBus } from '@semiont/core';
+import { baseUrl, resourceId, annotationId, jobId, cloneToken, entityType } from '@semiont/core';
 
 describe('SemiontApiClient', () => {
   let client: SemiontApiClient;
@@ -82,7 +82,6 @@ describe('SemiontApiClient', () => {
 
     client = new SemiontApiClient({
       baseUrl: testBaseUrl,
-      eventBus: new EventBus(),
       timeout: 10000,
     });
   });
@@ -499,7 +498,6 @@ describe('SemiontApiClient', () => {
       const token$ = new BehaviorSubject<any>('tok-1');
       const c = new SemiontApiClient({
         baseUrl: testBaseUrl,
-        eventBus: new EventBus(),
         token$,
       });
       expect(c).toBeDefined();
@@ -510,7 +508,6 @@ describe('SemiontApiClient', () => {
     test('defaults to null BehaviorSubject when token$ is omitted', () => {
       const c = new SemiontApiClient({
         baseUrl: testBaseUrl,
-        eventBus: new EventBus(),
       });
       expect(c).toBeDefined();
     });
@@ -650,7 +647,6 @@ describe('SemiontApiClient', () => {
     test('is safe to call without active actor', () => {
       const freshClient = new SemiontApiClient({
         baseUrl: testBaseUrl,
-        eventBus: new EventBus(),
       });
       expect(() => freshClient.dispose()).not.toThrow();
     });

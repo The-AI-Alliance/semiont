@@ -68,8 +68,6 @@ export class SemiontSession {
     this.kb = config.kb;
     this.onError = config.onError ?? (() => {});
 
-    this.eventBus = new EventBus();
-
     const stored = getStoredSession(this.kb.id);
     const initialToken =
       stored && !isJwtExpired(stored.access) ? accessToken(stored.access) : null;
@@ -83,10 +81,12 @@ export class SemiontSession {
 
     this.client = new SemiontApiClient({
       baseUrl: baseUrl(kbBackendUrl(this.kb)),
-      eventBus: this.eventBus,
       token$: this.token$,
       tokenRefresher: () => this.refresh().then((t) => t ?? null),
     });
+    // The client now owns its EventBus; the session re-exposes it
+    // internally for emit/on routing.
+    this.eventBus = this.client.eventBus;
 
     this.streamState$ = this.client.actor.state$;
 
@@ -128,7 +128,6 @@ export class SemiontSession {
       if (this.disposed) return;
       const throwaway = new SemiontApiClient({
         baseUrl: baseUrl(kbBackendUrl(this.kb)),
-        eventBus: new EventBus(),
       });
       try {
         const data = await throwaway.getMe({ auth: accessToken(token) });

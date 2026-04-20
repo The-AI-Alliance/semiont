@@ -12,11 +12,8 @@ import { BehaviorSubject } from 'rxjs';
 import { SemiontApiClient } from '@semiont/api-client';
 import { EventBus, baseUrl } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
-import { ApiClientProvider } from './contexts/ApiClientContext';
-import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
-import type { OpenResourcesManager } from './types/OpenResourcesManager';
 import type { SemiontBrowser } from './session/semiont-browser';
 import { SemiontProvider } from './session/SemiontProvider';
 
@@ -29,12 +26,13 @@ import { SemiontProvider } from './session/SemiontProvider';
  */
 function createFakeBrowserForTests(
   apiBaseUrl: string,
-  eventBus: EventBus,
 ): SemiontBrowser {
   const client = new SemiontApiClient({
     baseUrl: baseUrl(apiBaseUrl),
-    eventBus,
   });
+  // The client owns its own EventBus; tests that want to inspect events
+  // production code emits via `session?.emit(...)` read `client.eventBus`.
+  const eventBus = client.eventBus;
   // Minimal session stub exposing the emit/on facade expected by
   // production code. Uses the same EventBus the client was constructed with,
   // so tests that inspect the bus see the events production code emits.
@@ -102,14 +100,6 @@ export const defaultMocks = {
       return result;
     },
   } as TranslationManager,
-
-  openResourcesManager: {
-    openResources: [],
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    updateResourceName: vi.fn(),
-    reorderResources: vi.fn(),
-  } as OpenResourcesManager,
 };
 
 /**
@@ -118,7 +108,6 @@ export const defaultMocks = {
 export interface TestProvidersOptions {
   translationManager?: TranslationManager;
   apiBaseUrl?: string;
-  openResourcesManager?: OpenResourcesManager;
   /** Inject a specific SemiontBrowser (e.g. one seeded with a kbs list). */
   browser?: SemiontBrowser;
 }
@@ -139,29 +128,28 @@ export function renderWithProviders(
   const {
     translationManager = defaultMocks.translationManager,
     apiBaseUrl = 'http://localhost:4000',
-    openResourcesManager = defaultMocks.openResourcesManager,
     browser,
     returnEventBus = false,
     ...renderOptions
   } = options || {};
 
-  // Single bus shared by the SemiontApiClient and the fake session's emit/on —
-  // so tests that subscribe via the returned `eventBus` see everything
-  // production code emits via `session?.emit(...)`.
-  const sharedBus = new EventBus();
-  const fakeBrowser = browser ?? createFakeBrowserForTests(apiBaseUrl, sharedBus);
+  // The fake browser's session exposes its client's EventBus as `emit/on`.
+  // Tests that subscribe via the returned `eventBus` receive events
+  // production code emits via `session?.emit(...)`. When the caller
+  // provides a minimal mock browser without a client (e.g. the modal
+  // state helper), fall back to a fresh bus — the tests that use such
+  // browsers don't inspect emissions.
+  const fakeBrowser = browser ?? createFakeBrowserForTests(apiBaseUrl);
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client?: { eventBus?: EventBus } } | null } }).activeSession$.getValue();
+  const sharedBus = fakeSession?.client?.eventBus ?? new EventBus();
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
         <SemiontProvider browser={fakeBrowser}>
-          <ApiClientProvider baseUrl={apiBaseUrl}>
-            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <ToastProvider>
-                {children}
-              </ToastProvider>
-            </OpenResourcesProvider>
-          </ApiClientProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </SemiontProvider>
       </TranslationProvider>
     );
@@ -186,8 +174,9 @@ export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:
   SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;
   eventBus: EventBus;
 } {
-  const eventBus = new EventBus();
-  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl, eventBus);
+  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: { eventBus: EventBus } } | null } }).activeSession$.getValue();
+  const eventBus = fakeSession?.client.eventBus ?? new EventBus();
   const SemiontWrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontProvider browser={fakeBrowser}>{children}</SemiontProvider>
   );
@@ -256,21 +245,6 @@ export function createMockKnowledgeBaseSession(overrides: {
     reorderOpenResources: vi.fn(),
     dispose: vi.fn(async () => {}),
   } as unknown as SemiontBrowser;
-}
-
-/**
- * Create a mock open resources manager with custom resources
- */
-export function createMockOpenResourcesManager(
-  resources: OpenResourcesManager['openResources'] = []
-): OpenResourcesManager {
-  return {
-    openResources: resources,
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    updateResourceName: vi.fn(),
-    reorderResources: vi.fn(),
-  };
 }
 
 // Re-export testing library utilities

@@ -10,7 +10,6 @@ import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
-import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { createTestSemiontWrapper } from '../../../test-utils';
@@ -43,13 +42,20 @@ vi.mock('../../../hooks/useResourceContent', () => ({
 const { stubBrowser } = vi.hoisted(() => {
   const { BehaviorSubject } = require('rxjs');
   const { SemiontApiClient } = require('@semiont/api-client');
-  const { EventBus, baseUrl } = require('@semiont/core');
+  const { baseUrl } = require('@semiont/core');
   const client = new SemiontApiClient({
     baseUrl: baseUrl('http://localhost:4000'),
-    eventBus: new EventBus(),
   });
   const stubActiveSession$ = new BehaviorSubject({ client });
-  const stubBrowser = { activeSession$: stubActiveSession$ };
+  const stubOpenResources$ = new BehaviorSubject([]);
+  const stubBrowser = {
+    activeSession$: stubActiveSession$,
+    openResources$: stubOpenResources$,
+    addOpenResource: vi.fn(),
+    removeOpenResource: vi.fn(),
+    updateOpenResourceName: vi.fn(),
+    reorderOpenResources: vi.fn(),
+  };
   return { stubBrowser };
 });
 
@@ -93,15 +99,6 @@ useDebouncedCallback: (fn: any) => fn,
     }),
   };
 });
-
-vi.mock('../../../contexts/OpenResourcesContext', () => ({
-  useOpenResources: () => ({
-    openResources: [],
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    isResourceOpen: vi.fn().mockReturnValue(false),
-  }),
-}));
 
 vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   useResourceAnnotations: () => ({
@@ -163,9 +160,7 @@ const renderWithProviders = (ui: React.ReactElement) => {
     <ThemeProvider>
       <ToastProvider>
         <SemiontWrapper>
-          <ApiClientProvider baseUrl="http://localhost:4000">
-            {ui}
-          </ApiClientProvider>
+          {ui}
         </SemiontWrapper>
       </ToastProvider>
     </ThemeProvider>

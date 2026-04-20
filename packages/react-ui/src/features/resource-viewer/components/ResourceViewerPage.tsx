@@ -27,7 +27,6 @@ import { useToast } from '../../../components/Toast';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
-import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
@@ -130,7 +129,8 @@ export function ResourceViewerPage({
   // Translations
   const tw = useTranslations('ReferenceWizard');
 
-  const session = useObservable(useSemiont().activeSession$);
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$);
   const semiont = session?.client;
   const eventBus = semiont?.eventBus;
 
@@ -139,7 +139,6 @@ export function ResourceViewerPage({
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
-  const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
 
   // Determine MIME category to choose content path
@@ -243,12 +242,12 @@ export function ResourceViewerPage({
   useEffect(() => {
     if (resource && rUri) {
       const mediaType = getPrimaryMediaType(resource);
-      addResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
+      browser.addOpenResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('lastViewedDocumentId', rUri);
       }
     }
-  }, [resource, rUri, addResource]);
+  }, [resource, rUri, browser]);
 
   // Domain events flow through the bus gateway (ActorVM → local EventBus).
   // BrowseNamespace cache invalidation handles annotation/resource updates.

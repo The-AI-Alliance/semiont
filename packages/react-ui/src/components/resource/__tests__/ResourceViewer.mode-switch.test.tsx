@@ -17,7 +17,6 @@ import { ResourceViewer } from '../ResourceViewer';
 import { createTestSemiontWrapper } from '../../../test-utils';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
-import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import type { components } from '@semiont/core';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -88,11 +87,9 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
   return (
     <TranslationProvider translationManager={mockTranslationManager}>
       <SemiontWrapper>
-        <ApiClientProvider baseUrl="http://localhost:4000">
-          <ResourceAnnotationsProvider>
-            {children}
-          </ResourceAnnotationsProvider>
-        </ApiClientProvider>
+        <ResourceAnnotationsProvider>
+          {children}
+        </ResourceAnnotationsProvider>
       </SemiontWrapper>
     </TranslationProvider>
   );

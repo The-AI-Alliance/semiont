@@ -13,7 +13,6 @@ import { useLocale } from '@/i18n/routing';
 import { useSemiont, useObservable, useViewModel, createResourceLoaderVM } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
-import { useStreamStatus } from '@/contexts/StreamStatusContext';
 
 // Feature components
 import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
@@ -38,8 +37,8 @@ export default function KnowledgeResourcePage() {
 function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId> }) {
   const locale = useLocale();
 
-  const streamStatus = useStreamStatus();
   const session = useObservable(useSemiont().activeSession$);
+  const streamStatus = useObservable(session?.streamState$) ?? 'initial';
   const activeKnowledgeBase = session?.kb ?? null;
 
   const semiont = session?.client;

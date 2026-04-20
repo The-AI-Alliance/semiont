@@ -6,7 +6,7 @@
  */
 
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, EventBus, refreshToken as makeRefreshToken } from '@semiont/core';
+import { baseUrl, refreshToken as makeRefreshToken } from '@semiont/core';
 import type { KnowledgeBase } from '../types/knowledge-base';
 import { getStoredSession, setStoredSession, kbBackendUrl } from './storage';
 
@@ -41,7 +41,6 @@ export async function performRefresh(kb: KnowledgeBase): Promise<string | null> 
 
     const client = new SemiontApiClient({
       baseUrl: baseUrl(kbBackendUrl(kb)),
-      eventBus: new EventBus(),
     });
 
     try {

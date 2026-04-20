@@ -7,7 +7,7 @@
  * every React re-render, remount, and route change.
  *
  * Replaces the app-level responsibilities of KnowledgeBaseSessionProvider
- * and OpenResourcesProvider.
+ * and the old OpenResources context.
  */
 
 import { BehaviorSubject, Subject } from 'rxjs';
@@ -25,6 +25,26 @@ import type { OpenResource } from '../types/OpenResourcesManager';
 import { SemiontSession } from './semiont-session';
 import { SemiontError } from './errors';
 
+const OPEN_RESOURCES_KEY = 'openDocuments';
+
+function sortOpenResources(resources: OpenResource[]): OpenResource[] {
+  return [...resources].sort((a, b) => {
+    if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+    return a.openedAt - b.openedAt;
+  });
+}
+
+function loadOpenResources(): OpenResource[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(OPEN_RESOURCES_KEY);
+    if (stored) return sortOpenResources(JSON.parse(stored) as OpenResource[]);
+  } catch {
+    // Ignore parse errors
+  }
+  return [];
+}
+
 export class SemiontBrowser {
   readonly kbs$: BehaviorSubject<KnowledgeBase[]>;
   readonly activeKbId$: BehaviorSubject<string | null>;
@@ -36,6 +56,7 @@ export class SemiontBrowser {
   private unregisterNotify: (() => void) | null = null;
   private disposed = false;
   private activating: Promise<void> | null = null;
+  private readonly handleOpenResourcesStorageEvent: (e: StorageEvent) => void;
 
   constructor() {
     const kbs = loadKnowledgeBases();
@@ -49,7 +70,7 @@ export class SemiontBrowser {
     this.kbs$ = new BehaviorSubject<KnowledgeBase[]>(kbs);
     this.activeKbId$ = new BehaviorSubject<string | null>(initialActive);
     this.activeSession$ = new BehaviorSubject<SemiontSession | null>(null);
-    this.openResources$ = new BehaviorSubject<OpenResource[]>([]);
+    this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources());
     this.error$ = new Subject<SemiontError>();
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
@@ -62,6 +83,27 @@ export class SemiontBrowser {
       if (id) localStorage.setItem(ACTIVE_KEY, id);
       else localStorage.removeItem(ACTIVE_KEY);
     });
+
+    // Persist openResources$ to localStorage on every change.
+    this.openResources$.subscribe((list) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(OPEN_RESOURCES_KEY, JSON.stringify(list));
+      }
+    });
+
+    // Sync openResources$ from other tabs via StorageEvent.
+    this.handleOpenResourcesStorageEvent = (e: StorageEvent): void => {
+      if (e.key === OPEN_RESOURCES_KEY && e.newValue) {
+        try {
+          this.openResources$.next(sortOpenResources(JSON.parse(e.newValue) as OpenResource[]));
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', this.handleOpenResourcesStorageEvent);
+    }
 
     // Route notify-module calls (from outside-React code paths like the
     // React Query QueryCache.onError handler) into the active session's
@@ -305,6 +347,10 @@ export class SemiontBrowser {
 
     this.unregisterNotify?.();
     this.unregisterNotify = null;
+
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', this.handleOpenResourcesStorageEvent);
+    }
 
     const prev = this.activeSession$.getValue();
     this.activeSession$.next(null);
