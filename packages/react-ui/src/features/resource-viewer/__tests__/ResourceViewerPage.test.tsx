@@ -16,6 +16,7 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
+import { BehaviorSubject } from 'rxjs';
 
 // jsdom doesn't implement window.matchMedia — mock it for useTheme
 Object.defineProperty(window, 'matchMedia', {
@@ -37,6 +38,33 @@ vi.mock('../../../hooks/useResourceContent', () => ({
   useResourceContent: () => ({ content: 'Test content', loading: false }),
 }));
 
+
+// Stub SemiontBrowser whose activeSession$ emits a session carrying a real
+// SemiontApiClient (wired to a dummy baseUrl). The real client surface lets
+// createResourceViewerPageVM run against the full namespace API without us
+// hand-stubbing every method it touches.
+const { stubBrowser } = vi.hoisted(() => {
+  const { BehaviorSubject } = require('rxjs');
+  const { SemiontApiClient } = require('@semiont/api-client');
+  const { EventBus, baseUrl } = require('@semiont/core');
+  const client = new SemiontApiClient({
+    baseUrl: baseUrl('http://localhost:4000'),
+    eventBus: new EventBus(),
+  });
+  const stubActiveSession$ = new BehaviorSubject({ client });
+  const stubBrowser = { activeSession$: stubActiveSession$ };
+  return { stubBrowser };
+});
+
+vi.mock('../../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(
+    '../../../session/SemiontProvider'
+  );
+  return {
+    ...actual,
+    useSemiont: () => stubBrowser,
+  };
+});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');

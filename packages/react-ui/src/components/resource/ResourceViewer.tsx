@@ -11,7 +11,8 @@ import { resourceId as toResourceId, annotationId as toAnnotationId } from '@sem
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
-import { useApiClient } from '../../contexts/ApiClientContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
@@ -120,7 +121,7 @@ export function ResourceViewer({
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
 
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
 
   const handleAnnotateAdded = useCallback(() => {
     semiont?.browse.invalidateAnnotationList(rUri);

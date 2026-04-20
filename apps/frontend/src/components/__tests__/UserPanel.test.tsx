@@ -18,17 +18,25 @@ vi.mock('@/i18n/routing', () => ({
   useRouter: () => ({ push: mockRouterPush }),
 }));
 
-// Mock react-ui (covers useKnowledgeBaseSession + the UI helpers UserPanel uses)
-const mockSignOut = vi.fn();
-const mockUseKbSession = vi.fn();
-const mockUseSessionExpiry = vi.fn();
-const mockFormatTime = vi.fn();
-const mockSanitizeImageURL = vi.fn();
-const mockLogout = vi.fn().mockResolvedValue(undefined);
-
-// Stable client reference: useApiClient is called per render. The real provider
-// holds one instance; the mock must do the same to keep useMemo deps stable.
-const stableMockClient = { logout: mockLogout };
+// Mock react-ui (covers useKnowledgeBaseSession + the UI helpers UserPanel uses).
+// Use vi.hoisted so the vi.mock factory below can reach the shared mock functions
+// even though vi.mock is hoisted above module-level declarations.
+const { mockSignOut, mockUseKbSession, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL, mockLogout, stableMockBrowser } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { BehaviorSubject } = require('rxjs');
+  const mockLogout = vi.fn().mockResolvedValue(undefined);
+  const stableMockClient = { logout: mockLogout };
+  const stableActiveSession$ = new BehaviorSubject({ client: stableMockClient });
+  return {
+    mockSignOut: vi.fn(),
+    mockUseKbSession: vi.fn(),
+    mockUseSessionExpiry: vi.fn(),
+    mockFormatTime: vi.fn(),
+    mockSanitizeImageURL: vi.fn(),
+    mockLogout,
+    stableMockBrowser: { activeSession$: stableActiveSession$ },
+  };
+});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
@@ -38,7 +46,7 @@ vi.mock('@semiont/react-ui', async () => {
     useSessionExpiry: () => mockUseSessionExpiry(),
     formatTime: (time: number) => mockFormatTime(time),
     sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),
-    useApiClient: () => stableMockClient,
+    useSemiont: () => stableMockBrowser,
   };
 });
 

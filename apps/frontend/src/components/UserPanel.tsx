@@ -4,7 +4,8 @@ import {
   sanitizeImageURL,
   useSessionExpiry,
   formatTime,
-  useApiClient,
+  useSemiont,
+  useObservable,
   useKnowledgeBaseSession,
   createSessionVM,
   useViewModel,
@@ -26,8 +27,8 @@ export function UserPanel() {
     activeKnowledgeBase,
     signOut,
   } = useKnowledgeBaseSession();
-  const apiClient = useApiClient();
-  const session = useViewModel(() => createSessionVM(apiClient));
+  const apiClient = useObservable(useSemiont().activeSession$)?.client;
+  const session = useViewModel(() => createSessionVM(apiClient!));
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();

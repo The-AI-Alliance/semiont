@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
 import { getResourceId, createSearchPipeline } from '@semiont/api-client';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
-import { useApiClient } from '../../contexts/ApiClientContext';
+import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import './SearchModal.css';
 
@@ -44,7 +44,12 @@ export function SearchModal({
   translations = {}
 }: SearchModalProps) {
   const { announceSearchResults, announceSearching } = useSearchAnnouncements();
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  // Pipeline factory captures `semiont` once via useState; if semiont is
+  // still loading at first render the captured value would be undefined.
+  // Route through a ref so the fetch closure reads the latest client.
+  const semiontRef = useRef(semiont);
+  semiontRef.current = semiont;
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const t = {
@@ -65,7 +70,7 @@ export function SearchModal({
   const [pipeline] = useState(() =>
     createSearchPipeline<SearchResult>(
       (q) =>
-        semiont.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
+        semiontRef.current!.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
           map((resources) => {
             if (resources === undefined) return undefined;
             return resources

@@ -7,7 +7,7 @@ import {
   useObservable,
   useLineNumbers,
   useEventSubscriptions,
-  useApiClient,
+  useSemiont,
   useViewModel,
   EntityTagsPage,
 } from '@semiont/react-ui';
@@ -17,10 +17,10 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 export default function EntityTagsPageWrapper() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateEntityTags.${k}`, p as any) as string;
-  const client = useApiClient();
+  const client = useObservable(useSemiont().activeSession$)?.client;
 
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createEntityTagsVM(client, browseVM));
+  const vm = useViewModel(() => createEntityTagsVM(client!, browseVM));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
   const entityTypes = useObservable(vm.entityTypes$) ?? [];

@@ -52,11 +52,14 @@ const TEST_KB = { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, prot
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  const { BehaviorSubject } = await vi.importActual<typeof import('rxjs')>('rxjs');
   // Minimal stub client — KnowledgeLayoutInner reads `client.actor.state$`
   // to drive the stream-status context. It doesn't care about the value.
   const stubClient = {
     actor: { state$: { subscribe: () => ({ unsubscribe: () => {} }) } },
   };
+  const stubActiveSession$ = new BehaviorSubject<any>({ client: stubClient });
+  const stubBrowser = { activeSession$: stubActiveSession$ };
   return {
     ...actual,
     useKnowledgeBaseSession: () => ({
@@ -76,9 +79,9 @@ vi.mock('@semiont/react-ui', async () => {
     ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     OpenResourcesProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    // Layouts mock `ApiClientProvider` to passthrough, so `useApiClient()`
-    // would fall through to an empty context. Stub it here.
-    useApiClient: () => stubClient,
+    // Layouts look up the SemiontBrowser via useSemiont; provide a stub that
+    // emits a session with the stub client from activeSession$.
+    useSemiont: () => stubBrowser,
     LeftSidebar: () => <div data-testid="left-sidebar" />,
     Footer: () => null,
     Toolbar: () => null,

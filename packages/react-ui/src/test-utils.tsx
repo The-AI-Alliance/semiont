@@ -8,6 +8,9 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
+import { SemiontApiClient } from '@semiont/api-client';
+import { EventBus, baseUrl } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
 import { AuthTokenProvider } from './contexts/AuthTokenContext';
@@ -17,10 +20,51 @@ import {
 } from './contexts/KnowledgeBaseSessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
 import { EventBusProvider, useEventBus } from './contexts/EventBusContext';
-import type { EventBus } from '@semiont/core';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import type { OpenResourcesManager } from './types/OpenResourcesManager';
+import type { SemiontBrowser } from './session/semiont-browser';
+import { SemiontProvider } from './session/SemiontProvider';
+
+/**
+ * Minimal fake SemiontBrowser for tests. Emits a fake session whose `client`
+ * is a fresh SemiontApiClient constructed off `apiBaseUrl` — matching the
+ * behavior the old `<ApiClientProvider>` wrapper provided. Tests that spy on
+ * client methods (e.g. `BindNamespace.prototype.body`) can therefore rely on
+ * the real-ish client surface.
+ */
+function createFakeBrowserForTests(apiBaseUrl: string): SemiontBrowser {
+  const client = new SemiontApiClient({
+    baseUrl: baseUrl(apiBaseUrl),
+    eventBus: new EventBus(),
+  });
+  const activeSession$ = new BehaviorSubject<{ client: any } | null>({ client });
+  const identityToken$ = new BehaviorSubject<null>(null);
+  const openResources$ = new BehaviorSubject<any[]>([]);
+  const kbs$ = new BehaviorSubject<any[]>([]);
+  const activeKbId$ = new BehaviorSubject<string | null>(null);
+  const error$ = new BehaviorSubject<never>(null as never);
+  return {
+    activeSession$,
+    identityToken$,
+    openResources$,
+    kbs$,
+    activeKbId$,
+    error$,
+    addKb: vi.fn(),
+    removeKb: vi.fn(),
+    updateKb: vi.fn(),
+    setActiveKb: vi.fn(async () => {}),
+    signIn: vi.fn(async () => {}),
+    signOut: vi.fn(async () => {}),
+    setIdentityToken: vi.fn(),
+    addOpenResource: vi.fn(),
+    removeOpenResource: vi.fn(),
+    updateOpenResourceName: vi.fn(),
+    reorderOpenResources: vi.fn(),
+    dispose: vi.fn(async () => {}),
+  } as unknown as SemiontBrowser;
+}
 
 /**
  * Default mock context value for KnowledgeBaseSessionProvider in tests.
@@ -142,28 +186,32 @@ export function renderWithProviders(
 
   let capturedEventBus: EventBus | undefined;
 
+  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
+
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <EventBusProvider>
-          <AuthTokenProvider token={null}>
-            <ApiClientProvider baseUrl={apiBaseUrl}>
-              <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
-                <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-                  <ToastProvider>
-                    {returnEventBus ? (
-                      <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
-                        {children}
-                      </EventBusCapture>
-                    ) : (
-                      children
-                    )}
-                  </ToastProvider>
-                </OpenResourcesProvider>
-              </KnowledgeBaseSessionContext.Provider>
-            </ApiClientProvider>
-          </AuthTokenProvider>
-        </EventBusProvider>
+        <SemiontProvider browser={fakeBrowser}>
+          <EventBusProvider>
+            <AuthTokenProvider token={null}>
+              <ApiClientProvider baseUrl={apiBaseUrl}>
+                <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
+                  <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+                    <ToastProvider>
+                      {returnEventBus ? (
+                        <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
+                          {children}
+                        </EventBusCapture>
+                      ) : (
+                        children
+                      )}
+                    </ToastProvider>
+                  </OpenResourcesProvider>
+                </KnowledgeBaseSessionContext.Provider>
+              </ApiClientProvider>
+            </AuthTokenProvider>
+          </EventBusProvider>
+        </SemiontProvider>
       </TranslationProvider>
     );
   }

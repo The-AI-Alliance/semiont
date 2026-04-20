@@ -9,7 +9,7 @@ import {
   ApiClientProvider,
   AuthTokenProvider,
   Toolbar,
-  useApiClient,
+  useSemiont,
   useBrowseVM,
   useObservable,
   useTheme,
@@ -116,13 +116,14 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
  * reconnecting banner, tests) see the full six-state machine rather
  * than a collapsed boolean or tri-state summary.
  *
- * Mounts inside `ApiClientProvider` so `useApiClient()` resolves.
+ * Mounts inside `SemiontProvider` so `useSemiont()` resolves.
  */
 function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
-  const client = useApiClient();
+  const client = useObservable(useSemiont().activeSession$)?.client;
   const [state, setState] = useState<ConnectionState>('initial');
 
   useEffect(() => {
+    if (!client) return;
     const sub = client.actor.state$.subscribe((next) => setState(next));
     return () => sub.unsubscribe();
   }, [client]);

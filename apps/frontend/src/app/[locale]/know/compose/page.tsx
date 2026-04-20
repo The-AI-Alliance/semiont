@@ -6,7 +6,7 @@ import { useLocale } from '@/i18n/routing';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'react-router-dom';
 import {
-  useApiClient,
+  useSemiont,
   useKnowledgeBaseSession,
   useToast,
   useTheme,
@@ -33,7 +33,7 @@ function ComposeResourceContent() {
   const [searchParams] = useSearchParams();
   const { isAuthenticated, isLoading: authLoading, token: authToken } = useKnowledgeBaseSession();
   const { showError, showSuccess } = useToast();
-  const client = useApiClient();
+  const client = useObservable(useSemiont().activeSession$)?.client;
 
   useEffect(() => {
     if (authLoading) return;
@@ -52,7 +52,7 @@ function ComposeResourceContent() {
     sessionStorage.removeItem(contextKey);
   }
 
-  const vm = useViewModel(() => createComposePageVM(client, browseVM, {
+  const vm = useViewModel(() => createComposePageVM(client!, browseVM, {
     mode: searchParams?.get('mode') ?? undefined,
     token: searchParams?.get('token') ?? undefined,
     annotationUri: searchParams?.get('annotationUri') ?? undefined,

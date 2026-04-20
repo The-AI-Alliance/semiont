@@ -31,16 +31,21 @@ vi.mock('../../../contexts/TranslationContext', () => ({
 const eventsSubject = new BehaviorSubject<any[] | undefined>(undefined);
 const annotationsSubject = new BehaviorSubject<any[] | undefined>(undefined);
 
-vi.mock('../../../contexts/ApiClientContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../contexts/ApiClientContext')>();
+const stableMockClient = {
+  browse: {
+    events: () => eventsSubject.asObservable(),
+    annotations: () => annotationsSubject.asObservable(),
+  },
+};
+const stableMockSession = { client: stableMockClient };
+const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
+const stableMockBrowser = { activeSession$: stableActiveSession$ };
+
+vi.mock('../../../session/SemiontProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../session/SemiontProvider')>();
   return {
     ...actual,
-    useApiClient: () => ({
-      browse: {
-        events: () => eventsSubject.asObservable(),
-        annotations: () => annotationsSubject.asObservable(),
-      },
-    }),
+    useSemiont: () => stableMockBrowser,
   };
 });
 

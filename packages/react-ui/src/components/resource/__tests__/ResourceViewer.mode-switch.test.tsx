@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { BehaviorSubject } from 'rxjs';
 import { ResourceViewer } from '../ResourceViewer';
 import { EventBusProvider } from '../../../contexts/EventBusContext';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
@@ -26,6 +27,26 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
 vi.mock('../../../hooks/useObservableBrowse', () => ({
   useObservableExternalNavigation: () => vi.fn(),
 }));
+
+// ResourceViewer (and ResourceAnnotationsContext) now resolve the client via
+// useSemiont(). Mock useSemiont to emit a minimal session carrying a stub
+// client with the methods the subject component touches.
+const stubClient = {
+  browse: { invalidateAnnotationList: vi.fn() },
+  markAnnotation: vi.fn(),
+};
+const stubActiveSession$ = new BehaviorSubject<any>({ client: stubClient });
+const stubBrowser = { activeSession$: stubActiveSession$ };
+
+vi.mock('../../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(
+    '../../../session/SemiontProvider'
+  );
+  return {
+    ...actual,
+    useSemiont: () => stubBrowser,
+  };
+});
 
 const mockResource: SemiontResource & { content: string } = {
   '@context': 'https://www.w3.org/ns/activitystreams',

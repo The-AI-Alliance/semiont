@@ -10,7 +10,7 @@
 import { useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLocale } from '@/i18n/routing';
-import { useApiClient, useObservable, useViewModel, createResourceLoaderVM } from '@semiont/react-ui';
+import { useSemiont, useObservable, useViewModel, createResourceLoaderVM } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 import { useStreamStatus } from '@/contexts/StreamStatusContext';
@@ -41,7 +41,7 @@ function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId
   const streamStatus = useStreamStatus();
   const { activeKnowledgeBase } = useKnowledgeBaseSession();
 
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const loader = useViewModel(() => createResourceLoaderVM(semiont!, rId));
   const resourceData = useObservable(loader.resource$);
   const isLoading = useObservable(loader.isLoading$) ?? true;

@@ -7,7 +7,7 @@
 
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Toolbar, useApiClient } from '@semiont/react-ui';
+import { Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
@@ -19,7 +19,7 @@ export default function AdminSecurity() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminSecurity.${k}`, p as any) as string;
 
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const browseVM = useBrowseVM();
   const vm = useViewModel(() => createAdminSecurityVM(semiont!, browseVM));
 

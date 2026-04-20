@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ResourceId } from '@semiont/core';
 import { accessToken } from '@semiont/core';
-import { useApiClient } from '../contexts/ApiClientContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from './useObservable';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 
 export interface UseMediaTokenResult {
@@ -10,7 +11,7 @@ export interface UseMediaTokenResult {
 }
 
 export function useMediaToken(id: ResourceId): UseMediaTokenResult {
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const authToken = useAuthToken();
   const [token, setToken] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);

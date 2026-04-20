@@ -32,7 +32,7 @@ import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
-import { useApiClient } from '../../../contexts/ApiClientContext';
+import { useSemiont } from '../../../session/SemiontProvider';
 import { useAuthToken } from '../../../contexts/AuthTokenContext';
 import { createResourceViewerPageVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
@@ -135,7 +135,7 @@ export function ResourceViewerPage({
 
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
 
   // UI state hooks
   const { showError, showSuccess, showInfo } = useToast();
@@ -163,7 +163,7 @@ export function ResourceViewerPage({
 
   // Composite VM — owns all flow VMs, wizard state, annotations, entity types
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createResourceViewerPageVM(semiont, eventBus, rUri, locale, browseVM));
+  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, eventBus, rUri, locale, browseVM));
 
   const annotations = useObservable(vm.annotations$) ?? [];
   const groups = useObservable(vm.annotationGroups$);
@@ -208,6 +208,7 @@ export function ResourceViewerPage({
   }, [vm, clearNewAnnotationId]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
+    if (!semiont) return;
     try {
       await semiont.bind.body(
         rUri,

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import type { ResourceId } from '@semiont/core';
 import { getPrimaryMediaType, decodeWithCharset } from '@semiont/api-client';
 import { useToast } from '../components/Toast';
-import { useApiClient } from '../contexts/ApiClientContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from './useObservable';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { accessToken } from '@semiont/core';
 import type { components } from '@semiont/core';
@@ -20,7 +21,7 @@ export function useResourceContent(
   enabled = true
 ): UseResourceContentResult {
   const { showError } = useToast();
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const token = useAuthToken();
   const mediaType = enabled ? (getPrimaryMediaType(resource) || 'text/plain') : '';
 

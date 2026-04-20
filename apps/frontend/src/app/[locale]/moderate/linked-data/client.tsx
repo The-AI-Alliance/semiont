@@ -7,7 +7,7 @@ import {
   useObservable,
   useLineNumbers,
   useEventSubscriptions,
-  useApiClient,
+  useSemiont,
   useAuthToken,
   useViewModel,
   LinkedDataPage,
@@ -19,14 +19,14 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 export default function LinkedDataClient() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerationLinkedData.${k}`, p as any) as string;
-  const client = useApiClient();
+  const client = useObservable(useSemiont().activeSession$)?.client;
   const token = useAuthToken();
 
   const browseVM = useBrowseVM();
   const vm = useViewModel(() => createExchangeVM(
     browseVM,
-    (params, opts) => client.exportKnowledgeBase(params, opts),
-    (file, opts) => client.importKnowledgeBase(file, opts),
+    (params, opts) => client!.exportKnowledgeBase(params, opts),
+    (file, opts) => client!.importKnowledgeBase(file, opts),
   ));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;

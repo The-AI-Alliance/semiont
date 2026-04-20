@@ -31,20 +31,30 @@ const ACTIVE_KB = {
   email: 'admin@example.com',
 };
 
-const mockSignOut = vi.fn();
-const mockUseKbSession = vi.fn();
-const mockGetMe = vi.fn();
-const mockAcceptTerms = vi.fn();
+// vi.hoisted runs before anything else so the vi.mock factory below can
+// reference these mocks (vi.mock itself is hoisted to the top of the file).
+const { mockSignOut, mockUseKbSession, mockGetMe, mockAcceptTerms, stableMockBrowser } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { BehaviorSubject } = require('rxjs');
+  const mockGetMe = vi.fn();
+  const mockAcceptTerms = vi.fn();
+  const stableMockClient = { getMe: mockGetMe, acceptTerms: mockAcceptTerms };
+  const stableActiveSession$ = new BehaviorSubject({ client: stableMockClient });
+  return {
+    mockSignOut: vi.fn(),
+    mockUseKbSession: vi.fn(),
+    mockGetMe,
+    mockAcceptTerms,
+    stableMockBrowser: { activeSession$: stableActiveSession$ },
+  };
+});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
     useKnowledgeBaseSession: () => mockUseKbSession(),
-    useApiClient: () => ({
-      getMe: mockGetMe,
-      acceptTerms: mockAcceptTerms,
-    }),
+    useSemiont: () => stableMockBrowser,
     useAuthToken: () => 'test-token',
     useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
     PageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,

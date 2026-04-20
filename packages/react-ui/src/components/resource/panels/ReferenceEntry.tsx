@@ -9,7 +9,8 @@ import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelec
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import { useApiClient } from '../../../contexts/ApiClientContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
@@ -42,7 +43,7 @@ export function ReferenceEntry({
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const navigate = useObservableExternalNavigation();
   const hoverProps = useHoverEmitter(reference.id);
 
@@ -75,7 +76,7 @@ export function ReferenceEntry({
     : '';
 
   const handleUnlink = () => {
-    if (source && resolvedResourceUri) {
+    if (source && resolvedResourceUri && semiont) {
       semiont.bind.body(
         resourceId(source),
         annotationId(reference.id),

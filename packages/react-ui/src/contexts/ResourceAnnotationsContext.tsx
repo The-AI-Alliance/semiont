@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { useApiClient } from './ApiClientContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 import { useAuthToken } from './AuthTokenContext';
 import { accessToken } from '@semiont/core';
 import type { components, AnnotationId, ResourceId, Selector } from '@semiont/core';
@@ -42,7 +43,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // Live region announcements
   const { announce } = useLiveRegion();
 
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const token = useAuthToken();
 
   const markAnnotation = useCallback(async (

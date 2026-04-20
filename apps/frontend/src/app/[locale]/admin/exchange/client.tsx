@@ -7,7 +7,7 @@ import {
   useObservable,
   useLineNumbers,
   useEventSubscriptions,
-  useApiClient,
+  useSemiont,
   useAuthToken,
   useViewModel,
   AdminExchangePage,
@@ -19,14 +19,14 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 export default function AdminExchangeClient() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminExchange.${k}`, p as any) as string;
-  const client = useApiClient();
+  const client = useObservable(useSemiont().activeSession$)?.client;
   const token = useAuthToken();
 
   const browseVM = useBrowseVM();
   const vm = useViewModel(() => createExchangeVM(
     browseVM,
-    (_params, opts) => client.backupKnowledgeBase(opts),
-    (file, opts) => client.restoreKnowledgeBase(file, opts),
+    (_params, opts) => client!.backupKnowledgeBase(opts),
+    (file, opts) => client!.restoreKnowledgeBase(file, opts),
   ));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;

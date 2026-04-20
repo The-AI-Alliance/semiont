@@ -18,6 +18,7 @@ import {
   useApiClient,
   useEventBus,
   EventBusProvider,
+  SemiontProvider,
 } from '@semiont/react-ui';
 
 // Mock routing
@@ -38,6 +39,16 @@ vi.mock('@/lib/routing', () => ({
 // passthrough versions of the heavy contexts/hooks the layouts touch.
 const TEST_KB = { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'admin@example.com' };
 
+const { stubBrowser } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { BehaviorSubject } = require('rxjs');
+  const stubClient = {
+    actor: { state$: { subscribe: () => ({ unsubscribe: () => {} }) } },
+  };
+  const stubActiveSession$ = new BehaviorSubject({ client: stubClient });
+  return { stubBrowser: { activeSession$: stubActiveSession$ } };
+});
+
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
@@ -55,6 +66,9 @@ vi.mock('@semiont/react-ui', async () => {
     }),
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     getKbSessionStatus: () => 'authenticated',
+    // Layouts now resolve the client via useSemiont; provide a stub that
+    // emits a session with a minimal client.
+    useSemiont: () => stubBrowser,
   };
 });
 
@@ -96,6 +110,12 @@ vi.mock('@/contexts/AuthShell', () => ({
 }));
 
 
+// Wrap the rendered tree in a SemiontProvider whose browser is the hoisted
+// stub, so layouts that touch useSemiont internally don't throw.
+function renderWithSemiont(ui: React.ReactElement): ReturnType<typeof render> {
+  return render(<SemiontProvider browser={stubBrowser as any}>{ui}</SemiontProvider>);
+}
+
 describe('Layout Providers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -110,7 +130,7 @@ describe('Layout Providers', () => {
         return <div>Token: {token || 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -132,7 +152,7 @@ describe('Layout Providers', () => {
         return <div>Client: {semiont ? 'present' : 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -163,7 +183,7 @@ describe('Layout Providers', () => {
         );
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -190,7 +210,7 @@ describe('Layout Providers', () => {
         return <div>Token: {token || 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -212,7 +232,7 @@ describe('Layout Providers', () => {
         return <div>Client: {semiont ? 'present' : 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -234,7 +254,7 @@ describe('Layout Providers', () => {
         return <div>EventBus: {eventBus ? 'present' : 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -259,7 +279,7 @@ describe('Layout Providers', () => {
         return <div>Token: {token || 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -282,7 +302,7 @@ describe('Layout Providers', () => {
         return <div>Client: {semiont ? 'present' : 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -305,7 +325,7 @@ describe('Layout Providers', () => {
         return <div>EventBus: {eventBus ? 'present' : 'null'}</div>;
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>
@@ -332,7 +352,7 @@ describe('Layout Providers', () => {
         );
       };
 
-      render(
+      renderWithSemiont(
         <EventBusProvider>
           <MemoryRouter initialEntries={['/en/test']}>
             <Routes>

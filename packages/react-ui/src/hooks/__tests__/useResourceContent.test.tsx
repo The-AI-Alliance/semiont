@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { BehaviorSubject } from 'rxjs';
 import '@testing-library/jest-dom';
 import { useResourceContent } from '../useResourceContent';
 
 const mockShowError = vi.fn();
 const mockGetResourceRepresentation = vi.fn();
+const stableMockClient = {
+  get getResourceRepresentation() { return mockGetResourceRepresentation; },
+};
+const stableMockSession = { client: stableMockClient };
+const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
+const stableMockBrowser = { activeSession$: stableActiveSession$ };
 
 vi.mock('../../components/Toast', () => ({
   useToast: () => ({ showError: mockShowError }),
@@ -16,13 +23,11 @@ vi.mock('@semiont/api-client', () => ({
   decodeWithCharset: vi.fn((data: string) => data),
 }));
 
-vi.mock('../../contexts/ApiClientContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/ApiClientContext')>('../../contexts/ApiClientContext');
+vi.mock('../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../session/SemiontProvider')>('../../session/SemiontProvider');
   return {
     ...actual,
-    useApiClient: () => ({
-      getResourceRepresentation: mockGetResourceRepresentation,
-    }),
+    useSemiont: () => stableMockBrowser,
   };
 });
 

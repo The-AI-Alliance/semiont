@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useApiClient } from '../contexts/ApiClientContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import { accessToken } from '@semiont/core';
 import './StatusDisplay.css';
@@ -22,7 +23,7 @@ export function StatusDisplay({
   isAuthenticated = false,
   hasValidBackendToken = false
 }: StatusDisplayProps) {
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const token = useAuthToken();
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);

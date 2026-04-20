@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
-import { useApiClient } from '../../contexts/ApiClientContext';
+import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import type { ResourceId } from '@semiont/core';
 import { getAnnotationUriFromEvent, type StoredEventLike } from '@semiont/core';
@@ -20,10 +20,10 @@ interface Props {
 
 export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onEventClick, Link, routes }: Props) {
   const t = useTranslations('AnnotationHistory');
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
 
-  const eventsData = useObservable(semiont!.browse.events(rUri));
-  const annotationsData = useObservable(semiont!.browse.annotations(rUri));
+  const eventsData = useObservable(semiont?.browse.events(rUri));
+  const annotationsData = useObservable(semiont?.browse.annotations(rUri));
   const loading = eventsData === undefined;
   const error = false;
   const annotations = annotationsData ?? [];

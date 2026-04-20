@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useKnowledgeBaseSession, useApiClient, useObservable } from '@semiont/react-ui';
+import { PageLayout, useToast, useKnowledgeBaseSession, useSemiont, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
 import { createWelcomeVM } from '@semiont/react-ui';
 import { useViewModel } from '@semiont/react-ui';
@@ -22,7 +22,7 @@ export default function Welcome() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
 
-  const semiont = useApiClient();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const vm = useViewModel(() => createWelcomeVM(semiont!));
 
   const userData = useObservable(vm.userData$);

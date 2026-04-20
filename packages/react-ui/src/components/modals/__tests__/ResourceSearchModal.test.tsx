@@ -16,21 +16,23 @@ vi.mock('@headlessui/react', () => ({
 }));
 
 // Mock the api-client Observable surface.
-// Note: useApiClient is called on every render. The real ApiClientProvider
-// holds a single instance — the mock must do the same, otherwise useMemo deps
-// invalidate on every render and RxJS pipelines restart from their initial
-// value on each keystroke.
+// The session-based useSemiont path: useObservable(useSemiont().activeSession$)?.client
+// We mock useSemiont to return a stable browser whose activeSession$ emits a
+// session-shaped object that carries the mock client.
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
 const browseResourcesMock = vi.fn(() => browseResourcesSubject.asObservable());
 const stableMockClient = { browse: { resources: browseResourcesMock } };
+const stableMockSession = { client: stableMockClient };
+const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
+const stableMockBrowser = { activeSession$: stableActiveSession$ };
 
-vi.mock('../../../contexts/ApiClientContext', async () => {
-  const actual = await vi.importActual<typeof import('../../../contexts/ApiClientContext')>(
-    '../../../contexts/ApiClientContext'
+vi.mock('../../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(
+    '../../../session/SemiontProvider'
   );
   return {
     ...actual,
-    useApiClient: () => stableMockClient,
+    useSemiont: () => stableMockBrowser,
   };
 });
 
