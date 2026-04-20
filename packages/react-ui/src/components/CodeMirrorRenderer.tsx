@@ -7,7 +7,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from '../lib/codemirror-widgets';
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
 import { isReference, createHoverHandlers } from '@semiont/api-client';
-import type { EventBus } from "@semiont/core";
+import type { SemiontSession } from '../session/semiont-session';
 import {
   convertSegmentPositions,
   computeAnnotationDecorations,
@@ -42,7 +42,7 @@ interface Props {
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
   showLineNumbers?: boolean; // If true, show line numbers
   enableWidgets?: boolean; // If true, show inline widgets (reference previews, entity badges)
-  eventBus?: EventBus;
+  session?: SemiontSession | null | undefined;
   getTargetResourceName?: (resourceId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
   hoverDelayMs: number; // Hover delay in milliseconds for accessibility
@@ -178,7 +178,7 @@ export function CodeMirrorRenderer({
   sourceView = false,
   showLineNumbers = false,
   enableWidgets = false,
-  eventBus,
+  session,
   getTargetResourceName,
   generatingReferenceId,
   hoverDelayMs
@@ -195,7 +195,7 @@ export function CodeMirrorRenderer({
   // Index segments by annotation ID for O(1) click lookups
   const segmentsByIdRef = useRef(new Map<string, TextSegment>());
   const lineNumbersCompartment = useRef(new Compartment());
-  const eventBusRef = useRef(eventBus);
+  const sessionRef = useRef(session);
   const getTargetResourceNameRef = useRef(getTargetResourceName);
 
   // Update refs when they change
@@ -205,7 +205,7 @@ export function CodeMirrorRenderer({
     if (s.annotation) segmentsById.set(s.annotation.id, s);
   }
   segmentsByIdRef.current = segmentsById;
-  eventBusRef.current = eventBus;
+  sessionRef.current = session;
   getTargetResourceNameRef.current = getTargetResourceName;
 
   // Initialize CodeMirror view once
@@ -237,7 +237,7 @@ export function CodeMirrorRenderer({
         EditorView.domEventHandlers({
           click: (event, _view) => {
             const target = event.target as HTMLElement;
-            if (eventBusRef.current && handleAnnotationClick(target, segmentsByIdRef.current, eventBusRef.current)) {
+            if (sessionRef.current && handleAnnotationClick(target, segmentsByIdRef.current, sessionRef.current)) {
               event.preventDefault();
               return true;
             }
@@ -302,7 +302,7 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBusRef.current?.get('beckon:hover').next({ annotationId }),
+      (annotationId) => sessionRef.current?.emit('beckon:hover', { annotationId }),
       hoverDelayMs
     );
 
@@ -328,8 +328,8 @@ export function CodeMirrorRenderer({
       e.preventDefault();
       e.stopPropagation();
 
-      if (eventBusRef.current) {
-        dispatchWidgetClick(result, eventBusRef.current);
+      if (sessionRef.current) {
+        dispatchWidgetClick(result, sessionRef.current);
       }
     };
 

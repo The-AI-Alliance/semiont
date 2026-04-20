@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
@@ -53,7 +54,7 @@ export function HighlightPanel({
 }: HighlightPanelProps) {
 
   const t = useTranslations('HighlightPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -132,13 +133,13 @@ export function HighlightPanel({
   // immediately emit mark:submit event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      eventBus.get('mark:submit').next({
+      session?.emit('mark:submit', {
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
         body: [],
       });
     }
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   return (
     <div className="semiont-panel">

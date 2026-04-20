@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { AnnotateReferencesProgressWidget } from '../../AnnotateReferencesProgressWidget';
@@ -85,7 +86,7 @@ export function ReferencesPanel({
   hoveredAnnotationId,
 }: Props) {
   const t = useTranslations('ReferencesPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
@@ -201,7 +202,7 @@ export function ReferencesPanel({
   // Clear log when starting new annotation
   const handleAssist = () => {
     setLastDetectionLog(null);
-    eventBus.get('mark:assist-request').next({
+    session?.emit('mark:assist-request', {
       motivation: 'linking',
       options: {
         entityTypes: selectedEntityTypes,
@@ -244,7 +245,7 @@ export function ReferencesPanel({
   const handleCreateReference = () => {
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
-      eventBus.get('mark:submit').next({
+      session?.emit('mark:submit', {
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
@@ -259,14 +260,14 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.emit('mark:cancel-pending', undefined);
         setPendingEntityTypes([]);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   return (
     <div className="semiont-panel">
@@ -311,7 +312,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('mark:cancel-pending').next(undefined);
+                  session?.emit('mark:cancel-pending', undefined);
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"

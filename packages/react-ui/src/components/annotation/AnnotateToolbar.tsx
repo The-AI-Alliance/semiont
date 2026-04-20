@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
-import { useEventBus } from '../../contexts/EventBusContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { getSupportedShapes } from '../../lib/media-shapes';
 import type { Annotator } from '../../lib/annotation-registry';
 import './annotations.css';
@@ -119,7 +120,7 @@ export function AnnotateToolbar({
   annotators
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   // Helper to get emoji from annotators by motivation (with fallback for safety)
   const getMotivationEmoji = (motivation: SelectionMotivation): string => {
@@ -188,9 +189,9 @@ export function AnnotateToolbar({
   const handleSelectionClick = (motivation: SelectionMotivation | null) => {
     // If null is clicked, always deselect. Otherwise toggle.
     if (motivation === null) {
-      eventBus.get('mark:selection-changed').next({ motivation: null });
+      session?.emit('mark:selection-changed', { motivation: null });
     } else {
-      eventBus.get('mark:selection-changed').next({
+      session?.emit('mark:selection-changed', {
         motivation: selectedMotivation === motivation ? null : motivation
       });
     }
@@ -200,21 +201,21 @@ export function AnnotateToolbar({
   };
 
   const handleClickClick = (action: ClickAction) => {
-    eventBus.get('mark:click-changed').next({ action });
+    session?.emit('mark:click-changed', { action });
     // Close dropdown after selection
     setClickPinned(false);
     setClickHovered(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
-    eventBus.get('mark:shape-changed').next({ shape });
+    session?.emit('mark:shape-changed', { shape });
     // Close dropdown after selection
     setShapePinned(false);
     setShapeHovered(false);
   };
 
   const handleModeToggle = () => {
-    eventBus.get('mark:mode-toggled').next(undefined);
+    session?.emit('mark:mode-toggled', undefined);
     setModePinned(false);
     setModeHovered(false);
   };

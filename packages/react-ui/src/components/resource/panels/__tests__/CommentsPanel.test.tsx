@@ -5,8 +5,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentsPanel } from '../CommentsPanel';
-import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
-import type { components } from '@semiont/core';
+import type { components, EventBus } from '@semiont/core';
+import { createTestSemiontWrapper } from '../../../../test-utils';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -18,59 +18,27 @@ interface TrackedEvent {
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<() => void> = [];
-
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
-      const panelEvents = ['mark:submit'] as const;
-
-      panelEvents.forEach(eventName => {
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
-      });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
   return {
-    EventTrackingWrapper,
     events,
-    clear: () => {
-      events.length = 0;
+    clear: () => { events.length = 0; },
+    _attach(eventBus: EventBus) {
+      const panelEvents = ['mark:submit'] as const;
+      panelEvents.forEach((eventName) => {
+        eventBus.get(eventName).subscribe((payload: any) => {
+          events.push({ event: eventName, payload });
+        });
+      });
     },
   };
 }
 
-// Helper to render with EventBusProvider
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  if (tracker) {
-    return render(
-      <EventBusProvider>
-        <tracker.EventTrackingWrapper>
-          {component}
-        </tracker.EventTrackingWrapper>
-      </EventBusProvider>
-    );
-  }
-
-  return render(
-    <EventBusProvider>
-      {component}
-    </EventBusProvider>
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
 // Mock TranslationContext
@@ -270,9 +238,7 @@ describe('CommentsPanel Component', () => {
       ];
 
       rerender(
-        <EventBusProvider>
-          <CommentsPanel {...defaultProps} annotations={updatedComments} />
-        </EventBusProvider>
+        <CommentsPanel {...defaultProps} annotations={updatedComments} />
       );
 
       const comments = screen.getAllByTestId(/comment-/);
@@ -600,9 +566,7 @@ describe('CommentsPanel Component', () => {
           createMockComment(`${j + 1}`, j * 10, (j + 1) * 10)
         );
         rerender(
-          <EventBusProvider>
-            <CommentsPanel {...defaultProps} annotations={comments} />
-          </EventBusProvider>
+          <CommentsPanel {...defaultProps} annotations={comments} />
         );
       }
 
@@ -617,9 +581,7 @@ describe('CommentsPanel Component', () => {
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(3);
 
       rerender(
-        <EventBusProvider>
-          <CommentsPanel {...defaultProps} annotations={mockComments.single} />
-        </EventBusProvider>
+        <CommentsPanel {...defaultProps} annotations={mockComments.single} />
       );
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(1);

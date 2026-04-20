@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import type { EventBus } from '@semiont/core';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
-import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
+import { createTestSemiontWrapper } from '../../../../test-utils';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -61,64 +62,31 @@ interface TrackedEvent {
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<() => void> = [];
-
-      // Track resource-related events
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
+  return {
+    events,
+    clear: () => { events.length = 0; },
+    _attach(eventBus: EventBus) {
       const resourceEvents = [
         'yield:clone',
         'mark:archive',
         'mark:unarchive',
       ] as const;
-
-      resourceEvents.forEach(eventName => {
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
+      resourceEvents.forEach((eventName) => {
+        eventBus.get(eventName).subscribe((payload: any) => {
+          events.push({ event: eventName, payload });
+        });
       });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
-  return {
-    EventTrackingWrapper,
-    events,
-    clear: () => {
-      events.length = 0;
     },
   };
 }
 
-// Helper to render with EventBusProvider
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  if (tracker) {
-    return render(
-      <EventBusProvider>
-        <tracker.EventTrackingWrapper>
-          {component}
-        </tracker.EventTrackingWrapper>
-      </EventBusProvider>
-    );
-  }
-
-  return render(
-    <EventBusProvider>
-      {component}
-    </EventBusProvider>
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
 describe('ResourceInfoPanel Component', () => {

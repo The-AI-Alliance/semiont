@@ -16,6 +16,7 @@ import {
   baseUrl,
   EventBus,
   type AccessToken,
+  type EventMap,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { KnowledgeBase } from '../types/knowledge-base';
@@ -229,6 +230,30 @@ export class SemiontSession {
     } catch {
       // Malformed payload — ignore.
     }
+  }
+
+  /**
+   * Emit an event onto the session's internal bus. The ONE gated entry
+   * for every component emission (D7). Kept here rather than on
+   * `client.eventBus` (which is not exposed publicly) so the session
+   * can log, validate, scope-guard, or add metrics in one place.
+   */
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
+    if (this.disposed) return;
+    (this.eventBus.get(channel) as unknown as { next(v: EventMap[K]): void }).next(payload);
+  }
+
+  /**
+   * Subscribe to an event on the session's internal bus. Returns an
+   * unsubscribe callback. Paired with `useEventSubscription` on the
+   * React side — direct callers are the session's internals and tests.
+   */
+  on<K extends keyof EventMap>(
+    channel: K,
+    handler: (payload: EventMap[K]) => void,
+  ): () => void {
+    const sub = (this.eventBus.get(channel) as unknown as { subscribe(h: (v: EventMap[K]) => void): { unsubscribe(): void } }).subscribe(handler);
+    return () => sub.unsubscribe();
   }
 
   notifySessionExpired(message: string | null): void {

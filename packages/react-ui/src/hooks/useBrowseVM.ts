@@ -1,7 +1,8 @@
 'use client';
 
 import { createBrowseVM, type BrowseVM, type ToolbarPanelType } from '@semiont/api-client';
-import { useEventBus } from '../contexts/EventBusContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from './useObservable';
 import { useViewModel } from './useViewModel';
 
 function readPanel(): ToolbarPanelType | null {
@@ -17,8 +18,8 @@ function persistPanel(panel: ToolbarPanelType | null): void {
 }
 
 export function useBrowseVM(): BrowseVM {
-  const eventBus = useEventBus();
-  return useViewModel(() => createBrowseVM(eventBus, {
+  const eventBus = useObservable(useSemiont().activeSession$)?.client.eventBus;
+  return useViewModel(() => createBrowseVM(eventBus!, {
     initialPanel: readPanel(),
     onPanelChange: persistPanel,
   }));

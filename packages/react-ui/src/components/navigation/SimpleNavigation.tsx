@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useEventBus } from '../../contexts/EventBusContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 
 export interface SimpleNavigationItem {
   name: string;
@@ -47,7 +48,7 @@ export function SimpleNavigation({
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
   const closeDropdown = () => setIsDropdownOpen(false);
@@ -86,7 +87,7 @@ export function SimpleNavigation({
             !isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>
           )}
           <button
-            onClick={() => eventBus.get('browse:sidebar-toggle').next(undefined)}
+            onClick={() => session?.emit('browse:sidebar-toggle', undefined)}
             className="semiont-nav-section__header-icon"
             title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
             aria-label={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useRef, useEffect } from 'react';
-import { useEventBus } from '../../contexts/EventBusContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 
 /**
  * Props for ObservableLink component
@@ -60,7 +61,7 @@ export function ObservableLink({
   children,
   ...anchorProps
 }: ObservableLinkProps) {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   // Store callback in ref to avoid including in dependency arrays
   const onClickRef = useRef(onClick);
@@ -70,14 +71,14 @@ export function ObservableLink({
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability
-    eventBus.get('browse:link-clicked').next({
+    session?.emit('browse:link-clicked', {
       href,
       label
     });
 
     // Call original onClick if provided
     onClickRef.current?.(e);
-  }, [href, label]); // eventBus is global singleton - never in deps
+  }, [href, label, session]);
 
   return (
     <a

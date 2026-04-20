@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import type { components } from '@semiont/core';
 import { createHoverHandlers, getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
-import type { EventBus } from "@semiont/core"
+import type { SemiontSession } from '../../session/semiont-session';
 import {
   canvasToPdfCoordinates,
   pdfToCanvasCoordinates,
@@ -51,7 +51,7 @@ interface PdfAnnotationCanvasProps {
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  eventBus?: EventBus;
+  session?: SemiontSession | null | undefined;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
   hoverDelayMs?: number;
@@ -69,7 +69,7 @@ export function PdfAnnotationCanvas({
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
-  eventBus,
+  session,
   hoveredAnnotationId,
   selectedAnnotationId,
   hoverDelayMs = 150
@@ -234,7 +234,7 @@ export function PdfAnnotationCanvas({
   }, [isDrawing, selection]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !eventBus) {
+    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !session) {
       setIsDrawing(false);
       setSelection(null);
       return;
@@ -279,7 +279,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('browse:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          session?.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -318,7 +318,7 @@ export function PdfAnnotationCanvas({
 
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
-      eventBus.get('mark:requested').next({
+      session.emit('mark:requested', {
         selector: {
           type: 'FragmentSelector',
           conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
@@ -356,8 +356,8 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => eventBus?.get('beckon:hover').next({ annotationId }), hoverDelayMs),
-    [eventBus, hoverDelayMs]
+    () => createHoverHandlers((annotationId) => session?.emit('beckon:hover', { annotationId }), hoverDelayMs),
+    [session, hoverDelayMs]
   );
 
   // Calculate motivation color
@@ -456,7 +456,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => eventBus?.get('browse:click').next({ annotationId: ann.id, motivation: ann.motivation })}
+                      onClick={() => session?.emit('browse:click', { annotationId: ann.id, motivation: ann.motivation })}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

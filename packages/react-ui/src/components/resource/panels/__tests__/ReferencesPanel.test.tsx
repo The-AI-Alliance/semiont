@@ -4,7 +4,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
-import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
+import type { EventBus } from '@semiont/core';
+import { createTestSemiontWrapper } from '../../../../test-utils';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -14,59 +15,27 @@ interface TrackedEvent {
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<() => void> = [];
-
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
-      const panelEvents = ['mark:assist-request'] as const;
-
-      panelEvents.forEach(eventName => {
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
-      });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
   return {
-    EventTrackingWrapper,
     events,
-    clear: () => {
-      events.length = 0;
+    clear: () => { events.length = 0; },
+    _attach(eventBus: EventBus) {
+      const panelEvents = ['mark:assist-request'] as const;
+      panelEvents.forEach((eventName) => {
+        eventBus.get(eventName).subscribe((payload: any) => {
+          events.push({ event: eventName, payload });
+        });
+      });
     },
   };
 }
 
-// Helper to render with EventBusProvider
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  if (tracker) {
-    return render(
-      <EventBusProvider>
-        <tracker.EventTrackingWrapper>
-          {component}
-        </tracker.EventTrackingWrapper>
-      </EventBusProvider>
-    );
-  }
-
-  return render(
-    <EventBusProvider>
-      {component}
-    </EventBusProvider>
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
 // Mock TranslationContext

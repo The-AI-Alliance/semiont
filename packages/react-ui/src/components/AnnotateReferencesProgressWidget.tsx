@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
-import { useEventBus } from '../contexts/EventBusContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 import type { MarkProgress } from '@semiont/core';
 import type { components } from '@semiont/core';
 
@@ -24,11 +25,11 @@ interface AnnotateReferencesProgressWidgetProps {
  */
 export function AnnotateReferencesProgressWidget({ progress, annotationType = 'reference' }: AnnotateReferencesProgressWidgetProps) {
   const t = useTranslations('ReferencesPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   const handleCancel = () => {
     // Emit event for job cancellation
-    eventBus.get('job:cancel-requested').next({ jobType: 'annotation' });
+    session?.emit('job:cancel-requested', { jobType: 'annotation' });
   };
 
   if (!progress) return null;

@@ -28,8 +28,6 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useOpenResources } from '../../../contexts/OpenResourcesContext';
-// Import EventBus hooks directly from context to avoid mocking issues in tests
-import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
@@ -133,9 +131,9 @@ export function ResourceViewerPage({
   // Translations
   const tw = useTranslations('ReferenceWizard');
 
-  // Get unified event bus for subscribing to UI events
-  const eventBus = useEventBus();
-  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const session = useObservable(useSemiont().activeSession$);
+  const semiont = session?.client;
+  const eventBus = semiont?.eventBus;
 
   // UI state hooks
   const { showError, showSuccess, showInfo } = useToast();
@@ -163,7 +161,7 @@ export function ResourceViewerPage({
 
   // Composite VM — owns all flow VMs, wizard state, annotations, entity types
   const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, eventBus, rUri, locale, browseVM));
+  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, eventBus!, rUri, locale, browseVM));
 
   const annotations = useObservable(vm.annotations$) ?? [];
   const groups = useObservable(vm.annotationGroups$);
@@ -236,11 +234,11 @@ export function ResourceViewerPage({
       name: title,
       entityTypes: entTypes.join(','),
     });
-    eventBus.get('browse:router-push').next({
+    session?.emit('browse:router-push', {
       path: `/know/compose?${params.toString()}`,
       reason: 'compose-from-wizard',
     });
-  }, []); // eventBus is stable singleton
+  }, [session]);
 
   // Add resource to open tabs when it loads
   useEffect(() => {
@@ -288,12 +286,12 @@ export function ResourceViewerPage({
     try {
       const result = await semiont.generateCloneToken(rUri, authOpts);
       const token = result.token;
-      eventBus.get('browse:router-push').next({ path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
+      session?.emit('browse:router-push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
     }
-  }, [semiont, rUri, authOpts, showError]);
+  }, [semiont, rUri, authOpts, showError, session]);
 
   const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
     triggerSparkleAnimation(annotationId);
@@ -334,16 +332,16 @@ export function ResourceViewerPage({
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
-      eventBus.get('browse:router-push').next({ path, reason: 'reference-link' });
+      session?.emit('browse:router-push', { path, reason: 'reference-link' });
     }
-  }, [routes.resourceDetail]); // eventBus is stable singleton - never in deps
+  }, [routes.resourceDetail, session]);
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
       const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      eventBus.get('browse:router-push').next({ path, reason: 'entity-type-filter' });
+      session?.emit('browse:router-push', { path, reason: 'entity-type-filter' });
     }
-  }, [routes.know]); // eventBus is stable singleton - never in deps
+  }, [routes.know, session]);
 
   const handleModeToggled = useCallback(() => {
     setAnnotateMode(prev => !prev);
@@ -410,9 +408,9 @@ export function ResourceViewerPage({
   // Handlers for AnnotationHistory (legacy event-based interaction)
   const handleEventHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
-      eventBus.get('beckon:sparkle').next({ annotationId });
+      session?.emit('beckon:sparkle', { annotationId });
     }
-  }, []); // eventBus is stable singleton - never in deps
+  }, [session]);
 
   const handleEventClick = useCallback((_annotationId: string | null) => {
     // ResourceViewer now manages scroll state internally
@@ -586,7 +584,6 @@ export function ResourceViewerPage({
         context={gatherContext}
         contextLoading={gatherLoading}
         contextError={gatherError}
-        eventBus={eventBus}
         onGenerateSubmit={handleWizardGenerateSubmit}
         onLinkResource={handleWizardLinkResource}
         onComposeNavigate={handleWizardComposeNavigate}

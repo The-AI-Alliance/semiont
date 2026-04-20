@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
@@ -72,7 +73,7 @@ export function CommentsPanel({
   hoveredAnnotationId,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [newCommentText, setNewCommentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -169,7 +170,7 @@ export function CommentsPanel({
 
   const handleSaveNewComment = () => {
     if (newCommentText.trim() && pendingAnnotation) {
-      eventBus.get('mark:submit').next({
+      session?.emit('mark:submit', {
         motivation: 'commenting',
         selector: pendingAnnotation.selector,
         body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
@@ -184,14 +185,14 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.emit('mark:cancel-pending', undefined);
         setNewCommentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   return (
     <div className="semiont-panel">
@@ -226,7 +227,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('mark:cancel-pending').next(undefined);
+                  session?.emit('mark:cancel-pending', undefined);
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

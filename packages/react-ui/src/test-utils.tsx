@@ -19,7 +19,7 @@ import {
   type KnowledgeBaseSessionValue,
 } from './contexts/KnowledgeBaseSessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
-import { EventBusProvider, useEventBus } from './contexts/EventBusContext';
+import { EventBusProvider } from './contexts/EventBusContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import type { OpenResourcesManager } from './types/OpenResourcesManager';
@@ -33,12 +33,28 @@ import { SemiontProvider } from './session/SemiontProvider';
  * client methods (e.g. `BindNamespace.prototype.body`) can therefore rely on
  * the real-ish client surface.
  */
-function createFakeBrowserForTests(apiBaseUrl: string): SemiontBrowser {
+function createFakeBrowserForTests(
+  apiBaseUrl: string,
+  eventBus: EventBus,
+): SemiontBrowser {
   const client = new SemiontApiClient({
     baseUrl: baseUrl(apiBaseUrl),
-    eventBus: new EventBus(),
+    eventBus,
   });
-  const activeSession$ = new BehaviorSubject<{ client: any } | null>({ client });
+  // Minimal session stub exposing the emit/on facade expected by
+  // production code. Uses the same EventBus the client was constructed with,
+  // so tests that inspect the bus see the events production code emits.
+  const fakeSession = {
+    client,
+    emit<K extends string>(channel: K, payload: unknown): void {
+      (eventBus.get(channel as any) as unknown as { next(v: unknown): void }).next(payload);
+    },
+    on<K extends string>(channel: K, handler: (payload: unknown) => void): () => void {
+      const sub = (eventBus.get(channel as any) as unknown as { subscribe(h: (v: unknown) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+  };
+  const activeSession$ = new BehaviorSubject<any>(fakeSession);
   const identityToken$ = new BehaviorSubject<null>(null);
   const openResources$ = new BehaviorSubject<any[]>([]);
   const kbs$ = new BehaviorSubject<any[]>([]);
@@ -154,23 +170,6 @@ export interface RenderWithProvidersResult extends RenderResult {
   eventBus?: EventBus;
 }
 
-/**
- * Wrapper component that captures the event bus instance
- */
-function EventBusCapture({
-  children,
-  onEventBus
-}: {
-  children: React.ReactNode;
-  onEventBus?: (bus: EventBus) => void
-}) {
-  const eventBus = useEventBus();
-  React.useEffect(() => {
-    onEventBus?.(eventBus);
-  }, [eventBus, onEventBus]);
-  return <>{children}</>;
-}
-
 export function renderWithProviders(
   ui: ReactElement,
   options?: RenderWithProvidersOptions
@@ -184,9 +183,11 @@ export function renderWithProviders(
     ...renderOptions
   } = options || {};
 
-  let capturedEventBus: EventBus | undefined;
-
-  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
+  // Single bus shared by the SemiontApiClient, the fake session's emit/on,
+  // and the EventBusProvider — so tests that subscribe via the returned
+  // `eventBus` see everything production code emits via `session?.emit(...)`.
+  const sharedBus = new EventBus();
+  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl, sharedBus);
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -198,13 +199,7 @@ export function renderWithProviders(
                 <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
                   <OpenResourcesProvider openResourcesManager={openResourcesManager}>
                     <ToastProvider>
-                      {returnEventBus ? (
-                        <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
-                          {children}
-                        </EventBusCapture>
-                      ) : (
-                        children
-                      )}
+                      {children}
                     </ToastProvider>
                   </OpenResourcesProvider>
                 </KnowledgeBaseSessionContext.Provider>
@@ -219,10 +214,28 @@ export function renderWithProviders(
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
 
   if (returnEventBus) {
-    return { ...result, eventBus: capturedEventBus };
+    return { ...result, eventBus: sharedBus };
   }
 
   return result;
+}
+
+/**
+ * Build a minimal `<SemiontProvider>` wrapper over a shared EventBus for
+ * tests that roll their own render wrapper (instead of `renderWithProviders`).
+ * Tests subscribe to `eventBus` to assert events that production code emits
+ * via `session?.emit(...)`.
+ */
+export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:4000'): {
+  SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;
+  eventBus: EventBus;
+} {
+  const eventBus = new EventBus();
+  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl, eventBus);
+  const SemiontWrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontProvider browser={fakeBrowser}>{children}</SemiontProvider>
+  );
+  return { SemiontWrapper, eventBus };
 }
 
 /**
