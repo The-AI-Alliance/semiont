@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { components, ResourceId, GatheredContext, EventMap } from '@semiont/core';
+import type { ConnectionState } from '@semiont/api-client';
 import { annotationId, accessToken } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getMimeCategory } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
@@ -41,8 +42,6 @@ import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizard
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
-
-export type StreamStatus = 'connecting' | 'connected' | 'disconnected';
 
 export interface ResourceViewerPageProps {
   /**
@@ -81,9 +80,11 @@ export interface ResourceViewerPageProps {
   refetchDocument: () => Promise<unknown>;
 
   /**
-   * Bus connection status for the active workspace
+   * Bus connection state for the active workspace. Six-valued state
+   * machine from `actor.state$`; CollaborationPanel maps it to the
+   * "Live" / "Disconnected" visual.
    */
-  streamStatus: StreamStatus;
+  streamStatus: ConnectionState;
 
   /**
    * Name of the active knowledge base (for display in panels)
@@ -551,7 +552,7 @@ export function ResourceViewerPage({
             {/* Collaboration Panel */}
             {activePanel === 'collaboration' && (
               <CollaborationPanel
-                isConnected={streamStatus === 'connected'}
+                state={streamStatus}
                 eventCount={0}
                 knowledgeBaseName={knowledgeBaseName}
               />

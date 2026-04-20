@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Εισαγάγετε όνομα πόρου...",
     "entityTypes": "Ετικέτες Τύπου Οντότητας",
     "entityTypesHint": "Προσθέστε ετικέτες τύπου οντότητας στον πόρο σας",
-    "noEntityTypesAvailable": "Δεν υπάρχουν διαθέσιμοι τύποι οντοτήτων",
     "contentSource": "Πηγή Περιεχομένου",
     "uploadFile": "Μεταφόρτωση Αρχείου",
     "uploadFileDescription": "Εικόνες, έγγραφα, αρχεία κειμένου",

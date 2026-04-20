@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "리소스 이름 입력...",
     "entityTypes": "개체 유형 태그",
     "entityTypesHint": "리소스에 개체 유형 태그 지정",
-    "noEntityTypesAvailable": "사용 가능한 개체 유형이 없습니다",
     "contentSource": "콘텐츠 소스",
     "uploadFile": "파일 업로드",
     "uploadFileDescription": "이미지, 문서, 텍스트 파일",

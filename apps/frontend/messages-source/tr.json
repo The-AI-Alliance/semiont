@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Kaynak adını girin...",
     "entityTypes": "Varlık Türü Etiketleri",
     "entityTypesHint": "Kaynağınızı varlık türleri ile etiketleyin",
-    "noEntityTypesAvailable": "Kullanılabilir varlık türü yok",
     "contentSource": "İçerik Kaynağı",
     "uploadFile": "Dosya Yükle",
     "uploadFileDescription": "Resimler, belgeler, metin dosyaları",

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Subject, firstValueFrom, filter, map } from 'rxjs';
+import { BehaviorSubject, Subject, firstValueFrom, filter, map } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import type { SemiontApiClient } from '../../client';
-import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
+import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -52,7 +52,7 @@ function createMockActor(responses: ResponseMap): { actor: ActorVM; emitSpy: Ret
       );
     },
     emit: emitSpy,
-    connected$: new Subject<boolean>().asObservable(),
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     addChannels: vi.fn(),
     removeChannels: vi.fn(),
     start: vi.fn(),

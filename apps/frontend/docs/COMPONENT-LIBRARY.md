@@ -43,7 +43,7 @@ composes the library.
 - **Resource viewer** — ResourceViewer, ResourceViewerPage
 - **Annotation system** — panels (Comments, References, Tags, Assessments, Highlights), entry components, popups
 - **Navigation** — Footer, NavigationMenu, SkipLinks, SidebarNavigation, CollapsibleResourceNavigation, SortableResourceTab
-- **Modals** — SearchModal, ResourceSearchModal, KeyboardShortcutsHelpModal, ProposeEntitiesModal, SessionExpiredModal, PermissionDeniedModal
+- **Modals** — SearchModal, ResourceSearchModal, KeyboardShortcutsHelpModal, SessionExpiredModal, PermissionDeniedModal
 - **Layout** — UnifiedHeader, LeftSidebar, PageLayout
 - **Session** — SessionTimer, SessionExpiryBanner
 - **Branding** — SemiontBranding

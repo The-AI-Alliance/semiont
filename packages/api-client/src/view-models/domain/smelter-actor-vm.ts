@@ -1,7 +1,7 @@
 import { Observable, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { ViewModel } from '../lib/view-model';
-import { createActorVM, type ActorVM } from './actor-vm';
+import { createActorVM, type ActorVM, type ConnectionState } from './actor-vm';
 
 export interface SmelterEvent {
   type: string;
@@ -26,7 +26,7 @@ const SMELTER_CHANNELS = [
 
 export interface SmelterActorVM extends ViewModel {
   events$: Observable<SmelterEvent>;
-  connected$: Observable<boolean>;
+  state$: Observable<ConnectionState>;
   emit(channel: string, payload: Record<string, unknown>): Promise<void>;
   start(): void;
   stop(): void;
@@ -54,7 +54,7 @@ export function createSmelterActorVM(options: SmelterActorVMOptions): SmelterAct
 
   return {
     events$,
-    connected$: actor.connected$,
+    state$: actor.state$,
     emit: (channel, payload) => actor.emit(channel, payload),
     start: () => actor.start(),
     stop: () => actor.stop(),

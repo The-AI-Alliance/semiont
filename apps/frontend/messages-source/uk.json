@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Введіть назву ресурсу...",
     "entityTypes": "Теги типів сутностей",
     "entityTypesHint": "Позначте ваш ресурс тегами типів сутностей",
-    "noEntityTypesAvailable": "Типи сутностей відсутні",
     "contentSource": "Джерело контенту",
     "uploadFile": "Завантажити файл",
     "uploadFileDescription": "Зображення, документи, текстові файли",

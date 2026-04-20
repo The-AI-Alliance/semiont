@@ -83,7 +83,6 @@ export * from './components/image-annotation/SvgDrawingCanvas';
 // Components - Modals
 export * from './components/modals/KeyboardShortcutsHelpModal';
 export * from './components/modals/PermissionDeniedModal';
-export * from './components/modals/ProposeEntitiesModal';
 export * from './components/modals/SessionExpiredModal';
 
 // Components - Resource

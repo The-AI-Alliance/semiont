@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
 import { createActorVM } from '../actor-vm';
 
 const mockFetch = vi.fn();
@@ -37,6 +36,16 @@ function mockSSEResponse() {
 describe('createActorVM', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset timers in case a previous test left fake timers active and
+    // then failed before calling vi.useRealTimers(). vitest does NOT
+    // restore timers automatically on test failure; without this, a
+    // leaked fake-timer regime silently breaks every subsequent real-
+    // timer test in the file.
+    vi.useRealTimers();
+    // mockFetch's `mockResolvedValueOnce` / `mockImplementationOnce`
+    // queues survive clearAllMocks, so reset them explicitly to give
+    // each test a clean slate.
+    mockFetch.mockReset();
   });
 
   it('start connects to SSE with channel params', async () => {
@@ -185,7 +194,7 @@ describe('createActorVM', () => {
     vm.dispose();
   });
 
-  it('connected$ emits true on successful connect', async () => {
+  it('state$ transitions initial → connecting → open on successful start', async () => {
     mockSSEResponse();
 
     const vm = createActorVM({
@@ -194,10 +203,14 @@ describe('createActorVM', () => {
       channels: ['test:event'],
     });
 
-    const connPromise = firstValueFrom(vm.connected$.pipe(filter(Boolean)));
+    const states: string[] = [];
+    vm.state$.subscribe((s) => states.push(s));
     vm.start();
+    await vi.waitFor(() => expect(states).toContain('open'));
 
-    expect(await connPromise).toBe(true);
+    expect(states[0]).toBe('initial');
+    expect(states).toContain('connecting');
+    expect(states[states.length - 1]).toBe('open');
 
     vm.dispose();
   });
@@ -253,6 +266,72 @@ describe('createActorVM', () => {
     vi.useRealTimers();
   });
 
+  it('addChannels goes open → reconnecting → connecting → open', async () => {
+    // Regression: abort-driven reconnects used to return early from the
+    // connect loop on AbortError, skipping the disconnect signal. The
+    // state machine formalizes the reconnect lifecycle: every reconnect
+    // must visit `reconnecting` so observers (state-change handlers)
+    // can react.
+    mockSSEResponse();
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    const states: string[] = [];
+    vm.state$.subscribe((s) => states.push(s));
+
+    vm.start();
+    await vi.waitFor(() => expect(states).toContain('open'));
+
+    // Clear and observe only the transitions that follow addChannels.
+    const openIdx = states.lastIndexOf('open');
+    vm.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(states.lastIndexOf('open')).toBeGreaterThan(openIdx));
+
+    const afterAddChannels = states.slice(openIdx + 1);
+    expect(afterAddChannels).toContain('reconnecting');
+    expect(afterAddChannels).toContain('connecting');
+    expect(afterAddChannels[afterAddChannels.length - 1]).toBe('open');
+
+    vm.dispose();
+  });
+
+  it('removeChannels also drives reconnecting → connecting → open', async () => {
+    mockSSEResponse();
+    mockSSEResponse();
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    vm.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    const states: string[] = [];
+    vm.state$.subscribe((s) => states.push(s));
+
+    vm.removeChannels(['mark:added']);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(states.lastIndexOf('open')).toBeGreaterThan(states.indexOf('reconnecting')));
+
+    expect(states).toContain('reconnecting');
+    expect(states).toContain('connecting');
+    expect(states[states.length - 1]).toBe('open');
+
+    vm.dispose();
+  });
+
   it('does not reconnect after stop', async () => {
     vi.useFakeTimers();
 
@@ -275,5 +354,169 @@ describe('createActorVM', () => {
 
     vm.dispose();
     vi.useRealTimers();
+  });
+
+  // ── Connection-state machine ──────────────────────────────────────────
+
+  it('stop() transitions state to `closed`', async () => {
+    mockSSEResponse();
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    const states: string[] = [];
+    vm.state$.subscribe((s) => states.push(s));
+
+    vm.start();
+    await vi.waitFor(() => expect(states).toContain('open'));
+
+    vm.stop();
+    expect(states[states.length - 1]).toBe('closed');
+
+    vm.dispose();
+  });
+
+  it('enters `degraded` after staying in `reconnecting` past the threshold', { timeout: 10_000 }, async () => {
+    // Uses real timers: fake-timer interaction with ReadableStream and
+    // fetch mocks is fragile enough (the stream close propagates via a
+    // real microtask) that a 3-ish-second real-time wait is the cleanest
+    // way to exercise the degraded timer.
+    const sse = mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+      // Long enough that the retry timer doesn't fire during the wait;
+      // we want to stay in `reconnecting`.
+      reconnectMs: 10_000,
+    });
+
+    const states: string[] = [];
+    vm.state$.subscribe((s) => states.push(s));
+
+    vm.start();
+    await vi.waitFor(() => expect(states).toContain('open'));
+
+    // Close the stream → reader.read returns done, while loop exits,
+    // transition to `reconnecting`.
+    sse.close();
+    await vi.waitFor(() => expect(states).toContain('reconnecting'));
+
+    // Wait ~3 real seconds for the degraded timer to fire.
+    await new Promise((r) => setTimeout(r, 3_100));
+    expect(states).toContain('degraded');
+
+    vm.dispose();
+  });
+
+  it('invalid transition throws (e.g. stop() after stop() is a no-op, not a throw)', async () => {
+    // The state machine is internal; the public API is stop()/dispose().
+    // Assert that idempotent usage doesn't throw.
+    mockSSEResponse();
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+    vm.start();
+    vm.stop();
+    expect(() => vm.stop()).not.toThrow();
+    expect(() => vm.dispose()).not.toThrow();
+  });
+
+  // ── BUS-RESUMPTION.md behavior ────────────────────────────────────────
+
+  it('tracks the last SSE id and sends it as Last-Event-ID on the next connect', async () => {
+    const sse1 = mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['mark:added'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    // Server sends a persisted event with id: p-res-1-47
+    sse1.push(
+      'event: bus-event\nid: p-res-1-47\ndata: ' +
+        JSON.stringify({ channel: 'mark:added', payload: { foo: 'bar' } }) +
+        '\n\n',
+    );
+    // Give the parser a tick to process the frame.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Trigger a reconnect via addChannels.
+    mockSSEResponse();
+    vm.addChannels(['other:channel']);
+    // RECONNECT_DEBOUNCE_MS = 100 in actor-vm; wait past it.
+    await new Promise((r) => setTimeout(r, 120));
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    const initOpts = mockFetch.mock.calls[1][1] as { headers: Record<string, string> };
+    expect(initOpts.headers['Last-Event-ID']).toBe('p-res-1-47');
+
+    vm.dispose();
+  });
+
+  it('does not send Last-Event-ID header on the first connect', async () => {
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    const initOpts = mockFetch.mock.calls[0][1] as { headers: Record<string, string> };
+    expect(initOpts.headers['Last-Event-ID']).toBeUndefined();
+
+    vm.dispose();
+  });
+
+  it('aborts previous in-flight fetch when a reconnect starts (orphan-stream fix)', async () => {
+    // Regression: prior versions kept a single `abortController` slot,
+    // so a rapid sequence of connect() calls could orphan earlier
+    // fetches — their signals were replaced before they could be
+    // aborted. Post-fix, every previous controller is aborted before a
+    // new connect starts. Diagnosed from the suite-flake investigation
+    // which captured 3 concurrent SSE subscribes in a single 8ms window.
+    mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:event'],
+    });
+
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+    const firstSignal = (mockFetch.mock.calls[0][1] as { signal: AbortSignal }).signal;
+    expect(firstSignal.aborted).toBe(false);
+
+    mockSSEResponse();
+    vm.addChannels(['other:one']);
+    await new Promise((r) => setTimeout(r, 150));
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    // First fetch's signal must now be aborted — the connect() that
+    // produced the second fetch is responsible for aborting all prior
+    // in-flight controllers.
+    expect(firstSignal.aborted).toBe(true);
+
+    // And the second fetch's signal is still live.
+    const secondSignal = (mockFetch.mock.calls[1][1] as { signal: AbortSignal }).signal;
+    expect(secondSignal.aborted).toBe(false);
+
+    vm.dispose();
   });
 });

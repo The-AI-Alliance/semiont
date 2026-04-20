@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "نام منبع را وارد کنید...",
     "entityTypes": "برچسب‌های نوع موجودیت",
     "entityTypesHint": "منبع خود را با انواع موجودیت برچسب‌گذاری کنید",
-    "noEntityTypesAvailable": "نوع موجودیتی موجود نیست",
     "contentSource": "منبع محتوا",
     "uploadFile": "بارگذاری فایل",
     "uploadFileDescription": "تصاویر، اسناد، فایل‌های متنی",

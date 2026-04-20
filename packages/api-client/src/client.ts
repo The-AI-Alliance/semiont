@@ -79,6 +79,7 @@ const BUS_RESULT_CHANNELS = [
   'yield:clone-created', 'yield:clone-create-failed',
   'mark:entity-type-added',
   'beckon:focus', 'beckon:sparkle',
+  'bus:resume-gap',
 ] as const;
 
 // Every global-SSE-delivered channel is bridged from the bus actor
@@ -358,8 +359,9 @@ export class SemiontApiClient {
    * **same** resourceId are ref-counted — each returns an independent
    * unsubscribe; the underlying SSE scope is torn down only when the
    * last unsubscribe fires. Calling with a **different** resourceId
-   * while a subscription is live throws. See `.plans/SIMPLE-BUS.md`
-   * Gap #9 for the multi-resource extension path.
+   * while a subscription is live throws. Widening this to multiple
+   * concurrent scopes is deferred until a product requirement (e.g.
+   * split-pane viewer, headless fleet-watcher) forces the design.
    *
    * @returns a disposer that decrements the ref count (and tears down
    *          the SSE scope + bridges when it reaches zero).

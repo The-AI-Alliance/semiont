@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Zadejte název zdroje...",
     "entityTypes": "Štítky typů entit",
     "entityTypesHint": "Označte svůj zdroj typy entit",
-    "noEntityTypesAvailable": "Žádné typy entit nejsou k dispozici",
     "contentSource": "Zdroj obsahu",
     "uploadFile": "Nahrát soubor",
     "uploadFileDescription": "Obrázky, dokumenty, textové soubory",

@@ -1,5 +1,4 @@
-import { BehaviorSubject, Observable } from 'rxjs';
-import { map, distinctUntilChanged } from 'rxjs/operators';
+import { Observable, map } from 'rxjs';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery } from '@semiont/core';
 import type {
   EventBus,
@@ -13,6 +12,7 @@ import type {
 import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
 import { busRequest } from '../bus-request';
+import { createCache, type Cache } from '../cache';
 import type {
   BrowseNamespace as IBrowseNamespace,
   ReferencedByEntry,
@@ -29,40 +29,50 @@ type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
 
 type TokenGetter = () => AccessToken | undefined;
 
+type ResourceListFilters = { limit?: number; archived?: boolean; search?: string };
+
+/** Sentinel key for the singleton entity-types cache. */
+const ENTITY_TYPES_KEY = '_';
+
 export class BrowseNamespace implements IBrowseNamespace {
-  // ── Annotation list cache ───────────────────────────────────────────────
-  private readonly annotationList$ = new BehaviorSubject<Map<ResourceId, AnnotationsListResponse>>(new Map());
-  private readonly fetchingAnnotationList = new Set<ResourceId>();
-  private readonly annotationListObs$ = new Map<ResourceId, Observable<Annotation[] | undefined>>();
+  // ── Caches, backed by the RxJS-native `Cache<K, V>` primitive ───────────
+  //
+  // Each cache encapsulates the BehaviorSubject store, in-flight guard,
+  // and per-key observable memoization that was previously open-coded
+  // here. Behavioral contract: `packages/api-client/docs/CACHE-SEMANTICS.md`.
+  //
+  // Public surface (`resource()`, `annotations()`, etc.) is unchanged;
+  // the caches are an implementation detail of this namespace.
 
-  // ── Annotation detail cache ─────────────────────────────────────────────
-  private readonly annotationDetail$ = new BehaviorSubject<Map<AnnotationId, Annotation>>(new Map());
-  private readonly fetchingAnnotationDetail = new Set<AnnotationId>();
-  private readonly annotationDetailObs$ = new Map<AnnotationId, Observable<Annotation | undefined>>();
+  private readonly resourceCache: Cache<ResourceId, ResourceDescriptor>;
+  private readonly resourceListCache: Cache<string, ResourceDescriptor[]>;
+  private readonly annotationListCache: Cache<ResourceId, AnnotationsListResponse>;
+  /**
+   * Annotation-detail cache keyed by `annotationId` only — the resourceId
+   * is a routing hint for the backend fetch, not an identity component.
+   * We track the most recent resourceId per annotationId in a side-map
+   * so `mark:delete-ok` (which carries only `annotationId`) can reach
+   * the right cache entry. Aligns with the pre-refactor semantics.
+   */
+  private readonly annotationDetailCache: Cache<AnnotationId, Annotation>;
+  private readonly annotationResources = new Map<AnnotationId, ResourceId>();
+  private readonly entityTypesCache: Cache<string, string[]>;
+  private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
+  private readonly resourceEventsCache: Cache<ResourceId, StoredEventResponse[]>;
 
-  // ── Resource detail cache ───────────────────────────────────────────────
-  private readonly resourceDetail$ = new BehaviorSubject<Map<ResourceId, ResourceDescriptor>>(new Map());
-  private readonly fetchingResourceDetail = new Set<ResourceId>();
-  private readonly resourceDetailObs$ = new Map<ResourceId, Observable<ResourceDescriptor | undefined>>();
+  /** Filter-blob memory so `invalidateResourceLists` can replay per-key. */
+  private readonly resourceListFilters = new Map<string, ResourceListFilters>();
 
-  // ── Resource list cache ─────────────────────────────────────────────────
-  private readonly resourceList$ = new BehaviorSubject<Map<string, ResourceDescriptor[]>>(new Map());
-  private readonly fetchingResourceList = new Set<string>();
-  private readonly resourceListObs$ = new Map<string, Observable<ResourceDescriptor[] | undefined>>();
-
-  // ── Entity types cache ──────────────────────────────────────────────────
-  private readonly entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);
-  private fetchingEntityTypes = false;
-
-  // ── Referenced-by cache ─────────────────────────────────────────────────
-  private readonly referencedBy$ = new BehaviorSubject<Map<ResourceId, ReferencedByEntry[]>>(new Map());
-  private readonly fetchingReferencedBy = new Set<ResourceId>();
-  private readonly referencedByObs$ = new Map<ResourceId, Observable<ReferencedByEntry[] | undefined>>();
-
-  // ── Resource events cache ──────────────────────────────────────────────
-  private readonly resourceEvents$ = new BehaviorSubject<Map<ResourceId, StoredEventResponse[]>>(new Map());
-  private readonly fetchingResourceEvents = new Set<ResourceId>();
-  private readonly resourceEventsObs$ = new Map<ResourceId, Observable<StoredEventResponse[] | undefined>>();
+  /**
+   * Per-key memo for `annotations()` observables. The cache stores the
+   * full `AnnotationsListResponse`; the public shape is just the inner
+   * `Annotation[]`. Without this memo, every call to `annotations(rId)`
+   * would produce a fresh `.pipe(map(...))` observable, violating B4
+   * (per-key observable stability). Consumers that compare observable
+   * identity — React hooks depending on the observable reference,
+   * `distinctUntilChanged` at a higher level — would misbehave.
+   */
+  private readonly annotationListObs = new Map<ResourceId, Observable<Annotation[] | undefined>>();
 
   private readonly getToken: TokenGetter;
   private readonly actor: ActorVM;
@@ -75,92 +85,160 @@ export class BrowseNamespace implements IBrowseNamespace {
   ) {
     this.getToken = getToken;
     this.actor = actor;
+
+    // TEMPORARY DIAGNOSTIC — BrowseNamespace instance counter.
+    const g = globalThis as { __SEMIONT_BROWSE_INSTANCES__?: number };
+    g.__SEMIONT_BROWSE_INSTANCES__ = (g.__SEMIONT_BROWSE_INSTANCES__ ?? 0) + 1;
+    const browseSerial = g.__SEMIONT_BROWSE_INSTANCES__;
+    (this as unknown as { __serial__: number }).__serial__ = browseSerial;
+    // eslint-disable-next-line no-console
+    console.debug(`[diag] BrowseNamespace #${browseSerial} constructed`);
+
+    this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
+      const result = await busRequest<GetResourceResponse>(
+        this.actor,
+        'browse:resource-requested',
+        { resourceId: id },
+        'browse:resource-result',
+        'browse:resource-failed',
+      );
+      return result.resource;
+    });
+
+    this.resourceListCache = createCache<string, ResourceDescriptor[]>(async (key) => {
+      const filters = this.resourceListFilters.get(key) ?? {};
+      const search = filters.search ? searchQuery(filters.search) : undefined;
+      const result = await busRequest<{ resources: ResourceDescriptor[] }>(
+        this.actor,
+        'browse:resources-requested',
+        { search, archived: filters.archived, limit: filters.limit ?? 100, offset: 0 },
+        'browse:resources-result',
+        'browse:resources-failed',
+      );
+      return result.resources;
+    });
+
+    this.annotationListCache = createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
+      return busRequest<AnnotationsListResponse>(
+        this.actor,
+        'browse:annotations-requested',
+        { resourceId },
+        'browse:annotations-result',
+        'browse:annotations-failed',
+      );
+    });
+
+    this.annotationDetailCache = createCache<AnnotationId, Annotation>(async (annotationId) => {
+      const resourceId = this.annotationResources.get(annotationId);
+      if (!resourceId) {
+        throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
+      }
+      const result = await busRequest<{ annotation: Annotation }>(
+        this.actor,
+        'browse:annotation-requested',
+        { resourceId, annotationId },
+        'browse:annotation-result',
+        'browse:annotation-failed',
+      );
+      return result.annotation;
+    });
+
+    this.entityTypesCache = createCache<string, string[]>(async () => {
+      const serial = (this as unknown as { __serial__: number }).__serial__;
+      // eslint-disable-next-line no-console
+      console.debug(`[diag] BrowseNamespace#${serial} entityTypes fetchFn START`);
+      const result = await busRequest<{ entityTypes: string[] }>(
+        this.actor,
+        'browse:entity-types-requested',
+        {},
+        'browse:entity-types-result',
+        'browse:entity-types-failed',
+      );
+      // eslint-disable-next-line no-console
+      console.debug(`[diag] BrowseNamespace#${serial} entityTypes fetchFn RESOLVE`, JSON.stringify(result.entityTypes).slice(0, 200));
+      return result.entityTypes;
+    });
+
+    this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
+      const result = await busRequest<{ referencedBy: ReferencedByEntry[] }>(
+        this.actor,
+        'browse:referenced-by-requested',
+        { resourceId },
+        'browse:referenced-by-result',
+        'browse:referenced-by-failed',
+      );
+      return result.referencedBy;
+    });
+
+    this.resourceEventsCache = createCache<ResourceId, StoredEventResponse[]>(async (resourceId) => {
+      const result = await busRequest<{ events: StoredEventResponse[] }>(
+        this.actor,
+        'browse:events-requested',
+        { resourceId },
+        'browse:events-result',
+        'browse:events-failed',
+      );
+      return result.events;
+    });
+
     this.subscribeToEvents();
   }
 
   // ── Live queries ────────────────────────────────────────────────────────
 
   resource(resourceId: ResourceId): Observable<ResourceDescriptor | undefined> {
-    if (!this.resourceDetail$.value.has(resourceId) && !this.fetchingResourceDetail.has(resourceId)) {
-      this.fetchResourceDetail(resourceId);
-    }
-    let obs = this.resourceDetailObs$.get(resourceId);
-    if (!obs) {
-      obs = this.resourceDetail$.pipe(map(m => m.get(resourceId)), distinctUntilChanged());
-      this.resourceDetailObs$.set(resourceId, obs);
-    }
-    return obs;
+    return this.resourceCache.observe(resourceId);
   }
 
-  resources(filters?: { limit?: number; archived?: boolean; search?: string }): Observable<ResourceDescriptor[] | undefined> {
+  resources(filters?: ResourceListFilters): Observable<ResourceDescriptor[] | undefined> {
     const key = JSON.stringify(filters ?? {});
-    if (!this.resourceList$.value.has(key) && !this.fetchingResourceList.has(key)) {
-      this.fetchResourceList(key, filters);
-    }
-    let obs = this.resourceListObs$.get(key);
-    if (!obs) {
-      obs = this.resourceList$.pipe(map(m => m.get(key)), distinctUntilChanged());
-      this.resourceListObs$.set(key, obs);
-    }
-    return obs;
+    // Remember the filter blob so `invalidateResourceLists` can drive
+    // per-key SWR refetches without the caller re-passing filters.
+    this.resourceListFilters.set(key, filters ?? {});
+    return this.resourceListCache.observe(key);
   }
 
   annotations(resourceId: ResourceId): Observable<Annotation[] | undefined> {
-    if (!this.annotationList$.value.has(resourceId) && !this.fetchingAnnotationList.has(resourceId)) {
-      this.fetchAnnotationList(resourceId);
-    }
-    let obs = this.annotationListObs$.get(resourceId);
+    let obs = this.annotationListObs.get(resourceId);
     if (!obs) {
-      obs = this.annotationList$.pipe(
-        map(m => m.get(resourceId)?.annotations),
-        distinctUntilChanged(),
-      );
-      this.annotationListObs$.set(resourceId, obs);
+      obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations));
+      this.annotationListObs.set(resourceId, obs);
     }
     return obs;
   }
 
   annotation(resourceId: ResourceId, annotationId: AnnotationId): Observable<Annotation | undefined> {
-    if (!this.annotationDetail$.value.has(annotationId) && !this.fetchingAnnotationDetail.has(annotationId)) {
-      this.fetchAnnotationDetail(resourceId, annotationId);
-    }
-    let obs = this.annotationDetailObs$.get(annotationId);
-    if (!obs) {
-      obs = this.annotationDetail$.pipe(map(m => m.get(annotationId)), distinctUntilChanged());
-      this.annotationDetailObs$.set(annotationId, obs);
-    }
-    return obs;
+    // Record the routing hint so the cache's fetchFn (which only sees
+    // the cache key, `annotationId`) can look up the resourceId it
+    // needs for the bus request.
+    this.annotationResources.set(annotationId, resourceId);
+    return this.annotationDetailCache.observe(annotationId);
   }
 
   entityTypes(): Observable<string[] | undefined> {
-    if (this.entityTypes$.value === undefined && !this.fetchingEntityTypes) {
-      this.fetchEntityTypes();
+    const serial = (this as unknown as { __serial__: number }).__serial__;
+    // eslint-disable-next-line no-console
+    console.debug(`[diag] BrowseNamespace#${serial} entityTypes() called`);
+    // Memo the instrumented observable once — calling .pipe(...) on every
+    // invocation would return a fresh reference and violate B4 (per-key
+    // observable stability). One-shot emission logging is attached here.
+    const self = this as unknown as { __entityTypesDiag__?: Observable<string[] | undefined> };
+    if (!self.__entityTypesDiag__) {
+      self.__entityTypesDiag__ = this.entityTypesCache.observe(ENTITY_TYPES_KEY).pipe(map((v) => {
+        // eslint-disable-next-line no-console
+        console.debug(`[diag] BrowseNamespace#${serial} entityTypes$ EMIT`, v === undefined ? 'undefined' : JSON.stringify(v).slice(0, 200));
+        return v;
+      }));
     }
-    return this.entityTypes$.asObservable();
+    return self.__entityTypesDiag__;
   }
 
   referencedBy(resourceId: ResourceId): Observable<ReferencedByEntry[] | undefined> {
-    if (!this.referencedBy$.value.has(resourceId) && !this.fetchingReferencedBy.has(resourceId)) {
-      this.fetchReferencedBy(resourceId);
-    }
-    let obs = this.referencedByObs$.get(resourceId);
-    if (!obs) {
-      obs = this.referencedBy$.pipe(map(m => m.get(resourceId)), distinctUntilChanged());
-      this.referencedByObs$.set(resourceId, obs);
-    }
-    return obs;
+    return this.referencedByCache.observe(resourceId);
   }
 
   events(resourceId: ResourceId): Observable<StoredEventResponse[] | undefined> {
-    if (!this.resourceEvents$.value.has(resourceId) && !this.fetchingResourceEvents.has(resourceId)) {
-      this.fetchResourceEventsCache(resourceId);
-    }
-    let obs = this.resourceEventsObs$.get(resourceId);
-    if (!obs) {
-      obs = this.resourceEvents$.pipe(map(m => m.get(resourceId)), distinctUntilChanged());
-      this.resourceEventsObs$.set(resourceId, obs);
-    }
-    return obs;
+    return this.resourceEventsCache.observe(resourceId);
   }
 
   // ── One-shot reads ──────────────────────────────────────────────────────
@@ -240,318 +318,187 @@ export class BrowseNamespace implements IBrowseNamespace {
     );
   }
 
-  // ── Invalidation (exposed for other namespaces) ─────────────────────────
+  // ── Cache-mutation API (used by the bus-event subscribers below and by
+  //    other namespaces that know about specific updates) ─────────────────
+  //
+  //  - `invalidate*`     — SWR refetch (B7). Keeps prior value visible.
+  //  - `removeAnnotationDetail` — drops the entry (B13a: entity gone).
+  //  - `updateAnnotationInPlace` — write-through (B13b: new value known).
 
   invalidateAnnotationList(resourceId: ResourceId): void {
-    const next = new Map(this.annotationList$.value);
-    next.delete(resourceId);
-    this.annotationList$.next(next);
-    this.fetchAnnotationList(resourceId);
+    this.annotationListCache.invalidate(resourceId);
   }
 
-  invalidateAnnotationDetail(annotationId: AnnotationId): void {
-    const next = new Map(this.annotationDetail$.value);
-    next.delete(annotationId);
-    this.annotationDetail$.next(next);
+  removeAnnotationDetail(annotationId: AnnotationId): void {
+    this.annotationDetailCache.remove(annotationId);
+    this.annotationResources.delete(annotationId);
   }
 
   invalidateResourceDetail(id: ResourceId): void {
-    const next = new Map(this.resourceDetail$.value);
-    next.delete(id);
-    this.resourceDetail$.next(next);
-    this.fetchResourceDetail(id);
+    this.resourceCache.invalidate(id);
   }
 
   invalidateResourceLists(): void {
-    this.resourceList$.next(new Map());
+    this.resourceListCache.invalidateAll();
   }
 
   invalidateEntityTypes(): void {
-    this.entityTypes$.next(undefined);
-    this.fetchEntityTypes();
+    this.entityTypesCache.invalidate(ENTITY_TYPES_KEY);
   }
 
   invalidateReferencedBy(resourceId: ResourceId): void {
-    const next = new Map(this.referencedBy$.value);
-    next.delete(resourceId);
-    this.referencedBy$.next(next);
-    this.fetchReferencedBy(resourceId);
+    this.referencedByCache.invalidate(resourceId);
   }
 
   invalidateResourceEvents(resourceId: ResourceId): void {
-    const next = new Map(this.resourceEvents$.value);
-    next.delete(resourceId);
-    this.resourceEvents$.next(next);
-    this.fetchResourceEventsCache(resourceId);
+    this.resourceEventsCache.invalidate(resourceId);
   }
 
   updateAnnotationInPlace(resourceId: ResourceId, annotation: Annotation): void {
-    const currentList = this.annotationList$.value.get(resourceId);
-    if (!currentList) return;
+    // Write-through to the per-resource list cache (splicing the
+    // updated annotation into the in-memory list response).
+    const currentList = this.annotationListCache.get(resourceId);
+    if (currentList) {
+      const idx = currentList.annotations.findIndex((a) => a.id === annotation.id);
+      const nextAnnotations =
+        idx >= 0
+          ? currentList.annotations.map((a, i) => (i === idx ? annotation : a))
+          : [...currentList.annotations, annotation];
+      this.annotationListCache.set(resourceId, { ...currentList, annotations: nextAnnotations });
+    }
 
-    const existingIdx = currentList.annotations.findIndex((a) => a.id === annotation.id);
-    const nextAnnotations =
-      existingIdx >= 0
-        ? currentList.annotations.map((a, i) => (i === existingIdx ? annotation : a))
-        : [...currentList.annotations, annotation];
-
-    const nextList: AnnotationsListResponse = { ...currentList, annotations: nextAnnotations };
-    const nextMap = new Map(this.annotationList$.value);
-    nextMap.set(resourceId, nextList);
-    this.annotationList$.next(nextMap);
+    // And to the per-annotation detail cache, so observers of
+    // `annotation(id)` see the new value without a refetch.
+    const aId = makeAnnotationId(annotation.id);
+    this.annotationResources.set(aId, resourceId);
+    this.annotationDetailCache.set(aId, annotation);
   }
 
   // ── EventBus subscriptions ──────────────────────────────────────────────
 
+  /**
+   * Typed shorthand for `eventBus.get(channel).subscribe(handler)`.
+   * Preserves per-channel payload typing so handlers read
+   * `EventMap[K]` without any casts.
+   */
+  private on<K extends keyof EventMap>(
+    channel: K,
+    handler: (payload: EventMap[K]) => void,
+  ): void {
+    (this.eventBus.get(channel) as { subscribe(fn: (p: EventMap[K]) => void): unknown }).subscribe(handler);
+  }
+
+  /**
+   * Handler shared by `mark:entity-tag-added` and `mark:entity-tag-removed`.
+   * Both events carry the same effect: the annotation list, the
+   * resource descriptor, and the event log for that resource all may
+   * now reflect different entity tagging, so invalidate all three.
+   */
+  private onEntityTagChanged = (stored: { resourceId?: ResourceId }): void => {
+    if (!stored.resourceId) return;
+    this.invalidateAnnotationList(stored.resourceId);
+    this.invalidateResourceDetail(stored.resourceId);
+    this.invalidateResourceEvents(stored.resourceId);
+  };
+
+  /**
+   * Handler shared by `mark:archived` and `mark:unarchived`. Both
+   * change a resource's archived flag, which is stored on the resource
+   * descriptor and affects the resource-list filter.
+   */
+  private onArchiveToggled = (stored: { resourceId?: ResourceId }): void => {
+    if (!stored.resourceId) return;
+    this.invalidateResourceDetail(stored.resourceId);
+    this.invalidateResourceLists();
+  };
+
+  /**
+   * Handler shared by `yield:create-ok` and `yield:update-ok`. Both
+   * report a resource mutation with the resourceId as a string (not
+   * yet branded), so we brand and apply the same effect as
+   * `onArchiveToggled`.
+   */
+  private onYieldResourceMutated = (event: { resourceId: string }): void => {
+    const rId = makeResourceId(event.resourceId);
+    this.invalidateResourceDetail(rId);
+    this.invalidateResourceLists();
+  };
+
   private subscribeToEvents(): void {
-    const bus = this.eventBus;
-
-    // Gap detection on reconnect: after the bus connection drops and comes
-    // back, events may have been missed during the outage. Invalidate all
-    // active caches so live queries refetch.
-    let seenDisconnect = false;
-    this.actor.connected$.subscribe((connected) => {
-      if (!connected) {
-        seenDisconnect = true;
-      } else if (seenDisconnect) {
-        seenDisconnect = false;
+    // Gap-detection contract:
+    //
+    // The server stamps persisted events on `/bus/subscribe` with
+    // `id: p-<scope>-<seq>`. The client sends the last seen id back as
+    // `Last-Event-ID` on reconnect; the server replays persisted events
+    // missed during the gap. No blanket invalidation is needed on the
+    // `reconnecting → open` state-machine transition — the usual case
+    // is a clean resume with zero missed events.
+    //
+    // The server emits a `bus:resume-gap` event when it can't cover the
+    // gap (retention window exceeded, scope mismatch, or unparseable
+    // `Last-Event-ID`). Receiving one means the client's caches for the
+    // affected scope may be stale — fall back to blanket invalidation
+    // for that scope (or all scopes, if the gap carries no scope).
+    this.on('bus:resume-gap', (event) => {
+      const gapScope = event.scope;
+      if (gapScope) {
+        const rId = gapScope as ResourceId;
+        this.invalidateAnnotationList(rId);
+        this.invalidateResourceDetail(rId);
+        this.invalidateResourceEvents(rId);
+        this.invalidateReferencedBy(rId);
+      } else {
         this.invalidateResourceLists();
-        for (const rId of this.annotationList$.value.keys()) this.invalidateAnnotationList(rId);
-        for (const rId of this.resourceDetail$.value.keys()) this.invalidateResourceDetail(rId);
-        for (const rId of this.resourceEvents$.value.keys()) this.invalidateResourceEvents(rId);
-        for (const rId of this.referencedBy$.value.keys()) this.invalidateReferencedBy(rId);
-        this.invalidateEntityTypes();
+        for (const rId of this.annotationListCache.keys()) this.invalidateAnnotationList(rId);
+        for (const rId of this.resourceCache.keys()) this.invalidateResourceDetail(rId);
+        for (const rId of this.resourceEventsCache.keys()) this.invalidateResourceEvents(rId);
+        for (const rId of this.referencedByCache.keys()) this.invalidateReferencedBy(rId);
       }
+      // Entity-types is a KB-wide list — always refetch on any gap.
+      this.invalidateEntityTypes();
     });
 
-    bus.get('mark:delete-ok').subscribe((event: EventMap['mark:delete-ok']) => {
-      this.invalidateAnnotationDetail(makeAnnotationId(event.annotationId));
+    this.on('mark:delete-ok', (event) => {
+      this.removeAnnotationDetail(makeAnnotationId(event.annotationId));
     });
 
-    bus.get('mark:added').subscribe((stored) => {
+    this.on('mark:added', (stored) => {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
         this.invalidateResourceEvents(stored.resourceId);
       }
     });
 
-    bus.get('mark:removed').subscribe((stored) => {
+    this.on('mark:removed', (stored) => {
       if (stored.resourceId) {
         this.invalidateAnnotationList(stored.resourceId);
         this.invalidateResourceEvents(stored.resourceId);
       }
-      this.invalidateAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
+      this.removeAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
     });
 
-    bus.get('mark:body-updated').subscribe((event) => {
+    this.on('mark:body-updated', (event) => {
       const enriched = event as unknown as EnrichedResourceEvent;
       if (!enriched.resourceId || !enriched.annotation) return;
       this.updateAnnotationInPlace(enriched.resourceId as ResourceId, enriched.annotation);
-      this.invalidateAnnotationDetail(makeAnnotationId(enriched.annotation.id));
       this.invalidateResourceEvents(enriched.resourceId as ResourceId);
     });
 
-    bus.get('mark:entity-tag-added').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateAnnotationList(stored.resourceId);
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceEvents(stored.resourceId);
-      }
-    });
+    this.on('mark:entity-tag-added', this.onEntityTagChanged);
+    this.on('mark:entity-tag-removed', this.onEntityTagChanged);
 
-    bus.get('mark:entity-tag-removed').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateAnnotationList(stored.resourceId);
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceEvents(stored.resourceId);
-      }
-    });
-
-    bus.get('replay-window-exceeded').subscribe((event) => {
+    this.on('replay-window-exceeded', (event) => {
       if (event.resourceId) {
         this.invalidateAnnotationList(event.resourceId as ResourceId);
       }
     });
 
-    bus.get('yield:create-ok').subscribe((event: EventMap['yield:create-ok']) => {
-      this.fetchResourceDetail(makeResourceId(event.resourceId));
-      this.invalidateResourceLists();
-    });
+    this.on('yield:create-ok', this.onYieldResourceMutated);
+    this.on('yield:update-ok', this.onYieldResourceMutated);
 
-    bus.get('yield:update-ok').subscribe((event: EventMap['yield:update-ok']) => {
-      this.invalidateResourceDetail(makeResourceId(event.resourceId));
-      this.invalidateResourceLists();
-    });
+    this.on('mark:archived', this.onArchiveToggled);
+    this.on('mark:unarchived', this.onArchiveToggled);
 
-    bus.get('mark:archived').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceLists();
-      }
-    });
-
-    bus.get('mark:unarchived').subscribe((stored) => {
-      if (stored.resourceId) {
-        this.invalidateResourceDetail(stored.resourceId);
-        this.invalidateResourceLists();
-      }
-    });
-
-    bus.get('mark:entity-type-added').subscribe(() => {
-      this.invalidateEntityTypes();
-    });
-  }
-
-  // ── Fetch helpers ───────────────────────────────────────────────────────
-
-  private async fetchAnnotationList(resourceId: ResourceId): Promise<void> {
-    if (this.fetchingAnnotationList.has(resourceId)) return;
-    this.fetchingAnnotationList.add(resourceId);
-    try {
-      const result = await busRequest<AnnotationsListResponse>(
-        this.actor,
-        'browse:annotations-requested',
-        { resourceId },
-        'browse:annotations-result',
-        'browse:annotations-failed',
-      );
-      const next = new Map(this.annotationList$.value);
-      next.set(resourceId, result);
-      this.annotationList$.next(next);
-    } catch {
-      // Leave cache empty
-    } finally {
-      this.fetchingAnnotationList.delete(resourceId);
-    }
-  }
-
-  private async fetchAnnotationDetail(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
-    if (this.fetchingAnnotationDetail.has(annotationId)) return;
-    this.fetchingAnnotationDetail.add(annotationId);
-    try {
-      const result = await busRequest<{ annotation: Annotation }>(
-        this.actor,
-        'browse:annotation-requested',
-        { resourceId, annotationId },
-        'browse:annotation-result',
-        'browse:annotation-failed',
-      );
-      const next = new Map(this.annotationDetail$.value);
-      next.set(annotationId, result.annotation);
-      this.annotationDetail$.next(next);
-    } catch {
-      // Leave cache empty
-    } finally {
-      this.fetchingAnnotationDetail.delete(annotationId);
-    }
-  }
-
-  private async fetchResourceDetail(id: ResourceId): Promise<void> {
-    if (this.fetchingResourceDetail.has(id)) return;
-    this.fetchingResourceDetail.add(id);
-    try {
-      const result = await busRequest<GetResourceResponse>(
-        this.actor,
-        'browse:resource-requested',
-        { resourceId: id },
-        'browse:resource-result',
-        'browse:resource-failed',
-      );
-      const next = new Map(this.resourceDetail$.value);
-      next.set(id, result.resource);
-      this.resourceDetail$.next(next);
-    } catch {
-      // Leave cache empty
-    } finally {
-      this.fetchingResourceDetail.delete(id);
-    }
-  }
-
-  private async fetchResourceList(key: string, filters?: { limit?: number; archived?: boolean; search?: string }): Promise<void> {
-    if (this.fetchingResourceList.has(key)) return;
-    this.fetchingResourceList.add(key);
-    try {
-      const search = filters?.search ? searchQuery(filters.search) : undefined;
-      const result = await busRequest<{ resources: ResourceDescriptor[] }>(
-        this.actor,
-        'browse:resources-requested',
-        {
-          search,
-          archived: filters?.archived,
-          limit: filters?.limit ?? 100,
-          offset: 0,
-        },
-        'browse:resources-result',
-        'browse:resources-failed',
-      );
-      const next = new Map(this.resourceList$.value);
-      next.set(key, result.resources);
-      this.resourceList$.next(next);
-    } catch {
-      // Leave cache empty
-    } finally {
-      this.fetchingResourceList.delete(key);
-    }
-  }
-
-  private async fetchEntityTypes(): Promise<void> {
-    if (this.fetchingEntityTypes) return;
-    this.fetchingEntityTypes = true;
-    try {
-      const result = await busRequest<{ entityTypes: string[] }>(
-        this.actor,
-        'browse:entity-types-requested',
-        {},
-        'browse:entity-types-result',
-        'browse:entity-types-failed',
-      );
-      this.entityTypes$.next(result.entityTypes);
-    } catch {
-      // Leave cache empty
-    } finally {
-      this.fetchingEntityTypes = false;
-    }
-  }
-
-  private async fetchReferencedBy(resourceId: ResourceId): Promise<void> {
-    if (this.fetchingReferencedBy.has(resourceId)) return;
-    this.fetchingReferencedBy.add(resourceId);
-    try {
-      const result = await busRequest<{ referencedBy: ReferencedByEntry[] }>(
-        this.actor,
-        'browse:referenced-by-requested',
-        { resourceId },
-        'browse:referenced-by-result',
-        'browse:referenced-by-failed',
-      );
-      const next = new Map(this.referencedBy$.value);
-      next.set(resourceId, result.referencedBy);
-      this.referencedBy$.next(next);
-    } catch {
-      // Leave cache empty
-    } finally {
-      this.fetchingReferencedBy.delete(resourceId);
-    }
-  }
-
-  private async fetchResourceEventsCache(resourceId: ResourceId): Promise<void> {
-    if (this.fetchingResourceEvents.has(resourceId)) return;
-    this.fetchingResourceEvents.add(resourceId);
-    try {
-      const result = await busRequest<{ events: StoredEventResponse[] }>(
-        this.actor,
-        'browse:events-requested',
-        { resourceId },
-        'browse:events-result',
-        'browse:events-failed',
-      );
-      const next = new Map(this.resourceEvents$.value);
-      next.set(resourceId, result.events);
-      this.resourceEvents$.next(next);
-    } catch {
-      // Leave cache empty
-    } finally {
-      this.fetchingResourceEvents.delete(resourceId);
-    }
+    this.on('mark:entity-type-added', () => this.invalidateEntityTypes());
   }
 }

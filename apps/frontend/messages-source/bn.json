@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "সম্পদের নাম লিখুন...",
     "entityTypes": "সত্তার ধরনের ট্যাগ",
     "entityTypesHint": "আপনার সম্পদে সত্তার ধরনের ট্যাগ যোগ করুন",
-    "noEntityTypesAvailable": "কোনো সত্তার ধরন উপলব্ধ নেই",
     "contentSource": "বিষয়বস্তুর উৎস",
     "uploadFile": "ফাইল আপলোড করুন",
     "uploadFileDescription": "ছবি, নথি, পাঠ্য ফাইল",

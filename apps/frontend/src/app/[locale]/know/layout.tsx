@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
@@ -9,6 +9,7 @@ import {
   ApiClientProvider,
   AuthTokenProvider,
   Toolbar,
+  useApiClient,
   useBrowseVM,
   useObservable,
   useTheme,
@@ -17,6 +18,7 @@ import {
   kbBackendUrl,
   getKbSessionStatus,
 } from '@semiont/react-ui';
+import type { ConnectionState } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
@@ -108,9 +110,25 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
   );
 }
 
+/**
+ * Drives `StreamStatusContext` from the api-client's `actor.state$`
+ * observable so downstream consumers (CollaborationPanel, future
+ * reconnecting banner, tests) see the full six-state machine rather
+ * than a collapsed boolean or tri-state summary.
+ *
+ * Mounts inside `ApiClientProvider` so `useApiClient()` resolves.
+ */
 function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
+  const client = useApiClient();
+  const [state, setState] = useState<ConnectionState>('initial');
+
+  useEffect(() => {
+    const sub = client.actor.state$.subscribe((next) => setState(next));
+    return () => sub.unsubscribe();
+  }, [client]);
+
   return (
-    <StreamStatusContext.Provider value={'connected'}>
+    <StreamStatusContext.Provider value={state}>
       {children}
     </StreamStatusContext.Provider>
   );

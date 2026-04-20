@@ -21,8 +21,7 @@
  * flavor of per-resource serialization — the same invariant enforced by
  * `GraphDBConsumer`, `Gatherer`, and (in a different shape) `ViewManager`.
  * See `packages/core/src/serialize-per-key.ts` for the shared primitive
- * used by RPC-style services, and `.plans/PerResourceSerializer.md` for
- * the broader design that would unify the two shapes.
+ * used by RPC-style services.
  */
 
 import { Subject, Subscription, from } from 'rxjs';

@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Syötä resurssin nimi...",
     "entityTypes": "Entiteettityyppitunnisteet",
     "entityTypesHint": "Merkitse resurssisi entiteettityypeillä",
-    "noEntityTypesAvailable": "Entiteettityyppejä ei ole saatavilla",
     "contentSource": "Sisällön lähde",
     "uploadFile": "Lataa tiedosto",
     "uploadFileDescription": "Kuvat, asiakirjat, tekstitiedostot",

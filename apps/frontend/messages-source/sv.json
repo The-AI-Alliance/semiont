@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Ange resursnamn...",
     "entityTypes": "Entitetstypstaggar",
     "entityTypesHint": "Tagga din resurs med entitetstyper",
-    "noEntityTypesAvailable": "Inga entitetstyper tillgängliga",
     "contentSource": "Innehållskälla",
     "uploadFile": "Ladda upp fil",
     "uploadFileDescription": "Bilder, dokument, textfiler",

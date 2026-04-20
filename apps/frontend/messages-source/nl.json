@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Voer bronnaam in...",
     "entityTypes": "Entiteitstypelabels",
     "entityTypesHint": "Label je bron met entiteitstypen",
-    "noEntityTypesAvailable": "Geen entiteitstypen beschikbaar",
     "contentSource": "Inhoudsbron",
     "uploadFile": "Bestand uploaden",
     "uploadFileDescription": "Afbeeldingen, documenten, tekstbestanden",

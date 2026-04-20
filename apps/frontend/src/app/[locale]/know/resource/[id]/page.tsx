@@ -21,14 +21,22 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import type { SemiontResource } from '@semiont/react-ui';
 
 /**
- * Main page component - handles only routing and initial resource load
+ * Main page component - handles only routing and initial resource load.
+ *
+ * The inner component is keyed on `rId` so that navigation between
+ * resources (URL-param change without component unmount) forces a full
+ * remount. Without this, `useViewModel`'s factory closes over the
+ * initial `rId` and never re-runs, and the URL changes but the content
+ * stays on the first-loaded resource.
  */
 export default function KnowledgeResourcePage() {
   const params = useParams();
-  const locale = useLocale();
-
-  // The URL param is the bare resource ID
   const rId = resourceId(params?.id as string);
+  return <KnowledgeResourcePageInner key={rId} rId={rId} />;
+}
+
+function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId> }) {
+  const locale = useLocale();
 
   const streamStatus = useStreamStatus();
   const { activeKnowledgeBase } = useKnowledgeBaseSession();

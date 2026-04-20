@@ -296,7 +296,6 @@
     "resourceNamePlaceholder": "Enter resource name...",
     "entityTypes": "Entity Type Tags",
     "entityTypesHint": "Tag your resource with entity types",
-    "noEntityTypesAvailable": "No entity types available",
     "contentSource": "Content Source",
     "uploadFile": "Upload File",
     "uploadFileDescription": "Images, documents, text files",

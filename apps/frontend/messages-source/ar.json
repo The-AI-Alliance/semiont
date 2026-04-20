@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "أدخل اسم المورد...",
     "entityTypes": "علامات نوع الكيان",
     "entityTypesHint": "علِّم موردك بأنواع الكيانات",
-    "noEntityTypesAvailable": "لا توجد أنواع كيانات متاحة",
     "contentSource": "مصدر المحتوى",
     "uploadFile": "تحميل ملف",
     "uploadFileDescription": "صور، مستندات، ملفات نصية",

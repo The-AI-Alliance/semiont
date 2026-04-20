@@ -18,7 +18,7 @@ const actorHarness = {
 };
 
 vi.mock('../view-models/domain/actor-vm', async () => {
-  const { Subject } = await import('rxjs');
+  const { BehaviorSubject, Subject } = await import('rxjs');
   const { filter, map } = await import('rxjs/operators');
   return {
     createActorVM: () => {
@@ -31,7 +31,7 @@ vi.mock('../view-models/domain/actor-vm', async () => {
       return {
         on$: <T,>(channel: string) => events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T)),
         emit: actorHarness.emitSpy,
-        connected$: new Subject<boolean>().asObservable(),
+        state$: new BehaviorSubject<string>('open').asObservable(),
         addChannels: actorHarness.addChannels,
         removeChannels: actorHarness.removeChannels,
         start: actorHarness.start,

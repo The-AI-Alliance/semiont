@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Digite o nome do recurso...",
     "entityTypes": "Tags de Tipo de Entidade",
     "entityTypesHint": "Marque seu recurso com tipos de entidade",
-    "noEntityTypesAvailable": "Nenhum tipo de entidade disponivel",
     "contentSource": "Origem do Conteudo",
     "uploadFile": "Enviar Arquivo",
     "uploadFileDescription": "Imagens, documentos, arquivos de texto",

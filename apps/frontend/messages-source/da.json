@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Indtast ressourcenavn...",
     "entityTypes": "Enhedstypetags",
     "entityTypesHint": "Tag din ressource med enhedstyper",
-    "noEntityTypesAvailable": "Ingen enhedstyper tilgængelige",
     "contentSource": "Indholdskilde",
     "uploadFile": "Upload fil",
     "uploadFileDescription": "Billeder, dokumenter, tekstfiler",

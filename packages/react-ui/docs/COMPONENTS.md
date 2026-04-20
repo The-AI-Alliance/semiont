@@ -324,20 +324,6 @@ import { KeyboardShortcutsHelpModal } from '@semiont/react-ui';
 />
 ```
 
-### ProposeEntitiesModal
-
-Entity proposal interface.
-
-```tsx
-import { ProposeEntitiesModal } from '@semiont/react-ui';
-
-<ProposeEntitiesModal
-  isOpen={showModal}
-  onClose={() => setShowModal(false)}
-  resourceId={rId}
-/>
-```
-
 ---
 
 ## UI Elements
