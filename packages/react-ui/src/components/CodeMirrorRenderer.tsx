@@ -6,8 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } fr
 import { markdown } from '@codemirror/lang-markdown';
 import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from '../lib/codemirror-widgets';
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
-import { isReference, createHoverHandlers } from '@semiont/api-client';
-import type { SemiontSession } from '../session/semiont-session';
+import { isReference, createHoverHandlers, type SemiontSession } from '@semiont/api-client';
 import {
   convertSegmentPositions,
   computeAnnotationDecorations,

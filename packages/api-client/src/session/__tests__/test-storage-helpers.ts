@@ -31,7 +31,7 @@ export function seedStoredSession(
 export class TestStorage extends InMemorySessionStorage {
   private handlers: Array<(key: string, newValue: string | null) => void> = [];
 
-  override subscribe(handler: (key: string, newValue: string | null) => void): () => void {
+  subscribe(handler: (key: string, newValue: string | null) => void): () => void {
     this.handlers.push(handler);
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler);

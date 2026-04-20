@@ -7,7 +7,7 @@
  */
 
 import type { Motivation } from '@semiont/core';
-import type { SemiontSession } from '../session/semiont-session';
+import type { SemiontSession } from '@semiont/api-client';
 import type { TextSegment } from './codemirror-logic';
 
 /**

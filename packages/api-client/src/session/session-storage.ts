@@ -7,8 +7,8 @@
  * Implementations shipped here:
  *  - `InMemorySessionStorage` — map-backed, for tests.
  *
- * Browser-backed (`WebBrowserStorage`) lives in its own file because
- * it touches browser-only globals.
+ * Browser-backed (`WebBrowserStorage`) lives in `@semiont/react-ui`
+ * because it touches browser-only globals.
  */
 
 /** String key/value store with optional cross-context change subscription. */

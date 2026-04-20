@@ -11,9 +11,11 @@ import {
   TranslationProvider,
   ToastProvider,
   SemiontProvider,
+} from '@semiont/react-ui';
+import {
   SemiontBrowser,
   InMemorySessionStorage,
-} from '@semiont/react-ui';
+} from '@semiont/api-client';
 import {
   defaultMocks,
   TestProvidersOptions,

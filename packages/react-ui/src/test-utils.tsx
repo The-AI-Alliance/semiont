@@ -9,12 +9,11 @@ import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, type SemiontBrowser } from '@semiont/api-client';
 import { EventBus, baseUrl } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
-import type { SemiontBrowser } from './session/semiont-browser';
 import { SemiontProvider } from './session/SemiontProvider';
 
 /**

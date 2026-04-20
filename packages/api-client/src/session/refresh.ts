@@ -5,9 +5,9 @@
  * the same KB deduplicate to a single network call.
  */
 
-import { SemiontApiClient } from '@semiont/api-client';
 import { baseUrl, refreshToken as makeRefreshToken } from '@semiont/core';
-import type { KnowledgeBase } from '../types/knowledge-base';
+import { SemiontApiClient } from '../client';
+import type { KnowledgeBase } from './knowledge-base';
 import { getStoredSession, setStoredSession, kbBackendUrl } from './storage';
 import type { SessionStorage } from './session-storage';
 

@@ -21,6 +21,6 @@ export type NewKnowledgeBase = Omit<KnowledgeBase, 'id'>;
 
 /**
  * Status of the locally-stored credential for a KB. Derived from the
- * presence and validity of the JWT in localStorage.
+ * presence and validity of the JWT in session storage.
  */
 export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out' | 'unreachable';

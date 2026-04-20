@@ -13,7 +13,7 @@
  * whatever the passed-in `SessionStorage` does.
  */
 
-import type { KnowledgeBase } from '../types/knowledge-base';
+import type { KnowledgeBase } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
 
 // ---------- Storage keys ----------

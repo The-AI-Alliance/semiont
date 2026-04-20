@@ -9,7 +9,7 @@
  * that would mask token leaks.
  */
 
-import type { SessionStorage } from './session-storage';
+import type { SessionStorage } from '@semiont/api-client';
 
 export class WebBrowserStorage implements SessionStorage {
   constructor() {

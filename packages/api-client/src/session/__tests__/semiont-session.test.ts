@@ -11,8 +11,8 @@ const mockDispose = vi.fn();
 const mockRefreshToken = vi.fn();
 const mockActorStateSubject = { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) };
 
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+vi.mock('../../client', async () => {
+  const actual = await vi.importActual<typeof import('../../client')>('../../client');
   class MockSemiontApiClient {
     getMe = mockGetMe;
     dispose = mockDispose;
@@ -84,13 +84,11 @@ describe('SemiontSession — construction & initial token', () => {
   it('stays with null user$ if stored token is expired and no refresh path is available', async () => {
     const expired = freshJwt(-3600);
     seedStoredSession(storage, KB.id, expired, 'refresh-tok');
-    // performRefresh will call refreshToken() — fail it.
     mockRefreshToken.mockRejectedValue(new Error('refresh blocked'));
 
     const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
     expect(session.user$.getValue()).toBeNull();
-    // Expired stored session is cleared.
     expect(storage.get(storageKey(KB.id))).toBeNull();
 
     await session.dispose();
@@ -196,7 +194,6 @@ describe('SemiontSession — cross-context storage sync', () => {
   });
 });
 
-// Guardrail for tests above: assert we're actually using a KB-scoped key.
 describe('test helpers sanity', () => {
   it('storage keys are scoped by kb id', () => {
     expect(storageKey(KB.id)).toMatch(SESSION_PREFIX_RE);

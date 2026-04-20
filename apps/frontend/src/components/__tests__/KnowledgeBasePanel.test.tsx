@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import type { KnowledgeBase } from '@semiont/react-ui';
+import type { KnowledgeBase } from '@semiont/api-client';
 
 const translations: Record<string, string> = {
   'KnowledgeBasePanel.title': 'Knowledge Bases',
@@ -78,16 +78,23 @@ vi.mock('@semiont/react-ui', async () => {
   };
 });
 
-vi.mock('@semiont/api-client', () => ({
-  SemiontApiClient: vi.fn(),
-}));
+vi.mock('@semiont/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+  return {
+    ...actual,
+    SemiontApiClient: vi.fn(),
+  };
+});
 
-vi.mock('@semiont/core', () => ({
-  baseUrl: (url: string) => url,
-  email: (e: string) => e,
-  accessToken: (t: string) => t,
-  EventBus: vi.fn(),
-}));
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/core')>('@semiont/core');
+  return {
+    ...actual,
+    baseUrl: (url: string) => url,
+    email: (e: string) => e,
+    accessToken: (t: string) => t,
+  };
+});
 
 describe('KnowledgeBasePanel', () => {
   beforeEach(() => {

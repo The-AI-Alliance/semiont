@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, email as makeEmail, accessToken } from '@semiont/core';
 import {
-  useSemiont,
-  useObservable,
+  SemiontApiClient,
   defaultProtocol,
   isValidHostname,
   type KnowledgeBase,
   type KbSessionStatus,
+} from '@semiont/api-client';
+import { baseUrl, email as makeEmail, accessToken } from '@semiont/core';
+import {
+  useSemiont,
+  useObservable,
 } from '@semiont/react-ui';
 
 type T = (key: string, params?: Record<string, unknown>) => string;

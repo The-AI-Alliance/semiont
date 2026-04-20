@@ -9,8 +9,8 @@ import {
   useEventSubscriptions,
   CollapsibleResourceNavigation,
   type NavigationItem,
-  type OpenResource
 } from '@semiont/react-ui';
+import type { OpenResource } from '@semiont/api-client';
 
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (

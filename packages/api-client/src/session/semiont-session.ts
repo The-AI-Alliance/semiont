@@ -16,7 +16,6 @@
  */
 
 import { BehaviorSubject, type Observable } from 'rxjs';
-import { SemiontApiClient, APIError, type ConnectionState } from '@semiont/api-client';
 import {
   accessToken,
   baseUrl,
@@ -25,7 +24,9 @@ import {
   type EventMap,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
-import type { KnowledgeBase } from '../types/knowledge-base';
+import { SemiontApiClient, APIError } from '../client';
+import type { ConnectionState } from '../view-models/domain/actor-vm';
+import type { KnowledgeBase } from './knowledge-base';
 import {
   clearStoredSession,
   getStoredSession,

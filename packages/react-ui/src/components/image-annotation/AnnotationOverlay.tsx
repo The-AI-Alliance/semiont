@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import type { components } from '@semiont/core';
 import { createHoverHandlers, getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
-import type { SemiontSession } from '../../session/semiont-session';
+import type { SemiontSession } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 

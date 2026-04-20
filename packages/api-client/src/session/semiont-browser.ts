@@ -2,10 +2,10 @@
  * SemiontBrowser — top-level app-facing container for non-KB state.
  *
  * Holds the list of configured KBs, the active KB selection, the active
- * SemiontSession, the NextAuth identity token, the open-resources list,
- * and a session-level error stream. Module-scoped singleton — survives
- * every React re-render, remount, and route change. `SemiontProvider`
- * hands the singleton to the React tree; `useSemiont()` returns it.
+ * SemiontSession, the identity token, the open-resources list, and a
+ * session-level error stream. Module-scoped singleton — survives every
+ * React re-render, remount, and route change. `SemiontProvider` hands
+ * the singleton to the React tree; `useSemiont()` returns it.
  *
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the browser never touches `localStorage` or `window`
@@ -24,8 +24,8 @@ import {
   setStoredSession,
 } from './storage';
 import { registerAuthNotifyHandlers } from './notify';
-import type { KnowledgeBase, KbSessionStatus, NewKnowledgeBase } from '../types/knowledge-base';
-import type { OpenResource } from '../types/OpenResourcesManager';
+import type { KnowledgeBase, KbSessionStatus, NewKnowledgeBase } from './knowledge-base';
+import type { OpenResource } from './open-resource';
 import { SemiontSession } from './semiont-session';
 import { SemiontError } from './errors';
 import type { SessionStorage } from './session-storage';

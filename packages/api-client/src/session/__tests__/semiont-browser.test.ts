@@ -10,8 +10,8 @@ const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
 const mockRefreshToken = vi.fn();
 
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+vi.mock('../../client', async () => {
+  const actual = await vi.importActual<typeof import('../../client')>('../../client');
   class MockSemiontApiClient {
     getMe = mockGetMe;
     dispose = mockDispose;
@@ -126,11 +126,9 @@ describe('SemiontBrowser — KB list', () => {
       freshJwt(),
       'r',
     );
-    // b is active now.
     expect(browser.activeKbId$.getValue()).toBe(b.id);
 
     browser.removeKb(b.id);
-    // Fallback activates.
     await new Promise((r) => setTimeout(r, 0));
     expect(browser.kbs$.getValue().map((k) => k.id)).not.toContain(b.id);
     expect(browser.activeKbId$.getValue()).toBe(a.id);
@@ -154,14 +152,12 @@ describe('SemiontBrowser — KB list', () => {
 
 describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
   it('emits null on activeSession$ BEFORE the new session is constructed', async () => {
-    // Seed storage so the browser constructs a session for KB_A on init.
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
     const browser = new SemiontBrowser({ storage });
-    // Wait for initial active session to construct.
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     const emissions: Array<string | null> = [];
@@ -172,7 +168,6 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
     await browser.setActiveKb(KB_B.id);
     sub.unsubscribe();
 
-    // Expect: [initialA, null, KB_B]. Importantly, a `null` must appear before KB_B.
     const nullIdx = emissions.indexOf(null);
     const bIdx = emissions.lastIndexOf(KB_B.id);
     expect(nullIdx).toBeGreaterThanOrEqual(0);
@@ -221,7 +216,6 @@ describe('SemiontBrowser — open resources', () => {
     browser.addOpenResource('r2', 'Two', 'text/markdown', 'file://two.md');
     expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1', 'r2']);
 
-    // Re-adding updates metadata in place.
     browser.addOpenResource('r1', 'One v2', 'text/plain');
     const r1 = browser.openResources$.getValue().find((r) => r.id === 'r1');
     expect(r1?.name).toBe('One v2');

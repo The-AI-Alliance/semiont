@@ -5,7 +5,7 @@ import type { components } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
-import type { SemiontSession } from '../../session/semiont-session';
+import type { SemiontSession } from '@semiont/api-client';
 import { useHoverDelay } from '../../hooks/useHoverDelay';
 
 type Annotation = components['schemas']['Annotation'];
