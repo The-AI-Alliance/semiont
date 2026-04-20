@@ -3,8 +3,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from '../hooks/useObservable';
-import { useAuthToken } from './AuthTokenContext';
-import { accessToken } from '@semiont/core';
 import type { components, AnnotationId, ResourceId, Selector } from '@semiont/core';
 import { useLiveRegion } from '../components/LiveRegion';
 
@@ -44,7 +42,6 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const { announce } = useLiveRegion();
 
   const semiont = useObservable(useSemiont().activeSession$)?.client;
-  const token = useAuthToken();
 
   const markAnnotation = useCallback(async (
     rUri: ResourceId,
@@ -63,9 +60,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         body,
       };
 
-      const result = await semiont.markAnnotation(rUri, createData, {
-        auth: token ? accessToken(token) : undefined,
-      });
+      const result = await semiont.markAnnotation(rUri, createData);
 
       // Track this as a new annotation for sparkle animation
       if (result.annotationId) {
@@ -90,7 +85,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       announce('Failed to create annotation', 'assertive');
       throw err;
     }
-  }, [semiont, token, announce]);
+  }, [semiont, announce]);
 
   const clearNewAnnotationId = useCallback((id: AnnotationId) => {
     setNewAnnotationIds(prev => {

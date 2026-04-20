@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { ApiClientProvider, useApiClient } from '../ApiClientContext';
-import { EventBusProvider } from '../EventBusContext';
-import { AuthTokenProvider } from '../AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
 
 // Test component that uses the hook
@@ -19,13 +17,7 @@ function TestConsumer() {
 }
 
 function wrap(ui: React.ReactElement) {
-  return (
-    <EventBusProvider>
-      <AuthTokenProvider token={null}>
-        {ui}
-      </AuthTokenProvider>
-    </EventBusProvider>
-  );
+  return ui;
 }
 
 describe('ApiClientContext', () => {

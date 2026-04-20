@@ -21,7 +21,7 @@ import { render, screen, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
 import { ReferencesPanel } from '../ReferencesPanel';
-import { EventBusProvider } from '../../../../contexts/EventBusContext';
+import { createTestSemiontWrapper } from '../../../../test-utils';
 import { useObservable } from '../../../../hooks/useObservable';
 
 // Match ReferencesPanel.test.tsx's i18n mocking so the test doesn't
@@ -85,8 +85,10 @@ function ObservableHarness({ source$ }: { source$: BehaviorSubject<string[]> }) 
   );
 }
 
-const renderWithBus = (ui: React.ReactElement) =>
-  render(<EventBusProvider>{ui}</EventBusProvider>);
+const renderWithBus = (ui: React.ReactElement) => {
+  const { SemiontWrapper } = createTestSemiontWrapper();
+  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
+};
 
 describe('Layer 5-6 — VM observable → useObservable → ReferencesPanel chips', () => {
   it('an observable seeded with [9 strings] renders 9 pending-reference chips', async () => {

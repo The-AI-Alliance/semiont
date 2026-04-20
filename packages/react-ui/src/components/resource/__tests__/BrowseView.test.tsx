@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
-import type { components } from '@semiont/core';
-import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
+import type { components, EventBus } from '@semiont/core';
+import { createTestSemiontWrapper } from '../../../test-utils';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -97,68 +97,43 @@ interface TrackedEvent {
 function createEventTracker() {
   const events: TrackedEvent[] = [];
   const subscriptions: Set<string> = new Set();
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<{ unsubscribe: () => void }> = [];
-
-      // Track all annotation-related events
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
-      const annotationEvents = [
-        'beckon:hover',
-        'browse:click',
-        'beckon:focus',
-      ] as const;
-
-      annotationEvents.forEach(eventName => {
-        subscriptions.add(eventName);
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
-      });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
   return {
-    EventTrackingWrapper,
     events,
     subscriptions,
     clear: () => {
       events.length = 0;
       subscriptions.clear();
     },
+    _attach(eventBus: EventBus) {
+      const annotationEvents = [
+        'beckon:hover',
+        'browse:click',
+        'beckon:focus',
+      ] as const;
+      annotationEvents.forEach((eventName) => {
+        subscriptions.add(eventName);
+        eventBus.get(eventName).subscribe((payload: any) => {
+          events.push({ event: eventName, payload });
+        });
+      });
+    },
   };
 }
 
-// Helper to render with providers - simple composition, no spy wrappers
 const renderWithProviders = (
   component: React.ReactElement,
   options: { newAnnotationIds?: Set<string> } = {}
 ) => {
-  // Update the mock if new annotation IDs are provided
   if (options.newAnnotationIds) {
     mockNewAnnotationIds = options.newAnnotationIds;
   }
-
-  return render(
-    <EventBusProvider>
-      {component}
-    </EventBusProvider>
+  const { SemiontWrapper } = createTestSemiontWrapper();
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
-// Helper to render with event tracking
 const renderWithEventTracking = (
   component: React.ReactElement,
   tracker: ReturnType<typeof createEventTracker>,
@@ -167,14 +142,12 @@ const renderWithEventTracking = (
   if (options.newAnnotationIds) {
     mockNewAnnotationIds = options.newAnnotationIds;
   }
-
-  return render(
-    <EventBusProvider>
-      <tracker.EventTrackingWrapper>
-        {component}
-      </tracker.EventTrackingWrapper>
-    </EventBusProvider>
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  tracker._attach(eventBus);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
 // Test data fixtures
@@ -515,35 +488,8 @@ describe('BrowseView Component', () => {
 
   describe('Performance - Event Listener Efficiency', () => {
     it('should handle many annotations efficiently through event delegation', async () => {
-      // Create a composition-based event tracker that subscribes like a real consumer
       const eventTracker: Array<{ event: string; annotationId: string | null }> = [];
 
-      function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-        const eventBus = useEventBus();
-
-        React.useEffect(() => {
-          // Subscribe to events like a real component would
-          const handleHover = (payload: any) => {
-            eventTracker.push({ event: 'beckon:hover', annotationId: payload?.annotationId ?? null });
-          };
-
-          const handleClick = (payload: any) => {
-            eventTracker.push({ event: 'browse:click', annotationId: payload?.annotationId ?? null });
-          };
-
-          const subscription1 = eventBus.get('beckon:hover').subscribe(handleHover);
-          const subscription2 = eventBus.get('browse:click').subscribe(handleClick);
-
-          return () => {
-            subscription1.unsubscribe();
-            subscription2.unsubscribe();
-          };
-        }, [eventBus]);
-
-        return <>{children}</>;
-      }
-
-      // Create many annotations
       const manyAnnotations = {
         highlights: Array.from({ length: 50 }, (_, i) =>
           createMockAnnotation('highlighting', `highlight-${i}`)
@@ -556,12 +502,18 @@ describe('BrowseView Component', () => {
         tags: [],
       };
 
+      const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+      eventBus.get('beckon:hover').subscribe((payload: any) => {
+        eventTracker.push({ event: 'beckon:hover', annotationId: payload?.annotationId ?? null });
+      });
+      eventBus.get('browse:click').subscribe((payload: any) => {
+        eventTracker.push({ event: 'browse:click', annotationId: payload?.annotationId ?? null });
+      });
+
       const { container } = render(
-        <EventBusProvider>
-          <EventTrackingWrapper>
-            <BrowseView {...defaultProps} annotations={manyAnnotations} />
-          </EventTrackingWrapper>
-        </EventBusProvider>
+        <SemiontWrapper>
+          <BrowseView {...defaultProps} annotations={manyAnnotations} />
+        </SemiontWrapper>
       );
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');

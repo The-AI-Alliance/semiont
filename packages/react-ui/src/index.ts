@@ -48,14 +48,11 @@ export * from './session';
 // Contexts
 export * from './contexts/AnnotationContext';
 export * from './contexts/ApiClientContext';
-export * from './contexts/AuthTokenContext';
-export * from './contexts/EventBusContext';
 
 export * from './contexts/useEventSubscription';
 export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
 export * from './contexts/RoutingContext';
-export * from './contexts/KnowledgeBaseSessionContext';
 export * from './contexts/TranslationContext';
 
 // Components - Top level

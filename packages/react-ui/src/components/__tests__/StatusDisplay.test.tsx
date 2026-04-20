@@ -22,14 +22,6 @@ vi.mock('../../session/SemiontProvider', async (importOriginal) => {
   };
 });
 
-vi.mock('../../contexts/AuthTokenContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../contexts/AuthTokenContext')>();
-  return {
-    ...actual,
-    useAuthToken: () => null,
-  };
-});
-
 describe('StatusDisplay', () => {
   beforeEach(() => {
     vi.clearAllMocks();

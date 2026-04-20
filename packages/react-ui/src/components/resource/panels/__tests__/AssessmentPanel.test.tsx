@@ -76,8 +76,7 @@ vi.mock('../AssessmentEntry', () => ({
   ),
 }));
 
-// Mock AssistSection component - it will internally use the mocked useEventBus
-// Just render a simplified version
+// Mock AssistSection component — just render a simplified version.
 vi.mock('../AssistSection', () => ({
   AssistSection: ({ annotationType, isAssisting }: any) => (
     <div data-testid="detect-section">

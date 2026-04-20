@@ -5,8 +5,10 @@
  * React mount lifetime. Constructed via SemiontBrowser's registry, disposed
  * via SemiontBrowser.setActiveKb (or signOut).
  *
- * Replaces the per-KB responsibilities of EventBusProvider, AuthTokenProvider,
- * ApiClientProvider, and KnowledgeBaseSessionProvider's per-KB state.
+ * Replaces the per-KB responsibilities of AuthTokenProvider, ApiClientProvider,
+ * and KnowledgeBaseSessionProvider's per-KB state. Owns its own EventBus so
+ * components can emit via `session.emit(channel, payload)` without a
+ * separate bus provider in the React tree.
  */
 
 import { BehaviorSubject, type Observable } from 'rxjs';
@@ -29,8 +31,8 @@ import {
   REFRESH_BEFORE_EXP_MS,
   sessionKey,
   type StoredSession,
-} from '../contexts/knowledge-base-session/storage';
-import { performRefresh } from '../contexts/knowledge-base-session/refresh';
+} from './storage';
+import { performRefresh } from './refresh';
 import { SemiontError } from './errors';
 
 export type UserInfo = components['schemas']['UserResponse'];

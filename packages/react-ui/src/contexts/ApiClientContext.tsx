@@ -1,10 +1,9 @@
 'use client';
 
 import { createContext, useContext, ReactNode, useMemo } from 'react';
-import { baseUrl } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
+import { baseUrl, EventBus, type AccessToken } from '@semiont/core';
 import { SemiontApiClient, type TokenRefresher } from '@semiont/api-client';
-import { useEventBus } from './EventBusContext';
-import { useAuthToken$ } from './AuthTokenContext';
 
 const ApiClientContext = createContext<SemiontApiClient | undefined>(undefined);
 
@@ -19,30 +18,27 @@ export interface ApiClientProviderProps {
 }
 
 /**
- * Provider for API client — must be nested inside EventBusProvider and
- * AuthTokenProvider. The client is re-created when the baseUrl changes
- * (workspace switch). The EventBus and token BehaviorSubject come from
- * context, so the client reads the current token observably without any
- * React-specific wiring.
+ * Provider for API client. The client is re-created when the baseUrl changes
+ * (workspace switch). The token BehaviorSubject is owned by this provider —
+ * callers that need to drive the token should use SemiontSession (which owns
+ * its own client). The EventBus is owned by this provider and torn down
+ * with it.
  */
 export function ApiClientProvider({
   baseUrl: url,
   tokenRefresher,
   children,
 }: ApiClientProviderProps) {
-  const eventBus = useEventBus();
-  const token$ = useAuthToken$();
-
   const client = useMemo(
     () => new SemiontApiClient({
       baseUrl: baseUrl(url),
-      eventBus,
-      token$,
+      eventBus: new EventBus(),
+      token$: new BehaviorSubject<AccessToken | null>(null),
       // Use no timeout in test environment to avoid AbortController issues with ky + vitest
       ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
       ...(tokenRefresher && { tokenRefresher }),
     }),
-    [url, eventBus, token$, tokenRefresher]
+    [url, tokenRefresher]
   );
 
   return (

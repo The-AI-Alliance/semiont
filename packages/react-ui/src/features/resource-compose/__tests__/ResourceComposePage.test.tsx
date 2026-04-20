@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceComposePage } from '../components/ResourceComposePage';
 import type { ResourceComposePageProps, SaveResourceParams } from '../components/ResourceComposePage';
-import { EventBusProvider } from '../../../contexts/EventBusContext';
+import { createTestSemiontWrapper } from '../../../test-utils';
 
 // Mock CodeMirrorRenderer to avoid CodeMirror dependencies
 vi.mock('../../../components/CodeMirrorRenderer', () => ({
@@ -72,9 +72,11 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   ...overrides,
 });
 
-// Helper to render with EventBusProvider
+// Helper to render with a session-capable tree (provides the event bus the
+// component reaches for via useSemiont/useObservable).
 const renderWithProviders = (ui: React.ReactElement) => {
-  return render(<EventBusProvider>{ui}</EventBusProvider>);
+  const { SemiontWrapper } = createTestSemiontWrapper();
+  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
 };
 
 describe('ResourceComposePage', () => {

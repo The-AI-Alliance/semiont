@@ -29,7 +29,7 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
  * - No manual refetch needed - events handle cache invalidation
  *
  * Requirements:
- * - Must be wrapped in MakeMeaningEventBusProvider (provides event bus)
+ * - Must be wrapped in SemiontProvider (which owns the session's event bus)
  * - Must be wrapped in CacheContext (provides cache manager)
  *
  * Event flow:

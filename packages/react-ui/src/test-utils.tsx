@@ -13,13 +13,7 @@ import { SemiontApiClient } from '@semiont/api-client';
 import { EventBus, baseUrl } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
-import { AuthTokenProvider } from './contexts/AuthTokenContext';
-import {
-  KnowledgeBaseSessionContext,
-  type KnowledgeBaseSessionValue,
-} from './contexts/KnowledgeBaseSessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
-import { EventBusProvider } from './contexts/EventBusContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import type { OpenResourcesManager } from './types/OpenResourcesManager';
@@ -46,6 +40,17 @@ function createFakeBrowserForTests(
   // so tests that inspect the bus see the events production code emits.
   const fakeSession = {
     client,
+    kb: null,
+    user$: new BehaviorSubject<any>(null),
+    token$: new BehaviorSubject<any>(null),
+    sessionExpiredAt$: new BehaviorSubject<number | null>(null),
+    sessionExpiredMessage$: new BehaviorSubject<string | null>(null),
+    permissionDeniedAt$: new BehaviorSubject<number | null>(null),
+    permissionDeniedMessage$: new BehaviorSubject<string | null>(null),
+    expiresAt: null,
+    refresh: vi.fn(async () => null),
+    acknowledgeSessionExpired: vi.fn(),
+    acknowledgePermissionDenied: vi.fn(),
     emit<K extends string>(channel: K, payload: unknown): void {
       (eventBus.get(channel as any) as unknown as { next(v: unknown): void }).next(payload);
     },
@@ -83,50 +88,6 @@ function createFakeBrowserForTests(
 }
 
 /**
- * Default mock context value for KnowledgeBaseSessionProvider in tests.
- * Tests override individual fields via `createMockKnowledgeBaseSession`.
- */
-export const defaultMockKnowledgeBaseSession: KnowledgeBaseSessionValue = {
-  knowledgeBases: [],
-  activeKnowledgeBase: null,
-  session: null,
-  isLoading: false,
-  user: null,
-  token: null,
-  isAuthenticated: false,
-  hasValidBackendToken: false,
-  isFullyAuthenticated: false,
-  displayName: 'User',
-  avatarUrl: null,
-  userDomain: undefined,
-  isAdmin: false,
-  isModerator: false,
-  expiresAt: null,
-  sessionExpiredAt: null,
-  sessionExpiredMessage: null,
-  permissionDeniedAt: null,
-  permissionDeniedMessage: null,
-  addKnowledgeBase: vi.fn(() => ({ id: 'mock', label: '', host: '', port: 0, protocol: 'http' as const, email: '' })),
-  removeKnowledgeBase: vi.fn(),
-  setActiveKnowledgeBase: vi.fn(),
-  updateKnowledgeBase: vi.fn(),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  refreshActive: vi.fn(async () => null),
-  acknowledgeSessionExpired: vi.fn(),
-  acknowledgePermissionDenied: vi.fn(),
-};
-
-/**
- * Construct a mock KnowledgeBaseSession context value with overrides.
- */
-export function createMockKnowledgeBaseSession(
-  overrides: Partial<KnowledgeBaseSessionValue> = {},
-): KnowledgeBaseSessionValue {
-  return { ...defaultMockKnowledgeBaseSession, ...overrides };
-}
-
-/**
  * Default mock implementations
  */
 export const defaultMocks = {
@@ -157,8 +118,9 @@ export const defaultMocks = {
 export interface TestProvidersOptions {
   translationManager?: TranslationManager;
   apiBaseUrl?: string;
-  knowledgeBaseSession?: KnowledgeBaseSessionValue;
   openResourcesManager?: OpenResourcesManager;
+  /** Inject a specific SemiontBrowser (e.g. one seeded with a kbs list). */
+  browser?: SemiontBrowser;
 }
 
 export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
@@ -177,35 +139,29 @@ export function renderWithProviders(
   const {
     translationManager = defaultMocks.translationManager,
     apiBaseUrl = 'http://localhost:4000',
-    knowledgeBaseSession = defaultMockKnowledgeBaseSession,
     openResourcesManager = defaultMocks.openResourcesManager,
+    browser,
     returnEventBus = false,
     ...renderOptions
   } = options || {};
 
-  // Single bus shared by the SemiontApiClient, the fake session's emit/on,
-  // and the EventBusProvider — so tests that subscribe via the returned
-  // `eventBus` see everything production code emits via `session?.emit(...)`.
+  // Single bus shared by the SemiontApiClient and the fake session's emit/on —
+  // so tests that subscribe via the returned `eventBus` see everything
+  // production code emits via `session?.emit(...)`.
   const sharedBus = new EventBus();
-  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl, sharedBus);
+  const fakeBrowser = browser ?? createFakeBrowserForTests(apiBaseUrl, sharedBus);
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
         <SemiontProvider browser={fakeBrowser}>
-          <EventBusProvider>
-            <AuthTokenProvider token={null}>
-              <ApiClientProvider baseUrl={apiBaseUrl}>
-                <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
-                  <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-                    <ToastProvider>
-                      {children}
-                    </ToastProvider>
-                  </OpenResourcesProvider>
-                </KnowledgeBaseSessionContext.Provider>
-              </ApiClientProvider>
-            </AuthTokenProvider>
-          </EventBusProvider>
+          <ApiClientProvider baseUrl={apiBaseUrl}>
+            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </OpenResourcesProvider>
+          </ApiClientProvider>
         </SemiontProvider>
       </TranslationProvider>
     );
@@ -249,6 +205,57 @@ export function createMockTranslationManager(
       return translations[namespace]?.[key] || key;
     },
   };
+}
+
+/**
+ * Build a fake SemiontBrowser with the active session's modal-state
+ * observables pre-populated. Used by SessionExpiredModal and
+ * PermissionDeniedModal tests that need to control the modal flags
+ * without driving a real session through its state machine.
+ */
+export function createMockKnowledgeBaseSession(overrides: {
+  permissionDeniedAt?: number | null;
+  permissionDeniedMessage?: string | null;
+  sessionExpiredAt?: number | null;
+  sessionExpiredMessage?: string | null;
+  acknowledgePermissionDenied?: () => void;
+  acknowledgeSessionExpired?: () => void;
+} = {}): SemiontBrowser {
+  const session = {
+    kb: null,
+    user$: new BehaviorSubject<unknown>(null),
+    token$: new BehaviorSubject<unknown>(null),
+    permissionDeniedAt$: new BehaviorSubject<number | null>(overrides.permissionDeniedAt ?? null),
+    permissionDeniedMessage$: new BehaviorSubject<string | null>(overrides.permissionDeniedMessage ?? null),
+    sessionExpiredAt$: new BehaviorSubject<number | null>(overrides.sessionExpiredAt ?? null),
+    sessionExpiredMessage$: new BehaviorSubject<string | null>(overrides.sessionExpiredMessage ?? null),
+    acknowledgePermissionDenied: overrides.acknowledgePermissionDenied ?? vi.fn(),
+    acknowledgeSessionExpired: overrides.acknowledgeSessionExpired ?? vi.fn(),
+    expiresAt: null,
+    refresh: vi.fn(async () => null),
+    emit: vi.fn(),
+    on: vi.fn(() => () => {}),
+  };
+  return {
+    activeSession$: new BehaviorSubject(session),
+    kbs$: new BehaviorSubject<unknown[]>([]),
+    activeKbId$: new BehaviorSubject<string | null>(null),
+    openResources$: new BehaviorSubject<unknown[]>([]),
+    identityToken$: new BehaviorSubject<string | null>(null),
+    error$: new BehaviorSubject<unknown>(null),
+    addKb: vi.fn(),
+    removeKb: vi.fn(),
+    updateKb: vi.fn(),
+    setActiveKb: vi.fn(async () => {}),
+    signIn: vi.fn(async () => {}),
+    signOut: vi.fn(async () => {}),
+    setIdentityToken: vi.fn(),
+    addOpenResource: vi.fn(),
+    removeOpenResource: vi.fn(),
+    updateOpenResourceName: vi.fn(),
+    reorderOpenResources: vi.fn(),
+    dispose: vi.fn(async () => {}),
+  } as unknown as SemiontBrowser;
 }
 
 /**

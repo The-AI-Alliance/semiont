@@ -6,7 +6,6 @@ import {
   formatTime,
   useSemiont,
   useObservable,
-  useKnowledgeBaseSession,
   createSessionVM,
   useViewModel,
 } from '@semiont/react-ui';
@@ -18,17 +17,17 @@ const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdod
 export function UserPanel() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`UserPanel.${k}`, p as any) as string;
-  const {
-    displayName,
-    avatarUrl,
-    userDomain,
-    isAdmin,
-    isModerator,
-    activeKnowledgeBase,
-    signOut,
-  } = useKnowledgeBaseSession();
-  const apiClient = useObservable(useSemiont().activeSession$)?.client;
-  const session = useViewModel(() => createSessionVM(apiClient!));
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$) ?? null;
+  const activeKnowledgeBase = session?.kb ?? null;
+  const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'User';
+  const avatarUrl = user?.image ?? null;
+  const userDomain = user?.domain || user?.email?.split('@')[1];
+  const isAdmin = user?.isAdmin ?? false;
+  const isModerator = user?.isModerator ?? false;
+  const apiClient = session?.client;
+  const sessionVM = useViewModel(() => createSessionVM(apiClient!));
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
@@ -50,9 +49,9 @@ export function UserPanel() {
   })();
 
   const handleSignOut = async () => {
-    await session.logout();
+    await sessionVM.logout();
     if (activeKnowledgeBase) {
-      signOut(activeKnowledgeBase.id);
+      await semiont.signOut(activeKnowledgeBase.id);
     }
     router.push('/');
   };

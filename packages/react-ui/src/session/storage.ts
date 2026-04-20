@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the KnowledgeBaseSession provider.
+ * Pure helpers for the Semiont session layer.
  *
  * Contains:
  *  - localStorage shape and read/write helpers for KB list, active KB id,
@@ -10,12 +10,10 @@
  *    to color status dots without subscribing to context changes
  *
  * No React imports, no module-scoped state, no side effects beyond
- * localStorage. Splitting these out of the provider file makes them
- * unit-testable in isolation and keeps the React provider focused on
- * lifecycle and state.
+ * localStorage.
  */
 
-import type { KnowledgeBase, KbSessionStatus } from '../../types/knowledge-base';
+import type { KnowledgeBase, KbSessionStatus } from '../types/knowledge-base';
 
 // ---------- Storage keys ----------
 

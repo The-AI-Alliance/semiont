@@ -10,3 +10,14 @@ export { SemiontBrowser } from './semiont-browser';
 export { SemiontError, type SemiontErrorCode } from './errors';
 export { getBrowser } from './registry';
 export { SemiontProvider, useSemiont, type SemiontProviderProps } from './SemiontProvider';
+
+// Public helpers — KB URL/status, JWT parsing, notify hooks for the
+// React Query cache handlers outside the React tree.
+export {
+  defaultProtocol,
+  isValidHostname,
+  kbBackendUrl,
+  getKbSessionStatus,
+  type StoredSession,
+} from './storage';
+export { notifySessionExpired, notifyPermissionDenied } from './notify';

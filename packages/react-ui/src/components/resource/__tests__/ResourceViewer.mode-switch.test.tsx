@@ -14,11 +14,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { ResourceViewer } from '../ResourceViewer';
-import { EventBusProvider } from '../../../contexts/EventBusContext';
+import { createTestSemiontWrapper } from '../../../test-utils';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
-import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import type { components } from '@semiont/core';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -30,12 +29,18 @@ vi.mock('../../../hooks/useObservableBrowse', () => ({
 
 // ResourceViewer (and ResourceAnnotationsContext) now resolve the client via
 // useSemiont(). Mock useSemiont to emit a minimal session carrying a stub
-// client with the methods the subject component touches.
+// client with the methods the subject component touches. The session also
+// exposes `on` and `emit` stubs so useEventSubscription(s) don't explode.
 const stubClient = {
   browse: { invalidateAnnotationList: vi.fn() },
   markAnnotation: vi.fn(),
 };
-const stubActiveSession$ = new BehaviorSubject<any>({ client: stubClient });
+const stubSession = {
+  client: stubClient,
+  on: vi.fn(() => () => {}),
+  emit: vi.fn(),
+};
+const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
 const stubBrowser = { activeSession$: stubActiveSession$ };
 
 vi.mock('../../../session/SemiontProvider', async () => {
@@ -79,17 +84,16 @@ const mockTranslationManager = {
 };
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
+  const { SemiontWrapper } = createTestSemiontWrapper();
   return (
     <TranslationProvider translationManager={mockTranslationManager}>
-      <EventBusProvider>
-        <AuthTokenProvider token="test-token">
-          <ApiClientProvider baseUrl="http://localhost:4000">
-            <ResourceAnnotationsProvider>
-              {children}
-            </ResourceAnnotationsProvider>
-          </ApiClientProvider>
-        </AuthTokenProvider>
-      </EventBusProvider>
+      <SemiontWrapper>
+        <ApiClientProvider baseUrl="http://localhost:4000">
+          <ResourceAnnotationsProvider>
+            {children}
+          </ResourceAnnotationsProvider>
+        </ApiClientProvider>
+      </SemiontWrapper>
     </TranslationProvider>
   );
 }

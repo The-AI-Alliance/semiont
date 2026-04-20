@@ -5,10 +5,10 @@
  * Only requires minimal props from the framework layer (routing, modals).
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { components, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/api-client';
-import { annotationId, accessToken } from '@semiont/core';
+import { annotationId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getMimeCategory } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
@@ -31,7 +31,6 @@ import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
-import { useAuthToken } from '../../../contexts/AuthTokenContext';
 import { createResourceViewerPageVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useBrowseVM } from '../../../hooks/useBrowseVM';
@@ -256,42 +255,39 @@ export function ResourceViewerPage({
   // The resource-viewer-page-vm calls client.subscribeToResource(resourceId)
   // which bridges scoped domain events into the local EventBus.
 
-  const authToken = useAuthToken();
-  const authOpts = useMemo(() => ({ auth: authToken ? accessToken(authToken) : undefined }), [authToken]);
-
   const handleResourceArchive = useCallback(async () => {
     if (!semiont) return;
     try {
-      await semiont.updateResource(rUri, { archived: true }, authOpts);
+      await semiont.updateResource(rUri, { archived: true });
       await refetchDocument();
     } catch (err) {
       console.error('Failed to archive document:', err);
       showError('Failed to archive document');
     }
-  }, [semiont, rUri, authOpts, refetchDocument, showError]);
+  }, [semiont, rUri, refetchDocument, showError]);
 
   const handleResourceUnarchive = useCallback(async () => {
     if (!semiont) return;
     try {
-      await semiont.updateResource(rUri, { archived: false }, authOpts);
+      await semiont.updateResource(rUri, { archived: false });
       await refetchDocument();
     } catch (err) {
       console.error('Failed to unarchive document:', err);
       showError('Failed to unarchive document');
     }
-  }, [semiont, rUri, authOpts, refetchDocument, showError]);
+  }, [semiont, rUri, refetchDocument, showError]);
 
   const handleResourceClone = useCallback(async () => {
     if (!semiont) return;
     try {
-      const result = await semiont.generateCloneToken(rUri, authOpts);
+      const result = await semiont.generateCloneToken(rUri);
       const token = result.token;
       session?.emit('browse:router-push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
     }
-  }, [semiont, rUri, authOpts, showError, session]);
+  }, [semiont, rUri, showError, session]);
 
   const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
     triggerSparkleAnimation(annotationId);

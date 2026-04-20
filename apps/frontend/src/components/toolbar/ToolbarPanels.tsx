@@ -5,7 +5,8 @@ import {
   ResizeHandle,
   usePanelWidth,
   useEventSubscriptions,
-  useKnowledgeBaseSession,
+  useSemiont,
+  useObservable,
 } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
@@ -62,7 +63,9 @@ export function ToolbarPanels({
   children
 }: ToolbarPanelsProps) {
   const { t: _t } = useTranslation();
-  const { isAuthenticated } = useKnowledgeBaseSession();
+  const session = useObservable(useSemiont().activeSession$);
+  const user = useObservable(session?.user$);
+  const isAuthenticated = !!user;
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();

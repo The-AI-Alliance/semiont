@@ -18,8 +18,8 @@ import {
   loadKnowledgeBases,
   saveKnowledgeBases,
   setStoredSession,
-} from '../contexts/knowledge-base-session/storage';
-import { registerAuthNotifyHandlers } from '../contexts/knowledge-base-session/notify';
+} from './storage';
+import { registerAuthNotifyHandlers } from './notify';
 import type { KnowledgeBase, NewKnowledgeBase } from '../types/knowledge-base';
 import type { OpenResource } from '../types/OpenResourcesManager';
 import { SemiontSession } from './semiont-session';

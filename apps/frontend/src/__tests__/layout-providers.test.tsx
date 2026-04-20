@@ -5,8 +5,11 @@
  * for their child components. This prevents regressions where providers are
  * accidentally omitted, causing runtime errors.
  *
- * Context: We had bugs where admin/moderate layouts were missing EventBusProvider,
- * ApiClientProvider, and AuthTokenProvider, causing "must be used within" errors.
+ * Context: We had bugs where admin/moderate layouts were missing providers,
+ * causing "must be used within" errors. The event bus now lives inside
+ * `SemiontSession` (owned by `SemiontProvider`), so there is no separate
+ * EventBus provider to check for. The auth token is owned by
+ * `SemiontSession`, so there is no separate AuthToken provider to check for.
  */
 
 import { render, screen } from '@testing-library/react';
@@ -14,10 +17,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import {
-  useAuthToken,
   useApiClient,
-  useEventBus,
-  EventBusProvider,
   SemiontProvider,
 } from '@semiont/react-ui';
 
@@ -45,29 +45,35 @@ const { stubBrowser } = vi.hoisted(() => {
   const stubClient = {
     actor: { state$: { subscribe: () => ({ unsubscribe: () => {} }) } },
   };
-  const stubActiveSession$ = new BehaviorSubject({ client: stubClient });
-  return { stubBrowser: { activeSession$: stubActiveSession$ } };
+  const TEST_KB = { id: 'test', label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' };
+  const stubUser$ = new BehaviorSubject({ isAdmin: true, isModerator: true });
+  const stubToken$ = new BehaviorSubject('test-token');
+  const stubSession = {
+    client: stubClient,
+    kb: TEST_KB,
+    user$: stubUser$,
+    token$: stubToken$,
+    refresh: async () => null,
+  };
+  const stubActiveSession$ = new BehaviorSubject(stubSession);
+  const stubKbs$ = new BehaviorSubject([TEST_KB]);
+  const stubActiveKbId$ = new BehaviorSubject(TEST_KB.id);
+  return {
+    stubBrowser: {
+      activeSession$: stubActiveSession$,
+      kbs$: stubKbs$,
+      activeKbId$: stubActiveKbId$,
+      setActiveKb: async () => {},
+    },
+  };
 });
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
-    useKnowledgeBaseSession: () => ({
-      knowledgeBases: [TEST_KB],
-      activeKnowledgeBase: TEST_KB,
-      isAuthenticated: true,
-      isAdmin: true,
-      isModerator: true,
-      isFullyAuthenticated: true,
-      hasValidBackendToken: true,
-      token: 'test-token',
-      isLoading: false,
-    }),
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     getKbSessionStatus: () => 'authenticated',
-    // Layouts now resolve the client via useSemiont; provide a stub that
-    // emits a session with a minimal client.
     useSemiont: () => stubBrowser,
   };
 });
@@ -122,28 +128,6 @@ describe('Layout Providers', () => {
   });
 
   describe('Admin Layout', () => {
-    it('should provide AuthTokenProvider', async () => {
-      const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
-
-      const TestComponent = () => {
-        const token = useAuthToken();
-        return <div>Token: {token || 'null'}</div>;
-      };
-
-      renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<AdminLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
-      );
-      expect(screen.getByText(/Token:/)).toBeInTheDocument();
-    });
-
     it('should provide ApiClientProvider', async () => {
       const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
 
@@ -153,77 +137,19 @@ describe('Layout Providers', () => {
       };
 
       renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<AdminLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
+        <MemoryRouter initialEntries={['/en/test']}>
+          <Routes>
+            <Route element={<AdminLayout />}>
+              <Route path="*" element={<TestComponent />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       );
       expect(screen.getByText('Client: present')).toBeInTheDocument();
-    });
-
-    it('should provide AuthTokenProvider and ApiClientProvider (EventBusProvider is global)', async () => {
-      const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
-
-      const TestComponent = () => {
-        const token = useAuthToken();
-        const client = useApiClient();
-        const eventBus = useEventBus();
-
-        return (
-          <div>
-            <div>Token: {token ? 'yes' : 'no'}</div>
-            <div>Client: {client ? 'yes' : 'no'}</div>
-            <div>EventBus: {eventBus ? 'yes' : 'no'}</div>
-          </div>
-        );
-      };
-
-      renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<AdminLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
-      );
-
-      expect(screen.getByText('Token: yes')).toBeInTheDocument();
-      expect(screen.getByText('Client: yes')).toBeInTheDocument();
-      expect(screen.getByText('EventBus: yes')).toBeInTheDocument();
     });
   });
 
   describe('Moderate Layout', () => {
-    it('should provide AuthTokenProvider', async () => {
-      const { default: ModerateLayout } = await import('@/app/[locale]/moderate/layout');
-
-      const TestComponent = () => {
-        const token = useAuthToken();
-        return <div>Token: {token || 'null'}</div>;
-      };
-
-      renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<ModerateLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
-      );
-      expect(screen.getByText(/Token:/)).toBeInTheDocument();
-    });
-
     it('should provide ApiClientProvider', async () => {
       const { default: ModerateLayout } = await import('@/app/[locale]/moderate/layout');
 
@@ -233,67 +159,19 @@ describe('Layout Providers', () => {
       };
 
       renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<ModerateLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
+        <MemoryRouter initialEntries={['/en/test']}>
+          <Routes>
+            <Route element={<ModerateLayout />}>
+              <Route path="*" element={<TestComponent />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       );
       expect(screen.getByText('Client: present')).toBeInTheDocument();
-    });
-
-    it('should work with EventBusProvider from global providers', async () => {
-      const { default: ModerateLayout } = await import('@/app/[locale]/moderate/layout');
-
-      const TestComponent = () => {
-        const eventBus = useEventBus();
-        return <div>EventBus: {eventBus ? 'present' : 'null'}</div>;
-      };
-
-      renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<ModerateLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
-      );
-
-      expect(screen.getByText('EventBus: present')).toBeInTheDocument();
     });
   });
 
   describe('Knowledge Layout', () => {
-    it('should provide AuthTokenProvider', async () => {
-      const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
-
-      const TestComponent = () => {
-        const token = useAuthToken();
-        return <div>Token: {token || 'null'}</div>;
-      };
-
-      renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<KnowledgeLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
-      );
-
-      expect(screen.getByText(/Token:/)).toBeInTheDocument();
-    });
-
     it('should provide ApiClientProvider', async () => {
       const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
 
@@ -303,41 +181,16 @@ describe('Layout Providers', () => {
       };
 
       renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<KnowledgeLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
+        <MemoryRouter initialEntries={['/en/test']}>
+          <Routes>
+            <Route element={<KnowledgeLayout />}>
+              <Route path="*" element={<TestComponent />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       );
 
       expect(screen.getByText('Client: present')).toBeInTheDocument();
-    });
-
-    it('should work with EventBusProvider from global providers', async () => {
-      const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
-
-      const TestComponent = () => {
-        const eventBus = useEventBus();
-        return <div>EventBus: {eventBus ? 'present' : 'null'}</div>;
-      };
-
-      renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<KnowledgeLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
-      );
-
-      expect(screen.getByText('EventBus: present')).toBeInTheDocument();
     });
 
     it('should render successfully with all providers', async () => {
@@ -353,15 +206,13 @@ describe('Layout Providers', () => {
       };
 
       renderWithSemiont(
-        <EventBusProvider>
-          <MemoryRouter initialEntries={['/en/test']}>
-            <Routes>
-              <Route element={<KnowledgeLayout />}>
-                <Route path="*" element={<TestComponent />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </EventBusProvider>
+        <MemoryRouter initialEntries={['/en/test']}>
+          <Routes>
+            <Route element={<KnowledgeLayout />}>
+              <Route path="*" element={<TestComponent />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       );
 
       expect(screen.getByText('All Providers: yes')).toBeInTheDocument();

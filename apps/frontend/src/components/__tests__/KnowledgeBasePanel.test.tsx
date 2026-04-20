@@ -32,33 +32,47 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const mockSetActiveKnowledgeBase = vi.fn();
-const mockAddKnowledgeBase = vi.fn();
-const mockRemoveKnowledgeBase = vi.fn();
-const mockUpdateKnowledgeBase = vi.fn();
-const mockSignIn = vi.fn();
-const mockSignOut = vi.fn();
-
 const kb1: KnowledgeBase = { id: 'kb-1', label: 'Production', host: 'prod.example.com', port: 4000, protocol: 'https', email: 'admin@prod.com', gitBranch: 'main' };
 const kb2: KnowledgeBase = { id: 'kb-2', label: 'Staging', host: 'staging.example.com', port: 4000, protocol: 'http', email: 'admin@staging.com' };
 
-let mockKnowledgeBases: KnowledgeBase[] = [kb1, kb2];
-let mockActiveKnowledgeBase: KnowledgeBase | null = kb1;
+// vi.hoisted: the mock factory below needs these in scope.
+const {
+  mockSetActiveKb, mockAddKb, mockRemoveKb, mockUpdateKb, mockSignIn, mockSignOut,
+  kbs$, activeSession$, mockBrowser,
+} = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { BehaviorSubject } = require('rxjs');
+  const kbs$ = new BehaviorSubject([] as any);
+  const activeSession$ = new BehaviorSubject(null);
+  const mockBrowser = {
+    kbs$,
+    activeSession$,
+    activeKbId$: new BehaviorSubject(null),
+    setActiveKb: vi.fn(),
+    addKb: vi.fn(),
+    removeKb: vi.fn(),
+    updateKb: vi.fn(),
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+  };
+  return {
+    mockSetActiveKb: mockBrowser.setActiveKb,
+    mockAddKb: mockBrowser.addKb,
+    mockRemoveKb: mockBrowser.removeKb,
+    mockUpdateKb: mockBrowser.updateKb,
+    mockSignIn: mockBrowser.signIn,
+    mockSignOut: mockBrowser.signOut,
+    kbs$,
+    activeSession$,
+    mockBrowser,
+  };
+});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
-    useKnowledgeBaseSession: () => ({
-      get knowledgeBases() { return mockKnowledgeBases; },
-      get activeKnowledgeBase() { return mockActiveKnowledgeBase; },
-      setActiveKnowledgeBase: mockSetActiveKnowledgeBase,
-      addKnowledgeBase: mockAddKnowledgeBase,
-      removeKnowledgeBase: mockRemoveKnowledgeBase,
-      updateKnowledgeBase: mockUpdateKnowledgeBase,
-      signIn: mockSignIn,
-      signOut: mockSignOut,
-    }),
+    useSemiont: () => mockBrowser,
     defaultProtocol: (host: string) => host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https',
     getKbSessionStatus: (id: string) => id === kb1.id ? 'authenticated' : 'signed-out',
   };
@@ -78,8 +92,10 @@ vi.mock('@semiont/core', () => ({
 describe('KnowledgeBasePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockKnowledgeBases = [kb1, kb2];
-    mockActiveKnowledgeBase = kb1;
+    kbs$.next([kb1, kb2]);
+    // Panel reads `activeKnowledgeBase` from `activeSession$?.kb`, so a session
+    // with `kb: kb1` emulates "kb1 is active".
+    activeSession$.next({ kb: kb1 } as any);
   });
 
   describe('Rendering', () => {
@@ -119,8 +135,8 @@ describe('KnowledgeBasePanel', () => {
     });
 
     it('should auto-open the connect form when no KBs are configured', () => {
-      mockKnowledgeBases = [];
-      mockActiveKnowledgeBase = null;
+      kbs$.next([]);
+      activeSession$.next(null);
       render(<KnowledgeBasePanel />);
       expect(screen.getByRole('heading', { name: /Knowledge Bases/ })).toBeInTheDocument();
       expect(screen.getByText('Connect to Knowledge Base')).toBeInTheDocument();

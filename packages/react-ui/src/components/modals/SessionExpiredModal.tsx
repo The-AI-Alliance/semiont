@@ -1,24 +1,22 @@
 'use client';
 
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useKnowledgeBaseSession } from '../../contexts/KnowledgeBaseSessionContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 
 /**
  * Modal that surfaces when the active KB's session expires (a 401 from
- * either the provider's own JWT validation or from any React Query call
+ * either the session's own JWT validation or from any React Query call
  * via the QueryCache.onError handler).
  *
- * Reads `sessionExpiredAt` from KnowledgeBaseSessionContext. When the user
- * dismisses the modal, the provider clears the flag.
- *
- * Must be mounted inside KnowledgeBaseSessionProvider.
+ * Reads `sessionExpiredAt$` from the active SemiontSession. When the user
+ * dismisses the modal, the session clears the flag.
  */
 export function SessionExpiredModal() {
-  const {
-    sessionExpiredAt,
-    sessionExpiredMessage,
-    acknowledgeSessionExpired,
-  } = useKnowledgeBaseSession();
+  const session = useObservable(useSemiont().activeSession$);
+  const sessionExpiredAt = useObservable(session?.sessionExpiredAt$) ?? null;
+  const sessionExpiredMessage = useObservable(session?.sessionExpiredMessage$) ?? null;
+  const acknowledgeSessionExpired = () => session?.acknowledgeSessionExpired();
   const showModal = sessionExpiredAt !== null;
 
   const handleSignIn = () => {

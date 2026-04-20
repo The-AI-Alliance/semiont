@@ -1,10 +1,12 @@
 /**
  * AuthShell Composition Tests
  *
- * After Track 2, AuthShell is a thin frontend composition over a library
- * provider, the library protected error boundary, and the two library
- * modals. These tests verify the structural contract: every piece is
- * mounted, and the children render inside the chain.
+ * AuthShell is a thin frontend composition over the library's protected
+ * error boundary and the two auth-failure modals. After the UNREACT
+ * migration, the session state (KB list, active KB, SemiontSession) is
+ * owned by the module-scoped `SemiontBrowser` singleton and exposed via
+ * `<SemiontProvider>` at the app root — AuthShell no longer mounts a
+ * session provider.
  *
  * Library mocks are passthroughs/markers — the goal is structure, not
  * library behavior.
@@ -14,13 +16,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
     ...actual,
-    KnowledgeBaseSessionProvider: ({ children }: { children: React.ReactNode }) =>
-      <div data-testid="kb-session-provider">{children}</div>,
     ProtectedErrorBoundary: ({ children }: { children: React.ReactNode }) =>
       <div data-testid="protected-error-boundary">{children}</div>,
     SessionExpiredModal: () => <div data-testid="session-expired-modal" />,
@@ -32,9 +33,11 @@ import { AuthShell } from '../AuthShell';
 
 function renderShell() {
   return render(
-    <AuthShell>
-      <div data-testid="protected-content">protected body</div>
-    </AuthShell>
+    <MemoryRouter>
+      <AuthShell>
+        <div data-testid="protected-content">protected body</div>
+      </AuthShell>
+    </MemoryRouter>
   );
 }
 
@@ -43,16 +46,9 @@ describe('AuthShell', () => {
     vi.clearAllMocks();
   });
 
-  it('mounts KnowledgeBaseSessionProvider as the outermost wrapper', () => {
+  it('mounts ProtectedErrorBoundary as the outer wrapper', () => {
     renderShell();
-    expect(screen.getByTestId('kb-session-provider')).toBeInTheDocument();
-  });
-
-  it('mounts ProtectedErrorBoundary inside KnowledgeBaseSessionProvider', () => {
-    renderShell();
-    const provider = screen.getByTestId('kb-session-provider');
-    const boundary = screen.getByTestId('protected-error-boundary');
-    expect(provider).toContainElement(boundary);
+    expect(screen.getByTestId('protected-error-boundary')).toBeInTheDocument();
   });
 
   it('mounts SessionExpiredModal inside the boundary', () => {

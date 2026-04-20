@@ -4,7 +4,8 @@ import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIc
 import { SemiontApiClient } from '@semiont/api-client';
 import { baseUrl, email as makeEmail, accessToken, EventBus } from '@semiont/core';
 import {
-  useKnowledgeBaseSession,
+  useSemiont,
+  useObservable,
   defaultProtocol,
   isValidHostname,
   getKbSessionStatus,
@@ -155,16 +156,15 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
 export function KnowledgeBasePanel() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
-  const {
-    knowledgeBases,
-    activeKnowledgeBase,
-    setActiveKnowledgeBase,
-    addKnowledgeBase,
-    removeKnowledgeBase,
-    updateKnowledgeBase,
-    signIn,
-    signOut,
-  } = useKnowledgeBaseSession();
+  const semiont = useSemiont();
+  const knowledgeBases = useObservable(semiont.kbs$) ?? [];
+  const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
+  const setActiveKnowledgeBase = (id: string) => { void semiont.setActiveKb(id); };
+  const addKnowledgeBase = semiont.addKb.bind(semiont);
+  const removeKnowledgeBase = semiont.removeKb.bind(semiont);
+  const updateKnowledgeBase = semiont.updateKb.bind(semiont);
+  const signIn = (id: string, access: string, refresh: string) => { void semiont.signIn(id, access, refresh); };
+  const signOut = (id: string) => { void semiont.signOut(id); };
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);

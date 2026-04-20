@@ -313,26 +313,22 @@ describe('ReferencesPanel Component', () => {
 
       // Simulate detection starting
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={true}
-            progress={{ completedEntityTypes: [] }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
+        />
       );
 
       // Simulate detection completing
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={false}
-            progress={{
-              completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
-            }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={false}
+          progress={{
+            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+          }}
+        />
       );
 
       // UI should reset but we can't directly test internal state
@@ -442,13 +438,11 @@ describe('ReferencesPanel Component', () => {
 
       // Parent clears progress after completion
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={false}
-            progress={null}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={false}
+          progress={null}
+        />
       );
 
       expect(screen.getByText('Person:')).toBeInTheDocument();
@@ -467,9 +461,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
       expect(screen.getByText(/Found.*5/i)).toBeInTheDocument();
     });
@@ -486,9 +478,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
       expect(screen.getByText('✓')).toBeInTheDocument();
     });
@@ -505,9 +495,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       // Should show both the completed log AND the selection UI
@@ -527,9 +515,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       // Selection UI should be immediately available (no button click needed)
@@ -563,13 +549,11 @@ describe('ReferencesPanel Component', () => {
 
       // Start detecting
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={true}
-            progress={{ completedEntityTypes: [] }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
+        />
       );
 
       // Detecting state
@@ -591,22 +575,18 @@ describe('ReferencesPanel Component', () => {
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel
-            {...defaultProps}
-            isAssisting={false}
-            progress={{
-              completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
-            }}
-          />
-        </EventBusProvider>
+        <ReferencesPanel
+          {...defaultProps}
+          isAssisting={false}
+          progress={{
+            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+          }}
+        />
       );
 
       // Then clear progress to show the log
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       expect(screen.queryByTestId('annotation-progress-widget')).not.toBeInTheDocument();
@@ -628,18 +608,14 @@ describe('ReferencesPanel Component', () => {
 
       // Clear progress to show the log
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
       );
 
       // Selection UI should be immediately available
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
 
       rerender(
-        <EventBusProvider>
-          <ReferencesPanel {...defaultProps} />
-        </EventBusProvider>
+        <ReferencesPanel {...defaultProps} />
       );
 
       expect(screen.getByText('Select entity types')).toBeInTheDocument();

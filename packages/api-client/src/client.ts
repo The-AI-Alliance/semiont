@@ -418,8 +418,16 @@ export class SemiontApiClient {
     }
   }
 
+  /**
+   * Build the `Authorization: Bearer <token>` header. If the caller passed
+   * an explicit `{ auth }` it wins (used by session-internal throwaway
+   * clients that need to run a validation request with a specific token).
+   * Otherwise the current value of `this.token$` is used, so external
+   * callers never have to plumb the token themselves.
+   */
   private authHeaders(options?: { auth?: AccessToken }): Record<string, string> {
-    return options?.auth ? { Authorization: `Bearer ${options.auth}` } : {};
+    const token = options?.auth ?? this.token$.getValue() ?? undefined;
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   // ============================================================================

@@ -1,5 +1,4 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
-import type { AccessToken } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { BrowseVM } from '../flows/browse-vm';
@@ -22,14 +21,14 @@ export interface ExchangeVM extends ViewModel {
   isImporting$: Observable<boolean>;
   selectFile(file: File): void;
   cancelImport(): void;
-  doExport(auth: AccessToken): Promise<{ blob: Blob; filename: string }>;
-  doImport(auth: AccessToken): Promise<void>;
+  doExport(): Promise<{ blob: Blob; filename: string }>;
+  doImport(): Promise<void>;
 }
 
 export function createExchangeVM(
   browse: BrowseVM,
-  exportFn: (params: { includeArchived?: boolean } | undefined, options: { auth: AccessToken }) => Promise<Response>,
-  importFn: (file: File, options: { auth: AccessToken; onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void }) => Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>,
+  exportFn: (params?: { includeArchived?: boolean }) => Promise<Response>,
+  importFn: (file: File, options?: { onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void }) => Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>,
 ): ExchangeVM {
   const disposer = createDisposer();
   disposer.add(browse);
@@ -63,10 +62,10 @@ export function createExchangeVM(
     importResult$.next(undefined);
   };
 
-  const doExport = async (auth: AccessToken): Promise<{ blob: Blob; filename: string }> => {
+  const doExport = async (): Promise<{ blob: Blob; filename: string }> => {
     isExporting$.next(true);
     try {
-      const response = await exportFn(undefined, { auth });
+      const response = await exportFn();
       if (!response.ok) throw new Error(`Export failed: ${response.status} ${response.statusText}`);
       const blob = await response.blob();
       const contentDisposition = response.headers.get('Content-Disposition');
@@ -78,7 +77,7 @@ export function createExchangeVM(
     }
   };
 
-  const doImport = async (auth: AccessToken): Promise<void> => {
+  const doImport = async (): Promise<void> => {
     const file = selectedFile$.getValue();
     if (!file) return;
     isImporting$.next(true);
@@ -87,7 +86,6 @@ export function createExchangeVM(
     importResult$.next(undefined);
     try {
       await importFn(file, {
-        auth,
         onProgress: (event) => {
           importPhase$.next(event.phase);
           importMessage$.next(event.message);

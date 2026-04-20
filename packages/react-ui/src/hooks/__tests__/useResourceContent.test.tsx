@@ -31,14 +31,6 @@ vi.mock('../../session/SemiontProvider', async () => {
   };
 });
 
-vi.mock('../../contexts/AuthTokenContext', async () => {
-  const actual = await vi.importActual<typeof import('../../contexts/AuthTokenContext')>('../../contexts/AuthTokenContext');
-  return {
-    ...actual,
-    useAuthToken: () => 'test-token',
-  };
-});
-
 // Minimal wrapper -- hooks under test don't need full providers
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

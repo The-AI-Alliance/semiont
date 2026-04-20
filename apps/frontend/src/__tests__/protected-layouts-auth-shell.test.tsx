@@ -48,7 +48,10 @@ vi.mock('@/hooks/useOpenResourcesManager', () => ({
   }),
 }));
 
-const TEST_KB = { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' };
+// vi.hoisted so the vi.mock factory below can reference TEST_KB.
+const { TEST_KB } = vi.hoisted(() => ({
+  TEST_KB: { id: 'kb-1', label: 'Test', host: 'localhost', port: 4000, protocol: 'http' as const, email: 'test@example.com' },
+}));
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
@@ -58,29 +61,31 @@ vi.mock('@semiont/react-ui', async () => {
   const stubClient = {
     actor: { state$: { subscribe: () => ({ unsubscribe: () => {} }) } },
   };
-  const stubActiveSession$ = new BehaviorSubject<any>({ client: stubClient });
-  const stubBrowser = { activeSession$: stubActiveSession$ };
+  const stubUser$ = new BehaviorSubject<any>({ isAdmin: true, isModerator: true });
+  const stubToken$ = new BehaviorSubject<any>('test-token');
+  const stubSession = {
+    client: stubClient,
+    kb: TEST_KB,
+    user$: stubUser$,
+    token$: stubToken$,
+    refresh: async () => null,
+  };
+  const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
+  const stubKbs$ = new BehaviorSubject<any[]>([TEST_KB]);
+  const stubActiveKbId$ = new BehaviorSubject<string | null>(TEST_KB.id);
+  const stubBrowser = {
+    activeSession$: stubActiveSession$,
+    kbs$: stubKbs$,
+    activeKbId$: stubActiveKbId$,
+    setActiveKb: async () => {},
+  };
   return {
     ...actual,
-    useKnowledgeBaseSession: () => ({
-      knowledgeBases: [TEST_KB],
-      activeKnowledgeBase: TEST_KB,
-      isAuthenticated: true,
-      isAdmin: true,
-      isModerator: true,
-      isFullyAuthenticated: true,
-      hasValidBackendToken: true,
-      token: 'test-token',
-      isLoading: false,
-    }),
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
     getKbSessionStatus: () => 'authenticated',
-    AuthTokenProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ApiClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     OpenResourcesProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    // Layouts look up the SemiontBrowser via useSemiont; provide a stub that
-    // emits a session with the stub client from activeSession$.
     useSemiont: () => stubBrowser,
     LeftSidebar: () => <div data-testid="left-sidebar" />,
     Footer: () => null,

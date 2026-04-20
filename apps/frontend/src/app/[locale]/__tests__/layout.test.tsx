@@ -1,13 +1,13 @@
 /**
  * LocaleLayout Provider Boundary Tests
  *
- * Regression tests that assert the locale layout does NOT mount any
- * auth-dependent providers. The whole point of the AuthShell extraction
- * is that pre-app routes (landing, about, OAuth flow) don't trigger
- * JWT validation or surface session-expired modals.
+ * Regression tests that assert the locale layout does NOT mount AuthShell.
+ * The whole point of the AuthShell extraction is that pre-app routes
+ * (landing, about, OAuth flow) don't mount the auth-failure modals or
+ * protected error boundary.
  *
- * If a future change accidentally re-introduces AuthProvider at the
- * locale level, these tests fail loudly.
+ * AuthShell is mocked as a marker; the test fails if the locale layout
+ * renders it.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -16,13 +16,19 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
-// Mock app-specific providers as passthroughs (we don't care about their internals)
+// Mock app-specific providers as passthroughs
 vi.mock('@/app/providers', () => ({
   Providers: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('@/components/CookieBanner', () => ({
   CookieBanner: () => null,
+}));
+
+// AuthShell mocked as a marker — test fails if locale layout mounts it
+vi.mock('@/contexts/AuthShell', () => ({
+  AuthShell: ({ children }: { children: React.ReactNode }) =>
+    <div data-testid="auth-shell-marker">{children}</div>,
 }));
 
 vi.mock('@semiont/react-ui', async () => {
@@ -34,17 +40,6 @@ vi.mock('@semiont/react-ui', async () => {
 });
 
 import LocaleLayout from '../layout';
-import { useKnowledgeBaseSession } from '@semiont/react-ui';
-
-/**
- * A child component that calls useKnowledgeBaseSession. If LocaleLayout
- * has not mounted AuthShell (the desired behavior), this throws — proving
- * the boundary holds.
- */
-function AuthContextProbe() {
-  useKnowledgeBaseSession();
-  return <div data-testid="probe">probe</div>;
-}
 
 function renderLocaleLayoutWithChild(child: React.ReactNode) {
   return render(
@@ -63,14 +58,9 @@ describe('LocaleLayout — provider boundary', () => {
     vi.clearAllMocks();
   });
 
-  it('does NOT mount AuthShell — useKnowledgeBaseSession throws when called outside it', () => {
-    // React logs the thrown error to console.error before re-raising;
-    // suppress it for clean test output.
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => {
-      renderLocaleLayoutWithChild(<AuthContextProbe />);
-    }).toThrow(/useKnowledgeBaseSession requires KnowledgeBaseSessionProvider/);
-    consoleError.mockRestore();
+  it('does NOT mount AuthShell at the locale level', () => {
+    renderLocaleLayoutWithChild(<div data-testid="child">content</div>);
+    expect(screen.queryByTestId('auth-shell-marker')).not.toBeInTheDocument();
   });
 
   it('renders children via Outlet', () => {

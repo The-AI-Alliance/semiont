@@ -10,13 +10,10 @@ import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
-// Import directly from context file to bypass mocked barrel export
-import { EventBusProvider } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
-import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
-import { BehaviorSubject } from 'rxjs';
+import { createTestSemiontWrapper } from '../../../test-utils';
 
 // jsdom doesn't implement window.matchMedia — mock it for useTheme
 Object.defineProperty(window, 'matchMedia', {
@@ -82,12 +79,10 @@ vi.mock('@semiont/react-ui', async () => {
     createCancelDetectionHandler: () => vi.fn(),
 useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
-    MakeMeaningEventBusProvider: ({ children }: any) => children,
     useResourceLoadingAnnouncements: () => ({
       announceResourceLoading: vi.fn(),
       announceResourceLoaded: vi.fn(),
     }),
-    // Don't mock EventBusProvider, useEventBus - let actual pass through via ...actual
     useEventSubscriptions: vi.fn(),
     useResourceAnnotations: () => ({
       clearNewAnnotationId: vi.fn(),
@@ -123,6 +118,7 @@ vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
 // (the barrel export mock doesn't intercept direct context imports)
 const mockUseEventSubscriptions = vi.fn();
 vi.mock('../../../contexts/useEventSubscription', () => ({
+  useEventSubscription: vi.fn(),
   useEventSubscriptions: (...args: unknown[]) => mockUseEventSubscriptions(...args),
 }));
 
@@ -162,16 +158,15 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
 
 // Test wrapper to provide all required providers
 const renderWithProviders = (ui: React.ReactElement) => {
+  const { SemiontWrapper } = createTestSemiontWrapper();
   return render(
     <ThemeProvider>
       <ToastProvider>
-        <AuthTokenProvider token={null}>
-          <EventBusProvider>
-            <ApiClientProvider baseUrl="http://localhost:4000">
-              {ui}
-            </ApiClientProvider>
-          </EventBusProvider>
-        </AuthTokenProvider>
+        <SemiontWrapper>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            {ui}
+          </ApiClientProvider>
+        </SemiontWrapper>
       </ToastProvider>
     </ThemeProvider>
   );

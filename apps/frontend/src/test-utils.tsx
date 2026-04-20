@@ -2,9 +2,7 @@
  * Frontend-specific test utilities
  *
  * Provides renderWithProviders that wraps components with the providers a
- * frontend test typically needs. The KnowledgeBaseSession context is mocked
- * via the library context provider so tests can supply a fake session value
- * without going through localStorage / JWT validation.
+ * frontend test typically needs.
  */
 
 import React, { ReactElement } from 'react';
@@ -14,12 +12,11 @@ import {
   ApiClientProvider,
   OpenResourcesProvider,
   ToastProvider,
-  KnowledgeBaseSessionContext,
+  SemiontProvider,
+  SemiontBrowser,
 } from '@semiont/react-ui';
 import {
   defaultMocks,
-  defaultMockKnowledgeBaseSession,
-  createMockKnowledgeBaseSession,
   TestProvidersOptions,
   createMockTranslationManager,
   createMockOpenResourcesManager,
@@ -42,23 +39,25 @@ export function renderWithProviders(
   const {
     translationManager = defaultMocks.translationManager,
     apiBaseUrl = 'http://localhost:4000',
-    knowledgeBaseSession = defaultMockKnowledgeBaseSession,
     openResourcesManager = defaultMocks.openResourcesManager,
+    browser,
     ...renderOptions
   } = options || {};
+
+  const effectiveBrowser = browser ?? new SemiontBrowser();
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider baseUrl={apiBaseUrl}>
-          <KnowledgeBaseSessionContext.Provider value={knowledgeBaseSession}>
+        <SemiontProvider browser={effectiveBrowser}>
+          <ApiClientProvider baseUrl={apiBaseUrl}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <ToastProvider>
                 {children}
               </ToastProvider>
             </OpenResourcesProvider>
-          </KnowledgeBaseSessionContext.Provider>
-        </ApiClientProvider>
+          </ApiClientProvider>
+        </SemiontProvider>
       </TranslationProvider>
     );
   }
@@ -71,8 +70,6 @@ export * from '@testing-library/react';
 export { vi } from 'vitest';
 export {
   defaultMocks,
-  defaultMockKnowledgeBaseSession,
-  createMockKnowledgeBaseSession,
   createMockTranslationManager,
   createMockOpenResourcesManager,
 };

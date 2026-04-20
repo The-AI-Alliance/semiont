@@ -7,14 +7,12 @@ import {
   ResourceAnnotationsProvider,
   OpenResourcesProvider,
   ApiClientProvider,
-  AuthTokenProvider,
   Toolbar,
   useSemiont,
   useBrowseVM,
   useObservable,
   useTheme,
   useLineNumbers,
-  useKnowledgeBaseSession,
   kbBackendUrl,
   getKbSessionStatus,
 } from '@semiont/react-ui';
@@ -38,7 +36,9 @@ function GlobalEventsConnector() {
 function DiscoverEmptyState() {
   const { t: _t } = useTranslation();
   const t = (k: string) => _t(`DiscoverEmptyState.${k}`) as string;
-  const { knowledgeBases, activeKnowledgeBase } = useKnowledgeBaseSession();
+  const semiont = useSemiont();
+  const knowledgeBases = useObservable(semiont.kbs$) ?? [];
+  const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
   const status = activeKnowledgeBase
     ? getKbSessionStatus(activeKnowledgeBase.id)
     : null;
@@ -139,7 +139,15 @@ function KnowledgeLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const openResourcesManager = useOpenResourcesManager();
-  const { token: authToken, isLoading, activeKnowledgeBase, refreshActive } = useKnowledgeBaseSession();
+  const semiont = useSemiont();
+  const activeKbId = useObservable(semiont.activeKbId$);
+  const session = useObservable(semiont.activeSession$);
+  const token = useObservable(session?.token$);
+  const activeKnowledgeBase = session?.kb ?? null;
+  // "Loading" = we intend to have a session (activeKbId is set) but the
+  // session hasn't finished constructing yet.
+  const isLoading = activeKbId != null && session == null;
+  const refreshActive = async (): Promise<string | null> => (await session?.refresh()) ?? null;
 
   if (isLoading) {
     return (
@@ -152,42 +160,40 @@ function KnowledgeLayoutBody() {
     );
   }
 
-  if (!activeKnowledgeBase || !authToken) {
+  if (!activeKnowledgeBase || !token) {
     return (
       <UnauthenticatedKnowledgeLayout t={(key: string, params?: Record<string, unknown>) => t(key, params as any) as string} keyboardContext={keyboardContext} />
     );
   }
 
   return (
-    <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
-        <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-          <ResourceAnnotationsProvider>
-            <GlobalEventsConnector />
-            <KnowledgeLayoutInner>
-              <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
-                <div className="flex flex-1 overflow-hidden">
-                  <KnowledgeSidebarWrapper />
-                  <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
-                    <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
-                      <Outlet />
-                    </div>
-                  </main>
-                </div>
-                <Footer
-                  Link={Link}
-                  routes={routes}
-                  t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-                  CookiePreferences={CookiePreferences}
-                  showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
-                  {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-                />
+    <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)} tokenRefresher={refreshActive}>
+      <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+        <ResourceAnnotationsProvider>
+          <GlobalEventsConnector />
+          <KnowledgeLayoutInner>
+            <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+              <div className="flex flex-1 overflow-hidden">
+                <KnowledgeSidebarWrapper />
+                <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+                  <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
+                    <Outlet />
+                  </div>
+                </main>
               </div>
-            </KnowledgeLayoutInner>
-          </ResourceAnnotationsProvider>
-        </OpenResourcesProvider>
-      </ApiClientProvider>
-    </AuthTokenProvider>
+              <Footer
+                Link={Link}
+                routes={routes}
+                t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
+                CookiePreferences={CookiePreferences}
+                showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
+                {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+              />
+            </div>
+          </KnowledgeLayoutInner>
+        </ResourceAnnotationsProvider>
+      </OpenResourcesProvider>
+    </ApiClientProvider>
   );
 }
 
