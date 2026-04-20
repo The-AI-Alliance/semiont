@@ -86,6 +86,14 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.getToken = getToken;
     this.actor = actor;
 
+    // TEMPORARY DIAGNOSTIC — BrowseNamespace instance counter.
+    const g = globalThis as { __SEMIONT_BROWSE_INSTANCES__?: number };
+    g.__SEMIONT_BROWSE_INSTANCES__ = (g.__SEMIONT_BROWSE_INSTANCES__ ?? 0) + 1;
+    const browseSerial = g.__SEMIONT_BROWSE_INSTANCES__;
+    (this as unknown as { __serial__: number }).__serial__ = browseSerial;
+    // eslint-disable-next-line no-console
+    console.debug(`[diag] BrowseNamespace #${browseSerial} constructed`);
+
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await busRequest<GetResourceResponse>(
         this.actor,
@@ -136,6 +144,9 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.entityTypesCache = createCache<string, string[]>(async () => {
+      const serial = (this as unknown as { __serial__: number }).__serial__;
+      // eslint-disable-next-line no-console
+      console.debug(`[diag] BrowseNamespace#${serial} entityTypes fetchFn START`);
       const result = await busRequest<{ entityTypes: string[] }>(
         this.actor,
         'browse:entity-types-requested',
@@ -143,6 +154,8 @@ export class BrowseNamespace implements IBrowseNamespace {
         'browse:entity-types-result',
         'browse:entity-types-failed',
       );
+      // eslint-disable-next-line no-console
+      console.debug(`[diag] BrowseNamespace#${serial} entityTypes fetchFn RESOLVE`, JSON.stringify(result.entityTypes).slice(0, 200));
       return result.entityTypes;
     });
 
@@ -203,7 +216,21 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   entityTypes(): Observable<string[] | undefined> {
-    return this.entityTypesCache.observe(ENTITY_TYPES_KEY);
+    const serial = (this as unknown as { __serial__: number }).__serial__;
+    // eslint-disable-next-line no-console
+    console.debug(`[diag] BrowseNamespace#${serial} entityTypes() called`);
+    // Memo the instrumented observable once — calling .pipe(...) on every
+    // invocation would return a fresh reference and violate B4 (per-key
+    // observable stability). One-shot emission logging is attached here.
+    const self = this as unknown as { __entityTypesDiag__?: Observable<string[] | undefined> };
+    if (!self.__entityTypesDiag__) {
+      self.__entityTypesDiag__ = this.entityTypesCache.observe(ENTITY_TYPES_KEY).pipe(map((v) => {
+        // eslint-disable-next-line no-console
+        console.debug(`[diag] BrowseNamespace#${serial} entityTypes$ EMIT`, v === undefined ? 'undefined' : JSON.stringify(v).slice(0, 200));
+        return v;
+      }));
+    }
+    return self.__entityTypesDiag__;
   }
 
   referencedBy(resourceId: ResourceId): Observable<ReferencedByEntry[] | undefined> {

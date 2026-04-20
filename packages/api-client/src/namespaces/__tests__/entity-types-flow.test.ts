@@ -18,11 +18,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { BehaviorSubject, Subject, filter, firstValueFrom, map } from 'rxjs';
-import {
-  EventBus,
-  annotationId as makeAnnotationId,
-  resourceId as makeResourceId,
-} from '@semiont/core';
+import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type {
   components,
   EventMap,
@@ -85,10 +81,13 @@ function fakeMarkRemoved(rId: ResourceId, annId: string): StoredEvent<EventOfTyp
 }
 
 function fakeYieldCreated(rId: string): EventMap['yield:create-ok'] {
-  return { resourceId: rId, correlationId: 'x' } as EventMap['yield:create-ok'];
+  return {
+    resourceId: rId,
+    resource: { '@context': 'http://schema.org', '@id': rId, name: 'Res', representations: [] },
+  } as unknown as EventMap['yield:create-ok'];
 }
 
-function fakeArchiveToggled(rId: ResourceId): StoredEvent<EventOfType<'mark:archived'>> {
+function fakeMarkArchived(rId: ResourceId): StoredEvent<EventOfType<'mark:archived'>> {
   return {
     id: `evt-archive`,
     type: 'mark:archived',
@@ -98,7 +97,20 @@ function fakeArchiveToggled(rId: ResourceId): StoredEvent<EventOfType<'mark:arch
     timestamp: '2026-01-01T00:00:00Z',
     payload: {},
     metadata: TEST_META,
-  } as StoredEvent<EventOfType<'mark:archived'>>;
+  };
+}
+
+function fakeMarkUnarchived(rId: ResourceId): StoredEvent<EventOfType<'mark:unarchived'>> {
+  return {
+    id: `evt-unarchive`,
+    type: 'mark:unarchived',
+    resourceId: rId,
+    userId: TEST_USER,
+    version: 1,
+    timestamp: '2026-01-01T00:00:00Z',
+    payload: {},
+    metadata: TEST_META,
+  };
 }
 
 interface Harness {
@@ -197,8 +209,8 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
     eventBus.get('mark:removed').next(fakeMarkRemoved(RID, 'ann-1'));
     eventBus.get('yield:create-ok').next(fakeYieldCreated('res-1'));
     eventBus.get('yield:update-ok').next(fakeYieldCreated('res-1'));
-    eventBus.get('mark:archived').next(fakeArchiveToggled(RID));
-    eventBus.get('mark:unarchived').next(fakeArchiveToggled(RID));
+    eventBus.get('mark:archived').next(fakeMarkArchived(RID));
+    eventBus.get('mark:unarchived').next(fakeMarkUnarchived(RID));
 
     await flush();
     await flush();
@@ -306,7 +318,7 @@ describe('entity types — Layer 3 (VM pipe over real cache)', () => {
       await firstDefined(browse.entityTypes());
       eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-1'));
       eventBus.get('yield:create-ok').next(fakeYieldCreated('res-1'));
-      eventBus.get('mark:archived').next(fakeArchiveToggled(RID));
+      eventBus.get('mark:archived').next(fakeMarkArchived(RID));
       await flush();
 
       const lateVmPipe$ = browse.entityTypes().pipe(map((e) => e ?? []));
