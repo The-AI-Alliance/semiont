@@ -19,7 +19,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
-import { SemiontProvider, SemiontBrowser } from '@semiont/react-ui';
+import { SemiontProvider, SemiontBrowser, WebBrowserStorage } from '@semiont/react-ui';
 
 // Mock SemiontApiClient — control whether getMe / refreshToken succeed or fail
 const mockGetMe = vi.fn();
@@ -75,7 +75,7 @@ function seedSession(access: string, refresh: string) {
 }
 
 function renderShell(children: React.ReactNode) {
-  const browser = new SemiontBrowser();
+  const browser = new SemiontBrowser({ storage: new WebBrowserStorage() });
   return {
     browser,
     ...render(

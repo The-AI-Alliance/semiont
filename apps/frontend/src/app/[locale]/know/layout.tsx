@@ -11,7 +11,6 @@ import {
   useObservable,
   useTheme,
   useLineNumbers,
-  getKbSessionStatus,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -34,7 +33,7 @@ function DiscoverEmptyState() {
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
   const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
   const status = activeKnowledgeBase
-    ? getKbSessionStatus(activeKnowledgeBase.id)
+    ? semiont.getKbSessionStatus(activeKnowledgeBase.id)
     : null;
 
   if (knowledgeBases.length === 0) {

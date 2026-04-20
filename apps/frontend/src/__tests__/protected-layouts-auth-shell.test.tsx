@@ -67,11 +67,11 @@ vi.mock('@semiont/react-ui', async () => {
     kbs$: stubKbs$,
     activeKbId$: stubActiveKbId$,
     setActiveKb: async () => {},
+    getKbSessionStatus: () => 'authenticated',
   };
   return {
     ...actual,
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-    getKbSessionStatus: () => 'authenticated',
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useSemiont: () => stubBrowser,
     LeftSidebar: () => <div data-testid="left-sidebar" />,

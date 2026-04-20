@@ -54,6 +54,7 @@ const {
     updateKb: vi.fn(),
     signIn: vi.fn(),
     signOut: vi.fn(),
+    getKbSessionStatus: (id: string) => id === 'kb-1' ? 'authenticated' : 'signed-out',
   };
   return {
     mockSetActiveKb: mockBrowser.setActiveKb,
@@ -74,7 +75,6 @@ vi.mock('@semiont/react-ui', async () => {
     ...actual,
     useSemiont: () => mockBrowser,
     defaultProtocol: (host: string) => host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https',
-    getKbSessionStatus: (id: string) => id === kb1.id ? 'authenticated' : 'signed-out',
   };
 });
 

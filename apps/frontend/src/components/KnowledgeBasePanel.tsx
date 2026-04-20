@@ -8,7 +8,6 @@ import {
   useObservable,
   defaultProtocol,
   isValidHostname,
-  getKbSessionStatus,
   type KnowledgeBase,
   type KbSessionStatus,
 } from '@semiont/react-ui';
@@ -235,7 +234,7 @@ export function KnowledgeBasePanel() {
   };
 
   const handleKbClick = (kb: KnowledgeBase) => {
-    const status = getKbSessionStatus(kb.id);
+    const status = semiont.getKbSessionStatus(kb.id);
     if (status === 'authenticated') {
       setActiveKnowledgeBase(kb.id);
     } else {
@@ -256,7 +255,7 @@ export function KnowledgeBasePanel() {
       <div className="semiont-panel__content">
         <div className="semiont-panel__list">
           {knowledgeBases.map((kb: KnowledgeBase) => {
-            const status = getKbSessionStatus(kb.id);
+            const status = semiont.getKbSessionStatus(kb.id);
             const isActive = kb.id === activeKnowledgeBase?.id;
             const isReauthing = reauthKbId === kb.id;
 

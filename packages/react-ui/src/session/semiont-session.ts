@@ -5,6 +5,10 @@
  * mount lifetime. Constructed via SemiontBrowser's registry, disposed via
  * SemiontBrowser.setActiveKb (or signOut).
  *
+ * Persistence goes through a `SessionStorage` adapter provided at
+ * construction — the session never touches `localStorage` or `window`
+ * directly.
+ *
  * The session's EventBus is owned by the client and re-exposed via
  * `session.emit` / `session.on`. React components subscribe via
  * `useEventSubscription[s]`. Nothing outside the session reaches for the
@@ -34,11 +38,14 @@ import {
 } from './storage';
 import { performRefresh } from './refresh';
 import { SemiontError } from './errors';
+import type { SessionStorage } from './session-storage';
 
 export type UserInfo = components['schemas']['UserResponse'];
 
 export interface SemiontSessionConfig {
   kb: KnowledgeBase;
+  /** Persistence adapter. Reads/writes tokens via this. */
+  storage: SessionStorage;
   /** Called for session-level failures (auth, refresh exhaustion). */
   onError?: (err: SemiontError) => void;
 }
@@ -58,17 +65,19 @@ export class SemiontSession {
   /** Resolves after the initial validation round-trip completes (success or failure). */
   readonly ready: Promise<void>;
 
+  private readonly storage: SessionStorage;
   private readonly eventBus: EventBus;
   private readonly onError: (err: SemiontError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
-  private storageHandler: ((e: StorageEvent) => void) | null = null;
+  private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
 
   constructor(config: SemiontSessionConfig) {
     this.kb = config.kb;
+    this.storage = config.storage;
     this.onError = config.onError ?? (() => {});
 
-    const stored = getStoredSession(this.kb.id);
+    const stored = getStoredSession(this.storage, this.kb.id);
     const initialToken =
       stored && !isJwtExpired(stored.access) ? accessToken(stored.access) : null;
 
@@ -94,10 +103,9 @@ export class SemiontSession {
       this.scheduleProactiveRefresh(initialToken);
     }
 
-    if (typeof window !== 'undefined') {
-      this.storageHandler = (e) => this.handleStorageEvent(e);
-      window.addEventListener('storage', this.storageHandler);
-    }
+    this.unsubscribeStorage = this.storage.subscribe?.((key, newValue) => {
+      this.handleStorageChange(key, newValue);
+    }) ?? null;
 
     this.ready = this.validate(stored);
   }
@@ -111,10 +119,12 @@ export class SemiontSession {
   private async validate(stored: StoredSession | null): Promise<void> {
     if (!stored) return;
 
-    const startToken = isJwtExpired(stored.access) ? await performRefresh(this.kb) : stored.access;
+    const startToken = isJwtExpired(stored.access)
+      ? await performRefresh(this.kb, this.storage)
+      : stored.access;
     if (!startToken) {
       if (isJwtExpired(stored.access)) {
-        clearStoredSession(this.kb.id);
+        clearStoredSession(this.storage, this.kb.id);
       }
       return;
     }
@@ -136,7 +146,7 @@ export class SemiontSession {
       } catch (err) {
         if (this.disposed) return;
         if (err instanceof APIError && err.status === 401) {
-          const refreshed = await performRefresh(this.kb);
+          const refreshed = await performRefresh(this.kb, this.storage);
           if (this.disposed) return;
           if (refreshed) {
             this.token$.next(accessToken(refreshed));
@@ -144,7 +154,7 @@ export class SemiontSession {
             await attempt(refreshed);
             return;
           }
-          clearStoredSession(this.kb.id);
+          clearStoredSession(this.storage, this.kb.id);
           this.token$.next(null);
           this.notifySessionExpired('Your session has expired. Please sign in again.');
         } else {
@@ -172,7 +182,7 @@ export class SemiontSession {
    */
   async refresh(): Promise<AccessToken | null> {
     if (this.disposed) return null;
-    const newAccess = await performRefresh(this.kb);
+    const newAccess = await performRefresh(this.kb, this.storage);
     if (this.disposed) return null;
     if (newAccess) {
       const tok = accessToken(newAccess);
@@ -181,7 +191,7 @@ export class SemiontSession {
       return tok;
     }
     this.token$.next(null);
-    clearStoredSession(this.kb.id);
+    clearStoredSession(this.storage, this.kb.id);
     this.notifySessionExpired('Your session has expired. Please sign in again.');
     this.onError(
       new SemiontError('session.refresh-exhausted', 'Token refresh failed', this.kb.id),
@@ -209,21 +219,20 @@ export class SemiontSession {
   }
 
   /**
-   * Cross-tab sync: another tab refreshed or signed out this KB.
-   * Mirror the change into our in-memory state.
+   * Cross-context sync: another tab/process refreshed or signed out this
+   * KB. Mirror the change into our in-memory state.
    */
-  private handleStorageEvent(e: StorageEvent): void {
+  private handleStorageChange(key: string, newValue: string | null): void {
     if (this.disposed) return;
-    const watchKey = sessionKey(this.kb.id);
-    if (e.key !== watchKey) return;
-    if (!e.newValue) {
+    if (key !== sessionKey(this.kb.id)) return;
+    if (!newValue) {
       this.token$.next(null);
       this.user$.next(null);
       this.clearRefreshTimer();
       return;
     }
     try {
-      const parsed = JSON.parse(e.newValue) as StoredSession;
+      const parsed = JSON.parse(newValue) as StoredSession;
       if (typeof parsed.access === 'string') {
         this.token$.next(accessToken(parsed.access));
         this.scheduleProactiveRefresh(parsed.access);
@@ -265,7 +274,7 @@ export class SemiontSession {
     this.sessionExpiredAt$.next(Date.now());
     this.token$.next(null);
     this.user$.next(null);
-    clearStoredSession(this.kb.id);
+    clearStoredSession(this.storage, this.kb.id);
     this.clearRefreshTimer();
   }
 
@@ -297,9 +306,9 @@ export class SemiontSession {
     this.disposed = true;
 
     this.clearRefreshTimer();
-    if (this.storageHandler && typeof window !== 'undefined') {
-      window.removeEventListener('storage', this.storageHandler);
-      this.storageHandler = null;
+    if (this.unsubscribeStorage) {
+      this.unsubscribeStorage();
+      this.unsubscribeStorage = null;
     }
 
     this.client.dispose();

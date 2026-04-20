@@ -18,6 +18,7 @@ vi.mock('@semiont/api-client', async () => {
     dispose = mockDispose;
     refreshToken = mockRefreshToken;
     actor = { state$: mockActorStateSubject };
+    eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
   }
   return {
     ...actual,
@@ -26,7 +27,7 @@ vi.mock('@semiont/api-client', async () => {
 });
 
 import { SemiontSession } from '../semiont-session';
-import { SESSION_PREFIX_RE, storageKey, seedStoredSession } from './test-storage-helpers';
+import { SESSION_PREFIX_RE, storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
 
 function freshJwt(expSecondsFromNow = 3600): string {
   const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
@@ -43,21 +44,22 @@ const KB = {
   email: 'alice@example.com',
 };
 
+let storage: TestStorage;
+
 beforeEach(() => {
-  localStorage.clear();
+  storage = new TestStorage();
   mockGetMe.mockReset();
   mockDispose.mockReset();
   mockRefreshToken.mockReset();
 });
 
 afterEach(() => {
-  // Clean up any leftover storage listeners by collecting sessions.
   // Tests that create sessions should dispose them inside the test.
 });
 
 describe('SemiontSession — construction & initial token', () => {
   it('starts with null token when no stored session', async () => {
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     expect(session.token$.getValue()).toBeNull();
     expect(session.user$.getValue()).toBeNull();
     await session.ready;
@@ -66,10 +68,10 @@ describe('SemiontSession — construction & initial token', () => {
 
   it('starts with stored token when unexpired, then populates user$ via getMe', async () => {
     const jwt = freshJwt();
-    seedStoredSession(KB.id, jwt, 'refresh-tok');
+    seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
     mockGetMe.mockResolvedValue({ id: 'u1', email: 'a@b.c', name: 'Alice', isAdmin: false, isModerator: false });
 
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     expect(session.token$.getValue()).toBe(jwt);
 
     await session.ready;
@@ -81,15 +83,15 @@ describe('SemiontSession — construction & initial token', () => {
 
   it('stays with null user$ if stored token is expired and no refresh path is available', async () => {
     const expired = freshJwt(-3600);
-    seedStoredSession(KB.id, expired, 'refresh-tok');
+    seedStoredSession(storage, KB.id, expired, 'refresh-tok');
     // performRefresh will call refreshToken() — fail it.
     mockRefreshToken.mockRejectedValue(new Error('refresh blocked'));
 
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
     expect(session.user$.getValue()).toBeNull();
     // Expired stored session is cleared.
-    expect(localStorage.getItem(storageKey(KB.id))).toBeNull();
+    expect(storage.get(storageKey(KB.id))).toBeNull();
 
     await session.dispose();
   });
@@ -97,7 +99,7 @@ describe('SemiontSession — construction & initial token', () => {
 
 describe('SemiontSession — modal state', () => {
   it('notifySessionExpired sets sessionExpiredAt$ and nulls token$', async () => {
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
 
     session.notifySessionExpired('expired');
@@ -113,7 +115,7 @@ describe('SemiontSession — modal state', () => {
   });
 
   it('notifyPermissionDenied sets permissionDeniedAt$', async () => {
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
 
     session.notifyPermissionDenied('nope');
@@ -129,7 +131,7 @@ describe('SemiontSession — modal state', () => {
 
 describe('SemiontSession — dispose', () => {
   it('completes subjects and calls client.dispose on dispose', async () => {
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
 
     let completed = false;
@@ -141,7 +143,7 @@ describe('SemiontSession — dispose', () => {
   });
 
   it('dispose is idempotent', async () => {
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
     await session.dispose();
     await session.dispose();
@@ -149,36 +151,29 @@ describe('SemiontSession — dispose', () => {
   });
 });
 
-describe('SemiontSession — cross-tab storage sync', () => {
-  it('responds to a storage event that updates this KB\'s session key', async () => {
-    const session = new SemiontSession({ kb: KB });
+describe('SemiontSession — cross-context storage sync', () => {
+  it('responds to a storage change that updates this KB\'s session key', async () => {
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
 
-    // Manually dispatch a storage event with a new access token.
     const newJwt = freshJwt();
-    const evt = new StorageEvent('storage', {
-      key: storageKey(KB.id),
-      newValue: JSON.stringify({ access: newJwt, refresh: 'r2' }),
-    });
-    // Wait for the next emission after dispatch.
     const nextToken = firstValueFrom(session.token$.pipe(skip(1), take(1)));
-    window.dispatchEvent(evt);
+    storage.dispatch(storageKey(KB.id), JSON.stringify({ access: newJwt, refresh: 'r2' }));
     await expect(nextToken).resolves.toBe(newJwt);
 
     await session.dispose();
   });
 
-  it('responds to a storage event that clears this KB\'s session', async () => {
+  it('responds to a storage change that clears this KB\'s session', async () => {
     const jwt = freshJwt();
-    seedStoredSession(KB.id, jwt, 'r');
+    seedStoredSession(storage, KB.id, jwt, 'r');
     mockGetMe.mockResolvedValue({ id: 'u', email: 'a@b.c', name: 'A', isAdmin: false, isModerator: false });
 
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
     expect(session.token$.getValue()).toBe(jwt);
 
-    const evt = new StorageEvent('storage', { key: storageKey(KB.id), newValue: null });
-    window.dispatchEvent(evt);
+    storage.dispatch(storageKey(KB.id), null);
 
     expect(session.token$.getValue()).toBeNull();
     expect(session.user$.getValue()).toBeNull();
@@ -186,19 +181,15 @@ describe('SemiontSession — cross-tab storage sync', () => {
     await session.dispose();
   });
 
-  it('ignores storage events for other keys', async () => {
+  it('ignores storage changes for other keys', async () => {
     const jwt = freshJwt();
-    seedStoredSession(KB.id, jwt, 'r');
+    seedStoredSession(storage, KB.id, jwt, 'r');
     mockGetMe.mockResolvedValue({ id: 'u', email: 'a@b.c', name: 'A', isAdmin: false, isModerator: false });
 
-    const session = new SemiontSession({ kb: KB });
+    const session = new SemiontSession({ kb: KB, storage });
     await session.ready;
 
-    const evt = new StorageEvent('storage', {
-      key: 'semiont.session.OTHER_KB',
-      newValue: JSON.stringify({ access: 'xyz', refresh: 'q' }),
-    });
-    window.dispatchEvent(evt);
+    storage.dispatch('semiont.session.OTHER_KB', JSON.stringify({ access: 'xyz', refresh: 'q' }));
     expect(session.token$.getValue()).toBe(jwt);
 
     await session.dispose();
