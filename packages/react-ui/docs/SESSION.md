@@ -175,13 +175,13 @@ Internally `useEventSubscription` calls `session.client.on(channel, handler)`.
 
 ### ViewModel hooks
 
-`useBrowseVM` (and friends) construct ViewModels over the active session's
+`useShellVM` (and friends) construct ViewModels over the active session's
 client:
 
 ```tsx
-export function useBrowseVM(): BrowseVM {
+export function useShellVM(): ShellVM {
   const client = useObservable(useSemiont().activeSession$)?.client;
-  return useViewModel(() => createBrowseVM(client!, {
+  return useViewModel(() => createShellVM(client!, {
     initialPanel: readPanel(),
     onPanelChange: persistPanel,
   }));

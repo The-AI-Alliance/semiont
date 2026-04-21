@@ -49,7 +49,7 @@ composes the library.
 - **Branding** — SemiontBranding
 
 #### Hooks and utilities
-- `useObservable`, `useBrowseVM`, `useResourceContent`, `useMediaToken`, `useLineNumbers`, `useHoverDelay`, `useKeyboardShortcuts`, `useToast`, `useSessionExpiry`, `useTheme`
+- `useObservable`, `useShellVM`, `useResourceContent`, `useMediaToken`, `useLineNumbers`, `useHoverDelay`, `useKeyboardShortcuts`, `useToast`, `useSessionExpiry`, `useTheme`
 - `useEventBus`, `useEventSubscriptions`, `useApiClient`, `useAuthToken`, `useAuthToken$`, `useKnowledgeBaseSession`
 
 #### Providers and contexts
@@ -61,7 +61,7 @@ composes the library.
 - `OpenResourcesProvider`, `ResourceAnnotationsProvider` — workspace state
 
 #### Flow view models (from `@semiont/api-client`, re-exported)
-- `createMarkVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBindVM`, `createBeckonVM`, `createBrowseVM`
+- `createMarkVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBindVM`, `createBeckonVM`, `createShellVM`
 - Resource-page composition: `createResourceViewerPageVM`
 
 ### What Stays in `apps/frontend`
