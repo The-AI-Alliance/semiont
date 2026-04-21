@@ -20,7 +20,6 @@ import { SortableResourceTab } from './SortableResourceTab';
 import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 import './CollapsibleResourceNavigation.css';
 
@@ -29,9 +28,9 @@ import './CollapsibleResourceNavigation.css';
  * Supports drag and drop for resource reordering when expanded.
  * Platform-agnostic design for use across different React environments.
  *
- * @emits browse:resource-reorder - Resource tab reordered. Payload: { oldIndex: number, newIndex: number }
- * @emits browse:resource-close - Resource tab closed. Payload: { resourceId: string }
- * @emits browse:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
+ * @emits tabs:reorder - Resource tab reordered. Payload: { oldIndex: number, newIndex: number }
+ * @emits tabs:close - Resource tab closed. Payload: { resourceId: string }
+ * @emits shell:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function CollapsibleResourceNavigation({
   fixedItems,
@@ -54,7 +53,7 @@ export function CollapsibleResourceNavigation({
 
   const { announcePickup, announceDrop, announceKeyboardReorder, announceCannotMove } = useDragAnnouncements();
   const t = useTranslations('CollapsibleResourceNavigation');
-  const session = useObservable(useSemiont().activeSession$);
+  const semiont = useSemiont();
 
   // Use translations from context, with fallback to props for backward compatibility
   const mergedTranslations = {
@@ -111,12 +110,12 @@ export function CollapsibleResourceNavigation({
     }
 
     // Emit event
-    session?.emit('browse:resource-reorder', { oldIndex: currentIndex, newIndex });
+    semiont.emit('tabs:reorder', { oldIndex: currentIndex, newIndex });
 
     // Announce the change
     const resource = resources[currentIndex];
     announceKeyboardReorder(resource.name, direction, newIndex + 1, resources.length);
-  }, [resources, session]);
+  }, [resources, semiont]);
 
   // Handle resource close
   const handleResourceClose = (resourceId: string, e: React.MouseEvent) => {
@@ -124,7 +123,7 @@ export function CollapsibleResourceNavigation({
     e.stopPropagation();
 
     // Emit event
-    session?.emit('browse:resource-close', { resourceId });
+    semiont.emit('tabs:close', { resourceId });
 
     // If we're closing the currently viewed resource, navigate to first fixed item or trigger callback
     const resourceHref = getResourceHref(resourceId);
@@ -152,7 +151,7 @@ export function CollapsibleResourceNavigation({
       const newIndex = resources.findIndex((resource) => resource.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         // Emit event
-        session?.emit('browse:resource-reorder', { oldIndex, newIndex });
+        semiont.emit('tabs:reorder', { oldIndex, newIndex });
         const resource = resources[oldIndex];
         announceDrop(resource.name, newIndex + 1, resources.length);
       }
@@ -190,7 +189,7 @@ export function CollapsibleResourceNavigation({
               <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>
             )}
             <button
-              onClick={() => session?.emit('browse:sidebar-toggle', undefined)}
+              onClick={() => semiont.emit('shell:sidebar-toggle', undefined)}
               className="semiont-nav-section__header-icon"
               title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
               aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}

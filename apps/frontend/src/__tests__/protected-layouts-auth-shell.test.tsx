@@ -67,11 +67,11 @@ vi.mock('@semiont/react-ui', async () => {
     kbs$: stubKbs$,
     activeKbId$: stubActiveKbId$,
     setActiveKb: async () => {},
+    getKbSessionStatus: () => 'authenticated',
   };
   return {
     ...actual,
     kbBackendUrl: (kb: any) => `${kb.protocol}://${kb.host}:${kb.port}`,
-    getKbSessionStatus: () => 'authenticated',
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useSemiont: () => stubBrowser,
     LeftSidebar: () => <div data-testid="left-sidebar" />,
@@ -79,7 +79,7 @@ vi.mock('@semiont/react-ui', async () => {
     Toolbar: () => null,
     useTheme: () => ({ theme: 'light', resolvedTheme: 'light', setTheme: vi.fn() }),
     useLineNumbers: () => ({ showLineNumbers: false, toggleLineNumbers: vi.fn() }),
-    useBrowseVM: () => ({ activePanel$: { subscribe: () => ({ unsubscribe: () => {} }) }, dispose: () => {} }),
+    useShellVM: () => ({ activePanel$: { subscribe: () => ({ unsubscribe: () => {} }) }, dispose: () => {} }),
   };
 });
 

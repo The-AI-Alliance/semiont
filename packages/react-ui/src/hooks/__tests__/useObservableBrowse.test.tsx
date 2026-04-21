@@ -7,16 +7,19 @@ import { useObservableRouter, useObservableExternalNavigation } from '../useObse
 import { createTestSemiontWrapper } from '../../test-utils';
 
 function makeWrapper(): { Wrapper: React.ComponentType<{ children: React.ReactNode }>; eventBus: EventBus } {
-  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  // useObservableRouter/ExternalNavigation emit nav:* on the app-scoped
+  // (SemiontBrowser) bus. Return that bus as `eventBus` so the existing
+  // test bodies keep working without rewiring each assertion.
+  const { SemiontWrapper, shellBus } = createTestSemiontWrapper();
   const Wrapper = ({ children }: { children: React.ReactNode }) => <SemiontWrapper>{children}</SemiontWrapper>;
-  return { Wrapper, eventBus };
+  return { Wrapper, eventBus: shellBus };
 }
 
 describe('useObservableRouter', () => {
   beforeEach(() => {
   });
 
-  it('wraps push and emits browse:router-push event', () => {
+  it('wraps push and emits nav:push event', () => {
     const basePush = vi.fn();
     const baseRouter = { push: basePush };
 
@@ -24,7 +27,7 @@ describe('useObservableRouter', () => {
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.get('browse:router-push').subscribe((e: any) => events.push(e));
+    eventBus.get('nav:push').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current.push('/test-path', { reason: 'test' });
@@ -43,7 +46,7 @@ describe('useObservableRouter', () => {
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.get('browse:router-push').subscribe((e: any) => events.push(e));
+    eventBus.get('nav:push').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current.replace!('/replaced', { reason: 'nav' });
@@ -82,12 +85,12 @@ describe('useObservableExternalNavigation', () => {
     vi.useRealTimers();
   });
 
-  it('emits browse:external-navigate event with url and metadata', () => {
+  it('emits nav:external event with url and metadata', () => {
     const { Wrapper, eventBus } = makeWrapper();
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.get('browse:external-navigate').subscribe((e: any) => events.push(e));
+    eventBus.get('nav:external').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current('/some/url', { resourceId: 'res-123' });
@@ -108,7 +111,7 @@ describe('useObservableExternalNavigation', () => {
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
     // Subscribe and cancel the fallback
-    eventBus.get('browse:external-navigate').subscribe((e: any) => {
+    eventBus.get('nav:external').subscribe((e: any) => {
       e.cancelFallback();
     });
 

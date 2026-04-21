@@ -28,10 +28,10 @@ import type {
   SearchQuery,
   UserDID
 } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import { EventBus, type EventMap } from '@semiont/core';
 import { createActorVM, type ActorVM } from './view-models/domain/actor-vm';
 import { busRequest } from './bus-request';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, type Observable } from 'rxjs';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
@@ -122,9 +122,8 @@ export class APIError extends Error {
  * 401 propagates as an APIError.
  *
  * Implementations must dedupe concurrent calls so that simultaneous 401s
- * don't fire multiple parallel refresh requests. The frontend's
- * KnowledgeBaseSessionProvider provides this via an in-flight Promise map
- * keyed by KB id.
+ * don't fire multiple parallel refresh requests. `SemiontSession.refresh()`
+ * satisfies this via an in-flight Promise map keyed by KB id.
  */
 export type TokenRefresher = () => Promise<string | null>;
 
@@ -162,16 +161,11 @@ export class SemiontApiClient {
   private http: KyInstance;
   readonly baseUrl: BaseUrl;
   /**
-   * Workspace-scoped EventBus — owned by the client, NOT accepted as
-   * config. Kept accessible on the instance so **library internals**
-   * (ViewModel factories like `createBrowseVM`, `createMarkVM`, etc.)
-   * can wire themselves to the same bus the namespaces use.
-   *
-   * **Components must NOT reach for `client.eventBus` directly** — route
-   * bus access through `SemiontSession.emit` / `session.on` / the
-   * `useEventSubscription` hook. See UNREACT.md D7.
+   * Workspace-scoped EventBus — owned by the client, constructed
+   * internally, never accepted from config. Private: all bus access
+   * goes through `client.emit` / `client.on` / `client.stream`.
    */
-  readonly eventBus: EventBus;
+  private readonly eventBus: EventBus;
   private logger?: Logger;
 
   /**
@@ -423,6 +417,31 @@ export class SemiontApiClient {
       this._actor.dispose();
       this._actor = null;
     }
+  }
+
+  // ── Event bus surface ─────────────────────────────────────────
+  // The ONE public path to the workspace bus. VMs, session, and
+  // components route through these methods; `this.eventBus` remains
+  // the internal owner and will be privatized once all callers
+  // have migrated.
+
+  /** Emit an event on the internal bus. */
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
+    this.eventBus.get(channel).next(payload);
+  }
+
+  /** Subscribe to an event on the internal bus; returns unsubscribe. */
+  on<K extends keyof EventMap>(
+    channel: K,
+    handler: (payload: EventMap[K]) => void,
+  ): () => void {
+    const sub = this.eventBus.get(channel).subscribe(handler);
+    return () => sub.unsubscribe();
+  }
+
+  /** Read-only observable for a bus channel. Consumers `.pipe(...)` over this. */
+  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
+    return this.eventBus.get(channel).asObservable();
   }
 
   /**

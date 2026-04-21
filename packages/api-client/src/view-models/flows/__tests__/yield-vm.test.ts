@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import type { YieldProgress } from '@semiont/core';
-import type { SemiontApiClient } from '../../../client';
 import { createYieldVM } from '../yield-vm';
+import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 
 const RID = makeResourceId('res-1');
 const REF_ID = 'ref-ann-1';
@@ -12,18 +12,18 @@ function makeProgress(overrides: Partial<YieldProgress> = {}): YieldProgress {
   return { status: 'generating', referenceId: REF_ID, percentage: 50, message: 'Working...', ...overrides };
 }
 
-function mockClient(fromAnnotationFn: ReturnType<typeof vi.fn>): SemiontApiClient {
-  return { yield: { fromAnnotation: fromAnnotationFn } } as unknown as SemiontApiClient;
+function withYield(fromAnnotationFn: ReturnType<typeof vi.fn>): TestClient {
+  return makeTestClient({ yield: { fromAnnotation: fromAnnotationFn } });
 }
 
 describe('createYieldVM', () => {
-  let eventBus: EventBus;
+  let tc: TestClient;
 
-  beforeEach(() => { eventBus = new EventBus(); });
-  afterEach(() => { eventBus.destroy(); });
+  afterEach(() => { tc?.bus.destroy(); });
 
   it('initializes with not generating and null progress', () => {
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
@@ -34,43 +34,46 @@ describe('createYieldVM', () => {
   });
 
   it('sets isGenerating and progress on yield:progress', () => {
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
     vm.progress$.subscribe(v => prog.push(v));
 
     const p = makeProgress({ percentage: 30 });
-    eventBus.get('yield:progress').next(p);
+    tc.client.emit('yield:progress', p);
     expect(gen).toEqual([false, true]);
     expect(prog).toEqual([null, p]);
     vm.dispose();
   });
 
   it('updates progress on subsequent yield:progress events', () => {
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const prog: unknown[] = [];
     vm.progress$.subscribe(v => prog.push(v));
 
     const p1 = makeProgress({ percentage: 30 });
     const p2 = makeProgress({ percentage: 60 });
-    eventBus.get('yield:progress').next(p1);
-    eventBus.get('yield:progress').next(p2);
+    tc.client.emit('yield:progress', p1);
+    tc.client.emit('yield:progress', p2);
     expect(prog).toEqual([null, p1, p2]);
     vm.dispose();
   });
 
   it('sets isGenerating=false and updates progress on yield:finished', () => {
     vi.useFakeTimers();
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
     vm.progress$.subscribe(v => prog.push(v));
 
-    eventBus.get('yield:progress').next(makeProgress({ percentage: 75 }));
+    tc.client.emit('yield:progress', makeProgress({ percentage: 75 }));
     const final = makeProgress({ status: 'complete', percentage: 100 });
-    eventBus.get('yield:finished').next(final);
+    tc.client.emit('yield:finished', final);
 
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).toEqual(final);
@@ -83,14 +86,15 @@ describe('createYieldVM', () => {
   });
 
   it('clears progress and stops generating on yield:failed', () => {
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
     vm.progress$.subscribe(v => prog.push(v));
 
-    eventBus.get('yield:progress').next(makeProgress({ percentage: 40 }));
-    eventBus.get('yield:failed').next({ error: 'Generation failed' });
+    tc.client.emit('yield:progress', makeProgress({ percentage: 40 }));
+    tc.client.emit('yield:failed', { error: 'Generation failed' });
 
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).toBeNull();
@@ -98,14 +102,15 @@ describe('createYieldVM', () => {
   });
 
   it('handles yield:finished without prior progress', () => {
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
     vm.progress$.subscribe(v => prog.push(v));
 
     const final = makeProgress({ status: 'complete', percentage: 100 });
-    eventBus.get('yield:finished').next(final);
+    tc.client.emit('yield:finished', final);
 
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).toEqual(final);
@@ -113,18 +118,20 @@ describe('createYieldVM', () => {
   });
 
   it('handles yield:failed without prior progress', () => {
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
 
-    eventBus.get('yield:failed').next({ error: 'Unexpected' });
+    tc.client.emit('yield:failed', { error: 'Unexpected' });
     expect(gen[gen.length - 1]).toBe(false);
     vm.dispose();
   });
 
   it('generate() calls client.yield.fromAnnotation', () => {
     const fromAnnotationFn = vi.fn(() => new Observable(() => {}));
-    const vm = createYieldVM(mockClient(fromAnnotationFn), eventBus, RID, 'en');
+    tc = withYield(fromAnnotationFn);
+    const vm = createYieldVM(tc.client, RID, 'en');
 
     vm.generate(REF_ID, {
       title: 'Test',
@@ -146,7 +153,8 @@ describe('createYieldVM', () => {
     const fromAnnotationFn = vi.fn(() => new Observable((sub) => {
       sub.next(p);
     }));
-    const vm = createYieldVM(mockClient(fromAnnotationFn), eventBus, RID, 'en');
+    tc = withYield(fromAnnotationFn);
+    const vm = createYieldVM(tc.client, RID, 'en');
     const prog: unknown[] = [];
     vm.progress$.subscribe(v => prog.push(v));
 
@@ -159,11 +167,12 @@ describe('createYieldVM', () => {
     const fromAnnotationFn = vi.fn(() => new Observable((sub) => {
       sub.error(new Error('LLM timeout'));
     }));
-    const vm = createYieldVM(mockClient(fromAnnotationFn), eventBus, RID, 'en');
+    tc = withYield(fromAnnotationFn);
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     const failures: unknown[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
-    eventBus.get('yield:failed').subscribe(f => failures.push(f));
+    tc.client.on('yield:failed', f => failures.push(f));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
     expect(gen[gen.length - 1]).toBe(false);
@@ -175,9 +184,10 @@ describe('createYieldVM', () => {
   it('emits yield:failed on timeout when no progress within 300s', () => {
     vi.useFakeTimers();
     const fromAnnotationFn = vi.fn(() => new Observable(() => {}));
-    const vm = createYieldVM(mockClient(fromAnnotationFn), eventBus, RID, 'en');
+    tc = withYield(fromAnnotationFn);
+    const vm = createYieldVM(tc.client, RID, 'en');
     const failures: unknown[] = [];
-    eventBus.get('yield:failed').subscribe(f => failures.push(f));
+    tc.client.on('yield:failed', f => failures.push(f));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
     expect(failures).toHaveLength(0);
@@ -193,9 +203,10 @@ describe('createYieldVM', () => {
     vi.useFakeTimers();
     const progressSubject = new Subject<YieldProgress>();
     const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
-    const vm = createYieldVM(mockClient(fromAnnotationFn), eventBus, RID, 'en');
+    tc = withYield(fromAnnotationFn);
+    const vm = createYieldVM(tc.client, RID, 'en');
     const failures: unknown[] = [];
-    eventBus.get('yield:failed').subscribe(f => failures.push(f));
+    tc.client.on('yield:failed', f => failures.push(f));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
 
@@ -213,12 +224,13 @@ describe('createYieldVM', () => {
   });
 
   it('stops responding after dispose', () => {
-    const vm = createYieldVM(mockClient(vi.fn()), eventBus, RID, 'en');
+    tc = withYield(vi.fn());
+    const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
     vm.dispose();
 
-    eventBus.get('yield:progress').next(makeProgress());
+    tc.client.emit('yield:progress', makeProgress());
     expect(gen).toEqual([false]);
   });
 });

@@ -2,28 +2,34 @@
  * SemiontBrowser — top-level app-facing container for non-KB state.
  *
  * Holds the list of configured KBs, the active KB selection, the active
- * SemiontSession, the NextAuth identity token, the open-resources list,
- * and a session-level error stream. Module-scoped singleton — survives
- * every React re-render, remount, and route change.
+ * SemiontSession, the identity token, the open-resources list, and a
+ * session-level error stream. Module-scoped singleton — survives every
+ * React re-render, remount, and route change. `SemiontProvider` hands
+ * the singleton to the React tree; `useSemiont()` returns it.
  *
- * Replaces the app-level responsibilities of KnowledgeBaseSessionProvider
- * and the old OpenResources context.
+ * Persistence goes through a `SessionStorage` adapter provided at
+ * construction — the browser never touches `localStorage` or `window`
+ * directly.
  */
 
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, Subject, type Observable } from 'rxjs';
+import { EventBus, type EventMap } from '@semiont/core';
 import {
   ACTIVE_KEY,
   clearStoredSession,
   generateKbId,
+  getStoredSession,
+  isJwtExpired,
   loadKnowledgeBases,
   saveKnowledgeBases,
   setStoredSession,
 } from './storage';
 import { registerAuthNotifyHandlers } from './notify';
-import type { KnowledgeBase, NewKnowledgeBase } from '../types/knowledge-base';
-import type { OpenResource } from '../types/OpenResourcesManager';
+import type { KnowledgeBase, KbSessionStatus, NewKnowledgeBase } from './knowledge-base';
+import type { OpenResource } from './open-resource';
 import { SemiontSession } from './semiont-session';
 import { SemiontError } from './errors';
+import type { SessionStorage } from './session-storage';
 
 const OPEN_RESOURCES_KEY = 'openDocuments';
 
@@ -34,10 +40,9 @@ function sortOpenResources(resources: OpenResource[]): OpenResource[] {
   });
 }
 
-function loadOpenResources(): OpenResource[] {
-  if (typeof window === 'undefined') return [];
+function loadOpenResources(storage: SessionStorage): OpenResource[] {
   try {
-    const stored = localStorage.getItem(OPEN_RESOURCES_KEY);
+    const stored = storage.get(OPEN_RESOURCES_KEY);
     if (stored) return sortOpenResources(JSON.parse(stored) as OpenResource[]);
   } catch {
     // Ignore parse errors
@@ -45,23 +50,47 @@ function loadOpenResources(): OpenResource[] {
   return [];
 }
 
+export interface SemiontBrowserConfig {
+  /** Persistence adapter. The browser reads/writes all persisted state via this. */
+  storage: SessionStorage;
+}
+
 export class SemiontBrowser {
   readonly kbs$: BehaviorSubject<KnowledgeBase[]>;
   readonly activeKbId$: BehaviorSubject<string | null>;
   readonly activeSession$: BehaviorSubject<SemiontSession | null>;
+  /**
+   * True while a session is actively being constructed (setActiveKb /
+   * signIn in flight, awaiting `session.ready`). Distinguishes the
+   * "session about to arrive" intermediate state from "session
+   * intentionally null" (after signOut, or when the active KB has no
+   * stored credentials). UIs that want a loading spinner should gate
+   * on this; otherwise they get stuck spinning after every signOut.
+   */
+  readonly sessionActivating$: BehaviorSubject<boolean>;
   readonly openResources$: BehaviorSubject<OpenResource[]>;
   readonly error$: Subject<SemiontError>;
   readonly identityToken$: BehaviorSubject<string | null>;
 
+  private readonly storage: SessionStorage;
+  /**
+   * App-scoped EventBus. Hosts UI-shell events that must work regardless
+   * of whether a KB session is active: panel toggles, sidebar state,
+   * tab reorders, routing, settings, etc. Disjoint from the per-session
+   * bus inside `SemiontApiClient`, which carries KB-content events
+   * (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*, browse:click).
+   */
+  private readonly eventBus: EventBus = new EventBus();
   private unregisterNotify: (() => void) | null = null;
+  private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
   private activating: Promise<void> | null = null;
-  private readonly handleOpenResourcesStorageEvent: (e: StorageEvent) => void;
 
-  constructor() {
-    const kbs = loadKnowledgeBases();
-    const storedActive =
-      typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_KEY) : null;
+  constructor(config: SemiontBrowserConfig) {
+    this.storage = config.storage;
+
+    const kbs = loadKnowledgeBases(this.storage);
+    const storedActive = this.storage.get(ACTIVE_KEY);
     const initialActive =
       storedActive && kbs.some((kb) => kb.id === storedActive)
         ? storedActive
@@ -70,40 +99,32 @@ export class SemiontBrowser {
     this.kbs$ = new BehaviorSubject<KnowledgeBase[]>(kbs);
     this.activeKbId$ = new BehaviorSubject<string | null>(initialActive);
     this.activeSession$ = new BehaviorSubject<SemiontSession | null>(null);
-    this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources());
+    this.sessionActivating$ = new BehaviorSubject<boolean>(false);
+    this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources(this.storage));
     this.error$ = new Subject<SemiontError>();
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
-    // Persist kbs$ and activeKbId$ to localStorage.
-    this.kbs$.subscribe((next) => {
-      if (typeof window !== 'undefined') saveKnowledgeBases(next);
-    });
+    // Persist kbs$ and activeKbId$ via the storage adapter.
+    this.kbs$.subscribe((next) => saveKnowledgeBases(this.storage, next));
     this.activeKbId$.subscribe((id) => {
-      if (typeof window === 'undefined') return;
-      if (id) localStorage.setItem(ACTIVE_KEY, id);
-      else localStorage.removeItem(ACTIVE_KEY);
+      if (id) this.storage.set(ACTIVE_KEY, id);
+      else this.storage.delete(ACTIVE_KEY);
     });
 
-    // Persist openResources$ to localStorage on every change.
+    // Persist openResources$ on every change.
     this.openResources$.subscribe((list) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(OPEN_RESOURCES_KEY, JSON.stringify(list));
-      }
+      this.storage.set(OPEN_RESOURCES_KEY, JSON.stringify(list));
     });
 
-    // Sync openResources$ from other tabs via StorageEvent.
-    this.handleOpenResourcesStorageEvent = (e: StorageEvent): void => {
-      if (e.key === OPEN_RESOURCES_KEY && e.newValue) {
-        try {
-          this.openResources$.next(sortOpenResources(JSON.parse(e.newValue) as OpenResource[]));
-        } catch {
-          // Ignore parse errors
-        }
+    // Sync openResources$ from other contexts (cross-tab/cross-process).
+    this.unsubscribeStorage = this.storage.subscribe?.((key, newValue) => {
+      if (key !== OPEN_RESOURCES_KEY || !newValue) return;
+      try {
+        this.openResources$.next(sortOpenResources(JSON.parse(newValue) as OpenResource[]));
+      } catch {
+        // Ignore parse errors
       }
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', this.handleOpenResourcesStorageEvent);
-    }
+    }) ?? null;
 
     // Route notify-module calls (from outside-React code paths like the
     // React Query QueryCache.onError handler) into the active session's
@@ -123,6 +144,28 @@ export class SemiontBrowser {
     }
   }
 
+  // ── App-scoped event bus ──────────────────────────────────────────────
+
+  /** Emit an event on the browser's app-scoped bus. */
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
+    if (this.disposed) return;
+    this.eventBus.get(channel).next(payload);
+  }
+
+  /** Subscribe to an event; returns unsubscribe. */
+  on<K extends keyof EventMap>(
+    channel: K,
+    handler: (payload: EventMap[K]) => void,
+  ): () => void {
+    const sub = this.eventBus.get(channel).subscribe(handler);
+    return () => sub.unsubscribe();
+  }
+
+  /** Read-only observable for an app-scoped channel. */
+  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
+    return this.eventBus.get(channel).asObservable();
+  }
+
   // ── Identity token (NextAuth bridge; D1) ──────────────────────────────
 
   /**
@@ -139,14 +182,14 @@ export class SemiontBrowser {
 
   addKb(input: NewKnowledgeBase, access: string, refresh: string): KnowledgeBase {
     const kb: KnowledgeBase = { id: generateKbId(), ...input };
-    setStoredSession(kb.id, { access, refresh });
+    setStoredSession(this.storage, kb.id, { access, refresh });
     this.kbs$.next([...this.kbs$.getValue(), kb]);
     void this.setActiveKb(kb.id);
     return kb;
   }
 
   removeKb(id: string): void {
-    clearStoredSession(id);
+    clearStoredSession(this.storage, id);
     const next = this.kbs$.getValue().filter((kb) => kb.id !== id);
     this.kbs$.next(next);
     if (this.activeKbId$.getValue() === id) {
@@ -158,6 +201,17 @@ export class SemiontBrowser {
     this.kbs$.next(
       this.kbs$.getValue().map((kb) => (kb.id === id ? { ...kb, ...updates } : kb)),
     );
+  }
+
+  /**
+   * Read the locally-stored credential status for a KB. Pure / synchronous —
+   * does not subscribe to context changes. Used by KB-list UI to color status
+   * dots without requiring re-renders on every tick.
+   */
+  getKbSessionStatus(kbId: string): KbSessionStatus {
+    const stored = getStoredSession(this.storage, kbId);
+    if (!stored) return 'signed-out';
+    return isJwtExpired(stored.access) ? 'expired' : 'authenticated';
   }
 
   /**
@@ -211,6 +265,7 @@ export class SemiontBrowser {
 
       const session = new SemiontSession({
         kb,
+        storage: this.storage,
         onError: (err) => this.error$.next(err),
       });
 
@@ -237,10 +292,14 @@ export class SemiontBrowser {
     })();
 
     this.activating = activation;
+    this.sessionActivating$.next(true);
     try {
       await activation;
     } finally {
-      if (this.activating === activation) this.activating = null;
+      if (this.activating === activation) {
+        this.activating = null;
+        this.sessionActivating$.next(false);
+      }
     }
   }
 
@@ -251,10 +310,10 @@ export class SemiontBrowser {
    */
   async signIn(id: string, access: string, refresh: string): Promise<void> {
     if (this.disposed) return;
-    setStoredSession(id, { access, refresh });
+    setStoredSession(this.storage, id, { access, refresh });
 
     // If this KB is already active, tear down and reconstruct so the new
-    // tokens are picked up from localStorage by the session ctor.
+    // tokens are picked up from storage by the session ctor.
     if (this.activeKbId$.getValue() === id) {
       const prev = this.activeSession$.getValue();
       this.activeSession$.next(null);
@@ -272,7 +331,7 @@ export class SemiontBrowser {
    */
   async signOut(id: string): Promise<void> {
     if (this.disposed) return;
-    clearStoredSession(id);
+    clearStoredSession(this.storage, id);
 
     // Bump the kbs$ list so downstream status-derivations re-run.
     this.kbs$.next([...this.kbs$.getValue()]);
@@ -348,8 +407,9 @@ export class SemiontBrowser {
     this.unregisterNotify?.();
     this.unregisterNotify = null;
 
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('storage', this.handleOpenResourcesStorageEvent);
+    if (this.unsubscribeStorage) {
+      this.unsubscribeStorage();
+      this.unsubscribeStorage = null;
     }
 
     const prev = this.activeSession$.getValue();
@@ -362,5 +422,6 @@ export class SemiontBrowser {
     this.openResources$.complete();
     this.error$.complete();
     this.identityToken$.complete();
+    this.eventBus.destroy();
   }
 }

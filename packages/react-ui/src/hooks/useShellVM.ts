@@ -1,8 +1,7 @@
 'use client';
 
-import { createBrowseVM, type BrowseVM, type ToolbarPanelType } from '@semiont/api-client';
+import { createShellVM, type ShellVM, type ToolbarPanelType } from '@semiont/api-client';
 import { useSemiont } from '../session/SemiontProvider';
-import { useObservable } from './useObservable';
 import { useViewModel } from './useViewModel';
 
 function readPanel(): ToolbarPanelType | null {
@@ -17,9 +16,15 @@ function persistPanel(panel: ToolbarPanelType | null): void {
   else localStorage.removeItem('activeToolbarPanel');
 }
 
-export function useBrowseVM(): BrowseVM {
-  const eventBus = useObservable(useSemiont().activeSession$)?.client.eventBus;
-  return useViewModel(() => createBrowseVM(eventBus!, {
+/**
+ * `ShellVM` is app-scoped — it owns toolbar panel state and lives on
+ * the `SemiontBrowser`'s own bus. Unlike session-scoped VMs, this hook
+ * does not need to wait for an active KB session; `useSemiont()`
+ * always returns the module-scoped `SemiontBrowser` singleton.
+ */
+export function useShellVM(): ShellVM {
+  const semiont = useSemiont();
+  return useViewModel(() => createShellVM(semiont, {
     initialPanel: readPanel(),
     onPanelChange: persistPanel,
   }));

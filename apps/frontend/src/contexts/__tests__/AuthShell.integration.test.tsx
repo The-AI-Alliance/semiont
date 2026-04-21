@@ -12,6 +12,12 @@
  *
  * If any link in this chain breaks, the user sees an empty page instead of
  * the modal. This is the integration the unit tests miss.
+ *
+ * We spy on `SemiontApiClient.prototype.getMe` / `refreshToken` rather than
+ * replacing the class, because `SemiontSession` constructs `SemiontApiClient`
+ * via an internal reference inside `@semiont/api-client`'s bundle — a
+ * package-level `vi.mock` would not intercept that. Prototype-level spies
+ * patch every instance regardless of where it's constructed.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -19,24 +25,12 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
-import { SemiontProvider, SemiontBrowser } from '@semiont/react-ui';
+import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
+import { SemiontBrowser, SemiontApiClient, APIError } from '@semiont/api-client';
 
-// Mock SemiontApiClient — control whether getMe / refreshToken succeed or fail
-const mockGetMe = vi.fn();
-const mockRefreshToken = vi.fn();
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
-  class MockSemiontApiClient {
-    getMe = mockGetMe;
-    refreshToken = mockRefreshToken;
-    actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
-    dispose = vi.fn();
-  }
-  return {
-    ...actual,
-    SemiontApiClient: MockSemiontApiClient,
-  };
-});
+// Spies set up in beforeEach; tests configure `.mockResolvedValue` / `.mockRejectedValue` on them.
+let getMeSpy: ReturnType<typeof vi.spyOn>;
+let refreshTokenSpy: ReturnType<typeof vi.spyOn>;
 
 // Mock @headlessui/react to avoid jsdom portal issues
 vi.mock('@headlessui/react', () => ({
@@ -65,7 +59,6 @@ const KB = {
 };
 
 import { AuthShell } from '../AuthShell';
-import { APIError } from '@semiont/api-client';
 
 function seedSession(access: string, refresh: string) {
   localStorage.setItem(
@@ -75,7 +68,7 @@ function seedSession(access: string, refresh: string) {
 }
 
 function renderShell(children: React.ReactNode) {
-  const browser = new SemiontBrowser();
+  const browser = new SemiontBrowser({ storage: new WebBrowserStorage() });
   return {
     browser,
     ...render(
@@ -90,27 +83,32 @@ function renderShell(children: React.ReactNode) {
 
 describe('AuthShell integration — KB session validation → modal', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     localStorage.clear();
     localStorage.setItem('semiont.knowledgeBases', JSON.stringify([KB]));
     localStorage.setItem('semiont.activeKnowledgeBaseId', KB_ID);
     seedSession(makeFakeJwt(), makeFakeJwt());
+
+    // Patch the real client's prototype. Applies to every SemiontApiClient
+    // constructed during the test, including the throwaway clients that
+    // `SemiontSession.validate` spins up.
+    getMeSpy = vi.spyOn(SemiontApiClient.prototype, 'getMe');
+    refreshTokenSpy = vi.spyOn(SemiontApiClient.prototype, 'refreshToken');
   });
 
-  afterEach(async () => {
-    vi.clearAllMocks();
+  afterEach(() => {
+    vi.restoreAllMocks();
     localStorage.clear();
   });
 
   it('renders children and no modal when getMe succeeds', async () => {
-    mockGetMe.mockResolvedValue({ email: 'alice@example.com' });
+    getMeSpy.mockResolvedValue({ email: 'alice@example.com' } as any);
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
     );
 
     await waitFor(() => {
-      expect(mockGetMe).toHaveBeenCalled();
+      expect(getMeSpy).toHaveBeenCalled();
     });
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
@@ -121,8 +119,8 @@ describe('AuthShell integration — KB session validation → modal', () => {
   });
 
   it('surfaces SessionExpiredModal when getMe AND refresh both fail with 401', async () => {
-    mockGetMe.mockRejectedValue(new APIError('Unauthorized', 401, 'Unauthorized'));
-    mockRefreshToken.mockRejectedValue(new APIError('Invalid', 401, 'Unauthorized'));
+    getMeSpy.mockRejectedValue(new APIError('Unauthorized', 401, 'Unauthorized'));
+    refreshTokenSpy.mockRejectedValue(new APIError('Invalid', 401, 'Unauthorized'));
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
@@ -140,36 +138,36 @@ describe('AuthShell integration — KB session validation → modal', () => {
   });
 
   it('does NOT surface SessionExpiredModal when getMe fails with 500', async () => {
-    mockGetMe.mockRejectedValue(new APIError('Server error', 500, 'Internal Server Error'));
+    getMeSpy.mockRejectedValue(new APIError('Server error', 500, 'Internal Server Error'));
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
     );
 
     await waitFor(() => {
-      expect(mockGetMe).toHaveBeenCalled();
+      expect(getMeSpy).toHaveBeenCalled();
     });
 
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
-    expect(mockRefreshToken).not.toHaveBeenCalled();
+    expect(refreshTokenSpy).not.toHaveBeenCalled();
 
     await browser.dispose();
   });
 
   it('recovers transparently when getMe returns 401 but refresh succeeds', async () => {
     const newAccess = makeFakeJwt();
-    mockGetMe
+    getMeSpy
       .mockRejectedValueOnce(new APIError('Unauthorized', 401, 'Unauthorized'))
-      .mockResolvedValueOnce({ email: 'alice@example.com' });
-    mockRefreshToken.mockResolvedValueOnce({ access_token: newAccess });
+      .mockResolvedValueOnce({ email: 'alice@example.com' } as any);
+    refreshTokenSpy.mockResolvedValueOnce({ access_token: newAccess } as any);
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
     );
 
-    await waitFor(() => expect(mockGetMe).toHaveBeenCalledTimes(2));
-    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(getMeSpy).toHaveBeenCalledTimes(2));
+    expect(refreshTokenSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
     const stored = JSON.parse(localStorage.getItem(`semiont.session.${KB_ID}`)!);
     expect(stored.access).toBe(newAccess);

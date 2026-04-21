@@ -42,6 +42,30 @@ export type * from './namespaces/types';
 // Logger interface for observability (re-export from core)
 export type { Logger } from '@semiont/core';
 
+// Session layer — per-KB sessions, app-level browser, storage adapter,
+// error surface, notify module for out-of-React callers.
+export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
+export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
+export { SemiontError, type SemiontErrorCode } from './session/errors';
+export { getBrowser, type GetBrowserOptions } from './session/registry';
+export {
+  type SessionStorage,
+  InMemorySessionStorage,
+} from './session/session-storage';
+export {
+  type KnowledgeBase,
+  type NewKnowledgeBase,
+  type KbSessionStatus,
+} from './session/knowledge-base';
+export { type OpenResource } from './session/open-resource';
+export {
+  defaultProtocol,
+  isValidHostname,
+  kbBackendUrl,
+  type StoredSession,
+} from './session/storage';
+export { notifySessionExpired, notifyPermissionDenied } from './session/notify';
+
 // View models (MVVM layer)
 export * from './view-models';
 

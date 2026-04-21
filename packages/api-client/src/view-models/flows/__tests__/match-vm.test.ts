@@ -1,33 +1,34 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable } from 'rxjs';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { SemiontApiClient } from '../../../client';
+import { resourceId as makeResourceId } from '@semiont/core';
 import { createMatchVM } from '../match-vm';
+import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 
 const RID = makeResourceId('res-1');
 
-function mockClient(searchFn: ReturnType<typeof vi.fn>): SemiontApiClient {
-  return { match: { search: searchFn } } as unknown as SemiontApiClient;
+function withMatch(searchFn: ReturnType<typeof vi.fn>): TestClient {
+  return makeTestClient({ match: { search: searchFn } });
 }
 
 describe('createMatchVM', () => {
-  let eventBus: EventBus;
+  let tc: TestClient;
 
-  beforeEach(() => { eventBus = new EventBus(); });
-  afterEach(() => { eventBus.destroy(); });
+  afterEach(() => { tc?.bus.destroy(); });
 
   it('does not call match.search on creation', () => {
     const searchFn = vi.fn();
-    const vm = createMatchVM(mockClient(searchFn), eventBus, RID);
+    tc = withMatch(searchFn);
+    const vm = createMatchVM(tc.client, RID);
     expect(searchFn).not.toHaveBeenCalled();
     vm.dispose();
   });
 
   it('bridges match:search-requested to match.search()', () => {
     const searchFn = vi.fn(() => new Observable(() => {}));
-    const vm = createMatchVM(mockClient(searchFn), eventBus, RID);
+    tc = withMatch(searchFn);
+    const vm = createMatchVM(tc.client, RID);
 
-    eventBus.get('match:search-requested').next({
+    tc.client.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: { annotation: {} } as any,
@@ -50,12 +51,13 @@ describe('createMatchVM', () => {
       sub.next(mockResult);
       sub.complete();
     }));
-    const vm = createMatchVM(mockClient(searchFn), eventBus, RID);
+    tc = withMatch(searchFn);
+    const vm = createMatchVM(tc.client, RID);
 
     const results: unknown[] = [];
-    eventBus.get('match:search-results').subscribe(r => results.push(r));
+    tc.client.on('match:search-results', r => results.push(r));
 
-    eventBus.get('match:search-requested').next({
+    tc.client.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -71,12 +73,13 @@ describe('createMatchVM', () => {
     const searchFn = vi.fn(() => new Observable((sub) => {
       sub.error(new Error('search failed'));
     }));
-    const vm = createMatchVM(mockClient(searchFn), eventBus, RID);
+    tc = withMatch(searchFn);
+    const vm = createMatchVM(tc.client, RID);
 
     const failures: unknown[] = [];
-    eventBus.get('match:search-failed').subscribe(f => failures.push(f));
+    tc.client.on('match:search-failed', f => failures.push(f));
 
-    eventBus.get('match:search-requested').next({
+    tc.client.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -95,11 +98,12 @@ describe('createMatchVM', () => {
   it('emits match:search-failed on timeout when Observable does not complete within 60s', () => {
     vi.useFakeTimers();
     const searchFn = vi.fn(() => new Observable(() => {}));
-    const vm = createMatchVM(mockClient(searchFn), eventBus, RID);
+    tc = withMatch(searchFn);
+    const vm = createMatchVM(tc.client, RID);
     const failures: unknown[] = [];
-    eventBus.get('match:search-failed').subscribe(f => failures.push(f));
+    tc.client.on('match:search-failed', f => failures.push(f));
 
-    eventBus.get('match:search-requested').next({
+    tc.client.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -115,10 +119,11 @@ describe('createMatchVM', () => {
 
   it('stops responding after dispose', () => {
     const searchFn = vi.fn();
-    const vm = createMatchVM(mockClient(searchFn), eventBus, RID);
+    tc = withMatch(searchFn);
+    const vm = createMatchVM(tc.client, RID);
     vm.dispose();
 
-    eventBus.get('match:search-requested').next({
+    tc.client.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,

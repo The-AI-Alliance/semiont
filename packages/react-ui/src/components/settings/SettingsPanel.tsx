@@ -5,7 +5,6 @@ import { LOCALES } from '@semiont/api-client';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { useLanguageChangeAnnouncements } from '../LiveRegion';
 import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
 import './SettingsPanel.css';
 
 interface SettingsPanelProps {
@@ -32,7 +31,7 @@ export function SettingsPanel({
   hoverDelayMs
 }: SettingsPanelProps) {
   const t = useTranslations('Settings');
-  const session = useObservable(useSemiont().activeSession$);
+  const semiont = useSemiont();
   const { announceLanguageChanging, announceLanguageChanged } = useLanguageChangeAnnouncements();
 
   // Track previous locale to detect changes
@@ -42,7 +41,7 @@ export function SettingsPanel({
   const handleLocaleChange = (newLocale: string) => {
     const localeName = LOCALES.find(l => l.code === newLocale)?.nativeName || newLocale;
     announceLanguageChanging(localeName);
-    session?.emit('settings:locale-changed', { locale: newLocale });
+    semiont.emit('settings:locale-changed', { locale: newLocale });
   };
 
   // Announce when language has successfully changed
@@ -71,7 +70,7 @@ export function SettingsPanel({
               type="button"
               role="switch"
               aria-checked={showLineNumbers}
-              onClick={() => session?.emit('settings:line-numbers-toggled', undefined)}
+              onClick={() => semiont.emit('settings:line-numbers-toggled', undefined)}
               className={`semiont-toggle ${
                 showLineNumbers ? 'semiont-toggle--active' : ''
               }`}
@@ -95,7 +94,7 @@ export function SettingsPanel({
           </label>
           <div className="semiont-settings-panel__button-group">
             <button
-              onClick={() => session?.emit('settings:theme-changed', { theme: 'light' })}
+              onClick={() => semiont.emit('settings:theme-changed', { theme: 'light' })}
               className={`semiont-panel-button ${
                 theme === 'light' ? 'semiont-panel-button-active' : ''
               }`}
@@ -104,7 +103,7 @@ export function SettingsPanel({
               ☀️ {t('themeLight')}
             </button>
             <button
-              onClick={() => session?.emit('settings:theme-changed', { theme: 'dark' })}
+              onClick={() => semiont.emit('settings:theme-changed', { theme: 'dark' })}
               className={`semiont-panel-button ${
                 theme === 'dark' ? 'semiont-panel-button-active' : ''
               }`}
@@ -113,7 +112,7 @@ export function SettingsPanel({
               🌙 {t('themeDark')}
             </button>
             <button
-              onClick={() => session?.emit('settings:theme-changed', { theme: 'system' })}
+              onClick={() => semiont.emit('settings:theme-changed', { theme: 'system' })}
               className={`semiont-panel-button ${
                 theme === 'system' ? 'semiont-panel-button-active' : ''
               }`}
@@ -171,7 +170,7 @@ export function SettingsPanel({
             max="500"
             step="50"
             value={hoverDelayMs}
-            onChange={(e) => session?.emit('settings:hover-delay-changed', { hoverDelayMs: Number(e.target.value) })}
+            onChange={(e) => semiont.emit('settings:hover-delay-changed', { hoverDelayMs: Number(e.target.value) })}
             className="semiont-slider"
             aria-describedby="hover-delay-description"
           />

@@ -534,6 +534,6 @@ All routing concerns belong in the app.
 
 ## See Also
 
-- [PROVIDERS.md](PROVIDERS.md) - RoutingProvider details
+- [SESSION.md](SESSION.md) - RoutingProvider details
 - [COMPONENTS.md](COMPONENTS.md) - Components using routing
 - [TESTING.md](TESTING.md) - Testing with routing

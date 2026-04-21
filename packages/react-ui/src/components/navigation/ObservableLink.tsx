@@ -2,7 +2,6 @@
 
 import React, { useCallback, useRef, useEffect } from 'react';
 import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
 
 /**
  * Props for ObservableLink component
@@ -28,7 +27,7 @@ export interface ObservableLinkProps extends React.AnchorHTMLAttributes<HTMLAnch
  * - State coordination before navigation
  * - Logging navigation flows
  *
- * The component emits 'browse:link-clicked' event before allowing
+ * The component emits 'nav:link-clicked' event before allowing
  * the browser to follow the link.
  *
  * @example
@@ -52,7 +51,7 @@ export interface ObservableLinkProps extends React.AnchorHTMLAttributes<HTMLAnch
  * </Link>
  * ```
  *
- * @emits browse:link-clicked - Link clicked by user. Payload: { href: string, label?: string }
+ * @emits nav:link-clicked - Link clicked by user. Payload: { href: string, label?: string }
  */
 export function ObservableLink({
   href,
@@ -61,7 +60,7 @@ export function ObservableLink({
   children,
   ...anchorProps
 }: ObservableLinkProps) {
-  const session = useObservable(useSemiont().activeSession$);
+  const semiont = useSemiont();
 
   // Store callback in ref to avoid including in dependency arrays
   const onClickRef = useRef(onClick);
@@ -71,14 +70,14 @@ export function ObservableLink({
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability
-    session?.emit('browse:link-clicked', {
+    semiont.emit('nav:link-clicked', {
       href,
       label
     });
 
     // Call original onClick if provided
     onClickRef.current?.(e);
-  }, [href, label, session]);
+  }, [href, label, semiont]);
 
   return (
     <a

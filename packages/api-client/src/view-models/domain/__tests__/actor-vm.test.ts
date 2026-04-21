@@ -215,6 +215,43 @@ describe('createActorVM', () => {
     vm.dispose();
   });
 
+  it('reassembles an event whose bytes span multiple reader.read() chunks', async () => {
+    // Regression: the SSE parser's currentEvent/currentData/currentId
+    // state used to be declared inside the read loop, so a large event
+    // whose terminating blank line arrived in a later chunk was silently
+    // dropped. This test pushes the event in pieces deliberately split
+    // mid-data-line and mid-trailing-blank-line; the parser must hold
+    // state across `reader.read()` calls.
+    const sse = mockSSEResponse();
+
+    const vm = createActorVM({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:big'],
+    });
+
+    const results: unknown[] = [];
+    vm.on$('test:big').subscribe((v) => results.push(v));
+    vm.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    const payload = { blob: 'x'.repeat(5000) };
+    const frame = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload }));
+
+    // Split the frame into three chunks at points that fall inside the
+    // data line and before the terminating "\n\n".
+    const split1 = Math.floor(frame.length * 0.3);
+    const split2 = Math.floor(frame.length * 0.7);
+    sse.push(frame.slice(0, split1));
+    sse.push(frame.slice(split1, split2));
+    sse.push(frame.slice(split2));
+
+    await vi.waitFor(() => expect(results).toHaveLength(1));
+    expect(results[0]).toEqual(payload);
+
+    vm.dispose();
+  });
+
   it('ignores ping events', async () => {
     const sse = mockSSEResponse();
 

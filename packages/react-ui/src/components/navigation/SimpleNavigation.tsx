@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useSemiont } from '../../session/SemiontProvider';
-import { useObservable } from '../../hooks/useObservable';
 
 export interface SimpleNavigationItem {
   name: string;
@@ -30,7 +29,7 @@ export interface SimpleNavigationProps {
  * Simple navigation component for Admin and Moderation modes.
  * Renders a section header with optional dropdown and static navigation tabs.
  *
- * @emits browse:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
+ * @emits shell:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function SimpleNavigation({
   title,
@@ -48,7 +47,7 @@ export function SimpleNavigation({
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const session = useObservable(useSemiont().activeSession$);
+  const semiont = useSemiont();
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
   const closeDropdown = () => setIsDropdownOpen(false);
@@ -87,7 +86,7 @@ export function SimpleNavigation({
             !isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>
           )}
           <button
-            onClick={() => session?.emit('browse:sidebar-toggle', undefined)}
+            onClick={() => semiont.emit('shell:sidebar-toggle', undefined)}
             className="semiont-nav-section__header-icon"
             title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
             aria-label={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}

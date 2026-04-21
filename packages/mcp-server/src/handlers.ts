@@ -90,12 +90,11 @@ export async function markAnnotation(semiont: SemiontApiClient, args: any): Prom
 
 export async function markAssist(semiont: SemiontApiClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
-  const eventBus = semiont.eventBus;
-  const vm = createMarkVM(semiont, eventBus, rId);
+  const vm = createMarkVM(semiont, rId);
 
   try {
     const progressMessages: string[] = [];
-    eventBus.get('mark:assist-request').next({
+    semiont.emit('mark:assist-request', {
       motivation: 'linking',
       options: { entityTypes: args?.entityTypes || [], includeDescriptiveReferences: false },
     });
@@ -105,15 +104,15 @@ export async function markAssist(semiont: SemiontApiClient, args: any): Promise<
         filter((p): p is NonNullable<typeof p> => p !== null),
       ).subscribe((p) => { progressMessages.push(`${p.status}: ${p.percentage ?? 0}%`); });
 
-      const finishedSub = eventBus.get('mark:assist-finished').subscribe((event) => {
+      const finishedUnsub = semiont.on('mark:assist-finished', (event) => {
         cleanup();
         resolve({ content: [{ type: 'text', text: `Detection complete. Found ${(event as any).foundCount || 0} entities.\n${progressMessages.join('\n')}` }] });
       });
-      const failedSub = eventBus.get('mark:assist-failed').subscribe((event) => {
+      const failedUnsub = semiont.on('mark:assist-failed', (event) => {
         cleanup();
         resolve({ content: [{ type: 'text', text: `Detection failed: ${(event as any).message}` }], isError: true });
       });
-      function cleanup() { progressSub.unsubscribe(); finishedSub.unsubscribe(); failedSub.unsubscribe(); }
+      function cleanup() { progressSub.unsubscribe(); finishedUnsub(); failedUnsub(); }
     });
   } finally {
     vm.dispose();
@@ -136,11 +135,10 @@ export async function bindBody(semiont: SemiontApiClient, args: any): Promise<Mc
 export async function gatherAnnotation(semiont: SemiontApiClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
-  const eventBus = semiont.eventBus;
-  const vm = createGatherVM(semiont, eventBus, rId);
+  const vm = createGatherVM(semiont, rId);
 
   try {
-    eventBus.get('gather:requested').next({
+    semiont.emit('gather:requested', {
       correlationId: crypto.randomUUID(),
       annotationId: aId as string,
       resourceId: rId as string,
@@ -176,13 +174,12 @@ export async function yieldResource(semiont: SemiontApiClient, args: any): Promi
 export async function yieldFromAnnotation(semiont: SemiontApiClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
-  const eventBus = semiont.eventBus;
 
   // Step 1: gather context via GatherVM
-  const gatherVM = createGatherVM(semiont, eventBus, rId);
+  const gatherVM = createGatherVM(semiont, rId);
   let ctx: GatheredContext;
   try {
-    eventBus.get('gather:requested').next({
+    semiont.emit('gather:requested', {
       correlationId: crypto.randomUUID(),
       annotationId: aId as string,
       resourceId: rId as string,
@@ -196,7 +193,7 @@ export async function yieldFromAnnotation(semiont: SemiontApiClient, args: any):
   }
 
   // Step 2: generate via YieldVM
-  const yieldVM = createYieldVM(semiont, eventBus, rId, args?.language ?? 'en');
+  const yieldVM = createYieldVM(semiont, rId, args?.language ?? 'en');
   try {
     yieldVM.generate(aId as string, {
       title: args?.title ?? 'Generated',
@@ -212,15 +209,15 @@ export async function yieldFromAnnotation(semiont: SemiontApiClient, args: any):
         filter((p): p is NonNullable<typeof p> => p !== null),
       ).subscribe((p) => { progressMessages.push(`${p.status}: ${p.percentage}%`); });
 
-      const finishedSub = eventBus.get('yield:finished').subscribe(() => {
+      const finishedUnsub = semiont.on('yield:finished', () => {
         cleanup();
         resolve({ content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] });
       });
-      const failedSub = eventBus.get('yield:failed').subscribe((event) => {
+      const failedUnsub = semiont.on('yield:failed', (event) => {
         cleanup();
         resolve({ content: [{ type: 'text', text: `Generation failed: ${(event as any).error}` }], isError: true });
       });
-      function cleanup() { progressSub.unsubscribe(); finishedSub.unsubscribe(); failedSub.unsubscribe(); }
+      function cleanup() { progressSub.unsubscribe(); finishedUnsub(); failedUnsub(); }
     });
   } finally {
     yieldVM.dispose();

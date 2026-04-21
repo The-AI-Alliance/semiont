@@ -25,7 +25,7 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       currentHoverRef.current = annotationId;
-      session?.emit('beckon:hover', { annotationId });
+      session?.client.emit('beckon:hover', { annotationId });
     }, hoverDelayMs);
   }, [annotationId, hoverDelayMs, session]);
 
@@ -36,7 +36,7 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
     }
     if (currentHoverRef.current !== null) {
       currentHoverRef.current = null;
-      session?.emit('beckon:hover', { annotationId: null });
+      session?.client.emit('beckon:hover', { annotationId: null });
     }
   }, [session]);
 

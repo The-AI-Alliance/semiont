@@ -4,11 +4,15 @@ import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from '../hooks/useObservable';
 
 /**
- * Subscribe to a session-bus event with automatic cleanup.
+ * Subscribe to a bus event with automatic cleanup.
  *
- * Routes through `session.on(channel, handler)` — components never touch
- * the bus directly (D7). If no session is active, the subscription is a
- * no-op; when a session becomes active, the effect re-runs and binds.
+ * Two buses exist: the app-scoped bus on `SemiontBrowser` (panel, shell,
+ * tabs, nav, settings — events that must work without a KB session) and
+ * the per-session bus on `SemiontApiClient` (mark, beckon, gather,
+ * match, bind, yield, browse — events tied to a live KB). This hook
+ * subscribes to BOTH so components don't need to know which scope a
+ * channel is on. Each channel only fires on one bus, so there's no
+ * double-delivery.
  *
  * Stable-handler pattern: the ref-wrapped handler means `handler` itself
  * can change on every render without causing a re-subscription.
@@ -24,26 +28,33 @@ export function useEventSubscription<K extends keyof EventMap>(
   eventName: K,
   handler: (payload: EventMap[K]) => void,
 ): void {
-  const session = useObservable(useSemiont().activeSession$);
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
 
   const handlerRef = useRef(handler);
   useEffect(() => { handlerRef.current = handler; });
 
   useEffect(() => {
-    if (!session) return;
-    return session.on(eventName, (payload) => handlerRef.current(payload));
-  }, [eventName, session]);
+    const unsubs: Array<() => void> = [];
+    unsubs.push(semiont.on(eventName, (payload) => handlerRef.current(payload)));
+    if (session) {
+      unsubs.push(session.client.on(eventName, (payload) => handlerRef.current(payload)));
+    }
+    return () => { for (const u of unsubs) u(); };
+  }, [eventName, semiont, session]);
 }
 
 /**
- * Subscribe to multiple session-bus events at once. Same semantics as
- * `useEventSubscription`, batched. No component ever sees the bus.
+ * Subscribe to multiple bus events at once. Same semantics as
+ * `useEventSubscription`, batched — each channel is subscribed on both
+ * the app bus (`SemiontBrowser`) and the session bus
+ * (`SemiontApiClient`, when a session is active).
  *
  * @example
  * ```tsx
  * useEventSubscriptions({
  *   'mark:create-ok': ({ annotationId }) => handleCreated(annotationId),
- *   'mark:delete-ok': ({ annotationId }) => removeAnnotation(annotationId),
+ *   'panel:toggle': ({ panel }) => console.log('toggled', panel),
  * });
  * ```
  */
@@ -52,7 +63,8 @@ export function useEventSubscriptions(
     [K in keyof EventMap]?: (payload: EventMap[K]) => void;
   },
 ): void {
-  const session = useObservable(useSemiont().activeSession$);
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
 
   const handlersRef = useRef(subscriptions);
   useEffect(() => { handlersRef.current = subscriptions; });
@@ -66,19 +78,18 @@ export function useEventSubscriptions(
   );
 
   useEffect(() => {
-    if (!session) return;
     const unsubs: Array<() => void> = [];
     for (const eventName of eventNames) {
       const channel = eventName as keyof EventMap;
-      unsubs.push(
-        session.on(channel, (payload) => {
-          const current = handlersRef.current[channel];
-          if (current) (current as (p: EventMap[keyof EventMap]) => void)(payload);
-        }),
-      );
+      const fan = (payload: EventMap[keyof EventMap]) => {
+        const current = handlersRef.current[channel];
+        if (current) (current as (p: EventMap[keyof EventMap]) => void)(payload);
+      };
+      unsubs.push(semiont.on(channel, fan));
+      if (session) {
+        unsubs.push(session.client.on(channel, fan));
+      }
     }
-    return () => {
-      for (const unsub of unsubs) unsub();
-    };
-  }, [eventNames, session]);
+    return () => { for (const unsub of unsubs) unsub(); };
+  }, [eventNames, semiont, session]);
 }

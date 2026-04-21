@@ -225,6 +225,37 @@ client tracks SSE fetch controllers as a set; every previous one is
 aborted before the new one begins. This prevents orphaned streams
 from accumulating when rapid channel-set changes race each other.
 
+## Wire framing and client parser obligations
+
+The SSE stream is plain `text/event-stream`. Each event is written as:
+
+```
+event: bus-event
+id: <ephemeral or persisted id>
+data: <JSON-stringified {channel, payload, scope?}>
+<blank line>
+```
+
+The backend writes each event through Hono's `streamSSE` with no
+compression and no chunked-JSON framing — `data:` is always exactly
+one line, followed by one terminating blank line.
+
+**Client parsers must hold event-assembly state across
+`reader.read()` boundaries.** A single SSE event can exceed the first
+TCP segment (a full `browse:resource-result` carries the resource
+plus annotations, easily past the first-chunk size). The reference
+parser in `packages/api-client/src/view-models/domain/actor-vm.ts`
+keeps `currentEvent` / `currentData` / `currentId` outside its read
+loop; any replacement must do the same, or any event that chunks
+across reads is silently dropped — the `data:` header lands in one
+chunk and the blank-line terminator in the next, and resetting state
+per-chunk breaks dispatch.
+
+This constraint is tested by
+`packages/api-client/src/view-models/domain/__tests__/actor-vm.test.ts`
+→ "reassembles an event whose bytes span multiple reader.read()
+chunks". If you swap the parser, port the test.
+
 ## Event categorization and scope
 
 Every channel falls into exactly one of three categories. The
@@ -403,3 +434,11 @@ the contract are visible.
   enforced; `degraded` fires after 3 s in `reconnecting`, giving
   UI a non-timing-heuristic signal to differentiate mount churn
   from sustained disconnection.
+- **2026-04-21** — client SSE parser state moved outside the
+  `reader.read()` loop. Previously, assembly state reset on every
+  chunk, silently dropping any event whose `data:` header and
+  terminating blank line landed in different TCP reads. Large
+  payloads (`browse:resource-result` carrying a full resource +
+  annotations) were affected in practice. Contract change: the
+  "Wire framing and client parser obligations" section now formally
+  documents this requirement. Regression-tested.

@@ -85,7 +85,7 @@ export function ReferenceEntry({
   };
 
   const handleInitiateWizard = () => {
-    session?.emit('bind:initiate', {
+    session?.client.emit('bind:initiate', {
       annotationId: annotationId(reference.id),
       resourceId: resourceId(source),
       defaultTitle: selectedText,
@@ -112,7 +112,7 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.emit('browse:click', { annotationId: reference.id, motivation: reference.motivation });
+        session?.client.emit('browse:click', { annotationId: reference.id, motivation: reference.motivation });
       }}
       {...hoverProps}
     >

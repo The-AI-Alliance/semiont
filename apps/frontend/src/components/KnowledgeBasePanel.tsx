@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { SemiontApiClient } from '@semiont/api-client';
+import {
+  SemiontApiClient,
+  defaultProtocol,
+  isValidHostname,
+  type KnowledgeBase,
+  type KbSessionStatus,
+} from '@semiont/api-client';
 import { baseUrl, email as makeEmail, accessToken } from '@semiont/core';
 import {
   useSemiont,
   useObservable,
-  defaultProtocol,
-  isValidHostname,
-  getKbSessionStatus,
-  type KnowledgeBase,
-  type KbSessionStatus,
 } from '@semiont/react-ui';
 
 type T = (key: string, params?: Record<string, unknown>) => string;
@@ -235,7 +236,7 @@ export function KnowledgeBasePanel() {
   };
 
   const handleKbClick = (kb: KnowledgeBase) => {
-    const status = getKbSessionStatus(kb.id);
+    const status = semiont.getKbSessionStatus(kb.id);
     if (status === 'authenticated') {
       setActiveKnowledgeBase(kb.id);
     } else {
@@ -256,7 +257,7 @@ export function KnowledgeBasePanel() {
       <div className="semiont-panel__content">
         <div className="semiont-panel__list">
           {knowledgeBases.map((kb: KnowledgeBase) => {
-            const status = getKbSessionStatus(kb.id);
+            const status = semiont.getKbSessionStatus(kb.id);
             const isActive = kb.id === activeKnowledgeBase?.id;
             const isReauthing = reauthKbId === kb.id;
 

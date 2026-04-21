@@ -199,7 +199,7 @@ All cross-cutting concerns use the Provider Pattern:
 - **OpenResourcesProvider** - Recently opened resources
 - **RoutingContext** - Framework-agnostic navigation
 
-See [docs/PROVIDERS.md](docs/PROVIDERS.md) for details.
+See [docs/SESSION.md](docs/SESSION.md) for details.
 
 ### API Integration
 
@@ -236,7 +236,7 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 
 ## Documentation
 
-- [PROVIDERS.md](docs/PROVIDERS.md) - Provider Pattern and manager interfaces
+- [SESSION.md](docs/SESSION.md) - Provider Pattern and manager interfaces
 - [INTERNATIONALIZATION.md](docs/INTERNATIONALIZATION.md) - Translation approach
 - [TESTING.md](docs/TESTING.md) - Testing utilities and patterns
 - [API-INTEGRATION.md](docs/API-INTEGRATION.md) - Working with the Semiont API

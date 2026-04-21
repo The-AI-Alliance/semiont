@@ -106,13 +106,12 @@ async function runDelegate(
   const rawAnnotationId = options.annotation!;
   const rId = toResourceId(rawResourceId);
   const aId = toAnnotationId(rawAnnotationId);
-  const eventBus = semiont.eventBus;
 
   // Step 1: gather context via GatherVM
-  const gatherVM = createGatherVM(semiont, eventBus, rId);
+  const gatherVM = createGatherVM(semiont, rId);
   let context: GatheredContext;
   try {
-    eventBus.get('gather:requested').next({
+    semiont.emit('gather:requested', {
       correlationId: crypto.randomUUID(),
       annotationId: aId as string,
       resourceId: rId as string,
@@ -128,7 +127,7 @@ async function runDelegate(
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
   // Step 2: generate via YieldVM
-  const yieldVM = createYieldVM(semiont, eventBus, rId, options.language ?? 'en');
+  const yieldVM = createYieldVM(semiont, rId, options.language ?? 'en');
   try {
     yieldVM.generate(aId as string, {
       title: options.title ?? rawAnnotationId,
@@ -141,15 +140,15 @@ async function runDelegate(
     });
 
     return await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-      const finishedSub = eventBus.get('yield:finished').subscribe((event) => {
+      const finishedUnsub = semiont.on('yield:finished', (event) => {
         cleanup();
         resolve({ resourceId: (event as any).resourceId, resourceName: (event as any).resourceName });
       });
-      const failedSub = eventBus.get('yield:failed').subscribe((event) => {
+      const failedUnsub = semiont.on('yield:failed', (event) => {
         cleanup();
         reject(new Error((event as any).error ?? 'Generation failed'));
       });
-      function cleanup() { finishedSub.unsubscribe(); failedSub.unsubscribe(); }
+      function cleanup() { finishedUnsub(); failedUnsub(); }
     });
   } finally {
     yieldVM.dispose();

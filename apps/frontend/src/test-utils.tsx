@@ -11,8 +11,11 @@ import {
   TranslationProvider,
   ToastProvider,
   SemiontProvider,
-  SemiontBrowser,
 } from '@semiont/react-ui';
+import {
+  SemiontBrowser,
+  InMemorySessionStorage,
+} from '@semiont/api-client';
 import {
   defaultMocks,
   TestProvidersOptions,
@@ -38,7 +41,7 @@ export function renderWithProviders(
     ...renderOptions
   } = options || {};
 
-  const effectiveBrowser = browser ?? new SemiontBrowser();
+  const effectiveBrowser = browser ?? new SemiontBrowser({ storage: new InMemorySessionStorage() });
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (

@@ -56,10 +56,10 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
     }
     const rid = toResourceId(rawResourceId);
     const aid = toAnnotationId(rawAnnotationId);
-    const vm = createGatherVM(semiont, semiont.eventBus, rid);
+    const vm = createGatherVM(semiont, rid);
 
     try {
-      semiont.eventBus.get('gather:requested').next({
+      semiont.emit('gather:requested', {
         correlationId: crypto.randomUUID(),
         annotationId: aid as string,
         resourceId: rid as string,

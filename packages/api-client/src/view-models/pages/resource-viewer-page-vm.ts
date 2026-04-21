@@ -1,8 +1,8 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
-import type { EventBus, ResourceId, components } from '@semiont/core';
+import type { ResourceId, components } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 import { createBeckonVM, type BeckonVM } from '../flows/beckon-vm';
 import { createMarkVM, type MarkVM } from '../flows/mark-vm';
 import { createGatherVM, type GatherVM } from '../flows/gather-vm';
@@ -38,7 +38,7 @@ const WIZARD_CLOSED: WizardState = {
 
 export interface ResourceViewerPageVM extends ViewModel {
   beckon: BeckonVM;
-  browse: BrowseVM;
+  browse: ShellVM;
   mark: MarkVM;
   gather: GatherVM;
   yield: YieldVM;
@@ -58,19 +58,18 @@ export interface ResourceViewerPageVM extends ViewModel {
 
 export function createResourceViewerPageVM(
   client: SemiontApiClient,
-  eventBus: EventBus,
   resourceId: ResourceId,
   locale: string,
-  browse: BrowseVM,
+  browse: ShellVM,
   options?: { mediaType?: string },
 ): ResourceViewerPageVM {
   const disposer = createDisposer();
 
-  const beckon = createBeckonVM(eventBus);
-  const mark = createMarkVM(client, eventBus, resourceId);
-  const gather = createGatherVM(client, eventBus, resourceId);
-  const matchVM = createMatchVM(client, eventBus, resourceId);
-  const yieldVM = createYieldVM(client, eventBus, resourceId, locale);
+  const beckon = createBeckonVM(client);
+  const mark = createMarkVM(client, resourceId);
+  const gather = createGatherVM(client, resourceId);
+  const matchVM = createMatchVM(client, resourceId);
+  const yieldVM = createYieldVM(client, resourceId, locale);
 
   disposer.add(beckon);
   disposer.add(browse);
@@ -137,7 +136,7 @@ export function createResourceViewerPageVM(
   const unsubscribeResource = client.subscribeToResource(resourceId);
   disposer.add(unsubscribeResource);
 
-  const bindInitiateSub = eventBus.get('bind:initiate').subscribe((event) => {
+  const bindInitiateSub = client.stream('bind:initiate').subscribe((event) => {
     wizard$.next({
       open: true,
       annotationId: event.annotationId,
@@ -145,7 +144,7 @@ export function createResourceViewerPageVM(
       defaultTitle: event.defaultTitle,
       entityTypes: event.entityTypes,
     });
-    eventBus.get('gather:requested').next({
+    client.emit('gather:requested', {
       correlationId: crypto.randomUUID(),
       annotationId: event.annotationId,
       resourceId: event.resourceId,

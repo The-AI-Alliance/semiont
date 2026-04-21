@@ -11,31 +11,65 @@ new SemiontApiClient(config: SemiontApiClientConfig)
 | Option | Type | Required | Description |
 |---|---|---|---|
 | `baseUrl` | `BaseUrl` | yes | Backend API URL |
-| `eventBus` | `EventBus` | yes | Workspace-scoped EventBus |
 | `token$` | `BehaviorSubject<AccessToken \| null>` | no | Observable access token. Namespaces and the bus actor read the current value. Update by calling `.next(newToken)`. Omit for unauthenticated usage. |
 | `timeout` | `number` | no | Request timeout ms (default: 30000) |
 | `retry` | `number` | no | Retry attempts (default: 2) |
 | `logger` | `Logger` | no | Logger for HTTP/SSE observability |
 | `tokenRefresher` | `() => Promise<string \| null>` | no | 401-recovery hook |
 
+The client's internal `EventBus` is constructed per-client and is
+**private**. Direct access is not exposed. All bus traffic goes
+through `emit` / `on` / `stream` (below).
+
+## Bus surface
+
+Session-scoped events (`browse:*`, `mark:*`, `beckon:*`, `gather:*`,
+`match:*`, `bind:*`, `yield:*`, `job:*`) live on the client's
+internal bus. The three methods below are the only way to reach it.
+App-scoped events (`panel:*`, `shell:*`, `tabs:*`, `nav:*`,
+`settings:*`) live on `SemiontBrowser`'s bus — see
+[SESSION.md in `@semiont/react-ui`](../../react-ui/docs/SESSION.md).
+
+### `emit<K>(channel, payload): void`
+
+Emit an event on the client's internal bus. Used by `client.emit(...)`
+call sites, view-model factories, and the HTTP layer bridging
+`/bus/emit` responses back into the bus.
+
+### `on<K>(channel, handler): () => void`
+
+Subscribe to an event. Returns an unsubscribe function. Prefer
+`useEventSubscription` in React — the hook handles re-subscription
+on session swap automatically.
+
+### `stream<K>(channel): Observable<EventMap[K]>`
+
+Get the channel as an RxJS Observable. Used by view-model factories
+that need to compose streams (filter, map, combineLatest, etc.).
+
 ### `subscribeToResource(resourceId)`
 
 Adds resource-scoped domain event channels (`mark:added`, `mark:body-updated`,
 `yield:create-ok`, etc.) to the bus actor's subscription for a specific
-resource. Bridges those events into the local EventBus so `semiont.browse.*`
-Observables update in real-time. Returns a cleanup function — call it on
-unmount to remove the channels.
+resource. The bus subscription is automatically scoped so only events
+for that resource are delivered. Returns a cleanup function — call it
+on unmount to remove the channels.
 
 ```typescript
-const cleanup = semiont.subscribeToResource(resourceId);
+const cleanup = client.subscribeToResource(resourceId);
 // ... later
 cleanup();
 ```
 
+Only one resource subscription may be active at a time; calling
+`subscribeToResource` again before unsubscribing throws.
+
 ### `dispose()`
 
-Stop and clean up the bus actor. Call before the client goes out of scope
-in long-running processes (CLI, MCP server).
+Stop and clean up the bus actor, close the internal EventBus, and
+release network resources. Call before the client goes out of scope
+in long-running processes (CLI, MCP server) and on session teardown
+in the browser.
 
 ## semiont.browse
 

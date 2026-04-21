@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import type { KnowledgeBase } from '@semiont/react-ui';
+import type { KnowledgeBase } from '@semiont/api-client';
 
 const translations: Record<string, string> = {
   'KnowledgeBasePanel.title': 'Knowledge Bases',
@@ -54,6 +54,7 @@ const {
     updateKb: vi.fn(),
     signIn: vi.fn(),
     signOut: vi.fn(),
+    getKbSessionStatus: (id: string) => id === 'kb-1' ? 'authenticated' : 'signed-out',
   };
   return {
     mockSetActiveKb: mockBrowser.setActiveKb,
@@ -74,20 +75,26 @@ vi.mock('@semiont/react-ui', async () => {
     ...actual,
     useSemiont: () => mockBrowser,
     defaultProtocol: (host: string) => host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https',
-    getKbSessionStatus: (id: string) => id === kb1.id ? 'authenticated' : 'signed-out',
   };
 });
 
-vi.mock('@semiont/api-client', () => ({
-  SemiontApiClient: vi.fn(),
-}));
+vi.mock('@semiont/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+  return {
+    ...actual,
+    SemiontApiClient: vi.fn(),
+  };
+});
 
-vi.mock('@semiont/core', () => ({
-  baseUrl: (url: string) => url,
-  email: (e: string) => e,
-  accessToken: (t: string) => t,
-  EventBus: vi.fn(),
-}));
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/core')>('@semiont/core');
+  return {
+    ...actual,
+    baseUrl: (url: string) => url,
+    email: (e: string) => e,
+    accessToken: (t: string) => t,
+  };
+});
 
 describe('KnowledgeBasePanel', () => {
   beforeEach(() => {

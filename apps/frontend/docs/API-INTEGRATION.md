@@ -83,7 +83,7 @@ and passes it to `SemiontApiClient` as `token$`. The client uses
 bus actor the first time a real token arrives.
 
 **Reference implementation**: see
-[`packages/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md)
+[`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md)
 for the exact provider API. See
 [`packages/api-client/docs/Usage.md`](../../../packages/api-client/docs/Usage.md)
 for how the client consumes `token$`.
@@ -290,7 +290,7 @@ like `browse:resources-failed`), raised from the promise returned by
 
 ### React UI library
 
-- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) — provider reference
+- [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) — provider reference
 - [`@semiont/react-ui/docs/ARCHITECTURE.md`](../../../packages/react-ui/docs/ARCHITECTURE.md) — architectural overview
 - [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) — annotation UI components
 

@@ -176,7 +176,7 @@ export function AnnotateView({
         const selectors = buildTextSelectors(content, text, start, end);
         if (!selectors) return;
 
-        session?.emit('mark:requested', {
+        session?.client.emit('mark:requested', {
           selector: selectors,
           motivation: selectedMotivation
         });

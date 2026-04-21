@@ -4,7 +4,7 @@ import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '
 import type { components } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 import type { SemiontApiClient } from '../../client';
 import { getPrimaryMediaType, decodeWithCharset } from '../../utils';
 
@@ -50,7 +50,7 @@ export interface SaveResourceParams {
 }
 
 export interface ComposePageVM extends ViewModel {
-  browse: BrowseVM;
+  browse: ShellVM;
   mode$: Observable<ComposeMode>;
   loading$: Observable<boolean>;
   cloneData$: Observable<CloneData | null>;
@@ -62,7 +62,7 @@ export interface ComposePageVM extends ViewModel {
 
 export function createComposePageVM(
   client: SemiontApiClient,
-  browse: BrowseVM,
+  browse: ShellVM,
   params: ComposeParams,
   auth?: AccessToken,
 ): ComposePageVM {

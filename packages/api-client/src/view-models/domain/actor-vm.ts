@@ -232,6 +232,16 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
       const decoder = new TextDecoder();
       let buffer = '';
 
+      // SSE parse state is declared OUTSIDE the read loop: a single
+      // event can span many `reader.read()` chunks when the payload is
+      // large (a full resource-result with annotations can easily exceed
+      // one TCP segment). Resetting these on every read would silently
+      // drop any event whose `event:`/`id:` headers land in one chunk
+      // and whose terminating blank line lands in the next.
+      let currentEvent = '';
+      let currentData = '';
+      let currentId: string | undefined;
+
       while (running && inflightControllers.has(controller)) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -240,10 +250,6 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
 
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
-
-        let currentEvent = '';
-        let currentData = '';
-        let currentId: string | undefined;
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {

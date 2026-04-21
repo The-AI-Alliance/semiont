@@ -196,7 +196,7 @@ export function TaggingPanel({
 
   const handleAssist = () => {
     if (selectedCategories.size > 0) {
-      session?.emit('mark:assist-request', {
+      session?.client.emit('mark:assist-request', {
         motivation: 'tagging',
         options: {
           schemaId: selectedSchemaId,
@@ -213,7 +213,7 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        session?.emit('mark:cancel-pending', undefined);
+        session?.client.emit('mark:cancel-pending', undefined);
       }
     };
 
@@ -275,7 +275,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
-                      session?.emit('mark:submit', {
+                      session?.client.emit('mark:submit', {
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [
@@ -306,7 +306,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => session?.emit('mark:cancel-pending', undefined)}
+                onClick={() => session?.client.emit('mark:cancel-pending', undefined)}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >

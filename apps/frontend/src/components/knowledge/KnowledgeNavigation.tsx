@@ -9,8 +9,8 @@ import {
   useEventSubscriptions,
   CollapsibleResourceNavigation,
   type NavigationItem,
-  type OpenResource
 } from '@semiont/react-ui';
+import type { OpenResource } from '@semiont/api-client';
 
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
@@ -75,9 +75,9 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
 
   // Subscribe to navigation events
   useEventSubscriptions({
-    'browse:sidebar-toggle': handleSidebarToggle,
-    'browse:resource-close': handleResourceClose,
-    'browse:resource-reorder': handleResourceReorder,
+    'shell:sidebar-toggle': handleSidebarToggle,
+    'tabs:close': handleResourceClose,
+    'tabs:reorder': handleResourceReorder,
   });
 
   // Handle navigation

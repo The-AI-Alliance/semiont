@@ -33,14 +33,20 @@ vi.mock('../../../hooks/useObservableBrowse', () => ({
 const stubClient = {
   browse: { invalidateAnnotationList: vi.fn() },
   markAnnotation: vi.fn(),
+  on: vi.fn(() => () => {}),
+  emit: vi.fn(),
+  stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
 };
 const stubSession = {
   client: stubClient,
-  on: vi.fn(() => () => {}),
-  emit: vi.fn(),
 };
 const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
-const stubBrowser = { activeSession$: stubActiveSession$ };
+const stubBrowser = {
+  activeSession$: stubActiveSession$,
+  emit: vi.fn(),
+  on: vi.fn(() => () => {}),
+  stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
+};
 
 vi.mock('../../../session/SemiontProvider', async () => {
   const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(

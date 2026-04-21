@@ -9,20 +9,19 @@ import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { SemiontApiClient } from '@semiont/api-client';
-import { EventBus, baseUrl } from '@semiont/core';
+import { SemiontApiClient, type SemiontBrowser } from '@semiont/api-client';
+import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
-import type { SemiontBrowser } from './session/semiont-browser';
 import { SemiontProvider } from './session/SemiontProvider';
 
 /**
  * Minimal fake SemiontBrowser for tests. Emits a fake session whose `client`
- * is a fresh SemiontApiClient constructed off `apiBaseUrl` — matching the
- * behavior the old `<ApiClientProvider>` wrapper provided. Tests that spy on
- * client methods (e.g. `BindNamespace.prototype.body`) can therefore rely on
- * the real-ish client surface.
+ * is a fresh SemiontApiClient constructed off `apiBaseUrl`. Tests that spy
+ * on client methods (e.g. `BindNamespace.prototype.body`) rely on the
+ * real-ish client surface. Tests that inspect events production code emits
+ * subscribe via `client.on(channel, handler)`.
  */
 function createFakeBrowserForTests(
   apiBaseUrl: string,
@@ -30,12 +29,6 @@ function createFakeBrowserForTests(
   const client = new SemiontApiClient({
     baseUrl: baseUrl(apiBaseUrl),
   });
-  // The client owns its own EventBus; tests that want to inspect events
-  // production code emits via `session?.emit(...)` read `client.eventBus`.
-  const eventBus = client.eventBus;
-  // Minimal session stub exposing the emit/on facade expected by
-  // production code. Uses the same EventBus the client was constructed with,
-  // so tests that inspect the bus see the events production code emits.
   const fakeSession = {
     client,
     kb: null,
@@ -49,22 +42,20 @@ function createFakeBrowserForTests(
     refresh: vi.fn(async () => null),
     acknowledgeSessionExpired: vi.fn(),
     acknowledgePermissionDenied: vi.fn(),
-    emit<K extends string>(channel: K, payload: unknown): void {
-      (eventBus.get(channel as any) as unknown as { next(v: unknown): void }).next(payload);
-    },
-    on<K extends string>(channel: K, handler: (payload: unknown) => void): () => void {
-      const sub = (eventBus.get(channel as any) as unknown as { subscribe(h: (v: unknown) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
-    },
   };
   const activeSession$ = new BehaviorSubject<any>(fakeSession);
+  const sessionActivating$ = new BehaviorSubject<boolean>(false);
   const identityToken$ = new BehaviorSubject<null>(null);
   const openResources$ = new BehaviorSubject<any[]>([]);
   const kbs$ = new BehaviorSubject<any[]>([]);
   const activeKbId$ = new BehaviorSubject<string | null>(null);
   const error$ = new BehaviorSubject<never>(null as never);
+  // App-scoped bus: a real EventBus stand-in so tests exercising
+  // `semiont.emit/on/stream` round-trip through a live subject.
+  const shellBus = new EventBus();
   return {
     activeSession$,
+    sessionActivating$,
     identityToken$,
     openResources$,
     kbs$,
@@ -82,6 +73,13 @@ function createFakeBrowserForTests(
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
     dispose: vi.fn(async () => {}),
+    emit: (channel: any, payload: any) => shellBus.get(channel).next(payload),
+    on: (channel: any, handler: any) => {
+      const sub = shellBus.get(channel).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: (channel: any) => shellBus.get(channel).asObservable(),
+    _shellBus: shellBus,
   } as unknown as SemiontBrowser;
 }
 
@@ -112,13 +110,42 @@ export interface TestProvidersOptions {
   browser?: SemiontBrowser;
 }
 
+/**
+ * Extract the internal bus from a client for test assertions. Production
+ * code uses `client.emit` / `client.on` / `client.stream`; tests still
+ * reach for raw subjects because many pre-existing test suites do
+ * `bus.get(channel).subscribe(...)` / `.next(...)`. That migration is
+ * tracked as a follow-up; in the meantime, this cast is the single
+ * sanctioned escape hatch.
+ */
+function busOf(client: SemiontApiClient): EventBus {
+  return (client as unknown as { eventBus: EventBus }).eventBus;
+}
+
 export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
-  /** If true, returns the event bus instance along with render result */
+  /**
+   * If true, returns the session (client) EventBus — session-scoped
+   * channels (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*,
+   * browse:click, browse:reference-navigate, browse:entity-type-clicked).
+   */
   returnEventBus?: boolean;
+  /**
+   * If true, returns the app-scoped (SemiontBrowser) EventBus — panel:*,
+   * shell:*, tabs:*, nav:*, settings:*.
+   */
+  returnShellBus?: boolean;
 }
 
 export interface RenderWithProvidersResult extends RenderResult {
+  /** Session-scoped bus (from the fake client inside the fake browser). */
   eventBus?: EventBus;
+  /** App-scoped bus (the fake browser's own bus). */
+  shellBus?: EventBus;
+}
+
+/** Read the app-scoped bus stashed on the fake browser by createFakeBrowserForTests. */
+function shellBusOf(browser: SemiontBrowser): EventBus | undefined {
+  return (browser as unknown as { _shellBus?: EventBus })._shellBus;
 }
 
 export function renderWithProviders(
@@ -130,18 +157,13 @@ export function renderWithProviders(
     apiBaseUrl = 'http://localhost:4000',
     browser,
     returnEventBus = false,
+    returnShellBus = false,
     ...renderOptions
   } = options || {};
 
-  // The fake browser's session exposes its client's EventBus as `emit/on`.
-  // Tests that subscribe via the returned `eventBus` receive events
-  // production code emits via `session?.emit(...)`. When the caller
-  // provides a minimal mock browser without a client (e.g. the modal
-  // state helper), fall back to a fresh bus — the tests that use such
-  // browsers don't inspect emissions.
   const fakeBrowser = browser ?? createFakeBrowserForTests(apiBaseUrl);
-  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client?: { eventBus?: EventBus } } | null } }).activeSession$.getValue();
-  const sharedBus = fakeSession?.client?.eventBus ?? new EventBus();
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client?: SemiontApiClient } | null } }).activeSession$.getValue();
+  const client = fakeSession?.client;
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -157,30 +179,36 @@ export function renderWithProviders(
 
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
 
-  if (returnEventBus) {
-    return { ...result, eventBus: sharedBus };
-  }
-
-  return result;
+  const extras: Partial<RenderWithProvidersResult> = {};
+  if (returnEventBus && client) extras.eventBus = busOf(client);
+  if (returnShellBus) extras.shellBus = shellBusOf(fakeBrowser);
+  return Object.keys(extras).length ? { ...result, ...extras } : result;
 }
 
 /**
- * Build a minimal `<SemiontProvider>` wrapper over a shared EventBus for
- * tests that roll their own render wrapper (instead of `renderWithProviders`).
- * Tests subscribe to `eventBus` to assert events that production code emits
- * via `session?.emit(...)`.
+ * Build a minimal `<SemiontProvider>` wrapper for tests that roll their
+ * own render wrapper (instead of `renderWithProviders`). The returned
+ * `eventBus` is the bus backing the fake session's client — same
+ * reference production code pokes via `session.client.emit(...)`.
  */
 export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:4000'): {
   SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;
+  /** Session-scoped bus (from the fake client). */
   eventBus: EventBus;
+  /** App-scoped bus (the fake browser's own bus). */
+  shellBus: EventBus;
 } {
   const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
-  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: { eventBus: EventBus } } | null } }).activeSession$.getValue();
-  const eventBus = fakeSession?.client.eventBus ?? new EventBus();
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: SemiontApiClient } | null } }).activeSession$.getValue();
+  const client = fakeSession!.client;
   const SemiontWrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontProvider browser={fakeBrowser}>{children}</SemiontProvider>
   );
-  return { SemiontWrapper, eventBus };
+  return {
+    SemiontWrapper,
+    eventBus: busOf(client),
+    shellBus: shellBusOf(fakeBrowser)!,
+  };
 }
 
 /**
@@ -222,11 +250,10 @@ export function createMockKnowledgeBaseSession(overrides: {
     acknowledgeSessionExpired: overrides.acknowledgeSessionExpired ?? vi.fn(),
     expiresAt: null,
     refresh: vi.fn(async () => null),
-    emit: vi.fn(),
-    on: vi.fn(() => () => {}),
   };
   return {
     activeSession$: new BehaviorSubject(session),
+    sessionActivating$: new BehaviorSubject<boolean>(false),
     kbs$: new BehaviorSubject<unknown[]>([]),
     activeKbId$: new BehaviorSubject<string | null>(null),
     openResources$: new BehaviorSubject<unknown[]>([]),
@@ -244,6 +271,11 @@ export function createMockKnowledgeBaseSession(overrides: {
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
     dispose: vi.fn(async () => {}),
+    // App-scoped bus stubs (post-shell-vm refactor). Minimal so
+    // useEventSubscription(s) can register without exploding.
+    emit: vi.fn(),
+    on: vi.fn(() => () => {}),
+    stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
   } as unknown as SemiontBrowser;
 }
 

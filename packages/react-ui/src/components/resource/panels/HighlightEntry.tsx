@@ -51,7 +51,7 @@ export function HighlightEntry({
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.emit('browse:click', { annotationId: highlight.id, motivation: highlight.motivation });
+        session?.client.emit('browse:click', { annotationId: highlight.id, motivation: highlight.motivation });
       }}
       {...hoverProps}
     >

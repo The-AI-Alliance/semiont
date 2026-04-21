@@ -1,19 +1,20 @@
 /**
- * Pure helpers for the Semiont session layer.
+ * Pure helpers and storage-adapter-driven loaders for the Semiont
+ * session layer.
  *
  * Contains:
- *  - localStorage shape and read/write helpers for KB list, active KB id,
- *    and per-KB sessions
+ *  - Storage key shape (constants, `sessionKey(kbId)`)
  *  - JWT expiry parsing and "is expired" check
  *  - URL/protocol helpers for KB instances
- *  - The public `getKbSessionStatus(kbId)` helper that the KB-list UI uses
- *    to color status dots without subscribing to context changes
+ *  - Loaders/savers that take a `SessionStorage` and operate over it
+ *    (no direct `localStorage` access)
  *
  * No React imports, no module-scoped state, no side effects beyond
- * localStorage.
+ * whatever the passed-in `SessionStorage` does.
  */
 
-import type { KnowledgeBase, KbSessionStatus } from '../types/knowledge-base';
+import type { KnowledgeBase } from './knowledge-base';
+import type { SessionStorage } from './session-storage';
 
 // ---------- Storage keys ----------
 
@@ -24,7 +25,7 @@ export const ACTIVE_KEY = 'semiont.activeKnowledgeBaseId';
 /** Refresh the access token this many milliseconds before it expires. */
 export const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;
 
-/** The shape persisted to localStorage per KB. */
+/** The shape persisted per KB. */
 export interface StoredSession {
   access: string;
   refresh: string;
@@ -36,8 +37,8 @@ export function sessionKey(kbId: string): string {
 
 // ---------- Per-KB session storage ----------
 
-export function getStoredSession(kbId: string): StoredSession | null {
-  const raw = localStorage.getItem(sessionKey(kbId));
+export function getStoredSession(storage: SessionStorage, kbId: string): StoredSession | null {
+  const raw = storage.get(sessionKey(kbId));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -50,12 +51,12 @@ export function getStoredSession(kbId: string): StoredSession | null {
   return null;
 }
 
-export function setStoredSession(kbId: string, session: StoredSession): void {
-  localStorage.setItem(sessionKey(kbId), JSON.stringify(session));
+export function setStoredSession(storage: SessionStorage, kbId: string, session: StoredSession): void {
+  storage.set(sessionKey(kbId), JSON.stringify(session));
 }
 
-export function clearStoredSession(kbId: string): void {
-  localStorage.removeItem(sessionKey(kbId));
+export function clearStoredSession(storage: SessionStorage, kbId: string): void {
+  storage.delete(sessionKey(kbId));
 }
 
 // ---------- JWT helpers ----------
@@ -105,9 +106,9 @@ function migrateLegacyEntry(entry: any): KnowledgeBase {
   }
 }
 
-export function loadKnowledgeBases(): KnowledgeBase[] {
+export function loadKnowledgeBases(storage: SessionStorage): KnowledgeBase[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = storage.get(STORAGE_KEY);
     if (!raw) return [];
     const entries = JSON.parse(raw) as any[];
     return entries.map(migrateLegacyEntry);
@@ -116,8 +117,8 @@ export function loadKnowledgeBases(): KnowledgeBase[] {
   }
 }
 
-export function saveKnowledgeBases(knowledgeBases: KnowledgeBase[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(knowledgeBases));
+export function saveKnowledgeBases(storage: SessionStorage, knowledgeBases: KnowledgeBase[]): void {
+  storage.set(STORAGE_KEY, JSON.stringify(knowledgeBases));
 }
 
 // ---------- Public pure helpers ----------
@@ -144,17 +145,6 @@ export function kbBackendUrl(kb: KnowledgeBase): string {
   url.hostname = kb.host;
   url.port = String(kb.port);
   return `${kb.protocol}://${url.hostname}:${kb.port}`;
-}
-
-/**
- * Read the locally-stored credential status for a KB. Pure / synchronous —
- * does not subscribe to context changes. Used by KB-list UI to color status
- * dots without requiring re-renders on every tick.
- */
-export function getKbSessionStatus(kbId: string): KbSessionStatus {
-  const stored = getStoredSession(kbId);
-  if (!stored) return 'signed-out';
-  return isJwtExpired(stored.access) ? 'expired' : 'authenticated';
 }
 
 export function generateKbId(): string {

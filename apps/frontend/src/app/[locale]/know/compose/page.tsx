@@ -9,7 +9,7 @@ import {
   useSemiont,
   useToast,
   useTheme,
-  useBrowseVM,
+  useShellVM,
   useObservable,
   useLineNumbers,
   useHoverDelay,
@@ -46,7 +46,7 @@ function ComposeResourceContent() {
     if (!isAuthenticated) router.push('/');
   }, [authLoading, isAuthenticated, router]);
 
-  const browseVM = useBrowseVM();
+  const browseVM = useShellVM();
 
   const contextKey = searchParams?.get('annotationUri')
     ? `gather-context:${searchParams.get('annotationUri')}`

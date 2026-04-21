@@ -21,17 +21,21 @@
 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, EventBus, type AccessToken } from '@semiont/core';
+import { baseUrl, accessToken, type AccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken(myToken));
 
-const semiont = new SemiontApiClient({
+const client = new SemiontApiClient({
   baseUrl: baseUrl('http://localhost:4000'),
-  eventBus: new EventBus(),
   token$,
 });
 ```
+
+Each client owns a private `EventBus`. No `eventBus` parameter is
+needed or accepted — all bus traffic happens through
+`client.emit(channel, payload)`, `client.on(channel, handler)`, and
+`client.stream(channel)`.
 
 All namespace calls and the bus SSE connection read the current value
 from `token$`. Update by calling `.next(newToken)` — the client's bus
@@ -44,6 +48,28 @@ token$.next(accessToken(newToken));
 
 Omit `token$` for unauthenticated usage (public endpoints only). The
 bus actor will not connect until a non-null token is available.
+
+### In apps that use `SemiontBrowser`
+
+When the app lives behind `SemiontBrowser` (browser / CLI / MCP), you
+rarely construct the client directly. The browser owns the
+`SemiontSession`, which owns the client:
+
+```ts
+import { SemiontBrowser, InMemorySessionStorage } from '@semiont/api-client';
+
+const browser = new SemiontBrowser({ storage: new InMemorySessionStorage() });
+await browser.addKb({ ... });
+await browser.signIn(kbId, accessToken, refreshToken);
+
+const session = browser.activeSession$.getValue()!;
+session.client.emit('mark:create-request', { ... });
+```
+
+See [SESSION.md in `@semiont/react-ui`](../../react-ui/docs/SESSION.md)
+for the full class model, including the second (app-scoped) bus on
+`SemiontBrowser` for `panel:*` / `shell:*` / `tabs:*` / `nav:*` /
+`settings:*` channels.
 
 ## Browse
 

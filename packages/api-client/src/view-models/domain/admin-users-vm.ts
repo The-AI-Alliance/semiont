@@ -2,11 +2,11 @@ import { BehaviorSubject, type Observable } from 'rxjs';
 import { userDID } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 import type { SemiontApiClient } from '../../client';
 
 export interface AdminUsersVM extends ViewModel {
-  browse: BrowseVM;
+  browse: ShellVM;
   users$: Observable<unknown[]>;
   stats$: Observable<unknown | null>;
   usersLoading$: Observable<boolean>;
@@ -16,7 +16,7 @@ export interface AdminUsersVM extends ViewModel {
 
 export function createAdminUsersVM(
   client: SemiontApiClient,
-  browse: BrowseVM,
+  browse: ShellVM,
 ): AdminUsersVM {
   const disposer = createDisposer();
   disposer.add(browse);

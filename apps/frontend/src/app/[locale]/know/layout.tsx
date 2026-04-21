@@ -7,11 +7,10 @@ import {
   ResourceAnnotationsProvider,
   Toolbar,
   useSemiont,
-  useBrowseVM,
+  useShellVM,
   useObservable,
   useTheme,
   useLineNumbers,
-  getKbSessionStatus,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
@@ -34,7 +33,7 @@ function DiscoverEmptyState() {
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
   const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
   const status = activeKnowledgeBase
-    ? getKbSessionStatus(activeKnowledgeBase.id)
+    ? semiont.getKbSessionStatus(activeKnowledgeBase.id)
     : null;
 
   if (knowledgeBases.length === 0) {
@@ -71,7 +70,7 @@ function DiscoverEmptyState() {
 }
 
 function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: string, params?: Record<string, unknown>) => string; keyboardContext: { openKeyboardHelp?: () => void } | null }) {
-  const browseVM = useBrowseVM();
+  const browseVM = useShellVM();
   const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme } = useTheme();
   const { showLineNumbers } = useLineNumbers();
@@ -110,11 +109,14 @@ function KnowledgeLayoutBody() {
   const semiont = useSemiont();
   const activeKbId = useObservable(semiont.activeKbId$);
   const session = useObservable(semiont.activeSession$);
+  const sessionActivating = useObservable(semiont.sessionActivating$);
   const token = useObservable(session?.token$);
   const activeKnowledgeBase = session?.kb ?? null;
-  // "Loading" = we intend to have a session (activeKbId is set) but the
-  // session hasn't finished constructing yet.
-  const isLoading = activeKbId != null && session == null;
+  // "Loading" = a session construction is actively in flight. Without
+  // the `sessionActivating` guard we'd sit on the spinner forever after
+  // any `signOut`, which also leaves `activeKbId` set but `session`
+  // null.
+  const isLoading = activeKbId != null && session == null && sessionActivating;
 
   if (isLoading) {
     return (

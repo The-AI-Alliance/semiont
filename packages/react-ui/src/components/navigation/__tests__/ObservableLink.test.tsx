@@ -26,17 +26,17 @@ describe('ObservableLink', () => {
     expect(screen.getByText('Click me')).toBeInTheDocument();
   });
 
-  it('emits browse:link-clicked with href and label on click', () => {
+  it('emits nav:link-clicked with href and label on click', () => {
     const handler = vi.fn();
 
-    const { eventBus } = renderWithProviders(
+    const { shellBus } = renderWithProviders(
       <ObservableLink href="/discover" label="Discover">
         Discover Resources
       </ObservableLink>,
-      { returnEventBus: true }
+      { returnShellBus: true }
     );
 
-    const subscription = eventBus!.get('browse:link-clicked').subscribe(handler);
+    const subscription = shellBus!.get('nav:link-clicked').subscribe(handler);
 
     const link = screen.getByRole('link');
     fireEvent.click(link);

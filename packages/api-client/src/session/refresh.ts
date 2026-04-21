@@ -5,10 +5,11 @@
  * the same KB deduplicate to a single network call.
  */
 
-import { SemiontApiClient } from '@semiont/api-client';
 import { baseUrl, refreshToken as makeRefreshToken } from '@semiont/core';
-import type { KnowledgeBase } from '../types/knowledge-base';
+import { SemiontApiClient } from '../client';
+import type { KnowledgeBase } from './knowledge-base';
 import { getStoredSession, setStoredSession, kbBackendUrl } from './storage';
+import type { SessionStorage } from './session-storage';
 
 /**
  * One in-flight refresh promise per KB. Ensures concurrent 401s for the same
@@ -31,12 +32,15 @@ const inFlightRefreshes: Map<string, Promise<string | null>> = new Map();
  * Map keyed by `kb.id`, so simultaneous 401s on different requests trigger
  * only one network round-trip to `/api/tokens/refresh`.
  */
-export async function performRefresh(kb: KnowledgeBase): Promise<string | null> {
+export async function performRefresh(
+  kb: KnowledgeBase,
+  storage: SessionStorage,
+): Promise<string | null> {
   const existing = inFlightRefreshes.get(kb.id);
   if (existing) return existing;
 
   const promise = (async (): Promise<string | null> => {
-    const stored = getStoredSession(kb.id);
+    const stored = getStoredSession(storage, kb.id);
     if (!stored) return null;
 
     const client = new SemiontApiClient({
@@ -47,7 +51,7 @@ export async function performRefresh(kb: KnowledgeBase): Promise<string | null> 
       const response = await client.refreshToken(makeRefreshToken(stored.refresh));
       const newAccess = response.access_token;
       if (!newAccess) return null;
-      setStoredSession(kb.id, { access: newAccess, refresh: stored.refresh });
+      setStoredSession(storage, kb.id, { access: newAccess, refresh: stored.refresh });
       return newAccess;
     } catch {
       return null;

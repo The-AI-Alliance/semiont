@@ -235,11 +235,10 @@ async function runDelegate(
 
   if (!options.quiet) process.stderr.write(`Annotating ${motivation} on ${rawResourceId}...\n`);
 
-  const eventBus = semiont.eventBus;
-  const vm = createMarkVM(semiont, eventBus, rId);
+  const vm = createMarkVM(semiont, rId);
 
   try {
-    eventBus.get('mark:assist-request').next({
+    semiont.emit('mark:assist-request', {
       motivation: motivation as Motivation,
       options: {
         instructions,
@@ -253,15 +252,15 @@ async function runDelegate(
     });
 
     const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
-      const finishedSub = eventBus.get('mark:assist-finished').subscribe((event) => {
+      const finishedUnsub = semiont.on('mark:assist-finished', (event) => {
         cleanup();
         resolve({ createdCount: (event as any).createdCount ?? 0 });
       });
-      const failedSub = eventBus.get('mark:assist-failed').subscribe((event) => {
+      const failedUnsub = semiont.on('mark:assist-failed', (event) => {
         cleanup();
         reject(new Error((event as any).message ?? 'Annotation failed'));
       });
-      function cleanup() { finishedSub.unsubscribe(); failedSub.unsubscribe(); }
+      function cleanup() { finishedUnsub(); failedUnsub(); }
     });
 
     if (!options.quiet) process.stderr.write(`✓ ${result.createdCount} annotations created\n`);

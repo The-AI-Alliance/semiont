@@ -20,10 +20,12 @@ function makeSegment(id: string, motivation: string): TextSegment {
 
 function makeSession() {
   const calls: Array<{ channel: string; payload: unknown }> = [];
+  const emit = vi.fn((channel: string, payload: unknown) => {
+    calls.push({ channel, payload });
+  });
   return {
-    emit: vi.fn((channel: string, payload: unknown) => {
-      calls.push({ channel, payload });
-    }),
+    client: { emit },
+    emit,
     calls,
   } as any;
 }

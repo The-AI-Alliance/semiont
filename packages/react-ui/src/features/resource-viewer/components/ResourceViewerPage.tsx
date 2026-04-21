@@ -32,7 +32,7 @@ import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsCon
 import { useSemiont } from '../../../session/SemiontProvider';
 import { createResourceViewerPageVM } from '@semiont/api-client';
 import { useViewModel } from '../../../hooks/useViewModel';
-import { useBrowseVM } from '../../../hooks/useBrowseVM';
+import { useShellVM } from '../../../hooks/useShellVM';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
@@ -93,7 +93,7 @@ export interface ResourceViewerPageProps {
  *
  * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
  *
- * @emits browse:router-push - Navigate to a resource or filtered view
+ * @emits nav:push - Navigate to a resource or filtered view
  * @emits beckon:sparkle - Trigger sparkle animation on an annotation
  * @emits bind:update-body - Update annotation body content
  * @subscribes mark:archive - Archive the current resource
@@ -132,7 +132,6 @@ export function ResourceViewerPage({
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
   const semiont = session?.client;
-  const eventBus = semiont?.eventBus;
 
   // UI state hooks
   const { showError, showSuccess, showInfo } = useToast();
@@ -158,8 +157,8 @@ export function ResourceViewerPage({
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
   // Composite VM — owns all flow VMs, wizard state, annotations, entity types
-  const browseVM = useBrowseVM();
-  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, eventBus!, rUri, locale, browseVM));
+  const browseVM = useShellVM();
+  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, rUri, locale, browseVM));
 
   const annotations = useObservable(vm.annotations$) ?? [];
   const groups = useObservable(vm.annotationGroups$);
@@ -232,7 +231,7 @@ export function ResourceViewerPage({
       name: title,
       entityTypes: entTypes.join(','),
     });
-    session?.emit('browse:router-push', {
+    browser.emit('nav:push', {
       path: `/know/compose?${params.toString()}`,
       reason: 'compose-from-wizard',
     });
@@ -248,6 +247,16 @@ export function ResourceViewerPage({
       }
     }
   }, [resource, rUri, browser]);
+
+  // Bridge: when the mark VM produces a pending annotation, open the
+  // annotations panel. The mark VM (session-scoped) can't emit `panel:open`
+  // (app-scoped) directly — the React tree is the natural seam between
+  // the two buses.
+  useEffect(() => {
+    if (pendingAnnotation) {
+      browser.emit('panel:open', { panel: 'annotations' });
+    }
+  }, [pendingAnnotation, browser]);
 
   // Domain events flow through the bus gateway (ActorVM → local EventBus).
   // BrowseNamespace cache invalidation handles annotation/resource updates.
@@ -281,7 +290,7 @@ export function ResourceViewerPage({
     try {
       const result = await semiont.generateCloneToken(rUri);
       const token = result.token;
-      session?.emit('browse:router-push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
+      browser.emit('nav:push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
@@ -327,14 +336,14 @@ export function ResourceViewerPage({
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
-      session?.emit('browse:router-push', { path, reason: 'reference-link' });
+      browser.emit('nav:push', { path, reason: 'reference-link' });
     }
   }, [routes.resourceDetail, session]);
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
       const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      session?.emit('browse:router-push', { path, reason: 'entity-type-filter' });
+      browser.emit('nav:push', { path, reason: 'entity-type-filter' });
     }
   }, [routes.know, session]);
 
@@ -403,7 +412,7 @@ export function ResourceViewerPage({
   // Handlers for AnnotationHistory (legacy event-based interaction)
   const handleEventHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
-      session?.emit('beckon:sparkle', { annotationId });
+      session?.client.emit('beckon:sparkle', { annotationId });
     }
   }, [session]);
 

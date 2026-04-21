@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useBrowseVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
 
 // Authentication is handled by middleware (proxy.ts)
@@ -13,7 +13,7 @@ export default function RecentDocumentsPageWrapper() {
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateRecent.${k}`, p as any) as string;
 
   // Toolbar and settings state
-  const browseVM = useBrowseVM();
+  const browseVM = useShellVM();
   const activePanel = useObservable(browseVM.activePanel$) ?? null;
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
