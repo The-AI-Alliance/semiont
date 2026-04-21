@@ -75,15 +75,62 @@ App-level singleton. Owns:
 
 - `kbs$` — configured KB list
 - `activeKbId$`, `activeSession$` — active selection + session
+- `sessionActivating$` — true while a session is actively being
+  constructed (`setActiveKb`/`signIn` in flight, awaiting
+  `session.ready`). Layouts that show a loading spinner while the
+  session is under construction must gate on this; otherwise they
+  sit on the spinner forever after every `signOut`, which
+  intentionally leaves `activeKbId` set with `session` null.
 - `openResources$` — open-resource list (tab bar)
 - `identityToken$` — app-level identity bridge (e.g. NextAuth)
 - `error$` — session-level error stream
 - CRUD methods: `addKb`, `removeKb`, `setActiveKb`, `signIn`, `signOut`,
   `addOpenResource`, etc.
 - `getKbSessionStatus(kbId)` — synchronous status check for KB-list UI
+- **App-scoped bus surface**: `emit`/`on`/`stream` — see [Two buses](#two-buses).
 
 All persistence goes through a `SessionStorage` adapter provided at
 construction. The classes never touch `localStorage` or `window` directly.
+
+## Two buses
+
+There are **two independent `EventBus` instances** in the app, each
+with a distinct scope and lifetime:
+
+| Bus | Owner | Lifetime | Channels |
+|---|---|---|---|
+| Session bus | `SemiontApiClient` (private) | Per-KB session (reborn every `signIn` / `setActiveKb`) | KB-content traffic: `browse:*` (reads), `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
+| Shell bus | `SemiontBrowser` (private) | App lifetime (survives sign-out / KB swap) | UI shell traffic: `panel:*`, `shell:*`, `tabs:*`, `nav:*`, `settings:*` |
+
+Both buses expose the same `emit` / `on` / `stream` surface. The split
+exists because the shell bus must keep working when there is no
+active session: panels can toggle, sidebar can collapse, tabs can
+close, and the settings panel is reachable, even on a signed-out KB
+or with zero KBs configured.
+
+**Routing rule:** every channel lives on exactly one bus. Emitting
+to the wrong bus is a silent no-op — subscribers on the other bus
+never see it. `EventMap` is the single source of truth for which
+channel belongs where; if you can't tell from the name, check
+`packages/core/src/bus-protocol.ts`.
+
+Components pick based on the channel scope:
+
+```tsx
+const semiont = useSemiont();                       // browser (shell bus)
+const session = useObservable(semiont.activeSession$);
+
+// Shell event — works regardless of session.
+semiont.emit('panel:toggle', { panel: 'settings' });
+
+// KB-content event — requires an active session.
+session?.client.emit('mark:create-request', { ... });
+```
+
+The `useEventSubscription(channel, handler)` hook hides this: it
+subscribes on **both** buses for the given channel, so callers don't
+have to know which one carries it. The correct bus fires; the other
+stays silent.
 
 ### `SessionStorage`
 
@@ -171,26 +218,43 @@ function AnnotationReactor() {
 }
 ```
 
-Internally `useEventSubscription` calls `session.client.on(channel, handler)`.
+Internally `useEventSubscription` subscribes on **both** the browser's
+shell bus and the session client's bus, so a caller doesn't need to
+know which bus carries the channel. Exactly one of the two subscriptions
+receives payloads; the other stays silent. If the active session swaps
+(KB switch, sign-out/sign-in) the hook rewires automatically.
 
 ### ViewModel hooks
 
-`useShellVM` (and friends) construct ViewModels over the active session's
-client:
+Every VM factory takes exactly one bus-owner, matching the bus its
+channels live on:
+
+- **Session-scoped VMs** (mark, beckon, gather, match, bind, yield,
+  browse) take `client: SemiontApiClient` and route through
+  `client.emit` / `client.stream`. Their lifetime is tied to the
+  session.
+- **Shell-scoped VMs** (`ShellVM` — toolbar panel state, sidebar
+  collapse) take `browser: SemiontBrowser` and route through
+  `browser.emit` / `browser.stream`. Their lifetime is tied to the app.
+
+Why the split matters: `ShellVM` must function on unauth pages
+(sign-in form visible, no active session). If it were wired to the
+client bus, toolbar panel state and sidebar collapse would fail
+whenever no session existed.
 
 ```tsx
 export function useShellVM(): ShellVM {
-  const client = useObservable(useSemiont().activeSession$)?.client;
-  return useViewModel(() => createShellVM(client!, {
+  const semiont = useSemiont();
+  return useViewModel(() => createShellVM(semiont, {
     initialPanel: readPanel(),
     onPanelChange: persistPanel,
   }));
 }
 ```
 
-ViewModel factories take `client: SemiontApiClient` — never a raw
-`EventBus`. They call `client.stream(channel).subscribe(...)` for
-subscriptions and `client.emit(channel, payload)` for emissions.
+VM factories import only from `@semiont/api-client` and call
+`.stream(channel).subscribe(...)` / `.emit(channel, payload)`. No
+factory touches a raw `EventBus`.
 
 ## Invariants
 
@@ -198,10 +262,18 @@ subscriptions and `client.emit(channel, payload)` for emissions.
    session; `setActiveKb` is the only path to swap.
 2. **Session classes are environment-agnostic.** No `window` or
    `localStorage` references. Storage goes through `SessionStorage`.
-3. **`client.eventBus` is private.** All bus access is `client.emit` /
-   `client.on` / `client.stream` — enforced by TypeScript.
+3. **Both `eventBus` fields are private.** All bus access is via
+   `.emit` / `.on` / `.stream` on the owning object (client or
+   browser). Enforced by TypeScript.
 4. **VM factories import only from `@semiont/api-client`.** No
    `import { EventBus } from '@semiont/core'` in view-model files.
+5. **Every channel belongs to exactly one bus.** `EventMap` in
+   `@semiont/core/bus-protocol.ts` is the source of truth. Don't
+   split a channel across buses; don't emit to both.
+6. **`sessionActivating$` is the only valid loading indicator.** UIs
+   that want to show a spinner while the session is under
+   construction must AND-gate on `sessionActivating$`; otherwise
+   they get stuck spinning after `signOut`.
 5. **React layer is provider + hook only.** All session types live in
    `@semiont/api-client`; the React package exports only `SemiontProvider`,
    `useSemiont`, and `WebBrowserStorage`.

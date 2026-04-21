@@ -63,9 +63,17 @@ fails the corresponding test.
    "Annotate" button with entity types selected, confirm the assist
    dispatch crosses the wire.
 7. `07-sign-out-sign-in.spec.ts` — sign out, sign back in, confirm the
-   session state rebuilds and bus round-trips still work.
+   session state rebuilds and bus round-trips still work on the fresh
+   client.
 8. `08-hover-beckon.spec.ts` — hover over an annotation, confirm the
-   BeckonVM focus/sparkle signal flows.
+   BeckonVM focus/sparkle signal flows. Auto-skips if the fixture
+   resource has no annotations (the template KB starts empty;
+   tests 04 and 05 create annotations when they run).
+9. `99-diagnose-entity-types.spec.ts` — instance-tracking diagnostic
+   for the entity-types flow (ActorVM / BrowseNamespace construction
+   counts + cache delivery). Not a regression guard — a running
+   dashboard for the singleton-ness invariants the SSE reconnect
+   logic depends on.
 
 ## Non-goals (for now)
 

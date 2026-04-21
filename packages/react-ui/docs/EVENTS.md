@@ -1,541 +1,224 @@
 # Event-Driven Architecture
 
-Guide to using the unified event bus in `@semiont/react-ui`.
+Guide to the event buses in `@semiont/react-ui` — how they're scoped,
+how to emit and subscribe, and how to debug wire-level problems.
 
-> **📖 Architecture Guide**: For a complete guide to the three-layer service/hook/component pattern, see [SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md).
+For the underlying class model (`SemiontBrowser`, `SemiontApiClient`,
+`SemiontSession`) see [SESSION.md](SESSION.md). For the canonical
+channel list, see `packages/core/src/bus-protocol.ts` —
+`EventMap` is the single source of truth.
 
-## Overview
+## Two buses
 
-The event bus provides a unified communication channel for both backend events (from the API via SSE) and UI events (local user interactions). This architecture eliminates callback prop drilling and enables real-time collaboration.
+The app has **two independent `EventBus` instances**:
 
-**Key Benefits**:
+| Bus | Owner | Lifetime | Channels |
+|---|---|---|---|
+| **Session bus** | `SemiontApiClient` (private) | One per KB session — reborn on every `signIn` / `setActiveKb` | KB-content traffic: `browse:*`, `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
+| **Shell bus** | `SemiontBrowser` (private) | App lifetime — survives sign-out, KB swap, and zero-KB state | UI shell traffic: `panel:*`, `shell:*`, `tabs:*`, `nav:*`, `settings:*` |
 
-- ✅ Zero callback prop drilling (0 layers vs 4+ layers)
-- ✅ No ref stabilization needed
-- ✅ Type-safe with discriminated unions
-- ✅ Automatic cache invalidation via events
-- ✅ Foundation for real-time P2P collaboration
-- ✅ Components can be anywhere in tree (no parent-child requirement)
+The split exists because the shell must keep working when there is
+no active session: sidebar toggles, panel switches, tab reorders,
+settings changes, and in-app nav clicks all fire with or without a
+signed-in user.
 
----
+Both buses expose the same surface — `.emit(channel, payload)`,
+`.on(channel, handler)`, `.stream(channel)`. Neither exposes the
+raw `EventBus` (both fields are private). Every channel lives on
+exactly **one** bus; emitting to the wrong bus is a silent no-op.
 
-## Setup
+## Subscribing
 
-### 1. Wrap Your App with EventBusProvider
-
-The `EventBusProvider` creates a singleton event bus for your application. It should wrap your app at the root level.
+Use `useEventSubscription` — one channel at a time:
 
 ```tsx
-import { EventBusProvider } from '@semiont/react-ui';
+import { useEventSubscription } from '@semiont/react-ui';
 
-export default function App({ children }) {
+function AnnotationReactor() {
+  useEventSubscription('mark:create-ok', ({ annotationId }) => {
+    triggerSparkleAnimation(annotationId);
+  });
+  return null;
+}
+```
+
+Or `useEventSubscriptions` for multiple channels in one hook:
+
+```tsx
+useEventSubscriptions({
+  'mark:create-ok': ({ annotationId }) => { ... },
+  'mark:create-failed': ({ error }) => { ... },
+});
+```
+
+**Internally, these hooks subscribe on both buses.** The caller
+doesn't need to know which bus carries the channel — the correct
+one fires, the other stays silent. When the active session swaps
+(KB switch, sign-out/sign-in), the hook rewires automatically.
+
+## Emitting
+
+Pick the bus that owns the channel:
+
+```tsx
+function Toolbar() {
+  const semiont = useSemiont();
+
+  // Shell channel — works regardless of session.
   return (
-    <EventBusProvider>
-      {children}
-    </EventBusProvider>
+    <button onClick={() => semiont.emit('panel:toggle', { panel: 'settings' })}>
+      Settings
+    </button>
   );
 }
-```
 
-**Important**: The event bus is application-wide, not resource-scoped.
+function MarkButton({ selection }) {
+  const session = useObservable(useSemiont().activeSession$);
+  if (!session) return null;
 
-### 2. Access Event Bus in Components
-
-Use the `useEventBus()` hook to access the event bus:
-
-```tsx
-import { useEventBus } from '@semiont/react-ui';
-
-function MyComponent() {
-  const eventBus = useEventBus();
-
-  // Now you can emit events
-  // For subscribing, use useEventSubscriptions (see below)
-}
-```
-
----
-
-## Event Types
-
-The event bus handles two categories of events:
-
-### Backend Events (from API via SSE)
-
-These events are emitted by the backend when domain changes occur:
-
-**Detection Events**:
-
-- `detection:start` - Entity detection job started
-- `detection:progress` - Detection progress update
-- `detection:complete` - Detection job completed
-- `detection:failed` - Detection job failed
-
-**Generation Events**:
-
-- `reference:generation-start` - Document generation job started
-- `reference:generation-progress` - Generation progress update
-- `reference:generation-complete` - Generation job completed
-- `reference:generation-failed` - Generation job failed
-
-**Annotation Events**:
-
-- `mark:created` - New annotation created
-- `mark:deleted` - Annotation deleted
-- `bind:body-updated` - Annotation body updated (resolution flow)
-- `beckon:sparkle` - Annotation highlighted (UI animation)
-
-**Bind Flow Events** (wizard-driven search and linking):
-
-- `bind:initiate` - User clicked wizard button on unresolved reference (`{ annotationId, resourceId, defaultTitle, entityTypes }`)
-- `bind:search-requested` - Search with gathered context (`{ referenceId, context, limit?, useSemanticScoring? }`)
-- `bind:search-results` - Scored search results with match reasons (`{ referenceId, results }`)
-- `bind:update-body` - Update annotation body (add/remove link)
-
-**Gather Flow Events** (context assembly — used by both Yield and Bind flows):
-
-- `gather:requested` - Fetch context for annotation (`{ annotationId, resourceId }`)
-- `gather:complete` - Context assembled with passage + graph neighborhood (`{ annotationId, context: GatheredContext }`)
-- `gather:failed` - Context fetch failed
-
-**Resource Events**:
-
-- `mark:archive` - Resource should be archived
-- `mark:unarchive` - Resource should be unarchived
-
-**Generation Events**:
-
-- `yield:clone` - Resource should be cloned
-
-### UI Events (Local User Interactions)
-
-These events are emitted by components when users interact with the UI:
-
-**Selection Events**:
-
-- `annotation:creation-requested` - User selected text to annotate
-- `settings:theme-changed` - Theme changed
-- `settings:line-numbers-toggled` - Line numbers toggled
-
----
-
-## Usage Patterns
-
-### Pattern 1: Subscribe to Events (✅ CORRECT WAY)
-
-**Use `useEventSubscriptions` for automatic cleanup:**
-
-```tsx
-import { useEventSubscriptions } from '@semiont/react-ui';
-
-function MyComponent({ rId }) {
-  const [pendingAnnotation, setPendingAnnotation] = useState(null);
-
-  // ✅ CORRECT: Use useEventSubscriptions
-  useEventSubscriptions({
-    'annotation:creation-requested': (selection) => {
-      setPendingAnnotation({
-        selector: selection.selector,
-        motivation: selection.motivation
-      });
-    },
-    'mark:created': () => {
-      setPendingAnnotation(null);
-    },
-  });
-
-  return <div>{/* Render UI */}</div>;
-}
-```
-
-**Benefits**:
-- Automatic cleanup on unmount
-- Type-safe event handlers
-- Consistent pattern across codebase
-
-### ❌ Pattern to Avoid: Manual `eventBus.on()`
-
-**Don't manually subscribe with `eventBus.on()`:**
-
-```tsx
-// ❌ WRONG: Manual event subscription
-function MyComponent() {
-  const eventBus = useEventBus();
-  const [state, setState] = useState(null);
-
-  useEffect(() => {
-    const handler = (data) => setState(data);
-    eventBus.on('some:event', handler);
-    return () => eventBus.off('some:event', handler);  // Manual cleanup
-  }, [eventBus]);
-
-  return <div>{state}</div>;
-}
-```
-
-**Why avoid this?**
-- Violates layer separation (components should use hooks)
-- Manual cleanup is error-prone
-- Harder to test
-- Compliance checker will flag as violation
-
-**Use hooks instead:**
-```tsx
-// ✅ CORRECT: Use a custom hook
-export function useSomeFeature() {
-  const [state, setState] = useState(null);
-
-  useEventSubscriptions({
-    'some:event': (data) => setState(data),
-  });
-
-  return { state };
-}
-
-function MyComponent() {
-  const { state } = useSomeFeature();
-  return <div>{state}</div>;
-}
-```
-
-### Pattern 2: Emit Events (User Actions)
-
-Components emit events instead of calling callback props:
-
-```tsx
-import { useEventBus } from '@semiont/react-ui';
-
-function TextSelector() {
-  const eventBus = useEventBus();
-
-  const handleTextSelection = (selection: TextSelection) => {
-    // Emit event instead of calling a callback prop
-    eventBus.emit('annotation:creation-requested', {
-      selector: {
-        type: 'TextQuoteSelector',
-        exact: selection.exact,
-        prefix: selection.prefix,
-        suffix: selection.suffix
-      },
-      motivation: 'commenting'
-    });
-  };
-
-  return <div onMouseUp={handleTextSelection}>...</div>;
-}
-```
-
-**Benefits**:
-
-- No callback props needed
-- No ref stabilization required
-- Component doesn't need to know who handles the event
-
-### Pattern 3: Cache Invalidation via Events
-
-Backend events automatically invalidate React Query cache:
-
-```tsx
-import { useEventSubscriptions } from '@semiont/react-ui';
-import { useQueryClient } from '@tanstack/react-query';
-
-function MyComponent({ rId }) {
-  const queryClient = useQueryClient();
-
-  useEventSubscriptions({
-    'mark:created': () => {
-      // Backend created annotation → invalidate cache
-      queryClient.invalidateQueries(['annotations', rId]);
-    },
-    'mark:deleted': () => {
-      queryClient.invalidateQueries(['annotations', rId]);
-    },
-  });
-
-  return <div>{/* UI */}</div>;
-}
-```
-
-**Why this works**: Backend events flow via `SSE → EventBus → Component → Cache Invalidation`. No manual `refetch()` calls needed.
-
----
-
-## Three-Layer Architecture
-
-The event bus is part of a three-layer architecture:
-
-1. **Service Layer**: Bus connection (`SemiontApiClient.subscribeToResource`)
-2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
-3. **Component Layer**: Pure React (hooks + JSX)
-
-### Example: Detection Flow
-
-**Layer 1 (Service)**: Subscribe to resource-scoped bus channels
-```tsx
-function ResourceViewerPage({ rId }) {
-  // resource-viewer-page-vm calls client.subscribeToResource(rId)
-  // which adds scoped channels to the ActorVM and bridges events
-  // into the local EventBus.
-  // ...
-}
-```
-
-**Layer 2 (Hook)**: Manage state from events
-```tsx
-export function useDetectionFlow(rId: ResourceId) {
-  const [detecting, setDetecting] = useState(null);
-  const [progress, setProgress] = useState(null);
-
-  useEventSubscriptions({
-    'detection:start': ({ motivation }) => setDetecting(motivation),
-    'detection:progress': (chunk) => setProgress(chunk),
-    'detection:complete': () => setDetecting(null),
-  });
-
-  return { detecting, progress };
-}
-```
-
-**Layer 3 (Component)**: Use hook and render UI
-```tsx
-function ResourceViewerPage({ rId }) {
-  const { detecting, progress } = useDetectionFlow(rId);
-
+  // Session channel — requires an active session.
   return (
-    <div>
-      {detecting && <p>Detecting {detecting}...</p>}
-      {progress && <ProgressBar message={progress.message} />}
-    </div>
+    <button onClick={() => session.client.emit('mark:create-request', selection)}>
+      Annotate
+    </button>
   );
 }
 ```
 
-**📖 See [SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md) for the complete architecture guide.**
+If you can't tell which bus to target from the channel name, look
+it up in `packages/core/src/bus-protocol.ts`. Don't guess — a
+mis-routed emit silently vanishes and the bug shows up as "the UI
+stopped reacting" with no error in the console.
 
----
+## Channel conventions
 
-## Best Practices
+Prefixes encode scope + direction:
 
-### 1. Always Use `useEventSubscriptions`
+| Prefix | Bus | Scope | Typical shape |
+|---|---|---|---|
+| `browse:` | session | KB reads (resources, annotations, entity types) | `*-requested` / `*-result` / `*-failed` request-response pairs, correlated by `correlationId` |
+| `mark:` | session | Annotation lifecycle commands + broadcasts | `*-request` (intent), `*-ok`/`*-failed` (response), persisted events (`mark:added` etc.) |
+| `beckon:` | session | Hover-driven focus / sparkle animations | Fire-and-forget on `beckon:hover`, VM reacts with `beckon:sparkle` |
+| `gather:` | session | Context assembly (embedding + graph neighborhood) | Long-running; progress events + `*-complete` / `*-failed` |
+| `match:` | session | Search / matching flows | Request + paginated results |
+| `bind:` | session | Reference resolution wizard | Initiate, search, update-body |
+| `yield:` | session | Resource generation / cloning | Commands + progress + persisted events |
+| `job:` | session | Background-worker jobs | Create, status, result |
+| `panel:` | shell | Toolbar panel open/close/toggle | UI-only |
+| `shell:` | shell | Sidebar collapse, app-level shell state | UI-only |
+| `tabs:` | shell | Open-resource tab close / reorder | UI-only (persistence via storage) |
+| `nav:` | shell | In-app link clicks, router push, external-nav | UI-only |
+| `settings:` | shell | Line-numbers, theme, locale, hover-delay changes | UI-only |
 
-**✅ DO**: Use the hook for automatic cleanup
+## Request-response via correlationId
 
-```tsx
-useEventSubscriptions({
-  'mark:created': (annotation) => {
-    // Handle event
-  },
+Session channels that expect a reply follow a consistent pattern:
+
+```ts
+// Client side
+const cid = crypto.randomUUID();
+client.emit('browse:resource-requested', { correlationId: cid, resourceId });
+client.on('browse:resource-result', ({ correlationId, response }) => {
+  if (correlationId === cid) { /* handle response */ }
+});
+client.on('browse:resource-failed', ({ correlationId, message }) => {
+  if (correlationId === cid) { /* handle failure */ }
 });
 ```
 
-**❌ DON'T**: Manually manage subscriptions
+The backend Browser actor subscribes to `*-requested`, handles the
+request, and fires either `*-result` or `*-failed` on the same bus
+with the same `correlationId`. The SSE subscription delivers it
+back to the client.
 
-```tsx
-// WRONG - compliance violation
-useEffect(() => {
-  const handler = (event) => { /* ... */ };
-  eventBus.on('mark:created', handler);
-  return () => eventBus.off('mark:created', handler);
-}, [eventBus]);
+Callers rarely write this loop by hand — `busRequest(client, ...)`
+in `@semiont/api-client` wraps it with a Promise. But the wire
+format is what every protocol-level assertion keys on.
+
+## Wire-level observability
+
+Both sides of the SSE boundary have a runtime-toggleable logger.
+Set a flag, get a grep-friendly line for every event that crosses
+the wire:
+
+```
+[bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
+[bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
 ```
 
-### 2. Use Type-Safe Event Handlers
+**Enable in a browser:**
 
-Events are fully type-safe using discriminated unions:
+```js
+window.__SEMIONT_BUS_LOG__ = true
+```
+
+Clears on refresh. Zero-cost when off (one truthy check per emit).
+
+**Enable in e2e tests:** automatic via the `bus` fixture — see
+[tests/e2e/docs/bus-logging.md](../../../tests/e2e/docs/bus-logging.md).
+
+**Why this matters.** Protocol assertions are strictly stronger
+than UI assertions. "The highlight appeared" passes even if the
+UI ended up right via a stale cache or a backfilled refetch.
+"`mark:create-request` went out, `mark:create-ok` came back with
+matching correlationId" fails the moment the wire protocol
+regresses, even if the UI eventually converges.
+
+The `.plans/PROTO-OBSERVABILITY.md` proposal extends this to the
+backend so a single trace shows frontend EMIT → backend SSE-write
+→ frontend RECV end-to-end.
+
+## Common patterns
+
+### State machines driven by events
+
+Most VMs in `packages/api-client/src/view-models/flows/` follow the
+same shape: listen for `*-requested`/`*-ok`/`*-failed` triples on
+the session client, project the state machine into BehaviorSubjects,
+and expose them as `vm.state$`. Components read via
+`useObservable(vm.state$)` and emit user intents back through
+`client.emit(...)`. No shared mutable state; correlationIds thread
+request and response.
+
+### Cache invalidation on broadcast
+
+Persisted domain events (`mark:added`, `mark:removed`,
+`yield:created`, ...) are broadcast to everyone viewing the
+resource. Subscribers typically invalidate the relevant React Query
+keys — the next render refetches.
 
 ```tsx
-import { useEventSubscriptions } from '@semiont/react-ui';
-import type { DetectionProgressChunk } from '@semiont/api-client';
-
-useEventSubscriptions({
-  'detection:progress': (chunk: DetectionProgressChunk) => {
-    // chunk is correctly typed
-    console.log(chunk.message, chunk.foundCount);
-  },
+const queryClient = useQueryClient();
+useEventSubscription('mark:added', () => {
+  queryClient.invalidateQueries({ queryKey: ['annotations', rId] });
 });
 ```
 
-### 3. Emit Events, Don't Call Callbacks
+The bridge between backend-broadcast events and resource-scoped
+subscriptions lives in `ResourceViewerPage` via
+`client.addChannels(..., rId)` — it extends the SSE subscription
+to include scoped channels for the open resource.
 
-**Before (callback props)**:
+## Gotchas learned the hard way
 
-```tsx
-// ❌ BAD: Callback prop drilling
-interface Props {
-  onCommentRequested: (selection: Selection) => void;
-}
-
-function Component({ onCommentRequested }: Props) {
-  onCommentRequested(selection); // Requires prop drilling
-}
-```
-
-**After (events)**:
-
-```tsx
-// ✅ GOOD: Event emission
-function Component() {
-  const eventBus = useEventBus();
-  eventBus.emit('annotation:creation-requested', { ... }); // No props needed
-}
-```
-
-### 4. Create Custom Hooks for Complex Event Logic
-
-**Extract event subscriptions into hooks:**
-
-```tsx
-// ✅ GOOD: Custom hook encapsulates event logic
-export function createMarkVM(rId: ResourceId) {
-  const [pending, setPending] = useState(null);
-
-  useEventSubscriptions({
-    'annotation:creation-requested': (selection) => {
-      setPending({
-        selector: selection.selector,
-        motivation: selection.motivation
-      });
-    },
-    'mark:created': () => setPending(null),
-    'annotation:failed': () => setPending(null),
-  });
-
-  return { pendingAnnotation: pending };
-}
-
-// Component uses hook
-function MyComponent({ rId }) {
-  const { pendingAnnotation } = createMarkVM(rId);
-  return <div>{/* Use pendingAnnotation */}</div>;
-}
-```
-
----
-
-## Event Naming Convention
-
-Events use colon-separated namespaces:
-
-```
-namespace:event-name
-```
-
-**Examples**:
-
-- ✅ `detection:start` (correct)
-- ✅ `mark:created` (correct)
-- ✅ `mark:archive` (correct)
-- ❌ `detection-start` (legacy - don't use hyphens for namespaces)
-
-**Compliance**: The automated compliance checker flags legacy hyphen-separated event names as warnings.
-
----
-
-## Compliance and Testing
-
-### Automated Compliance Checks
-
-The codebase enforces event bus best practices:
-
-```bash
-npm run audit:compliance
-```
-
-**Layer Separation Violations** (will fail build):
-
-- ❌ Components using `eventBus.on()` (should use `useEventSubscriptions`)
-- ❌ Components using `eventBus.off()` (cleanup is automatic)
-- ❌ Hooks returning JSX (hooks should return data)
-- ❌ Global `eventBus` imports (should use `useEventBus()` hook)
-
-### Testing Events
-
-**Emit events in tests:**
-
-```tsx
-import { render } from '@testing-library/react';
-import { EventBusProvider, createEventBus } from '@semiont/react-ui';
-
-it('should handle mark:created event', async () => {
-  const eventBus = createEventBus();
-
-  render(
-    <EventBusProvider value={eventBus}>
-      <MyComponent />
-    </EventBusProvider>
-  );
-
-  // Emit event
-  act(() => {
-    eventBus.emit('mark:created', { annotation: mockAnnotation });
-  });
-
-  // Assert state updated
-  await waitFor(() => {
-    expect(screen.queryByText('Pending...')).not.toBeInTheDocument();
-  });
-});
-```
-
----
-
-## Troubleshooting
-
-### Error: "useEventBus must be used within EventBusProvider"
-
-**Cause**: Component is using `useEventBus()` but is not wrapped in `EventBusProvider`.
-
-**Solution**: Wrap the component tree with the provider:
-
-```tsx
-<EventBusProvider>
-  <YourComponent />
-</EventBusProvider>
-```
-
-### Events Not Firing
-
-**Causes**:
-
-1. Event listener not registered before event is emitted
-2. Wrong event name (check spelling/casing)
-3. Missing `EventBusProvider`
-
-**Solutions**:
-
-1. Use `useEventSubscriptions` in component mount
-2. Check event names against `EventMap` type
-3. Verify provider wraps component tree
-
-### Memory Leaks
-
-**Cause**: Using manual `eventBus.on()` without cleanup.
-
-**Solution**: Use `useEventSubscriptions` for automatic cleanup:
-
-```tsx
-// ✅ CORRECT: Automatic cleanup
-useEventSubscriptions({
-  'mark:created': (annotation) => { /* ... */ },
-});
-```
-
----
-
-## Related Documentation
-
-- **[SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md)** - Three-layer architecture guide
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Event-driven architecture principles
-- [API-INTEGRATION.md](API-INTEGRATION.md) - Event-based cache invalidation
-- [TESTING.md](TESTING.md) - Testing event-driven code
-- [RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md) - Architectural invariants
-
----
-
-## References
-
-- Event bus context: `packages/react-ui/src/contexts/EventBusContext.tsx`
-- Event subscriptions hook: `packages/react-ui/src/hooks/useEventSubscriptions.ts`
-- Bus actor primitive: `packages/api-client/src/view-models/domain/actor-vm.ts`
-- Client bus integration: `packages/api-client/src/client.ts` (`subscribeToResource`)
-- mitt library: https://github.com/developit/mitt
+- **Wrong-bus emit is silent.** If `panel:toggle` were emitted on
+  the session client instead of the browser shell, the toolbar
+  wouldn't react and nothing would log an error. When a UI
+  "doesn't respond," first check which bus you emitted on.
+- **Session swap invalidates any direct handler.** If you stashed
+  a `.on(...)` callback's unsubscribe into a ref or module-level
+  variable, and then `signIn`/`setActiveKb` constructed a new
+  client, the old unsubscribe does nothing and the handler no
+  longer fires. Prefer `useEventSubscription` — it re-subscribes
+  on session swap.
+- **Large SSE payloads can span multiple reader chunks.** The
+  parser in `ActorVM` holds event-assembly state across
+  `reader.read()` calls. Any replacement parser must do the same,
+  or events larger than the first TCP segment silently disappear.
+  Regression test: `actor-vm.test.ts` → "reassembles an event whose
+  bytes span multiple reader.read() chunks".
+- **URL-match assertions pass immediately if the URL already
+  matches.** In e2e, `toHaveURL(/know/)` doesn't wait for sign-in
+  to complete when the page is already on a `/know/` route post-
+  sign-out. Wait for a real state change instead (password form
+  hides, session status text changes, etc.).
