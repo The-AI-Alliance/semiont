@@ -1,11 +1,11 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 import type { SemiontApiClient } from '../../client';
 
 export interface AdminSecurityVM extends ViewModel {
-  browse: BrowseVM;
+  browse: ShellVM;
   providers$: Observable<unknown[]>;
   allowedDomains$: Observable<string[]>;
   isLoading$: Observable<boolean>;
@@ -13,7 +13,7 @@ export interface AdminSecurityVM extends ViewModel {
 
 export function createAdminSecurityVM(
   client: SemiontApiClient,
-  browse: BrowseVM,
+  browse: ShellVM,
 ): AdminSecurityVM {
   const disposer = createDisposer();
   disposer.add(browse);

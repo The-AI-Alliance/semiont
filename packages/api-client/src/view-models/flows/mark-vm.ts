@@ -41,8 +41,11 @@ export function createMarkVM(
     if (progressDismissTimer) { clearTimeout(progressDismissTimer); progressDismissTimer = null; }
   };
 
+  // The view layer is responsible for opening the annotations panel in
+  // response to `pendingAnnotation$` becoming non-null. The VM stays pure:
+  // it updates state; UI side-effects (opening panels on the browser-scoped
+  // bus) live where the React tree has access to `useSemiont().emit(...)`.
   const handleAnnotationRequested = (pending: PendingAnnotation) => {
-    client.emit('browse:panel-open', { panel: 'annotations' });
     pendingAnnotation$.next(pending);
   };
 

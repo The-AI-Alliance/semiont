@@ -1,11 +1,11 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 import type { SemiontApiClient } from '../../client';
 
 export interface EntityTagsVM extends ViewModel {
-  browse: BrowseVM;
+  browse: ShellVM;
   entityTypes$: Observable<string[]>;
   isLoading$: Observable<boolean>;
   newTag$: Observable<string>;
@@ -17,7 +17,7 @@ export interface EntityTagsVM extends ViewModel {
 
 export function createEntityTagsVM(
   client: SemiontApiClient,
-  browse: BrowseVM,
+  browse: ShellVM,
 ): EntityTagsVM {
   const disposer = createDisposer();
   disposer.add(browse);

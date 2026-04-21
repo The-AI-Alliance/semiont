@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Toolbar,
   useTheme,
-  useBrowseVM,
+  useShellVM,
   useObservable,
   useLineNumbers,
   useEventSubscriptions,
@@ -19,7 +19,7 @@ export default function AdminExchangeClient() {
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminExchange.${k}`, p as any) as string;
   const client = useObservable(useSemiont().activeSession$)?.client;
 
-  const browseVM = useBrowseVM();
+  const browseVM = useShellVM();
   const vm = useViewModel(() => createExchangeVM(
     browseVM,
     () => client!.backupKnowledgeBase(),

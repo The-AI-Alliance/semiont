@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontApiClient } from '../../../client';
-import type { BrowseVM } from '../../flows/browse-vm';
+import type { ShellVM } from '../../flows/shell-vm';
 import { createAdminSecurityVM } from '../admin-security-vm';
 
-function mockBrowse(): BrowseVM {
-  return { dispose: vi.fn() } as unknown as BrowseVM;
+function mockBrowse(): ShellVM {
+  return { dispose: vi.fn() } as unknown as ShellVM;
 }
 
 function mockClient(getOAuthConfig: ReturnType<typeof vi.fn>): SemiontApiClient {

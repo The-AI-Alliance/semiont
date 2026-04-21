@@ -1,7 +1,7 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 
 export interface ImportPreview {
   format: string;
@@ -11,7 +11,7 @@ export interface ImportPreview {
 }
 
 export interface ExchangeVM extends ViewModel {
-  browse: BrowseVM;
+  browse: ShellVM;
   selectedFile$: Observable<File | null>;
   preview$: Observable<ImportPreview | null>;
   importPhase$: Observable<string | null>;
@@ -26,7 +26,7 @@ export interface ExchangeVM extends ViewModel {
 }
 
 export function createExchangeVM(
-  browse: BrowseVM,
+  browse: ShellVM,
   exportFn: (params?: { includeArchived?: boolean }) => Promise<Response>,
   importFn: (file: File, options?: { onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void }) => Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>,
 ): ExchangeVM {

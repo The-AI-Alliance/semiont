@@ -72,14 +72,18 @@ describe('createMarkVM', () => {
     vm.dispose();
   });
 
-  it('opens annotations panel on mark:requested', () => {
+  it('does not emit panel:open on mark:requested (view layer handles panel)', () => {
+    // The view component is responsible for opening the annotations panel
+    // in response to `pendingAnnotation$` — the VM stays pure state, and
+    // `panel:open` lives on the app-scoped (SemiontBrowser) bus anyway,
+    // which this session-scoped client doesn't reach.
     tc = withMark();
     const vm = createMarkVM(tc.client, RID);
     const panels: string[] = [];
-    tc.client.on('browse:panel-open', e => panels.push(e.panel));
+    tc.client.on('panel:open', e => panels.push(e.panel));
 
     tc.client.emit('mark:requested', { selector: {}, motivation: 'highlighting' } as any);
-    expect(panels).toEqual(['annotations']);
+    expect(panels).toEqual([]);
     vm.dispose();
   });
 

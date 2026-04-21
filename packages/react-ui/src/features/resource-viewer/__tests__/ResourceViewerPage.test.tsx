@@ -55,6 +55,9 @@ const { stubBrowser } = vi.hoisted(() => {
     removeOpenResource: vi.fn(),
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
+    emit: vi.fn(),
+    on: vi.fn(() => () => {}),
+    stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
   };
   return { stubBrowser };
 });

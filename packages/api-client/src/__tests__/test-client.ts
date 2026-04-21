@@ -9,8 +9,8 @@
  * ```ts
  * // bus-only VM
  * const { bus, client } = makeTestClient();
- * const vm = createBrowseVM(client);
- * client.emit('browse:panel-toggle', { panel: 'annotations' });
+ * const vm = createShellVM(client);
+ * client.emit('panel:toggle', { panel: 'annotations' });
  * bus.destroy(); // in afterEach
  *
  * // VM that also calls HTTP namespaces

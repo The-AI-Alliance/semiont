@@ -207,19 +207,26 @@ export type EventMap = {
   'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
   'browse:directory-failed': { correlationId: string; path: string } & components['schemas']['CommandError'];
 
-  // UI events
+  // UI events (session-scoped — fire on the client bus, tied to a KB)
   'browse:click': components['schemas']['BrowseClickEvent'];
-  'browse:panel-toggle': components['schemas']['BrowsePanelToggleEvent'];
-  'browse:panel-open': components['schemas']['BrowsePanelOpenEvent'];
-  'browse:panel-close': void;
-  'browse:sidebar-toggle': void;
-  'browse:resource-close': components['schemas']['BrowseResourceCloseEvent'];
-  'browse:resource-reorder': components['schemas']['BrowseResourceReorderEvent'];
-  'browse:link-clicked': components['schemas']['BrowseLinkClickedEvent'];
-  'browse:router-push': components['schemas']['BrowseRouterPushEvent'];
-  'browse:external-navigate': components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void };
   'browse:reference-navigate': components['schemas']['BrowseReferenceNavigateEvent'];
   'browse:entity-type-clicked': components['schemas']['BrowseEntityTypeClickedEvent'];
+
+  // ========================================================================
+  // SHELL — app-scoped UI events (fire on SemiontBrowser's bus, not the
+  // per-session client bus). These must work regardless of whether a
+  // KB session is active: panel toggles, sidebar, tab bar, routing.
+  // ========================================================================
+
+  'panel:toggle': components['schemas']['BrowsePanelToggleEvent'];
+  'panel:open': components['schemas']['BrowsePanelOpenEvent'];
+  'panel:close': void;
+  'shell:sidebar-toggle': void;
+  'tabs:close': components['schemas']['BrowseResourceCloseEvent'];
+  'tabs:reorder': components['schemas']['BrowseResourceReorderEvent'];
+  'nav:link-clicked': components['schemas']['BrowseLinkClickedEvent'];
+  'nav:push': components['schemas']['BrowseRouterPushEvent'];
+  'nav:external': components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void };
 
   // ========================================================================
   // BECKON FLOW — annotation attention
@@ -479,17 +486,19 @@ export const CHANNEL_SCHEMAS = {
   'browse:directory-result':          'BrowseDirectoryResult',
   'browse:directory-failed':          null, // { correlationId; path } & CommandError
   'browse:click':                     'BrowseClickEvent',
-  'browse:panel-toggle':              'BrowsePanelToggleEvent',
-  'browse:panel-open':                'BrowsePanelOpenEvent',
-  'browse:panel-close':               null, // void
-  'browse:sidebar-toggle':            null, // void
-  'browse:resource-close':            'BrowseResourceCloseEvent',
-  'browse:resource-reorder':          'BrowseResourceReorderEvent',
-  'browse:link-clicked':              'BrowseLinkClickedEvent',
-  'browse:router-push':               'BrowseRouterPushEvent',
-  'browse:external-navigate':         null, // includes runtime `cancelFallback: () => void`
   'browse:reference-navigate':        'BrowseReferenceNavigateEvent',
   'browse:entity-type-clicked':       'BrowseEntityTypeClickedEvent',
+
+  // ── SHELL (app-scoped UI events, fire on SemiontBrowser bus) ────
+  'panel:toggle':                     'BrowsePanelToggleEvent',
+  'panel:open':                       'BrowsePanelOpenEvent',
+  'panel:close':                      null, // void
+  'shell:sidebar-toggle':             null, // void
+  'tabs:close':                       'BrowseResourceCloseEvent',
+  'tabs:reorder':                     'BrowseResourceReorderEvent',
+  'nav:link-clicked':                 'BrowseLinkClickedEvent',
+  'nav:push':                         'BrowseRouterPushEvent',
+  'nav:external':                     null, // includes runtime `cancelFallback: () => void`
 
   // ── BECKON FLOW ─────────────────────────────────────────────────
   'beckon:hover':                     'BeckonHoverEvent',

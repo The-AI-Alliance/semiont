@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, map } from 'rxjs';
 import type { ResourceId, components } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 import { createBeckonVM, type BeckonVM } from '../flows/beckon-vm';
 import { createMarkVM, type MarkVM } from '../flows/mark-vm';
 import { createGatherVM, type GatherVM } from '../flows/gather-vm';
@@ -38,7 +38,7 @@ const WIZARD_CLOSED: WizardState = {
 
 export interface ResourceViewerPageVM extends ViewModel {
   beckon: BeckonVM;
-  browse: BrowseVM;
+  browse: ShellVM;
   mark: MarkVM;
   gather: GatherVM;
   yield: YieldVM;
@@ -60,7 +60,7 @@ export function createResourceViewerPageVM(
   client: SemiontApiClient,
   resourceId: ResourceId,
   locale: string,
-  browse: BrowseVM,
+  browse: ShellVM,
   options?: { mediaType?: string },
 ): ResourceViewerPageVM {
   const disposer = createDisposer();

@@ -41,7 +41,12 @@ const stubSession = {
   client: stubClient,
 };
 const stubActiveSession$ = new BehaviorSubject<any>(stubSession);
-const stubBrowser = { activeSession$: stubActiveSession$ };
+const stubBrowser = {
+  activeSession$: stubActiveSession$,
+  emit: vi.fn(),
+  on: vi.fn(() => () => {}),
+  stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
+};
 
 vi.mock('../../../session/SemiontProvider', async () => {
   const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(

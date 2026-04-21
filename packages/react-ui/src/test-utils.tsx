@@ -10,7 +10,7 @@ import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { SemiontApiClient, type SemiontBrowser } from '@semiont/api-client';
-import { baseUrl, type EventBus } from '@semiont/core';
+import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
@@ -44,13 +44,18 @@ function createFakeBrowserForTests(
     acknowledgePermissionDenied: vi.fn(),
   };
   const activeSession$ = new BehaviorSubject<any>(fakeSession);
+  const sessionActivating$ = new BehaviorSubject<boolean>(false);
   const identityToken$ = new BehaviorSubject<null>(null);
   const openResources$ = new BehaviorSubject<any[]>([]);
   const kbs$ = new BehaviorSubject<any[]>([]);
   const activeKbId$ = new BehaviorSubject<string | null>(null);
   const error$ = new BehaviorSubject<never>(null as never);
+  // App-scoped bus: a real EventBus stand-in so tests exercising
+  // `semiont.emit/on/stream` round-trip through a live subject.
+  const shellBus = new EventBus();
   return {
     activeSession$,
+    sessionActivating$,
     identityToken$,
     openResources$,
     kbs$,
@@ -68,6 +73,13 @@ function createFakeBrowserForTests(
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
     dispose: vi.fn(async () => {}),
+    emit: (channel: any, payload: any) => shellBus.get(channel).next(payload),
+    on: (channel: any, handler: any) => {
+      const sub = shellBus.get(channel).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: (channel: any) => shellBus.get(channel).asObservable(),
+    _shellBus: shellBus,
   } as unknown as SemiontBrowser;
 }
 
@@ -111,12 +123,29 @@ function busOf(client: SemiontApiClient): EventBus {
 }
 
 export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
-  /** If true, returns the event bus instance along with render result */
+  /**
+   * If true, returns the session (client) EventBus — session-scoped
+   * channels (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*,
+   * browse:click, browse:reference-navigate, browse:entity-type-clicked).
+   */
   returnEventBus?: boolean;
+  /**
+   * If true, returns the app-scoped (SemiontBrowser) EventBus — panel:*,
+   * shell:*, tabs:*, nav:*, settings:*.
+   */
+  returnShellBus?: boolean;
 }
 
 export interface RenderWithProvidersResult extends RenderResult {
+  /** Session-scoped bus (from the fake client inside the fake browser). */
   eventBus?: EventBus;
+  /** App-scoped bus (the fake browser's own bus). */
+  shellBus?: EventBus;
+}
+
+/** Read the app-scoped bus stashed on the fake browser by createFakeBrowserForTests. */
+function shellBusOf(browser: SemiontBrowser): EventBus | undefined {
+  return (browser as unknown as { _shellBus?: EventBus })._shellBus;
 }
 
 export function renderWithProviders(
@@ -128,6 +157,7 @@ export function renderWithProviders(
     apiBaseUrl = 'http://localhost:4000',
     browser,
     returnEventBus = false,
+    returnShellBus = false,
     ...renderOptions
   } = options || {};
 
@@ -149,11 +179,10 @@ export function renderWithProviders(
 
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
 
-  if (returnEventBus && client) {
-    return { ...result, eventBus: busOf(client) };
-  }
-
-  return result;
+  const extras: Partial<RenderWithProvidersResult> = {};
+  if (returnEventBus && client) extras.eventBus = busOf(client);
+  if (returnShellBus) extras.shellBus = shellBusOf(fakeBrowser);
+  return Object.keys(extras).length ? { ...result, ...extras } : result;
 }
 
 /**
@@ -164,7 +193,10 @@ export function renderWithProviders(
  */
 export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:4000'): {
   SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;
+  /** Session-scoped bus (from the fake client). */
   eventBus: EventBus;
+  /** App-scoped bus (the fake browser's own bus). */
+  shellBus: EventBus;
 } {
   const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
   const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: SemiontApiClient } | null } }).activeSession$.getValue();
@@ -172,7 +204,11 @@ export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:
   const SemiontWrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontProvider browser={fakeBrowser}>{children}</SemiontProvider>
   );
-  return { SemiontWrapper, eventBus: busOf(client) };
+  return {
+    SemiontWrapper,
+    eventBus: busOf(client),
+    shellBus: shellBusOf(fakeBrowser)!,
+  };
 }
 
 /**
@@ -217,6 +253,7 @@ export function createMockKnowledgeBaseSession(overrides: {
   };
   return {
     activeSession$: new BehaviorSubject(session),
+    sessionActivating$: new BehaviorSubject<boolean>(false),
     kbs$: new BehaviorSubject<unknown[]>([]),
     activeKbId$: new BehaviorSubject<string | null>(null),
     openResources$: new BehaviorSubject<unknown[]>([]),
@@ -234,6 +271,11 @@ export function createMockKnowledgeBaseSession(overrides: {
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
     dispose: vi.fn(async () => {}),
+    // App-scoped bus stubs (post-shell-vm refactor). Minimal so
+    // useEventSubscription(s) can register without exploding.
+    emit: vi.fn(),
+    on: vi.fn(() => () => {}),
+    stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
   } as unknown as SemiontBrowser;
 }
 

@@ -1,15 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createBrowseVM } from '../browse-vm';
-import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import { createShellVM } from '../shell-vm';
+import { SemiontBrowser } from '../../../session/semiont-browser';
+import { InMemorySessionStorage } from '../../../session/session-storage';
 
-describe('createBrowseVM', () => {
-  let tc: TestClient;
+/**
+ * Tests for ShellVM — the app-scoped VM that owns toolbar panel state.
+ * Uses a real `SemiontBrowser` with an in-memory storage adapter because
+ * the VM is thin and the browser's own bus is what we're exercising.
+ */
+describe('createShellVM', () => {
+  let browser: SemiontBrowser;
 
-  beforeEach(() => { tc = makeTestClient(); });
-  afterEach(() => { tc.bus.destroy(); });
+  beforeEach(() => { browser = new SemiontBrowser({ storage: new InMemorySessionStorage() }); });
+  afterEach(async () => { await browser.dispose(); });
 
   it('starts with the given initial panel', () => {
-    const vm = createBrowseVM(tc.client, { initialPanel: 'knowledge-base' });
+    const vm = createShellVM(browser, { initialPanel: 'knowledge-base' });
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
     expect(values).toEqual(['knowledge-base']);
@@ -17,58 +23,58 @@ describe('createBrowseVM', () => {
   });
 
   it('defaults to null when no initial panel', () => {
-    const vm = createBrowseVM(tc.client);
+    const vm = createShellVM(browser);
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
     expect(values).toEqual([null]);
     vm.dispose();
   });
 
-  it('toggles panel on browse:panel-toggle', () => {
-    const vm = createBrowseVM(tc.client);
+  it('toggles panel on panel:toggle', () => {
+    const vm = createShellVM(browser);
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
-    tc.client.emit('browse:panel-toggle', { panel: 'annotations' });
+    browser.emit('panel:toggle', { panel: 'annotations' });
     expect(values).toEqual([null, 'annotations']);
 
-    tc.client.emit('browse:panel-toggle', { panel: 'annotations' });
+    browser.emit('panel:toggle', { panel: 'annotations' });
     expect(values).toEqual([null, 'annotations', null]);
     vm.dispose();
   });
 
   it('switches panel when toggling a different one', () => {
-    const vm = createBrowseVM(tc.client, { initialPanel: 'info' });
+    const vm = createShellVM(browser, { initialPanel: 'info' });
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
-    tc.client.emit('browse:panel-toggle', { panel: 'annotations' });
+    browser.emit('panel:toggle', { panel: 'annotations' });
     expect(values).toEqual(['info', 'annotations']);
     vm.dispose();
   });
 
-  it('opens panel on browse:panel-open', () => {
-    const vm = createBrowseVM(tc.client);
+  it('opens panel on panel:open', () => {
+    const vm = createShellVM(browser);
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
-    tc.client.emit('browse:panel-open', { panel: 'history' });
+    browser.emit('panel:open', { panel: 'history' });
     expect(values).toEqual([null, 'history']);
     vm.dispose();
   });
 
-  it('sets scrollToAnnotationId on browse:panel-open with scrollTarget', () => {
-    const vm = createBrowseVM(tc.client);
+  it('sets scrollToAnnotationId on panel:open with scrollTarget', () => {
+    const vm = createShellVM(browser);
     const scrolls: (string | null)[] = [];
     vm.scrollToAnnotationId$.subscribe(v => scrolls.push(v));
 
-    tc.client.emit('browse:panel-open', { panel: 'annotations', scrollToAnnotationId: 'ann-42' });
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: 'ann-42' });
     expect(scrolls).toEqual([null, 'ann-42']);
     vm.dispose();
   });
 
   it('maps all motivations to correct tab keys', () => {
-    const vm = createBrowseVM(tc.client);
+    const vm = createShellVM(browser);
     const tabs: string[] = [];
     vm.panelInitialTab$.subscribe(v => { if (v) tabs.push(v.tab); });
 
@@ -80,50 +86,50 @@ describe('createBrowseVM', () => {
       ['assessing', 'assessment'],
     ];
     for (const [motivation, expected] of cases) {
-      tc.client.emit('browse:panel-open', { panel: 'annotations', motivation });
+      browser.emit('panel:open', { panel: 'annotations', motivation });
       expect(tabs[tabs.length - 1]).toBe(expected);
     }
     vm.dispose();
   });
 
   it('defaults to highlight tab for unknown motivation', () => {
-    const vm = createBrowseVM(tc.client);
+    const vm = createShellVM(browser);
     const tabs: string[] = [];
     vm.panelInitialTab$.subscribe(v => { if (v) tabs.push(v.tab); });
 
-    tc.client.emit('browse:panel-open', { panel: 'annotations', motivation: 'unknown-thing' });
+    browser.emit('panel:open', { panel: 'annotations', motivation: 'unknown-thing' });
     expect(tabs[tabs.length - 1]).toBe('highlight');
     vm.dispose();
   });
 
   it('increments generation counter on each panel open with motivation', () => {
-    const vm = createBrowseVM(tc.client);
+    const vm = createShellVM(browser);
     const generations: number[] = [];
     vm.panelInitialTab$.subscribe(v => { if (v) generations.push(v.generation); });
 
-    tc.client.emit('browse:panel-open', { panel: 'annotations', motivation: 'highlighting' });
-    tc.client.emit('browse:panel-open', { panel: 'annotations', motivation: 'highlighting' });
+    browser.emit('panel:open', { panel: 'annotations', motivation: 'highlighting' });
+    browser.emit('panel:open', { panel: 'annotations', motivation: 'highlighting' });
     expect(generations).toHaveLength(2);
     expect(generations[1]).toBeGreaterThan(generations[0]);
     vm.dispose();
   });
 
-  it('closes panel on browse:panel-close', () => {
-    const vm = createBrowseVM(tc.client, { initialPanel: 'annotations' });
+  it('closes panel on panel:close', () => {
+    const vm = createShellVM(browser, { initialPanel: 'annotations' });
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
-    tc.client.emit('browse:panel-close', undefined);
+    browser.emit('panel:close', undefined);
     expect(values).toEqual(['annotations', null]);
     vm.dispose();
   });
 
   it('clears scrollToAnnotationId on onScrollCompleted', () => {
-    const vm = createBrowseVM(tc.client);
+    const vm = createShellVM(browser);
     const scrolls: (string | null)[] = [];
     vm.scrollToAnnotationId$.subscribe(v => scrolls.push(v));
 
-    tc.client.emit('browse:panel-open', { panel: 'annotations', scrollToAnnotationId: 'ann-1' });
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: 'ann-1' });
     vm.onScrollCompleted();
     expect(scrolls).toEqual([null, 'ann-1', null]);
     vm.dispose();
@@ -131,16 +137,16 @@ describe('createBrowseVM', () => {
 
   it('calls onPanelChange callback', () => {
     const cb = vi.fn();
-    const vm = createBrowseVM(tc.client, { initialPanel: 'info', onPanelChange: cb });
+    const vm = createShellVM(browser, { initialPanel: 'info', onPanelChange: cb });
     expect(cb).toHaveBeenCalledWith('info');
 
-    tc.client.emit('browse:panel-toggle', { panel: 'info' });
+    browser.emit('panel:toggle', { panel: 'info' });
     expect(cb).toHaveBeenCalledWith(null);
     vm.dispose();
   });
 
-  it('openPanel command pushes to EventBus', () => {
-    const vm = createBrowseVM(tc.client);
+  it('openPanel command pushes to bus', () => {
+    const vm = createShellVM(browser);
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
@@ -149,8 +155,8 @@ describe('createBrowseVM', () => {
     vm.dispose();
   });
 
-  it('closePanel command pushes to EventBus', () => {
-    const vm = createBrowseVM(tc.client, { initialPanel: 'info' });
+  it('closePanel command pushes to bus', () => {
+    const vm = createShellVM(browser, { initialPanel: 'info' });
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
@@ -159,8 +165,8 @@ describe('createBrowseVM', () => {
     vm.dispose();
   });
 
-  it('togglePanel command pushes to EventBus', () => {
-    const vm = createBrowseVM(tc.client);
+  it('togglePanel command pushes to bus', () => {
+    const vm = createShellVM(browser);
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
@@ -171,12 +177,12 @@ describe('createBrowseVM', () => {
   });
 
   it('stops responding after dispose', () => {
-    const vm = createBrowseVM(tc.client);
+    const vm = createShellVM(browser);
     const values: (string | null)[] = [];
     vm.activePanel$.subscribe(v => values.push(v));
 
     vm.dispose();
-    tc.client.emit('browse:panel-open', { panel: 'info' });
+    browser.emit('panel:open', { panel: 'info' });
     expect(values).toEqual([null]);
   });
 });

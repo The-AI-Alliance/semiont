@@ -2,7 +2,7 @@ import { map, type Observable } from 'rxjs';
 import type { components } from '@semiont/core';
 import type { ViewModel } from '../lib/view-model';
 import { createDisposer } from '../lib/view-model';
-import type { BrowseVM } from '../flows/browse-vm';
+import type { ShellVM } from '../flows/shell-vm';
 import { createSearchPipeline, type SearchPipeline } from '../lib/search-pipeline';
 import type { SemiontApiClient } from '../../client';
 
@@ -12,7 +12,7 @@ const RECENT_LIMIT = 10;
 const SEARCH_LIMIT = 20;
 
 export interface DiscoverVM extends ViewModel {
-  browse: BrowseVM;
+  browse: ShellVM;
   search: SearchPipeline<ResourceDescriptor>;
   recentResources$: Observable<ResourceDescriptor[]>;
   entityTypes$: Observable<string[]>;
@@ -21,7 +21,7 @@ export interface DiscoverVM extends ViewModel {
 
 export function createDiscoverVM(
   client: SemiontApiClient,
-  browse: BrowseVM,
+  browse: ShellVM,
 ): DiscoverVM {
   const disposer = createDisposer();
 

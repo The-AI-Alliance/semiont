@@ -231,12 +231,12 @@ describe('AdminNavigation', () => {
       expect(call.isCollapsed).toBe(false);
     });
 
-    it('should subscribe to browse:sidebar-toggle event', () => {
+    it('should subscribe to shell:sidebar-toggle event', () => {
       render(<AdminNavigation {...defaultProps} />);
 
       expect(vi.mocked(useEventSubscriptions)).toHaveBeenCalledWith(
         expect.objectContaining({
-          'browse:sidebar-toggle': expect.any(Function),
+          'shell:sidebar-toggle': expect.any(Function),
         })
       );
     });
@@ -249,7 +249,7 @@ describe('AdminNavigation', () => {
       // Get the subscriptions object passed to useEventSubscriptions
       const mockUseEventSubs = vi.mocked(useEventSubscriptions);
       const subscriptions = mockUseEventSubs.mock.calls[0]![0]!;
-      const toggleHandler = subscriptions['browse:sidebar-toggle'];
+      const toggleHandler = subscriptions['shell:sidebar-toggle'];
 
       // Call the toggle handler
       expect(toggleHandler).toBeDefined();

@@ -12,7 +12,8 @@
  * directly.
  */
 
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, Subject, type Observable } from 'rxjs';
+import { EventBus, type EventMap } from '@semiont/core';
 import {
   ACTIVE_KEY,
   clearStoredSession,
@@ -58,11 +59,28 @@ export class SemiontBrowser {
   readonly kbs$: BehaviorSubject<KnowledgeBase[]>;
   readonly activeKbId$: BehaviorSubject<string | null>;
   readonly activeSession$: BehaviorSubject<SemiontSession | null>;
+  /**
+   * True while a session is actively being constructed (setActiveKb /
+   * signIn in flight, awaiting `session.ready`). Distinguishes the
+   * "session about to arrive" intermediate state from "session
+   * intentionally null" (after signOut, or when the active KB has no
+   * stored credentials). UIs that want a loading spinner should gate
+   * on this; otherwise they get stuck spinning after every signOut.
+   */
+  readonly sessionActivating$: BehaviorSubject<boolean>;
   readonly openResources$: BehaviorSubject<OpenResource[]>;
   readonly error$: Subject<SemiontError>;
   readonly identityToken$: BehaviorSubject<string | null>;
 
   private readonly storage: SessionStorage;
+  /**
+   * App-scoped EventBus. Hosts UI-shell events that must work regardless
+   * of whether a KB session is active: panel toggles, sidebar state,
+   * tab reorders, routing, settings, etc. Disjoint from the per-session
+   * bus inside `SemiontApiClient`, which carries KB-content events
+   * (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*, browse:click).
+   */
+  private readonly eventBus: EventBus = new EventBus();
   private unregisterNotify: (() => void) | null = null;
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
@@ -81,6 +99,7 @@ export class SemiontBrowser {
     this.kbs$ = new BehaviorSubject<KnowledgeBase[]>(kbs);
     this.activeKbId$ = new BehaviorSubject<string | null>(initialActive);
     this.activeSession$ = new BehaviorSubject<SemiontSession | null>(null);
+    this.sessionActivating$ = new BehaviorSubject<boolean>(false);
     this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources(this.storage));
     this.error$ = new Subject<SemiontError>();
     this.identityToken$ = new BehaviorSubject<string | null>(null);
@@ -123,6 +142,28 @@ export class SemiontBrowser {
     if (initialActive) {
       void this.setActiveKb(initialActive);
     }
+  }
+
+  // ── App-scoped event bus ──────────────────────────────────────────────
+
+  /** Emit an event on the browser's app-scoped bus. */
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
+    if (this.disposed) return;
+    this.eventBus.get(channel).next(payload);
+  }
+
+  /** Subscribe to an event; returns unsubscribe. */
+  on<K extends keyof EventMap>(
+    channel: K,
+    handler: (payload: EventMap[K]) => void,
+  ): () => void {
+    const sub = this.eventBus.get(channel).subscribe(handler);
+    return () => sub.unsubscribe();
+  }
+
+  /** Read-only observable for an app-scoped channel. */
+  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
+    return this.eventBus.get(channel).asObservable();
   }
 
   // ── Identity token (NextAuth bridge; D1) ──────────────────────────────
@@ -251,10 +292,14 @@ export class SemiontBrowser {
     })();
 
     this.activating = activation;
+    this.sessionActivating$.next(true);
     try {
       await activation;
     } finally {
-      if (this.activating === activation) this.activating = null;
+      if (this.activating === activation) {
+        this.activating = null;
+        this.sessionActivating$.next(false);
+      }
     }
   }
 
@@ -377,5 +422,6 @@ export class SemiontBrowser {
     this.openResources$.complete();
     this.error$.complete();
     this.identityToken$.complete();
+    this.eventBus.destroy();
   }
 }

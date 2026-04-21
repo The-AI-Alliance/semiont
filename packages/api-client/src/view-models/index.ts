@@ -13,13 +13,13 @@ export {
   HOVER_DELAY_MS,
 } from './flows/beckon-vm';
 export {
-  createBrowseVM,
-  type BrowseVM,
-  type BrowseVMOptions,
+  createShellVM,
+  type ShellVM,
+  type ShellVMOptions,
   type ToolbarPanelType,
   COMMON_PANELS,
   RESOURCE_PANELS,
-} from './flows/browse-vm';
+} from './flows/shell-vm';
 export {
   createGatherVM,
   type GatherVM,

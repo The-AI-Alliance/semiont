@@ -49,7 +49,7 @@ interface Props {
 
 /**
  * @emits mark:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits browse:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
  * @subscribes mark:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
  * @subscribes mark:added - New annotation was added. Payload: { annotation: Annotation }
@@ -71,7 +71,8 @@ export function ResourceViewer({
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
-  const session = useObservable(useSemiont().activeSession$);
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$);
 
   // Get observable navigation for event-driven routing
   const navigate = useObservableExternalNavigation();
@@ -328,7 +329,7 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    session?.client.emit('browse:panel-open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, session]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues

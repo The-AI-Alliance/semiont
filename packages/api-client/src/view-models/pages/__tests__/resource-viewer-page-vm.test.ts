@@ -2,13 +2,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { BrowseVM } from '../../flows/browse-vm';
+import type { ShellVM } from '../../flows/shell-vm';
 import { createResourceViewerPageVM } from '../resource-viewer-page-vm';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 
 const RID = makeResourceId('res-1');
 
-function mockBrowse(): BrowseVM {
+function mockBrowse(): ShellVM {
   return {
     activePanel$: new BehaviorSubject(null).asObservable(),
     scrollToAnnotationId$: new BehaviorSubject(null).asObservable(),
@@ -17,7 +17,7 @@ function mockBrowse(): BrowseVM {
     openPanel: vi.fn(),
     closePanel: vi.fn(),
     dispose: vi.fn(),
-  } as unknown as BrowseVM;
+  } as unknown as ShellVM;
 }
 
 function clientWithNamespaces(overrides: {

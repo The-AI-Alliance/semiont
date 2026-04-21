@@ -13,7 +13,7 @@ import {
   ResourceDiscoveryPage,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useBrowseVM } from '@semiont/react-ui';
+import { useShellVM } from '@semiont/react-ui';
 import { createDiscoverVM } from '@semiont/api-client';
 
 export default function DiscoverPage() {
@@ -22,7 +22,7 @@ export default function DiscoverPage() {
   const router = useRouter();
   const semiont = useObservable(useSemiont().activeSession$)?.client;
 
-  const browseVM = useBrowseVM();
+  const browseVM = useShellVM();
   const vm = useViewModel(() => createDiscoverVM(semiont!, browseVM));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;
