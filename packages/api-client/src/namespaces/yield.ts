@@ -4,12 +4,13 @@ import type {
   ResourceId,
   AnnotationId,
   AccessToken,
-  YieldProgress,
   EventBus,
-  EventMap,
   components,
 } from '@semiont/core';
-import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
+
+// YieldProgress is the per-yield view of a job's JobProgress payload;
+// we don't need a separate schema type now that job:* carries both.
+type YieldProgress = components['schemas']['JobProgress'];
 import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
 import { busRequest } from '../bus-request';
@@ -65,7 +66,7 @@ export class YieldNamespace implements IYieldNamespace {
                 if (done) return;
                 if (status.status === 'complete') {
                   cleanup();
-                  subscriber.next({ referenceId: annotationId as string, resourceId: status.result?.resourceId as string, status: 'complete' } as unknown as YieldProgress);
+                  subscriber.next({ stage: 'complete', percentage: 100, message: 'Generation complete' });
                   subscriber.complete();
                 } else if (status.status === 'failed') {
                   cleanup();
@@ -77,42 +78,43 @@ export class YieldNamespace implements IYieldNamespace {
         }, 10_000);
       };
 
-      const progress$ = this.eventBus.get('yield:progress').pipe(
-        filter((e) => e.referenceId === (annotationId as string)),
-      );
-      const finished$ = this.eventBus.get('yield:finished').pipe(
-        filter((e) => e.referenceId === (annotationId as string)),
-      );
-      const failed$ = this.eventBus.get('yield:failed').pipe(
-        filter((e) => e.referenceId === (annotationId as string)),
-      );
-
+      // Subscribe to the unified job lifecycle filtered by this job's
+      // jobId (assigned by `job:create` below).
+      //
+      // TODO(auto-bind): the pre-unification code auto-bound the new
+      // resource to the source reference here on yield:finished by
+      // reading event.resourceId (the generated resource's id). That
+      // field is not available in job:complete — the generated id is
+      // assigned by Stower during yield:create processing, not by the
+      // worker. If we want to keep the auto-bind behavior, it belongs
+      // in Stower (on yield:created → emit mark:update-body), not in
+      // the client. Flagging for follow-up.
       let activeJobId: string | null = null;
+      const progress$ = this.eventBus.get('job:report-progress').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
+      const complete$ = this.eventBus.get('job:complete').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
+      const fail$ = this.eventBus.get('job:fail').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
 
       const progressSub = progress$
-        .pipe(takeUntil(merge(finished$, failed$)))
+        .pipe(takeUntil(merge(complete$, fail$)))
         .subscribe((e) => {
-          subscriber.next(e);
+          subscriber.next(e.progress as YieldProgress);
           if (activeJobId) resetPollTimer(activeJobId);
         });
 
-      const finishedSub = finished$.subscribe((event: EventMap['yield:finished']) => {
+      const completeSub = complete$.subscribe(() => {
         cleanup();
-        subscriber.next(event);
         subscriber.complete();
-
-        if (event.resourceId && event.referenceId && event.sourceResourceId) {
-          this.http.bind.body(
-            makeResourceId(event.sourceResourceId),
-            makeAnnotationId(event.referenceId),
-            [{ op: 'add', item: { type: 'SpecificResource', source: event.resourceId } }],
-          ).catch(() => {});
-        }
       });
 
-      const failedSub = failed$.subscribe((e) => {
+      const failSub = fail$.subscribe((e) => {
         cleanup();
-        subscriber.error(new Error(e.error ?? e.message ?? 'Generation failed'));
+        subscriber.error(new Error(e.error));
       });
 
       busRequest<{ jobId: string }>(
@@ -147,8 +149,8 @@ export class YieldNamespace implements IYieldNamespace {
       return () => {
         cleanup();
         progressSub.unsubscribe();
-        finishedSub.unsubscribe();
-        failedSub.unsubscribe();
+        completeSub.unsubscribe();
+        failSub.unsubscribe();
       };
     });
   }

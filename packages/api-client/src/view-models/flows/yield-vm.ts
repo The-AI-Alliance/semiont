@@ -1,9 +1,11 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import type { ResourceId, YieldProgress, GatheredContext } from '@semiont/core';
+import type { ResourceId, GatheredContext, components } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
+
+type JobProgress = components['schemas']['JobProgress'];
 
 export interface GenerateDocumentOptions {
   title: string;
@@ -17,7 +19,7 @@ export interface GenerateDocumentOptions {
 
 export interface YieldVM extends ViewModel {
   isGenerating$: Observable<boolean>;
-  progress$: Observable<YieldProgress | null>;
+  progress$: Observable<JobProgress | null>;
   generate(referenceId: string, options: GenerateDocumentOptions): void;
 }
 
@@ -28,27 +30,13 @@ export function createYieldVM(
 ): YieldVM {
   const subs: Subscription[] = [];
   const isGenerating$ = new BehaviorSubject<boolean>(false);
-  const progress$ = new BehaviorSubject<YieldProgress | null>(null);
-
-  subs.push(client.stream('yield:progress').subscribe((chunk: YieldProgress) => {
-    progress$.next(chunk);
-    isGenerating$.next(true);
-  }));
-
+  const progress$ = new BehaviorSubject<JobProgress | null>(null);
   let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
-  subs.push(client.stream('yield:finished').subscribe((final: YieldProgress) => {
-    progress$.next(final);
-    isGenerating$.next(false);
-    if (clearTimer) clearTimeout(clearTimer);
-    clearTimer = setTimeout(() => { progress$.next(null); clearTimer = null; }, 2000);
-  }));
-
-  subs.push(client.stream('yield:failed').subscribe(() => {
-    progress$.next(null);
-    isGenerating$.next(false);
-  }));
-
+  // Generation progress/complete/fail is driven entirely by the
+  // Observable returned from `client.yield.fromAnnotation` — that
+  // Observable is filtered to this specific job's jobId internally.
+  // No direct bus subscription needed here.
   const generate = (referenceId: string, options: GenerateDocumentOptions): void => {
     const genSub = client.yield.fromAnnotation(
       makeResourceId(resourceId as string),
@@ -61,12 +49,14 @@ export function createYieldVM(
         progress$.next(chunk);
         isGenerating$.next(true);
       },
-      error: (error: unknown) => {
+      complete: () => {
+        isGenerating$.next(false);
+        if (clearTimer) clearTimeout(clearTimer);
+        clearTimer = setTimeout(() => { progress$.next(null); clearTimer = null; }, 2000);
+      },
+      error: () => {
         progress$.next(null);
         isGenerating$.next(false);
-        client.emit('yield:failed', {
-          error: error instanceof Error ? error.message : 'Generation failed',
-        });
       },
     });
     subs.push(genSub);

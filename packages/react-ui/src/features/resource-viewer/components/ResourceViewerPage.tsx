@@ -317,21 +317,41 @@ export function ResourceViewerPage({
 
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
-  const handleDetectionComplete = useCallback(() => {
-    showSuccess('Annotation complete');
-  }, [showSuccess]);
-  const handleDetectionFailed = useCallback(({ message }: { message?: string }) => {
-    showError(message || 'Annotation failed');
-  }, [showError]);
-  const handleGenerationComplete = useCallback((progress: { resourceName?: string }) => {
-    showSuccess(progress.resourceName
-      ? `Resource "${progress.resourceName}" created successfully!`
-      : 'Resource created successfully!');
-  }, [showSuccess]);
-  const handleGenerationFailed = useCallback(({ error, message }: { error?: string; message?: string }) => {
-    const msg = message || error || 'Generation failed';
-    showError(`Resource generation failed: ${msg}`);
-  }, [showError]);
+  // Unified job lifecycle handlers. `job:complete` / `job:fail` fire
+  // for every job type (annotation + generation); we dispatch on
+  // jobType and filter to this resource. `annotationId` is present on
+  // jobs attached to a specific annotation (today: generation from a
+  // reference); it's what UI consumers lower down in the tree use to
+  // attach per-annotation visual feedback.
+  const handleJobComplete = useCallback((event: {
+    resourceId: string;
+    jobType: string;
+    annotationId?: string;
+    result?: { resourceName?: string };
+  }) => {
+    if (event.resourceId !== (resource.id as string)) return;
+    if (event.jobType === 'generation') {
+      const name = event.result?.resourceName;
+      showSuccess(name
+        ? `Resource "${name}" created successfully!`
+        : 'Resource created successfully!');
+    } else {
+      showSuccess('Annotation complete');
+    }
+  }, [resource.id, showSuccess]);
+  const handleJobFailed = useCallback((event: {
+    resourceId: string;
+    jobType: string;
+    annotationId?: string;
+    error: string;
+  }) => {
+    if (event.resourceId !== (resource.id as string)) return;
+    if (event.jobType === 'generation') {
+      showError(`Resource generation failed: ${event.error}`);
+    } else {
+      showError(event.error || 'Annotation failed');
+    }
+  }, [resource.id, showError]);
 
   const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
@@ -365,11 +385,9 @@ export function ResourceViewerPage({
     'bind:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-    'mark:assist-finished': handleDetectionComplete,
-    'mark:assist-failed': handleDetectionFailed,
+    'job:complete': handleJobComplete,
+    'job:fail': handleJobFailed,
     'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
-    'yield:finished': handleGenerationComplete,
-    'yield:failed': handleGenerationFailed,
     'browse:reference-navigate': handleReferenceNavigate,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });

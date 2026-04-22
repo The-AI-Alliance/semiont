@@ -34,7 +34,21 @@ import type {
 
 type Agent = components['schemas']['Agent'];
 
-export type OnProgress = (percentage: number, message: string, stage: string) => void;
+/**
+ * Progress callback. The three positional args satisfy the minimum
+ * `JobProgress` required fields (`percentage`, `message`, `stage`).
+ * The fourth optional arg carries job-type-specific fields
+ * (`currentEntityType`, `completedEntityTypes`, `requestParams`, etc.)
+ * that the progress UI renders.
+ */
+export type OnProgress = (
+  percentage: number,
+  message: string,
+  stage: string,
+  extra?: Partial<JobProgress>,
+) => void;
+
+type JobProgress = components['schemas']['JobProgress'];
 
 export interface ProcessorResult<R> {
   annotations: Record<string, unknown>[];
@@ -47,7 +61,12 @@ function buildTextAnnotation(
   generator: Agent,
   motivation: string,
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
-  body: Record<string, unknown>[],
+  // Body may be a single AnnotationBody object, a non-empty array of them,
+  // or an empty array (stub). Schema `Annotation.body` allows each; choice
+  // is fixed per-motivation by the processor that calls this. Reader code
+  // (e.g. `getCommentText`) already handles both array and object via
+  // `Array.isArray(body) ? body[0] : body`.
+  body: Record<string, unknown> | Record<string, unknown>[],
 ) {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -121,8 +140,11 @@ export async function processCommentJob(
   onProgress(60, `Creating ${comments.length} annotations...`, 'creating');
 
   const annotations = comments.map((c) =>
+    // Match the pre-#651 CommentAnnotationWorker: include format and
+    // language on the body TextualBody. Optional in the schema, but
+    // consumers that do language-aware rendering rely on them.
     buildTextAnnotation(params.resourceId, userId, generator, 'commenting', c, [
-      { type: 'TextualBody', value: c.comment, purpose: 'commenting' },
+      { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain', language: 'en' },
     ]),
   );
 
@@ -152,9 +174,15 @@ export async function processAssessmentJob(
   onProgress(60, `Creating ${assessments.length} annotations...`, 'creating');
 
   const annotations = assessments.map((a) =>
-    buildTextAnnotation(params.resourceId, userId, generator, 'assessing', a, [
-      { type: 'TextualBody', value: a.assessment, purpose: 'describing' },
-    ]),
+    // Single-object body with purpose aligned to motivation, matching the
+    // pre-#651 AssessmentAnnotationWorker's shape and the majority of
+    // persisted assessments. Do not switch to an array or to
+    // purpose='describing' — that loses the "this is an assessment, not
+    // a description" signal and breaks existing readers that access
+    // `body.value` directly on the object.
+    buildTextAnnotation(params.resourceId, userId, generator, 'assessing', a, {
+      type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain', language: 'en',
+    }),
   );
 
   onProgress(100, `Complete! Created ${annotations.length} assessments`, 'creating');
@@ -174,29 +202,49 @@ export async function processReferenceJob(
   onProgress: OnProgress,
   logger?: import('@semiont/core').Logger,
 ): Promise<ProcessorResult<DetectionResult>> {
-  onProgress(10, 'Loading resource...', 'analyzing');
-
   const entityTypeNames = params.entityTypes.map(String);
+  const requestParams = [{ label: 'Entity types', value: entityTypeNames.join(', ') }];
+  const completedEntityTypes: Array<{ entityType: string; foundCount: number }> = [];
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
   const allAnnotations: Record<string, unknown>[] = [];
 
+  onProgress(10, 'Loading resource...', 'analyzing', { requestParams });
+
   for (let i = 0; i < entityTypeNames.length; i++) {
     const entityTypeName = entityTypeNames[i];
+    if (!entityTypeName) continue;
     const pct = 20 + Math.round((i / entityTypeNames.length) * 60);
-    onProgress(pct, `Detecting ${entityTypeName} entities...`, 'analyzing');
+    onProgress(pct, `Detecting ${entityTypeName} entities...`, 'analyzing', {
+      currentEntityType: entityTypeName,
+      processedEntityTypes: i,
+      totalEntityTypes: entityTypeNames.length,
+      entitiesFound: totalFound,
+      entitiesEmitted: totalEmitted,
+      completedEntityTypes: [...completedEntityTypes],
+      requestParams,
+    });
 
     const extractedEntities = await extractEntities(
       content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
     );
 
     totalFound += extractedEntities.length;
+    completedEntityTypes.push({ entityType: entityTypeName, foundCount: extractedEntities.length });
+
+    // Unresolved reference body: the entity type as a tagging TextualBody.
+    // The bind flow later appends a SpecificResource (purpose: 'linking')
+    // via mark:body-updated to produce the resolved shape. Emitting an
+    // empty body would break the append contract.
+    const unresolvedBody = [{ type: 'TextualBody', value: entityTypeName, purpose: 'tagging' }];
 
     for (const entity of extractedEntities) {
       try {
         const validated = validateAndCorrectOffsets(content, entity.startOffset, entity.endOffset, entity.exact);
-        const ann = buildTextAnnotation(params.resourceId, userId, generator, 'linking', validated, []);
+        const ann = buildTextAnnotation(
+          params.resourceId, userId, generator, 'linking', validated, unresolvedBody,
+        );
         allAnnotations.push(ann);
         totalEmitted++;
       } catch {
@@ -239,8 +287,14 @@ export async function processTagJob(
   const annotations = tags.map((t) => {
     const category = t.category ?? 'unknown';
     byCategory[category] = (byCategory[category] ?? 0) + 1;
+    // Two-body shape matches the pre-#651 TagAnnotationWorker and every
+    // persisted tag annotation: the category as a tagging TextualBody,
+    // plus the tagging-schema id as a classifying TextualBody. The
+    // classifying body is the only trace of schema provenance in the
+    // event log — do not drop it.
     return buildTextAnnotation(params.resourceId, userId, generator, 'tagging', t, [
-      { type: 'TextualBody', value: category, purpose: 'tagging' },
+      { type: 'TextualBody', value: category,        purpose: 'tagging',     format: 'text/plain', language: 'en' },
+      { type: 'TextualBody', value: params.schemaId, purpose: 'classifying', format: 'text/plain' },
     ]);
   });
 

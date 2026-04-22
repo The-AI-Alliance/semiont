@@ -102,17 +102,24 @@ export async function markAssist(semiont: SemiontApiClient, args: any): Promise<
     return await new Promise<McpResult>((resolve) => {
       const progressSub = vm.progress$.pipe(
         filter((p): p is NonNullable<typeof p> => p !== null),
-      ).subscribe((p) => { progressMessages.push(`${p.status}: ${p.percentage ?? 0}%`); });
+      ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage ?? 0}%`); });
 
-      const finishedUnsub = semiont.on('mark:assist-finished', (event) => {
+      const isAnnotationJob = (jt: string) => jt !== 'generation';
+      const completeUnsub = semiont.on('job:complete', (event) => {
+        if (!isAnnotationJob(event.jobType)) return;
         cleanup();
-        resolve({ content: [{ type: 'text', text: `Detection complete. Found ${(event as any).foundCount || 0} entities.\n${progressMessages.join('\n')}` }] });
+        const foundCount = (event.result as { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number } | undefined);
+        const count =
+          foundCount?.totalFound ?? foundCount?.highlightsFound ?? foundCount?.commentsFound ??
+          foundCount?.assessmentsFound ?? foundCount?.tagsFound ?? 0;
+        resolve({ content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] });
       });
-      const failedUnsub = semiont.on('mark:assist-failed', (event) => {
+      const failUnsub = semiont.on('job:fail', (event) => {
+        if (!isAnnotationJob(event.jobType)) return;
         cleanup();
-        resolve({ content: [{ type: 'text', text: `Detection failed: ${(event as any).message}` }], isError: true });
+        resolve({ content: [{ type: 'text', text: `Detection failed: ${event.error}` }], isError: true });
       });
-      function cleanup() { progressSub.unsubscribe(); finishedUnsub(); failedUnsub(); }
+      function cleanup() { progressSub.unsubscribe(); completeUnsub(); failUnsub(); }
     });
   } finally {
     vm.dispose();
@@ -207,17 +214,19 @@ export async function yieldFromAnnotation(semiont: SemiontApiClient, args: any):
     return await new Promise<McpResult>((resolve) => {
       const progressSub = yieldVM.progress$.pipe(
         filter((p): p is NonNullable<typeof p> => p !== null),
-      ).subscribe((p) => { progressMessages.push(`${p.status}: ${p.percentage}%`); });
+      ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage}%`); });
 
-      const finishedUnsub = semiont.on('yield:finished', () => {
+      const completeUnsub = semiont.on('job:complete', (event) => {
+        if (event.jobType !== 'generation') return;
         cleanup();
         resolve({ content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] });
       });
-      const failedUnsub = semiont.on('yield:failed', (event) => {
+      const failUnsub = semiont.on('job:fail', (event) => {
+        if (event.jobType !== 'generation') return;
         cleanup();
-        resolve({ content: [{ type: 'text', text: `Generation failed: ${(event as any).error}` }], isError: true });
+        resolve({ content: [{ type: 'text', text: `Generation failed: ${event.error}` }], isError: true });
       });
-      function cleanup() { progressSub.unsubscribe(); finishedUnsub(); failedUnsub(); }
+      function cleanup() { progressSub.unsubscribe(); completeUnsub(); failUnsub(); }
     });
   } finally {
     yieldVM.dispose();

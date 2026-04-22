@@ -50,9 +50,14 @@ export function startWorkerProcess(config: WorkerProcessConfig): WorkerVM {
     handleJob(vm, config, job).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
-      vm.emitEvent('mark:assist-failed', {
+      const failAnnotationId = (job.params as { referenceId?: string }).referenceId;
+      vm.emitEvent('job:fail', {
         resourceId: job.resourceId,
-        message,
+        userId: job.userId,
+        jobId: job.jobId,
+        jobType: job.type,
+        ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
+        error: message,
       }).catch(() => {});
       vm.failJob(job.jobId, message);
     });
@@ -62,18 +67,42 @@ export function startWorkerProcess(config: WorkerProcessConfig): WorkerVM {
   return vm;
 }
 
-async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJob): Promise<void> {
+// Exported for unit testing — the orchestration (claim→fetch→process→emit→complete)
+// is the only thing not otherwise exercised by processors.test.ts +
+// worker-vm.test.ts. Do not call from outside the worker process.
+export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJob): Promise<void> {
   const { inferenceClient, generator } = config;
-  const resourceId = job.resourceId;
-  const userId = job.userId;
+  const { resourceId, userId, jobId, type: jobType } = job;
 
+  // Annotation-scoped jobs (today: generation, triggered from a
+  // reference) carry the source annotation through every lifecycle
+  // payload so the UI can attach visual feedback to that annotation.
+  // Resource-scoped jobs (bulk reference/tag/highlight/comment/
+  // assessment detection scanning a whole resource) leave it unset.
+  const annotationId = (job.params as { referenceId?: string }).referenceId;
+  const lifecycleBase = {
+    resourceId, userId, jobId, jobType,
+    ...(annotationId ? { annotationId } : {}),
+  };
 
-  const onProgress: OnProgress = (percentage, message, stage) => {
-    vm.emitEvent('mark:progress', {
-      resourceId,
-      status: stage,
+  // ── Job lifecycle signaling ───────────────────────────────────────────
+  // `job:start` / `job:report-progress` / `job:complete` / `job:fail`
+  // are the ONE unified lifecycle family. Start/complete/fail are
+  // persisted by Stower; progress is ephemeral UI feedback and Stower
+  // ignores it. UI consumers filter by `jobType` and/or `annotationId`
+  // in the payload.
+
+  await vm.emitEvent('job:start', lifecycleBase);
+
+  const onProgress: OnProgress = (percentage, message, stage, extra) => {
+    vm.emitEvent('job:report-progress', {
+      ...lifecycleBase,
       percentage,
-      message,
+      progress: {
+        stage, percentage, message,
+        ...(annotationId ? { annotationId } : {}),
+        ...(extra ?? {}),
+      },
     }).catch(() => {});
   };
 
@@ -88,7 +117,7 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
     return response.text();
   };
 
-  if (job.type === 'highlight-annotation') {
+  if (jobType === 'highlight-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processHighlightJob(
       content, inferenceClient, job.params as never, userId, generator, onProgress,
@@ -96,14 +125,13 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
     for (const ann of annotations) {
       await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('mark:assist-finished', {
-      motivation: 'highlighting', resourceId, status: 'complete', percentage: 100,
-      foundCount: result.highlightsFound, createdCount: result.highlightsCreated,
-      message: 'Detection complete',
+    await vm.emitEvent('job:complete', {
+      ...lifecycleBase,
+      result: result as never,
     });
     vm.completeJob();
 
-  } else if (job.type === 'comment-annotation') {
+  } else if (jobType === 'comment-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processCommentJob(
       content, inferenceClient, job.params as never, userId, generator, onProgress,
@@ -111,14 +139,13 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
     for (const ann of annotations) {
       await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('mark:assist-finished', {
-      motivation: 'commenting', resourceId, status: 'complete', percentage: 100,
-      foundCount: result.commentsFound, createdCount: result.commentsCreated,
-      message: 'Detection complete',
+    await vm.emitEvent('job:complete', {
+      ...lifecycleBase,
+      result: result as never,
     });
     vm.completeJob();
 
-  } else if (job.type === 'assessment-annotation') {
+  } else if (jobType === 'assessment-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processAssessmentJob(
       content, inferenceClient, job.params as never, userId, generator, onProgress,
@@ -126,14 +153,13 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
     for (const ann of annotations) {
       await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('mark:assist-finished', {
-      motivation: 'assessing', resourceId, status: 'complete', percentage: 100,
-      foundCount: result.assessmentsFound, createdCount: result.assessmentsCreated,
-      message: 'Detection complete',
+    await vm.emitEvent('job:complete', {
+      ...lifecycleBase,
+      result: result as never,
     });
     vm.completeJob();
 
-  } else if (job.type === 'reference-annotation') {
+  } else if (jobType === 'reference-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processReferenceJob(
       content, inferenceClient, job.params as never, userId, generator, onProgress,
@@ -141,14 +167,13 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
     for (const ann of annotations) {
       await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('mark:assist-finished', {
-      motivation: 'linking', resourceId, status: 'complete', percentage: 100,
-      foundCount: result.totalFound, createdCount: result.totalEmitted,
-      message: 'Detection complete',
+    await vm.emitEvent('job:complete', {
+      ...lifecycleBase,
+      result: result as never,
     });
     vm.completeJob();
 
-  } else if (job.type === 'tag-annotation') {
+  } else if (jobType === 'tag-annotation') {
     const content = await fetchContent();
     const { annotations, result } = await processTagJob(
       content, inferenceClient, job.params as never, userId, generator, onProgress,
@@ -156,26 +181,15 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
     for (const ann of annotations) {
       await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('mark:assist-finished', {
-      motivation: 'tagging', resourceId, status: 'complete', percentage: 100,
-      foundCount: result.tagsFound, createdCount: result.tagsCreated,
-      message: 'Detection complete',
+    await vm.emitEvent('job:complete', {
+      ...lifecycleBase,
+      result: result as never,
     });
     vm.completeJob();
 
-  } else if (job.type === 'generation') {
-    const yieldProgress: OnProgress = (percentage, message, stage) => {
-      vm.emitEvent('yield:progress', {
-        referenceId: (job.params as { referenceId?: string }).referenceId ?? '',
-        sourceResourceId: resourceId,
-        status: stage,
-        percentage,
-        message,
-      }).catch(() => {});
-    };
-
+  } else if (jobType === 'generation') {
     const genResult = await processGenerationJob(
-      inferenceClient, job.params as never, yieldProgress,
+      inferenceClient, job.params as never, onProgress,
     );
 
     await vm.emitEvent('yield:create', {
@@ -186,9 +200,17 @@ async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJ
       referenceId: (job.params as { referenceId?: string }).referenceId,
     });
 
+    // The generated resource's id is assigned by Stower when it
+    // processes `yield:create` — the worker doesn't know it here.
+    // Emit the name we do know; Stower fills in `resourceId` on the
+    // persisted payload.
+    await vm.emitEvent('job:complete', {
+      ...lifecycleBase,
+      result: { resourceName: genResult.title } as never,
+    });
     vm.completeJob();
 
   } else {
-    vm.failJob(job.jobId, `Unknown job type: ${job.type}`);
+    vm.failJob(jobId, `Unknown job type: ${jobType}`);
   }
 }

@@ -65,14 +65,6 @@ export {
   isCancelledJob,
 } from './types';
 
-// Workers
-export { ReferenceAnnotationWorker } from './workers/reference-annotation-worker';
-export { GenerationWorker } from './workers/generation-worker';
-export { HighlightAnnotationWorker } from './workers/highlight-annotation-worker';
-export { AssessmentAnnotationWorker } from './workers/assessment-annotation-worker';
-export { CommentAnnotationWorker } from './workers/comment-annotation-worker';
-export { TagAnnotationWorker } from './workers/tag-annotation-worker';
-
 // Job processors (extracted, transport-agnostic)
 export {
   processHighlightJob,

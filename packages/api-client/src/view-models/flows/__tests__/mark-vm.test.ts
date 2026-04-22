@@ -176,43 +176,39 @@ describe('createMarkVM', () => {
     vm.dispose();
   });
 
-  it('updates progress on mark:progress', () => {
-    tc = withMark();
+  it('pipes Observable next into progress$', () => {
+    const progressSubject = new Subject();
+    const assistFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
     const prog: unknown[] = [];
     vm.progress$.subscribe(v => prog.push(v));
 
-    tc.client.emit('mark:progress', { status: 'in-progress', percentage: 42 } as any);
-    expect(prog[prog.length - 1]).toEqual({ status: 'in-progress', percentage: 42 });
+    tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    progressSubject.next({ stage: 'analyzing', percentage: 42, message: 'working' });
+    expect(prog[prog.length - 1]).toEqual({ stage: 'analyzing', percentage: 42, message: 'working' });
     vm.dispose();
   });
 
-  it('clears assistingMotivation on mark:assist-finished when motivation matches', () => {
-    tc = withMark();
+  it('clears assistingMotivation on Observable complete', () => {
+    const progressSubject = new Subject();
+    const assistFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
     const motiv: unknown[] = [];
     vm.assistingMotivation$.subscribe(v => motiv.push(v));
 
     tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
-    tc.client.emit('mark:assist-finished', { motivation: 'highlighting' } as any);
+    expect(motiv[motiv.length - 1]).toBe('highlighting');
+    progressSubject.complete();
     expect(motiv[motiv.length - 1]).toBeNull();
     vm.dispose();
   });
 
-  it('keeps assistingMotivation on mark:assist-finished when motivation differs', () => {
-    tc = withMark();
-    const vm = createMarkVM(tc.client, RID);
-    const motiv: unknown[] = [];
-    vm.assistingMotivation$.subscribe(v => motiv.push(v));
-
-    tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
-    tc.client.emit('mark:assist-finished', { motivation: 'commenting' } as any);
-    expect(motiv[motiv.length - 1]).toBe('highlighting');
-    vm.dispose();
-  });
-
-  it('clears all assist state on mark:assist-failed', () => {
-    tc = withMark();
+  it('clears all assist state on Observable error', () => {
+    const progressSubject = new Subject();
+    const assistFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
     const motiv: unknown[] = [];
     const prog: unknown[] = [];
@@ -220,8 +216,8 @@ describe('createMarkVM', () => {
     vm.progress$.subscribe(v => prog.push(v));
 
     tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
-    tc.client.emit('mark:progress', { status: 'x', percentage: 50 } as any);
-    tc.client.emit('mark:assist-failed', { message: 'LLM error' } as any);
+    progressSubject.next({ stage: 'x', percentage: 50, message: 'm' });
+    progressSubject.error(new Error('LLM error'));
 
     expect(motiv[motiv.length - 1]).toBeNull();
     expect(prog[prog.length - 1]).toBeNull();
@@ -229,26 +225,32 @@ describe('createMarkVM', () => {
   });
 
   it('clears progress on mark:progress-dismiss', () => {
-    tc = withMark();
+    const progressSubject = new Subject();
+    const assistFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
     const prog: unknown[] = [];
     vm.progress$.subscribe(v => prog.push(v));
 
-    tc.client.emit('mark:progress', { status: 'x', percentage: 50 } as any);
+    tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    progressSubject.next({ stage: 'x', percentage: 50, message: 'm' });
     tc.client.emit('mark:progress-dismiss', undefined);
     expect(prog[prog.length - 1]).toBeNull();
     vm.dispose();
   });
 
-  it('dismisses progress after 5s on mark:assist-finished', () => {
+  it('dismisses progress 5s after Observable complete', () => {
     vi.useFakeTimers();
-    tc = withMark();
+    const progressSubject = new Subject();
+    const assistFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
     const prog: unknown[] = [];
     vm.progress$.subscribe(v => prog.push(v));
 
-    tc.client.emit('mark:progress', { status: 'x', percentage: 50 } as any);
-    tc.client.emit('mark:assist-finished', { motivation: 'highlighting' } as any);
+    tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    progressSubject.next({ stage: 'x', percentage: 50, message: 'm' });
+    progressSubject.complete();
 
     expect(prog[prog.length - 1]).not.toBeNull();
     vi.advanceTimersByTime(5000);
@@ -258,34 +260,33 @@ describe('createMarkVM', () => {
     vi.useRealTimers();
   });
 
-  it('emits mark:assist-failed on Observable error from assist', () => {
+  it('clears state when assist Observable errors immediately', () => {
     const assistFn = vi.fn(() => new Observable((sub) => {
       sub.error(new Error('LLM down'));
     }));
     tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
-    const failures: unknown[] = [];
-    tc.client.on('mark:assist-failed', e => failures.push(e));
+    const motiv: unknown[] = [];
+    vm.assistingMotivation$.subscribe(v => motiv.push(v));
 
     tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toEqual(expect.objectContaining({ message: 'LLM down' }));
+    expect(motiv[motiv.length - 1]).toBeNull();
     vm.dispose();
   });
 
-  it('emits mark:assist-failed on timeout when no progress within 180s', () => {
+  it('times out a silent assist Observable after 180s', () => {
     vi.useFakeTimers();
     const assistFn = vi.fn(() => new Observable(() => {}));
     tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
-    const failures: unknown[] = [];
-    tc.client.on('mark:assist-failed', e => failures.push(e));
+    const motiv: unknown[] = [];
+    vm.assistingMotivation$.subscribe(v => motiv.push(v));
 
     tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
-    expect(failures).toHaveLength(0);
+    expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(180_000);
-    expect(failures).toHaveLength(1);
+    expect(motiv[motiv.length - 1]).toBeNull();
 
     vm.dispose();
     vi.useRealTimers();
@@ -297,22 +298,20 @@ describe('createMarkVM', () => {
     const assistFn = vi.fn(() => progressSubject.asObservable());
     tc = withMark({ assist: assistFn });
     const vm = createMarkVM(tc.client, RID);
-    const failures: unknown[] = [];
-    tc.client.on('mark:assist-failed', e => failures.push(e));
+    const motiv: unknown[] = [];
+    vm.assistingMotivation$.subscribe(v => motiv.push(v));
 
     tc.client.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    expect(motiv[motiv.length - 1]).toBe('highlighting');
 
-    // Progress at 170s — resets the 180s timer
     vi.advanceTimersByTime(170_000);
-    progressSubject.next({ status: 'in-progress', percentage: 50 });
+    progressSubject.next({ stage: 'analyzing', percentage: 50, message: 'm' });
 
-    // At 340s (170s after last progress) — still within 180s window
     vi.advanceTimersByTime(170_000);
-    expect(failures).toHaveLength(0);
+    expect(motiv[motiv.length - 1]).toBe('highlighting');
 
-    // At 350s (180s after last progress) — should timeout
     vi.advanceTimersByTime(10_000);
-    expect(failures).toHaveLength(1);
+    expect(motiv[motiv.length - 1]).toBeNull();
 
     vm.dispose();
     vi.useRealTimers();

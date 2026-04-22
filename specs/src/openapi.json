@@ -216,26 +216,11 @@
       "GatherFinished": {
         "$ref": "components/schemas/GatherFinished.json"
       },
-      "MarkProgress": {
-        "$ref": "components/schemas/MarkProgress.json"
-      },
-      "MarkAssistFinished": {
-        "$ref": "components/schemas/MarkAssistFinished.json"
-      },
-      "MarkAssistFailed": {
-        "$ref": "components/schemas/MarkAssistFailed.json"
-      },
       "MatchSearchResult": {
         "$ref": "components/schemas/MatchSearchResult.json"
       },
       "MatchSearchFailed": {
         "$ref": "components/schemas/MatchSearchFailed.json"
-      },
-      "YieldProgress": {
-        "$ref": "components/schemas/YieldProgress.json"
-      },
-      "YieldStreamError": {
-        "$ref": "components/schemas/YieldStreamError.json"
       },
       "EventMetadata": {
         "$ref": "components/schemas/EventMetadata.json"

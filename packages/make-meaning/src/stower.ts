@@ -25,9 +25,14 @@
  * - mark:add-entity-type → entitytype.added                   → mark:entity-type-added / mark:entity-type-add-failed
  * - mark:update-entity-types → entitytag.added / entitytag.removed
  * - job:start          → job.started
- * - job:report-progress → job.progress
  * - job:complete       → job.completed
  * - job:fail           → job.failed
+ *
+ * Note: `job:report-progress` is intentionally NOT persisted. Progress
+ * events are ephemeral UI feedback and would clutter the event log
+ * (historical logs show ~3× as many progress entries as start+complete
+ * combined). UI consumers subscribe to the bus directly for live
+ * progress; the event log keeps only the durable lifecycle boundaries.
  */
 
 import { promises as fs } from 'fs';
@@ -77,7 +82,6 @@ export class Stower {
       pipe('mark:unarchive', (e) => this.handleMarkUnarchive(e)),
       pipe('mark:update-entity-types', (e) => this.handleUpdateEntityTypes(e)),
       pipe('job:start', (e) => this.handleJobStart(e)),
-      pipe('job:report-progress', (e) => this.handleJobReportProgress(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
     ).subscribe({
@@ -380,21 +384,10 @@ export class Stower {
       resourceId: resourceId(event.resourceId),
       userId: makeUserId(event.userId),
       version: 1,
-      payload: { jobId: event.jobId, jobType: event.jobType },
-    });
-  }
-
-  private async handleJobReportProgress(event: EventMap['job:report-progress']): Promise<void> {
-    await this.kb.eventStore.appendEvent({
-      type: 'job:progress',
-      resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event.userId),
-      version: 1,
       payload: {
         jobId: event.jobId,
         jobType: event.jobType,
-        percentage: event.percentage,
-        progress: event.progress,
+        ...(event.annotationId ? { annotationId: event.annotationId } : {}),
       },
     });
   }
@@ -408,6 +401,7 @@ export class Stower {
       payload: {
         jobId: event.jobId,
         jobType: event.jobType,
+        ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         result: event.result,
       },
     });
@@ -422,6 +416,7 @@ export class Stower {
       payload: {
         jobId: event.jobId,
         jobType: event.jobType,
+        ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         error: event.error,
       },
     });

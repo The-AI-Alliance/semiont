@@ -28,8 +28,6 @@ import type {
   Motivation,
   GatheredContext,
   UpdateResourceInput,
-  YieldProgress,
-  MarkProgress,
   UserDID,
 } from '@semiont/core';
 
@@ -40,7 +38,8 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
-type MarkAssistFinished = components['schemas']['MarkAssistFinished'];
+type JobProgress = components['schemas']['JobProgress'];
+type YieldProgress = JobProgress;  // alias retained for the yield namespace's Observable signature
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
@@ -126,10 +125,10 @@ export type MatchSearchProgress = MatchSearchResult;
 
 /**
  * Progress emitted by mark.assist() Observable.
- * Emits MarkProgress during scanning, then MarkAssistFinished on completion.
- * On failure, the Observable errors with MarkAssistFailed.
+ * Each emission is a JobProgress snapshot (unified job lifecycle). The
+ * Observable completes on `job:complete`; errors on `job:fail`.
  */
-export type MarkAssistProgress = MarkProgress | MarkAssistFinished;
+export type MarkAssistProgress = JobProgress;
 
 // ── Namespace interfaces ────────────────────────────────────────────────────
 

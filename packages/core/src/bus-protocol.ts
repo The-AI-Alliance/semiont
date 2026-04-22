@@ -42,10 +42,10 @@ export type EventMap = {
   'yield:representation-added': StoredEvent<EventOfType<'yield:representation-added'>>;
   'yield:representation-removed': StoredEvent<EventOfType<'yield:representation-removed'>>;
 
-  // SSE stream payloads
-  'yield:progress': components['schemas']['YieldProgress'];
-  'yield:finished': components['schemas']['YieldProgress'];
-  'yield:failed': components['schemas']['YieldStreamError'];
+  // Generation lifecycle flows through the unified job:* family
+  // (job:start, job:report-progress, job:complete, job:fail). The
+  // pre-unification `yield:progress`/`yield:finished`/`yield:failed`
+  // channels were removed on the lifecycle-unification.
 
   // Commands
   'yield:request': components['schemas']['YieldRequestCommand'];
@@ -85,10 +85,11 @@ export type EventMap = {
   'mark:archived': StoredEvent<EventOfType<'mark:archived'>>;
   'mark:unarchived': StoredEvent<EventOfType<'mark:unarchived'>>;
 
-  // SSE stream payloads
-  'mark:progress': components['schemas']['MarkProgress'];
-  'mark:assist-finished': components['schemas']['MarkAssistFinished'];
-  'mark:assist-failed': components['schemas']['MarkAssistFailed'];
+  // Annotation-job lifecycle flows through the unified job:* family
+  // (job:start, job:report-progress, job:complete, job:fail). UI
+  // consumers filter by jobType. The pre-unification channels
+  // `mark:progress`/`mark:assist-finished`/`mark:assist-failed` were
+  // removed on the lifecycle-unification.
 
   // Commands
   'mark:create-request': components['schemas']['MarkCreateRequest'];
@@ -331,8 +332,12 @@ export type EventName = keyof EventMap;
  * ResourceViewerPage toast on the source resource).
  */
 export const RESOURCE_BROADCAST_TYPES = [
-  'yield:finished',
-  'yield:failed',
+  // Post-unification: job:complete / job:fail carry the "job ended on
+  // this resource" signal that yield:finished / yield:failed used to.
+  // Scope them by resource so every viewer of the affected resource
+  // — not just the initiator — can react (toast, refresh, etc.).
+  'job:complete',
+  'job:fail',
 ] as const satisfies readonly EventName[];
 
 export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];
@@ -363,9 +368,6 @@ export const CHANNEL_SCHEMAS = {
   'yield:moved':                      null,
   'yield:representation-added':       null,
   'yield:representation-removed':     null,
-  'yield:progress':                   'YieldProgress',
-  'yield:finished':                   'YieldProgress',
-  'yield:failed':                     'YieldStreamError',
   'yield:request':                    'YieldRequestCommand',
   'yield:create':                     'YieldCreateCommand',
   'yield:update':                     'YieldUpdateCommand',
@@ -396,9 +398,6 @@ export const CHANNEL_SCHEMAS = {
   'mark:entity-type-added':           null,
   'mark:archived':                    null,
   'mark:unarchived':                  null,
-  'mark:progress':                    'MarkProgress',
-  'mark:assist-finished':             'MarkAssistFinished',
-  'mark:assist-failed':               'MarkAssistFailed',
   'mark:create-request':              'MarkCreateRequest',
   'mark:create':                      'MarkCreateCommand',
   'mark:delete':                      'MarkDeleteCommand',

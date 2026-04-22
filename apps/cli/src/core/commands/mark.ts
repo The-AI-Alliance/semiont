@@ -252,15 +252,28 @@ async function runDelegate(
     });
 
     const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
-      const finishedUnsub = semiont.on('mark:assist-finished', (event) => {
+      const isAnnotationJob = (jt: string) => jt !== 'generation';
+      const completeUnsub = semiont.on('job:complete', (event) => {
+        if (!isAnnotationJob(event.jobType)) return;
         cleanup();
-        resolve({ createdCount: (event as any).createdCount ?? 0 });
+        // Every JobXAnnotationResult variant has a `*Created` field,
+        // differently named per job type. Pull the first numeric one.
+        const r = (event.result ?? {}) as Record<string, unknown>;
+        const createdCount =
+          (typeof r.highlightsCreated === 'number' && r.highlightsCreated) ||
+          (typeof r.commentsCreated === 'number' && r.commentsCreated) ||
+          (typeof r.assessmentsCreated === 'number' && r.assessmentsCreated) ||
+          (typeof r.tagsCreated === 'number' && r.tagsCreated) ||
+          (typeof r.totalEmitted === 'number' && r.totalEmitted) ||
+          0;
+        resolve({ createdCount });
       });
-      const failedUnsub = semiont.on('mark:assist-failed', (event) => {
+      const failUnsub = semiont.on('job:fail', (event) => {
+        if (!isAnnotationJob(event.jobType)) return;
         cleanup();
-        reject(new Error((event as any).message ?? 'Annotation failed'));
+        reject(new Error(event.error ?? 'Annotation failed'));
       });
-      function cleanup() { finishedUnsub(); failedUnsub(); }
+      function cleanup() { completeUnsub(); failUnsub(); }
     });
 
     if (!options.quiet) process.stderr.write(`✓ ${result.createdCount} annotations created\n`);

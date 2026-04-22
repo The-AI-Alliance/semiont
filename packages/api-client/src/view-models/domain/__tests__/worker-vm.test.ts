@@ -215,14 +215,14 @@ describe('createWorkerVM', () => {
       jobTypes: ['highlight-annotation'],
     });
 
-    await vm.emitEvent('mark:progress', { resourceId: 'res-1', percentage: 42 });
+    await vm.emitEvent('job:report-progress', { resourceId: 'res-1', percentage: 42 } as never);
 
     expect(mockFetch).toHaveBeenCalledWith(
       'http://localhost:4000/bus/emit',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          channel: 'mark:progress',
+          channel: 'job:report-progress',
           payload: { resourceId: 'res-1', percentage: 42 },
         }),
       }),
@@ -240,15 +240,15 @@ describe('createWorkerVM', () => {
       jobTypes: ['generation'],
     });
 
-    await vm.emitEvent('yield:finished', { resourceId: 'res-1', percentage: 100 });
+    await vm.emitEvent('job:complete', { resourceId: 'res-1', userId: 'u', jobId: 'j', jobType: 'generation' } as never);
 
     expect(mockFetch).toHaveBeenCalledWith(
       'http://localhost:4000/bus/emit',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          channel: 'yield:finished',
-          payload: { resourceId: 'res-1', percentage: 100 },
+          channel: 'job:complete',
+          payload: { resourceId: 'res-1', userId: 'u', jobId: 'j', jobType: 'generation' },
           scope: 'res-1',
         }),
       }),
@@ -257,7 +257,7 @@ describe('createWorkerVM', () => {
     vm.dispose();
   });
 
-  it('emitEvent does NOT scope non-broadcast events (e.g. yield:progress is per-caller)', async () => {
+  it('emitEvent does NOT scope non-broadcast events (e.g. job:report-progress is per-caller)', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
 
     const vm = createWorkerVM({
@@ -266,7 +266,7 @@ describe('createWorkerVM', () => {
       jobTypes: ['generation'],
     });
 
-    await vm.emitEvent('yield:progress', { resourceId: 'res-1', percentage: 42 });
+    await vm.emitEvent('job:report-progress', { resourceId: 'res-1', percentage: 42 } as never);
 
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(body.scope).toBeUndefined();

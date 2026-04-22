@@ -12,7 +12,8 @@ import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
-import type { MarkProgress } from '@semiont/core';
+
+type JobProgress = components['schemas']['JobProgress'];
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
@@ -45,7 +46,7 @@ interface Props {
   // Generic panel props
   annotations?: Annotation[];
   isAssisting: boolean;
-  progress: MarkProgress | null;
+  progress: JobProgress | null;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;

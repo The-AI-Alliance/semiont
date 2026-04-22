@@ -1,18 +1,46 @@
 {
   "type": "object",
-  "description": "Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present.",
+  "description": "Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.",
   "properties": {
-    "stage": { "type": "string", "description": "Current processing stage" },
+    "stage": { "type": "string", "description": "Current processing stage (e.g. 'analyzing', 'creating', 'complete', 'error')" },
     "percentage": { "type": "number", "description": "Completion percentage (0-100)" },
     "message": { "type": "string", "description": "Human-readable progress message" },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromAnnotation's Observable) can still route visual feedback to a specific annotation."
+    },
     "totalEntityTypes": { "type": "integer", "description": "Total entity types to process (reference-annotation)" },
     "processedEntityTypes": { "type": "integer", "description": "Entity types processed so far (reference-annotation)" },
     "entitiesFound": { "type": "integer", "description": "Entities found so far (reference-annotation)" },
     "entitiesEmitted": { "type": "integer", "description": "Annotations emitted so far (reference-annotation)" },
     "currentEntityType": { "type": "string", "description": "Entity type currently being processed" },
+    "completedEntityTypes": {
+      "type": "array",
+      "description": "Reference annotation: completed entity types with per-type counts, for UI progress display",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entityType": { "type": "string" },
+          "foundCount": { "type": "integer" }
+        },
+        "required": ["entityType", "foundCount"]
+      }
+    },
     "processedCategories": { "type": "integer", "description": "Categories processed (tag-annotation)" },
     "totalCategories": { "type": "integer", "description": "Total categories (tag-annotation)" },
-    "currentCategory": { "type": "string", "description": "Category currently being processed (tag-annotation)" }
+    "currentCategory": { "type": "string", "description": "Category currently being processed (tag-annotation)" },
+    "requestParams": {
+      "type": "array",
+      "description": "Echoed job parameters for display in the progress UI (e.g. entity types or categories the user asked to detect)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string" },
+          "value": { "type": "string" }
+        },
+        "required": ["label", "value"]
+      }
+    }
   },
   "required": ["stage", "percentage", "message"]
 }

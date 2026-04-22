@@ -14,6 +14,10 @@
     "jobType": {
       "$ref": "./JobType.json"
     },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation."
+    },
     "error": {
       "type": "string"
     }

@@ -222,7 +222,10 @@ const result = await runYield(makeUploadOptions());
       });
       mockSse.yieldResource.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
-          eventBus.get('yield:finished').next({ resourceId: 'urn:semiont:resource:generated-1', resourceName: 'Generated' });
+          eventBus.get('job:complete').next({
+            jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'generation',
+            result: { resourceId: 'urn:semiont:resource:generated-1', resourceName: 'Generated' },
+          });
         });
       });
     });
@@ -247,7 +250,10 @@ const result = await runYield(makeDelegateOptions());
     it('rejects when yield:failed fires', async () => {
       mockSse.yieldResource.mockReset();
       mockSse.yieldResource.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-        queueMicrotask(() => eventBus.get('yield:failed').next({ error: 'Generation failed' }));
+        queueMicrotask(() => eventBus.get('job:fail').next({
+          jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'generation',
+          error: 'Generation failed',
+        }));
       });
 await expect(runYield(makeDelegateOptions())).rejects.toThrow('Generation failed');
     });
