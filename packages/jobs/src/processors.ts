@@ -61,12 +61,12 @@ function buildTextAnnotation(
   generator: Agent,
   motivation: string,
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
-  // Body may be a single AnnotationBody object, a non-empty array of them,
-  // or an empty array (stub). Schema `Annotation.body` allows each; choice
-  // is fixed per-motivation by the processor that calls this. Reader code
-  // (e.g. `getCommentText`) already handles both array and object via
-  // `Array.isArray(body) ? body[0] : body`.
-  body: Record<string, unknown> | Record<string, unknown>[],
+  // Body may be a single AnnotationBody object or a non-empty array of
+  // them, OR omitted entirely. W3C treats body as optional; annotations
+  // whose motivation alone conveys meaning (highlighting) legitimately
+  // skip it. Every other motivation currently passes something; the
+  // processor that calls this makes the choice per-motivation.
+  body?: Record<string, unknown> | Record<string, unknown>[],
 ) {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -89,7 +89,7 @@ function buildTextAnnotation(
         },
       ],
     },
-    body,
+    ...(body !== undefined ? { body } : {}),
   };
 }
 
@@ -110,8 +110,10 @@ export async function processHighlightJob(
 
   onProgress(60, `Creating ${highlights.length} annotations...`, 'creating');
 
+  // Highlights carry no body — motivation:'highlighting' on a target
+  // is a complete annotation per the W3C Web Annotation Model.
   const annotations = highlights.map((h) =>
-    buildTextAnnotation(params.resourceId, userId, generator, 'highlighting', h, []),
+    buildTextAnnotation(params.resourceId, userId, generator, 'highlighting', h),
   );
 
   onProgress(100, `Complete! Created ${annotations.length} highlights`, 'creating');

@@ -81,6 +81,8 @@ describe('processHighlightJob', () => {
       motivation: 'highlighting',
       target: expect.objectContaining({ source: RID }),
     });
+    // Highlights carry no body — motivation alone is the content per W3C.
+    expect((result.annotations[0] as Record<string, unknown>).body).toBeUndefined();
     expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
     expect(progress).toHaveBeenCalledWith(10, expect.any(String), 'analyzing');
     expect(progress).toHaveBeenLastCalledWith(100, expect.stringContaining('2 highlights'), 'creating');
