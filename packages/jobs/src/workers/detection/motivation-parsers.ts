@@ -12,6 +12,74 @@
 import { validateAndCorrectOffsets } from '@semiont/api-client';
 
 /**
+ * Best-effort extractor that pulls a JSON array of objects out of a raw
+ * LLM response. Tolerates:
+ *   - markdown code fences (``` / ```json)
+ *   - prose before/after the array
+ *   - stray non-JSON tokens between array elements (a common
+ *     hallucination: e.g. a line like `wide: 0,` inserted between two
+ *     well-formed objects).
+ *
+ * Strategy: try strict `JSON.parse` first (fast path); on failure, walk
+ * between the outermost `[` and `]` and parse each balanced `{ ... }`
+ * object independently, skipping any that don't parse. Returns the
+ * recovered objects — callers should still filter/validate fields.
+ */
+function extractObjectsFromArray(response: string): unknown[] {
+  let cleaned = response.trim();
+
+  // Strip markdown code fences if present
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+
+  // Fast path: well-formed JSON
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // fall through to tolerant parse
+  }
+
+  // Tolerant path: extract each top-level `{ ... }` from within the
+  // first `[` / last `]`, parse independently.
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+  if (start === -1 || end === -1 || end <= start) return [];
+
+  const inner = cleaned.slice(start + 1, end);
+  const objects: unknown[] = [];
+  let depth = 0;
+  let objStart = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') {
+      if (depth === 0) objStart = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && objStart !== -1) {
+        try {
+          objects.push(JSON.parse(inner.slice(objStart, i + 1)));
+        } catch {
+          // Skip malformed object
+        }
+        objStart = -1;
+      }
+    }
+  }
+
+  return objects;
+}
+
+/**
  * Represents a detected comment with validated position
  */
 export interface CommentMatch {
@@ -68,27 +136,16 @@ export class MotivationParsers {
    */
   static parseComments(response: string, content: string): CommentMatch[] {
     try {
-      // Clean up markdown code fences if present
-      let cleaned = response.trim();
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-      }
-
-      const parsed = JSON.parse(cleaned);
-
-      if (!Array.isArray(parsed)) {
-        console.warn('[MotivationParsers] Comment response is not an array');
-        return [];
-      }
+      const parsed = extractObjectsFromArray(response);
 
       // Validate and filter
-      const valid = parsed.filter((c: any) =>
-        c &&
-        typeof c.exact === 'string' &&
-        typeof c.start === 'number' &&
-        typeof c.end === 'number' &&
-        typeof c.comment === 'string' &&
-        c.comment.trim().length > 0
+      const valid = parsed.filter((c): c is CommentMatch =>
+        !!c && typeof c === 'object' &&
+        typeof (c as any).exact === 'string' &&
+        typeof (c as any).start === 'number' &&
+        typeof (c as any).end === 'number' &&
+        typeof (c as any).comment === 'string' &&
+        (c as any).comment.trim().length > 0
       );
 
       console.log(`[MotivationParsers] Parsed ${valid.length} valid comments from ${parsed.length} total`);
@@ -129,27 +186,14 @@ export class MotivationParsers {
    */
   static parseHighlights(response: string, content: string): HighlightMatch[] {
     try {
-      // Clean up response - remove markdown code fences if present
-      let cleaned = response.trim();
-      if (cleaned.startsWith('```json') || cleaned.startsWith('```')) {
-        cleaned = cleaned.slice(cleaned.indexOf('\n') + 1);
-        const endIndex = cleaned.lastIndexOf('```');
-        if (endIndex !== -1) {
-          cleaned = cleaned.slice(0, endIndex);
-        }
-      }
-
-      const parsed = JSON.parse(cleaned);
-      if (!Array.isArray(parsed)) {
-        console.warn('[MotivationParsers] Highlight response was not an array');
-        return [];
-      }
+      const parsed = extractObjectsFromArray(response);
 
       // Validate and filter results
-      const highlights = parsed.filter((h: any) =>
-        h && typeof h.exact === 'string' &&
-        typeof h.start === 'number' &&
-        typeof h.end === 'number'
+      const highlights = parsed.filter((h): h is HighlightMatch =>
+        !!h && typeof h === 'object' &&
+        typeof (h as any).exact === 'string' &&
+        typeof (h as any).start === 'number' &&
+        typeof (h as any).end === 'number'
       );
 
       // Validate and correct AI's offsets, then extract proper context
@@ -189,28 +233,15 @@ export class MotivationParsers {
    */
   static parseAssessments(response: string, content: string): AssessmentMatch[] {
     try {
-      // Clean up response - remove markdown code fences if present
-      let cleaned = response.trim();
-      if (cleaned.startsWith('```json') || cleaned.startsWith('```')) {
-        cleaned = cleaned.slice(cleaned.indexOf('\n') + 1);
-        const endIndex = cleaned.lastIndexOf('```');
-        if (endIndex !== -1) {
-          cleaned = cleaned.slice(0, endIndex);
-        }
-      }
-
-      const parsed = JSON.parse(cleaned);
-      if (!Array.isArray(parsed)) {
-        console.warn('[MotivationParsers] Assessment response was not an array');
-        return [];
-      }
+      const parsed = extractObjectsFromArray(response);
 
       // Validate and filter results
-      const assessments = parsed.filter((a: any) =>
-        a && typeof a.exact === 'string' &&
-        typeof a.start === 'number' &&
-        typeof a.end === 'number' &&
-        typeof a.assessment === 'string'
+      const assessments = parsed.filter((a): a is AssessmentMatch =>
+        !!a && typeof a === 'object' &&
+        typeof (a as any).exact === 'string' &&
+        typeof (a as any).start === 'number' &&
+        typeof (a as any).end === 'number' &&
+        typeof (a as any).assessment === 'string'
       );
 
       // Validate and correct AI's offsets, then extract proper context
@@ -250,26 +281,15 @@ export class MotivationParsers {
    */
   static parseTags(response: string): Omit<TagMatch, 'category'>[] {
     try {
-      // Clean up markdown code fences if present
-      let cleaned = response.trim();
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-      }
-
-      const parsed = JSON.parse(cleaned);
-
-      if (!Array.isArray(parsed)) {
-        console.warn('[MotivationParsers] Tag response is not an array');
-        return [];
-      }
+      const parsed = extractObjectsFromArray(response);
 
       // Validate and filter
-      const valid = parsed.filter((t: any) =>
-        t &&
-        typeof t.exact === 'string' &&
-        typeof t.start === 'number' &&
-        typeof t.end === 'number' &&
-        t.exact.trim().length > 0
+      const valid = parsed.filter((t): t is Omit<TagMatch, 'category'> =>
+        !!t && typeof t === 'object' &&
+        typeof (t as any).exact === 'string' &&
+        typeof (t as any).start === 'number' &&
+        typeof (t as any).end === 'number' &&
+        (t as any).exact.trim().length > 0
       );
 
       console.log(`[MotivationParsers] Parsed ${valid.length} valid tags from ${parsed.length} total`);

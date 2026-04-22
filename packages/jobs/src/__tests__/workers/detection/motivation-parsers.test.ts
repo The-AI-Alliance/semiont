@@ -247,6 +247,36 @@ describe('MotivationParsers', () => {
 
       expect(result).toEqual([]);
     });
+
+    it('should recover valid objects when LLM emits stray tokens between array elements', () => {
+      // Regression: gemma4:26b hallucinated a bare `wide: 0,` line between
+      // two well-formed objects, breaking strict JSON.parse. The tolerant
+      // parser must still surface the recoverable objects so the user sees
+      // partial results rather than a silent zero-count "success".
+      const response = `\`\`\`json
+[
+  {
+    "exact": "Alice",
+    "start": 0,
+    "end": 5,
+    "assessment": "First assessment"
+  },
+  wide: 0,
+  {
+    "exact": "Bob",
+    "start": 21,
+    "end": 24,
+    "assessment": "Second assessment"
+  }
+]
+\`\`\``;
+
+      const result = MotivationParsers.parseAssessments(response, testContent);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].exact).toBe('Alice');
+      expect(result[1].exact).toBe('Bob');
+    });
   });
 
   describe('parseTags', () => {
