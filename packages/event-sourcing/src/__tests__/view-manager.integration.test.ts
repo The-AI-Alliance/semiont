@@ -97,7 +97,6 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
               exact: `chunk ${annotationIndex}`,
             },
           },
-          body: [],
           created: new Date().toISOString(),
         },
       },

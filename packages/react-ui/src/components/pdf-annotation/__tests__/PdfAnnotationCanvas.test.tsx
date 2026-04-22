@@ -130,7 +130,6 @@ describe('PdfAnnotationCanvas', () => {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         type: 'Annotation',
         id: 'ann-1',
-        body: [],
         target: {
           source: mockResourceId,
           selector: {

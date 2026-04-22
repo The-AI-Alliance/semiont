@@ -384,7 +384,15 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Extract source from body using helper
     const bodySource = getBodySource(input.body);
     const entityTypes = getEntityTypes(input);
-    const bodyType = Array.isArray(input.body) ? 'SpecificResource' : input.body.type;
+    // Body is optional per the Annotation schema (highlighting
+    // annotations carry none). When absent we record 'None' in the
+    // graph vertex so queries can distinguish "highlight" from
+    // "reference without resolved link" cleanly.
+    const bodyType = input.body === undefined
+      ? 'None'
+      : Array.isArray(input.body)
+        ? 'SpecificResource'
+        : input.body.type;
 
     // Extract target source and selector
     const targetSource = typeof input.target === 'string' ? input.target : input.target.source;

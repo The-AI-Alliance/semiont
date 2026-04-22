@@ -480,7 +480,7 @@ describe('SemiontApiClient', () => {
     test('markAnnotation emits mark:create-request and returns annotationId', async () => {
       setBusResponse('mark:create-request', 'mark:create-ok', { annotationId: 'ann-new' });
       const result = await client.markAnnotation(testResourceId, {
-        motivation: 'highlighting', target: { source: testResourceId }, body: [],
+        motivation: 'highlighting', target: { source: testResourceId },
       } as any);
       expect(result.annotationId).toBe('ann-new');
       expect(actorHarness.emitSpy).toHaveBeenCalledWith(

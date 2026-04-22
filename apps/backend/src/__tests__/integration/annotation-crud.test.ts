@@ -78,7 +78,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   });
 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
-    it('should create annotation with empty body array', async () => {
+    it('should create annotation with no body (motivation alone is meaningful)', async () => {
       // Use SAME path from beforeAll
       const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
@@ -101,7 +101,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             },
           ],
         },
-        body: [], // Empty array for stub
         modified: new Date().toISOString(),
       };
 
@@ -120,8 +119,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       const retrieved = await AnnotationContext.getAnnotation(annotationId(annotation.id), testDocId, kb);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
-      expect(Array.isArray(retrieved?.body)).toBe(true);
-      expect((retrieved?.body as any[]).length).toBe(0);
+      expect(retrieved?.body).toBeUndefined();
     });
 
     it('should create annotation with TextualBody entity tags', async () => {
@@ -296,11 +294,11 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       }
     });
 
-    it('should resolve annotation with empty body to have only SpecificResource', async () => {
+    it('should resolve annotation with no body to have only SpecificResource', async () => {
       // Use SAME path from beforeAll
       const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
-      // Create stub with empty body
+      // Create stub with no body
       const stubId = annotationId('test-resolve-empty-' + Date.now());
       const stubAnnotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -321,7 +319,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             },
           ],
         },
-        body: [],
         modified: new Date().toISOString(),
       };
 

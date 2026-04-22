@@ -347,7 +347,7 @@ describe('AssessmentPanel Component', () => {
         expect(tracker.events.some(e =>
           e.event === 'mark:submit' &&
           e.payload?.motivation === 'assessing' &&
-          e.payload?.body?.[0]?.value === 'My assessment'
+          e.payload?.body?.value === 'My assessment'
         )).toBe(true);
       });
     });
@@ -388,8 +388,7 @@ describe('AssessmentPanel Component', () => {
         expect(tracker.events.some(e =>
           e.event === 'mark:submit' &&
           e.payload?.motivation === 'assessing' &&
-          Array.isArray(e.payload?.body) &&
-          e.payload.body.length === 0
+          e.payload?.body === undefined
         )).toBe(true);
       });
     });

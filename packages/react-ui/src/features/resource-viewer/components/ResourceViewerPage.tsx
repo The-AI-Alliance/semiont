@@ -323,15 +323,11 @@ export function ResourceViewerPage({
   // jobs attached to a specific annotation (today: generation from a
   // reference); it's what UI consumers lower down in the tree use to
   // attach per-annotation visual feedback.
-  const handleJobComplete = useCallback((event: {
-    resourceId: string;
-    jobType: string;
-    annotationId?: string;
-    result?: { resourceName?: string };
-  }) => {
+  const handleJobComplete = useCallback((event: components['schemas']['JobCompleteCommand']) => {
     if (event.resourceId !== (resource.id as string)) return;
     if (event.jobType === 'generation') {
-      const name = event.result?.resourceName;
+      const result = event.result as components['schemas']['JobGenerationResult'] | undefined;
+      const name = result?.resourceName;
       showSuccess(name
         ? `Resource "${name}" created successfully!`
         : 'Resource created successfully!');
@@ -339,12 +335,7 @@ export function ResourceViewerPage({
       showSuccess('Annotation complete');
     }
   }, [resource.id, showSuccess]);
-  const handleJobFailed = useCallback((event: {
-    resourceId: string;
-    jobType: string;
-    annotationId?: string;
-    error: string;
-  }) => {
+  const handleJobFailed = useCallback((event: components['schemas']['JobFailCommand']) => {
     if (event.resourceId !== (resource.id as string)) return;
     if (event.jobType === 'generation') {
       showError(`Resource generation failed: ${event.error}`);
@@ -481,7 +472,7 @@ export function ResourceViewerPage({
                 <ResourceViewer
                   resource={resourceWithContent}
                   annotations={groups ?? { highlights: [], comments: [], assessments: [], references: [], tags: [] }}
-                  generatingReferenceId={generationProgress?.referenceId ?? null}
+                  generatingReferenceId={generationProgress?.annotationId ?? null}
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}
                   hoveredAnnotationId={hoveredAnnotationId}
@@ -524,7 +515,7 @@ export function ResourceViewerPage({
                 progress={progress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
-                generatingReferenceId={generationProgress?.referenceId ?? null}
+                generatingReferenceId={generationProgress?.annotationId ?? null}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri}

@@ -141,7 +141,6 @@ describe('createMarkVM', () => {
     tc.client.emit('mark:submit', {
       motivation: 'highlighting',
       selector: { type: 'TextQuoteSelector', exact: 'x' },
-      body: [],
     } as any);
 
     await vi.waitFor(() => expect(failures).toHaveLength(1));
@@ -323,7 +322,7 @@ describe('createMarkVM', () => {
     const vm = createMarkVM(tc.client, RID);
     vm.dispose();
 
-    tc.client.emit('mark:submit', { motivation: 'highlighting', selector: {}, body: [] } as any);
+    tc.client.emit('mark:submit', { motivation: 'highlighting', selector: {} } as any);
     expect(annotationFn).not.toHaveBeenCalled();
   });
 });

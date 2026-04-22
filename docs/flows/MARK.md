@@ -45,7 +45,8 @@ const { annotationId } = await client.mark.annotation(resourceId, {
       suffix: ' ruled the universe',
     },
   },
-  body: [],
+  // highlighting carries no body — motivation + target is the whole
+  // annotation per the W3C Web Annotation Model.
 });
 ```
 
@@ -53,8 +54,8 @@ const { annotationId } = await client.mark.annotation(resourceId, {
 events. `client.mark.assist()` returns an Observable; internally it
 emits `job:create` (with `jobType` derived from the motivation) on the
 bus gateway. A worker claims the job, runs detection, and publishes
-`mark:progress` / `mark:assist-finished` / `mark:assist-failed` events
-as it goes.
+`job:start` / `job:report-progress` / `job:complete` / `job:fail`
+events as it goes (filtered by jobId).
 
 ```typescript
 // Detect highlights with AI

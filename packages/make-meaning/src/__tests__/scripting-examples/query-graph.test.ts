@@ -156,7 +156,7 @@ describe('Scripting Example: Query Graph Database', () => {
     await AnnotationOperations.createAnnotation(
       {
         motivation: 'commenting',
-        body: [{ value: 'This is a test comment', type: 'text' }],
+        body: [{ value: 'This is a test comment', type: 'TextualBody' }],
         target: {
           source: rId,
           selector: {
@@ -248,7 +248,7 @@ describe('Scripting Example: Query Graph Database', () => {
       await AnnotationOperations.createAnnotation(
         {
           motivation: 'commenting',
-          body: [{ value: `Comment ${i + 1}`, type: 'text' }],
+          body: [{ value: `Comment ${i + 1}`, type: 'TextualBody' }],
           target: {
             source: rId,
             selector: {

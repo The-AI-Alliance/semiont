@@ -257,7 +257,6 @@ describe('Smelter', () => {
               exact: 'Lincoln was a great leader',
             },
           },
-          body: [],
           created: new Date().toISOString(),
         },
       },

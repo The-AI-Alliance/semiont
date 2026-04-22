@@ -192,7 +192,6 @@ describe('ViewMaterializer', () => {
             },
           ],
         },
-        body: [],
         modified: new Date().toISOString(),
       };
 
@@ -223,7 +222,6 @@ describe('ViewMaterializer', () => {
         id: 'anno1',
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
-        body: [],
         modified: new Date().toISOString(),
       };
 
@@ -255,7 +253,6 @@ describe('ViewMaterializer', () => {
         id: 'anno1',
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
-        body: [],
         modified: new Date().toISOString(),
       };
 
@@ -400,7 +397,6 @@ describe('ViewMaterializer', () => {
               id: 'anno1',
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: [],
               modified: new Date().toISOString(),
             },
           },
@@ -414,7 +410,6 @@ describe('ViewMaterializer', () => {
               id: 'anno2',
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: [],
               modified: new Date().toISOString(),
             },
           },
@@ -564,7 +559,6 @@ describe('ViewMaterializer', () => {
               id: 'anno1',
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: [],
               modified: new Date().toISOString(),
             },
           },

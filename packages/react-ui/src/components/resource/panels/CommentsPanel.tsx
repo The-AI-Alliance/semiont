@@ -14,6 +14,7 @@ import './CommentsPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -43,11 +44,7 @@ interface CommentsPanelProps {
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null;
+  progress?: JobProgress | null;
   locale?: string;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;

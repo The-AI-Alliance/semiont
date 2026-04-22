@@ -89,7 +89,7 @@ describe('MarkNamespace', () => {
       'mark:create-request': () => ({ resultChannel: 'mark:create-ok', response: { annotationId: 'ann-new' } }),
     });
     const m = new MarkNamespace(makeHttp(), eventBus, () => 'tok' as any, mock.actor);
-    const result = await m.annotation(RID, { motivation: 'highlighting', target: { source: RID }, body: [] } as any);
+    const result = await m.annotation(RID, { motivation: 'highlighting', target: { source: RID } } as any);
     expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }));
     expect(result.annotationId).toBe('ann-new');
   });
