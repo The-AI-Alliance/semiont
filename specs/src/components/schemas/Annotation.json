@@ -50,10 +50,11 @@
           "items": {
             "$ref": "./AnnotationBody.json"
           },
-          "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
+          "minItems": 1,
+          "description": "Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies. minItems: 1 disambiguates this branch from the empty-stub branch in oneOf matching."
         }
       ],
-      "description": "W3C Web Annotation body - can be empty array, single body, or array of bodies"
+      "description": "W3C Web Annotation body - can be empty array (stub), a single body, or a non-empty array of bodies"
     },
     "creator": {
       "$ref": "./Agent.json"
