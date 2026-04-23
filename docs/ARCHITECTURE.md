@@ -230,8 +230,10 @@ graph TB
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
         GC["Graph Consumer"]
-        GIT[("KB Git Repo")]
+        VIEWS[("Materialized Views")]
     end
+
+    GIT[("KB Git Repo")]
 
     subgraph worker_c ["semiont-worker"]
         WORKERS["Worker Pool"]
@@ -262,11 +264,20 @@ graph TB
     SMELTER --- BUS
 
     STOWER --- GIT
+    STOWER --- VIEWS
+    VIEWS --- GIT
+    GC --- GIT
     GC --- NEO
     SMELTER --- QD
     BUS --- PG
     WORKERS --- OL
     SMELTER --- OL
+    GATHERER --- NEO
+    GATHERER --- QD
+    GATHERER --- OL
+    MATCHER --- NEO
+    MATCHER --- QD
+    MATCHER --- OL
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef actor fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
@@ -276,7 +287,7 @@ graph TB
 
     class BUS bus
     class STOWER,BROWSER,GATHERER,MATCHER,GC,WORKERS,SMELTER actor
-    class GIT,PG,NEO,QD store
+    class GIT,VIEWS,PG,NEO,QD store
     class SPA spa
     class OL service
 ```
