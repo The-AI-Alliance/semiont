@@ -73,7 +73,15 @@ graph TD
 | 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
 | 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
 
-Human actors interact through the **Human UI** — the browser and a static SPA (Vite + React). The frontend connects to one or more event buses (each backed by a Hono backend), translating DOM interactions (clicks, selections, form submissions) into events via REST and SSE. Because the frontend is a static SPA, it can be served from any file server or CDN — no server-side rendering or Node.js process required.
+Human actors interact through the **Semiont Browser** — the `apps/frontend` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-frontend` container image. A user connects to one or more Knowledge Bases (each a separate backend); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
+
+The SPA is internally a literal Model–View–ViewModel split:
+
+- **Model** — `@semiont/api-client` namespaces (browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
+- **ViewModel** — one factory per verb (`createBrowseVM`, `createMarkVM`, `createBindVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBeckonVM`) plus page-level composite VMs; pure RxJS, framework-agnostic, unit-testable without a renderer.
+- **View** — React components in `@semiont/react-ui` and `apps/frontend`, reduced to two adapters (`useViewModel`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
+
+Per-KB authentication and state live in `SemiontSession` (see [Unified Bus and SemiontSession](#unified-bus-and-semiontsession)) — the same abstraction workers and the smelter use.
 
 ```mermaid
 graph TB
@@ -203,24 +211,32 @@ The Browser is the read actor for navigation and content retrieval. It handles d
 
 ### Smelter
 
-The Smelter is the vector projection actor. When a resource is created or an annotation is added, the Smelter receives the event, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store (Qdrant). It emits `embedding:compute` commands on the bus so the Stower can persist them as `embedding:computed` domain events in `.semiont/events/` — making them part of the system of record. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
+The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the backend process — and reaches the backend through the unified bus, the same way workers do. When a resource is created or an annotation is added, the Smelter receives the event, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store (Qdrant). It emits `embedding:compute` commands on the bus so the Stower can persist them as `embedding:computed` domain events in `.semiont/events/` — making them part of the system of record. The Smelter follows the same RxJS burst-buffer pattern as the Graph Consumer for per-resource ordering and batch efficiency.
 
-### Two-Process Model: KS and Worker Pool
+### Multi-Container Topology
 
-The backend runs as two processes:
+Counting containers is ambiguous. A local deployment runs three containers of Semiont code, four if you include the frontend, or eight if you also count the infrastructure dependencies:
 
-1. **Knowledge System (KS) process** -- the main backend. Runs Stower, Browser, Gatherer, Matcher, Smelter, all KB stores, EventBus, SSE streaming, HTTP API, and the job queue.
+| Container | Semiont code | Contents |
+|---|---|---|
+| `semiont-backend` | yes | Knowledge System — Stower, Gatherer, Matcher, Browser, event log, views, content store, auth, admin, exchange, and the bus (`/bus/emit` + `/bus/subscribe`) |
+| `semiont-worker` | yes | Worker pool — reference / highlight / assessment / comment / tag annotation detection, plus resource generation |
+| `semiont-smelter` | yes | Smelter actor — chunking, embedding, vector indexing |
+| `semiont-frontend` | yes | Semiont Browser SPA (Vite), from `ghcr.io/the-ai-alliance/semiont-frontend` |
+| `semiont-postgres` | no | Users and session DB |
+| `semiont-neo4j` | no | Graph projection |
+| `semiont-qdrant` | no | Vector store |
+| `semiont-ollama` | no | Local inference and embedding (optional) |
 
-2. **Worker Pool (separate process)** -- runs the Generator and the five annotation detection workers (reference, highlight, assessment, comment, tag). The worker pool uses `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE, the same way the frontend connects. Workers are not on the in-process EventBus; they communicate with the KS through three endpoints:
-   - `GET /jobs/stream?type=...` -- SSE push of job assignments from the KS
-   - `POST /jobs/:id/claim` -- atomic job claim
-   - `POST /jobs/:id/events` -- emit domain events back to the KS EventBus
+The three Semiont-code backend containers communicate exclusively through the unified bus exposed by `semiont-backend` (`/bus/emit`, `/bus/subscribe`). Workers and the smelter authenticate via `POST /api/tokens/worker`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) for a JWT with `role: worker`; the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM and embedding work from the request-serving event loop — the backend stays responsive to human users while workers and the smelter run in separate V8 isolates.
 
-This split isolates CPU-heavy LLM and annotation work from the request-serving event loop. The KS process stays responsive to human users while workers run in a separate V8 isolate.
+### Unified Bus and SemiontSession
 
-New VMs in `@semiont/api-client` support this:
-- **WorkerVM** (`domain/`) -- worker-side: SSE subscription for job assignments, claim, and event emission back to KS
-- **JobQueueVM** (`domain/`) -- KS-side: Observable job lifecycle management
+Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, and smelter — is a bus participant using the same primitives in `@semiont/api-client`. The backend exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
+
+The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/api-client` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontApiClient` exposes `emit`, `on`, and `stream` methods over its private bus; the invariant "nothing outside client or session touches the bus" is type-enforced rather than convention.
+
+A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker and smelter containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the frontend; just different storage and different channels.
 
 ### Feeder and Content Streams
 
@@ -253,7 +269,9 @@ Semiont is a monorepo with modular packages organized in four layers:
 ```
 Foundation Layer:
   @semiont/core           - Core types, EventBus, event map, branded IDs
-  @semiont/api-client     - OpenAPI-generated types + EventBus client
+  @semiont/api-client     - OpenAPI-generated types; unified bus client; SemiontSession
+                            and storage adapters; ViewModel factories (MVVM); ActorVM /
+                            WorkerVM / SmelterActorVM primitives
 
 Domain Layer:
   @semiont/ontology       - Entity types and vocabularies
@@ -264,11 +282,13 @@ Domain Layer:
 
 AI Layer:
   @semiont/inference      - LLM integration (Anthropic, OpenAI, local)
-  @semiont/jobs           - Job queue and annotation workers
+  @semiont/jobs           - Job queue, annotation workers, and the standalone container
+                            entry points (worker-main, smelter-main) for semiont-worker
+                            and semiont-smelter
   @semiont/make-meaning   - Stower, Gatherer, Matcher, Browser, Smelter — the KB actor implementations
 
 UI Layer:
-  @semiont/react-ui       - React components, hooks, and context providers
+  @semiont/react-ui       - React components; useViewModel / useObservable adapters
 ```
 
 See [packages/README.md](../packages/README.md) for the complete dependency graph.
