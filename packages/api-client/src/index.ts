@@ -46,6 +46,7 @@ export type { Logger } from '@semiont/core';
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
 export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
+export { FrontendSessionSignals } from './session/frontend-session-signals';
 export { SemiontError, type SemiontErrorCode } from './session/errors';
 export { getBrowser, type GetBrowserOptions } from './session/registry';
 export {
@@ -62,6 +63,7 @@ export {
   defaultProtocol,
   isValidHostname,
   kbBackendUrl,
+  setStoredSession,
   type StoredSession,
 } from './session/storage';
 export { notifySessionExpired, notifyPermissionDenied } from './session/notify';

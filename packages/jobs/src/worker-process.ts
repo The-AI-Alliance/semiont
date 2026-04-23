@@ -1,18 +1,28 @@
 /**
  * Worker Process Entry Point
  *
- * Standalone Node process that uses WorkerVM to connect to a Knowledge
- * System over HTTP/SSE. Receives job assignments, processes them with
- * an inference provider, and emits domain events back to the KS.
+ * Standalone Node process that hangs a job-claim loop off a
+ * `SemiontSession`'s actor. Receives job assignments, processes them
+ * with an inference provider, and emits domain events through
+ * `session.client.actor.emit`. All HTTP and SSE goes through the
+ * api-client — no raw `fetch`, no hand-rolled multipart, no
+ * duplicate actor.
  *
  * Usage:
  *   node worker-process.js
  *
- * The WorkerVM handles the reactive contract (SSE subscription, claim,
- * event emission). This file wires the job processors to the VM.
+ * `createJobClaimAdapter` handles the reactive contract (SSE
+ * subscription, claim, completion tracking). This file wires the
+ * job processors to the adapter and drives lifecycle emissions.
  */
 
-import { createWorkerVM, type WorkerVM, type ActiveJob } from '@semiont/api-client';
+import {
+  createJobClaimAdapter,
+  type JobClaimAdapter,
+  type ActiveJob,
+  type SemiontSession,
+} from '@semiont/api-client';
+import { RESOURCE_BROADCAST_TYPES, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
@@ -29,30 +39,44 @@ import {
 type Agent = components['schemas']['Agent'];
 
 export interface WorkerProcessConfig {
-  baseUrl: string;
-  token: string;
+  session: SemiontSession;
   jobTypes: string[];
   inferenceClient: InferenceClient;
   generator: Agent;
   logger: Logger;
 }
 
-export function startWorkerProcess(config: WorkerProcessConfig): WorkerVM {
-  const { logger } = config;
-  const vm = createWorkerVM({
-    baseUrl: config.baseUrl,
-    token: config.token,
+/**
+ * Route `actor.emit` calls — choosing resource-scoped vs global based
+ * on whether the event is a cross-subscriber broadcast. Extracted
+ * from the deleted `WorkerVM.emitEvent`; kept here as a module-level
+ * helper because `handleJob` uses it a dozen times.
+ */
+async function emitEvent(
+  session: SemiontSession,
+  channel: keyof EventMap,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const isBroadcast = (RESOURCE_BROADCAST_TYPES as readonly string[]).includes(channel as string);
+  const resourceScope = isBroadcast ? (payload.resourceId as string | undefined) : undefined;
+  await session.client.actor.emit(channel as string, payload, resourceScope);
+}
+
+export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter {
+  const { session, logger } = config;
+  const adapter = createJobClaimAdapter({
+    actor: session.client.actor,
     jobTypes: config.jobTypes,
   });
 
-  vm.activeJob$.subscribe((job) => {
+  adapter.activeJob$.subscribe((job) => {
     if (!job) return;
     logger.info('Processing job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
-    handleJob(vm, config, job).catch((error) => {
+    handleJob(adapter, config, job).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
       const failAnnotationId = (job.params as { referenceId?: string }).referenceId;
-      vm.emitEvent('job:fail', {
+      emitEvent(session, 'job:fail', {
         resourceId: job.resourceId,
         userId: job.userId,
         jobId: job.jobId,
@@ -60,19 +84,23 @@ export function startWorkerProcess(config: WorkerProcessConfig): WorkerVM {
         ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
         error: message,
       }).catch(() => {});
-      vm.failJob(job.jobId, message);
+      adapter.failJob(job.jobId, message);
     });
   });
 
-  vm.start();
-  return vm;
+  adapter.start();
+  return adapter;
 }
 
 // Exported for unit testing — the orchestration (claim→fetch→process→emit→complete)
-// is the only thing not otherwise exercised by processors.test.ts +
-// worker-vm.test.ts. Do not call from outside the worker process.
-export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: ActiveJob): Promise<void> {
-  const { inferenceClient, generator } = config;
+// is the only thing not otherwise exercised by processors.test.ts.
+// Do not call from outside the worker process.
+export async function handleJob(
+  adapter: JobClaimAdapter,
+  config: WorkerProcessConfig,
+  job: ActiveJob,
+): Promise<void> {
+  const { session, inferenceClient, generator } = config;
   const { resourceId, userId, jobId, type: jobType } = job;
 
   // Annotation-scoped jobs (today: generation, triggered from a
@@ -93,10 +121,10 @@ export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: 
   // ignores it. UI consumers filter by `jobType` and/or `annotationId`
   // in the payload.
 
-  await vm.emitEvent('job:start', lifecycleBase);
+  await emitEvent(session, 'job:start', lifecycleBase);
 
   const onProgress: OnProgress = (percentage, message, stage, extra) => {
-    vm.emitEvent('job:report-progress', {
+    emitEvent(session, 'job:report-progress', {
       ...lifecycleBase,
       percentage,
       progress: {
@@ -108,14 +136,7 @@ export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: 
   };
 
   const fetchContent = async (): Promise<string> => {
-    const response = await fetch(`${config.baseUrl}/api/resources/${resourceId}`, {
-      headers: {
-        'Authorization': `Bearer ${config.token}`,
-        'Accept': 'text/plain',
-      },
-    });
-    if (!response.ok) throw new Error(`Failed to fetch content: ${response.status}`);
-    return response.text();
+    return await session.client.browse.resourceContent(resourceId as never);
   };
 
   if (jobType === 'highlight-annotation') {
@@ -124,13 +145,13 @@ export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: 
       content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('job:complete', {
+    await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result: result as never,
     });
-    vm.completeJob();
+    adapter.completeJob();
 
   } else if (jobType === 'comment-annotation') {
     const content = await fetchContent();
@@ -138,13 +159,13 @@ export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: 
       content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('job:complete', {
+    await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result: result as never,
     });
-    vm.completeJob();
+    adapter.completeJob();
 
   } else if (jobType === 'assessment-annotation') {
     const content = await fetchContent();
@@ -152,13 +173,13 @@ export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: 
       content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('job:complete', {
+    await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result: result as never,
     });
-    vm.completeJob();
+    adapter.completeJob();
 
   } else if (jobType === 'reference-annotation') {
     const content = await fetchContent();
@@ -166,13 +187,13 @@ export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: 
       content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('job:complete', {
+    await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result: result as never,
     });
-    vm.completeJob();
+    adapter.completeJob();
 
   } else if (jobType === 'tag-annotation') {
     const content = await fetchContent();
@@ -180,60 +201,51 @@ export async function handleJob(vm: WorkerVM, config: WorkerProcessConfig, job: 
       content, inferenceClient, job.params as never, userId, generator, onProgress,
     );
     for (const ann of annotations) {
-      await vm.emitEvent('mark:create', { annotation: ann, userId, resourceId });
+      await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
     }
-    await vm.emitEvent('job:complete', {
+    await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result: result as never,
     });
-    vm.completeJob();
+    adapter.completeJob();
 
   } else if (jobType === 'generation') {
     const genResult = await processGenerationJob(
       inferenceClient, job.params as never, onProgress,
     );
 
-    // Content never travels on the bus. Upload the generated bytes via
-    // the same HTTP route the /know/compose page uses (POST /api/resources).
-    // The route writes content to disk, then emits `yield:create` with the
-    // proper storageUri/contentChecksum/byteSize shape — we only learn the
-    // new resource's id from the HTTP response.
+    // Content never travels on the bus. Upload via the api-client's
+    // `client.yield.resource()` — same serializer the /know/compose
+    // page uses, so the multipart wire shape has ONE definition.
+    // The backend writes content to disk and emits `yield:create`
+    // internally; we only learn the new resourceId from the response.
     const genParams = job.params as {
       referenceId?: string;
       prompt?: string;
       language?: string;
     };
     const storageUri = deriveStorageUri(genResult.title, genResult.format);
-    const form = new FormData();
-    form.append('name', genResult.title);
-    form.append('format', genResult.format);
-    form.append('storageUri', storageUri);
-    form.append('creationMethod', 'generated');
-    const contentBlob = new Blob([genResult.content], { type: genResult.format });
-    form.append('file', contentBlob, genResult.title);
-    if (genParams.language) form.append('language', genParams.language);
-    form.append('sourceResourceId', resourceId);
-    if (genParams.referenceId) form.append('sourceAnnotationId', genParams.referenceId);
-    if (genParams.prompt) form.append('generationPrompt', genParams.prompt);
-    form.append('generator', JSON.stringify(generator));
 
-    const uploadResponse = await fetch(`${config.baseUrl}/resources`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${config.token}` },
-      body: form,
+    const { resourceId: newResourceId } = await session.client.yield.resource({
+      name: genResult.title,
+      file: Buffer.from(genResult.content),
+      format: genResult.format,
+      storageUri,
+      creationMethod: 'generated',
+      sourceResourceId: resourceId as unknown as string,
+      ...(genParams.referenceId ? { sourceAnnotationId: genParams.referenceId } : {}),
+      ...(genParams.prompt ? { generationPrompt: genParams.prompt } : {}),
+      ...(genParams.language ? { language: genParams.language } : {}),
+      generator,
     });
-    if (!uploadResponse.ok) {
-      throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
-    }
-    const { resourceId: newResourceId } = await uploadResponse.json() as { resourceId: string };
 
-    await vm.emitEvent('job:complete', {
+    await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result: { resourceId: newResourceId, resourceName: genResult.title } as never,
     });
-    vm.completeJob();
+    adapter.completeJob();
 
   } else {
-    vm.failJob(jobId, `Unknown job type: ${jobType}`);
+    adapter.failJob(jobId, `Unknown job type: ${jobType}`);
   }
 }

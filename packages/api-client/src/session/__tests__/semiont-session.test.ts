@@ -1,22 +1,25 @@
 /**
- * SemiontSession — unit tests for lifecycle, token wiring, and modal state.
- * SemiontApiClient is mocked via `vi.mock` so no real HTTP or SSE fires.
+ * SemiontSession — unit tests for lifecycle, token wiring, and the
+ * refresh/validate callback contract.
+ *
+ * `SemiontApiClient` is mocked at the module level (the session only
+ * uses it to propagate token$ into HTTP calls; the test harness
+ * doesn't exercise any real HTTP or SSE). Auth is parameterized
+ * entirely through callbacks now, so tests provide `refresh` and
+ * optional `validate` directly rather than mocking `client.getMe` /
+ * `client.refreshToken`.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, skip, take } from 'rxjs';
 
-const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
-const mockRefreshToken = vi.fn();
 const mockActorStateSubject = { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) };
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
   class MockSemiontApiClient {
-    getMe = mockGetMe;
     dispose = mockDispose;
-    refreshToken = mockRefreshToken;
     actor = { state$: mockActorStateSubject };
     eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
   }
@@ -26,7 +29,7 @@ vi.mock('../../client', async () => {
   };
 });
 
-import { SemiontSession } from '../semiont-session';
+import { SemiontSession, type SemiontSessionConfig } from '../semiont-session';
 import { SESSION_PREFIX_RE, storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
 
 function freshJwt(expSecondsFromNow = 3600): string {
@@ -45,12 +48,27 @@ const KB = {
 };
 
 let storage: TestStorage;
+let refresh: SemiontSessionConfig['refresh'] & ReturnType<typeof vi.fn>;
+let validate: NonNullable<SemiontSessionConfig['validate']> & ReturnType<typeof vi.fn>;
+
+/** Shortcut: new session with the default test callbacks. */
+function newSession(overrides?: Partial<SemiontSessionConfig>): SemiontSession {
+  return new SemiontSession({
+    kb: KB,
+    storage,
+    refresh,
+    validate,
+    ...overrides,
+  });
+}
 
 beforeEach(() => {
   storage = new TestStorage();
-  mockGetMe.mockReset();
   mockDispose.mockReset();
-  mockRefreshToken.mockReset();
+  refresh = vi.fn<() => Promise<string | null>>(async () => null) as typeof refresh;
+  validate = vi.fn<NonNullable<SemiontSessionConfig['validate']>>(
+    async () => ({ id: 'u1', email: 'a@b.c', name: 'Alice', isAdmin: false, isModerator: false } as any),
+  ) as typeof validate;
 });
 
 afterEach(() => {
@@ -59,34 +77,48 @@ afterEach(() => {
 
 describe('SemiontSession — construction & initial token', () => {
   it('starts with null token when no stored session', async () => {
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     expect(session.token$.getValue()).toBeNull();
     expect(session.user$.getValue()).toBeNull();
     await session.ready;
     await session.dispose();
   });
 
-  it('starts with stored token when unexpired, then populates user$ via getMe', async () => {
+  it('starts with stored token when unexpired, then populates user$ via the validate callback', async () => {
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
-    mockGetMe.mockResolvedValue({ id: 'u1', email: 'a@b.c', name: 'Alice', isAdmin: false, isModerator: false });
 
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     expect(session.token$.getValue()).toBe(jwt);
 
     await session.ready;
-    expect(mockGetMe).toHaveBeenCalled();
+    expect(validate).toHaveBeenCalled();
     expect(session.user$.getValue()).toMatchObject({ name: 'Alice' });
 
     await session.dispose();
   });
 
-  it('stays with null user$ if stored token is expired and no refresh path is available', async () => {
+  it('skips user validation when no validate callback is provided (service principal)', async () => {
+    const jwt = freshJwt();
+    seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
+
+    const session = newSession({ validate: undefined });
+    await session.ready;
+
+    // Token is still current, but there's no user to validate against
+    expect(session.token$.getValue()).toBe(jwt);
+    expect(session.user$.getValue()).toBeNull();
+    expect(validate).not.toHaveBeenCalled();
+
+    await session.dispose();
+  });
+
+  it('stays with null user$ if stored token is expired and refresh returns null', async () => {
     const expired = freshJwt(-3600);
     seedStoredSession(storage, KB.id, expired, 'refresh-tok');
-    mockRefreshToken.mockRejectedValue(new Error('refresh blocked'));
+    refresh.mockResolvedValue(null);
 
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     await session.ready;
     expect(session.user$.getValue()).toBeNull();
     expect(storage.get(storageKey(KB.id))).toBeNull();
@@ -95,33 +127,35 @@ describe('SemiontSession — construction & initial token', () => {
   });
 });
 
-describe('SemiontSession — modal state', () => {
-  it('notifySessionExpired sets sessionExpiredAt$ and nulls token$', async () => {
-    const session = new SemiontSession({ kb: KB, storage });
+describe('SemiontSession — refresh', () => {
+  it('calls the configured refresh callback and pushes the new token into token$', async () => {
+    const jwt = freshJwt();
+    const newJwt = freshJwt();
+    seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
+    refresh.mockResolvedValue(newJwt);
+
+    const session = newSession();
     await session.ready;
 
-    session.notifySessionExpired('expired');
-    expect(session.sessionExpiredAt$.getValue()).not.toBeNull();
-    expect(session.sessionExpiredMessage$.getValue()).toBe('expired');
-    expect(session.token$.getValue()).toBeNull();
-
-    session.acknowledgeSessionExpired();
-    expect(session.sessionExpiredAt$.getValue()).toBeNull();
-    expect(session.sessionExpiredMessage$.getValue()).toBeNull();
+    const tok = await session.refresh();
+    expect(tok).toBe(newJwt);
+    expect(session.token$.getValue()).toBe(newJwt);
 
     await session.dispose();
   });
 
-  it('notifyPermissionDenied sets permissionDeniedAt$', async () => {
-    const session = new SemiontSession({ kb: KB, storage });
+  it('fires onAuthFailed when refresh returns null', async () => {
+    const jwt = freshJwt();
+    seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
+    refresh.mockResolvedValue(null);
+    const onAuthFailed = vi.fn();
+
+    const session = newSession({ onAuthFailed });
     await session.ready;
 
-    session.notifyPermissionDenied('nope');
-    expect(session.permissionDeniedAt$.getValue()).not.toBeNull();
-    expect(session.permissionDeniedMessage$.getValue()).toBe('nope');
-
-    session.acknowledgePermissionDenied();
-    expect(session.permissionDeniedAt$.getValue()).toBeNull();
+    await session.refresh();
+    expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
+    expect(session.token$.getValue()).toBeNull();
 
     await session.dispose();
   });
@@ -129,7 +163,7 @@ describe('SemiontSession — modal state', () => {
 
 describe('SemiontSession — dispose', () => {
   it('completes subjects and calls client.dispose on dispose', async () => {
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     await session.ready;
 
     let completed = false;
@@ -141,7 +175,7 @@ describe('SemiontSession — dispose', () => {
   });
 
   it('dispose is idempotent', async () => {
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     await session.ready;
     await session.dispose();
     await session.dispose();
@@ -151,7 +185,7 @@ describe('SemiontSession — dispose', () => {
 
 describe('SemiontSession — cross-context storage sync', () => {
   it('responds to a storage change that updates this KB\'s session key', async () => {
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     await session.ready;
 
     const newJwt = freshJwt();
@@ -165,9 +199,8 @@ describe('SemiontSession — cross-context storage sync', () => {
   it('responds to a storage change that clears this KB\'s session', async () => {
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'r');
-    mockGetMe.mockResolvedValue({ id: 'u', email: 'a@b.c', name: 'A', isAdmin: false, isModerator: false });
 
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     await session.ready;
     expect(session.token$.getValue()).toBe(jwt);
 
@@ -182,9 +215,8 @@ describe('SemiontSession — cross-context storage sync', () => {
   it('ignores storage changes for other keys', async () => {
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'r');
-    mockGetMe.mockResolvedValue({ id: 'u', email: 'a@b.c', name: 'A', isAdmin: false, isModerator: false });
 
-    const session = new SemiontSession({ kb: KB, storage });
+    const session = newSession();
     await session.ready;
 
     storage.dispatch('semiont.session.OTHER_KB', JSON.stringify({ access: 'xyz', refresh: 'q' }));

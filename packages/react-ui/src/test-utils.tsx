@@ -34,16 +34,25 @@ function createFakeBrowserForTests(
     kb: null,
     user$: new BehaviorSubject<any>(null),
     token$: new BehaviorSubject<any>(null),
+    expiresAt: null,
+    refresh: vi.fn(async () => null),
+  };
+  // Modal-state mock sits on its own BehaviorSubject so tests that
+  // exercise the session-expired / permission-denied paths can poke
+  // it directly. Mirrors the `FrontendSessionSignals` shape.
+  const fakeSignals = {
     sessionExpiredAt$: new BehaviorSubject<number | null>(null),
     sessionExpiredMessage$: new BehaviorSubject<string | null>(null),
     permissionDeniedAt$: new BehaviorSubject<number | null>(null),
     permissionDeniedMessage$: new BehaviorSubject<string | null>(null),
-    expiresAt: null,
-    refresh: vi.fn(async () => null),
+    notifySessionExpired: vi.fn(),
+    notifyPermissionDenied: vi.fn(),
     acknowledgeSessionExpired: vi.fn(),
     acknowledgePermissionDenied: vi.fn(),
+    dispose: vi.fn(),
   };
   const activeSession$ = new BehaviorSubject<any>(fakeSession);
+  const activeSignals$ = new BehaviorSubject<any>(fakeSignals);
   const sessionActivating$ = new BehaviorSubject<boolean>(false);
   const identityToken$ = new BehaviorSubject<null>(null);
   const openResources$ = new BehaviorSubject<any[]>([]);
@@ -55,6 +64,7 @@ function createFakeBrowserForTests(
   const shellBus = new EventBus();
   return {
     activeSession$,
+    activeSignals$,
     sessionActivating$,
     identityToken$,
     openResources$,
@@ -225,7 +235,7 @@ export function createMockTranslationManager(
 }
 
 /**
- * Build a fake SemiontBrowser with the active session's modal-state
+ * Build a fake SemiontBrowser with the active FrontendSessionSignals
  * observables pre-populated. Used by SessionExpiredModal and
  * PermissionDeniedModal tests that need to control the modal flags
  * without driving a real session through its state machine.
@@ -242,17 +252,23 @@ export function createMockKnowledgeBaseSession(overrides: {
     kb: null,
     user$: new BehaviorSubject<unknown>(null),
     token$: new BehaviorSubject<unknown>(null),
+    expiresAt: null,
+    refresh: vi.fn(async () => null),
+  };
+  const signals = {
     permissionDeniedAt$: new BehaviorSubject<number | null>(overrides.permissionDeniedAt ?? null),
     permissionDeniedMessage$: new BehaviorSubject<string | null>(overrides.permissionDeniedMessage ?? null),
     sessionExpiredAt$: new BehaviorSubject<number | null>(overrides.sessionExpiredAt ?? null),
     sessionExpiredMessage$: new BehaviorSubject<string | null>(overrides.sessionExpiredMessage ?? null),
+    notifyPermissionDenied: vi.fn(),
+    notifySessionExpired: vi.fn(),
     acknowledgePermissionDenied: overrides.acknowledgePermissionDenied ?? vi.fn(),
     acknowledgeSessionExpired: overrides.acknowledgeSessionExpired ?? vi.fn(),
-    expiresAt: null,
-    refresh: vi.fn(async () => null),
+    dispose: vi.fn(),
   };
   return {
     activeSession$: new BehaviorSubject(session),
+    activeSignals$: new BehaviorSubject(signals),
     sessionActivating$: new BehaviorSubject<boolean>(false),
     kbs$: new BehaviorSubject<unknown[]>([]),
     activeKbId$: new BehaviorSubject<string | null>(null),

@@ -1,11 +1,53 @@
 /**
- * Route Authentication Coverage Tests
+ * Route / Spec Coverage Tests
  *
- * Systematically verifies that ALL backend routes require authentication
- * except for explicitly public endpoints.
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │  PRIMARY PURPOSE: enforce authentication-by-default across      │
+ * │  every registered backend route. No route gets to ship without  │
+ * │  either proving it returns 401 to unauthenticated callers, or   │
+ * │  being explicitly declared public in the OpenAPI spec.          │
+ * │                                                                 │
+ * │  Any failure in this file is a security regression until        │
+ * │  proven otherwise. Do not mark tests `.skip`; do not disable    │
+ * │  the workflow. If a new route can't pass, the route is wrong,   │
+ * │  not the test.                                                  │
+ * └─────────────────────────────────────────────────────────────────┘
  *
- * This test uses the OpenAPI spec as the single source of truth for public routes.
- * NO hard-coded allow-lists - everything is derived from the spec or auto-detected.
+ * The test enforces this against `app.routes` (every route actually
+ * registered in Hono) cross-referenced with `specs/openapi.json`
+ * (the single source of truth for which routes are public). If a
+ * spec entry omits `security` or declares `security: []`, the route
+ * is public; every other registered route MUST return 401 without a
+ * valid bearer token.
+ *
+ * ─── Supporting hygiene checks ─────────────────────────────────────
+ *
+ * Because auth-by-default depends on the spec being an accurate
+ * mirror of the code, three additional describe blocks keep the
+ * spec honest. Every one of them is in service of the primary auth
+ * check — if the spec drifts from code, auth-by-default can be
+ * silently bypassed (a route in code with no spec entry has no
+ * "public or protected" declaration the test can trust).
+ *
+ *   - Bidirectional Spec/Code Coverage — every registered route must
+ *     be in the spec; every spec entry must map to a registered
+ *     route; methods must line up. A phantom route in the spec or an
+ *     unspec'd route in code both weaken the auth contract.
+ *
+ *   - Spec Contract Hygiene — path parameter names match, $refs
+ *     resolve, no orphan schemas. Catches the kind of latent rot
+ *     that lets a spec silently fall out of sync.
+ *
+ *   - Request-Body Validation — every spec-declared JSON request
+ *     body must be wired through `validateRequestBody()` somewhere
+ *     in backend source. Protects against "spec claims the body is
+ *     validated, handler accepts garbage."
+ *
+ * Everything derives from the spec and `app.routes`. The only
+ * hand-curated lists are `DOCUMENTATION_META_ROUTES` (the five
+ * self-referential docs endpoints) and `MANUAL_REQUEST_VALIDATION`
+ * (auth/OAuth handlers that validate in-handler instead of via
+ * middleware — each entry carries a one-line justification).
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -41,64 +83,149 @@ const DOCUMENTATION_META_ROUTES = [
   '/api/openapi.json', // OpenAPI spec file itself
 ] as const;
 
-/**
- * Load OpenAPI spec and extract public routes
- * This is the SINGLE SOURCE OF TRUTH for which routes are public
- */
-async function loadPublicRoutesFromSpec(): Promise<Set<string>> {
-  const fs = await import('fs/promises');
-  const path = await import('path');
+// ─── HTTP method constants ─────────────────────────────────────────
+const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'] as const;
+type HttpMethod = typeof HTTP_METHODS[number];
 
-  const specPath = path.join(process.cwd(), '../../specs/openapi.json');
-  const specContent = await fs.readFile(specPath, 'utf-8');
-  const spec = JSON.parse(specContent);
+// ─── Shared types ─────────────────────────────────────────────────
+interface RouteKey {
+  method: string; // uppercase
+  path: string;   // Hono-format (`:param`, not `{param}`)
+}
 
-  const publicRoutes = new Set<string>();
-
-  // Extract routes without security requirements from OpenAPI spec
-  for (const [routePath, pathItem] of Object.entries(spec.paths || {})) {
-    for (const [method, operation] of Object.entries(pathItem as Record<string, any>)) {
-      // Skip non-operation keys
-      if (!['get', 'post', 'put', 'patch', 'delete', 'options', 'head'].includes(method.toLowerCase())) {
-        continue;
-      }
-
-      // Routes without security field or with empty security array are public
-      const security = operation.security;
-      const isPublic = !security || (Array.isArray(security) && security.length === 0);
-
-      if (isPublic) {
-        // Convert OpenAPI format {id} to Hono format :id
-        const honoPath = routePath.replace(/\{(\w+)\}/g, ':$1');
-        publicRoutes.add(honoPath);
-      }
-    }
-  }
-
-  // Add documentation meta-routes (not in spec, but legitimately public)
-  DOCUMENTATION_META_ROUTES.forEach(route => publicRoutes.add(route));
-
-  return publicRoutes;
+interface SpecOperation {
+  security?: unknown[];
+  requestBody?: {
+    content?: {
+      'application/json'?: {
+        schema?: { $ref?: string };
+      };
+    };
+  };
+  [key: string]: unknown;
 }
 
 /**
- * Check if a route is public based on OpenAPI spec
+ * Convert an OpenAPI path template (`/resources/{id}`) into the Hono
+ * path pattern (`/resources/:id`). Normalized comparison requires
+ * this mapping; keep it in one place so every caller agrees.
  */
+function openApiPathToHonoPath(openApiPath: string): string {
+  return openApiPath.replace(/\{(\w+)\}/g, ':$1');
+}
+
+/**
+ * Extract parameter names from an OpenAPI path template.
+ * `/resources/{id}/foo/{bar}` → ['id', 'bar']
+ */
+function specPathParams(openApiPath: string): string[] {
+  return Array.from(openApiPath.matchAll(/\{(\w+)\}/g), (m) => m[1]!);
+}
+
+/**
+ * Extract parameter names from a Hono path pattern.
+ * `/resources/:id/foo/:bar` → ['id', 'bar']
+ */
+function honoPathParams(honoPath: string): string[] {
+  return Array.from(honoPath.matchAll(/:(\w+)/g), (m) => m[1]!);
+}
+
+/**
+ * Read the bundled OpenAPI spec from disk. Single I/O hit — every
+ * describe block that needs spec data pulls from this one result.
+ */
+async function loadSpec(): Promise<any> {
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  const specPath = path.join(process.cwd(), '../../specs/openapi.json');
+  const specContent = await fs.readFile(specPath, 'utf-8');
+  return JSON.parse(specContent);
+}
+
+/**
+ * Enumerate every `(method, honoPath)` pair declared in the spec.
+ * Skips non-operation keys (`parameters`, `summary`, etc.).
+ */
+function enumerateSpecRoutes(spec: any): RouteKey[] {
+  const out: RouteKey[] = [];
+  for (const [specPath, pathItem] of Object.entries(spec.paths ?? {})) {
+    for (const [method, operation] of Object.entries(pathItem as Record<string, unknown>)) {
+      if (!HTTP_METHODS.includes(method.toLowerCase() as HttpMethod)) continue;
+      if (operation === null || typeof operation !== 'object') continue;
+      out.push({
+        method: method.toUpperCase(),
+        path: openApiPathToHonoPath(specPath),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Enumerate every `(method, path)` pair registered in the Hono app,
+ * deduplicated across Hono's middleware-expansion (same route
+ * appears once per layer).
+ *
+ * Method=`ALL` entries are filtered out: Hono emits those for
+ * `app.use()` middleware registrations (e.g. auth middleware
+ * attached to a path). They aren't routes users can call; they
+ * wrap real routes. The spec describes endpoints, not middleware.
+ */
+function enumerateAppRoutes(app: Hono<{ Variables: Variables }>): RouteKey[] {
+  const seen = new Set<string>();
+  const out: RouteKey[] = [];
+  for (const route of app.routes) {
+    const method = route.method.toUpperCase();
+    if (method === 'ALL') continue;
+    const key = `${method} ${route.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ method, path: route.path });
+  }
+  return out;
+}
+
+/**
+ * Extract the public-route set from already-loaded spec data.
+ * A route is public when its operation declares no `security` field
+ * or an empty `security: []` array. Meta-routes serving the docs
+ * themselves are added in as unconditionally public.
+ */
+function extractPublicRoutes(spec: any): Set<string> {
+  const publicRoutes = new Set<string>();
+  for (const [specPath, pathItem] of Object.entries(spec.paths ?? {})) {
+    for (const [method, operation] of Object.entries(pathItem as Record<string, unknown>)) {
+      if (!HTTP_METHODS.includes(method.toLowerCase() as HttpMethod)) continue;
+      const op = operation as SpecOperation;
+      const security = op.security;
+      const isPublic = !security || (Array.isArray(security) && security.length === 0);
+      if (isPublic) publicRoutes.add(openApiPathToHonoPath(specPath));
+    }
+  }
+  DOCUMENTATION_META_ROUTES.forEach((r) => publicRoutes.add(r));
+  return publicRoutes;
+}
+
+/** Route is explicitly public per the OpenAPI spec. */
 function isPublicRoute(path: string, publicRoutes: Set<string>): boolean {
   return publicRoutes.has(path);
 }
 
 /**
- * Check if a route is a catch-all pattern (contains /*)
- * Auto-detected - no hard-coded list needed
+ * Catch-all patterns (`/*`) auto-detected — these are Hono middleware
+ * / 404 handlers, not real endpoints.
  */
 function isCatchAllRoute(path: string): boolean {
   return path.includes('/*');
 }
 
-// Helper to convert route pattern to testable path
+/**
+ * Replace `:param` placeholders with harmless test values so the
+ * path can be sent through `app.request()` without trailing
+ * validation complaints. Auth tests don't care about the specific
+ * value, only that the route matches.
+ */
 function routePatternToTestPath(pattern: string): string {
-  // Replace :param with test-value
   return pattern
     .replace(/:id/g, 'test-id')
     .replace(/:resourceId/g, 'test-resource-id')
@@ -107,23 +234,30 @@ function routePatternToTestPath(pattern: string): string {
     .replace(/\*/g, 'wildcard');
 }
 
-describe('Route Authentication Coverage', () => {
-  let app: Hono<{ Variables: Variables }>;
-  let testEnv: TestEnvironmentConfig;
-  let publicRoutes: Set<string>;
+// ─── Shared test state, loaded once ────────────────────────────────
+//
+// Every describe block below reads from this closure; `beforeAll`
+// populates it once per file run so neither the Hono app nor the
+// spec is parsed more than once.
+let app: Hono<{ Variables: Variables }>;
+let testEnv: TestEnvironmentConfig;
+let spec: any;
+let publicRoutes: Set<string>;
 
-  beforeAll(async () => {
-    testEnv = await setupTestEnvironment();
-    const { app: importedApp } = await import('../index');
-    app = importedApp;
+beforeAll(async () => {
+  testEnv = await setupTestEnvironment();
+  const { app: importedApp } = await import('../index');
+  app = importedApp;
 
-    // Load public routes from OpenAPI spec (single source of truth)
-    publicRoutes = await loadPublicRoutesFromSpec();
-  });
+  spec = await loadSpec();
+  publicRoutes = extractPublicRoutes(spec);
+});
 
-  afterAll(async () => {
-    await testEnv.cleanup();
-  });
+afterAll(async () => {
+  await testEnv.cleanup();
+});
+
+describe('Route Authentication Coverage — THE primary security contract', () => {
 
   describe('Public Routes', () => {
     it('should allow access to documented public endpoints without authentication', async () => {
@@ -621,5 +755,375 @@ describe('Route Authentication Coverage', () => {
         expect(body.error.toLowerCase()).not.toContain('exist');
       }
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Supporting contract — keeping the spec honest so auth-by-default
+//  above can trust it as a source of truth.
+// ═══════════════════════════════════════════════════════════════════
+
+/** Normalize a RouteKey for use as a Map/Set key. */
+function routeKeyString(r: RouteKey): string {
+  return `${r.method} ${r.path}`;
+}
+
+describe('Spec/Code Bidirectional Coverage', () => {
+  it('every registered route has a spec entry (code ⊆ spec)', () => {
+    const codeRoutes = enumerateAppRoutes(app);
+    const specRouteKeys = new Set(enumerateSpecRoutes(spec).map(routeKeyString));
+
+    const missing: RouteKey[] = [];
+    for (const r of codeRoutes) {
+      if (isCatchAllRoute(r.path)) continue;
+      if (DOCUMENTATION_META_ROUTES.includes(r.path as typeof DOCUMENTATION_META_ROUTES[number])) continue;
+      if (!specRouteKeys.has(routeKeyString(r))) missing.push(r);
+    }
+
+    if (missing.length > 0) {
+      console.error('\n❌ Routes registered in code but missing from the OpenAPI spec:');
+      missing.forEach((r) => console.error(`   ${r.method.padEnd(6)} ${r.path}`));
+      console.error(
+        '\n   Fix: author a spec file under `specs/src/paths/` and register it in\n' +
+          '   `specs/src/openapi.json`, then run `npm run generate:openapi`.\n',
+      );
+    }
+
+    expect(missing).toEqual([]);
+  });
+
+  it('every spec entry maps to a registered route (spec ⊆ code)', () => {
+    const codeRouteKeys = new Set(enumerateAppRoutes(app).map(routeKeyString));
+    const specRoutes = enumerateSpecRoutes(spec);
+
+    const phantoms: RouteKey[] = [];
+    for (const r of specRoutes) {
+      if (!codeRouteKeys.has(routeKeyString(r))) phantoms.push(r);
+    }
+
+    if (phantoms.length > 0) {
+      console.error('\n❌ Paths declared in the OpenAPI spec but not registered in the Hono app:');
+      phantoms.forEach((r) => console.error(`   ${r.method.padEnd(6)} ${r.path}`));
+      console.error(
+        '\n   Fix: either implement the route, or remove the spec entry.\n' +
+          '   Phantom routes mislead API consumers and weaken the spec as a contract.\n',
+      );
+    }
+
+    expect(phantoms).toEqual([]);
+  });
+
+  it('methods declared in the spec match methods registered in code for each path', () => {
+    const codeByPath = new Map<string, Set<string>>();
+    for (const r of enumerateAppRoutes(app)) {
+      if (!codeByPath.has(r.path)) codeByPath.set(r.path, new Set());
+      codeByPath.get(r.path)!.add(r.method);
+    }
+
+    const specByPath = new Map<string, Set<string>>();
+    for (const r of enumerateSpecRoutes(spec)) {
+      if (!specByPath.has(r.path)) specByPath.set(r.path, new Set());
+      specByPath.get(r.path)!.add(r.method);
+    }
+
+    const mismatches: Array<{ path: string; specOnly: string[]; codeOnly: string[] }> = [];
+    for (const [path, specMethods] of specByPath) {
+      const codeMethods = codeByPath.get(path);
+      if (!codeMethods) continue; // phantom — already reported by the previous test
+      const specOnly = [...specMethods].filter((m) => !codeMethods.has(m));
+      const codeOnly = [...codeMethods].filter((m) => !specMethods.has(m));
+      if (specOnly.length || codeOnly.length) mismatches.push({ path, specOnly, codeOnly });
+    }
+
+    if (mismatches.length > 0) {
+      console.error('\n❌ Methods disagree between spec and code on these paths:');
+      mismatches.forEach((m) => {
+        const parts: string[] = [];
+        if (m.specOnly.length) parts.push(`spec-only [${m.specOnly.join(', ')}]`);
+        if (m.codeOnly.length) parts.push(`code-only [${m.codeOnly.join(', ')}]`);
+        console.error(`   ${m.path}: ${parts.join('; ')}`);
+      });
+    }
+
+    expect(mismatches).toEqual([]);
+  });
+});
+
+describe('Spec Contract Hygiene', () => {
+  it('path parameter names match between spec and code on every shared path', () => {
+    const specPathTemplates = Object.keys(spec.paths ?? {});
+    const appPaths = new Set(enumerateAppRoutes(app).map((r) => r.path));
+
+    const mismatches: Array<{ specPath: string; hono: string; specParams: string[]; codeParams: string[] }> = [];
+    for (const specPath of specPathTemplates) {
+      const honoPath = openApiPathToHonoPath(specPath);
+      if (!appPaths.has(honoPath)) continue; // phantom — not our concern here
+      const specParams = specPathParams(specPath).sort();
+      const codeParams = honoPathParams(honoPath).sort();
+      if (JSON.stringify(specParams) !== JSON.stringify(codeParams)) {
+        mismatches.push({ specPath, hono: honoPath, specParams, codeParams });
+      }
+    }
+
+    if (mismatches.length > 0) {
+      console.error('\n❌ Path parameter names disagree between spec and Hono route:');
+      mismatches.forEach((m) => {
+        console.error(
+          `   ${m.specPath}\n     spec: [${m.specParams.join(', ')}]\n     code: [${m.codeParams.join(', ')}]`,
+        );
+      });
+    }
+
+    expect(mismatches).toEqual([]);
+  });
+
+  it('every $ref in the spec resolves to a schema that exists in components/schemas', async () => {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const schemasDir = path.join(process.cwd(), '../../specs/src/components/schemas');
+
+    const refs = new Set<string>();
+    const collectRefs = (node: unknown): void => {
+      if (node === null || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (const v of node) collectRefs(v);
+        return;
+      }
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        if (k === '$ref' && typeof v === 'string') refs.add(v);
+        else collectRefs(v);
+      }
+    };
+    collectRefs(spec);
+
+    const declaredSchemas = new Set(Object.keys(spec.components?.schemas ?? {}));
+    const unresolved: string[] = [];
+    for (const ref of refs) {
+      // `$ref: '#/components/schemas/Foo'` is the canonical internal form after redocly bundles.
+      const match = ref.match(/^#\/components\/schemas\/([A-Za-z0-9_]+)$/);
+      if (match) {
+        const schemaName = match[1]!;
+        if (!declaredSchemas.has(schemaName)) unresolved.push(ref);
+        continue;
+      }
+      // Any other `$ref` shape post-bundle is unexpected and itself a drift signal.
+      unresolved.push(ref);
+    }
+
+    // Sanity check: confirm each declared schema has a file on disk (catches
+    // components pointing at missing JSON files after a rename).
+    const missingOnDisk: string[] = [];
+    for (const schemaName of declaredSchemas) {
+      const filePath = path.join(schemasDir, `${schemaName}.json`);
+      try {
+        await fs.access(filePath);
+      } catch {
+        missingOnDisk.push(`${schemaName} (expected at ${filePath})`);
+      }
+    }
+
+    if (unresolved.length > 0) {
+      console.error('\n❌ Unresolved $refs in the OpenAPI spec:');
+      unresolved.slice(0, 20).forEach((r) => console.error(`   ${r}`));
+      if (unresolved.length > 20) console.error(`   ...and ${unresolved.length - 20} more`);
+    }
+    if (missingOnDisk.length > 0) {
+      console.error('\n❌ Declared component schemas with no file on disk:');
+      missingOnDisk.forEach((s) => console.error(`   ${s}`));
+    }
+
+    expect(unresolved).toEqual([]);
+    expect(missingOnDisk).toEqual([]);
+  });
+
+  it('every schema file on disk is referenced somewhere (spec $ref or code string-literal)', async () => {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const schemasDir = path.join(process.cwd(), '../../specs/src/components/schemas');
+
+    const files = (await fs.readdir(schemasDir)).filter((f) => f.endsWith('.json'));
+    const onDisk = new Set(files.map((f) => f.replace(/\.json$/, '')));
+
+    // Spec references: every `$ref` pointing at `#/components/schemas/Name`.
+    const referenced = new Set<string>();
+    const collectRefs = (node: unknown): void => {
+      if (node === null || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (const v of node) collectRefs(v);
+        return;
+      }
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        if (k === '$ref' && typeof v === 'string') {
+          const match = v.match(/^#\/components\/schemas\/([A-Za-z0-9_]+)$/);
+          if (match) referenced.add(match[1]!);
+        } else collectRefs(v);
+      }
+    };
+    collectRefs(spec);
+
+    // Code references: schemas are also used at runtime as string literals
+    // and as TypeScript type lookups, outside the HTTP `$ref` surface.
+    // Three patterns count as "referenced":
+    //
+    //   1. `'<Name>'` or `"<Name>"` — string literal, catches
+    //      `CHANNEL_SCHEMAS` entries, `validateRequestBody('Name')`,
+    //      and `components['schemas']['Name']` type indexing.
+    //   2. Inside any `components['schemas'][...]` type access.
+    //   3. Module-level type aliases that use the schema name (already
+    //      covered by (1) since the alias RHS contains the string
+    //      literal).
+    //
+    // Strategy: for each candidate orphan, grep every `.ts`/`.tsx` file
+    // under `packages/*/src` and `apps/*/src` (excluding test/dist/
+    // node_modules). A single occurrence counts as "referenced."
+    const repoRoot = path.resolve(process.cwd(), '../..');
+    const searchRoots: string[] = [];
+    for (const parent of ['packages', 'apps']) {
+      const parentDir = path.join(repoRoot, parent);
+      try {
+        const pkgs = await fs.readdir(parentDir, { withFileTypes: true });
+        for (const p of pkgs) {
+          if (!p.isDirectory()) continue;
+          const srcDir = path.join(parentDir, p.name, 'src');
+          try {
+            await fs.access(srcDir);
+            searchRoots.push(srcDir);
+          } catch {
+            // package has no src/ — skip
+          }
+        }
+      } catch {
+        // parent dir missing — skip
+      }
+    }
+
+    async function grepSchemaNames(dir: string, names: Set<string>, hits: Set<string>): Promise<void> {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === '__tests__' || entry.name === 'node_modules' || entry.name === 'dist') continue;
+          await grepSchemaNames(full, names, hits);
+        } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
+          const content = await fs.readFile(full, 'utf-8');
+          for (const name of names) {
+            if (hits.has(name)) continue;
+            // Match the name as a string literal: 'Foo' or "Foo" or `Foo`
+            const pattern = new RegExp(`['"\`]${name}['"\`]`);
+            if (pattern.test(content)) hits.add(name);
+          }
+        }
+      }
+    }
+    const candidateOrphans = new Set<string>();
+    for (const name of onDisk) {
+      if (!referenced.has(name)) candidateOrphans.add(name);
+    }
+    const codeHits = new Set<string>();
+    for (const root of searchRoots) {
+      await grepSchemaNames(root, candidateOrphans, codeHits);
+    }
+
+    const orphans: string[] = [];
+    for (const name of candidateOrphans) {
+      if (!codeHits.has(name)) orphans.push(name);
+    }
+    orphans.sort();
+
+    if (orphans.length > 0) {
+      console.error('\n⚠️  Schema files with no incoming $ref from the spec AND no string-literal reference in code:');
+      orphans.forEach((o) => console.error(`   specs/src/components/schemas/${o}.json`));
+      console.error(
+        '\n   Fix: either reference the schema from a path/another schema,\n' +
+          '   wire it into runtime validation (e.g. CHANNEL_SCHEMAS or validateRequestBody),\n' +
+          '   or delete the file if truly unused.\n',
+      );
+    }
+
+    expect(orphans).toEqual([]);
+  });
+});
+
+// ─── Step 3: Request-body validation enforcement ──────────────────
+//
+// Every spec operation declaring a JSON request body promises a
+// contract: the handler only ever receives payloads matching the
+// declared schema. The way the backend delivers on that promise
+// today is `validateRequestBody('<SchemaName>')` middleware. A spec
+// entry claiming a schema, with no matching middleware call in
+// source, is a spec that lies about its contract.
+//
+// A small set of auth/OAuth handlers predates the middleware and
+// does manual field checks. They're listed here with a reason;
+// anything else must use `validateRequestBody`.
+const MANUAL_REQUEST_VALIDATION = new Map<string, string>([
+  ['MediaTokenRequest', 'auth handler does manual field presence check on resourceId'],
+  ['CookieConsentRequest', 'handler enforces necessary=true alongside shape check'],
+  ['BusEmitRequest', 'bus emit validates per-channel payload shape, not the envelope'],
+]);
+
+describe('Request-Body Validation', () => {
+  it('every spec-declared JSON request body is validated somewhere in backend source', async () => {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+
+    // Collect schema names declared as JSON request bodies across the spec.
+    const jsonBodySchemas = new Set<string>();
+    for (const pathItem of Object.values(spec.paths ?? {})) {
+      for (const [method, operation] of Object.entries(pathItem as Record<string, unknown>)) {
+        if (!HTTP_METHODS.includes(method.toLowerCase() as HttpMethod)) continue;
+        const op = operation as SpecOperation;
+        const ref = op.requestBody?.content?.['application/json']?.schema?.$ref;
+        if (!ref) continue;
+        const match = ref.match(/^#\/components\/schemas\/([A-Za-z0-9_]+)$/);
+        if (match) jsonBodySchemas.add(match[1]!);
+      }
+    }
+
+    // Recursively scan backend source for `validateRequestBody('Name')` calls.
+    const srcDir = path.join(process.cwd(), 'src');
+    const validatedSchemas = new Set<string>();
+    async function walk(dir: string): Promise<void> {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === '__tests__' || entry.name === 'node_modules') continue;
+          await walk(full);
+        } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
+          const content = await fs.readFile(full, 'utf-8');
+          for (const m of content.matchAll(/validateRequestBody\s*\(\s*['"]([A-Za-z0-9_]+)['"]\s*\)/g)) {
+            validatedSchemas.add(m[1]!);
+          }
+        }
+      }
+    }
+    await walk(srcDir);
+
+    const unvalidated: string[] = [];
+    const exemptedButValidated: string[] = [];
+    for (const name of jsonBodySchemas) {
+      const isValidatedViaMiddleware = validatedSchemas.has(name);
+      const isExempted = MANUAL_REQUEST_VALIDATION.has(name);
+      if (!isValidatedViaMiddleware && !isExempted) unvalidated.push(name);
+      if (isValidatedViaMiddleware && isExempted) exemptedButValidated.push(name);
+    }
+
+    if (unvalidated.length > 0) {
+      console.error('\n❌ Spec declares a JSON request body, but no handler validates it:');
+      unvalidated.forEach((s) => console.error(`   ${s}`));
+      console.error(
+        '\n   Fix: add `validateRequestBody(\'<SchemaName>\')` middleware to the\n' +
+          '   route, or add the schema to MANUAL_REQUEST_VALIDATION with a\n' +
+          '   justification if the handler validates in-body.\n',
+      );
+    }
+    if (exemptedButValidated.length > 0) {
+      console.error('\n⚠️  Schemas listed as manually-validated but also use the middleware:');
+      exemptedButValidated.forEach((s) => console.error(`   ${s} — remove from MANUAL_REQUEST_VALIDATION`));
+    }
+
+    expect(unvalidated).toEqual([]);
+    expect(exemptedButValidated).toEqual([]);
   });
 });

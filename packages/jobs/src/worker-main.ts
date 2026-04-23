@@ -2,7 +2,9 @@
  * Worker Pool Main — standalone entry point
  *
  * Reads configuration from ~/.semiontconfig (TOML). Authenticates
- * with the KS via shared secret. Starts the worker pool.
+ * with the KS via shared secret. Starts the worker process on top
+ * of a `SemiontSession` so every HTTP call and bus emit goes
+ * through the api-client, not raw `fetch`.
  *
  * Environment variables (only two):
  *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
@@ -15,9 +17,15 @@ import { startWorkerProcess } from './worker-process';
 import { createInferenceClient, type InferenceClientConfig } from '@semiont/inference';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
-import { homedir } from 'os';
+import { homedir, hostname } from 'os';
 import { join } from 'path';
-import type { components } from '@semiont/core';
+import { type components } from '@semiont/core';
+import {
+  SemiontSession,
+  InMemorySessionStorage,
+  setStoredSession,
+  type KnowledgeBase,
+} from '@semiont/api-client';
 
 type Agent = components['schemas']['Agent'];
 
@@ -65,7 +73,7 @@ const config = readSemiontConfig();
 const env = config['defaults.environment'] || 'local';
 const get = (key: string): string => config[`environments.${env}.${key}`] ?? '';
 
-const baseUrl = get('backend.publicURL') || 'http://localhost:4000';
+const backendBaseUrl = get('backend.publicURL') || 'http://localhost:4000';
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 const healthPort = Number(get('workers.healthPort') || '9090');
 
@@ -84,7 +92,25 @@ import { createProcessLogger } from './logger';
 
 const logger = createProcessLogger('worker');
 
-// ── Authenticate and start ────────────────────────────────────────────
+// ── Build a synthetic KB for the worker ──────────────────────────────
+//
+// SemiontSession is KB-scoped: every session is tied to one backend
+// instance identified by protocol/host/port. Workers aren't user-
+// scoped, but they are backend-scoped — they connect to exactly one
+// Semiont backend. Represent that as a synthetic KnowledgeBase whose
+// `email` carries the worker's service-principal identity.
+
+function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
+  const parsed = new URL(url);
+  const protocol = (parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http') as 'http' | 'https';
+  const host = parsed.hostname;
+  const port = parsed.port
+    ? Number(parsed.port)
+    : protocol === 'https' ? 443 : 80;
+  return { protocol, host, port };
+}
+
+// ── Authenticate: exchange shared secret for a JWT ────────────────────
 
 async function authenticate(): Promise<string> {
   if (!workerSecret) {
@@ -92,7 +118,7 @@ async function authenticate(): Promise<string> {
     return '';
   }
 
-  const response = await fetch(`${baseUrl}/api/tokens/worker`, {
+  const response = await fetch(`${backendBaseUrl}/api/tokens/worker`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ secret: workerSecret }),
@@ -107,8 +133,8 @@ async function authenticate(): Promise<string> {
 }
 
 async function main() {
-  logger.info('Authenticating', { baseUrl });
-  const token = await authenticate();
+  logger.info('Authenticating', { baseUrl: backendBaseUrl });
+  const initialToken = await authenticate();
   logger.info('Authenticated');
 
   const inferenceClient = createInferenceClient(inferenceConfig, logger);
@@ -120,16 +146,57 @@ async function main() {
     model: inferenceModel,
   };
 
-  const vm = startWorkerProcess({
-    baseUrl,
-    token,
+  // Construct a synthetic KB + pre-seed an in-memory storage with the
+  // initial token so SemiontSession starts with a ready-to-use token$.
+  // The `refresh` callback re-exchanges the shared secret on expiry.
+  const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
+  const kbId = `worker-${hostname()}`;
+  const kb: KnowledgeBase = {
+    id: kbId,
+    label: `Worker pool @ ${host}`,
+    host,
+    port,
+    protocol,
+    email: `worker-pool@${host}`,
+  };
+  const storage = new InMemorySessionStorage();
+  setStoredSession(storage, kbId, { access: initialToken, refresh: '' });
+
+  const session = new SemiontSession({
+    kb,
+    storage,
+    refresh: async () => {
+      try {
+        return await authenticate();
+      } catch (err) {
+        logger.error('Worker token refresh failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+      }
+    },
+    // No validate callback — workers are service principals with no
+    // user record to fetch. `session.user$` stays null.
+    onError: (err) => {
+      logger.error('Session error', { code: err.code, message: err.message });
+    },
+  });
+  await session.ready;
+
+  const workerVm = startWorkerProcess({
+    session,
     jobTypes: ALL_JOB_TYPES,
     inferenceClient,
     generator,
     logger,
   });
 
-  logger.info('Connected', { baseUrl, inferenceType, inferenceModel, inferenceEndpoint });
+  logger.info('Connected', {
+    baseUrl: backendBaseUrl,
+    inferenceType,
+    inferenceModel,
+    inferenceEndpoint,
+  });
 
   const health = createServer((req, res) => {
     if (req.url === '/health') {
@@ -144,9 +211,10 @@ async function main() {
     logger.info('Health endpoint ready', { port: healthPort });
   });
 
-  const shutdown = () => {
+  const shutdown = async () => {
     logger.info('Shutting down');
-    vm.dispose();
+    workerVm.dispose();
+    await session.dispose();
     health.close();
     process.exit(0);
   };
