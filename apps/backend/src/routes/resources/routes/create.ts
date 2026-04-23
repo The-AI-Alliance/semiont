@@ -15,6 +15,7 @@ import { ResourceOperations } from '@semiont/make-meaning';
 import { deriveStorageUri } from '@semiont/content';
 
 type ContentFormat = components['schemas']['ContentFormat'];
+type Agent = components['schemas']['Agent'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
   router.post('/resources', async (c) => {
@@ -35,6 +36,11 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const entityTypesStr = formData.get('entityTypes') as string | null;
     const creationMethod = formData.get('creationMethod') as string | null;
     const storageUri = formData.get('storageUri') as string | null;
+    const sourceAnnotationId = formData.get('sourceAnnotationId') as string | null;
+    const sourceResourceId = formData.get('sourceResourceId') as string | null;
+    const generationPrompt = formData.get('generationPrompt') as string | null;
+    const generatorStr = formData.get('generator') as string | null;
+    const isDraftStr = formData.get('isDraft') as string | null;
 
     // Validate required fields
     if (!name || !file || !formatRaw) {
@@ -48,6 +54,17 @@ export function registerCreateResource(router: ResourcesRouterType) {
 
     // Parse entityTypes from JSON string
     const entityTypes = entityTypesStr ? JSON.parse(entityTypesStr) : [];
+    const generator = generatorStr ? (JSON.parse(generatorStr) as Agent | Agent[]) : undefined;
+
+    // Flat HTTP wire → nested bus-command shape. The HTTP form keeps
+    // names flat for multipart convenience; the bus/event schema uses
+    // nested `generatedFrom` per the W3C prov-style semantics.
+    const generatedFrom = (sourceResourceId || sourceAnnotationId)
+      ? {
+          ...(sourceResourceId ? { resourceId: sourceResourceId } : {}),
+          ...(sourceAnnotationId ? { annotationId: sourceAnnotationId } : {}),
+        }
+      : undefined;
 
     // Write content to disk before emitting on the bus (no Buffer on bus)
     const arrayBuffer = await file.arrayBuffer();
@@ -68,6 +85,10 @@ export function registerCreateResource(router: ResourcesRouterType) {
         language: language || undefined,
         entityTypes,
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
+        generatedFrom,
+        generationPrompt: generationPrompt || undefined,
+        generator,
+        isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
       },
       userId(userToDid(user)),
       eventBus,

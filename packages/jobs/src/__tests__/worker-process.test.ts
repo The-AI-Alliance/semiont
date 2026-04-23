@@ -7,8 +7,15 @@
  *
  *   job:start                                  (at entry)
  *     → for each returned annotation: mark:create
- *     → yield:create (generation only; creates the resource)
+ *                                                 (annotation jobs)
+ *     → POST /api/resources (multipart)
+ *                                                 (generation only; creates the resource)
  *     → job:complete                            (at success exit)
+ *
+ * Generation never emits yield:create on the bus — content must be
+ * persisted to disk first, and the HTTP route does that inside the
+ * backend. The worker only learns the new resourceId from the HTTP
+ * response and forwards it in job:complete.
  *
  * On failure the outer wrapper (startWorkerProcess) emits `job:fail`
  * and calls vm.failJob(); we exercise that by letting a processor
@@ -245,33 +252,66 @@ describe('handleJob orchestration', () => {
   });
 
   describe('generation', () => {
-    it('emits job:start, yield:create, job:complete with resourceName', async () => {
+    it('POSTs content to /api/resources, then emits job:complete with resourceId + resourceName', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: '# Generated\n\nBody.',
         title: 'New Resource',
         format: 'text/markdown',
         result: { tokensUsed: 100 } as never,
       });
+      // Generation path replaces the resource-content fetch with an
+      // upload POST; mock it to return the new resource id Stower would
+      // have minted after ingesting the bytes.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: async () => ({ resourceId: 'new-res-42' }),
+      });
       const { vm, calls } = makeFakeVM();
 
-      await handleJob(vm, makeConfig(), makeJob('generation', { referenceId: 'ref-1' }));
+      await handleJob(vm, makeConfig(), makeJob('generation', { referenceId: 'ref-1', prompt: 'Write about X', language: 'en' }));
 
+      // Verify the HTTP upload: URL, method, auth, and key multipart fields.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [uploadUrl, uploadInit] = mockFetch.mock.calls[0]!;
+      expect(uploadUrl).toBe('http://fake:4000/resources');
+      expect((uploadInit as RequestInit).method).toBe('POST');
+      expect((uploadInit as any).headers.Authorization).toBe('Bearer tok');
+      const form = (uploadInit as any).body as FormData;
+      expect(form.get('name')).toBe('New Resource');
+      expect(form.get('format')).toBe('text/markdown');
+      expect(form.get('creationMethod')).toBe('generated');
+      expect(form.get('sourceResourceId')).toBe(RID);
+      expect(form.get('sourceAnnotationId')).toBe('ref-1');
+      expect(form.get('generationPrompt')).toBe('Write about X');
+      expect(form.get('language')).toBe('en');
+      expect(form.get('generator')).toBeTruthy();
+
+      // Verify bus emits: job:start then job:complete (no yield:create, no mark:create).
       const emits = emitSequence(calls);
-      expect(emits.map(e => e.channel)).toEqual(['job:start', 'yield:create', 'job:complete']);
+      expect(emits.map(e => e.channel)).toEqual(['job:start', 'job:complete']);
       expect(emits[1]!.payload).toMatchObject({
-        name: 'New Resource',
-        content: '# Generated\n\nBody.',
-        format: 'text/markdown',
-        resourceId: RID,
-        referenceId: 'ref-1',
-      });
-      expect(emits[2]!.payload).toMatchObject({
         jobType: 'generation',
-        result: { resourceName: 'New Resource' },
+        result: { resourceId: 'new-res-42', resourceName: 'New Resource' },
       });
-      // No mark:create on generation
+      expect(emits.map(e => e.channel)).not.toContain('yield:create');
       expect(emits.map(e => e.channel)).not.toContain('mark:create');
       expect(calls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+    });
+
+    it('throws when the upload POST fails (caller converts to job:fail)', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: 'body',
+        title: 'T',
+        format: 'text/markdown',
+        result: {} as never,
+      });
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Internal Server Error' });
+      const { vm } = makeFakeVM();
+
+      await expect(
+        handleJob(vm, makeConfig(), makeJob('generation', { referenceId: 'ref-1' }))
+      ).rejects.toThrow(/Upload failed: 500/);
     });
   });
 

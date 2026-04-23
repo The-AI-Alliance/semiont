@@ -215,6 +215,146 @@ describe('SemiontApiClient', () => {
     });
   });
 
+  describe('yieldResource (HTTP multipart)', () => {
+    // Pin the multipart wire shape that POST /resources expects. The
+    // frontend compose page, the generation worker, and any future
+    // server-side caller all funnel through this serializer; drift
+    // here = 400s or silent field drops at the route boundary.
+
+    // Helpers — extract a specific FormData field from the post call.
+    const getPostedForm = (): FormData => {
+      const call = vi.mocked(mockKy.post).mock.calls[0];
+      expect(call).toBeDefined();
+      const init = call![1] as { body: FormData };
+      return init.body;
+    };
+
+    beforeEach(() => {
+      vi.mocked(mockKy.post).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ resourceId: 'new-res-42' }),
+      } as any);
+    });
+
+    test('POSTs to /resources (not /api/resources) with core fields', async () => {
+      await client.yieldResource({
+        name: 'My Doc',
+        file: Buffer.from('hello'),
+        format: 'text/plain',
+        storageUri: 'file://docs/my-doc.txt',
+      });
+
+      expect(mockKy.post).toHaveBeenCalledTimes(1);
+      const [url] = vi.mocked(mockKy.post).mock.calls[0]!;
+      expect(url).toBe(`${testBaseUrl}/resources`);
+
+      const form = getPostedForm();
+      expect(form.get('name')).toBe('My Doc');
+      expect(form.get('format')).toBe('text/plain');
+      expect(form.get('storageUri')).toBe('file://docs/my-doc.txt');
+      expect(form.get('file')).toBeInstanceOf(Blob);
+    });
+
+    test('serializes a Node Buffer as a Blob with the declared format', async () => {
+      await client.yieldResource({
+        name: 'Binary.png',
+        file: Buffer.from([137, 80, 78, 71]),
+        format: 'image/png',
+        storageUri: 'file://img/Binary.png',
+      });
+
+      const form = getPostedForm();
+      const blob = form.get('file') as Blob;
+      expect(blob.type).toBe('image/png');
+      expect(blob.size).toBe(4);
+    });
+
+    test('appends entityTypes as a JSON-stringified array', async () => {
+      await client.yieldResource({
+        name: 'Tagged',
+        file: Buffer.from('x'),
+        format: 'text/plain',
+        storageUri: 'file://docs/tagged.txt',
+        entityTypes: ['Person', 'Location'],
+      });
+
+      expect(getPostedForm().get('entityTypes')).toBe('["Person","Location"]');
+    });
+
+    test('omits entityTypes when empty (avoids posting an empty array)', async () => {
+      await client.yieldResource({
+        name: 'Plain',
+        file: Buffer.from('x'),
+        format: 'text/plain',
+        storageUri: 'file://docs/plain.txt',
+        entityTypes: [],
+      });
+
+      expect(getPostedForm().get('entityTypes')).toBeNull();
+    });
+
+    test('appends the full set of generation-provenance fields', async () => {
+      const agent = {
+        '@type': 'SoftwareAgent' as const,
+        name: 'worker-pool / ollama gemma4:26b',
+        worker: 'worker-pool',
+        inferenceProvider: 'ollama',
+        model: 'gemma4:26b',
+      };
+
+      await client.yieldResource({
+        name: 'Generated Summary',
+        file: Buffer.from('# Summary\n'),
+        format: 'text/markdown',
+        storageUri: 'file://generated/summary.md',
+        creationMethod: 'generated',
+        sourceResourceId: 'res-abc',
+        sourceAnnotationId: 'ann-xyz',
+        generationPrompt: 'Summarize the key points',
+        generator: agent,
+        isDraft: true,
+        language: 'en',
+      });
+
+      const form = getPostedForm();
+      expect(form.get('creationMethod')).toBe('generated');
+      expect(form.get('sourceResourceId')).toBe('res-abc');
+      expect(form.get('sourceAnnotationId')).toBe('ann-xyz');
+      expect(form.get('generationPrompt')).toBe('Summarize the key points');
+      // `generator` must be JSON-stringified — not `[object Object]`.
+      const generatorRaw = form.get('generator');
+      expect(typeof generatorRaw).toBe('string');
+      expect(JSON.parse(generatorRaw as string)).toEqual(agent);
+      expect(form.get('isDraft')).toBe('true');
+      expect(form.get('language')).toBe('en');
+    });
+
+    test('sends Authorization header when auth option is provided', async () => {
+      await client.yieldResource(
+        {
+          name: 'Auth Check',
+          file: Buffer.from('x'),
+          format: 'text/plain',
+          storageUri: 'file://docs/auth-check.txt',
+        },
+        { auth: 'tok-123' as any },
+      );
+
+      const [, init] = vi.mocked(mockKy.post).mock.calls[0]!;
+      expect((init as any).headers.Authorization).toBe('Bearer tok-123');
+    });
+
+    test('returns the resourceId from the server response', async () => {
+      const result = await client.yieldResource({
+        name: 'Round-trip',
+        file: Buffer.from('x'),
+        format: 'text/plain',
+        storageUri: 'file://docs/round-trip.txt',
+      });
+
+      expect(result).toEqual({ resourceId: 'new-res-42' });
+    });
+  });
+
   // ── Bus request-response methods ──────────────────────────────────────
 
   describe('browseResource (bus)', () => {

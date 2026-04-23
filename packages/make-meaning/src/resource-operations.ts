@@ -20,6 +20,7 @@ import type { components } from '@semiont/core';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 
 type ContentFormat = components['schemas']['ContentFormat'];
+type Agent = components['schemas']['Agent'];
 
 export interface UpdateResourceInput {
   resourceId: ResourceId;
@@ -39,6 +40,11 @@ export interface CreateResourceInput {
   language?: string;
   entityTypes?: string[];
   creationMethod?: CreationMethod;
+  /** Provenance for AI-generated resources: source resource + annotation. */
+  generatedFrom?: { resourceId?: string; annotationId?: string };
+  generationPrompt?: string;
+  generator?: Agent | Agent[];
+  isDraft?: boolean;
 }
 
 export class ResourceOperations {
@@ -76,6 +82,10 @@ export class ResourceOperations {
       language: input.language,
       entityTypes: input.entityTypes,
       creationMethod: input.creationMethod,
+      generatedFrom: input.generatedFrom,
+      generationPrompt: input.generationPrompt,
+      generator: input.generator,
+      isDraft: input.isDraft,
     });
 
     const outcome = await firstValueFrom(result$);

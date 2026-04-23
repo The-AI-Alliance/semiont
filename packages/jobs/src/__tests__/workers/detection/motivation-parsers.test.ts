@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { MotivationParsers } from '../../../workers/detection/motivation-parsers';
+import { MotivationParsers, extractObjectsFromArray } from '../../../workers/detection/motivation-parsers';
 
 // Mock validateAndCorrectOffsets
 vi.mock('@semiont/api-client', () => ({
@@ -392,5 +392,101 @@ describe('MotivationParsers', () => {
 
       expect(result).toEqual([]);
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// extractObjectsFromArray — the tolerant array extractor used by every
+// parser above. Shipped with minimal coverage (one end-to-end case via
+// parseAssessments); these direct tests pin the state-machine contract
+// so future edits don't silently break nested-brace / escape handling.
+// ─────────────────────────────────────────────────────────────────────
+
+describe('extractObjectsFromArray', () => {
+  it('parses a well-formed JSON array (fast path)', () => {
+    const result = extractObjectsFromArray('[{"a":1},{"b":2}]');
+    expect(result).toEqual([{ a: 1 }, { b: 2 }]);
+  });
+
+  it('strips ```json markdown fences', () => {
+    const result = extractObjectsFromArray('```json\n[{"a":1}]\n```');
+    expect(result).toEqual([{ a: 1 }]);
+  });
+
+  it('strips plain ``` fences', () => {
+    const result = extractObjectsFromArray('```\n[{"a":1}]\n```');
+    expect(result).toEqual([{ a: 1 }]);
+  });
+
+  it('returns [] for empty input', () => {
+    expect(extractObjectsFromArray('')).toEqual([]);
+    expect(extractObjectsFromArray('   \n\t  ')).toEqual([]);
+  });
+
+  it('returns [] when response has no array brackets at all', () => {
+    expect(extractObjectsFromArray('not json')).toEqual([]);
+    expect(extractObjectsFromArray('{"a":1}')).toEqual([]); // object, not array
+  });
+
+  it('parses an empty JSON array', () => {
+    expect(extractObjectsFromArray('[]')).toEqual([]);
+  });
+
+  it('recovers well-formed objects when stray tokens sit between them (the wide:0 case)', () => {
+    // Regression: gemma4:26b emitted `wide: 0,` between two valid objects.
+    const response = '[{"a":1},\n  wide: 0,\n{"b":2}]';
+    const result = extractObjectsFromArray(response);
+    expect(result).toEqual([{ a: 1 }, { b: 2 }]);
+  });
+
+  it('skips malformed objects but keeps surrounding valid ones', () => {
+    const response = '[{"a":1}, {broken: "no quotes"}, {"c":3}]';
+    const result = extractObjectsFromArray(response);
+    expect(result).toEqual([{ a: 1 }, { c: 3 }]);
+  });
+
+  it('treats braces inside string values as literal, not as object delimiters', () => {
+    // The `}` inside "ugly: }junk" must not close the outer object.
+    const response = '[{"note":"ugly: }junk"},{"b":2}]';
+    const result = extractObjectsFromArray(response);
+    expect(result).toEqual([{ note: 'ugly: }junk' }, { b: 2 }]);
+  });
+
+  it('handles escaped quotes inside strings without losing object boundaries', () => {
+    const response = '[{"quote":"she said \\"hi\\""},{"b":2}]';
+    const result = extractObjectsFromArray(response);
+    expect(result).toEqual([{ quote: 'she said "hi"' }, { b: 2 }]);
+  });
+
+  it('handles multi-line objects across newlines', () => {
+    const response = `[
+  {
+    "a": 1,
+    "b": "two"
+  },
+  {
+    "c": 3
+  }
+]`;
+    const result = extractObjectsFromArray(response);
+    expect(result).toEqual([{ a: 1, b: 'two' }, { c: 3 }]);
+  });
+
+  it('tolerates prose before and after the array', () => {
+    const response = 'Here is the answer:\n[{"a":1}]\n\nThat is all.';
+    const result = extractObjectsFromArray(response);
+    expect(result).toEqual([{ a: 1 }]);
+  });
+
+  it('returns [] when brackets exist but contain nothing recoverable', () => {
+    expect(extractObjectsFromArray('[garbage, more garbage]')).toEqual([]);
+  });
+
+  it('skips an unclosed object at the end but keeps earlier valid ones', () => {
+    // Worker saw a response where the final object was cut off mid-stream.
+    // The tolerant parser should still return whatever closed cleanly.
+    const response = '[{"a":1},{"b":2},{"c":';
+    const result = extractObjectsFromArray(response);
+    expect(result).toEqual([{ a: 1 }, { b: 2 }]);
   });
 });

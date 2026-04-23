@@ -24,8 +24,11 @@ import { validateAndCorrectOffsets } from '@semiont/api-client';
  * between the outermost `[` and `]` and parse each balanced `{ ... }`
  * object independently, skipping any that don't parse. Returns the
  * recovered objects — callers should still filter/validate fields.
+ *
+ * Exported for direct unit testing of the state machine edge cases
+ * (nested braces in strings, escape sequences, empty/garbage input).
  */
-function extractObjectsFromArray(response: string): unknown[] {
+export function extractObjectsFromArray(response: string): unknown[] {
   let cleaned = response.trim();
 
   // Strip markdown code fences if present
@@ -42,10 +45,13 @@ function extractObjectsFromArray(response: string): unknown[] {
   }
 
   // Tolerant path: extract each top-level `{ ... }` from within the
-  // first `[` / last `]`, parse independently.
+  // first `[` / last `]`, parse independently. If the response was
+  // truncated mid-stream (no closing `]`), fall back to end-of-string
+  // so we still recover whatever closed cleanly before the cutoff.
   const start = cleaned.indexOf('[');
-  const end = cleaned.lastIndexOf(']');
-  if (start === -1 || end === -1 || end <= start) return [];
+  if (start === -1) return [];
+  const endBracket = cleaned.lastIndexOf(']');
+  const end = endBracket > start ? endBracket : cleaned.length;
 
   const inner = cleaned.slice(start + 1, end);
   const objects: unknown[] = [];

@@ -72,6 +72,11 @@ export interface CreateResourceInput {
   sourceAnnotationId?: string;
   sourceResourceId?: string;
   storageUri: string;
+  /** Prompt that drove AI generation (for AI-generated resources). */
+  generationPrompt?: string;
+  /** Agent(s) that generated the content (for AI-generated resources). */
+  generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
+  isDraft?: boolean;
 }
 
 /** Options for yield.fromAnnotation() */

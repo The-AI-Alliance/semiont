@@ -531,6 +531,8 @@ export class SemiontApiClient {
    * @param data.creationMethod - Optional creation method
    * @param data.sourceAnnotationId - Optional source annotation ID
    * @param data.sourceResourceId - Optional source resource ID
+   * @param data.generationPrompt - Optional prompt that drove AI generation
+   * @param data.generator - Optional Agent(s) that generated the content
    * @param options - Request options including auth
    */
   async yieldResource(data: {
@@ -543,6 +545,9 @@ export class SemiontApiClient {
     sourceAnnotationId?: string;
     sourceResourceId?: string;
     storageUri: string;
+    generationPrompt?: string;
+    generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
+    isDraft?: boolean;
   }, options?: RequestOptions): Promise<{ resourceId: string }> {
     // Build FormData
     const formData = new FormData();
@@ -576,6 +581,15 @@ export class SemiontApiClient {
     }
     if (data.sourceResourceId) {
       formData.append('sourceResourceId', data.sourceResourceId);
+    }
+    if (data.generationPrompt) {
+      formData.append('generationPrompt', data.generationPrompt);
+    }
+    if (data.generator) {
+      formData.append('generator', JSON.stringify(data.generator));
+    }
+    if (data.isDraft !== undefined) {
+      formData.append('isDraft', String(data.isDraft));
     }
 
     // POST with multipart/form-data (ky automatically sets Content-Type)
