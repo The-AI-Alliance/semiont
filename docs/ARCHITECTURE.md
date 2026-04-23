@@ -215,18 +215,71 @@ The Smelter is the vector projection actor. It runs in its own container (`semio
 
 ### Multi-Container Topology
 
-Counting containers is ambiguous. A local deployment runs three containers of Semiont code, four if you include the frontend, or eight if you also count the infrastructure dependencies:
+A local deployment runs three containers of Semiont code, four if you include the frontend, or eight if you also count the infrastructure dependencies:
 
-| Container | Semiont code | Contents |
-|---|---|---|
-| `semiont-backend` | yes | Knowledge System — Stower, Gatherer, Matcher, Browser, event log, views, content store, auth, admin, exchange, and the bus (`/bus/emit` + `/bus/subscribe`) |
-| `semiont-worker` | yes | Worker pool — reference / highlight / assessment / comment / tag annotation detection, plus resource generation |
-| `semiont-smelter` | yes | Smelter actor — chunking, embedding, vector indexing |
-| `semiont-frontend` | yes | Semiont Browser SPA (Vite), from `ghcr.io/the-ai-alliance/semiont-frontend` |
-| `semiont-postgres` | no | Users and session DB |
-| `semiont-neo4j` | no | Graph projection |
-| `semiont-qdrant` | no | Vector store |
-| `semiont-ollama` | no | Local inference and embedding (optional) |
+```mermaid
+graph TB
+    subgraph frontend_c ["semiont-frontend"]
+        SPA["Semiont Browser SPA<br/>(Vite + React)"]
+    end
+
+    subgraph backend_c ["semiont-backend"]
+        BUS["Event Bus"]
+        STOWER["Stower"]
+        BROWSER["Browser"]
+        GATHERER["Gatherer"]
+        MATCHER["Matcher"]
+        GC["Graph Consumer"]
+        GIT[("KB Git Repo")]
+    end
+
+    subgraph worker_c ["semiont-worker"]
+        WORKERS["Worker Pool"]
+    end
+
+    subgraph smelter_c ["semiont-smelter"]
+        SMELTER["Smelter"]
+    end
+
+    subgraph pg_c ["semiont-postgres"]
+        PG[("PostgreSQL")]
+    end
+
+    subgraph neo_c ["semiont-neo4j"]
+        NEO[("Neo4j")]
+    end
+
+    subgraph qd_c ["semiont-qdrant"]
+        QD[("Qdrant")]
+    end
+
+    subgraph ol_c ["semiont-ollama"]
+        OL["Ollama"]
+    end
+
+    SPA --- BUS
+    WORKERS --- BUS
+    SMELTER --- BUS
+
+    STOWER --- GIT
+    GC --- NEO
+    SMELTER --- QD
+    BUS --- PG
+    WORKERS --- OL
+    SMELTER --- OL
+
+    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+    classDef actor fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+    classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef spa fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef service fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
+
+    class BUS bus
+    class STOWER,BROWSER,GATHERER,MATCHER,GC,WORKERS,SMELTER actor
+    class GIT,PG,NEO,QD store
+    class SPA spa
+    class OL service
+```
 
 The three Semiont-code backend containers communicate exclusively through the unified bus exposed by `semiont-backend` (`/bus/emit`, `/bus/subscribe`). Workers and the smelter authenticate via `POST /api/tokens/worker`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) for a JWT with `role: worker`; the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM and embedding work from the request-serving event loop — the backend stays responsive to human users while workers and the smelter run in separate V8 isolates.
 
