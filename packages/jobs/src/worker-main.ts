@@ -79,7 +79,18 @@ const healthPort = Number(get('workers.healthPort') || '9090');
 
 const inferenceType = (get('workers.default.inference.type') || 'ollama') as InferenceClientConfig['type'];
 const inferenceModel = get('workers.default.inference.model') || 'llama3.1';
-const inferenceEndpoint = get(`inference.${inferenceType}.baseURL`) || 'http://localhost:11434';
+const inferenceEndpoint = get(`inference.${inferenceType}.baseURL`);
+if (!inferenceEndpoint) {
+  // No silent fallback — a missing/misspelled baseURL previously routed
+  // every inference type to the ollama default, so an anthropic config
+  // with the wrong key would point the Anthropic SDK at localhost:11434
+  // and fail opaquely on the first job. Fail loudly at startup instead.
+  throw new Error(
+    `Missing inference.${inferenceType}.baseURL in ~/.semiontconfig — ` +
+      `the worker needs an explicit endpoint for every inference type. ` +
+      `Expected key: [environments.${env}.inference.${inferenceType}] baseURL = "..."`,
+  );
+}
 
 const inferenceConfig: InferenceClientConfig = {
   type: inferenceType,
