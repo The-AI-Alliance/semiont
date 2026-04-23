@@ -5,8 +5,9 @@
  * EventBus gateway, fetches content via HTTP, chunks text, embeds via
  * the configured provider, and writes vectors to Qdrant.
  *
- * Reads configuration from ~/.semiontconfig (TOML).
- * Authenticates with the KS via shared secret.
+ * Reads configuration from ~/.semiontconfig (TOML) via the canonical
+ * `createTomlConfigLoader` from @semiont/core. Authenticates with the
+ * KS via shared secret.
  *
  * Environment variables:
  *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
@@ -15,7 +16,7 @@
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { createSmelterActorVM, type SmelterActorVM } from '@semiont/api-client';
-import { burstBuffer } from '@semiont/core';
+import { burstBuffer, createTomlConfigLoader } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import type { VectorStore, EmbeddingProvider, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
@@ -23,7 +24,7 @@ import { createVectorStore, createEmbeddingProvider, chunkText } from '@semiont/
 import type { ChunkingConfig } from '@semiont/vectors';
 import { getExactText, getTargetSelector } from '@semiont/api-client';
 import { createServer } from 'http';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 
@@ -35,57 +36,47 @@ interface SmelterEvent {
 
 // ── Config ───────────────────────────────────────────────────────────
 
-function readSemiontConfig(): Record<string, string> {
-  const configPath = join(homedir(), '.semiontconfig');
-  try {
-    const raw = readFileSync(configPath, 'utf-8');
-    const result: Record<string, string> = {};
-    let currentSection = '';
-    for (const line of raw.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('#') || trimmed === '') continue;
-      const sectionMatch = trimmed.match(/^\[(.+)]$/);
-      if (sectionMatch) {
-        currentSection = sectionMatch[1];
-        continue;
-      }
-      const kvMatch = trimmed.match(/^(\w+)\s*=\s*"?([^"]*)"?$/);
-      if (kvMatch) {
-        const key = currentSection ? `${currentSection}.${kvMatch[1]}` : kvMatch[1];
-        let value = kvMatch[2];
-        value = value.replace(/\$\{([^}]+)\}/g, (_, expr: string) => {
-          const sepIdx = expr.indexOf(':-');
-          const varName = sepIdx >= 0 ? expr.slice(0, sepIdx) : expr;
-          const defaultValue = sepIdx >= 0 ? expr.slice(sepIdx + 2) : '';
-          return process.env[varName] ?? defaultValue;
-        });
-        result[key] = value;
-      }
-    }
-    return result;
-  } catch {
-    return {};
-  }
+const configPath = join(homedir(), '.semiontconfig');
+const tomlReader = {
+  readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
+};
+const envConfig = createTomlConfigLoader(
+  tomlReader,
+  configPath,
+  process.env,
+)(null, 'local');
+
+const backendPublicURL = envConfig.services?.backend?.publicURL;
+if (!backendPublicURL) {
+  throw new Error('services.backend.publicURL is required in ~/.semiontconfig');
+}
+const baseUrl: string = backendPublicURL;
+
+const embedding = envConfig.services?.embedding;
+if (!embedding?.type || !embedding?.model) {
+  throw new Error('services.embedding.{type,model} are required in ~/.semiontconfig');
+}
+const embeddingType = embedding.type as 'ollama' | 'voyage';
+const embeddingModel: string = embedding.model;
+const embeddingBaseURL: string = embedding.baseURL ?? embedding.endpoint ?? '';
+if (!embeddingBaseURL) {
+  throw new Error('services.embedding.baseURL (or endpoint) is required in ~/.semiontconfig');
 }
 
-const config = readSemiontConfig();
-const env = config['defaults.environment'] || 'local';
-const get = (key: string): string => config[`environments.${env}.${key}`] ?? '';
+const vectors = envConfig.services?.vectors;
+if (!vectors?.host) {
+  throw new Error('services.vectors.host is required in ~/.semiontconfig');
+}
+const qdrantHost: string = vectors.host;
+const qdrantPort: number = vectors.port ?? 6333;
 
-const baseUrl = get('backend.publicURL') || 'http://localhost:4000';
+const chunkingConfig: ChunkingConfig = {
+  chunkSize: embedding.chunking?.chunkSize ?? 512,
+  overlap: embedding.chunking?.overlap ?? 64,
+};
+
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
-const healthPort = Number(get('smelter.healthPort') || '9091');
-
-const embeddingType = (get('embedding.type') || 'ollama') as 'ollama' | 'voyage';
-const embeddingModel = get('embedding.model') || 'nomic-embed-text';
-const embeddingBaseURL = get(`embedding.baseURL`) || 'http://localhost:11434';
-
-const qdrantHost = get('vectors.host') || 'localhost';
-const qdrantPort = Number(get('vectors.port') || '6333');
-
-const chunkSize = Number(get('embedding.chunking.chunkSize') || '512');
-const overlap = Number(get('embedding.chunking.overlap') || '64');
-const chunkingConfig: ChunkingConfig = { chunkSize, overlap };
+const healthPort = 9091;
 
 const BURST_WINDOW_MS = 50;
 const MAX_BATCH_SIZE = 100;

@@ -38,11 +38,21 @@ import {
 
 type Agent = components['schemas']['Agent'];
 
+export interface WorkerEngine {
+  inferenceClient: InferenceClient;
+  generator: Agent;
+}
+
 export interface WorkerProcessConfig {
   session: SemiontSession;
   jobTypes: string[];
-  inferenceClient: InferenceClient;
-  generator: Agent;
+  /**
+   * Per-job-type inference client + generator metadata. Keyed by the
+   * job type the worker has subscribed to (`jobTypes`). Each entry lets
+   * that job type run on its own model, as configured in
+   * `[workers.<job-type>.inference]`.
+   */
+  engines: Record<string, WorkerEngine>;
   logger: Logger;
 }
 
@@ -100,7 +110,7 @@ export async function handleJob(
   config: WorkerProcessConfig,
   job: ActiveJob,
 ): Promise<void> {
-  const { session, inferenceClient, generator } = config;
+  const { session } = config;
   const { resourceId, userId, jobId, type: jobType } = job;
 
   // Annotation-scoped jobs (today: generation, triggered from a
@@ -122,6 +132,13 @@ export async function handleJob(
   // in the payload.
 
   await emitEvent(session, 'job:start', lifecycleBase);
+
+  const engine = config.engines[jobType];
+  if (!engine) {
+    adapter.failJob(jobId, `No inference engine configured for job type: ${jobType}`);
+    return;
+  }
+  const { inferenceClient, generator } = engine;
 
   const onProgress: OnProgress = (percentage, message, stage, extra) => {
     emitEvent(session, 'job:report-progress', {
