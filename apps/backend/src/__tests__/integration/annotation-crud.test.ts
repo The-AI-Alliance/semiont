@@ -372,31 +372,30 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       expect(Array.isArray(annotations)).toBe(true);
       expect(annotations.length).toBeGreaterThan(0);
 
-      // Verify each annotation has proper body structure
+      // Per the W3C Web Annotation Model (Option B), body is OPTIONAL —
+      // a highlighting annotation or a pre-resolution linking stub can
+      // legitimately have no body at all (motivation + target is the
+      // whole annotation). When body is present it can be either a
+      // single object (assessments, single-body cases) or an array
+      // (multi-body cases like resolved linking with tagging + SpecificResource).
       for (const annotation of annotations) {
-        expect(annotation).toHaveProperty('body');
+        if (annotation.body === undefined) continue;
 
-        // Body should be array in W3C multi-body annotation
-        if (annotation.body !== null && annotation.body !== undefined) {
-          expect(Array.isArray(annotation.body)).toBe(true);
+        const bodyItems = Array.isArray(annotation.body)
+          ? annotation.body
+          : [annotation.body];
 
-          if (Array.isArray(annotation.body)) {
-            // Each body item should have a type
-            for (const bodyItem of annotation.body) {
-              expect(bodyItem).toHaveProperty('type');
-              expect(['TextualBody', 'SpecificResource']).toContain(bodyItem.type);
+        for (const bodyItem of bodyItems) {
+          expect(bodyItem).toHaveProperty('type');
+          expect(['TextualBody', 'SpecificResource']).toContain(bodyItem.type);
 
-              // TextualBody should have value and purpose
-              if (bodyItem.type === 'TextualBody') {
-                expect(bodyItem).toHaveProperty('value');
-                expect(bodyItem).toHaveProperty('purpose');
-              }
+          if (bodyItem.type === 'TextualBody') {
+            expect(bodyItem).toHaveProperty('value');
+            expect(bodyItem).toHaveProperty('purpose');
+          }
 
-              // SpecificResource should have source
-              if (bodyItem.type === 'SpecificResource') {
-                expect(bodyItem).toHaveProperty('source');
-              }
-            }
+          if (bodyItem.type === 'SpecificResource') {
+            expect(bodyItem).toHaveProperty('source');
           }
         }
       }
