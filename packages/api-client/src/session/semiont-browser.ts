@@ -263,9 +263,14 @@ export class SemiontBrowser {
     if (id === prevId && prevSession) return;
 
     // Synchronous intent signal. Late activations compare against this to
-    // detect staleness.
+    // detect staleness. Session and signals null out together so React
+    // consumers never see a stale signals instance paired with a null
+    // session during the activation gap.
     if (prevId !== id) this.activeKbId$.next(id);
-    if (prevSession) this.activeSession$.next(null);
+    if (prevSession) {
+      this.activeSession$.next(null);
+      this.activeSignals$.next(null);
+    }
 
     // Wait for any in-flight activation. If we were superseded while
     // waiting, bail — a newer call is already reflecting the desired state.

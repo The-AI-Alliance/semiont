@@ -278,3 +278,243 @@ describe('SemiontBrowser — getKbSessionStatus', () => {
     expect(browser.getKbSessionStatus(KB_A.id)).toBe('expired');
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────
+// Auth callbacks: SemiontBrowser owns the refresh-token + user-validate
+// logic and passes them to each SemiontSession it constructs. These
+// callbacks were previously in a separate `refresh.ts` module; they
+// moved here as `performRefresh` / `performValidate` during the
+// WORKER-SESSIONS refactor. The tests below exercise the inlined
+// logic directly by triggering session construction with a stored
+// token (activates `performValidate`) or an expired stored token
+// (activates `performRefresh`).
+// ──────────────────────────────────────────────────────────────────────
+
+describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
+  it('calls refreshToken on a throwaway client when the stored token is expired', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'old-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    mockRefreshToken.mockResolvedValueOnce({ access_token: freshJwt(), token_type: 'Bearer' });
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    // The throwaway client is disposed afterward.
+    expect(mockDispose).toHaveBeenCalled();
+
+    await browser.dispose();
+  });
+
+  it('persists the new access token to storage on successful refresh', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'old-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    const newJwt = freshJwt();
+    mockRefreshToken.mockResolvedValueOnce({ access_token: newJwt, token_type: 'Bearer' });
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    const stored = JSON.parse(storage.get(storageKey(KB_A.id))!);
+    expect(stored.access).toBe(newJwt);
+    // Refresh token MUST be preserved (we don't rotate refresh tokens on access-token refresh).
+    expect(stored.refresh).toBe('old-refresh');
+
+    await browser.dispose();
+  });
+
+  it('returns null when refreshToken throws, and clears the stored session', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'bad-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    mockRefreshToken.mockRejectedValueOnce(new Error('refresh endpoint down'));
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    // Refresh failure → session-expired path: storage cleared.
+    expect(storage.get(storageKey(KB_A.id))).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('dedupes concurrent refresh calls for the same KB (single network round-trip)', async () => {
+    // Two simultaneous `session.refresh()` calls should converge on a
+    // single underlying performRefresh call via the in-flight Map.
+    // We construct one session, then fire refresh twice concurrently
+    // and assert the refreshToken endpoint was hit only once.
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    mockRefreshToken.mockClear();
+
+    // Hold the refresh call open so both session.refresh() calls see
+    // an in-flight entry in the Map.
+    let resolveRefresh!: (value: { access_token: string; token_type: string }) => void;
+    mockRefreshToken.mockImplementationOnce(
+      () => new Promise((r) => { resolveRefresh = r; }),
+    );
+
+    const r1 = session!.refresh();
+    const r2 = session!.refresh();
+    resolveRefresh({ access_token: freshJwt(), token_type: 'Bearer' });
+    await Promise.all([r1, r2]);
+
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — performValidate (inlined getMe flow)', () => {
+  it('invokes getMe on a throwaway client at session startup when token is valid', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    expect(mockGetMe).toHaveBeenCalled();
+
+    await browser.dispose();
+  });
+
+  it('populates session.user$ with the getMe response', async () => {
+    const testUser = { id: 'abc', email: 'a@b.c', name: 'Alice', isAdmin: false, isModerator: false };
+    mockGetMe.mockResolvedValue(testUser);
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    expect(session?.user$.getValue()).toMatchObject({ name: 'Alice' });
+
+    await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — activeSignals$ lifecycle (FrontendSessionSignals)', () => {
+  it('emits a non-null FrontendSessionSignals when activeSession$ is non-null', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    expect(browser.activeSession$.getValue()).not.toBeNull();
+    expect(browser.activeSignals$.getValue()).not.toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('exposes modal-signal observables on the signals instance', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+
+    signals.notifyPermissionDenied('nope');
+    expect(signals.permissionDeniedAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.permissionDeniedMessage$.getValue()).toBe('nope');
+
+    await browser.dispose();
+  });
+
+  it('emits null on activeSignals$ when the session is torn down via setActiveKb', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    expect(browser.activeSignals$.getValue()).not.toBeNull();
+
+    await browser.setActiveKb(null);
+    expect(browser.activeSession$.getValue()).toBeNull();
+    expect(browser.activeSignals$.getValue()).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('emits null on activeSignals$ when the session is torn down via signOut', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    await browser.signOut(KB_A.id);
+    expect(browser.activeSignals$.getValue()).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('constructs fresh signals when signIn re-activates a previously-active KB', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const firstSignals = browser.activeSignals$.getValue();
+    expect(firstSignals).not.toBeNull();
+
+    // signIn for the already-active KB tears down and reconstructs so
+    // the new token is picked up from storage.
+    await browser.signIn(KB_A.id, freshJwt(), 'new-refresh');
+    const secondSignals = browser.activeSignals$.getValue();
+    expect(secondSignals).not.toBeNull();
+    expect(secondSignals).not.toBe(firstSignals);
+
+    await browser.dispose();
+  });
+
+  it('fires session-expired signal via the session onAuthFailed callback on refresh failure', async () => {
+    // Fresh stored token (no initial refresh), but subsequent refresh fails.
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'bad-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    mockRefreshToken.mockRejectedValue(new Error('down'));
+
+    const browser = new SemiontBrowser({ storage });
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+
+    // Manually trigger session.refresh() to simulate a proactive-refresh miss.
+    await session!.refresh();
+    expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
+
+    await browser.dispose();
+  });
+
+  it('completes activeSignals$ on browser dispose', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    let completed = false;
+    browser.activeSignals$.subscribe({ complete: () => { completed = true; } });
+
+    await browser.dispose();
+    expect(completed).toBe(true);
+  });
+});

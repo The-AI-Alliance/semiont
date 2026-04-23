@@ -291,3 +291,182 @@ describe('handleJob orchestration', () => {
     });
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────
+// Helper: emitEvent's resource-broadcast routing.
+//
+// RESOURCE_BROADCAST_TYPES lists channels whose payloads carry a
+// resource-scoped broadcast semantic — `job:complete` and `job:fail`.
+// handleJob's emitEvent helper must route those with `scope: resourceId`
+// so per-resource subscribers (not just the initiator) receive them.
+// All other channels emit globally with no scope.
+// ──────────────────────────────────────────────────────────────────────
+
+describe('handleJob — resource-broadcast scope routing', () => {
+  it('emits job:complete with scope=resourceId (resource broadcast)', async () => {
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [] as never,
+      result: {} as never,
+    });
+    const h = makeFakeSessionAndAdapter();
+
+    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+
+    const completeEmit = h.busEmits.find(e => e.channel === 'job:complete');
+    expect(completeEmit).toBeDefined();
+    expect(completeEmit!.scope).toBe(RID);
+  });
+
+  it('emits job:start globally (no scope — not a resource broadcast)', async () => {
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [] as never,
+      result: {} as never,
+    });
+    const h = makeFakeSessionAndAdapter();
+
+    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+
+    const startEmit = h.busEmits.find(e => e.channel === 'job:start');
+    expect(startEmit).toBeDefined();
+    expect(startEmit!.scope).toBeUndefined();
+  });
+
+  it('emits mark:create globally (the per-annotation create command is not a resource broadcast)', async () => {
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [{ id: 'a1' }] as never,
+      result: {} as never,
+    });
+    const h = makeFakeSessionAndAdapter();
+
+    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+
+    const createEmit = h.busEmits.find(e => e.channel === 'mark:create');
+    expect(createEmit).toBeDefined();
+    expect(createEmit!.scope).toBeUndefined();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// startWorkerProcess — the outer wrapper that creates a job-claim
+// adapter from session.client.actor, subscribes to activeJob$, and
+// translates handleJob rejections into job:fail + adapter.failJob.
+// ──────────────────────────────────────────────────────────────────────
+
+describe('startWorkerProcess', () => {
+  // Import lazily so the top-level vi.mock of ../processors applies.
+  const loadStartWorkerProcess = async () => {
+    const mod = await import('../worker-process');
+    return mod.startWorkerProcess;
+  };
+
+  // We need an actor whose `emit`/`addChannels`/`on$` satisfy the
+  // adapter, plus a way to push an activeJob$ value after start().
+  // The adapter internally subscribes to `job:queued` and emits
+  // `job:claim`; we skip that whole dance and directly shove a job
+  // through by calling the activeJob$ subscriber from inside the
+  // adapter. Easiest path: mock `createJobClaimAdapter` to return
+  // a controllable fake.
+  it('subscribes to activeJob$ and dispatches handleJob on each emitted job', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    const completeJob = vi.fn();
+    const failJob = vi.fn();
+    const adapterStart = vi.fn();
+
+    vi.doMock('@semiont/api-client', async () => {
+      const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+      return {
+        ...actual,
+        createJobClaimAdapter: vi.fn(() => ({
+          activeJob$: activeJob$.asObservable(),
+          isProcessing$: { subscribe: vi.fn() },
+          jobsCompleted$: { subscribe: vi.fn() },
+          errors$: { subscribe: vi.fn() },
+          start: adapterStart,
+          stop: vi.fn(),
+          completeJob,
+          failJob,
+          dispose: vi.fn(),
+        })),
+      };
+    });
+    vi.resetModules();
+
+    const startWorkerProcess = await loadStartWorkerProcess();
+
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [] as never,
+      result: {} as never,
+    });
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+
+    // Adapter was started exactly once.
+    expect(adapterStart).toHaveBeenCalledTimes(1);
+
+    // Push a job onto activeJob$ — the subscription should run handleJob.
+    activeJob$.next(makeJob('highlight-annotation'));
+    // Let handleJob's async chain settle.
+    await new Promise((r) => setTimeout(r, 0));
+
+    // handleJob emitted job:start → job:complete on the fake session.
+    expect(h.busEmits.map((e) => e.channel)).toContain('job:start');
+    expect(h.busEmits.map((e) => e.channel)).toContain('job:complete');
+
+    vi.doUnmock('@semiont/api-client');
+    vi.resetModules();
+  });
+
+  it('emits job:fail + calls adapter.failJob when handleJob rejects', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    const completeJob = vi.fn();
+    const failJob = vi.fn();
+    const adapterStart = vi.fn();
+
+    vi.doMock('@semiont/api-client', async () => {
+      const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+      return {
+        ...actual,
+        createJobClaimAdapter: vi.fn(() => ({
+          activeJob$: activeJob$.asObservable(),
+          isProcessing$: { subscribe: vi.fn() },
+          jobsCompleted$: { subscribe: vi.fn() },
+          errors$: { subscribe: vi.fn() },
+          start: adapterStart,
+          stop: vi.fn(),
+          completeJob,
+          failJob,
+          dispose: vi.fn(),
+        })),
+      };
+    });
+    vi.resetModules();
+
+    const startWorkerProcess = await loadStartWorkerProcess();
+
+    vi.mocked(processReferenceJob).mockRejectedValueOnce(new Error('inference blew up'));
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+
+    activeJob$.next(makeJob('reference-annotation', { referenceId: 'ann-1' }));
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Outer handler emits job:fail on the bus and calls adapter.failJob.
+    const failEmit = h.busEmits.find((e) => e.channel === 'job:fail');
+    expect(failEmit).toBeDefined();
+    expect(failEmit!.payload).toMatchObject({
+      jobId: JID,
+      jobType: 'reference-annotation',
+      annotationId: 'ann-1',
+      error: 'inference blew up',
+    });
+    expect(failEmit!.scope).toBe(RID);
+    expect(failJob).toHaveBeenCalledWith(JID, 'inference blew up');
+
+    vi.doUnmock('@semiont/api-client');
+    vi.resetModules();
+  });
+});
