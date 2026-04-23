@@ -89,9 +89,7 @@ function makeFakeSessionAndAdapter() {
 }
 
 function makeConfig(session: SemiontSession): WorkerProcessConfig {
-  return {
-    session,
-    jobTypes: [],
+  const engine = {
     inferenceClient: {} as never,
     generator: {
       '@type': 'SoftwareAgent',
@@ -100,6 +98,19 @@ function makeConfig(session: SemiontSession): WorkerProcessConfig {
       inferenceProvider: 'ollama',
       model: 'test',
     } as never,
+  };
+  const engines: WorkerProcessConfig['engines'] = {
+    'highlight-annotation': engine,
+    'comment-annotation': engine,
+    'assessment-annotation': engine,
+    'reference-annotation': engine,
+    'tag-annotation': engine,
+    'generation': engine,
+  };
+  return {
+    session,
+    jobTypes: Object.keys(engines),
+    engines,
     logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(function(this: any){ return this; }) } as never,
   };
 }
@@ -270,7 +281,7 @@ describe('handleJob orchestration', () => {
       const fail = h.adapterCalls.find(c => c.method === 'failJob');
       expect(fail).toBeDefined();
       expect(fail!.args[0]).toBe(JID);
-      expect(String(fail!.args[1])).toMatch(/Unknown job type: weird-thing/);
+      expect(String(fail!.args[1])).toMatch(/No inference engine configured for job type: weird-thing/);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
     });
   });

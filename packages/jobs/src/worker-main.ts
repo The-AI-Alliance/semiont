@@ -1,10 +1,16 @@
 /**
  * Worker Pool Main — standalone entry point
  *
- * Reads configuration from ~/.semiontconfig (TOML). Authenticates
- * with the KS via shared secret. Starts the worker process on top
- * of a `SemiontSession` so every HTTP call and bus emit goes
- * through the api-client, not raw `fetch`.
+ * Reads configuration from ~/.semiontconfig (TOML) via the canonical
+ * `createTomlConfigLoader` from @semiont/core. Authenticates with the
+ * KS via shared secret. Starts the worker process on top of a
+ * `SemiontSession` so every HTTP call and bus emit goes through the
+ * api-client, not raw `fetch`.
+ *
+ * One inference client is built per distinct `(type, model, apiKey,
+ * endpoint)` combination declared in `[workers.<type>.inference]` /
+ * `[workers.default.inference]`, and each job type dispatches to the
+ * client configured for it.
  *
  * Environment variables (only two):
  *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
@@ -13,13 +19,21 @@
  * Everything else comes from ~/.semiontconfig.
  */
 
-import { startWorkerProcess } from './worker-process';
-import { createInferenceClient, type InferenceClientConfig } from '@semiont/inference';
+import { startWorkerProcess, type WorkerEngine } from './worker-process';
+import {
+  createInferenceClient,
+  type InferenceClient,
+  type InferenceClientConfig,
+} from '@semiont/inference';
 import { createServer } from 'http';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { homedir, hostname } from 'os';
 import { join } from 'path';
-import { type components } from '@semiont/core';
+import {
+  createTomlConfigLoader,
+  type components,
+  type EnvironmentConfig,
+} from '@semiont/core';
 import {
   SemiontSession,
   InMemorySessionStorage,
@@ -34,74 +48,102 @@ const ALL_JOB_TYPES = [
   'assessment-annotation', 'comment-annotation', 'tag-annotation',
 ];
 
-// ── Read semiontconfig ────────────────────────────────────────────────
+// Shape of each resolved worker inference entry under `_metadata.workers`.
+// The canonical TOML loader populates this by merging the per-worker
+// inference block with the flat `[inference.<type>]` provider section
+// (apiKey, endpoint/baseURL), so every entry here has everything a
+// client factory needs.
+type ResolvedInference = {
+  type: 'anthropic' | 'ollama';
+  model: string;
+  apiKey?: string;
+  endpoint?: string;
+  baseURL?: string;
+};
 
-function readSemiontConfig(): Record<string, string> {
-  const configPath = join(homedir(), '.semiontconfig');
-  try {
-    const raw = readFileSync(configPath, 'utf-8');
-    const result: Record<string, string> = {};
-    let currentSection = '';
-    for (const line of raw.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('#') || trimmed === '') continue;
-      const sectionMatch = trimmed.match(/^\[(.+)]$/);
-      if (sectionMatch) {
-        currentSection = sectionMatch[1];
-        continue;
-      }
-      const kvMatch = trimmed.match(/^(\w+)\s*=\s*"?([^"]*)"?$/);
-      if (kvMatch) {
-        const key = currentSection ? `${currentSection}.${kvMatch[1]}` : kvMatch[1];
-        let value = kvMatch[2];
-        value = value.replace(/\$\{([^}]+)\}/g, (_, expr: string) => {
-          const sepIdx = expr.indexOf(':-');
-          const varName = sepIdx >= 0 ? expr.slice(0, sepIdx) : expr;
-          const defaultValue = sepIdx >= 0 ? expr.slice(sepIdx + 2) : '';
-          return process.env[varName] ?? defaultValue;
-        });
-        result[key] = value;
-      }
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
+// ── Load config via the canonical TOML loader ─────────────────────────
 
-const config = readSemiontConfig();
-const env = config['defaults.environment'] || 'local';
-const get = (key: string): string => config[`environments.${env}.${key}`] ?? '';
+const configPath = join(homedir(), '.semiontconfig');
+const tomlReader = {
+  readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
+};
+const envConfig = createTomlConfigLoader(
+  tomlReader,
+  configPath,
+  process.env,
+)(null, 'local');
 
-const backendBaseUrl = get('backend.publicURL') || 'http://localhost:4000';
-const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
-const healthPort = Number(get('workers.healthPort') || '9090');
-
-const inferenceType = (get('workers.default.inference.type') || 'ollama') as InferenceClientConfig['type'];
-const inferenceModel = get('workers.default.inference.model') || 'llama3.1';
-const inferenceEndpoint = get(`inference.${inferenceType}.baseURL`);
-if (!inferenceEndpoint) {
-  // No silent fallback — a missing/misspelled baseURL previously routed
-  // every inference type to the ollama default, so an anthropic config
-  // with the wrong key would point the Anthropic SDK at localhost:11434
-  // and fail opaquely on the first job. Fail loudly at startup instead.
+// `_metadata.workers` is the resolver's output — a `WorkerInferenceConfig`
+// keyed by job type (plus `default`) with each entry fully merged with
+// the flat `[inference.<type>]` provider block.
+const workerInferenceMap = (envConfig._metadata as (EnvironmentConfig['_metadata'] & {
+  workers?: Record<string, ResolvedInference>;
+}) | undefined)?.workers;
+if (!workerInferenceMap || Object.keys(workerInferenceMap).length === 0) {
   throw new Error(
-    `Missing inference.${inferenceType}.baseURL in ~/.semiontconfig — ` +
-      `the worker needs an explicit endpoint for every inference type. ` +
-      `Expected key: [environments.${env}.inference.${inferenceType}] baseURL = "..."`,
+    'No worker inference config found in ~/.semiontconfig. ' +
+      'Add at least [environments.<env>.workers.default.inference] with type = "..." and model = "...".',
   );
 }
 
-const inferenceConfig: InferenceClientConfig = {
-  type: inferenceType,
-  model: inferenceModel,
-  endpoint: inferenceEndpoint,
-  ...(process.env.ANTHROPIC_API_KEY && { apiKey: process.env.ANTHROPIC_API_KEY }),
-};
+function resolveWorker(jobType: string): ResolvedInference {
+  const specific = workerInferenceMap![jobType];
+  if (specific) return specific;
+  const def = workerInferenceMap!['default'];
+  if (def) return def;
+  throw new Error(
+    `No inference config for worker '${jobType}' and no workers.default in ~/.semiontconfig.`,
+  );
+}
+
+const backendPublicURL = envConfig.services?.backend?.publicURL;
+if (!backendPublicURL) {
+  throw new Error('services.backend.publicURL is required in ~/.semiontconfig');
+}
+const backendBaseUrl: string = backendPublicURL;
+
+const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+const healthPort = 9090;
 
 import { createProcessLogger } from './logger';
 
 const logger = createProcessLogger('worker');
+
+// ── Build engines map with per-(type,model,apiKey,endpoint) de-dup ────
+
+function clientKey(w: ResolvedInference): string {
+  return [w.type, w.model, w.apiKey ?? '', w.endpoint ?? '', w.baseURL ?? ''].join('|');
+}
+
+function toClientConfig(w: ResolvedInference): InferenceClientConfig {
+  return {
+    type: w.type,
+    model: w.model,
+    ...(w.endpoint && { endpoint: w.endpoint }),
+    ...(w.baseURL && { baseURL: w.baseURL }),
+    ...(w.apiKey && { apiKey: w.apiKey }),
+  };
+}
+
+const clientCache = new Map<string, InferenceClient>();
+const engines: Record<string, WorkerEngine> = {};
+for (const jobType of ALL_JOB_TYPES) {
+  const w = resolveWorker(jobType);
+  const key = clientKey(w);
+  let client = clientCache.get(key);
+  if (!client) {
+    client = createInferenceClient(toClientConfig(w), logger);
+    clientCache.set(key, client);
+  }
+  const generator: Agent = {
+    '@type': 'SoftwareAgent',
+    name: `worker-pool / ${w.type} ${w.model}`,
+    worker: 'worker-pool',
+    inferenceProvider: w.type,
+    model: w.model,
+  };
+  engines[jobType] = { inferenceClient: client, generator };
+}
 
 // ── Build a synthetic KB for the worker ──────────────────────────────
 //
@@ -148,15 +190,6 @@ async function main() {
   const initialToken = await authenticate();
   logger.info('Authenticated');
 
-  const inferenceClient = createInferenceClient(inferenceConfig, logger);
-  const generator: Agent = {
-    '@type': 'SoftwareAgent',
-    name: `worker-pool / ${inferenceType} ${inferenceModel}`,
-    worker: 'worker-pool',
-    inferenceProvider: inferenceType,
-    model: inferenceModel,
-  };
-
   // Construct a synthetic KB + pre-seed an in-memory storage with the
   // initial token so SemiontSession starts with a ready-to-use token$.
   // The `refresh` callback re-exchanges the shared secret on expiry.
@@ -197,16 +230,15 @@ async function main() {
   const workerVm = startWorkerProcess({
     session,
     jobTypes: ALL_JOB_TYPES,
-    inferenceClient,
-    generator,
+    engines,
     logger,
   });
 
   logger.info('Connected', {
     baseUrl: backendBaseUrl,
-    inferenceType,
-    inferenceModel,
-    inferenceEndpoint,
+    engines: Object.fromEntries(
+      Object.entries(engines).map(([jt, e]) => [jt, `${e.generator.inferenceProvider} / ${e.generator.model}`]),
+    ),
   });
 
   const health = createServer((req, res) => {
