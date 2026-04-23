@@ -1,6 +1,6 @@
 {
   "name": "@semiont/vectors",
-  "version": "0.4.21",
+  "version": "0.4.22",
   "type": "module",
   "description": "Vector storage, embedding, and semantic search for Semiont",
   "main": "dist/index.js",
