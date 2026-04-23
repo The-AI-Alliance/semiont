@@ -69,8 +69,17 @@
     "/api/admin/exchange/import": {
       "$ref": "paths/api_admin_exchange_import.json"
     },
+    "/resources": {
+      "$ref": "paths/resources.json"
+    },
+    "/resources/{id}": {
+      "$ref": "paths/resources_{id}.json"
+    },
     "/resources/{id}/gather-resource-stream": {
       "$ref": "paths/resources_{id}_gather-resource-stream.json"
+    },
+    "/api/resources/{id}": {
+      "$ref": "paths/api_resources_{id}.json"
     },
   },
   "components": {

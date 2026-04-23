@@ -97,7 +97,9 @@ type ResponseContent<T> = T extends { responses: { 200: { content: { 'applicatio
   ? R
   : T extends { responses: { 201: { content: { 'application/json': infer R } } } }
     ? R
-    : never;
+    : T extends { responses: { 202: { content: { 'application/json': infer R } } } }
+      ? R
+      : never;
 
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 
@@ -548,7 +550,9 @@ export class SemiontApiClient {
     generationPrompt?: string;
     generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
     isDraft?: boolean;
-  }, options?: RequestOptions): Promise<{ resourceId: string }> {
+    // Return type is spec-derived: if the POST /resources response schema
+    // drifts (e.g. field rename), this line breaks at compile time.
+  }, options?: RequestOptions): Promise<ResponseContent<paths['/resources']['post']>> {
     // Build FormData
     const formData = new FormData();
     formData.append('name', data.name);

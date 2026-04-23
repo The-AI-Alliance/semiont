@@ -52,7 +52,9 @@ export type ResponseContent<T> = T extends { responses: { 200: { content: { 'app
   ? R
   : T extends { responses: { 201: { content: { 'application/json': infer R } } } }
     ? R
-    : never;
+    : T extends { responses: { 202: { content: { 'application/json': infer R } } } }
+      ? R
+      : never;
 
 export type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 

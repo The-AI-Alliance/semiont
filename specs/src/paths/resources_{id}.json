@@ -1,0 +1,133 @@
+{
+  "get": {
+    "summary": "Get a resource (content-negotiated)",
+    "description": "Content negotiation via the Accept header:\n- application/ld+json (default) — returns JSON-LD metadata including all annotations + inbound entity references\n- text/* or image/* or application/pdf — returns the raw representation bytes\n\nBinary payloads flow directly from the content store; metadata payloads go through the bus gateway.",
+    "tags": ["Resources"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      {
+        "name": "Accept",
+        "in": "header",
+        "required": false,
+        "schema": { "type": "string" },
+        "description": "application/ld+json for metadata, or a text/image/pdf media type for raw content"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resource content or metadata, depending on Accept",
+        "content": {
+          "application/ld+json": {
+            "schema": {
+              "$ref": "../components/schemas/GetResourceResponse.json"
+            }
+          },
+          "text/plain": {
+            "schema": { "type": "string" }
+          },
+          "text/markdown": {
+            "schema": { "type": "string" }
+          },
+          "text/html": {
+            "schema": { "type": "string" }
+          },
+          "image/*": {
+            "schema": { "type": "string", "format": "binary" }
+          },
+          "application/pdf": {
+            "schema": { "type": "string", "format": "binary" }
+          }
+        }
+      },
+      "404": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "description": "Failed to retrieve resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "504": {
+        "description": "Request timed out (bus gateway)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "patch": {
+    "summary": "Update resource metadata",
+    "description": "Archive/unarchive or update entity types. Emits mark:archive / mark:unarchive / mark:update-entity-types on the bus; returns 202 immediately. Frontend reconciles state via SSE domain events.",
+    "tags": ["Resources"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/UpdateResourceRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "202": {
+        "description": "Update accepted"
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}
