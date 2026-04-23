@@ -2,7 +2,7 @@
   "post": {
     "summary": "Export Knowledge Base as JSON-LD",
     "description": "Export the knowledge base as a JSON-LD Linked Data tar.gz archive",
-    "tags": ["Admin"],
+    "tags": ["Moderation"],
     "security": [
       {
         "bearerAuth": []
@@ -43,7 +43,7 @@
         }
       },
       "403": {
-        "description": "Forbidden - Admin access required",
+        "description": "Forbidden - moderator or admin role required",
         "content": {
           "application/json": {
             "schema": {

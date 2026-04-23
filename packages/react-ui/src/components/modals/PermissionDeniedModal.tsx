@@ -8,15 +8,17 @@ import { useObservable } from '../../hooks/useObservable';
  * Modal that surfaces when a 403 forbidden error is reported via
  * `notifyPermissionDenied` (called from QueryCache.onError).
  *
- * Reads `permissionDeniedAt$` and `permissionDeniedMessage$` from the active
- * SemiontSession. The session clears the flag when the user dismisses the
- * modal.
+ * Reads `permissionDeniedAt$` and `permissionDeniedMessage$` from the
+ * active `FrontendSessionSignals`. The signals instance clears the
+ * flag when the user dismisses the modal. Modal state lives on
+ * signals (not the session itself) so headless sessions
+ * (workers/CLIs) don't carry dead observables.
  */
 export function PermissionDeniedModal() {
-  const session = useObservable(useSemiont().activeSession$);
-  const permissionDeniedAt = useObservable(session?.permissionDeniedAt$) ?? null;
-  const permissionDeniedMessage = useObservable(session?.permissionDeniedMessage$) ?? null;
-  const acknowledgePermissionDenied = () => session?.acknowledgePermissionDenied();
+  const signals = useObservable(useSemiont().activeSignals$);
+  const permissionDeniedAt = useObservable(signals?.permissionDeniedAt$) ?? null;
+  const permissionDeniedMessage = useObservable(signals?.permissionDeniedMessage$) ?? null;
+  const acknowledgePermissionDenied = () => signals?.acknowledgePermissionDenied();
   const showModal = permissionDeniedAt !== null;
   const message = permissionDeniedMessage ?? 'You do not have permission to perform this action.';
 

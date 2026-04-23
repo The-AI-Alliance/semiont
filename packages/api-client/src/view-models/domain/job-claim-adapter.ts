@@ -1,8 +1,23 @@
+/**
+ * Job Claim Adapter — worker-side job lifecycle glue on top of a
+ * shared `ActorVM`.
+ *
+ * Replaces the old `WorkerVM`, which owned its own actor and
+ * duplicated the SSE connection that `SemiontApiClient` already held.
+ * Workers now construct a `SemiontSession` normally (one actor, one
+ * SSE connection) and use this adapter to attach job-claim behaviour
+ * on top of `session.client.actor`.
+ *
+ * The adapter is intentionally thin: it subscribes to `job:queued`
+ * on the actor, claims jobs via the existing request-response
+ * protocol (`job:claim` → `job:claimed` / `job:claim-failed`), and
+ * exposes observables for job orchestration. It does **not** own
+ * the actor, has no HTTP concerns, and has no modal state.
+ */
+
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { firstValueFrom, merge, filter, map, take, timeout } from 'rxjs';
-import { RESOURCE_BROADCAST_TYPES } from '@semiont/core';
-import type { ViewModel } from '../lib/view-model';
-import { createActorVM, type ActorVM } from './actor-vm';
+import type { ActorVM } from './actor-vm';
 
 export interface JobAssignment {
   jobId: string;
@@ -18,42 +33,59 @@ export interface ActiveJob {
   params: Record<string, unknown>;
 }
 
-export interface WorkerVMOptions {
-  baseUrl: string;
-  token: string;
+export interface JobClaimAdapterOptions {
+  /** Shared actor (typically `session.client.actor`). */
+  actor: ActorVM;
+  /**
+   * Job types this worker can process. Jobs of other types that
+   * arrive on `job:queued` are ignored. Empty array = accept any.
+   */
   jobTypes: string[];
-  reconnectMs?: number;
 }
 
-export interface WorkerVM extends ViewModel {
-  activeJob$: Observable<ActiveJob | null>;
-  isProcessing$: Observable<boolean>;
-  jobsCompleted$: Observable<number>;
-  errors$: Observable<{ jobId: string; error: string }>;
+export interface JobClaimAdapter {
+  /** Currently-claimed job, or null when idle. */
+  readonly activeJob$: Observable<ActiveJob | null>;
+  /** True while a claim is in flight or a job is being processed. */
+  readonly isProcessing$: Observable<boolean>;
+  /** Monotonically-incrementing count of successfully-completed jobs. */
+  readonly jobsCompleted$: Observable<number>;
+  /** Stream of job failures (including claim-failed and processing errors). */
+  readonly errors$: Observable<{ jobId: string; error: string }>;
 
+  /**
+   * Subscribe to `job:queued` events (adding the channel to the actor
+   * if not already subscribed) and begin claiming matching jobs.
+   * Idempotent — calling `start()` twice is a no-op.
+   */
   start(): void;
+
+  /** Stop claiming new jobs. Does not cancel an in-flight job. */
   stop(): void;
-  emitEvent(type: string, payload: Record<string, unknown>): Promise<void>;
+
+  /** Signal successful completion of `activeJob$`. */
   completeJob(): void;
+
+  /** Signal failure of `activeJob$`. Emits on `errors$`. */
   failJob(jobId: string, error: string): void;
+
+  /** Release observables. Does not dispose the shared actor. */
+  dispose(): void;
 }
 
-export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
-  const { baseUrl, token, jobTypes, reconnectMs = 5_000 } = options;
+/**
+ * Attach job-claim behaviour to a shared `ActorVM`.
+ */
+export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
+  const { actor, jobTypes } = options;
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
   const jobsCompleted$ = new BehaviorSubject<number>(0);
   const errors$ = new Subject<{ jobId: string; error: string }>();
 
-  const actor: ActorVM = createActorVM({
-    baseUrl,
-    token,
-    channels: ['job:queued', 'job:claimed', 'job:claim-failed'],
-    reconnectMs,
-  });
-
   let jobSubscription: { unsubscribe(): void } | null = null;
+  let started = false;
 
   const claimJob = async (assignment: JobAssignment): Promise<ActiveJob | null> => {
     try {
@@ -97,7 +129,12 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
     errors$: errors$.asObservable(),
 
     start: () => {
-      actor.start();
+      if (started) return;
+      started = true;
+      // `job:queued` is not in BUS_RESULT_CHANNELS (it's a worker-only
+      // broadcast). Add it to the shared actor so this adapter sees
+      // queued jobs. addChannels() is idempotent.
+      actor.addChannels(['job:queued']);
 
       jobSubscription = actor
         .on$<{ jobId: string; jobType: string; resourceId: string }>('job:queued')
@@ -124,15 +161,7 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
     stop: () => {
       jobSubscription?.unsubscribe();
       jobSubscription = null;
-      actor.stop();
-    },
-
-    emitEvent: (type: string, payload: Record<string, unknown>): Promise<void> => {
-      // Scope only genuine resource broadcasts. Commands and per-caller
-      // correlation-ID responses go global — see RESOURCE_BROADCAST_TYPES.
-      const isBroadcast = (RESOURCE_BROADCAST_TYPES as readonly string[]).includes(type);
-      const resourceScope = isBroadcast ? (payload.resourceId as string | undefined) : undefined;
-      return actor.emit(type, payload, resourceScope);
+      started = false;
     },
 
     completeJob: () => {
@@ -150,7 +179,7 @@ export function createWorkerVM(options: WorkerVMOptions): WorkerVM {
     dispose: () => {
       jobSubscription?.unsubscribe();
       jobSubscription = null;
-      actor.dispose();
+      started = false;
       activeJob$.complete();
       isProcessing$.complete();
       jobsCompleted$.complete();

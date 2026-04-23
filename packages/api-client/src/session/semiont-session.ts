@@ -1,17 +1,34 @@
 /**
- * SemiontSession — per-KB session lifetime object. Owns the SemiontApiClient,
- * the access token BehaviorSubject, and the authenticated user. One
- * SemiontSession exists per active KB; lifetime is decoupled from React
- * mount lifetime. Constructed via SemiontBrowser's registry, disposed via
- * SemiontBrowser.setActiveKb (or signOut).
+ * SemiontSession — per-backend session lifetime object. Owns the
+ * SemiontApiClient, the access token BehaviorSubject, and optionally
+ * an authenticated user. One SemiontSession exists per active backend
+ * connection; lifetime is decoupled from React mount lifetime.
+ *
+ * Headless by design. Runs in browsers, CLIs, workers, and tests.
+ * UI-specific state (session-expired/permission-denied modals) lives
+ * in `FrontendSessionSignals`, which wraps a session — the session
+ * itself has no modal observables, no user-facing notifications.
+ *
+ * Auth is parameterized via callbacks passed at construction:
+ *
+ *   - `refresh()` — invoked on 401 / proactive re-auth. Returns the
+ *     new access token, or null on failure. The frontend passes a
+ *     closure that runs the refresh-token flow; the worker passes
+ *     one that exchanges the shared secret.
+ *
+ *   - `validate(token)` — optional. If provided, the session calls
+ *     it once at startup with the stored token to confirm it's
+ *     still good and populate `user$`. Frontend passes `getMe`;
+ *     worker omits this (service principals have no user record).
+ *
+ *   - `onAuthFailed(message)` — optional. Invoked when refresh
+ *     terminally fails (expired token, no recovery possible). The
+ *     frontend wires this to `FrontendSessionSignals.notifySessionExpired`
+ *     so the modal surfaces; headless consumers typically just log.
  *
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the session never touches `localStorage` or `window`
  * directly.
- *
- * The session holds the `SemiontApiClient` as a public `readonly` field.
- * Components reach the bus via `session.client.emit/on/stream` — the
- * session itself does not wrap those methods.
  */
 
 import { BehaviorSubject, type Observable } from 'rxjs';
@@ -34,7 +51,6 @@ import {
   sessionKey,
   type StoredSession,
 } from './storage';
-import { performRefresh } from './refresh';
 import { SemiontError } from './errors';
 import type { SessionStorage } from './session-storage';
 
@@ -44,6 +60,25 @@ export interface SemiontSessionConfig {
   kb: KnowledgeBase;
   /** Persistence adapter. Reads/writes tokens via this. */
   storage: SessionStorage;
+  /**
+   * Re-authenticate after expiry / 401. Returns a new access token
+   * (no "Bearer " prefix) on success, or null if recovery is
+   * impossible (user needs to sign in again, or the service secret
+   * is missing). Callers must dedupe concurrent invocations if the
+   * underlying auth call isn't itself idempotent.
+   */
+  refresh: () => Promise<string | null>;
+  /**
+   * Validate the stored token at startup and populate `user$`. Omit
+   * for service-principal sessions (worker, CLI tools) where there
+   * is no user record to fetch.
+   */
+  validate?: (token: AccessToken) => Promise<UserInfo | null>;
+  /**
+   * Invoked when refresh terminally fails. Frontend consumers wire
+   * this to a UI signal that surfaces the session-expired modal.
+   */
+  onAuthFailed?: (message: string | null) => void;
   /** Called for session-level failures (auth, refresh exhaustion). */
   onError?: (err: SemiontError) => void;
 }
@@ -55,15 +90,13 @@ export class SemiontSession {
   readonly user$: BehaviorSubject<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
 
-  readonly sessionExpiredAt$: BehaviorSubject<number | null>;
-  readonly sessionExpiredMessage$: BehaviorSubject<string | null>;
-  readonly permissionDeniedAt$: BehaviorSubject<number | null>;
-  readonly permissionDeniedMessage$: BehaviorSubject<string | null>;
-
   /** Resolves after the initial validation round-trip completes (success or failure). */
   readonly ready: Promise<void>;
 
   private readonly storage: SessionStorage;
+  private readonly doRefresh: () => Promise<string | null>;
+  private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
+  private readonly onAuthFailed: (message: string | null) => void;
   private readonly onError: (err: SemiontError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubscribeStorage: (() => void) | null = null;
@@ -72,6 +105,9 @@ export class SemiontSession {
   constructor(config: SemiontSessionConfig) {
     this.kb = config.kb;
     this.storage = config.storage;
+    this.doRefresh = config.refresh;
+    this.doValidate = config.validate;
+    this.onAuthFailed = config.onAuthFailed ?? (() => {});
     this.onError = config.onError ?? (() => {});
 
     const stored = getStoredSession(this.storage, this.kb.id);
@@ -80,10 +116,6 @@ export class SemiontSession {
 
     this.token$ = new BehaviorSubject<AccessToken | null>(initialToken);
     this.user$ = new BehaviorSubject<UserInfo | null>(null);
-    this.sessionExpiredAt$ = new BehaviorSubject<number | null>(null);
-    this.sessionExpiredMessage$ = new BehaviorSubject<string | null>(null);
-    this.permissionDeniedAt$ = new BehaviorSubject<number | null>(null);
-    this.permissionDeniedMessage$ = new BehaviorSubject<string | null>(null);
 
     this.client = new SemiontApiClient({
       baseUrl: baseUrl(kbBackendUrl(this.kb)),
@@ -106,15 +138,20 @@ export class SemiontSession {
 
   /**
    * Run the initial mount-time validation. If a stored access token is
-   * present and unexpired, call getMe with it; if expired, try refresh
-   * first. On 401, try refresh once. Populates user$ on success; surfaces
-   * the session-expired modal on terminal failure.
+   * present and unexpired, call the configured `validate` with it to
+   * confirm it still works and populate `user$`. If expired, try
+   * refresh first. On 401 from validate, try refresh once. Surfaces
+   * auth-failed on terminal failure.
+   *
+   * When no `validate` callback is provided (service principals), this
+   * still runs through the refresh-if-expired step so the stored
+   * token is current — it just skips the user-validation round trip.
    */
   private async validate(stored: StoredSession | null): Promise<void> {
     if (!stored) return;
 
     const startToken = isJwtExpired(stored.access)
-      ? await performRefresh(this.kb, this.storage)
+      ? await this.doRefresh()
       : stored.access;
     if (!startToken) {
       if (isJwtExpired(stored.access)) {
@@ -128,19 +165,20 @@ export class SemiontSession {
       this.scheduleProactiveRefresh(startToken);
     }
 
+    // No validate callback => service-principal session. Token is
+    // current; `user$` stays null. Done.
+    if (!this.doValidate) return;
+
     const attempt = async (token: string): Promise<void> => {
       if (this.disposed) return;
-      const throwaway = new SemiontApiClient({
-        baseUrl: baseUrl(kbBackendUrl(this.kb)),
-      });
       try {
-        const data = await throwaway.getMe({ auth: accessToken(token) });
+        const data = await this.doValidate!(accessToken(token));
         if (this.disposed) return;
-        this.user$.next(data as UserInfo);
+        this.user$.next(data);
       } catch (err) {
         if (this.disposed) return;
         if (err instanceof APIError && err.status === 401) {
-          const refreshed = await performRefresh(this.kb, this.storage);
+          const refreshed = await this.doRefresh();
           if (this.disposed) return;
           if (refreshed) {
             this.token$.next(accessToken(refreshed));
@@ -150,7 +188,7 @@ export class SemiontSession {
           }
           clearStoredSession(this.storage, this.kb.id);
           this.token$.next(null);
-          this.notifySessionExpired('Your session has expired. Please sign in again.');
+          this.onAuthFailed('Your session has expired. Please sign in again.');
         } else {
           this.onError(
             new SemiontError(
@@ -160,8 +198,6 @@ export class SemiontSession {
             ),
           );
         }
-      } finally {
-        throwaway.dispose();
       }
     };
 
@@ -169,14 +205,15 @@ export class SemiontSession {
   }
 
   /**
-   * Refresh the access token. Dedupes concurrent calls via the module-scoped
-   * in-flight Promise map in `performRefresh`. On success, pushes the new
-   * token into `token$`. On failure, surfaces the session-expired modal and
-   * emits a `session.refresh-exhausted` error.
+   * Refresh the access token via the configured `refresh` callback.
+   * On success, pushes the new token into `token$` and schedules the
+   * next proactive refresh. On failure, clears persisted state and
+   * fires `onAuthFailed` — the frontend's wiring of that callback is
+   * what surfaces the session-expired modal.
    */
   async refresh(): Promise<AccessToken | null> {
     if (this.disposed) return null;
-    const newAccess = await performRefresh(this.kb, this.storage);
+    const newAccess = await this.doRefresh();
     if (this.disposed) return null;
     if (newAccess) {
       const tok = accessToken(newAccess);
@@ -186,7 +223,7 @@ export class SemiontSession {
     }
     this.token$.next(null);
     clearStoredSession(this.storage, this.kb.id);
-    this.notifySessionExpired('Your session has expired. Please sign in again.');
+    this.onAuthFailed('Your session has expired. Please sign in again.');
     this.onError(
       new SemiontError('session.refresh-exhausted', 'Token refresh failed', this.kb.id),
     );
@@ -236,36 +273,6 @@ export class SemiontSession {
     }
   }
 
-  notifySessionExpired(message: string | null): void {
-    if (this.disposed) return;
-    this.sessionExpiredMessage$.next(
-      message ?? 'Your session has expired. Please sign in again.',
-    );
-    this.sessionExpiredAt$.next(Date.now());
-    this.token$.next(null);
-    this.user$.next(null);
-    clearStoredSession(this.storage, this.kb.id);
-    this.clearRefreshTimer();
-  }
-
-  notifyPermissionDenied(message: string | null): void {
-    if (this.disposed) return;
-    this.permissionDeniedMessage$.next(
-      message ?? 'You do not have permission to perform this action.',
-    );
-    this.permissionDeniedAt$.next(Date.now());
-  }
-
-  acknowledgeSessionExpired(): void {
-    this.sessionExpiredAt$.next(null);
-    this.sessionExpiredMessage$.next(null);
-  }
-
-  acknowledgePermissionDenied(): void {
-    this.permissionDeniedAt$.next(null);
-    this.permissionDeniedMessage$.next(null);
-  }
-
   get expiresAt(): Date | null {
     const token = this.token$.getValue();
     return token ? parseJwtExpiry(token) : null;
@@ -285,9 +292,5 @@ export class SemiontSession {
 
     this.token$.complete();
     this.user$.complete();
-    this.sessionExpiredAt$.complete();
-    this.sessionExpiredMessage$.complete();
-    this.permissionDeniedAt$.complete();
-    this.permissionDeniedMessage$.complete();
   }
 }

@@ -13,13 +13,21 @@
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
-import { EventBus, type EventMap } from '@semiont/core';
+import {
+  EventBus,
+  baseUrl,
+  refreshToken as makeRefreshToken,
+  type AccessToken,
+  type EventMap,
+} from '@semiont/core';
+import { SemiontApiClient } from '../client';
 import {
   ACTIVE_KEY,
   clearStoredSession,
   generateKbId,
   getStoredSession,
   isJwtExpired,
+  kbBackendUrl,
   loadKnowledgeBases,
   saveKnowledgeBases,
   setStoredSession,
@@ -27,7 +35,8 @@ import {
 import { registerAuthNotifyHandlers } from './notify';
 import type { KnowledgeBase, KbSessionStatus, NewKnowledgeBase } from './knowledge-base';
 import type { OpenResource } from './open-resource';
-import { SemiontSession } from './semiont-session';
+import { SemiontSession, type UserInfo } from './semiont-session';
+import { FrontendSessionSignals } from './frontend-session-signals';
 import { SemiontError } from './errors';
 import type { SessionStorage } from './session-storage';
 
@@ -60,6 +69,15 @@ export class SemiontBrowser {
   readonly activeKbId$: BehaviorSubject<string | null>;
   readonly activeSession$: BehaviorSubject<SemiontSession | null>;
   /**
+   * Modal signals (session-expired / permission-denied) for the
+   * currently-active session. Parallels `activeSession$` — always
+   * non-null when `activeSession$` is non-null, always null when it
+   * is. Extracted from the session itself so headless sessions
+   * (workers, CLIs, tests) don't carry dead modal observables.
+   * See [FrontendSessionSignals](./frontend-session-signals.ts).
+   */
+  readonly activeSignals$: BehaviorSubject<FrontendSessionSignals | null>;
+  /**
    * True while a session is actively being constructed (setActiveKb /
    * signIn in flight, awaiting `session.ready`). Distinguishes the
    * "session about to arrive" intermediate state from "session
@@ -85,6 +103,14 @@ export class SemiontBrowser {
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
   private activating: Promise<void> | null = null;
+  /**
+   * Per-KB in-flight refresh dedup. Simultaneous 401s for the same
+   * KB converge on a single `/api/tokens/refresh` network call.
+   * Was previously module-scoped in `refresh.ts`; moved here when
+   * that file was deleted — SemiontBrowser is a singleton so the
+   * scoping is equivalent.
+   */
+  private readonly inFlightRefreshes = new Map<string, Promise<string | null>>();
 
   constructor(config: SemiontBrowserConfig) {
     this.storage = config.storage;
@@ -99,6 +125,7 @@ export class SemiontBrowser {
     this.kbs$ = new BehaviorSubject<KnowledgeBase[]>(kbs);
     this.activeKbId$ = new BehaviorSubject<string | null>(initialActive);
     this.activeSession$ = new BehaviorSubject<SemiontSession | null>(null);
+    this.activeSignals$ = new BehaviorSubject<FrontendSessionSignals | null>(null);
     this.sessionActivating$ = new BehaviorSubject<boolean>(false);
     this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources(this.storage));
     this.error$ = new Subject<SemiontError>();
@@ -128,13 +155,13 @@ export class SemiontBrowser {
 
     // Route notify-module calls (from outside-React code paths like the
     // React Query QueryCache.onError handler) into the active session's
-    // modal state.
+    // modal signals.
     this.unregisterNotify = registerAuthNotifyHandlers({
       onSessionExpired: (message) => {
-        this.activeSession$.getValue()?.notifySessionExpired(message ?? null);
+        this.activeSignals$.getValue()?.notifySessionExpired(message ?? null);
       },
       onPermissionDenied: (message) => {
-        this.activeSession$.getValue()?.notifyPermissionDenied(message ?? null);
+        this.activeSignals$.getValue()?.notifyPermissionDenied(message ?? null);
       },
     });
 
@@ -236,9 +263,14 @@ export class SemiontBrowser {
     if (id === prevId && prevSession) return;
 
     // Synchronous intent signal. Late activations compare against this to
-    // detect staleness.
+    // detect staleness. Session and signals null out together so React
+    // consumers never see a stale signals instance paired with a null
+    // session during the activation gap.
     if (prevId !== id) this.activeKbId$.next(id);
-    if (prevSession) this.activeSession$.next(null);
+    if (prevSession) {
+      this.activeSession$.next(null);
+      this.activeSignals$.next(null);
+    }
 
     // Wait for any in-flight activation. If we were superseded while
     // waiting, bail — a newer call is already reflecting the desired state.
@@ -253,9 +285,12 @@ export class SemiontBrowser {
       // Dispose whatever is currently live (might be null already from the
       // sync path above, or left over from a superseded activation).
       const toDispose = this.activeSession$.getValue();
+      const signalsToDispose = this.activeSignals$.getValue();
       if (toDispose) {
         this.activeSession$.next(null);
+        this.activeSignals$.next(null);
         await toDispose.dispose();
+        signalsToDispose?.dispose();
       }
 
       if (!id) return;
@@ -263,9 +298,17 @@ export class SemiontBrowser {
       const kb = this.kbs$.getValue().find((k) => k.id === id);
       if (!kb) return;
 
+      // Construct the modal signals up front; the session's
+      // onAuthFailed callback writes into them, so they must exist
+      // before the session's ctor does its startup validation.
+      const signals = new FrontendSessionSignals();
+
       const session = new SemiontSession({
         kb,
         storage: this.storage,
+        refresh: () => this.performRefresh(kb),
+        validate: (token) => this.performValidate(kb, token),
+        onAuthFailed: (msg) => signals.notifySessionExpired(msg),
         onError: (err) => this.error$.next(err),
       });
 
@@ -280,15 +323,18 @@ export class SemiontBrowser {
           ),
         );
         await session.dispose();
+        signals.dispose();
         return;
       }
 
       if (this.disposed || this.activeKbId$.getValue() !== id) {
         await session.dispose();
+        signals.dispose();
         return;
       }
 
       this.activeSession$.next(session);
+      this.activeSignals$.next(signals);
     })();
 
     this.activating = activation;
@@ -315,9 +361,12 @@ export class SemiontBrowser {
     // If this KB is already active, tear down and reconstruct so the new
     // tokens are picked up from storage by the session ctor.
     if (this.activeKbId$.getValue() === id) {
-      const prev = this.activeSession$.getValue();
+      const prevSession = this.activeSession$.getValue();
+      const prevSignals = this.activeSignals$.getValue();
       this.activeSession$.next(null);
-      if (prev) await prev.dispose();
+      this.activeSignals$.next(null);
+      if (prevSession) await prevSession.dispose();
+      prevSignals?.dispose();
       await this.setActiveKb(id);
       return;
     }
@@ -327,7 +376,7 @@ export class SemiontBrowser {
 
   /**
    * Sign out of a KB: clear stored tokens. If the KB is active, dispose
-   * its session and emit null for `activeSession$`.
+   * its session + signals and emit null for both.
    */
   async signOut(id: string): Promise<void> {
     if (this.disposed) return;
@@ -337,9 +386,12 @@ export class SemiontBrowser {
     this.kbs$.next([...this.kbs$.getValue()]);
 
     if (this.activeKbId$.getValue() === id) {
-      const prev = this.activeSession$.getValue();
+      const prevSession = this.activeSession$.getValue();
+      const prevSignals = this.activeSignals$.getValue();
       this.activeSession$.next(null);
-      if (prev) await prev.dispose();
+      this.activeSignals$.next(null);
+      if (prevSession) await prevSession.dispose();
+      prevSignals?.dispose();
     }
   }
 
@@ -398,6 +450,72 @@ export class SemiontBrowser {
     this.openResources$.next(list);
   }
 
+  // ── Auth callbacks bound per session ──────────────────────────────────
+  //
+  // These closures back the `refresh` and `validate` callbacks passed
+  // to `SemiontSession` in `setActiveKb`. Factored out as methods
+  // (rather than inline in the activation closure) so test-doubles
+  // can override them cleanly, and so the in-flight dedup map
+  // survives across activations of the same KB.
+
+  /**
+   * Refresh the active KB's access token. Returns the new token on
+   * success, null on failure. Concurrent calls for the same KB
+   * dedupe through `inFlightRefreshes`, so simultaneous 401s trigger
+   * only one `/api/tokens/refresh` round trip.
+   *
+   * Uses a throwaway `SemiontApiClient` with no `tokenRefresher` —
+   * a refresh call returning 401 would otherwise re-enter this
+   * function infinitely.
+   */
+  private async performRefresh(kb: KnowledgeBase): Promise<string | null> {
+    const existing = this.inFlightRefreshes.get(kb.id);
+    if (existing) return existing;
+
+    const promise = (async () => {
+      const stored = getStoredSession(this.storage, kb.id);
+      if (!stored) return null;
+      const throwaway = new SemiontApiClient({
+        baseUrl: baseUrl(kbBackendUrl(kb)),
+      });
+      try {
+        const response = await throwaway.refreshToken(makeRefreshToken(stored.refresh));
+        const newAccess = response.access_token;
+        if (!newAccess) return null;
+        setStoredSession(this.storage, kb.id, { access: newAccess, refresh: stored.refresh });
+        return newAccess;
+      } catch {
+        return null;
+      } finally {
+        throwaway.dispose();
+      }
+    })();
+
+    this.inFlightRefreshes.set(kb.id, promise);
+    try {
+      return await promise;
+    } finally {
+      this.inFlightRefreshes.delete(kb.id);
+    }
+  }
+
+  /**
+   * Validate an access token by calling `getMe` on a throwaway
+   * client. The session uses this once at startup to populate
+   * `user$`; 401 triggers a refresh-then-retry inside the session.
+   */
+  private async performValidate(kb: KnowledgeBase, token: AccessToken): Promise<UserInfo | null> {
+    const throwaway = new SemiontApiClient({
+      baseUrl: baseUrl(kbBackendUrl(kb)),
+    });
+    try {
+      const data = await throwaway.getMe({ auth: token });
+      return data as UserInfo;
+    } finally {
+      throwaway.dispose();
+    }
+  }
+
   // ── Lifecycle ─────────────────────────────────────────────────────────
 
   async dispose(): Promise<void> {
@@ -412,13 +530,17 @@ export class SemiontBrowser {
       this.unsubscribeStorage = null;
     }
 
-    const prev = this.activeSession$.getValue();
+    const prevSession = this.activeSession$.getValue();
+    const prevSignals = this.activeSignals$.getValue();
     this.activeSession$.next(null);
-    if (prev) await prev.dispose();
+    this.activeSignals$.next(null);
+    if (prevSession) await prevSession.dispose();
+    prevSignals?.dispose();
 
     this.kbs$.complete();
     this.activeKbId$.complete();
     this.activeSession$.complete();
+    this.activeSignals$.complete();
     this.openResources$.complete();
     this.error$.complete();
     this.identityToken$.complete();

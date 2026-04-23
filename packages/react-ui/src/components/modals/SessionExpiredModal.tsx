@@ -9,14 +9,16 @@ import { useObservable } from '../../hooks/useObservable';
  * either the session's own JWT validation or from any React Query call
  * via the QueryCache.onError handler).
  *
- * Reads `sessionExpiredAt$` from the active SemiontSession. When the user
- * dismisses the modal, the session clears the flag.
+ * Reads `sessionExpiredAt$` from the active `FrontendSessionSignals`.
+ * When the user dismisses the modal, the signals instance clears the
+ * flag. Modal state lives on signals (not the session itself) so
+ * headless sessions (workers/CLIs) don't carry dead observables.
  */
 export function SessionExpiredModal() {
-  const session = useObservable(useSemiont().activeSession$);
-  const sessionExpiredAt = useObservable(session?.sessionExpiredAt$) ?? null;
-  const sessionExpiredMessage = useObservable(session?.sessionExpiredMessage$) ?? null;
-  const acknowledgeSessionExpired = () => session?.acknowledgeSessionExpired();
+  const signals = useObservable(useSemiont().activeSignals$);
+  const sessionExpiredAt = useObservable(signals?.sessionExpiredAt$) ?? null;
+  const sessionExpiredMessage = useObservable(signals?.sessionExpiredMessage$) ?? null;
+  const acknowledgeSessionExpired = () => signals?.acknowledgeSessionExpired();
   const showModal = sessionExpiredAt !== null;
 
   const handleSignIn = () => {

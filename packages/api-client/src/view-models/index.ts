@@ -88,12 +88,12 @@ export {
   type SmelterEvent,
 } from './domain/smelter-actor-vm';
 export {
-  createWorkerVM,
-  type WorkerVM,
-  type WorkerVMOptions,
+  createJobClaimAdapter,
+  type JobClaimAdapter,
+  type JobClaimAdapterOptions,
   type JobAssignment,
   type ActiveJob,
-} from './domain/worker-vm';
+} from './domain/job-claim-adapter';
 export {
   createJobQueueVM,
   type JobQueueVM,
