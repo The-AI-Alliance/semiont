@@ -63,20 +63,32 @@
     "/api/admin/exchange/restore": {
       "$ref": "paths/api_admin_exchange_restore.json"
     },
-    "/api/admin/exchange/export": {
-      "$ref": "paths/api_admin_exchange_export.json"
+    "/api/moderate/exchange/export": {
+      "$ref": "paths/api_moderate_exchange_export.json"
     },
-    "/api/admin/exchange/import": {
-      "$ref": "paths/api_admin_exchange_import.json"
+    "/api/moderate/exchange/import": {
+      "$ref": "paths/api_moderate_exchange_import.json"
+    },
+    "/api/cookies/consent": {
+      "$ref": "paths/api_cookies_consent.json"
+    },
+    "/api/cookies/export": {
+      "$ref": "paths/api_cookies_export.json"
+    },
+    "/api/tokens/mcp-setup": {
+      "$ref": "paths/api_tokens_mcp-setup.json"
+    },
+    "/bus/subscribe": {
+      "$ref": "paths/bus_subscribe.json"
+    },
+    "/bus/emit": {
+      "$ref": "paths/bus_emit.json"
     },
     "/resources": {
       "$ref": "paths/resources.json"
     },
     "/resources/{id}": {
       "$ref": "paths/resources_{id}.json"
-    },
-    "/resources/{id}/gather-resource-stream": {
-      "$ref": "paths/resources_{id}_gather-resource-stream.json"
     },
     "/api/resources/{id}": {
       "$ref": "paths/api_resources_{id}.json"
@@ -125,6 +137,21 @@
       },
       "BrowseFilesResponse": {
         "$ref": "components/schemas/BrowseFilesResponse.json"
+      },
+      "BusEmitRequest": {
+        "$ref": "components/schemas/BusEmitRequest.json"
+      },
+      "CookieConsent": {
+        "$ref": "components/schemas/CookieConsent.json"
+      },
+      "CookieConsentRequest": {
+        "$ref": "components/schemas/CookieConsentRequest.json"
+      },
+      "CookieConsentResponse": {
+        "$ref": "components/schemas/CookieConsentResponse.json"
+      },
+      "CookieExportResponse": {
+        "$ref": "components/schemas/CookieExportResponse.json"
       },
       "DirectoryEntry": {
         "$ref": "components/schemas/DirectoryEntry.json"
@@ -206,9 +233,6 @@
       },
       "AnnotateReferencesStreamRequest": {
         "$ref": "components/schemas/AnnotateReferencesStreamRequest.json"
-      },
-      "GatherResourceStreamRequest": {
-        "$ref": "components/schemas/GatherResourceStreamRequest.json"
       },
       "GatherAnnotationStreamRequest": {
         "$ref": "components/schemas/GatherAnnotationStreamRequest.json"

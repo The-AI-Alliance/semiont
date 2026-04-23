@@ -2,7 +2,7 @@
   "post": {
     "summary": "Import Knowledge Base from JSON-LD",
     "description": "Import resources from a JSON-LD Linked Data archive. Returns SSE progress events.",
-    "tags": ["Admin"],
+    "tags": ["Moderation"],
     "security": [
       {
         "bearerAuth": []
@@ -58,7 +58,7 @@
         }
       },
       "403": {
-        "description": "Forbidden - Admin access required",
+        "description": "Forbidden - moderator or admin role required",
         "content": {
           "application/json": {
             "schema": {
