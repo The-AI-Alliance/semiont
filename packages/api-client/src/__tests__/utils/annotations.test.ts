@@ -36,7 +36,6 @@ function makeAnnotation(overrides?: Partial<Annotation>): Annotation {
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
     target: { source: 'http://example.com/res/1' },
-    body: [],
     ...overrides,
   };
 }
@@ -167,8 +166,8 @@ describe('getCommentText', () => {
 });
 
 describe('isStubReference / isResolvedReference', () => {
-  test('stub reference has empty body', () => {
-    const ann = makeAnnotation({ motivation: 'linking', body: [] });
+  test('stub reference has no SpecificResource (body omitted)', () => {
+    const ann = makeAnnotation({ motivation: 'linking' });
     expect(isStubReference(ann)).toBe(true);
     expect(isResolvedReference(ann)).toBe(false);
   });

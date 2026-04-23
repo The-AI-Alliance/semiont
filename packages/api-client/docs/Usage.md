@@ -135,7 +135,8 @@ const { annotationId } = await semiont.mark.annotation(resourceId, {
       { type: 'TextQuoteSelector', exact: 'Hello World' },
     ],
   },
-  body: [],
+  // highlighting annotations carry no body — motivation + target is
+  // the whole annotation per the W3C Web Annotation Model.
 });
 
 // Delete an annotation

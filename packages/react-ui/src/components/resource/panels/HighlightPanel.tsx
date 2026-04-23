@@ -14,6 +14,7 @@ import './HighlightPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -25,11 +26,7 @@ interface HighlightPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null;
+  progress?: JobProgress | null;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -130,13 +127,14 @@ export function HighlightPanel({
   });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
-  // immediately emit mark:submit event
+  // immediately emit mark:submit event. Highlights carry no body —
+  // motivation:'highlighting' on a target is a complete annotation
+  // per the W3C Web Annotation Model.
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
       session?.client.emit('mark:submit', {
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
-        body: [],
       });
     }
   }, [pendingAnnotation, session]);

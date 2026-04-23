@@ -1,9 +1,9 @@
 {
   "type": "object",
-  "description": "Result of a completed generation job.",
+  "description": "Result of a completed generation job. resourceId is assigned by Stower when yield:create is processed; the worker emits job:complete with only resourceName, and Stower populates resourceId on the persisted payload.",
   "properties": {
-    "resourceId": { "type": "string", "description": "ID of the generated resource" },
+    "resourceId": { "type": "string", "description": "ID of the generated resource (populated by Stower, not by the worker)" },
     "resourceName": { "type": "string", "description": "Name of the generated resource" }
   },
-  "required": ["resourceId", "resourceName"]
+  "required": ["resourceName"]
 }

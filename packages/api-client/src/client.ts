@@ -64,13 +64,12 @@ const BUS_RESULT_CHANNELS = [
   'browse:annotation-context-result', 'browse:annotation-context-failed',
   'mark:delete-ok', 'mark:delete-failed',
   'mark:create-ok', 'mark:create-failed',
-  'mark:progress', 'mark:assist-finished', 'mark:assist-failed',
   'match:search-results', 'match:search-failed',
   'gather:complete', 'gather:failed',
   'gather:annotation-progress', 'gather:annotation-finished',
   'gather:summary-result', 'gather:summary-failed',
-  'yield:progress',
   'bind:body-updated', 'bind:body-update-failed',
+  'job:report-progress', 'job:complete', 'job:fail',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
   'job:claimed', 'job:claim-failed',
@@ -98,7 +97,9 @@ type ResponseContent<T> = T extends { responses: { 200: { content: { 'applicatio
   ? R
   : T extends { responses: { 201: { content: { 'application/json': infer R } } } }
     ? R
-    : never;
+    : T extends { responses: { 202: { content: { 'application/json': infer R } } } }
+      ? R
+      : never;
 
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 
@@ -532,6 +533,8 @@ export class SemiontApiClient {
    * @param data.creationMethod - Optional creation method
    * @param data.sourceAnnotationId - Optional source annotation ID
    * @param data.sourceResourceId - Optional source resource ID
+   * @param data.generationPrompt - Optional prompt that drove AI generation
+   * @param data.generator - Optional Agent(s) that generated the content
    * @param options - Request options including auth
    */
   async yieldResource(data: {
@@ -544,7 +547,12 @@ export class SemiontApiClient {
     sourceAnnotationId?: string;
     sourceResourceId?: string;
     storageUri: string;
-  }, options?: RequestOptions): Promise<{ resourceId: string }> {
+    generationPrompt?: string;
+    generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
+    isDraft?: boolean;
+    // Return type is spec-derived: if the POST /resources response schema
+    // drifts (e.g. field rename), this line breaks at compile time.
+  }, options?: RequestOptions): Promise<ResponseContent<paths['/resources']['post']>> {
     // Build FormData
     const formData = new FormData();
     formData.append('name', data.name);
@@ -577,6 +585,15 @@ export class SemiontApiClient {
     }
     if (data.sourceResourceId) {
       formData.append('sourceResourceId', data.sourceResourceId);
+    }
+    if (data.generationPrompt) {
+      formData.append('generationPrompt', data.generationPrompt);
+    }
+    if (data.generator) {
+      formData.append('generator', JSON.stringify(data.generator));
+    }
+    if (data.isDraft !== undefined) {
+      formData.append('isDraft', String(data.isDraft));
     }
 
     // POST with multipart/form-data (ky automatically sets Content-Type)

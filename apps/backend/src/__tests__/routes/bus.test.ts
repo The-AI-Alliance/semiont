@@ -32,7 +32,7 @@ function fakeStoredMarkAdded(
     id: annIdStr,
     motivation: 'commenting',
     target: { source: rIdStr },
-    body: [],
+    body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
   };
   return {
     id: `evt-${seq}`,

@@ -1,12 +1,11 @@
-/**
- * EventBus Scoping Tests
- *
- * Tests resource-scoped event isolation
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventBus } from '../event-bus';
 
+/**
+ * EventBus scope semantics tests. Uses a small set of representative
+ * channels as examples — the scoping behavior is not specific to any
+ * particular channel, so these tests pick ones with simple payloads.
+ */
 describe('EventBus scoping', () => {
   let eventBus: EventBus;
 
@@ -14,41 +13,41 @@ describe('EventBus scoping', () => {
     eventBus = new EventBus();
   });
 
-  it('scopes events by resource', () => {
+  it('creates isolated scopes with separate subject instances', () => {
     const resource1 = eventBus.scope('resource-1');
     const resource2 = eventBus.scope('resource-2');
 
-    const events1: any[] = [];
-    const events2: any[] = [];
+    const events1: unknown[] = [];
+    const events2: unknown[] = [];
 
-    resource1.get('mark:progress').subscribe(e => events1.push(e));
-    resource2.get('mark:progress').subscribe(e => events2.push(e));
+    resource1.get('mark:create-ok').subscribe(e => events1.push(e));
+    resource2.get('mark:create-ok').subscribe(e => events2.push(e));
 
-    resource1.get('mark:progress').next({ status: 'started' });
-    resource2.get('mark:progress').next({ status: 'complete' });
+    resource1.get('mark:create-ok').next({ annotationId: 'ann-1' as never });
+    resource2.get('mark:create-ok').next({ annotationId: 'ann-2' as never });
 
     expect(events1).toHaveLength(1);
-    expect(events1[0].status).toBe('started');
+    expect((events1[0] as { annotationId: string }).annotationId).toBe('ann-1');
 
     expect(events2).toHaveLength(1);
-    expect(events2[0].status).toBe('complete');
+    expect((events2[0] as { annotationId: string }).annotationId).toBe('ann-2');
   });
 
   it('isolates events between different scopes', () => {
     const resource1 = eventBus.scope('resource-1');
     const resource2 = eventBus.scope('resource-2');
 
-    const events1: any[] = [];
-    const events2: any[] = [];
+    const events1: unknown[] = [];
+    const events2: unknown[] = [];
 
     resource1.get('mark:create-ok').subscribe(e => events1.push(e));
     resource2.get('mark:create-ok').subscribe(e => events2.push(e));
 
     // Emit to resource1 only
-    resource1.get('mark:create-ok').next({ annotationId: 'ann-1' as any });
+    resource1.get('mark:create-ok').next({ annotationId: 'ann-1' as never });
 
     expect(events1).toHaveLength(1);
-    expect(events1[0].annotationId).toBe('ann-1');
+    expect((events1[0] as { annotationId: string }).annotationId).toBe('ann-1');
 
     expect(events2).toHaveLength(0); // Resource2 should not receive event
   });
@@ -57,21 +56,21 @@ describe('EventBus scoping', () => {
     const resourceScope = eventBus.scope('resource-1');
     const subsystemScope = resourceScope.scope('subsystem-a');
 
-    const resourceEvents: any[] = [];
-    const subsystemEvents: any[] = [];
+    const resourceEvents: unknown[] = [];
+    const subsystemEvents: unknown[] = [];
 
-    resourceScope.get('mark:progress').subscribe(e => resourceEvents.push(e));
-    subsystemScope.get('mark:progress').subscribe(e => subsystemEvents.push(e));
+    resourceScope.get('mark:create-ok').subscribe(e => resourceEvents.push(e));
+    subsystemScope.get('mark:create-ok').subscribe(e => subsystemEvents.push(e));
 
     // Events to different scopes are isolated
-    resourceScope.get('mark:progress').next({ status: 'started', message: 'resource level' });
-    subsystemScope.get('mark:progress').next({ status: 'started', message: 'subsystem level' });
+    resourceScope.get('mark:create-ok').next({ annotationId: 'res-level' as never });
+    subsystemScope.get('mark:create-ok').next({ annotationId: 'subsystem-level' as never });
 
     expect(resourceEvents).toHaveLength(1);
-    expect(resourceEvents[0].message).toBe('resource level');
+    expect((resourceEvents[0] as { annotationId: string }).annotationId).toBe('res-level');
 
     expect(subsystemEvents).toHaveLength(1);
-    expect(subsystemEvents[0].message).toBe('subsystem level');
+    expect((subsystemEvents[0] as { annotationId: string }).annotationId).toBe('subsystem-level');
   });
 
   it('shares same parent EventBus subjects map', () => {
@@ -79,26 +78,22 @@ describe('EventBus scoping', () => {
     const resource2 = eventBus.scope('resource-2');
 
     // Both scopes use the same underlying EventBus
-    expect((resource1 as any).parent).toBe((resource2 as any).parent);
-    expect((resource1 as any).parent).toBe(eventBus);
+    expect((resource1 as unknown as { parent: unknown }).parent).toBe((resource2 as unknown as { parent: unknown }).parent);
+    expect((resource1 as unknown as { parent: unknown }).parent).toBe(eventBus);
   });
 
   it('maintains type safety across scopes', () => {
     const resourceScope = eventBus.scope('resource-1');
 
-    // Type should be preserved
-    const subject = resourceScope.get('mark:progress');
+    const subject = resourceScope.get('mark:create-ok');
 
-    const events: any[] = [];
-    // Subscribe first
+    const events: unknown[] = [];
     subject.subscribe(e => {
-      // e should have the correct type
-      expect(e.status).toBeDefined();
+      expect(e.annotationId).toBeDefined();
       events.push(e);
     });
 
-    // Then emit - this should compile without errors
-    subject.next({ status: 'started', message: 'Beginning detection' });
+    subject.next({ annotationId: 'ann-1' as never });
 
     expect(events).toHaveLength(1);
   });

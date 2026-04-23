@@ -225,6 +225,83 @@ describe('ResourceOperations', () => {
       expect(createdEvent!.timestamp).toBeDefined();
       expect(new Date(createdEvent!.timestamp).getTime()).toBeGreaterThan(0);
     });
+
+    it('should forward generation-provenance fields through to the persisted yield:created event', async () => {
+      // Protects the generation-worker flow: the worker (via POST /resources)
+      // passes generatedFrom / generationPrompt / generator / isDraft through
+      // ResourceOperations.createResource. If any field is dropped on the floor
+      // here, downstream readers (graph materializer, PROV-O query) silently
+      // lose provenance with no runtime error.
+      const generator = {
+        '@type': 'SoftwareAgent' as const,
+        name: 'worker-pool / ollama gemma4:26b',
+        worker: 'worker-pool',
+        inferenceProvider: 'ollama',
+        model: 'gemma4:26b',
+      };
+      const uri = deriveStorageUri(`test-${++fileCounter}`, 'text/markdown');
+      const stored = await kb.content.store(Buffer.from('# Generated\n', 'utf-8'), uri);
+      const resId = await ResourceOperations.createResource(
+        {
+          name: 'Generated Doc',
+          storageUri: stored.storageUri,
+          contentChecksum: stored.checksum,
+          byteSize: stored.byteSize,
+          format: 'text/markdown',
+          creationMethod: CREATION_METHODS.GENERATED,
+          generatedFrom: { resourceId: 'res-parent', annotationId: 'ann-origin' },
+          generationPrompt: 'Summarize the key points',
+          generator,
+          isDraft: true,
+        },
+        userId('user-1'),
+        eventBus,
+      );
+
+      const events = await testEventStore.log.getEvents(resId);
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent).toBeDefined();
+      if (createdEvent && createdEvent.type === 'yield:created') {
+        expect(createdEvent.payload).toMatchObject({
+          name: 'Generated Doc',
+          format: 'text/markdown',
+          creationMethod: CREATION_METHODS.GENERATED,
+          generatedFrom: { resourceId: 'res-parent', annotationId: 'ann-origin' },
+          generationPrompt: 'Summarize the key points',
+          generator,
+          isDraft: true,
+        });
+      }
+    });
+
+    it('should omit generatedFrom from persisted event when only one side of the edge is provided', async () => {
+      // Stower requires BOTH resourceId and annotationId to persist
+      // generatedFrom (see handleYieldCreate). If only one is present
+      // the field is dropped rather than persisted in a half-shape that
+      // downstream code can't reason about. Pinning this behavior so a
+      // future refactor doesn't silently relax it.
+      const uri = deriveStorageUri(`test-${++fileCounter}`, 'text/plain');
+      const stored = await kb.content.store(Buffer.from('partial', 'utf-8'), uri);
+      const resId = await ResourceOperations.createResource(
+        {
+          name: 'Half-provenance Doc',
+          storageUri: stored.storageUri,
+          contentChecksum: stored.checksum,
+          byteSize: stored.byteSize,
+          format: 'text/plain',
+          generatedFrom: { resourceId: 'res-only' }, // no annotationId
+        },
+        userId('user-1'),
+        eventBus,
+      );
+
+      const events = await testEventStore.log.getEvents(resId);
+      const createdEvent = events.find(e => e.type === 'yield:created');
+      expect(createdEvent).toBeDefined();
+      if (createdEvent && createdEvent.type === 'yield:created') {
+        expect(createdEvent.payload.generatedFrom).toBeUndefined();
+      }
+    });
   });
 
   describe('updateResource', () => {

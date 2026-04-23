@@ -70,7 +70,6 @@ const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
       end: 10,
     },
   },
-  body: [],
   ...overrides,
 });
 

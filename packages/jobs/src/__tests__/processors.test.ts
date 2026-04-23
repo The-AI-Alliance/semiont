@@ -81,6 +81,8 @@ describe('processHighlightJob', () => {
       motivation: 'highlighting',
       target: expect.objectContaining({ source: RID }),
     });
+    // Highlights carry no body — motivation alone is the content per W3C.
+    expect((result.annotations[0] as Record<string, unknown>).body).toBeUndefined();
     expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
     expect(progress).toHaveBeenCalledWith(10, expect.any(String), 'analyzing');
     expect(progress).toHaveBeenLastCalledWith(100, expect.stringContaining('2 highlights'), 'creating');
@@ -106,8 +108,12 @@ describe('processCommentJob', () => {
 
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('commenting');
+    // Canonical commenting body — single-item array of TextualBody with
+    // format + language. Do not drop format/language; the pre-#651
+    // CommentAnnotationWorker emitted them and consumers may rely on
+    // them for rendering.
     expect((result.annotations[0] as any).body).toEqual([
-      { type: 'TextualBody', value: 'interesting point', purpose: 'commenting' },
+      { type: 'TextualBody', value: 'interesting point', purpose: 'commenting', format: 'text/plain', language: 'en' },
     ]);
     expect(result.result).toEqual({ commentsFound: 1, commentsCreated: 1 });
   });
@@ -132,8 +138,14 @@ describe('processAssessmentJob', () => {
 
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('assessing');
-    expect((result.annotations[0] as any).body[0]).toEqual({
-      type: 'TextualBody', value: 'dubious', purpose: 'describing',
+    // Canonical assessing body — a single AnnotationBody object (not an
+    // array), purpose aligned to motivation. Matches the pre-#651
+    // AssessmentAnnotationWorker and the majority of persisted
+    // assessments. Do not flip to array or to purpose='describing' —
+    // either change loses signal or breaks readers that access
+    // `body.value` directly on the object.
+    expect((result.annotations[0] as any).body).toEqual({
+      type: 'TextualBody', value: 'dubious', purpose: 'assessing', format: 'text/plain', language: 'en',
     });
     expect(result.result).toEqual({ assessmentsFound: 1, assessmentsCreated: 1 });
   });
@@ -160,6 +172,13 @@ describe('processReferenceJob', () => {
 
     expect(result.annotations).toHaveLength(2);
     expect((result.annotations[0] as any).motivation).toBe('linking');
+    // Canonical unresolved-linking body — single-item array with the
+    // entity type as a tagging TextualBody. The bind flow later appends
+    // a SpecificResource to resolve. Do not emit `[]` — that breaks the
+    // append contract and trips the Annotation.body oneOf.
+    expect((result.annotations[0] as any).body).toEqual([
+      { type: 'TextualBody', value: 'Location', purpose: 'tagging' },
+    ]);
     expect(result.result).toEqual({ totalFound: 2, totalEmitted: 2, errors: 0 });
   });
 
@@ -226,6 +245,16 @@ describe('processTagJob', () => {
 
     expect(result.annotations).toHaveLength(3);
     expect(result.annotations.every((a: any) => a.motivation === 'tagging')).toBe(true);
+    // Canonical tagging body — two TextualBody entries: the category
+    // (purpose: 'tagging') and the tagging-schema id (purpose:
+    // 'classifying'). The classifying body is the only record of schema
+    // provenance; do not drop it.
+    for (const ann of result.annotations as any[]) {
+      expect(ann.body).toEqual([
+        { type: 'TextualBody', value: expect.any(String),  purpose: 'tagging',     format: 'text/plain', language: 'en' },
+        { type: 'TextualBody', value: 'schema-1',          purpose: 'classifying', format: 'text/plain' },
+      ]);
+    }
     expect(result.result).toEqual({
       tagsFound: 3,
       tagsCreated: 3,

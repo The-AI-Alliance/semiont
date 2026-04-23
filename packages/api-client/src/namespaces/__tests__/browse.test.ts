@@ -21,7 +21,7 @@ function mockAnnotation(id: string): Annotation {
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
     target: { source: 'res-1' },
-    body: [],
+    body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
   };
 }
 

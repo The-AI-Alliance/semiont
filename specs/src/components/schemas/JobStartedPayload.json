@@ -4,6 +4,7 @@
   "properties": {
     "jobId": { "type": "string" },
     "jobType": { "$ref": "JobType.json" },
+    "annotationId": { "type": "string", "description": "Annotation this job is attached to, when applicable" },
     "totalSteps": { "type": "integer" }
   },
   "required": ["jobId", "jobType"]

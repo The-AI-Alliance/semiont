@@ -13,6 +13,10 @@
     },
     "jobType": {
       "$ref": "./JobType.json"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Set for annotation-scoped jobs like generation (from a specific reference). Unset for resource-scoped jobs like bulk reference/tag/highlight detection."
     }
   },
   "required": [

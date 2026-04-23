@@ -34,14 +34,6 @@
     "body": {
       "oneOf": [
         {
-          "type": "array",
-          "items": {
-            "$ref": "./AnnotationBody.json"
-          },
-          "maxItems": 0,
-          "description": "Empty array for stub references (Phase 1 pattern)"
-        },
-        {
           "$ref": "./AnnotationBody.json",
           "description": "Single body (TextualBody or SpecificResource)"
         },
@@ -50,10 +42,11 @@
           "items": {
             "$ref": "./AnnotationBody.json"
           },
-          "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
+          "minItems": 1,
+          "description": "Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
         }
       ],
-      "description": "W3C Web Annotation body - can be empty array, single body, or array of bodies"
+      "description": "W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug)."
     },
     "creator": {
       "$ref": "./Agent.json"
@@ -73,7 +66,6 @@
     "type",
     "id",
     "motivation",
-    "target",
-    "body"
+    "target"
   ]
 }

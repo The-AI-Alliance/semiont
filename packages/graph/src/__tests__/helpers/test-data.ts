@@ -83,7 +83,7 @@ export function createTestReference(
         suffix: '',
       },
     },
-    body: [], // Stub - will be resolved later
+    body: [{ type: 'TextualBody', value: 'StubEntityType', purpose: 'tagging' }],
     creator: {
       name: `User ${uuidv4()}`,
     },

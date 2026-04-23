@@ -29,6 +29,20 @@
     },
     "sourceResourceId": {
       "type": "string"
+    },
+    "generationPrompt": {
+      "type": "string",
+      "description": "Prompt used to generate this resource (for AI-generated resources)"
+    },
+    "generator": {
+      "description": "Agent(s) that generated this resource (for AI-generated resources). Single Agent object or array of Agents.",
+      "oneOf": [
+        { "$ref": "./Agent.json" },
+        { "type": "array", "items": { "$ref": "./Agent.json" } }
+      ]
+    },
+    "isDraft": {
+      "type": "boolean"
     }
   },
   "required": [

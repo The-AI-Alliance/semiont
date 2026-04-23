@@ -26,11 +26,20 @@
       ]
     },
     "body": {
-      "type": "array",
-      "items": {
-        "$ref": "./AnnotationBody.json"
-      }
+      "oneOf": [
+        {
+          "$ref": "./AnnotationBody.json",
+          "description": "Single body (TextualBody or SpecificResource)"
+        },
+        {
+          "type": "array",
+          "items": { "$ref": "./AnnotationBody.json" },
+          "minItems": 1,
+          "description": "Non-empty array of mixed TextualBody / SpecificResource bodies"
+        }
+      ],
+      "description": "Optional body. Omit for annotations whose motivation alone is meaningful (e.g. highlighting) or whose user-supplied content is empty (e.g. an assessing annotation saved without comment text). Shape matches Annotation.body."
     }
   },
-  "required": ["motivation", "selector", "body"]
+  "required": ["motivation", "selector"]
 }

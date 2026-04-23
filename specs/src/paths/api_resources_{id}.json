@@ -1,0 +1,60 @@
+{
+  "get": {
+    "summary": "Get raw resource content (browser-friendly alias)",
+    "description": "Browser-friendly alternative to GET /resources/{id} that always returns the raw representation, never JSON-LD. Used by `<img>` / PDF.js / `<video>` tags and anywhere an httpOnly cookie is the only feasible auth vector. Behaves like GET /resources/{id} with JSON-LD stripped from the Accept header before content negotiation.\n\nSets long-lived immutable Cache-Control (content is addressed by checksum upstream, so bytes never change for a given resource id).",
+    "tags": ["Resources"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Raw representation bytes with appropriate Content-Type",
+        "content": {
+          "text/plain": {
+            "schema": { "type": "string" }
+          },
+          "text/markdown": {
+            "schema": { "type": "string" }
+          },
+          "text/html": {
+            "schema": { "type": "string" }
+          },
+          "image/*": {
+            "schema": { "type": "string", "format": "binary" }
+          },
+          "application/pdf": {
+            "schema": { "type": "string", "format": "binary" }
+          }
+        }
+      },
+      "404": {
+        "description": "Resource or representation not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "description": "Failed to retrieve resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

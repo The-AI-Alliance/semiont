@@ -379,12 +379,12 @@ describe('MemoryGraphDatabase Implementation', () => {
       const input = createTestReference(resource1['@id']);
       const created = await db.createAnnotation(input);
 
-      expect(created.body).toEqual([]);
+      // Unresolved reference: body carries the entity-type tagging stub
+      expect(created.body).toEqual([{ type: 'TextualBody', value: 'StubEntityType', purpose: 'tagging' }]);
 
       await db.resolveReference(annotationId(created.id), resourceId(resource2['@id']));
 
       const retrieved = await db.getAnnotation(annotationId(created.id));
-      expect(retrieved?.body).not.toEqual([]);
       expect((retrieved?.body as any).source).toBe(resource2['@id']);
     });
 

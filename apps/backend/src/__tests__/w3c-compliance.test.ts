@@ -21,8 +21,8 @@ const TEST_BACKEND_URL = 'http://localhost:4000';
 
 describe('W3C Web Annotation Compliance', () => {
   describe('Stub Reference Validation', () => {
-    it('should allow annotations with empty body array', () => {
-      // Stub references can have empty body array (no entity tags)
+    it('should allow annotations with no body (motivation alone is meaningful)', () => {
+      // W3C allows zero bodies; per our Option B schema, this means body is omitted entirely
       const stubAnnotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
@@ -42,7 +42,6 @@ describe('W3C Web Annotation Compliance', () => {
             },
           ],
         },
-        body: [], // W3C allows zero bodies
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -54,11 +53,7 @@ describe('W3C Web Annotation Compliance', () => {
       // Verify it's a valid annotation
       expect(stubAnnotation['@context']).toBe('http://www.w3.org/ns/anno.jsonld');
       expect(stubAnnotation.type).toBe('Annotation');
-      expect(stubAnnotation.body).toEqual([]);
-      expect(Array.isArray(stubAnnotation.body)).toBe(true);
-      if (Array.isArray(stubAnnotation.body)) {
-        expect(stubAnnotation.body.length).toBe(0);
-      }
+      expect(stubAnnotation.body).toBeUndefined();
 
       // Check entity types via helper
       expect(getEntityTypes(stubAnnotation)).toEqual([]);
@@ -270,7 +265,6 @@ describe('W3C Web Annotation Compliance', () => {
         id: 'test-simple-target',
         motivation: 'linking',
         target: 'http://example.org/resource-123', // Simple string IRI
-        body: [],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -293,7 +287,6 @@ describe('W3C Web Annotation Compliance', () => {
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-456`, // Source without selector
         },
-        body: [],
         creator: {
           type: 'Person',
           id: 'user-456',
@@ -359,7 +352,6 @@ describe('W3C Web Annotation Compliance', () => {
         target: {
           source: `${TEST_BACKEND_URL}/resources/doc-123`,
         },
-        body: [],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -419,7 +411,6 @@ describe('W3C Web Annotation Compliance', () => {
         id: 'test-context',
         motivation: 'linking',
         target: 'doc-123',
-        body: [],
         creator: {
           type: 'Person',
           id: 'user-123',
@@ -438,7 +429,6 @@ describe('W3C Web Annotation Compliance', () => {
         id: 'test-type',
         motivation: 'linking',
         target: 'doc-456',
-        body: [],
         creator: {
           type: 'Person',
           id: 'user-456',
@@ -457,7 +447,6 @@ describe('W3C Web Annotation Compliance', () => {
         id: 'test-required-target',
         motivation: 'linking',
         target: 'doc-789', // Target is required
-        body: [],
         creator: {
           type: 'Person',
           id: 'user-789',

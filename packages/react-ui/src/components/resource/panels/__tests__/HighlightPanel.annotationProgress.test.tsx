@@ -57,7 +57,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
       {
         id: 'highlight-1',
         motivation: 'highlighting',
-        body: [],
         target: {
           source: 'resource-1',
           selector: {

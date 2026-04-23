@@ -101,34 +101,39 @@ export class MarkNamespace implements IMarkNamespace {
         }, 10_000);
       };
 
-      const progress$ = this.eventBus.get('mark:progress').pipe(
-        filter((e) => e.resourceId === (resourceId as string)),
-      );
-      const finished$ = this.eventBus.get('mark:assist-finished').pipe(
-        filter((e) => e.resourceId === (resourceId as string) && e.motivation === motivation),
-      );
-      const failed$ = this.eventBus.get('mark:assist-failed').pipe(
-        filter((e) => e.resourceId === (resourceId as string)),
-      );
-
+      // Subscribe to the unified job lifecycle filtered by the jobId
+      // we're about to be assigned. Safe to subscribe before the job
+      // exists: early events for an unknown jobId simply never arrive,
+      // and the `activeJobId` guard on the filter keeps each Observable
+      // isolated to its own job.
       let activeJobId: string | null = null;
+      const progress$ = this.eventBus.get('job:report-progress').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
+      const complete$ = this.eventBus.get('job:complete').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
+      const fail$ = this.eventBus.get('job:fail').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
 
       const progressSub = progress$
-        .pipe(takeUntil(merge(finished$, failed$)))
+        .pipe(takeUntil(merge(complete$, fail$)))
         .subscribe((e) => {
-          subscriber.next(e as MarkAssistProgress);
+          // e.progress is the JobProgress payload. Consumers expect
+          // progress-shaped events; we forward that directly.
+          subscriber.next(e.progress as MarkAssistProgress);
           if (activeJobId) resetPollTimer(activeJobId);
         });
 
-      const finishedSub = finished$.subscribe((e) => {
+      const completeSub = complete$.subscribe(() => {
         cleanup();
-        subscriber.next(e as MarkAssistProgress);
         subscriber.complete();
       });
 
-      const failedSub = failed$.subscribe((e) => {
+      const failSub = fail$.subscribe((e) => {
         cleanup();
-        subscriber.error(new Error(e.message));
+        subscriber.error(new Error(e.error));
       });
 
       const auth = this.getToken();
@@ -147,8 +152,8 @@ export class MarkNamespace implements IMarkNamespace {
       return () => {
         cleanup();
         progressSub.unsubscribe();
-        finishedSub.unsubscribe();
-        failedSub.unsubscribe();
+        completeSub.unsubscribe();
+        failSub.unsubscribe();
       };
     });
   }

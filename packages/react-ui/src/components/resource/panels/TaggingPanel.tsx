@@ -14,6 +14,7 @@ import './TaggingPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -42,15 +43,7 @@ interface TaggingPanelProps {
   annotations: Annotation[];
   annotateMode?: boolean;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    currentCategory?: string;
-    processedCategories?: number;
-    totalCategories?: number;
-    message?: string;
-    requestParams?: Array<{ label: string; value: string }>;
-  } | null;
+  progress?: JobProgress | null;
   pendingAnnotation: PendingAnnotation | null;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;

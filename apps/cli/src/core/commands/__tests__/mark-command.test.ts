@@ -254,7 +254,10 @@ await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
       // Intercept markHighlights and emit the finish event on the eventBus
       mockSse.markHighlights.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
-          eventBus.get('mark:assist-finished').next({ motivation: 'highlighting', progress: { createdCount: 3 } });
+          eventBus.get('job:complete').next({
+            jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'highlight-annotation',
+            result: { highlightsFound: 3, highlightsCreated: 3 },
+          });
         });
       });
 
@@ -267,7 +270,10 @@ await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
     it('calls markReferences for linking motivation', async () => {
       mockSse.markReferences.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
-          eventBus.get('mark:assist-finished').next({ motivation: 'linking', progress: { createdCount: 5 } });
+          eventBus.get('job:complete').next({
+            jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'reference-annotation',
+            result: { totalFound: 5, totalEmitted: 5, errors: 0 },
+          });
         });
       });
 
@@ -276,10 +282,13 @@ await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
       expect(result.results[0]?.metadata?.motivation).toBe('linking');
     });
 
-    it('rejects when assist-failed fires', async () => {
+    it('rejects when job:fail fires', async () => {
       mockSse.markHighlights.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
-          eventBus.get('mark:assist-failed').next({ payload: { message: 'AI service down' } });
+          eventBus.get('job:fail').next({
+            jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'highlight-annotation',
+            error: 'AI service down',
+          });
         });
       });
 

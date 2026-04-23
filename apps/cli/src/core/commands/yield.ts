@@ -140,15 +140,18 @@ async function runDelegate(
     });
 
     return await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-      const finishedUnsub = semiont.on('yield:finished', (event) => {
+      const completeUnsub = semiont.on('job:complete', (event) => {
+        if (event.jobType !== 'generation') return;
         cleanup();
-        resolve({ resourceId: (event as any).resourceId, resourceName: (event as any).resourceName });
+        const r = (event.result ?? {}) as { resourceId?: string; resourceName?: string };
+        resolve({ resourceId: r.resourceId, resourceName: r.resourceName });
       });
-      const failedUnsub = semiont.on('yield:failed', (event) => {
+      const failUnsub = semiont.on('job:fail', (event) => {
+        if (event.jobType !== 'generation') return;
         cleanup();
-        reject(new Error((event as any).error ?? 'Generation failed'));
+        reject(new Error(event.error ?? 'Generation failed'));
       });
-      function cleanup() { finishedUnsub(); failedUnsub(); }
+      function cleanup() { completeUnsub(); failUnsub(); }
     });
   } finally {
     yieldVM.dispose();

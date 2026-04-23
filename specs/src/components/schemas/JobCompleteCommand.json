@@ -14,6 +14,10 @@
     "jobType": {
       "$ref": "./JobType.json"
     },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Lets the UI route completion feedback (toast, resolve state) to a specific annotation."
+    },
     "result": {
       "$ref": "./JobResult.json"
     }

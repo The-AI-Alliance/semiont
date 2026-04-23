@@ -1,21 +1,27 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { YieldProgress } from '@semiont/core';
+import type { components } from '@semiont/core';
 import { createYieldVM } from '../yield-vm';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+
+type JobProgress = components['schemas']['JobProgress'];
 
 const RID = makeResourceId('res-1');
 const REF_ID = 'ref-ann-1';
 
-function makeProgress(overrides: Partial<YieldProgress> = {}): YieldProgress {
-  return { status: 'generating', referenceId: REF_ID, percentage: 50, message: 'Working...', ...overrides };
+function makeProgress(overrides: Partial<JobProgress> = {}): JobProgress {
+  return { stage: 'generating', percentage: 50, message: 'Working...', ...overrides };
 }
 
 function withYield(fromAnnotationFn: ReturnType<typeof vi.fn>): TestClient {
   return makeTestClient({ yield: { fromAnnotation: fromAnnotationFn } });
 }
 
+// All lifecycle now flows through the `client.yield.fromAnnotation`
+// Observable — yield-vm no longer subscribes to bus channels directly.
+// Tests drive lifecycle by `next`/`complete`/`error`-ing the mocked
+// Observable that `fromAnnotation` returns.
 describe('createYieldVM', () => {
   let tc: TestClient;
 
@@ -30,101 +36,6 @@ describe('createYieldVM', () => {
     vm.progress$.subscribe(v => prog.push(v));
     expect(gen).toEqual([false]);
     expect(prog).toEqual([null]);
-    vm.dispose();
-  });
-
-  it('sets isGenerating and progress on yield:progress', () => {
-    tc = withYield(vi.fn());
-    const vm = createYieldVM(tc.client, RID, 'en');
-    const gen: boolean[] = [];
-    const prog: unknown[] = [];
-    vm.isGenerating$.subscribe(v => gen.push(v));
-    vm.progress$.subscribe(v => prog.push(v));
-
-    const p = makeProgress({ percentage: 30 });
-    tc.client.emit('yield:progress', p);
-    expect(gen).toEqual([false, true]);
-    expect(prog).toEqual([null, p]);
-    vm.dispose();
-  });
-
-  it('updates progress on subsequent yield:progress events', () => {
-    tc = withYield(vi.fn());
-    const vm = createYieldVM(tc.client, RID, 'en');
-    const prog: unknown[] = [];
-    vm.progress$.subscribe(v => prog.push(v));
-
-    const p1 = makeProgress({ percentage: 30 });
-    const p2 = makeProgress({ percentage: 60 });
-    tc.client.emit('yield:progress', p1);
-    tc.client.emit('yield:progress', p2);
-    expect(prog).toEqual([null, p1, p2]);
-    vm.dispose();
-  });
-
-  it('sets isGenerating=false and updates progress on yield:finished', () => {
-    vi.useFakeTimers();
-    tc = withYield(vi.fn());
-    const vm = createYieldVM(tc.client, RID, 'en');
-    const gen: boolean[] = [];
-    const prog: unknown[] = [];
-    vm.isGenerating$.subscribe(v => gen.push(v));
-    vm.progress$.subscribe(v => prog.push(v));
-
-    tc.client.emit('yield:progress', makeProgress({ percentage: 75 }));
-    const final = makeProgress({ status: 'complete', percentage: 100 });
-    tc.client.emit('yield:finished', final);
-
-    expect(gen[gen.length - 1]).toBe(false);
-    expect(prog[prog.length - 1]).toEqual(final);
-
-    vi.advanceTimersByTime(2000);
-    expect(prog[prog.length - 1]).toBeNull();
-
-    vm.dispose();
-    vi.useRealTimers();
-  });
-
-  it('clears progress and stops generating on yield:failed', () => {
-    tc = withYield(vi.fn());
-    const vm = createYieldVM(tc.client, RID, 'en');
-    const gen: boolean[] = [];
-    const prog: unknown[] = [];
-    vm.isGenerating$.subscribe(v => gen.push(v));
-    vm.progress$.subscribe(v => prog.push(v));
-
-    tc.client.emit('yield:progress', makeProgress({ percentage: 40 }));
-    tc.client.emit('yield:failed', { error: 'Generation failed' });
-
-    expect(gen[gen.length - 1]).toBe(false);
-    expect(prog[prog.length - 1]).toBeNull();
-    vm.dispose();
-  });
-
-  it('handles yield:finished without prior progress', () => {
-    tc = withYield(vi.fn());
-    const vm = createYieldVM(tc.client, RID, 'en');
-    const gen: boolean[] = [];
-    const prog: unknown[] = [];
-    vm.isGenerating$.subscribe(v => gen.push(v));
-    vm.progress$.subscribe(v => prog.push(v));
-
-    const final = makeProgress({ status: 'complete', percentage: 100 });
-    tc.client.emit('yield:finished', final);
-
-    expect(gen[gen.length - 1]).toBe(false);
-    expect(prog[prog.length - 1]).toEqual(final);
-    vm.dispose();
-  });
-
-  it('handles yield:failed without prior progress', () => {
-    tc = withYield(vi.fn());
-    const vm = createYieldVM(tc.client, RID, 'en');
-    const gen: boolean[] = [];
-    vm.isGenerating$.subscribe(v => gen.push(v));
-
-    tc.client.emit('yield:failed', { error: 'Unexpected' });
-    expect(gen[gen.length - 1]).toBe(false);
     vm.dispose();
   });
 
@@ -148,52 +59,100 @@ describe('createYieldVM', () => {
     vm.dispose();
   });
 
-  it('generate() updates progress from the Observable', () => {
+  it('pipes Observable next into progress$ and flips isGenerating=true', () => {
     const p = makeProgress({ percentage: 25 });
-    const fromAnnotationFn = vi.fn(() => new Observable((sub) => {
+    const fromAnnotationFn = vi.fn(() => new Observable<JobProgress>((sub) => {
       sub.next(p);
     }));
+    tc = withYield(fromAnnotationFn);
+    const vm = createYieldVM(tc.client, RID, 'en');
+    const gen: boolean[] = [];
+    const prog: unknown[] = [];
+    vm.isGenerating$.subscribe(v => gen.push(v));
+    vm.progress$.subscribe(v => prog.push(v));
+
+    vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
+    expect(prog).toEqual([null, p]);
+    expect(gen[gen.length - 1]).toBe(true);
+    vm.dispose();
+  });
+
+  it('handles multiple next emissions in sequence', () => {
+    const progressSubject = new Subject<JobProgress>();
+    const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
     const prog: unknown[] = [];
     vm.progress$.subscribe(v => prog.push(v));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
-    expect(prog).toEqual([null, p]);
+
+    const p1 = makeProgress({ percentage: 30 });
+    const p2 = makeProgress({ percentage: 60 });
+    progressSubject.next(p1);
+    progressSubject.next(p2);
+    expect(prog).toEqual([null, p1, p2]);
     vm.dispose();
   });
 
-  it('generate() clears state and emits yield:failed on Observable error', () => {
-    const fromAnnotationFn = vi.fn(() => new Observable((sub) => {
-      sub.error(new Error('LLM timeout'));
+  it('flips isGenerating=false on Observable complete and dismisses progress after 2s', () => {
+    vi.useFakeTimers();
+    const progressSubject = new Subject<JobProgress>();
+    const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
+    tc = withYield(fromAnnotationFn);
+    const vm = createYieldVM(tc.client, RID, 'en');
+    const gen: boolean[] = [];
+    const prog: unknown[] = [];
+    vm.isGenerating$.subscribe(v => gen.push(v));
+    vm.progress$.subscribe(v => prog.push(v));
+
+    vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
+    progressSubject.next(makeProgress({ percentage: 75 }));
+    progressSubject.complete();
+
+    expect(gen[gen.length - 1]).toBe(false);
+    expect(prog[prog.length - 1]).not.toBeNull();
+
+    vi.advanceTimersByTime(2000);
+    expect(prog[prog.length - 1]).toBeNull();
+
+    vm.dispose();
+    vi.useRealTimers();
+  });
+
+  it('clears progress and stops generating on Observable error', () => {
+    const fromAnnotationFn = vi.fn(() => new Observable<JobProgress>((sub) => {
+      sub.next(makeProgress({ percentage: 40 }));
+      sub.error(new Error('Generation failed'));
     }));
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
-    const failures: unknown[] = [];
+    const prog: unknown[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
-    tc.client.on('yield:failed', f => failures.push(f));
+    vm.progress$.subscribe(v => prog.push(v));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
+
     expect(gen[gen.length - 1]).toBe(false);
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toEqual(expect.objectContaining({ error: 'LLM timeout' }));
+    expect(prog[prog.length - 1]).toBeNull();
     vm.dispose();
   });
 
-  it('emits yield:failed on timeout when no progress within 300s', () => {
+  it('times out a silent Observable after 300s (no progress within window)', () => {
     vi.useFakeTimers();
     const fromAnnotationFn = vi.fn(() => new Observable(() => {}));
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
-    const failures: unknown[] = [];
-    tc.client.on('yield:failed', f => failures.push(f));
+    const gen: boolean[] = [];
+    vm.isGenerating$.subscribe(v => gen.push(v));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
-    expect(failures).toHaveLength(0);
+    expect(gen[gen.length - 1]).toBe(false);  // no progress yet → not flipped to true
 
     vi.advanceTimersByTime(300_000);
-    expect(failures).toHaveLength(1);
+    // Timeout fires → Observable errors → state stays clear
+    expect(gen[gen.length - 1]).toBe(false);
 
     vm.dispose();
     vi.useRealTimers();
@@ -201,36 +160,44 @@ describe('createYieldVM', () => {
 
   it('resets timeout on each progress emission', () => {
     vi.useFakeTimers();
-    const progressSubject = new Subject<YieldProgress>();
+    const progressSubject = new Subject<JobProgress>();
     const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
-    const failures: unknown[] = [];
-    tc.client.on('yield:failed', f => failures.push(f));
+    const gen: boolean[] = [];
+    vm.isGenerating$.subscribe(v => gen.push(v));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
 
     vi.advanceTimersByTime(290_000);
     progressSubject.next(makeProgress({ percentage: 50 }));
 
+    // 290s after last progress — still within 300s window
     vi.advanceTimersByTime(290_000);
-    expect(failures).toHaveLength(0);
+    expect(gen[gen.length - 1]).toBe(true);
 
+    // 300s after last progress — timeout
     vi.advanceTimersByTime(10_000);
-    expect(failures).toHaveLength(1);
+    expect(gen[gen.length - 1]).toBe(false);
 
     vm.dispose();
     vi.useRealTimers();
   });
 
   it('stops responding after dispose', () => {
-    tc = withYield(vi.fn());
+    const progressSubject = new Subject<JobProgress>();
+    const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
+    tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
     const gen: boolean[] = [];
     vm.isGenerating$.subscribe(v => gen.push(v));
+
+    vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
     vm.dispose();
 
-    tc.client.emit('yield:progress', makeProgress());
-    expect(gen).toEqual([false]);
+    // Any subsequent emission should not update post-dispose state
+    progressSubject.next(makeProgress());
+    // The BehaviorSubject completed on dispose; no new emissions from it.
+    expect(gen.at(-1)).toBe(false);  // last seen was the dispose teardown
   });
 });

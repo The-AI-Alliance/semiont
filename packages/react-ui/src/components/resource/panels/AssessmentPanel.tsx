@@ -14,6 +14,7 @@ import './AssessmentPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -42,11 +43,7 @@ interface AssessmentPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null;
+  progress?: JobProgress | null;
   locale?: string;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
@@ -140,14 +137,20 @@ export function AssessmentPanel({
 
   const handleSaveNewAssessment = () => {
     if (pendingAnnotation) {
-      const body: components['schemas']['AnnotationBody'][] = newAssessmentText.trim()
-        ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
-        : [];
+      // Body is optional for assessments. When the user typed text,
+      // emit a single TextualBody (matching the worker's output and
+      // the majority of historical persisted assessments). When they
+      // didn't, omit body entirely — motivation:'assessing' on a
+      // target is a valid empty-content assessment.
+      const trimmed = newAssessmentText.trim();
+      const body: components['schemas']['AnnotationBody'] | undefined = trimmed
+        ? { type: 'TextualBody', value: trimmed, purpose: 'assessing' }
+        : undefined;
 
       session?.client.emit('mark:submit', {
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
-        body,
+        ...(body !== undefined ? { body } : {}),
       });
       setNewAssessmentText('');
     }

@@ -166,7 +166,6 @@ const createMockAnnotation = (motivation: string, id: string): Annotation => ({
       end: 10,
     },
   },
-  body: [],
 });
 
 describe('BrowseView Component', () => {

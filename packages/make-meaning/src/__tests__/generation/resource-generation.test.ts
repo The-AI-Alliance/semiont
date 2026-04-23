@@ -20,7 +20,7 @@ const testAnnotation: GatheredContext['annotation'] = {
   id: 'test-annotation',
   motivation: 'commenting',
   target: { source: 'test-resource' },
-  body: [],
+  body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
 };
 
 const testSourceResource: GatheredContext['sourceResource'] = {

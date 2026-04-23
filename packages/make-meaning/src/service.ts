@@ -14,14 +14,6 @@ import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import { createInferenceClient } from '@semiont/inference';
 import { getGraphDatabase } from '@semiont/graph';
-import type {
-  ReferenceAnnotationWorker,
-  GenerationWorker,
-  HighlightAnnotationWorker,
-  AssessmentAnnotationWorker,
-  CommentAnnotationWorker,
-  TagAnnotationWorker,
-} from '@semiont/jobs';
 import { createKnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
@@ -38,18 +30,8 @@ export type { MakeMeaningConfig } from './config';
 export interface MakeMeaningService {
   knowledgeSystem: KnowledgeSystem;
   jobQueue:        JobQueue;
-  workers:         Workers;
   stop:            () => Promise<void>;
 }
-
-type Workers = {
-  detection:  ReferenceAnnotationWorker;
-  generation: GenerationWorker;
-  highlight:  HighlightAnnotationWorker;
-  assessment: AssessmentAnnotationWorker;
-  comment:    CommentAnnotationWorker;
-  tag:        TagAnnotationWorker;
-};
 
 // ─── Step helpers ─────────────────────────────────────────────────────────────
 
@@ -196,7 +178,6 @@ export async function startMakeMeaning(
   return {
     knowledgeSystem,
     jobQueue,
-    workers: {} as Workers,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
       jobStatusSubscription.unsubscribe();

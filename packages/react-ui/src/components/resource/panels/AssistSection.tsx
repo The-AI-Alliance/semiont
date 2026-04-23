@@ -4,19 +4,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
-import type { Motivation } from '@semiont/core';
+import type { Motivation, components } from '@semiont/core';
 import './AssistSection.css';
+
+type JobProgress = components['schemas']['JobProgress'];
 
 interface AssistSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';
   isAssisting: boolean;
   locale?: string;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-    requestParams?: Array<{ label: string; value: string }>;
-  } | null | undefined;
+  progress?: JobProgress | null | undefined;
 }
 
 // Color schemes are now handled via CSS data attributes

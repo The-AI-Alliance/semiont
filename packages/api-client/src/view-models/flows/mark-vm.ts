@@ -1,8 +1,10 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import type { ResourceId, Motivation, Selector, MarkProgress, EventMap } from '@semiont/core';
+import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
+
+type JobProgress = components['schemas']['JobProgress'];
 
 export interface PendingAnnotation {
   selector: Selector | Selector[];
@@ -12,7 +14,7 @@ export interface PendingAnnotation {
 export interface MarkVM extends ViewModel {
   pendingAnnotation$: Observable<PendingAnnotation | null>;
   assistingMotivation$: Observable<Motivation | null>;
-  progress$: Observable<MarkProgress | null>;
+  progress$: Observable<JobProgress | null>;
 }
 
 type SelectionData = EventMap['mark:select-comment'];
@@ -34,7 +36,7 @@ export function createMarkVM(
   const subs: Subscription[] = [];
   const pendingAnnotation$ = new BehaviorSubject<PendingAnnotation | null>(null);
   const assistingMotivation$ = new BehaviorSubject<Motivation | null>(null);
-  const progress$ = new BehaviorSubject<MarkProgress | null>(null);
+  const progress$ = new BehaviorSubject<JobProgress | null>(null);
   let progressDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
   const clearProgressTimer = () => {
@@ -86,7 +88,11 @@ export function createMarkVM(
     }
   }));
 
-  // AI assist
+  // AI assist. The assist() Observable encapsulates the full job
+  // lifecycle — it subscribes to job:report-progress/complete/fail
+  // filtered by its own jobId, emits JobProgress on `next`, completes
+  // on `job:complete`, errors on `job:fail`. mark-vm's only job is to
+  // drive the three UI observables from that stream.
   subs.push(client.stream('mark:assist-request').subscribe((event) => {
     clearProgressTimer();
     assistingMotivation$.next(event.motivation);
@@ -95,31 +101,22 @@ export function createMarkVM(
     const assistSub = client.mark.assist(resourceId, event.motivation, event.options).pipe(
       timeout({ each: 180_000 }),
     ).subscribe({
-      next: (p) => progress$.next(p as MarkProgress),
-      error: (err) => client.emit('mark:assist-failed', {
-        resourceId: resourceId as string,
-        message: err instanceof Error ? err.message : String(err),
-      }),
+      next: (p) => progress$.next(p),
+      complete: () => {
+        assistingMotivation$.next(null);
+        clearProgressTimer();
+        progressDismissTimer = setTimeout(() => {
+          progress$.next(null);
+          progressDismissTimer = null;
+        }, 5000);
+      },
+      error: () => {
+        clearProgressTimer();
+        assistingMotivation$.next(null);
+        progress$.next(null);
+      },
     });
     subs.push(assistSub);
-  }));
-
-  subs.push(client.stream('mark:progress').subscribe((chunk: MarkProgress) => progress$.next(chunk)));
-
-  subs.push(client.stream('mark:assist-finished').subscribe((event) => {
-    const current = assistingMotivation$.getValue();
-    if (event.motivation && event.motivation === current) {
-      assistingMotivation$.next(null);
-    }
-    // Keep progress visible for 5 seconds after completion
-    clearProgressTimer();
-    progressDismissTimer = setTimeout(() => { progress$.next(null); progressDismissTimer = null; }, 5000);
-  }));
-
-  subs.push(client.stream('mark:assist-failed').subscribe(() => {
-    clearProgressTimer();
-    assistingMotivation$.next(null);
-    progress$.next(null);
   }));
 
   subs.push(client.stream('mark:progress-dismiss').subscribe(() => {

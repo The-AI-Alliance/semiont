@@ -192,7 +192,6 @@ describe('Event Store', () => {
               { type: 'TextQuoteSelector', exact: 'Test' },
             ],
           },
-          body: [],
           modified: new Date().toISOString(),
         },
       },

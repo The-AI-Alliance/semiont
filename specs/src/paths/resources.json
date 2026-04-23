@@ -1,0 +1,104 @@
+{
+  "post": {
+    "summary": "Create a resource",
+    "description": "Upload binary content + metadata as multipart/form-data. The backend writes content to disk, then emits yield:create on the bus; Stower persists it and returns a 202 with the new resourceId. Full reconciliation happens via SSE domain events (yield:created).\n\nGeneration workers and the /know/compose page both hit this route — bytes always travel on the HTTP wire, never on the bus.",
+    "tags": ["Resources"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "multipart/form-data": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Human-readable resource name"
+              },
+              "file": {
+                "type": "string",
+                "format": "binary",
+                "description": "Binary content"
+              },
+              "format": {
+                "type": "string",
+                "description": "Media type of the content (e.g. text/plain, text/markdown, image/png)"
+              },
+              "storageUri": {
+                "type": "string",
+                "description": "Where the content has been / should be placed (file://... for local). If omitted, derived from name + format."
+              },
+              "language": {
+                "type": "string",
+                "description": "ISO 639-1 language code"
+              },
+              "entityTypes": {
+                "type": "string",
+                "description": "JSON-stringified array of entity type names"
+              },
+              "creationMethod": {
+                "type": "string",
+                "description": "How this resource was created (api, ui, upload, reference, cli, clone, generated)"
+              },
+              "sourceAnnotationId": {
+                "type": "string",
+                "description": "For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event."
+              },
+              "sourceResourceId": {
+                "type": "string",
+                "description": "For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event."
+              },
+              "generationPrompt": {
+                "type": "string",
+                "description": "For AI-generated resources: the prompt that drove generation"
+              },
+              "generator": {
+                "type": "string",
+                "description": "For AI-generated resources: JSON-stringified Agent (single object or array), capturing which model/worker produced the content"
+              },
+              "isDraft": {
+                "type": "string",
+                "description": "'true' or 'false' — whether the resource is a draft"
+              }
+            },
+            "required": ["name", "file", "format"]
+          }
+        }
+      }
+    },
+    "responses": {
+      "202": {
+        "description": "Resource accepted for creation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CreateResourceResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "Missing required fields (name, file, or format)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

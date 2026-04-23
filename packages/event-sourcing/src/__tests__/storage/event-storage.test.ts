@@ -256,7 +256,6 @@ describe('EventStorage', () => {
               id: `anno-${i}`,
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: []
             }
           },
         }, resourceId('doc1'));
@@ -283,7 +282,6 @@ describe('EventStorage', () => {
               id: `anno-${i}`,
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: []
             }
           },
         }, resourceId('doc1'));
@@ -371,7 +369,6 @@ describe('EventStorage', () => {
             id: 'anno1',
             motivation: 'highlighting' as const,
             target: { source: 'doc1' },
-            body: []
           }
         },
       }, resourceId('doc1'));

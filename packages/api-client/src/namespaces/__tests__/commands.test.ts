@@ -89,7 +89,7 @@ describe('MarkNamespace', () => {
       'mark:create-request': () => ({ resultChannel: 'mark:create-ok', response: { annotationId: 'ann-new' } }),
     });
     const m = new MarkNamespace(makeHttp(), eventBus, () => 'tok' as any, mock.actor);
-    const result = await m.annotation(RID, { motivation: 'highlighting', target: { source: RID }, body: [] } as any);
+    const result = await m.annotation(RID, { motivation: 'highlighting', target: { source: RID } } as any);
     expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }));
     expect(result.annotationId).toBe('ann-new');
   });
@@ -109,7 +109,7 @@ describe('MarkNamespace', () => {
     expect(emitSpy).toHaveBeenCalledWith('mark:archive', { resourceId: RID });
   });
 
-  it('assist() returns Observable that emits on mark:progress', async () => {
+  it('assist() returns Observable that emits on job:report-progress', async () => {
     const progress: any[] = [];
     const completed = new Promise<void>((resolve) => {
       mark.assist(RID, 'linking', { entityTypes: ['Person'] }).subscribe({
@@ -119,8 +119,16 @@ describe('MarkNamespace', () => {
     });
 
     await new Promise((r) => setTimeout(r, 10));
-    eventBus.get('mark:progress').next({ resourceId: 'res-1', status: 'scanning', percentage: 50 } as any);
-    eventBus.get('mark:assist-finished').next({ resourceId: 'res-1', motivation: 'linking', foundCount: 3 } as any);
+    // Unified lifecycle: filter by the jobId (`j1`) assigned by job:create.
+    // assist() forwards the inner `progress` field as the Observable's `next`.
+    eventBus.get('job:report-progress').next({
+      jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'reference-annotation',
+      percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
+    } as any);
+    eventBus.get('job:complete').next({
+      jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'reference-annotation',
+      result: { totalFound: 3, totalEmitted: 3, errors: 0 },
+    } as any);
 
     await completed;
     expect(progress.length).toBeGreaterThan(0);
@@ -167,7 +175,10 @@ describe('MarkNamespace', () => {
     });
 
     await vi.advanceTimersByTimeAsync(100);
-    bus.get('mark:assist-finished').next({ resourceId: 'res-1', motivation: 'linking' } as any);
+    bus.get('job:complete').next({
+      jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'reference-annotation',
+      result: { totalFound: 0, totalEmitted: 0, errors: 0 },
+    } as any);
     expect(completed).toBe(true);
 
     bus.destroy();
@@ -186,7 +197,10 @@ describe('MarkNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(9_000);
-    bus.get('mark:progress').next({ resourceId: 'res-1', status: 'scanning', percentage: 50 } as any);
+    bus.get('job:report-progress').next({
+      jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'highlight-annotation',
+      percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
+    } as any);
 
     await vi.advanceTimersByTimeAsync(9_000);
     expect(mock.emitSpy).not.toHaveBeenCalledWith('job:status-requested', expect.any(Object));
@@ -354,7 +368,7 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromAnnotation() emits progress and completes on yield:finished', async () => {
+  it('fromAnnotation() emits progress and completes on job:complete', async () => {
     const progress: any[] = [];
     const completed = new Promise<void>((resolve) => {
       yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({
@@ -364,8 +378,14 @@ describe('YieldNamespace', () => {
     });
 
     await new Promise((r) => setTimeout(r, 20));
-    eventBus.get('yield:progress').next({ referenceId: AID, status: 'generating', percentage: 50, message: 'halfway' } as any);
-    eventBus.get('yield:finished').next({ referenceId: AID, status: 'complete', percentage: 100, resourceId: 'res-gen', sourceResourceId: 'res-1' } as any);
+    eventBus.get('job:report-progress').next({
+      jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'generation',
+      percentage: 50, progress: { stage: 'generating', percentage: 50, message: 'halfway' },
+    } as any);
+    eventBus.get('job:complete').next({
+      jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'generation',
+      result: { resourceName: 'T' },
+    } as any);
 
     await completed;
     expect(progress.length).toBeGreaterThanOrEqual(1);
@@ -417,7 +437,10 @@ describe('YieldNamespace', () => {
     });
 
     await vi.advanceTimersByTimeAsync(100);
-    bus.get('yield:finished').next({ referenceId: AID, status: 'complete', resourceId: 'res-sse', sourceResourceId: 'res-1' } as any);
+    bus.get('job:complete').next({
+      jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'generation',
+      result: { resourceName: 'T' },
+    } as any);
     expect(completed).toBe(true);
 
     bus.destroy();

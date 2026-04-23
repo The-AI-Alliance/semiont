@@ -49,7 +49,6 @@ export function makeMeaningMock(overrides: Partial<MakeMeaningService> = {}): Ma
   return {
     knowledgeSystem: stubKnowledgeSystem(),
     jobQueue:        { createJob: vi.fn(), getJob: vi.fn() } as unknown as JobQueue,
-    workers:         {} as MakeMeaningService['workers'],
     stop:            vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
