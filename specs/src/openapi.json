@@ -99,9 +99,6 @@
       "AcceptTermsResponse": {
         "$ref": "components/schemas/AcceptTermsResponse.json"
       },
-      "AddEntityTypeRequest": {
-        "$ref": "components/schemas/AddEntityTypeRequest.json"
-      },
       "AdminUpdateUserResponse": {
         "$ref": "components/schemas/AdminUpdateUserResponse.json"
       },
@@ -128,9 +125,6 @@
       },
       "AnnotationTarget": {
         "$ref": "components/schemas/AnnotationTarget.json"
-      },
-      "AsyncJobResponse": {
-        "$ref": "components/schemas/AsyncJobResponse.json"
       },
       "AuthResponse": {
         "$ref": "components/schemas/AuthResponse.json"
@@ -171,17 +165,8 @@
       "BodyOperationReplace": {
         "$ref": "components/schemas/BodyOperationReplace.json"
       },
-      "BodyType": {
-        "$ref": "components/schemas/BodyType.json"
-      },
-      "BeckonRequest": {
-        "$ref": "components/schemas/BeckonRequest.json"
-      },
       "BeckonResponse": {
         "$ref": "components/schemas/BeckonResponse.json"
-      },
-      "BulkAddEntityTypesRequest": {
-        "$ref": "components/schemas/BulkAddEntityTypesRequest.json"
       },
       "CloneResourceWithTokenResponse": {
         "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
@@ -198,47 +183,11 @@
       "CreateAnnotationRequest": {
         "$ref": "components/schemas/CreateAnnotationRequest.json"
       },
-      "CreateFromAnnotationRequest": {
-        "$ref": "components/schemas/CreateFromAnnotationRequest.json"
-      },
-      "CreateFromAnnotationResponse": {
-        "$ref": "components/schemas/CreateFromAnnotationResponse.json"
-      },
-      "CreateJobResponse": {
-        "$ref": "components/schemas/CreateJobResponse.json"
-      },
-      "CreateResourceFromAnnotationResponse": {
-        "$ref": "components/schemas/CreateResourceFromAnnotationResponse.json"
-      },
-      "CreateResourceFromSelectionRequest": {
-        "$ref": "components/schemas/CreateResourceFromSelectionRequest.json"
-      },
-      "CreateResourceFromSelectionResponse": {
-        "$ref": "components/schemas/CreateResourceFromSelectionResponse.json"
-      },
-      "CreateResourceFromTokenRequest": {
-        "$ref": "components/schemas/CreateResourceFromTokenRequest.json"
-      },
-      "CreateResourceRequest": {
-        "$ref": "components/schemas/CreateResourceRequest.json"
-      },
       "CreateResourceResponse": {
         "$ref": "components/schemas/CreateResourceResponse.json"
       },
-      "DeleteAnnotationRequest": {
-        "$ref": "components/schemas/DeleteAnnotationRequest.json"
-      },
       "DeleteUserResponse": {
         "$ref": "components/schemas/DeleteUserResponse.json"
-      },
-      "AnnotateReferencesStreamRequest": {
-        "$ref": "components/schemas/AnnotateReferencesStreamRequest.json"
-      },
-      "GatherAnnotationStreamRequest": {
-        "$ref": "components/schemas/GatherAnnotationStreamRequest.json"
-      },
-      "BindAnnotationStreamRequest": {
-        "$ref": "components/schemas/BindAnnotationStreamRequest.json"
       },
       "GatherProgress": {
         "$ref": "components/schemas/GatherProgress.json"
@@ -321,35 +270,11 @@
       "JobFailedPayload": {
         "$ref": "components/schemas/JobFailedPayload.json"
       },
-      "AnnotateHighlightsStreamRequest": {
-        "$ref": "components/schemas/AnnotateHighlightsStreamRequest.json"
-      },
-      "AnnotateAssessmentsStreamRequest": {
-        "$ref": "components/schemas/AnnotateAssessmentsStreamRequest.json"
-      },
-      "AnnotateCommentsStreamRequest": {
-        "$ref": "components/schemas/AnnotateCommentsStreamRequest.json"
-      },
-      "AnnotateTagsStreamRequest": {
-        "$ref": "components/schemas/AnnotateTagsStreamRequest.json"
-      },
       "ErrorResponse": {
         "$ref": "components/schemas/ErrorResponse.json"
       },
       "EventStreamResponse": {
         "$ref": "components/schemas/EventStreamResponse.json"
-      },
-      "YieldResourceFromAnnotationRequest": {
-        "$ref": "components/schemas/YieldResourceFromAnnotationRequest.json"
-      },
-      "YieldResourceFromAnnotationResponse": {
-        "$ref": "components/schemas/YieldResourceFromAnnotationResponse.json"
-      },
-      "YieldResourceRequest": {
-        "$ref": "components/schemas/YieldResourceRequest.json"
-      },
-      "YieldResourceStreamRequest": {
-        "$ref": "components/schemas/YieldResourceStreamRequest.json"
       },
       "GetAnnotationHistoryResponse": {
         "$ref": "components/schemas/GetAnnotationHistoryResponse.json"
@@ -384,9 +309,6 @@
       "JobStatusResponse": {
         "$ref": "components/schemas/JobStatusResponse.json"
       },
-      "ListAnnotationsResponse": {
-        "$ref": "components/schemas/ListAnnotationsResponse.json"
-      },
       "ListResourcesResponse": {
         "$ref": "components/schemas/ListResourcesResponse.json"
       },
@@ -404,12 +326,6 @@
       },
       "Representation": {
         "$ref": "components/schemas/Representation.json"
-      },
-      "BindAnnotationRequest": {
-        "$ref": "components/schemas/BindAnnotationRequest.json"
-      },
-      "BindAnnotationResponse": {
-        "$ref": "components/schemas/BindAnnotationResponse.json"
       },
       "ResourceDescriptor": {
         "$ref": "components/schemas/ResourceDescriptor.json"
