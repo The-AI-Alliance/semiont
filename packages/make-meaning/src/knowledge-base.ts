@@ -48,7 +48,7 @@ export async function createKnowledgeBase(
   logger: Logger,
   options?: CreateKnowledgeBaseOptions,
 ): Promise<KnowledgeBase> {
-  const views = new FilesystemViewStorage(project);
+  const views = new FilesystemViewStorage(project, logger.child({ component: 'view-storage' }));
   const content = new WorkingTreeStore(
     project,
     logger.child({ component: 'working-tree-store' }),

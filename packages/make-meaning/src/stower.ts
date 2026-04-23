@@ -39,7 +39,7 @@ import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { EventMap, Logger } from '@semiont/core';
-import { EventBus, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
+import { EventBus, errField, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { resolveStorageUri } from '@semiont/event-sourcing';
@@ -156,8 +156,38 @@ export class Stower {
       };
 
       this.eventBus.get('yield:create-ok').next({ resourceId: rId, resource });
+
+      // Auto-bind: when a resource is generated from a reference annotation,
+      // resolve the source reference by adding the new resource as a linking
+      // body. Emit `mark:update-body`; our own handler appends the
+      // `mark:body-updated` event, and the graph consumer then updates the
+      // annotation body in the graph. Ordering is safe because we've already
+      // appended `yield:created` — by the time the graph consumer processes
+      // `mark:body-updated`, the target resource exists in the graph.
+      if (generatedFrom) {
+        this.eventBus.get('mark:update-body').next({
+          annotationId: generatedFrom.annotationId,
+          userId: event.userId,
+          resourceId: generatedFrom.resourceId,
+          operations: [
+            {
+              op: 'add',
+              item: {
+                type: 'SpecificResource',
+                source: rId,
+                purpose: 'linking',
+              },
+            },
+          ],
+        });
+        this.logger.info('Auto-bound generated resource to source reference', {
+          resourceId: rId,
+          sourceAnnotationId: generatedFrom.annotationId,
+          sourceResourceId: generatedFrom.resourceId,
+        });
+      }
     } catch (error) {
-      this.logger.error('Failed to create resource', { error });
+      this.logger.error('Failed to create resource', { error: errField(error) });
       this.eventBus.get('yield:create-failed').next({
         message: error instanceof Error ? error.message : String(error),
       });
@@ -181,7 +211,7 @@ export class Stower {
       });
       this.eventBus.get('yield:update-ok').next({ resourceId: event.resourceId });
     } catch (error) {
-      this.logger.error('Failed to update resource', { error });
+      this.logger.error('Failed to update resource', { error: errField(error) });
       this.eventBus.get('yield:update-failed').next({
         resourceId: event.resourceId,
         message: error instanceof Error ? error.message : String(error),
@@ -217,7 +247,7 @@ export class Stower {
       });
       this.eventBus.get('yield:move-ok').next({ resourceId: rId });
     } catch (error) {
-      this.logger.error('Failed to move resource', { error });
+      this.logger.error('Failed to move resource', { error: errField(error) });
       this.eventBus.get('yield:move-failed').next({
         fromUri: event.fromUri,
         message: error instanceof Error ? error.message : String(error),
@@ -241,7 +271,7 @@ export class Stower {
       // annotation-assembly emits mark:create-ok after it observes the
       // persisted mark:added event (keyed by correlationId in metadata).
     } catch (error) {
-      this.logger.error('Failed to create annotation', { error });
+      this.logger.error('Failed to create annotation', { error: errField(error) });
       this.eventBus.get('mark:create-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -264,7 +294,7 @@ export class Stower {
       });
       this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
     } catch (error) {
-      this.logger.error('Failed to delete annotation', { error });
+      this.logger.error('Failed to delete annotation', { error: errField(error) });
       this.eventBus.get('mark:delete-failed').next({
         message: error instanceof Error ? error.message : String(error),
       });
@@ -287,7 +317,7 @@ export class Stower {
       );
       // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
-      this.logger.error('Failed to update annotation body', { error });
+      this.logger.error('Failed to update annotation body', { error: errField(error) });
       this.eventBus.get('mark:body-update-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
@@ -346,7 +376,7 @@ export class Stower {
       });
       // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
-      this.logger.error('Failed to add entity type', { error });
+      this.logger.error('Failed to add entity type', { error: errField(error) });
       this.eventBus.get('mark:entity-type-add-failed').next({
         message: error instanceof Error ? error.message : String(error),
       });

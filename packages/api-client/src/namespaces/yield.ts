@@ -79,16 +79,11 @@ export class YieldNamespace implements IYieldNamespace {
       };
 
       // Subscribe to the unified job lifecycle filtered by this job's
-      // jobId (assigned by `job:create` below).
-      //
-      // TODO(auto-bind): the pre-unification code auto-bound the new
-      // resource to the source reference here on yield:finished by
-      // reading event.resourceId (the generated resource's id). That
-      // field is not available in job:complete — the generated id is
-      // assigned by Stower during yield:create processing, not by the
-      // worker. If we want to keep the auto-bind behavior, it belongs
-      // in Stower (on yield:created → emit mark:update-body), not in
-      // the client. Flagging for follow-up.
+      // jobId (assigned by `job:create` below). Auto-bind (resolving the
+      // source reference to the generated resource) is handled in
+      // Stower's `yield:create` handler when `generatedFrom.annotationId`
+      // is present — not here, because the generated resource id is
+      // assigned by Stower, not by the worker.
       let activeJobId: string | null = null;
       const progress$ = this.eventBus.get('job:report-progress').pipe(
         filter((e) => e.jobId === activeJobId),

@@ -51,8 +51,20 @@ export class FilesystemViewStorage implements ViewStorage {
     // Ensure shard directory exists
     await fs.mkdir(projDir, { recursive: true });
 
-    // Write projection to file
-    await fs.writeFile(projPath, JSON.stringify(projection, null, 2), 'utf-8');
+    // Atomic write: write to a sibling temp file and rename into place.
+    // `fs.writeFile` on its own truncates the target to 0 bytes before
+    // writing, so a concurrent reader can observe an empty file and
+    // get a `JSON.parse('')` SyntaxError mid-write. `rename` is atomic
+    // on POSIX, so readers always see either the old or new content,
+    // never a partial one.
+    const tmpPath = `${projPath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tmpPath, JSON.stringify(projection, null, 2), 'utf-8');
+    try {
+      await fs.rename(tmpPath, projPath);
+    } catch (error) {
+      await fs.unlink(tmpPath).catch(() => {});
+      throw error;
+    }
   }
 
   async get(resourceId: ResourceId): Promise<ResourceView | null> {
@@ -65,16 +77,20 @@ export class FilesystemViewStorage implements ViewStorage {
       if (error.code === 'ENOENT') {
         return null;
       }
-      // Auto-delete corrupted view files (views are derived data, can be rebuilt from events)
-      // This only handles JSON parsing errors, not broken event chains
+      // Don't delete on SyntaxError — the old code unlinked the file,
+      // which turned a transient race (read-during-write with the
+      // pre-atomic `fs.writeFile`) into a permanent "view missing"
+      // that the next materializer write had to repair from scratch.
+      // With atomic `rename` in `save`, SyntaxError should only fire
+      // on genuine corruption; either way, the next incremental
+      // update will overwrite the file with a good view, so we just
+      // log and treat as missing.
       if (error instanceof SyntaxError) {
-        this.logger?.error('[ViewStorage] Corrupted view file detected', { resourceId, error: error.message });
-        this.logger?.error('[ViewStorage] Deleting corrupted view file', { path: projPath });
-        try {
-          await fs.unlink(projPath);
-        } catch (unlinkError) {
-          this.logger?.error('[ViewStorage] Failed to delete corrupted file', { error: unlinkError });
-        }
+        this.logger?.error('[ViewStorage] Corrupted view file, treating as missing', {
+          resourceId,
+          path: projPath,
+          error: error.message,
+        });
         return null;
       }
       throw error;
