@@ -15,18 +15,29 @@ export function useMediaToken(id: ResourceId): UseMediaTokenResult {
 
   useEffect(() => {
     if (!semiont || !id) { setLoading(false); return; }
+    let cancelled = false;
     setLoading(true);
     semiont.getMediaToken(id)
-      .then(({ token: t }) => { setToken(t); setLoading(false); })
-      .catch(() => { setLoading(false); });
+      .then(({ token: t }) => {
+        if (cancelled) return;
+        setToken(t);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
 
     const refreshInterval = setInterval(() => {
       semiont.getMediaToken(id)
-        .then(({ token: t }) => setToken(t))
+        .then(({ token: t }) => { if (!cancelled) setToken(t); })
         .catch(() => {});
     }, 4 * 60 * 1000);
 
-    return () => clearInterval(refreshInterval);
+    return () => {
+      cancelled = true;
+      clearInterval(refreshInterval);
+    };
   }, [semiont, id]);
 
   return { token, loading };

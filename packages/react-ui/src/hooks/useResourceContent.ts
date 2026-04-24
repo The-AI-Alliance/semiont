@@ -24,17 +24,22 @@ export function useResourceContent(
 
   useEffect(() => {
     if (!semiont || !enabled || !mediaType) return;
+    let cancelled = false;
     setLoading(true);
     semiont.getResourceRepresentation(rUri, {
       accept: mediaType as components['schemas']['ContentFormat'],
     }).then(({ data }) => {
+      if (cancelled) return;
       setContent(decodeWithCharset(data, mediaType));
       setLoading(false);
     }).catch((error) => {
+      if (cancelled) return;
       console.error('Failed to fetch representation:', error);
       showError('Failed to load resource representation');
       setLoading(false);
     });
+
+    return () => { cancelled = true; };
   }, [semiont, rUri, mediaType, enabled, showError]);
 
   return { content, loading };
