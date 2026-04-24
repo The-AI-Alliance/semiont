@@ -22,8 +22,26 @@
 
 // Export clients
 export * from './client';
-export { busRequest, BusRequestError } from './bus-request';
+export { busRequest, BusRequestError, type BusRequestPrimitive } from './bus-request';
 export { createCache, type Cache } from './cache';
+
+// Transport abstraction
+export {
+  type ITransport,
+  type IContentTransport,
+  type PutBinaryRequest,
+  type ProgressEvent,
+  type ProgressCallback,
+  type ConnectionState,
+  type HealthCheckResponse,
+  type StatusResponse,
+  type UserResponse,
+  type UpdateUserRequest,
+  type UpdateUserResponse,
+  type ListUsersResponse,
+} from './transport/types';
+export { HttpTransport, type HttpTransportConfig } from './transport/http-transport';
+export { HttpContentTransport } from './transport/http-content-transport';
 
 
 // Verb-oriented namespace API

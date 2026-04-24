@@ -36,6 +36,9 @@ function createFakeBrowserForTests(
     token$: new BehaviorSubject<any>(null),
     expiresAt: null,
     refresh: vi.fn(async () => null),
+    /** Generic-channel subscription carve-out — mirror of SemiontSession.subscribe. */
+    subscribe: <K extends string>(channel: K, handler: (payload: any) => void) =>
+      client.on(channel as any, handler),
   };
   // Modal-state mock sits on its own BehaviorSubject so tests that
   // exercise the session-expired / permission-denied paths can poke

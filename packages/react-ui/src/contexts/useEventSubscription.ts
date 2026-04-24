@@ -38,7 +38,7 @@ export function useEventSubscription<K extends keyof EventMap>(
     const unsubs: Array<() => void> = [];
     unsubs.push(semiont.on(eventName, (payload) => handlerRef.current(payload)));
     if (session) {
-      unsubs.push(session.client.on(eventName, (payload) => handlerRef.current(payload)));
+      unsubs.push(session.subscribe(eventName, (payload) => handlerRef.current(payload)));
     }
     return () => { for (const u of unsubs) u(); };
   }, [eventName, semiont, session]);
@@ -87,7 +87,7 @@ export function useEventSubscriptions(
       };
       unsubs.push(semiont.on(channel, fan));
       if (session) {
-        unsubs.push(session.client.on(channel, fan));
+        unsubs.push(session.subscribe(channel, fan));
       }
     }
     return () => { for (const unsub of unsubs) unsub(); };

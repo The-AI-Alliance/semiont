@@ -37,7 +37,7 @@ import {
   baseUrl,
   type AccessToken,
 } from '@semiont/core';
-import type { components } from '@semiont/core';
+import type { components, EventMap } from '@semiont/core';
 import { SemiontApiClient, APIError } from '../client';
 import type { ConnectionState } from '../view-models/domain/actor-vm';
 import type { KnowledgeBase } from './knowledge-base';
@@ -276,6 +276,23 @@ export class SemiontSession {
   get expiresAt(): Date | null {
     const token = this.token$.getValue();
     return token ? parseJwtExpiry(token) : null;
+  }
+
+  /**
+   * Subscribe to a session-bus channel. The single sanctioned escape hatch
+   * for generic-channel subscription (the case `useEventSubscription` needs
+   * — channel name is a hook parameter, not known statically). All other
+   * consumers must call typed namespace methods (e.g. `session.client.mark.archive(...)`)
+   * rather than raw `.client.on/.stream/.emit`. The compliance audit at
+   * `scripts/compliance/audit-raw-bus.sh` flags any other caller.
+   *
+   * @returns disposer that unsubscribes the handler.
+   */
+  subscribe<K extends keyof EventMap>(
+    channel: K,
+    handler: (payload: EventMap[K]) => void,
+  ): () => void {
+    return this.client.on(channel, handler);
   }
 
   async dispose(): Promise<void> {
