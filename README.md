@@ -51,15 +51,13 @@ semiont match doc-123 ann-456
 semiont bind doc-123 ann-456 target-789
 ```
 
-**[API Client](packages/api-client/README.md)** — type-safe TypeScript SDK organized by the seven verbs:
+**[API Client](packages/api-client/README.md)** — type-safe TypeScript SDK organized by the seven verbs. Calls go through a connected `SemiontSession` (see the [API Client README](packages/api-client/README.md) for session setup):
 
 ```typescript
-const semiont = new SemiontApiClient({ baseUrl, eventBus, getToken });
-
-await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
-const context = await firstValueFrom(semiont.gather.annotation(annId, resourceId));
-const results = await firstValueFrom(semiont.match.search(resourceId, refId, context));
-await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
+await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
+const context = await firstValueFrom(session.client.gather.annotation(annId, resourceId));
+const results = await firstValueFrom(session.client.match.search(resourceId, refId, context));
+await session.client.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
 ```
 
 **[Agent Skills](docs/skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code can use to drive the full pipeline without writing integration code.
@@ -70,7 +68,7 @@ See the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)** for alternative setu
 
 ## Why Semiont
 
-Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure. Inference runs on **Anthropic** (cloud) or **Ollama** (local) — mix providers per worker to balance cost, capability, and privacy.
+Semiont transforms unstructured content into interconnected semantic networks, stored as portable, structured annotations anchored to source passages. Self-hosted, so your data stays on your infrastructure. Inference runs on **Anthropic** (cloud) or **Ollama** (local) — mix providers per worker to balance cost, capability, and privacy.
 
 **Eliminate Cold Starts** — Import a set of documents and the seven flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
 

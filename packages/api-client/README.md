@@ -8,42 +8,83 @@
 
 TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) — a knowledge management system for semantic annotations, AI-powered analysis, and collaborative document understanding.
 
-The api-client is a transparent proxy to `@semiont/make-meaning`. The browser writes code as though it has direct access to the knowledge system. HTTP, auth, SSE, and caching are internal concerns.
+The api-client is a transparent proxy to `@semiont/make-meaning`. Callers write code as though they have direct access to the knowledge system. HTTP, auth, SSE, caching, and cross-tab session sync are internal concerns.
+
+## Getting a Session
+
+`SemiontSession` is the canonical entry point. It owns a `SemiontApiClient`, manages the access-token lifecycle (initial token, refresh, expiry), and synchronizes session state across tabs or processes. Every Semiont actor — frontend, CLI, MCP, workers, smelter — uses the same `SemiontSession` primitive.
+
+```typescript
+import {
+  SemiontSession,
+  InMemorySessionStorage,
+  setStoredSession,
+  type KnowledgeBase,
+} from '@semiont/api-client';
+
+const kb: KnowledgeBase = {
+  id: 'local',
+  label: 'Local Backend',
+  protocol: 'http',
+  host: 'localhost',
+  port: 4000,
+  email: 'me@example.com',
+};
+
+const storage = new InMemorySessionStorage();
+setStoredSession(storage, kb.id, { access: initialAccessToken, refresh: initialRefreshToken });
+
+const session = new SemiontSession({
+  kb,
+  storage,
+  refresh: async () => {
+    // Re-authenticate when the stored token expires or a 401 arrives.
+    // Frontend: POST /api/tokens/refresh with the stored refresh token.
+    // Worker/service: POST /api/tokens/worker with a shared secret.
+    // CLI/MCP: read the long-lived refresh token from filesystem storage.
+    // Return the new access token, or null if recovery is impossible.
+    return newAccessToken;
+  },
+});
+await session.ready;
+```
+
+Three required pieces:
+
+- **`kb`** — a `KnowledgeBase` descriptor identifying which backend to talk to (protocol, host, port, and a stable `id` used as the session-storage key).
+- **`storage`** — a `SessionStorage` adapter: `InMemorySessionStorage` for scripts and tests, `WebBrowserStorage` in a browser, filesystem storage for CLI/MCP.
+- **`refresh`** — a closure that re-authenticates however your actor does. The session calls it on 401 or proactive refresh; the details of the token exchange are up to you.
 
 ## The 7 Verbs
 
-The API is organized by the domain's verbs — the same verbs that organize the EventBus protocol, the documentation, and the backend actors:
+All domain calls go through `session.client`. Namespaces mirror the bus-protocol verbs and the backend actors:
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-
-const semiont = new SemiontApiClient({ baseUrl, eventBus, token$ });
-
 // Browse — reads from materialized views
-const resource = semiont.browse.resource(resourceId);       // Observable
-const annotations = semiont.browse.annotations(resourceId); // Observable
-const content = await semiont.browse.resourceContent(rid);   // Promise
+const resource = session.client.browse.resource(resourceId);       // Observable
+const annotations = session.client.browse.annotations(resourceId); // Observable
+const content = await session.client.browse.resourceContent(rid);   // Promise
 
 // Mark — annotation CRUD + AI assist
-await semiont.mark.annotation(resourceId, input);
-await semiont.mark.delete(resourceId, annotationId);
-semiont.mark.assist(resourceId, 'linking', options);         // Observable (progress)
+await session.client.mark.annotation(resourceId, input);
+await session.client.mark.delete(resourceId, annotationId);
+session.client.mark.assist(resourceId, 'linking', options);         // Observable (progress)
 
 // Bind — reference linking
-await semiont.bind.body(resourceId, annotationId, operations);
+await session.client.bind.body(resourceId, annotationId, operations);
 
 // Gather — LLM context assembly
-semiont.gather.annotation(annotationId, resourceId);         // Observable (progress → context)
+session.client.gather.annotation(annotationId, resourceId);         // Observable (progress → context)
 
 // Match — semantic search
-semiont.match.search(resourceId, referenceId, context);      // Observable (results)
+session.client.match.search(resourceId, referenceId, context);      // Observable (results)
 
 // Yield — resource creation + AI generation
-await semiont.yield.resource(data);
-semiont.yield.fromAnnotation(resourceId, annotationId, opts); // Observable (progress)
+await session.client.yield.resource(data);
+session.client.yield.fromAnnotation(resourceId, annotationId, opts); // Observable (progress)
 
 // Beckon — attention coordination
-semiont.beckon.attention(annotationId, resourceId);           // void (ephemeral)
+session.client.beckon.attention(annotationId, resourceId);           // void (ephemeral)
 
 // + Job, Auth, Admin namespaces
 ```
@@ -58,34 +99,7 @@ semiont.beckon.attention(annotationId, resourceId);           // void (ephemeral
 
 ## Auth is Internal
 
-The client takes an observable `token$` at construction. All namespace
-calls and the bus SSE connection read the current value. Update by
-calling `.next(newToken)` on the BehaviorSubject — the client auto-starts
-the bus actor the first time the token transitions from null to a real
-value, and the actor reconnects with the new token after refresh.
-
-```typescript
-import { BehaviorSubject } from 'rxjs';
-
-const token$ = new BehaviorSubject<AccessToken | null>(accessToken(token));
-
-const semiont = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-  eventBus: new EventBus(),
-  token$,
-});
-
-// No auth on individual calls
-const annotations = semiont.browse.annotations(resourceId);
-await semiont.mark.annotation(resourceId, input);
-await semiont.bind.body(resourceId, annotationId, operations);
-
-// Token rotation — e.g. after refresh
-token$.next(accessToken(newToken));
-```
-
-Omit `token$` entirely for unauthenticated usage (public endpoints only).
-The bus actor will not connect until a non-null token is available.
+The session owns the access-token lifecycle. Namespace calls read the current token, attach it to every HTTP and SSE request, and reconnect with a refreshed token automatically. You never pass a token to an individual call; when the session refreshes, in-flight streams resume via `Last-Event-ID` without losing events.
 
 ## Installation
 
