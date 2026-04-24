@@ -6,8 +6,7 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components } from '@semiont/core';
-import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
+import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components } from '@semiont/core';
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useSemiont } from '../../session/SemiontProvider';
@@ -16,9 +15,6 @@ import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
-
-type Annotation = components['schemas']['Annotation'];
-type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 /**
  * ResourceViewer - Display and interact with resource content and annotations
@@ -84,7 +80,7 @@ export function ResourceViewer({
   if (!resource['@id']) {
     throw new Error('Resource has no @id');
   }
-  const rUri = toResourceId(resource['@id']);
+  const rUri = resource['@id'];
 
   // Helper to get MIME type from resource
   const getMimeType = (): string => {
@@ -242,8 +238,8 @@ export function ResourceViewer({
   };
 
   // Handle deleting annotations
-  const handleDeleteAnnotation = useCallback((id: string) => {
-    session?.client.mark.delete(rUri, toAnnotationId(id));
+  const handleDeleteAnnotation = useCallback((id: AnnotationId) => {
+    session?.client.mark.delete(rUri, id);
   }, [session, rUri]);
 
   // Handle annotation clicks - memoized

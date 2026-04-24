@@ -1,9 +1,7 @@
 import { type Observable, map } from 'rxjs';
-import type { ResourceId, components } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import type { ViewModel } from '../lib/view-model';
 import type { SemiontApiClient } from '../../client';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface ResourceLoaderVM extends ViewModel {
   resource$: Observable<ResourceDescriptor | undefined>;

@@ -14,7 +14,7 @@ import type { Readable } from 'node:stream';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { Logger, ResourceId, UserId, CreationMethod } from '@semiont/core';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
@@ -27,7 +27,7 @@ import {
 } from './manifest';
 
 type ContentFormat = components['schemas']['ContentFormat'];
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 export interface LinkedDataImporterOptions {
   eventBus: EventBus;
@@ -65,7 +65,7 @@ function dehydrateAnnotation(annotation: Annotation): Annotation {
 
   // annotation.id
   if (dehydrated.id) {
-    dehydrated.id = stripUriToId(dehydrated.id);
+    dehydrated.id = annotationIdFactory(stripUriToId(dehydrated.id));
   }
 
   // annotation.target

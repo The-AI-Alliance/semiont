@@ -350,7 +350,7 @@ describe('Smelter', () => {
     await viewStorage.save(rid, {
       resource: {
         '@context': 'https://schema.org',
-        '@id': String(rid),
+        '@id': rid,
         name: 'Backfill Me',
         archived: false,
         storageUri: uri,

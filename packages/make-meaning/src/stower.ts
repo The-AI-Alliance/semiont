@@ -38,14 +38,11 @@
 import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
-import type { EventMap, Logger } from '@semiont/core';
-import { EventBus, errField, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
+import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
+import { EventBus, annotationId, errField, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
-import type { components } from '@semiont/core';
 import { resolveStorageUri } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface CreateResourceResult {
   resourceId: ResourceId;
@@ -110,7 +107,10 @@ export class Stower {
 
       // generatedFrom on the bus command has optional fields; the domain event requires both
       const generatedFrom = event.generatedFrom?.resourceId && event.generatedFrom?.annotationId
-        ? { resourceId: event.generatedFrom.resourceId, annotationId: event.generatedFrom.annotationId }
+        ? {
+            resourceId: resourceId(event.generatedFrom.resourceId),
+            annotationId: annotationId(event.generatedFrom.annotationId),
+          }
         : undefined;
 
       await this.kb.eventStore.appendEvent({
@@ -167,7 +167,7 @@ export class Stower {
       if (generatedFrom) {
         this.eventBus.get('mark:update-body').next({
           annotationId: generatedFrom.annotationId,
-          userId: event.userId,
+          userId: makeUserId(event.userId),
           resourceId: generatedFrom.resourceId,
           operations: [
             {
@@ -264,7 +264,7 @@ export class Stower {
           resourceId: resourceId(event.resourceId),
           userId: makeUserId(event.userId),
           version: 1,
-          payload: { annotation: event.annotation },
+          payload: { annotation: event.annotation as Annotation },
         },
         event.correlationId ? { correlationId: event.correlationId } : undefined,
       );
@@ -290,7 +290,7 @@ export class Stower {
         resourceId: resourceId(event.resourceId),
         userId: makeUserId(event.userId),
         version: 1,
-        payload: { annotationId: event.annotationId },
+        payload: { annotationId: annotationId(event.annotationId) },
       });
       this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
     } catch (error) {

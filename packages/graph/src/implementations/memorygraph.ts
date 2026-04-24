@@ -2,7 +2,7 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import type { components, Logger } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -14,7 +14,7 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
   getBodySource,
@@ -24,8 +24,8 @@ import {
   getResourceEntityTypes
 } from '@semiont/api-client';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+import type { ResourceDescriptor } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 // Simple in-memory storage using Maps
 // Useful for development and testing
@@ -154,7 +154,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
-      id,
+      id: makeAnnotationId(id),
       motivation: input.motivation,
       target: input.target,
       body: input.body,

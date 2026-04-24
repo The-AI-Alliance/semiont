@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { ResourceId } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId, components } from '@semiont/core';
 import { getPrimaryMediaType, decodeWithCharset } from '@semiont/api-client';
 import { useToast } from '../components/Toast';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from './useObservable';
-import type { components } from '@semiont/core';
-
-type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 export interface UseResourceContentResult {
   content: string;
@@ -15,7 +12,7 @@ export interface UseResourceContentResult {
 
 export function useResourceContent(
   rUri: ResourceId,
-  resource: SemiontResource,
+  resource: ResourceDescriptor,
   enabled = true
 ): UseResourceContentResult {
   const { showError } = useToast();

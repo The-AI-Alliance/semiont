@@ -8,7 +8,7 @@ import { CommentEntry } from '../CommentEntry';
 import type { components } from '@semiont/core';
 import type { EventBus } from "@semiont/core"
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({

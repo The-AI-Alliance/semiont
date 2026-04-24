@@ -7,9 +7,8 @@
 
 import { ANNOTATORS } from './annotation-registry';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
-import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 export interface TextSegment {
   exact: string;

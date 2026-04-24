@@ -10,12 +10,11 @@ import type {
   GraphConnection,
   GraphPath,
 } from '@semiont/core';
-import type { components } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 import type { KnowledgeBase } from './knowledge-base';
 
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 
 export interface GraphNode {
   id: string;

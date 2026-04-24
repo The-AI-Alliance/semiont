@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useEffect } from 'react';
-import { annotationId as toAnnotationId } from '@semiont/core';
+import type { AnnotationId } from '@semiont/core';
 import { HOVER_DELAY_MS } from '@semiont/api-client';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from './useObservable';
@@ -13,9 +13,9 @@ export interface HoverEmitterProps {
   onMouseLeave: () => void;
 }
 
-export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
+export function useHoverEmitter(annotationId: AnnotationId, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
   const session = useObservable(useSemiont().activeSession$);
-  const currentHoverRef = useRef<string | null>(null);
+  const currentHoverRef = useRef<AnnotationId | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onMouseEnter = useCallback(() => {
@@ -26,7 +26,7 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       currentHoverRef.current = annotationId;
-      session?.client.beckon.hover(toAnnotationId(annotationId));
+      session?.client.beckon.hover(annotationId);
     }, hoverDelayMs);
   }, [annotationId, hoverDelayMs, session]);
 

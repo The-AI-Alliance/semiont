@@ -74,7 +74,7 @@ export type BodyOperation =
 
 // ── Query and view types ─────────────────────────────────────────────────────
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from './annotation-types';
 
 export interface EventQuery {
   resourceId?: ResourceId;

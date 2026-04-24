@@ -8,7 +8,7 @@ import { TaggingPanel } from '../TaggingPanel';
 import type { components, EventBus } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Composition-based event tracker
 interface TrackedEvent {

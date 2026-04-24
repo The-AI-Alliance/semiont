@@ -4,7 +4,7 @@
 
 import type { components } from '@semiont/core';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 type Representation = components['schemas']['Representation'];
 
 /**

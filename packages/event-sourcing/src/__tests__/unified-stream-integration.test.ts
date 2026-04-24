@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import {
+  annotationId,
   resourceId,
   userId,
   EventBus,
@@ -83,7 +84,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
           type: 'Annotation' as const,
-          id: 'ann-corr-1',
+          id: annotationId('ann-corr-1'),
           motivation: 'linking' as const,
           target: { source: rId, selector: [{ type: 'TextQuoteSelector', exact: 'test' }] },
           modified: new Date().toISOString(),
@@ -106,7 +107,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         userId: userId('user-1'),
         version: 1,
         payload: {
-          annotationId: 'ann-corr-1',
+          annotationId: annotationId('ann-corr-1'),
           operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'target-res' } }],
         },
       },
@@ -156,7 +157,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
           type: 'Annotation' as const,
-          id: 'ann-tab-1',
+          id: annotationId('ann-tab-1'),
           motivation: 'linking' as const,
           target: { source: rId, selector: [{ type: 'TextQuoteSelector', exact: 'two-tab' }] },
           modified: new Date().toISOString(),
@@ -181,7 +182,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         userId: userId('user-1'),
         version: 1,
         payload: {
-          annotationId: 'ann-tab-1',
+          annotationId: annotationId('ann-tab-1'),
           operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'linked-res' } }],
         },
       },
@@ -277,7 +278,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
           type: 'Annotation' as const,
-          id: 'ann-order-1',
+          id: annotationId('ann-order-1'),
           motivation: 'highlighting' as const,
           target: { source: rId, selector: [{ type: 'TextQuoteSelector', exact: 'test' }] },
           modified: new Date().toISOString(),

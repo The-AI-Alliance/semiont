@@ -124,7 +124,7 @@ describe('AnnotationContext', () => {
   // Helper to create an annotation
   async function createTestAnnotation(
     resId: string,
-    annId: string,
+    annId: ReturnType<typeof annotationId>,
     exact: string,
     start: number,
     end: number
@@ -202,7 +202,7 @@ describe('AnnotationContext', () => {
     const testResourceId = `resource-window-${Date.now()}`;
     const testAnnId = `ann-window-${Date.now()}`;
     await createTestResource(testResourceId, 'Some text for context window testing');
-    await createTestAnnotation(testResourceId, testAnnId, 'text', 5, 9);
+    await createTestAnnotation(testResourceId, annotationId(testAnnId), 'text', 5, 9);
 
     // Test minimum valid value
     await expect(
@@ -245,7 +245,7 @@ describe('AnnotationContext', () => {
     const testResourceId = `resource-default-${Date.now()}`;
     const testAnnId = `ann-default-${Date.now()}`;
     await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-    await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+    await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
 
     const result = await AnnotationContext.buildLLMContext(
@@ -266,7 +266,7 @@ describe('AnnotationContext', () => {
     const testResourceId = `resource-source-${Date.now()}`;
     const testAnnId = `ann-source-${Date.now()}`;
     await createTestResource(testResourceId, 'Testing source context inclusion');
-    await createTestAnnotation(testResourceId, testAnnId, 'context', 15, 22);
+    await createTestAnnotation(testResourceId, annotationId(testAnnId), 'context', 15, 22);
 
 
     const withContext = await AnnotationContext.buildLLMContext(
@@ -321,7 +321,7 @@ describe('AnnotationContext', () => {
       payload: {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: testAnnId,
+          id: annotationId(testAnnId),
           type: 'Annotation',
           motivation: 'commenting',
           body: {
@@ -364,7 +364,7 @@ describe('AnnotationContext', () => {
       const testResourceId = `resource-graph-conn-${Date.now()}`;
       const testAnnId = `ann-graph-conn-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       // Mock graph connections
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
@@ -404,7 +404,7 @@ describe('AnnotationContext', () => {
       const testAnnId = `ann-cited-${Date.now()}`;
       const citingResourceId = `resource-citing-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       // Create the citing resource so views.get can find it
       await createTestResource(citingResourceId, 'This document cites the fox resource');
@@ -412,7 +412,7 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         {
-          id: 'citing-ann-1',
+          id: annotationId('citing-ann-1'),
           type: 'Annotation',
           motivation: 'linking',
           target: { source: citingResourceId },
@@ -439,7 +439,7 @@ describe('AnnotationContext', () => {
       const testResourceId = `resource-freq-${Date.now()}`;
       const testAnnId = `ann-freq-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
@@ -470,7 +470,7 @@ describe('AnnotationContext', () => {
       const testAnnId = `ann-sibling-main-${Date.now()}`;
       const siblingAnnId = `ann-sibling-other-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog near London');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       // Add a sibling annotation with entity types
       const eventStore = createEventStore(project, new EventBus(), mockLogger);
@@ -482,7 +482,7 @@ describe('AnnotationContext', () => {
         payload: {
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld',
-            id: siblingAnnId,
+            id: annotationId(siblingAnnId),
             type: 'Annotation',
             motivation: 'tagging',
             body: [{
@@ -526,7 +526,7 @@ describe('AnnotationContext', () => {
       const testResourceId = `resource-infer-${Date.now()}`;
       const testAnnId = `ann-infer-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         {
@@ -567,7 +567,7 @@ describe('AnnotationContext', () => {
       const testResourceId = `resource-no-infer-${Date.now()}`;
       const testAnnId = `ann-no-infer-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
@@ -589,7 +589,7 @@ describe('AnnotationContext', () => {
       const testResourceId = `resource-infer-fail-${Date.now()}`;
       const testAnnId = `ann-infer-fail-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
@@ -624,7 +624,7 @@ describe('AnnotationContext', () => {
       const testResourceId = `resource-empty-graph-${Date.now()}`;
       const testAnnId = `ann-empty-graph-${Date.now()}`;
       await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
-      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+      await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);

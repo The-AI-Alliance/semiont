@@ -12,7 +12,7 @@ import { PanelHeader } from './PanelHeader';
 import { getAllTagSchemas } from '../../../lib/tag-schemas';
 import './TaggingPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
 type JobProgress = components['schemas']['JobProgress'];
 

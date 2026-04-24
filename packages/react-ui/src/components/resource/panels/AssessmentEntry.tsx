@@ -1,14 +1,11 @@
 'use client';
 
 import type { Ref } from 'react';
-import type { components } from '@semiont/core';
-import { annotationId as toAnnotationId } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-
-type Annotation = components['schemas']['Annotation'];
 
 // W3C Annotation TextualBody type
 interface TextualBody {
@@ -89,7 +86,7 @@ export function AssessmentEntry({
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.browse.click(toAnnotationId(assessment.id), assessment.motivation);
+        session?.client.browse.click(assessment.id, assessment.motivation);
       }}
       {...hoverProps}
     >

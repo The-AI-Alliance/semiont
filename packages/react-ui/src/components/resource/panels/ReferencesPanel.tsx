@@ -15,7 +15,7 @@ import './ReferencesPanel.css';
 
 type JobProgress = components['schemas']['JobProgress'];
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
 type ReferencedBy = components['schemas']['GetReferencedByResponse']['referencedBy'][number];
 

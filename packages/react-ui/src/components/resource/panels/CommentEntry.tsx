@@ -2,14 +2,11 @@
 
 import { useState, useEffect, useRef, useImperativeHandle, type Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/core';
-import { annotationId as toAnnotationId } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-
-type Annotation = components['schemas']['Annotation'];
 
 interface CommentEntryProps {
   comment: Annotation;
@@ -88,7 +85,7 @@ export function CommentEntry({
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.browse.click(toAnnotationId(comment.id), comment.motivation);
+        session?.client.browse.click(comment.id, comment.motivation);
       }}
       {...hoverProps}
     >

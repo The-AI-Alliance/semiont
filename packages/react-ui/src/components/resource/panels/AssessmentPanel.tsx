@@ -12,7 +12,7 @@ import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './AssessmentPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
 type JobProgress = components['schemas']['JobProgress'];
 

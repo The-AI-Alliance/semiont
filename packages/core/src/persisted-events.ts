@@ -7,8 +7,20 @@
  */
 
 import type { components } from './types';
-import type { ResourceId } from './identifiers';
+import type { AnnotationId, ResourceId } from './identifiers';
+import type { Annotation } from './annotation-types';
 import type { EventBase } from './event-base';
+
+// Branded payload overrides — the OpenAPI schemas reference the raw
+// `Annotation` type with `id: string`. At the TypeScript layer we narrow
+// to the branded `Annotation` so consumers read `payload.annotation.id`
+// as `AnnotationId` without an upcast at every seam.
+type AnnotationAddedPayload =
+  components['schemas']['AnnotationAddedPayload'] & { annotation: Annotation };
+type AnnotationRemovedPayload =
+  components['schemas']['AnnotationRemovedPayload'] & { annotationId: AnnotationId };
+type AnnotationBodyUpdatedPayload =
+  components['schemas']['AnnotationBodyUpdatedPayload'] & { annotationId: AnnotationId };
 
 // ── The Catalog ──────────────────────────────────────────────────────────────
 
@@ -23,9 +35,9 @@ type PersistedEventCatalog = {
   'yield:moved': components['schemas']['ResourceMovedPayload'];
   'yield:representation-added': components['schemas']['RepresentationAddedPayload'];
   'yield:representation-removed': components['schemas']['RepresentationRemovedPayload'];
-  'mark:added': components['schemas']['AnnotationAddedPayload'];
-  'mark:removed': components['schemas']['AnnotationRemovedPayload'];
-  'mark:body-updated': components['schemas']['AnnotationBodyUpdatedPayload'];
+  'mark:added': AnnotationAddedPayload;
+  'mark:removed': AnnotationRemovedPayload;
+  'mark:body-updated': AnnotationBodyUpdatedPayload;
   'mark:archived': components['schemas']['ResourceArchivedPayload'];
   'mark:unarchived': components['schemas']['ResourceUnarchivedPayload'];
   'mark:entity-tag-added': components['schemas']['EntityTagChangedPayload'];

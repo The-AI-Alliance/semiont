@@ -12,11 +12,10 @@
  * the overlay spans — no markdown re-parse, no AST walk.
  */
 
-import type { components } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector, getExactText, getBodySource } from '@semiont/api-client';
 import { ANNOTATORS } from './annotation-registry';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

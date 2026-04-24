@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import type { components } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import {
   getResourceId,
   getPrimaryRepresentation,
@@ -16,13 +17,13 @@ import {
   decodeRepresentation,
 } from '../../utils/resources';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 type Representation = components['schemas']['Representation'];
 
 function makeResource(overrides?: Partial<ResourceDescriptor>): ResourceDescriptor {
   return {
     '@context': 'http://schema.org',
-    '@id': 'abc-123',
+    '@id': resourceId('abc-123'),
     name: 'Test',
     representations: [],
     ...overrides,
@@ -42,7 +43,7 @@ describe('getResourceId', () => {
   });
 
   test('returns @id as-is', () => {
-    expect(getResourceId(makeResource({ '@id': 'xyz-456' }))).toBe('xyz-456');
+    expect(getResourceId(makeResource({ '@id': resourceId('xyz-456') }))).toBe('xyz-456');
   });
 
   test('returns undefined for undefined resource', () => {

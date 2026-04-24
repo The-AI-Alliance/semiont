@@ -31,13 +31,12 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { EventQuery, type EventStore } from '@semiont/event-sourcing';
 import { didToAgent, burstBuffer, EventBus, errField } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
-import type { components } from '@semiont/core';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from '../batch-utils.js';
 
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 
 export class GraphDBConsumer {
   // Event types that produce GraphDB mutations — filter everything else

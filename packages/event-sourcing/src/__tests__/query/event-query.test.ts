@@ -470,7 +470,7 @@ describe('EventQuery', () => {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               type: 'Annotation' as const,
-              id: `anno-${i}`,
+              id: annotationId(`anno-${i}`),
               motivation: 'highlighting' as const,
               target: { source: 'doc-perf' },
             }
@@ -498,7 +498,7 @@ describe('EventQuery', () => {
                 annotation: {
                   '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
                   type: 'Annotation' as const,
-                  id: `anno-${i}`,
+                  id: annotationId(`anno-${i}`),
                   motivation: 'highlighting' as const,
                   target: { source: 'doc-filter' },
                 }

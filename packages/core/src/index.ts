@@ -71,6 +71,7 @@ export type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
+  ResourceDescriptor,
 } from './graph';
 
 // Event base types (persistence model foundations)
@@ -152,7 +153,7 @@ export type { AssembledAnnotation } from './annotation-assembly';
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 
 // Annotation types
-export type { AnnotationCategory, CreateAnnotationInternal } from './annotation-types';
+export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from './annotation-types';
 
 // Auth types
 export type { GoogleAuthRequest } from './auth-types';

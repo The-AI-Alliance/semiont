@@ -8,7 +8,7 @@ import { SemiontProject } from '@semiont/core/node';
 import type { components, EventOfType, Logger } from '@semiont/core';
 import { resourceId, userId, annotationId, CREATION_METHODS, EventBus } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type AnnotationBody = components['schemas']['AnnotationBody'];
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { AnnotationContext, type KnowledgeBase } from '@semiont/make-meaning';
@@ -85,7 +85,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-empty-body-' + Date.now(),
+        id: annotationId('test-empty-body-' + Date.now()),
         motivation: 'linking',
         target: {
           source: testDocId,
@@ -129,7 +129,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
-        id: 'test-entity-tags-' + Date.now(),
+        id: annotationId('test-entity-tags-' + Date.now()),
         motivation: 'linking',
         target: {
           source: testDocId,
@@ -481,7 +481,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
-      const w3cId = 'test-w3c-' + Date.now();
+      const w3cId = annotationId('test-w3c-' + Date.now());
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',

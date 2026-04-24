@@ -1075,7 +1075,7 @@ describe('ViewMaterializer', () => {
       await viewStorage.save(r1, {
         resource: {
           '@context': 'https://schema.org/',
-          '@id': r1 as string,
+          '@id': r1,
           name: 'Stale Name',
           representations: [],
           archived: false,

@@ -12,9 +12,7 @@
  */
 
 import type { Readable } from 'stream';
-import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, components } from '@semiont/core';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation, JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext } from '@semiont/core';
 
 /**
  * Content fetcher - turns a ResourceId into a readable stream.

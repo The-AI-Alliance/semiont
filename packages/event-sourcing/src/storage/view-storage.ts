@@ -11,9 +11,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
 import type { SemiontProject } from '@semiont/core/node';
-import type { components, ResourceAnnotations, ResourceId, Logger } from '@semiont/core';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceAnnotations, ResourceDescriptor, ResourceId, Logger } from '@semiont/core';
 
 // Complete state for a resource in materialized view (metadata + annotations)
 export interface ResourceView {

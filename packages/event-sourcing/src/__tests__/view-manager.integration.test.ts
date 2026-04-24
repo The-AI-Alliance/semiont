@@ -32,7 +32,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ViewManager } from '../view-manager';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
-import { resourceId, userId, type PersistedEvent, type StoredEvent, type ResourceId } from '@semiont/core';
+import { annotationId, resourceId, userId, type PersistedEvent, type StoredEvent, type ResourceId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -175,7 +175,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
     const ids = new Set(view!.annotations.annotations.map((a) => a.id));
     expect(ids.size).toBe(10);
     for (let i = 0; i < 10; i++) {
-      expect(ids.has(`ann-${i}`)).toBe(true);
+      expect(ids.has(annotationId(`ann-${i}`))).toBe(true);
     }
   });
 

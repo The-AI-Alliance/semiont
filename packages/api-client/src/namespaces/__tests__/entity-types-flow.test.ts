@@ -18,9 +18,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { BehaviorSubject, Subject, filter, firstValueFrom, map } from 'rxjs';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type {
-  components,
   EventMap,
   EventMetadata,
   EventOfType,
@@ -32,7 +31,7 @@ import { BrowseNamespace } from '../browse';
 import type { SemiontApiClient } from '../../client';
 import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 const TEST_USER = 'did:web:test:users:test' as UserId;
 const TEST_META = { sequenceNumber: 1, streamPosition: 0 } as EventMetadata;
@@ -46,7 +45,7 @@ function mockAnnotation(id: string, source = 'res-1'): Annotation {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id,
+    id: annotationId(id),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
     target: { source },

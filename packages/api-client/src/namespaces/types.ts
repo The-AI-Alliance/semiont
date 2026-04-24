@@ -33,8 +33,8 @@ import type {
 
 // ── OpenAPI schema type aliases ─────────────────────────────────────────────
 
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];

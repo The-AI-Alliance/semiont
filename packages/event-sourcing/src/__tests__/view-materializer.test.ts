@@ -174,7 +174,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         creator: { type: 'Person' as const, name: 'Test User' },
         created: new Date().toISOString(),
@@ -219,7 +219,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         modified: new Date().toISOString(),
@@ -250,7 +250,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         modified: new Date().toISOString(),
@@ -293,7 +293,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         body: [
@@ -338,7 +338,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         body: [
@@ -394,7 +394,7 @@ describe('ViewMaterializer', () => {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               'type': 'Annotation' as const,
-              id: 'anno1',
+              id: annotationId('anno1'),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
               modified: new Date().toISOString(),
@@ -407,7 +407,7 @@ describe('ViewMaterializer', () => {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               'type': 'Annotation' as const,
-              id: 'anno2',
+              id: annotationId('anno2'),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
               modified: new Date().toISOString(),
@@ -556,7 +556,7 @@ describe('ViewMaterializer', () => {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               'type': 'Annotation' as const,
-              id: 'anno1',
+              id: annotationId('anno1'),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
               modified: new Date().toISOString(),

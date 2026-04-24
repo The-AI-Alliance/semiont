@@ -1,12 +1,10 @@
 import { map, type Observable } from 'rxjs';
-import type { components } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 import type { ViewModel } from '../lib/view-model';
 import { createDisposer } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
 import { createSearchPipeline, type SearchPipeline } from '../lib/search-pipeline';
 import type { SemiontApiClient } from '../../client';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 const RECENT_LIMIT = 10;
 const SEARCH_LIMIT = 20;

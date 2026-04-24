@@ -3,7 +3,8 @@
 
 import { GraphDatabase } from '../interface';
 import { getEntityTypes } from '@semiont/ontology';
-import type { components, Logger } from '@semiont/core';
+import type { Logger } from '@semiont/core';
+import { annotationId as makeAnnotationId } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -25,8 +26,8 @@ import {
   getResourceId
 } from '@semiont/api-client';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+import type { ResourceDescriptor } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 // Dynamic imports for AWS SDK and Gremlin
 let NeptuneClient: any;
@@ -533,7 +534,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
-      id,
+      id: makeAnnotationId(id),
       motivation: input.motivation,
       target: input.target,
       body: input.body,

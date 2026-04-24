@@ -1,8 +1,6 @@
 import { AnnotationContext } from './annotation-context';
 import type { KnowledgeBase } from './knowledge-base';
-import type { ResourceId, StoredEvent, components } from '@semiont/core';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation, ResourceId, StoredEvent } from '@semiont/core';
 
 export function eventAnnotationId(event: StoredEvent): string | null {
   switch (event.type) {

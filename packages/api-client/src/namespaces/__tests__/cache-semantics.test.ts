@@ -18,8 +18,8 @@ import { BrowseNamespace } from '../browse';
 import type { SemiontApiClient } from '../../client';
 import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
 
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
 const TEST_METADATA = { sequenceNumber: 1, streamPosition: 0 } as EventMetadata;
@@ -28,7 +28,7 @@ function mockAnnotation(id: string, source = 'res-1'): Annotation {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id,
+    id: annotationId(id),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
     target: { source },
@@ -37,7 +37,7 @@ function mockAnnotation(id: string, source = 'res-1'): Annotation {
 }
 
 function mockResource(id: string, name?: string): ResourceDescriptor {
-  return { '@context': 'http://schema.org', '@id': id, name: name ?? `Resource ${id}`, representations: [] };
+  return { '@context': 'http://schema.org', '@id': resourceId(id), name: name ?? `Resource ${id}`, representations: [] };
 }
 
 /**

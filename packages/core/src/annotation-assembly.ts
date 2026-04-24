@@ -7,10 +7,11 @@
 
 import type { components } from './types';
 import type { Selector } from './payload-types';
+import type { Annotation } from './annotation-types';
+import { annotationId } from './identifiers';
 import { generateUuid } from './id-generation';
 
 type Agent = components['schemas']['Agent'];
-type Annotation = components['schemas']['Annotation'];
 type AnnotationBody = components['schemas']['AnnotationBody'];
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
@@ -102,7 +103,7 @@ export function assembleAnnotation(
   request: CreateAnnotationRequest,
   creator: Agent,
 ): AssembledAnnotation {
-  const newAnnotationId = generateUuid();
+  const newAnnotationId = annotationId(generateUuid());
 
   // Validate selector: must have TextPositionSelector, SvgSelector, or FragmentSelector
   const posSelector = getTextPositionSelector(request.target.selector);

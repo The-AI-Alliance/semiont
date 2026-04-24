@@ -5,20 +5,48 @@
  * its payload type is defined here — domain events, commands, reads,
  * results, SSE stream payloads, and frontend UI events.
  *
- * Command and result payloads use OpenAPI-generated types (plain strings
- * for identifiers). Branded type safety (ResourceId, UserId, etc.) is
- * enforced at function boundaries, not on bus payloads — callers use
- * factory functions (resourceId(), userId()) at the consume boundary.
- *
- * Domain events (StoredEvent<Interface>) retain branded types as they
- * are the system of record, not wire-format payloads.
+ * Identifier discipline: where a payload carries an annotation or
+ * resource id, the TypeScript layer narrows the OpenAPI `string` to the
+ * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime
+ * wire shape is unchanged (brands have no runtime representation);
+ * what this buys us is that command handlers don't have to re-brand
+ * at every seam. Brand once at the entry boundary (HTTP route handler,
+ * DOM attribute read, URL param parse), not at every bus hop in
+ * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.
  *
  * Organized by flow (verb), then by category within each flow.
  */
 
 import type { components } from './types';
+import type { AnnotationId, ResourceId, UserId } from './identifiers';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
+
+// Branded overrides for OpenAPI command payloads that carry identifier
+// fields. Narrows `string` → branded at the TypeScript layer.
+type MarkDeleteCommand =
+  components['schemas']['MarkDeleteCommand'] & {
+    annotationId: AnnotationId;
+    resourceId?: ResourceId;
+    userId?: UserId;
+  };
+type MarkUpdateBodyCommand =
+  components['schemas']['MarkUpdateBodyCommand'] & {
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
+    userId: UserId;
+  };
+type BindInitiateCommand =
+  components['schemas']['BindInitiateCommand'] & {
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
+  };
+type BindUpdateBodyCommand =
+  components['schemas']['BindUpdateBodyCommand'] & {
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
+    userId?: UserId;
+  };
 
 /**
  * The unified EventMap — every channel on the EventBus.
@@ -94,8 +122,8 @@ export type EventMap = {
   // Commands
   'mark:create-request': components['schemas']['MarkCreateRequest'];
   'mark:create': components['schemas']['MarkCreateCommand'];
-  'mark:delete': components['schemas']['MarkDeleteCommand'];
-  'mark:update-body': components['schemas']['MarkUpdateBodyCommand'];
+  'mark:delete': MarkDeleteCommand;
+  'mark:update-body': MarkUpdateBodyCommand;
   'mark:archive': components['schemas']['MarkArchiveCommand'];
   'mark:unarchive': components['schemas']['MarkUnarchiveCommand'];
   'mark:update-entity-types': components['schemas']['MarkUpdateEntityTypesCommand'];
@@ -129,8 +157,8 @@ export type EventMap = {
   // BIND FLOW — reference linking
   // ========================================================================
 
-  'bind:initiate': components['schemas']['BindInitiateCommand'];
-  'bind:update-body': components['schemas']['BindUpdateBodyCommand'];
+  'bind:initiate': BindInitiateCommand;
+  'bind:update-body': BindUpdateBodyCommand;
   'bind:body-updated': components['schemas']['BindBodyUpdated'];
   'bind:body-update-failed': components['schemas']['CommandError'];
 

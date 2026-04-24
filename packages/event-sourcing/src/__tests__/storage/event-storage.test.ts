@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventStorage } from '../../storage/event-storage';
-import { resourceId, userId } from '@semiont/core';
+import { annotationId, resourceId, userId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -253,7 +253,7 @@ describe('EventStorage', () => {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               type: 'Annotation' as const,
-              id: `anno-${i}`,
+              id: annotationId(`anno-`),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
             }
@@ -279,7 +279,7 @@ describe('EventStorage', () => {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               type: 'Annotation' as const,
-              id: `anno-${i}`,
+              id: annotationId(`anno-`),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
             }
@@ -366,7 +366,7 @@ describe('EventStorage', () => {
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             type: 'Annotation' as const,
-            id: 'anno1',
+            id: annotationId('anno1'),
             motivation: 'highlighting' as const,
             target: { source: 'doc1' },
           }

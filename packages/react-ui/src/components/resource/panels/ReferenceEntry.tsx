@@ -3,8 +3,8 @@
 import type { Ref } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/core';
-import { annotationId, resourceId } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
@@ -12,8 +12,6 @@ import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-
-type Annotation = components['schemas']['Annotation'];
 
 // Extended annotation type with runtime properties added by backend enrichment
 interface EnrichedAnnotation extends Annotation {
@@ -78,7 +76,7 @@ export function ReferenceEntry({
     if (source && resolvedResourceUri && semiont) {
       semiont.bind.body(
         resourceId(source),
-        annotationId(reference.id),
+        reference.id,
         [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri, purpose: 'linking' } }],
       ).catch(() => { /* error handled by events-stream */ });
     }
@@ -86,7 +84,7 @@ export function ReferenceEntry({
 
   const handleInitiateWizard = () => {
     session?.client.bind.initiate({
-      annotationId: annotationId(reference.id),
+      annotationId: reference.id,
       resourceId: resourceId(source),
       defaultTitle: selectedText,
       entityTypes,
@@ -112,7 +110,7 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.browse.click(annotationId(reference.id), reference.motivation);
+        session?.client.browse.click(reference.id, reference.motivation);
       }}
       {...hoverProps}
     >

@@ -14,7 +14,7 @@ import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock browser-pdfjs module
 vi.mock('../../../lib/browser-pdfjs', () => ({

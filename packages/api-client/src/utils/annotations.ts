@@ -19,7 +19,7 @@ export {
   validateSvgMarkup,
 } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type HighlightAnnotation = Annotation;
 type ReferenceAnnotation = Annotation;
 type TextPositionSelector = components['schemas']['TextPositionSelector'];

@@ -1,13 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, Subject, firstValueFrom, filter, map } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
-import type { components } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import type { SemiontApiClient } from '../../client';
 import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
 
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 
 function stored(event: Record<string, any>): any {
   return { ...event, metadata: { sequenceNumber: 1, streamPosition: 0 } };
@@ -17,7 +16,7 @@ function mockAnnotation(id: string): Annotation {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id,
+    id: annotationId(id),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
     target: { source: 'res-1' },
@@ -26,7 +25,7 @@ function mockAnnotation(id: string): Annotation {
 }
 
 function mockResource(id: string): ResourceDescriptor {
-  return { '@context': 'http://schema.org', '@id': id, name: `Resource ${id}`, representations: [] };
+  return { '@context': 'http://schema.org', '@id': resourceId(id), name: `Resource ${id}`, representations: [] };
 }
 
 type ResponseMap = Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }>;

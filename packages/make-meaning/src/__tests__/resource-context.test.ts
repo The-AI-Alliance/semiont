@@ -4,11 +4,9 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { ResourceContext } from '../resource-context';
-import type { ResourceId } from '@semiont/core';
-import type { components } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Mock dependencies
 vi.mock('@semiont/api-client', () => ({
@@ -53,7 +51,7 @@ describe('ResourceContext', () => {
   describe('getResourceMetadata', () => {
     const mockResource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/test-123',
+      '@id': resourceId('test-123'),
       name: 'Test Resource',
       archived: false,
       entityTypes: ['Document'],
@@ -102,7 +100,7 @@ describe('ResourceContext', () => {
   describe('listResources', () => {
     const mockResource1: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/res-1',
+      '@id': resourceId('res-1'),
       name: 'Resource 1',
       archived: false,
       entityTypes: ['Document'],
@@ -113,7 +111,7 @@ describe('ResourceContext', () => {
 
     const mockResource2: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/res-2',
+      '@id': resourceId('res-2'),
       name: 'Resource 2',
       archived: false,
       entityTypes: ['Image'],
@@ -124,7 +122,7 @@ describe('ResourceContext', () => {
 
     const mockResource3: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/res-3',
+      '@id': resourceId('res-3'),
       name: 'Archived Resource',
       archived: true,
       entityTypes: ['Document'],
@@ -247,7 +245,7 @@ describe('ResourceContext', () => {
     test('should narrow graph search results by archived filter', async () => {
       const searchableArchived: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': 'http://localhost:4000/resources/res-4',
+        '@id': resourceId('res-4'),
         name: 'Archived Special',
         archived: true,
         entityTypes: ['Document'],
@@ -326,7 +324,7 @@ describe('ResourceContext', () => {
     test('should handle resources without dateCreated', async () => {
       const resourceNoDate: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': 'http://localhost:4000/resources/res-no-date',
+        '@id': resourceId('res-no-date'),
         name: 'No Date Resource',
         archived: false,
         entityTypes: ['Document'],
@@ -370,7 +368,7 @@ describe('ResourceContext', () => {
   describe('addContentPreviews', () => {
     const mockResource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/test-123',
+      '@id': resourceId('test-123'),
       name: 'Test Resource',
       archived: false,
       entityTypes: ['Document'],
@@ -416,7 +414,7 @@ describe('ResourceContext', () => {
         mockResource,
         {
           ...mockResource,
-          '@id': 'http://localhost:4000/resources/test-456',
+          '@id': resourceId('test-456'),
           representations: [
             {
               mediaType: 'text/plain',

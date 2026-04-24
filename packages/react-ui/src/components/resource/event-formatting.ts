@@ -6,11 +6,10 @@
  */
 
 import type { StoredEventLike, PersistedEventType } from '@semiont/core';
-import type { components } from '@semiont/core';
 import { getExactText, getTargetSelector } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 // =============================================================================
