@@ -86,28 +86,6 @@ describe('SemiontApiClient', () => {
     });
   });
 
-  // ── HTTP paths that stay HTTP ──────────────────────────────────────────
-
-  describe('updateResource (HTTP)', () => {
-    test('archives a resource', async () => {
-      vi.mocked(mockKy.patch).mockReturnValue({ text: vi.fn().mockResolvedValue('') } as any);
-      await client.updateResource(testResourceId, { archived: true });
-      expect(mockKy.patch).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({ json: { archived: true } }),
-      );
-    });
-
-    test('unarchives a resource', async () => {
-      vi.mocked(mockKy.patch).mockReturnValue({ text: vi.fn().mockResolvedValue('') } as any);
-      await client.updateResource(testResourceId, { archived: false });
-      expect(mockKy.patch).toHaveBeenCalledWith(
-        testResourceUrl,
-        expect.objectContaining({ json: { archived: false } }),
-      );
-    });
-  });
-
   describe('Auth (HTTP)', () => {
     test('logout posts to /api/users/logout', async () => {
       vi.mocked(mockKy.post).mockReturnValue({

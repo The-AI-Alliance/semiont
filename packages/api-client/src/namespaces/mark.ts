@@ -17,7 +17,6 @@ import type {
   MarkAssistOptions,
   MarkAssistProgress,
 } from './types';
-import type { UpdateResourceInput } from '@semiont/core';
 
 type TokenGetter = () => AccessToken | undefined;
 
@@ -51,10 +50,6 @@ export class MarkNamespace implements IMarkNamespace {
     for (const tag of types) {
       await this.actor.emit('mark:add-entity-type', { tag });
     }
-  }
-
-  async updateResource(resourceId: ResourceId, data: UpdateResourceInput): Promise<void> {
-    return this.http.updateResource(resourceId, data, { auth: this.getToken() });
   }
 
   async archive(resourceId: ResourceId): Promise<void> {

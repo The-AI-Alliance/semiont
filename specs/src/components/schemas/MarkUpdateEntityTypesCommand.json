@@ -5,8 +5,9 @@
     "resourceId": {
       "type": "string"
     },
-    "userId": {
-      "type": "string"
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "currentEntityTypes": {
       "type": "array",
@@ -21,5 +22,5 @@
       }
     }
   },
-  "required": ["resourceId", "userId", "currentEntityTypes", "updatedEntityTypes"]
+  "required": ["resourceId", "currentEntityTypes", "updatedEntityTypes"]
 }

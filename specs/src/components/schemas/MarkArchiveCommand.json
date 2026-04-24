@@ -2,8 +2,9 @@
   "type": "object",
   "description": "Bus command to archive a resource and optionally remove its file.",
   "properties": {
-    "userId": {
-      "type": "string"
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "resourceId": {
       "type": "string"

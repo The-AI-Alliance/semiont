@@ -266,7 +266,7 @@ export function ResourceViewerPage({
   const handleResourceArchive = useCallback(async () => {
     if (!semiont) return;
     try {
-      await semiont.updateResource(rUri, { archived: true });
+      await semiont.mark.archive(rUri);
       await refetchDocument();
     } catch (err) {
       console.error('Failed to archive document:', err);
@@ -277,7 +277,7 @@ export function ResourceViewerPage({
   const handleResourceUnarchive = useCallback(async () => {
     if (!semiont) return;
     try {
-      await semiont.updateResource(rUri, { archived: false });
+      await semiont.mark.unarchive(rUri);
       await refetchDocument();
     } catch (err) {
       console.error('Failed to unarchive document:', err);

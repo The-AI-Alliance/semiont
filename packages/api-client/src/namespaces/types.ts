@@ -27,7 +27,6 @@ import type {
   JobId,
   Motivation,
   GatheredContext,
-  UpdateResourceInput,
   UserDID,
 } from '@semiont/core';
 
@@ -194,7 +193,6 @@ export interface MarkNamespace {
   entityTypes(types: string[]): Promise<void>;
 
   // Resource metadata
-  updateResource(resourceId: ResourceId, data: UpdateResourceInput): Promise<void>;
   archive(resourceId: ResourceId): Promise<void>;
   unarchive(resourceId: ResourceId): Promise<void>;
 

@@ -326,9 +326,8 @@ export class Stower {
   }
 
   private async handleMarkArchive(event: EventMap['mark:archive']): Promise<void> {
-    if (!event.userId) {
-      this.logger.warn('mark:archive missing userId — skipping (frontend-only event?)');
-      return;
+    if (!event._userId) {
+      throw new Error('mark:archive missing _userId (gateway injection)');
     }
     if (event.storageUri) {
       await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
@@ -336,16 +335,15 @@ export class Stower {
     await this.kb.eventStore.appendEvent({
       type: 'mark:archived',
       resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event.userId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: { reason: undefined },
     });
   }
 
   private async handleMarkUnarchive(event: EventMap['mark:unarchive']): Promise<void> {
-    if (!event.userId) {
-      this.logger.warn('mark:unarchive missing userId — skipping (frontend-only event?)');
-      return;
+    if (!event._userId) {
+      throw new Error('mark:unarchive missing _userId (gateway injection)');
     }
     // If storageUri is provided, verify the file exists before emitting the event
     if (event.storageUri) {
@@ -360,7 +358,7 @@ export class Stower {
     await this.kb.eventStore.appendEvent({
       type: 'mark:unarchived',
       resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event.userId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {},
     });
@@ -384,6 +382,10 @@ export class Stower {
   }
 
   private async handleUpdateEntityTypes(event: EventMap['mark:update-entity-types']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:update-entity-types missing _userId (gateway injection)');
+    }
+    const uid = makeUserId(event._userId);
     const added = event.updatedEntityTypes.filter(et => !event.currentEntityTypes.includes(et));
     const removed = event.currentEntityTypes.filter(et => !event.updatedEntityTypes.includes(et));
 
@@ -391,7 +393,7 @@ export class Stower {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-tag-added',
         resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event.userId),
+        userId: uid,
         version: 1,
         payload: { entityType },
       });
@@ -401,7 +403,7 @@ export class Stower {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-tag-removed',
         resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event.userId),
+        userId: uid,
         version: 1,
         payload: { entityType },
       });

@@ -272,7 +272,7 @@ async function replayResourceArchived(
   logger?: Logger,
 ): Promise<void> {
   eventBus.get('mark:archive').next({
-    userId: event.userId,
+    _userId: event.userId,
     resourceId: event.resourceId as ResourceId,
   });
   logger?.debug('Replayed resource.archived', { resourceId: event.resourceId });
@@ -284,7 +284,7 @@ async function replayResourceUnarchived(
   logger?: Logger,
 ): Promise<void> {
   eventBus.get('mark:unarchive').next({
-    userId: event.userId,
+    _userId: event.userId,
     resourceId: event.resourceId as ResourceId,
   });
   logger?.debug('Replayed resource.unarchived', { resourceId: event.resourceId });
@@ -301,14 +301,14 @@ async function replayEntityTagChange(
   if (event.type === 'mark:entity-tag-added') {
     eventBus.get('mark:update-entity-types').next({
       resourceId,
-      userId: event.userId,
+      _userId: event.userId,
       currentEntityTypes: [],
       updatedEntityTypes: [entityType],
     });
   } else {
     eventBus.get('mark:update-entity-types').next({
       resourceId,
-      userId: event.userId,
+      _userId: event.userId,
       currentEntityTypes: [entityType],
       updatedEntityTypes: [],
     });

@@ -219,16 +219,11 @@ export class CloneTokenManager {
       );
 
       // Archive original if requested
-      if (event.archiveOriginal) {
-        ResourceOperations.updateResource(
-          {
-            resourceId: tokenData.resourceId,
-            userId: makeUserId(event.userId),
-            currentArchived: sourceDoc.archived,
-            updatedArchived: true,
-          },
-          this.eventBus,
-        );
+      if (event.archiveOriginal && !sourceDoc.archived) {
+        this.eventBus.get('mark:archive').next({
+          _userId: event.userId,
+          resourceId: tokenData.resourceId,
+        });
       }
 
       // Clean up token
