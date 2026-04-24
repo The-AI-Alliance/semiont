@@ -163,7 +163,8 @@ export class MarkNamespace implements IMarkNamespace {
     selector: components['schemas']['MarkRequestedEvent']['selector'],
     motivation: Motivation,
   ): void {
-    this.actor.emit('mark:requested', { selector, motivation }).catch(() => {});
+    // Local emit: mark-vm subscribes via `client.stream('mark:requested')`.
+    this.http.emit('mark:requested', { selector, motivation });
   }
 
   private async dispatchAssist(

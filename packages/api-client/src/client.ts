@@ -312,7 +312,7 @@ export class SemiontApiClient {
     this.gather = new GatherNamespace(this.eventBus, this.actor);
     this.match = new MatchNamespace(this.eventBus, this.actor);
     this.yield = new YieldNamespace(this, this.eventBus, getToken, this.actor);
-    this.beckon = new BeckonNamespace(this.actor);
+    this.beckon = new BeckonNamespace(this, this.actor);
     this.job = new JobNamespace(this.actor);
     this.auth = new AuthNamespace(this, getToken);
     this.admin = new AdminNamespace(this, getToken);

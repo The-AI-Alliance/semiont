@@ -1,9 +1,11 @@
 import type { AnnotationId, ResourceId } from '@semiont/core';
+import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
 import type { BeckonNamespace as IBeckonNamespace } from './types';
 
 export class BeckonNamespace implements IBeckonNamespace {
   constructor(
+    private readonly http: SemiontApiClient,
     private readonly actor: ActorVM,
   ) {}
 
@@ -12,6 +14,7 @@ export class BeckonNamespace implements IBeckonNamespace {
   }
 
   hover(annotationId: AnnotationId | null): void {
-    this.actor.emit('beckon:hover', { annotationId }).catch(() => {});
+    // Local emit: beckon-vm subscribes via `client.stream` (local bus).
+    this.http.emit('beckon:hover', { annotationId });
   }
 }

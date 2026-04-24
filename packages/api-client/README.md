@@ -60,15 +60,18 @@ Three required pieces:
 All domain calls go through `session.client`. Namespaces mirror the bus-protocol verbs and the backend actors:
 
 ```typescript
-// Browse — reads from materialized views
+// Browse — reads from materialized views; UI signals
 const resource = session.client.browse.resource(resourceId);       // Observable
 const annotations = session.client.browse.annotations(resourceId); // Observable
 const content = await session.client.browse.resourceContent(rid);   // Promise
+session.client.browse.click(annotationId, motivation);               // void (UI signal)
+session.client.browse.navigateReference(resourceId);                 // void (UI signal)
 
-// Mark — annotation CRUD + AI assist
+// Mark — annotation CRUD + AI assist; UI signals
 await session.client.mark.annotation(resourceId, input);
 await session.client.mark.delete(resourceId, annotationId);
 session.client.mark.assist(resourceId, 'linking', options);         // Observable (progress)
+session.client.mark.request(selector, motivation);                   // void (UI signal)
 
 // Bind — reference linking
 await session.client.bind.body(resourceId, annotationId, operations);
@@ -85,6 +88,7 @@ session.client.yield.fromAnnotation(resourceId, annotationId, opts); // Observab
 
 // Beckon — attention coordination
 session.client.beckon.attention(annotationId, resourceId);           // void (ephemeral)
+session.client.beckon.hover(annotationId);                           // void (UI signal; null on unhover)
 
 // + Job, Auth, Admin namespaces
 ```
@@ -95,7 +99,7 @@ session.client.beckon.attention(annotationId, resourceId);           // void (ep
 - **Browse one-shot reads** → `Promise` (fetch once, no cache)
 - **Commands** (mark, bind, yield.resource) → `Promise` (fire-and-forget)
 - **Long-running ops** (gather, match, yield.fromAnnotation, mark.assist) → `Observable` (progress + result)
-- **Ephemeral signals** (beckon) → `void`
+- **UI signals** (beckon, `browse.click`, `browse.navigateReference`, `mark.request`) → `void` (fire-and-forget, local bus fan-out)
 
 ## Auth is Internal
 

@@ -19,14 +19,14 @@ function makeSegment(id: string, motivation: string): TextSegment {
 }
 
 function makeSession() {
-  const calls: Array<{ channel: string; payload: unknown }> = [];
-  const emit = vi.fn((channel: string, payload: unknown) => {
-    calls.push({ channel, payload });
-  });
+  const click = vi.fn();
+  const navigateReference = vi.fn();
   return {
-    client: { emit },
-    emit,
-    calls,
+    client: {
+      browse: { click, navigateReference },
+    },
+    click,
+    navigateReference,
   } as any;
 }
 
@@ -64,10 +64,7 @@ describe('handleAnnotationClick', () => {
 
     const result = handleAnnotationClick(child, segmentsById, session);
     expect(result).toBe(true);
-    expect(session.emit).toHaveBeenCalledWith('browse:click', {
-      annotationId: 'ann-1',
-      motivation: 'highlighting',
-    });
+    expect(session.click).toHaveBeenCalledWith('ann-1', 'highlighting');
   });
 });
 
@@ -136,7 +133,8 @@ describe('dispatchWidgetClick', () => {
   it('does nothing when not handled', () => {
     const session = makeSession();
     dispatchWidgetClick({ handled: false }, session);
-    expect(session.emit).not.toHaveBeenCalled();
+    expect(session.click).not.toHaveBeenCalled();
+    expect(session.navigateReference).not.toHaveBeenCalled();
   });
 
   it('emits browse:reference-navigate for navigate action', () => {
@@ -148,7 +146,7 @@ describe('dispatchWidgetClick', () => {
       annotationId: 'ann-1',
     };
     dispatchWidgetClick(result, session);
-    expect(session.emit).toHaveBeenCalledWith('browse:reference-navigate', { resourceId: 'doc-1' });
+    expect(session.navigateReference).toHaveBeenCalledWith('doc-1');
   });
 
   it('emits browse:click for browse-click action', () => {
@@ -160,10 +158,7 @@ describe('dispatchWidgetClick', () => {
       motivation: 'linking' as any,
     };
     dispatchWidgetClick(result, session);
-    expect(session.emit).toHaveBeenCalledWith('browse:click', {
-      annotationId: 'ann-1',
-      motivation: 'linking',
-    });
+    expect(session.click).toHaveBeenCalledWith('ann-1', 'linking');
   });
 });
 

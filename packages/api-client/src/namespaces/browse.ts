@@ -319,14 +319,14 @@ export class BrowseNamespace implements IBrowseNamespace {
     );
   }
 
-  // ── UI signals (fire-and-forget bus emits) ─────────────────────────────
+  // ── UI signals (local bus fan-out — subscribers listen via `client.stream`) ─
 
   click(annotationId: AnnotationId, motivation: Motivation): void {
-    this.actor.emit('browse:click', { annotationId, motivation }).catch(() => {});
+    this.http.emit('browse:click', { annotationId, motivation });
   }
 
   navigateReference(resourceId: ResourceId): void {
-    this.actor.emit('browse:reference-navigate', { resourceId }).catch(() => {});
+    this.http.emit('browse:reference-navigate', { resourceId });
   }
 
   // ── Cache-mutation API (used by the bus-event subscribers below and by

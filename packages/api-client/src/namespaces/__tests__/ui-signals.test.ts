@@ -1,8 +1,9 @@
 /**
  * Tests for the UI-signal wrapper methods added by CLIENT-CLEANUP.
- * Each wrapper is a one-line typed sugar over `actor.emit(channel, payload)`.
- * The tests lock in the wrapper→channel mapping so future refactors can't
- * silently change which channel a method routes to.
+ * Each wrapper is a one-line typed sugar over `client.emit(channel, payload)`
+ * (local-bus emit). The tests lock in the wrapper→channel mapping so future
+ * refactors can't silently change which channel a method routes to, nor
+ * accidentally swap local emit for actor.emit (HTTP).
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -33,7 +34,14 @@ function createMockActor() {
     stop: vi.fn(),
     dispose: vi.fn(),
   };
-  return { actor, emitSpy };
+  return { actor, actorEmitSpy: emitSpy };
+}
+
+/** Mock client exposing just the local `.emit` surface these wrappers use. */
+function createMockClient() {
+  const emitSpy = vi.fn();
+  const client = { emit: emitSpy } as unknown as SemiontApiClient;
+  return { client, clientEmitSpy: emitSpy };
 }
 
 const AID = annotationId('ann-1');
@@ -41,34 +49,36 @@ const RID = resourceId('res-1');
 
 describe('UI signal wrappers', () => {
   describe('beckon.hover', () => {
-    it('emits beckon:hover with the given annotationId', () => {
-      const { actor, emitSpy } = createMockActor();
-      const beckon = new BeckonNamespace(actor);
+    it('emits beckon:hover with the given annotationId (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const beckon = new BeckonNamespace(client, actor);
 
       beckon.hover(AID);
 
-      expect(emitSpy).toHaveBeenCalledExactlyOnceWith('beckon:hover', { annotationId: AID });
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('beckon:hover', { annotationId: AID });
     });
 
     it('emits beckon:hover with null on unhover', () => {
-      const { actor, emitSpy } = createMockActor();
-      const beckon = new BeckonNamespace(actor);
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const beckon = new BeckonNamespace(client, actor);
 
       beckon.hover(null);
 
-      expect(emitSpy).toHaveBeenCalledExactlyOnceWith('beckon:hover', { annotationId: null });
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('beckon:hover', { annotationId: null });
     });
   });
 
   describe('browse.click', () => {
-    it('emits browse:click with annotationId and motivation', () => {
-      const { actor, emitSpy } = createMockActor();
-      const http = {} as SemiontApiClient;
-      const browse = new BrowseNamespace(http, new EventBus(), () => undefined, actor);
+    it('emits browse:click with annotationId and motivation (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const browse = new BrowseNamespace(client, new EventBus(), () => undefined, actor);
 
       browse.click(AID, 'linking');
 
-      expect(emitSpy).toHaveBeenCalledExactlyOnceWith('browse:click', {
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('browse:click', {
         annotationId: AID,
         motivation: 'linking',
       });
@@ -76,24 +86,24 @@ describe('UI signal wrappers', () => {
   });
 
   describe('browse.navigateReference', () => {
-    it('emits browse:reference-navigate with the given resourceId', () => {
-      const { actor, emitSpy } = createMockActor();
-      const http = {} as SemiontApiClient;
-      const browse = new BrowseNamespace(http, new EventBus(), () => undefined, actor);
+    it('emits browse:reference-navigate with the given resourceId (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const browse = new BrowseNamespace(client, new EventBus(), () => undefined, actor);
 
       browse.navigateReference(RID);
 
-      expect(emitSpy).toHaveBeenCalledExactlyOnceWith('browse:reference-navigate', {
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('browse:reference-navigate', {
         resourceId: RID,
       });
     });
   });
 
   describe('mark.request', () => {
-    it('emits mark:requested with selector and motivation', () => {
-      const { actor, emitSpy } = createMockActor();
-      const http = {} as SemiontApiClient;
-      const mark = new MarkNamespace(http, new EventBus(), () => undefined, actor);
+    it('emits mark:requested with selector and motivation (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
 
       const selector = {
         type: 'TextQuoteSelector' as const,
@@ -102,7 +112,7 @@ describe('UI signal wrappers', () => {
 
       mark.request(selector, 'highlighting');
 
-      expect(emitSpy).toHaveBeenCalledExactlyOnceWith('mark:requested', {
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:requested', {
         selector,
         motivation: 'highlighting',
       });
