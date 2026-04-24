@@ -1,24 +1,23 @@
-import type { AnnotationId, ResourceId } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { AnnotationId, EventBus, ResourceId } from '@semiont/core';
+import type { ITransport } from '../transport/types';
 import type { BeckonNamespace as IBeckonNamespace } from './types';
 
 export class BeckonNamespace implements IBeckonNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
-    private readonly actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
   ) {}
 
   attention(annotationId: AnnotationId, resourceId: ResourceId): void {
-    this.actor.emit('beckon:focus', { annotationId, resourceId }).catch(() => {});
+    void this.transport.emit('beckon:focus', { annotationId, resourceId });
   }
 
   hover(annotationId: AnnotationId | null): void {
-    // Local emit: beckon-vm subscribes via `client.stream` (local bus).
-    this.http.emit('beckon:hover', { annotationId });
+    // Local emit: beckon-vm subscribes via the local bus.
+    this.bus.get('beckon:hover').next({ annotationId });
   }
 
   sparkle(annotationId: AnnotationId): void {
-    this.http.emit('beckon:sparkle', { annotationId });
+    this.bus.get('beckon:sparkle').next({ annotationId });
   }
 }

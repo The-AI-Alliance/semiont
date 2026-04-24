@@ -152,7 +152,7 @@ async function replayEntityTypeAdded(
 
   eventBus.get('mark:add-entity-type').next({
     tag: event.payload.entityType,
-    userId: event.userId,
+    _userId: event.userId,
   });
 
   await firstValueFrom(result$);

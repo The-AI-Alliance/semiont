@@ -1,51 +1,46 @@
 /**
- * AuthNamespace — authentication
+ * AuthNamespace — authentication. Pure wire, no bus.
  */
 
-import type { ResourceId, AccessToken, components } from '@semiont/core';
+import type { ResourceId, components } from '@semiont/core';
 import { email as makeEmail, googleCredential, refreshToken as makeRefreshToken } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
+import type { ITransport } from '../transport/types';
 import type { AuthNamespace as IAuthNamespace, User } from './types';
 
 type AuthResponse = components['schemas']['AuthResponse'];
-type TokenGetter = () => AccessToken | undefined;
 
 export class AuthNamespace implements IAuthNamespace {
-  constructor(
-    private readonly http: SemiontApiClient,
-    private readonly getToken: TokenGetter,
-  ) {}
+  constructor(private readonly transport: ITransport) {}
 
   async password(emailStr: string, passwordStr: string): Promise<AuthResponse> {
-    return this.http.authenticatePassword(makeEmail(emailStr), passwordStr) as unknown as Promise<AuthResponse>;
+    return this.transport.authenticatePassword(makeEmail(emailStr), passwordStr);
   }
 
   async google(credential: string): Promise<AuthResponse> {
-    return this.http.authenticateGoogle(googleCredential(credential)) as unknown as Promise<AuthResponse>;
+    return this.transport.authenticateGoogle(googleCredential(credential));
   }
 
   async refresh(token: string): Promise<AuthResponse> {
-    return this.http.refreshToken(makeRefreshToken(token)) as unknown as Promise<AuthResponse>;
+    return this.transport.refreshAccessToken(makeRefreshToken(token));
   }
 
   async logout(): Promise<void> {
-    await this.http.logout({ auth: this.getToken() });
+    await this.transport.logout();
   }
 
   async me(): Promise<User> {
-    // getMe returns UserResponse (flat user object), which we return directly
-    return this.http.getMe({ auth: this.getToken() }) as unknown as Promise<User>;
+    return this.transport.getCurrentUser() as unknown as Promise<User>;
   }
 
   async acceptTerms(): Promise<void> {
-    await this.http.acceptTerms({ auth: this.getToken() });
+    await this.transport.acceptTerms();
   }
 
   async mcpToken(): Promise<{ token: string }> {
-    return this.http.generateMCPToken({ auth: this.getToken() }) as unknown as Promise<{ token: string }>;
+    return this.transport.generateMcpToken();
   }
 
   async mediaToken(resourceId: ResourceId): Promise<{ token: string }> {
-    return this.http.getMediaToken(resourceId, { auth: this.getToken() });
+    return this.transport.getMediaToken(resourceId);
   }
 }

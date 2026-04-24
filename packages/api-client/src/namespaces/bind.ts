@@ -1,16 +1,15 @@
-import type { ResourceId, AnnotationId, BodyOperation, EventMap } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { ResourceId, AnnotationId, BodyOperation, EventBus, EventMap } from '@semiont/core';
+import type { ITransport } from '../transport/types';
 import type { BindNamespace as IBindNamespace } from './types';
 
 export class BindNamespace implements IBindNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
-    private readonly actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
   ) {}
 
   async body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void> {
-    await this.actor.emit('bind:update-body', {
+    await this.transport.emit('bind:update-body', {
       correlationId: crypto.randomUUID(),
       annotationId,
       resourceId,
@@ -19,7 +18,7 @@ export class BindNamespace implements IBindNamespace {
   }
 
   initiate(input: EventMap['bind:initiate']): void {
-    // Local emit: resource-viewer-page-vm subscribes via `client.stream`.
-    this.http.emit('bind:initiate', input);
+    // Local emit: resource-viewer-page-vm subscribes via the local bus.
+    this.bus.get('bind:initiate').next(input);
   }
 }

@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, Subject, firstValueFrom, filter, map } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, filter } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
-import type { SemiontApiClient } from '../../client';
-import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
+import type { ITransport, IContentTransport } from '../../transport/types';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -30,36 +29,33 @@ function mockResource(id: string): ResourceDescriptor {
 
 type ResponseMap = Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }>;
 
-function createMockActor(responses: ResponseMap): { actor: ActorVM; emitSpy: ReturnType<typeof vi.fn> } {
-  const events$ = new Subject<BusEvent>();
+function createMockTransport(responses: ResponseMap): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn> } {
+  const transportBus = new EventBus();
   const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
     const handler = responses[channel];
     if (handler) {
       const { resultChannel, response } = handler(payload);
       const correlationId = payload.correlationId as string;
       queueMicrotask(() => {
-        events$.next({ channel: resultChannel, payload: { correlationId, response } });
+        (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
       });
     }
   });
 
-  const actor = {
-    on$<T = Record<string, unknown>>(channel: string) {
-      return events$.pipe(
-        filter((e) => e.channel === channel),
-        map((e) => e.payload as T),
-      );
-    },
+  const transport = {
     emit: emitSpy,
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    addChannels: vi.fn(),
-    removeChannels: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
+    on: <K extends never>(channel: K, handler: (p: never) => void) => {
+      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: <K extends never>(channel: K) => transportBus.get(channel),
+    subscribeToResource: vi.fn().mockReturnValue(() => {}),
+    bridgeInto: vi.fn(),
+    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
     dispose: vi.fn(),
-  } as ActorVM;
+  } as unknown as ITransport;
 
-  return { actor, emitSpy };
+  return { transport, emitSpy };
 }
 
 function defaultResponses(): ResponseMap {
@@ -103,11 +99,13 @@ function defaultResponses(): ResponseMap {
   };
 }
 
-function makeHttp() {
+function makeContent(): IContentTransport {
   return {
-    getResourceRepresentation: vi.fn().mockResolvedValue({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
-    getResourceRepresentationStream: vi.fn().mockResolvedValue({ stream: new ReadableStream(), contentType: 'text/plain' }),
-  } as unknown as SemiontApiClient;
+    putBinary: vi.fn(),
+    getBinary: vi.fn().mockResolvedValue({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
+    getBinaryStream: vi.fn().mockResolvedValue({ stream: new ReadableStream(), contentType: 'text/plain' }),
+    dispose: vi.fn(),
+  };
 }
 
 function firstDefined<T>(obs: import('rxjs').Observable<T | undefined>): Promise<T> {
@@ -116,7 +114,7 @@ function firstDefined<T>(obs: import('rxjs').Observable<T | undefined>): Promise
 
 describe('BrowseNamespace', () => {
   let eventBus: EventBus;
-  let http: SemiontApiClient;
+  let content: IContentTransport;
   let browse: BrowseNamespace;
   let emitSpy: ReturnType<typeof vi.fn>;
   const RID = resourceId('res-1');
@@ -124,10 +122,10 @@ describe('BrowseNamespace', () => {
 
   beforeEach(() => {
     eventBus = new EventBus();
-    http = makeHttp();
-    const mock = createMockActor(defaultResponses());
+    content = makeContent();
+    const mock = createMockTransport(defaultResponses());
     emitSpy = mock.emitSpy;
-    browse = new BrowseNamespace(http, eventBus, () => undefined, mock.actor);
+    browse = new BrowseNamespace(mock.transport, eventBus, content);
   });
 
   // ── Annotation caching ────────────────────────────────────────────────

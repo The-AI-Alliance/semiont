@@ -3,7 +3,6 @@ import { filter, takeUntil } from 'rxjs/operators';
 import type {
   ResourceId,
   AnnotationId,
-  AccessToken,
   EventBus,
   components,
 } from '@semiont/core';
@@ -11,8 +10,7 @@ import type {
 // YieldProgress is the per-yield view of a job's JobProgress payload;
 // we don't need a separate schema type now that job:* carries both.
 type YieldProgress = components['schemas']['JobProgress'];
-import type { SemiontApiClient } from '../client';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { ITransport, IContentTransport } from '../transport/types';
 import { busRequest } from '../bus-request';
 import type {
   YieldNamespace as IYieldNamespace,
@@ -23,18 +21,30 @@ import type {
 
 import type { ResourceDescriptor } from '@semiont/core';
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
-type TokenGetter = () => AccessToken | undefined;
 
 export class YieldNamespace implements IYieldNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
-    private readonly eventBus: EventBus,
-    private readonly getToken: TokenGetter,
-    private readonly actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
+    private readonly content: IContentTransport,
   ) {}
 
   async resource(data: CreateResourceInput): Promise<{ resourceId: string }> {
-    return this.http.yieldResource(data, { auth: this.getToken() });
+    const result = await this.content.putBinary({
+      name: data.name,
+      file: data.file,
+      format: data.format,
+      storageUri: data.storageUri,
+      ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
+      ...(data.language ? { language: data.language } : {}),
+      ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
+      ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
+      ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
+      ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
+      ...(data.generator ? { generator: data.generator } : {}),
+      ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
+    });
+    return { resourceId: result.resourceId as string };
   }
 
   fromAnnotation(
@@ -61,7 +71,7 @@ export class YieldNamespace implements IYieldNamespace {
           pollInterval = setInterval(() => {
             if (done) return;
             busRequest<{ status: string; result?: Record<string, unknown>; error?: string }>(
-              this.actor, 'job:status-requested', { jobId: jid }, 'job:status-result', 'job:status-failed',
+              this.transport, 'job:status-requested', { jobId: jid }, 'job:status-result', 'job:status-failed',
             ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
@@ -85,13 +95,13 @@ export class YieldNamespace implements IYieldNamespace {
       // is present — not here, because the generated resource id is
       // assigned by Stower, not by the worker.
       let activeJobId: string | null = null;
-      const progress$ = this.eventBus.get('job:report-progress').pipe(
+      const progress$ = this.bus.get('job:report-progress').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const complete$ = this.eventBus.get('job:complete').pipe(
+      const complete$ = this.bus.get('job:complete').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const fail$ = this.eventBus.get('job:fail').pipe(
+      const fail$ = this.bus.get('job:fail').pipe(
         filter((e) => e.jobId === activeJobId),
       );
 
@@ -113,7 +123,7 @@ export class YieldNamespace implements IYieldNamespace {
       });
 
       busRequest<{ jobId: string }>(
-        this.actor,
+        this.transport,
         'job:create',
         {
           jobType: 'generation',
@@ -152,7 +162,7 @@ export class YieldNamespace implements IYieldNamespace {
 
   async cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }> {
     return busRequest<{ token: string; expiresAt: string }>(
-      this.actor,
+      this.transport,
       'yield:clone-token-requested',
       { resourceId },
       'yield:clone-token-generated',
@@ -162,7 +172,7 @@ export class YieldNamespace implements IYieldNamespace {
 
   async fromToken(token: string): Promise<ResourceDescriptor> {
     const result = await busRequest<GetResourceByTokenResponse>(
-      this.actor,
+      this.transport,
       'yield:clone-resource-requested',
       { token },
       'yield:clone-resource-result',
@@ -173,7 +183,7 @@ export class YieldNamespace implements IYieldNamespace {
 
   async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: string }> {
     return busRequest<{ resourceId: string }>(
-      this.actor,
+      this.transport,
       'yield:clone-create',
       options as unknown as Record<string, unknown>,
       'yield:clone-created',
@@ -182,6 +192,6 @@ export class YieldNamespace implements IYieldNamespace {
   }
 
   clone(): void {
-    this.http.emit('yield:clone', undefined);
+    this.bus.get('yield:clone').next(undefined);
   }
 }

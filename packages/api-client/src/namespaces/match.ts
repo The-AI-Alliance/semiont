@@ -1,20 +1,18 @@
 import { Observable } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { ITransport } from '../transport/types';
 import type { MatchNamespace as IMatchNamespace, MatchSearchProgress } from './types';
 
 export class MatchNamespace implements IMatchNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
-    private readonly eventBus: EventBus,
-    private readonly actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
   ) {}
 
   requestSearch(input: components['schemas']['MatchSearchRequest']): void {
-    // Local emit: match-vm subscribes via `client.stream`.
-    this.http.emit('match:search-requested', input);
+    // Local emit: match-vm subscribes via the local bus.
+    this.bus.get('match:search-requested').next(input);
   }
 
   search(
@@ -26,10 +24,10 @@ export class MatchNamespace implements IMatchNamespace {
     return new Observable((subscriber) => {
       const correlationId = crypto.randomUUID();
 
-      const result$ = this.eventBus.get('match:search-results').pipe(
+      const result$ = this.bus.get('match:search-results').pipe(
         filter((e) => e.correlationId === correlationId),
       );
-      const failed$ = this.eventBus.get('match:search-failed').pipe(
+      const failed$ = this.bus.get('match:search-failed').pipe(
         filter((e) => e.correlationId === correlationId),
       );
 
@@ -42,11 +40,11 @@ export class MatchNamespace implements IMatchNamespace {
         subscriber.error(new Error(e.error));
       });
 
-      this.actor.emit('match:search-requested', {
+      this.transport.emit('match:search-requested', {
         correlationId,
         resourceId,
         referenceId,
-        context: context as unknown as Record<string, unknown>,
+        context,
         limit: options?.limit ?? 10,
         useSemanticScoring: options?.useSemanticScoring ?? true,
       }).catch((error) => {

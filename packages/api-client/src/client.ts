@@ -90,8 +90,6 @@ export class SemiontApiClient {
   /** Binary I/O transport; delegates HTTP-level auth to {@link transport}. */
   private readonly content: HttpContentTransport;
   readonly baseUrl: BaseUrl;
-  /** Observable token source, shared with {@link transport}. */
-  private readonly token$: BehaviorSubject<AccessToken | null>;
   /**
    * Per-client local EventBus. Wire events received on SSE are bridged into
    * this bus by `transport.bridgeInto(this.eventBus)` so namespaces can
@@ -126,26 +124,24 @@ export class SemiontApiClient {
     this.transport = new HttpTransport(transportConfig);
     this.content = new HttpContentTransport(this.transport);
     this.baseUrl = this.transport.baseUrl;
-    this.token$ = config.token$ ?? new BehaviorSubject<AccessToken | null>(null);
 
     // Local coordination bus. Wire events flow in via the transport bridge.
     this.eventBus = new EventBus();
     this.transport.bridgeInto(this.eventBus);
 
-    // Namespaces (legacy constructor shape kept during the transport
-    // migration). The Http passthroughs they use (like `this.http.emit`)
-    // continue to work because SemiontApiClient still exposes emit/on/stream.
-    const getToken = () => this.token$.getValue() ?? undefined;
-    this.browse = new BrowseNamespace(this, this.eventBus, getToken, this.actor);
-    this.mark = new MarkNamespace(this, this.eventBus, getToken, this.actor);
-    this.bind = new BindNamespace(this, this.actor);
-    this.gather = new GatherNamespace(this.eventBus, this.actor);
-    this.match = new MatchNamespace(this, this.eventBus, this.actor);
-    this.yield = new YieldNamespace(this, this.eventBus, getToken, this.actor);
-    this.beckon = new BeckonNamespace(this, this.actor);
-    this.job = new JobNamespace(this, this.actor);
-    this.auth = new AuthNamespace(this, getToken);
-    this.admin = new AdminNamespace(this, getToken);
+    // Namespaces use the (transport, bus) shape; binary-I/O namespaces also
+    // take content. They have no awareness of HTTP vs local — they call
+    // `transport.emit/stream` for wire ops and `bus.get(channel)` for local.
+    this.browse = new BrowseNamespace(this.transport, this.eventBus, this.content);
+    this.mark   = new MarkNamespace(this.transport, this.eventBus);
+    this.bind   = new BindNamespace(this.transport, this.eventBus);
+    this.gather = new GatherNamespace(this.transport, this.eventBus);
+    this.match  = new MatchNamespace(this.transport, this.eventBus);
+    this.yield  = new YieldNamespace(this.transport, this.eventBus, this.content);
+    this.beckon = new BeckonNamespace(this.transport, this.eventBus);
+    this.job    = new JobNamespace(this.transport, this.eventBus);
+    this.auth   = new AuthNamespace(this.transport);
+    this.admin  = new AdminNamespace(this.transport);
   }
 
   /** The shared bus actor. Delegated from the wire transport. */
@@ -283,7 +279,7 @@ export class SemiontApiClient {
   // both now owned by HttpTransport.
 
   async browseResource(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['GetResourceResponse']> {
-    return busRequest(this.actor, 'browse:resource-requested', { resourceId: id }, 'browse:resource-result', 'browse:resource-failed');
+    return busRequest(this.transport, 'browse:resource-requested', { resourceId: id }, 'browse:resource-result', 'browse:resource-failed');
   }
 
   async browseResources(
@@ -292,32 +288,32 @@ export class SemiontApiClient {
     query?: SearchQuery,
     _options?: RequestOptions,
   ): Promise<components['schemas']['ListResourcesResponse']> {
-    return busRequest(this.actor, 'browse:resources-requested',
+    return busRequest(this.transport, 'browse:resources-requested',
       { search: query, archived, limit: limit ?? 100, offset: 0 },
       'browse:resources-result', 'browse:resources-failed');
   }
 
   async getResourceEvents(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['GetEventsResponse']> {
-    return busRequest(this.actor, 'browse:events-requested', { resourceId: id }, 'browse:events-result', 'browse:events-failed');
+    return busRequest(this.transport, 'browse:events-requested', { resourceId: id }, 'browse:events-result', 'browse:events-failed');
   }
 
   async browseReferences(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['GetReferencedByResponse']> {
-    return busRequest(this.actor, 'browse:referenced-by-requested', { resourceId: id }, 'browse:referenced-by-result', 'browse:referenced-by-failed');
+    return busRequest(this.transport, 'browse:referenced-by-requested', { resourceId: id }, 'browse:referenced-by-result', 'browse:referenced-by-failed');
   }
 
   async generateCloneToken(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['CloneResourceWithTokenResponse']> {
-    return busRequest(this.actor, 'yield:clone-token-requested', { resourceId: id }, 'yield:clone-token-generated', 'yield:clone-token-failed');
+    return busRequest(this.transport, 'yield:clone-token-requested', { resourceId: id }, 'yield:clone-token-generated', 'yield:clone-token-failed');
   }
 
   async getResourceByToken(token: CloneToken, _options?: RequestOptions): Promise<components['schemas']['GetResourceByTokenResponse']> {
-    return busRequest(this.actor, 'yield:clone-resource-requested', { token }, 'yield:clone-resource-result', 'yield:clone-resource-failed');
+    return busRequest(this.transport, 'yield:clone-resource-requested', { token }, 'yield:clone-resource-result', 'yield:clone-resource-failed');
   }
 
   async createResourceFromToken(
     data: { token: string; name: string; content: string; archiveOriginal?: boolean },
     _options?: RequestOptions,
   ): Promise<{ resourceId: string }> {
-    return busRequest(this.actor, 'yield:clone-create', data as unknown as Record<string, unknown>, 'yield:clone-created', 'yield:clone-create-failed');
+    return busRequest(this.transport, 'yield:clone-create', data as unknown as Record<string, unknown>, 'yield:clone-created', 'yield:clone-create-failed');
   }
 
   // ── ANNOTATIONS (bus passthroughs) ────────────────────────────────────
@@ -327,17 +323,17 @@ export class SemiontApiClient {
     request: components['schemas']['CreateAnnotationRequest'],
     _options?: RequestOptions,
   ): Promise<{ annotationId: string }> {
-    return busRequest<{ annotationId: string }>(this.actor, 'mark:create-request',
+    return busRequest<{ annotationId: string }>(this.transport, 'mark:create-request',
       { resourceId, request: request as unknown as Record<string, unknown> },
       'mark:create-ok', 'mark:create-failed');
   }
 
   async getAnnotation(id: AnnotationId, _options?: RequestOptions): Promise<components['schemas']['GetAnnotationResponse']> {
-    return busRequest(this.actor, 'browse:annotation-requested', { annotationId: id }, 'browse:annotation-result', 'browse:annotation-failed');
+    return busRequest(this.transport, 'browse:annotation-requested', { annotationId: id }, 'browse:annotation-result', 'browse:annotation-failed');
   }
 
   async browseAnnotation(resourceId: ResourceId, annotationId: AnnotationId, _options?: RequestOptions): Promise<components['schemas']['GetAnnotationResponse']> {
-    return busRequest(this.actor, 'browse:annotation-requested', { resourceId, annotationId }, 'browse:annotation-result', 'browse:annotation-failed');
+    return busRequest(this.transport, 'browse:annotation-requested', { resourceId, annotationId }, 'browse:annotation-result', 'browse:annotation-failed');
   }
 
   async browseAnnotations(
@@ -345,7 +341,7 @@ export class SemiontApiClient {
     _motivation?: Motivation,
     _options?: RequestOptions,
   ): Promise<components['schemas']['GetAnnotationsResponse']> {
-    return busRequest(this.actor, 'browse:annotations-requested', { resourceId: id }, 'browse:annotations-result', 'browse:annotations-failed');
+    return busRequest(this.transport, 'browse:annotations-requested', { resourceId: id }, 'browse:annotations-result', 'browse:annotations-failed');
   }
 
   async deleteAnnotation(resourceId: ResourceId, annotationId: AnnotationId, _options?: RequestOptions): Promise<void> {
@@ -368,7 +364,7 @@ export class SemiontApiClient {
     annotationId: AnnotationId,
     _options?: RequestOptions,
   ): Promise<components['schemas']['GetAnnotationHistoryResponse']> {
-    return busRequest(this.actor, 'browse:annotation-history-requested', { resourceId, annotationId }, 'browse:annotation-history-result', 'browse:annotation-history-failed');
+    return busRequest(this.transport, 'browse:annotation-history-requested', { resourceId, annotationId }, 'browse:annotation-history-result', 'browse:annotation-history-failed');
   }
 
   // ── ANNOTATION ASSIST (jobs) ──────────────────────────────────────────
@@ -378,7 +374,7 @@ export class SemiontApiClient {
     data: { entityTypes: string[]; includeDescriptiveReferences?: boolean },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.actor, 'job:create',
+    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
       { jobType: 'reference-annotation', resourceId, params: data as unknown as Record<string, unknown> },
       'job:created', 'job:create-failed');
     return { correlationId: crypto.randomUUID(), jobId };
@@ -389,7 +385,7 @@ export class SemiontApiClient {
     data: { instructions?: string; density?: number },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.actor, 'job:create',
+    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
       { jobType: 'highlight-annotation', resourceId, params: data as unknown as Record<string, unknown> },
       'job:created', 'job:create-failed');
     return { correlationId: crypto.randomUUID(), jobId };
@@ -400,7 +396,7 @@ export class SemiontApiClient {
     data: { instructions?: string; tone?: string; density?: number; language?: string },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.actor, 'job:create',
+    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
       { jobType: 'assessment-annotation', resourceId, params: data as unknown as Record<string, unknown> },
       'job:created', 'job:create-failed');
     return { correlationId: crypto.randomUUID(), jobId };
@@ -411,7 +407,7 @@ export class SemiontApiClient {
     data: { instructions?: string; tone?: string; density?: number; language?: string },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.actor, 'job:create',
+    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
       { jobType: 'comment-annotation', resourceId, params: data as unknown as Record<string, unknown> },
       'job:created', 'job:create-failed');
     return { correlationId: crypto.randomUUID(), jobId };
@@ -422,7 +418,7 @@ export class SemiontApiClient {
     data: { schemaId: string; categories: string[] },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.actor, 'job:create',
+    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
       { jobType: 'tag-annotation', resourceId, params: data as unknown as Record<string, unknown> },
       'job:created', 'job:create-failed');
     return { correlationId: crypto.randomUUID(), jobId };
@@ -434,7 +430,7 @@ export class SemiontApiClient {
     data: { title: string; storageUri: string; context: Record<string, unknown> },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.actor, 'job:create',
+    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
       {
         jobType: 'generation',
         resourceId,
@@ -493,7 +489,7 @@ export class SemiontApiClient {
   }
 
   async listEntityTypes(_options?: RequestOptions): Promise<components['schemas']['GetEntityTypesResponse']> {
-    return busRequest(this.actor, 'browse:entity-types-requested', {}, 'browse:entity-types-result', 'browse:entity-types-failed');
+    return busRequest(this.transport, 'browse:entity-types-requested', {}, 'browse:entity-types-result', 'browse:entity-types-failed');
   }
 
   // ── PARTICIPANTS ──────────────────────────────────────────────────────
@@ -563,7 +559,7 @@ export class SemiontApiClient {
   // ── JOB STATUS ────────────────────────────────────────────────────────
 
   async getJobStatus(id: JobId, _options?: RequestOptions): Promise<components['schemas']['JobStatusResponse']> {
-    return busRequest(this.actor, 'job:status-requested', { jobId: id }, 'job:status-result', 'job:status-failed');
+    return busRequest(this.transport, 'job:status-requested', { jobId: id }, 'job:status-result', 'job:status-failed');
   }
 
   async pollJobUntilComplete(
@@ -598,7 +594,7 @@ export class SemiontApiClient {
     sort?: 'name' | 'mtime' | 'annotationCount',
     _options?: RequestOptions,
   ): Promise<components['schemas']['BrowseFilesResponse']> {
-    return busRequest(this.actor, 'browse:directory-requested',
+    return busRequest(this.transport, 'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },
       'browse:directory-result', 'browse:directory-failed');
   }

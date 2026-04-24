@@ -1,94 +1,103 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, Subject } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
+import { BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
-import type { SemiontApiClient } from '../../client';
-import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
+import type { ITransport, IContentTransport } from '../../transport/types';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
 
-function createMockActor(responses: Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }> = {}): { actor: ActorVM; emitSpy: ReturnType<typeof vi.fn> } {
-  const events$ = new Subject<BusEvent>();
+/**
+ * Mock transport whose `emit(channel, payload)` looks up a handler and
+ * pushes the configured `{ correlationId, response }` onto its internal
+ * bus, where `stream(resultChannel)` is observable. busRequest reads
+ * results via `stream`; this lets tests script per-call request/response
+ * round-trips without faking SSE.
+ */
+function createMockTransport(
+  responses: Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }> = {},
+): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn>; transportBus: EventBus } {
+  const transportBus = new EventBus();
   const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
     const handler = responses[channel];
     if (handler) {
       const { resultChannel, response } = handler(payload);
       const correlationId = payload.correlationId as string;
       queueMicrotask(() => {
-        events$.next({ channel: resultChannel, payload: { correlationId, response } });
+        (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
       });
     }
   });
 
-  const actor: ActorVM = {
-    on$<T = Record<string, unknown>>(channel: string) {
-      return events$.pipe(
-        filter((e) => e.channel === channel),
-        map((e) => e.payload as T),
-      );
-    },
+  const transport = {
     emit: emitSpy,
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    addChannels: vi.fn(),
-    removeChannels: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
+    on: <K extends never>(channel: K, handler: (p: never) => void) => {
+      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: <K extends never>(channel: K) => transportBus.get(channel),
+    subscribeToResource: vi.fn().mockReturnValue(() => {}),
+    bridgeInto: vi.fn(),
+    authenticatePassword: vi.fn(),
+    authenticateGoogle: vi.fn(),
+    refreshAccessToken: vi.fn(),
+    logout: vi.fn(),
+    acceptTerms: vi.fn(),
+    getCurrentUser: vi.fn(),
+    generateMcpToken: vi.fn(),
+    getMediaToken: vi.fn(),
+    listUsers: vi.fn(),
+    getUserStats: vi.fn(),
+    updateUser: vi.fn(),
+    getOAuthConfig: vi.fn(),
+    backupKnowledgeBase: vi.fn(),
+    restoreKnowledgeBase: vi.fn(),
+    exportKnowledgeBase: vi.fn(),
+    importKnowledgeBase: vi.fn(),
+    healthCheck: vi.fn(),
+    getStatus: vi.fn(),
+    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
     dispose: vi.fn(),
-  };
+  } as unknown as ITransport;
 
-  return { actor, emitSpy };
+  return { transport, emitSpy, transportBus };
 }
 
-function makeHttp(overrides: Record<string, any> = {}) {
+function makeMockContent(): IContentTransport {
   return {
-    markAnnotation: vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
-    updateResource: vi.fn().mockResolvedValue(undefined),
-    annotateReferences: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    annotateHighlights: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    annotateComments: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    annotateAssessments: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    annotateTags: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    yieldResource: vi.fn().mockResolvedValue({ resourceId: 'res-new' }),
-    yieldResourceFromAnnotation: vi.fn().mockResolvedValue({ correlationId: 'c1', jobId: 'j1' }),
-    getJobStatus: vi.fn().mockResolvedValue({ status: 'running' }),
-    // YieldNamespace.fromAnnotation's yield:finished handler calls
-    // client.bind.body(...) to attach the generated resource as a
-    // SpecificResource on the source annotation.
-    bind: { body: vi.fn().mockResolvedValue(undefined) },
-    ...overrides,
-  } as unknown as SemiontApiClient;
+    putBinary: vi.fn().mockResolvedValue({ resourceId: 'res-new' }),
+    getBinary: vi.fn(),
+    getBinaryStream: vi.fn(),
+    dispose: vi.fn(),
+  };
 }
 
 // ── Mark ────────────────────────────────────────────────────────────────────
 
 describe('MarkNamespace', () => {
   let eventBus: EventBus;
-  let http: SemiontApiClient;
   let mark: MarkNamespace;
   let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    http = makeHttp();
-    const mock = createMockActor({
+    const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
     });
     emitSpy = mock.emitSpy;
-    mark = new MarkNamespace(http, eventBus, () => 'tok' as any, mock.actor);
+    mark = new MarkNamespace(mock.transport, eventBus);
   });
 
   it('annotation() emits mark:create-request on bus', async () => {
-    const mock = createMockActor({
+    const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
       'mark:create-request': () => ({ resultChannel: 'mark:create-ok', response: { annotationId: 'ann-new' } }),
     });
-    const m = new MarkNamespace(makeHttp(), eventBus, () => 'tok' as any, mock.actor);
+    const m = new MarkNamespace(mock.transport, eventBus);
     const result = await m.annotation(RID, { motivation: 'highlighting', target: { source: RID } } as any);
     expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }));
     expect(result.annotationId).toBe('ann-new');
@@ -137,11 +146,11 @@ describe('MarkNamespace', () => {
   it('assist() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
-    const mock = createMockActor({
+    const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
       'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'complete', result: { createdCount: 5 } } }),
     });
-    const m = new MarkNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
+    const m = new MarkNamespace(mock.transport, bus);
 
     const progress: any[] = [];
     let completed = false;
@@ -163,10 +172,10 @@ describe('MarkNamespace', () => {
   it('assist() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
-    const mock = createMockActor({
+    const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
     });
-    const m = new MarkNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
+    const m = new MarkNamespace(mock.transport, bus);
 
     let completed = false;
     m.assist(RID, 'linking', { entityTypes: ['Person'] }).subscribe({
@@ -188,10 +197,10 @@ describe('MarkNamespace', () => {
   it('assist() progress resets poll timer', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
-    const mock = createMockActor({
+    const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
     });
-    const m = new MarkNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
+    const m = new MarkNamespace(mock.transport, bus);
 
     m.assist(RID, 'highlighting', {}).subscribe({ next: () => {}, error: () => {} });
 
@@ -214,8 +223,8 @@ describe('MarkNamespace', () => {
 
 describe('BindNamespace', () => {
   it('body() emits bind:update-body on bus', async () => {
-    const mock = createMockActor();
-    const bind = new BindNamespace({} as SemiontApiClient, mock.actor);
+    const mock = createMockTransport();
+    const bind = new BindNamespace(mock.transport, new EventBus());
     await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]);
     expect(mock.emitSpy).toHaveBeenCalledWith('bind:update-body', expect.objectContaining({
       annotationId: AID,
@@ -234,9 +243,9 @@ describe('GatherNamespace', () => {
 
   beforeEach(() => {
     eventBus = new EventBus();
-    const mock = createMockActor();
+    const mock = createMockTransport();
     emitSpy = mock.emitSpy;
-    gather = new GatherNamespace(eventBus, mock.actor);
+    gather = new GatherNamespace(mock.transport, eventBus);
   });
 
   it('annotation() emits gather:requested on bus', () => {
@@ -245,7 +254,7 @@ describe('GatherNamespace', () => {
       expect(emitSpy).toHaveBeenCalledWith('gather:requested', expect.objectContaining({
         annotationId: AID,
         resourceId: RID,
-        contextWindow: 2000,
+        options: { contextWindow: 2000 },
       }));
       resolve();
     }, 20));
@@ -286,9 +295,9 @@ describe('MatchNamespace', () => {
 
   beforeEach(() => {
     eventBus = new EventBus();
-    const mock = createMockActor();
+    const mock = createMockTransport();
     emitSpy = mock.emitSpy;
-    match = new MatchNamespace({} as SemiontApiClient, eventBus, mock.actor);
+    match = new MatchNamespace(mock.transport, eventBus);
   });
 
   it('search() emits match:search-requested on bus', () => {
@@ -330,14 +339,14 @@ describe('MatchNamespace', () => {
 
 describe('YieldNamespace', () => {
   let eventBus: EventBus;
-  let http: SemiontApiClient;
+  let content: IContentTransport;
   let yld: YieldNamespace;
   let emitSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    http = makeHttp();
-    const mock = createMockActor({
+    content = makeMockContent();
+    const mock = createMockTransport({
       'yield:clone-token-requested': () => ({
         resultChannel: 'yield:clone-token-generated',
         response: { token: 'tok', expiresAt: '2026-01-01' },
@@ -348,12 +357,12 @@ describe('YieldNamespace', () => {
       }),
     });
     emitSpy = mock.emitSpy;
-    yld = new YieldNamespace(http, eventBus, () => 'tok' as any, mock.actor);
+    yld = new YieldNamespace(mock.transport, eventBus, content);
   });
 
-  it('resource() delegates to yieldResource', async () => {
+  it('resource() delegates to content.putBinary', async () => {
     const result = await yld.resource({ name: 'doc', file: new Blob(['hi']), format: 'text/plain', storageUri: 'file://x' } as any);
-    expect(http.yieldResource).toHaveBeenCalled();
+    expect(content.putBinary).toHaveBeenCalled();
     expect(result.resourceId).toBe('res-new');
   });
 
@@ -399,11 +408,11 @@ describe('YieldNamespace', () => {
   it('fromAnnotation() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
-    const mock = createMockActor({
+    const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
       'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'complete', result: { resourceId: 'res-poll' } } }),
     });
-    const y = new YieldNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
+    const y = new YieldNamespace(mock.transport, bus, makeMockContent());
 
     const progress: unknown[] = [];
     let completed = false;
@@ -425,10 +434,10 @@ describe('YieldNamespace', () => {
   it('fromAnnotation() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
-    const mock = createMockActor({
+    const mock = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
     });
-    const y = new YieldNamespace(makeHttp(), bus, () => 'tok' as any, mock.actor);
+    const y = new YieldNamespace(mock.transport, bus, makeMockContent());
 
     let completed = false;
     y.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({

@@ -1,6 +1,5 @@
-import type { JobId, components } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { EventBus, JobId, components } from '@semiont/core';
+import type { ITransport } from '../transport/types';
 import { busRequest } from '../bus-request';
 import type { JobNamespace as IJobNamespace } from './types';
 
@@ -8,13 +7,13 @@ type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
 export class JobNamespace implements IJobNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
-    private readonly actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
   ) {}
 
   async status(jobId: JobId): Promise<JobStatusResponse> {
     return busRequest<JobStatusResponse>(
-      this.actor,
+      this.transport,
       'job:status-requested',
       { jobId },
       'job:status-result',
@@ -43,13 +42,17 @@ export class JobNamespace implements IJobNamespace {
     }
   }
 
-  async cancel(jobId: JobId, type: string): Promise<void> {
-    await this.actor.emit('job:cancel-requested', { jobId, type });
+  async cancel(_jobId: JobId, type: string): Promise<void> {
+    // Schema only carries jobType (cancels all pending jobs of that type).
+    // The legacy per-job cancel was never wired on the backend.
+    await this.transport.emit('job:cancel-requested', {
+      jobType: (type === 'generation' ? 'generation' : 'annotation') as 'annotation' | 'generation',
+    });
   }
 
   cancelRequest(jobType: 'annotation' | 'generation'): void {
     // Local emit: the batch-cancel widget fires this; a VM subscribes and
     // translates into individual cancels.
-    this.http.emit('job:cancel-requested', { jobType });
+    this.bus.get('job:cancel-requested').next({ jobType });
   }
 }

@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { BehaviorSubject, Subject, filter, firstValueFrom, map } from 'rxjs';
+import { BehaviorSubject, filter, firstValueFrom, map } from 'rxjs';
 import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type {
   EventMap,
@@ -28,8 +28,7 @@ import type {
   UserId,
 } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
-import type { SemiontApiClient } from '../../client';
-import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
+import type { ITransport, IContentTransport } from '../../transport/types';
 
 import type { Annotation } from '@semiont/core';
 
@@ -115,16 +114,14 @@ function fakeMarkUnarchived(rId: ResourceId): StoredEvent<EventOfType<'mark:unar
 interface Harness {
   browse: BrowseNamespace;
   eventBus: EventBus;
-  actorEvents$: Subject<BusEvent>;
   emit: ReturnType<typeof vi.fn>;
 }
 
 function createHarness(): Harness {
-  const events$ = new Subject<BusEvent>();
+  const transportBus = new EventBus();
 
   const emit = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
     const correlationId = payload.correlationId as string;
-    // Respond to exactly the channels the tests exercise.
     let resultChannel: string;
     let response: Record<string, unknown>;
     switch (channel) {
@@ -144,28 +141,34 @@ function createHarness(): Harness {
         return;
     }
     queueMicrotask(() => {
-      events$.next({ channel: resultChannel, payload: { correlationId, response } });
+      (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
     });
   });
 
-  const actor = {
-    on$<T>(channel: string) {
-      return events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T));
-    },
+  const transport = {
     emit,
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    addChannels: vi.fn(),
-    removeChannels: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
+    on: <K extends never>(channel: K, handler: (p: never) => void) => {
+      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: <K extends never>(channel: K) => transportBus.get(channel),
+    subscribeToResource: vi.fn().mockReturnValue(() => {}),
+    bridgeInto: vi.fn(),
+    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
     dispose: vi.fn(),
-  } as ActorVM;
+  } as unknown as ITransport;
 
-  const http = {} as unknown as SemiontApiClient;
+  const content: IContentTransport = {
+    putBinary: vi.fn(),
+    getBinary: vi.fn(),
+    getBinaryStream: vi.fn(),
+    dispose: vi.fn(),
+  };
+
   const eventBus = new EventBus();
-  const browse = new BrowseNamespace(http, eventBus, () => undefined, actor);
+  const browse = new BrowseNamespace(transport, eventBus, content);
 
-  return { browse, eventBus, actorEvents$: events$, emit };
+  return { browse, eventBus, emit };
 }
 
 function flush(): Promise<void> {
@@ -272,7 +275,7 @@ describe('entity types — Layer 3 (VM pipe over real cache)', () => {
   const RID = makeResourceId('res-1');
 
   it('vm.entityTypes$ emits [9 strings] via the real cache', async () => {
-    const { browse, actorEvents$: _events, emit: _emit } = createHarness();
+    const { browse, emit: _emit } = createHarness();
 
     // Mimic the VM's transform: `client.browse.entityTypes().pipe(map(e => e ?? []))`
     const vmEntityTypes$ = browse.entityTypes().pipe(map((e) => e ?? []));

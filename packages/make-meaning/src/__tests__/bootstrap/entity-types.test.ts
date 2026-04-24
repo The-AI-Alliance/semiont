@@ -102,7 +102,7 @@ describe('Entity Types Bootstrap', () => {
       // Manually add a few entity types
       const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
       for (const tag of ['Person', 'Organization']) {
-        eventBus.get('mark:add-entity-type').next({ tag, userId: SYSTEM_USER_ID });
+        eventBus.get('mark:add-entity-type').next({ tag, _userId: SYSTEM_USER_ID });
         await new Promise(r => setTimeout(r, 50));
       }
 

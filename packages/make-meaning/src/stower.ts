@@ -365,10 +365,13 @@ export class Stower {
   }
 
   private async handleAddEntityType(event: EventMap['mark:add-entity-type']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:add-entity-type missing _userId (gateway injection)');
+    }
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:entity-type-added',
-        userId: makeUserId(event.userId),
+        userId: makeUserId(event._userId),
         version: 1,
         payload: { entityType: event.tag },
       });
