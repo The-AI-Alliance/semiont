@@ -26,59 +26,81 @@ semiont mark --resource <id> --delegate --motivation highlighting \
 - `--instructions` up to 500 chars of free-text guidance, e.g. `"focus on risk factors and mitigation strategies"`
 - Find the resource ID: `semiont browse resources --search "<name>"`
 
-## TypeScript — delegate
+## Session setup (shared by all TypeScript examples below)
 
-Uses `createMarkVM` from `@semiont/api-client` to manage the assist lifecycle, including timeout and error handling.
+Scripts drive the API through a `SemiontSession`. Construct it once at the top of a script and reuse the same session for every verb call.
 
 ```typescript
-import { SemiontApiClient, createMarkVM, resourceId } from '@semiont/api-client';
-import { EventBus, accessToken, type AccessToken } from '@semiont/core';
-import { firstValueFrom, BehaviorSubject } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import {
+  SemiontSession,
+  InMemorySessionStorage,
+  setStoredSession,
+  resourceId,
+  type KnowledgeBase,
+} from '@semiont/api-client';
+import { lastValueFrom } from 'rxjs';
 
-const eventBus = new EventBus();
+const apiUrl = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const kb: KnowledgeBase = {
+  id: 'script',
+  label: 'Script session',
+  protocol: apiUrl.protocol.replace(':', '') as 'http' | 'https',
+  host: apiUrl.hostname,
+  port: Number(apiUrl.port || (apiUrl.protocol === 'https:' ? 443 : 80)),
+  email: process.env.SEMIONT_USER_EMAIL ?? 'script@local',
+};
 
-const client = new SemiontApiClient({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-  eventBus,
-  token$: new BehaviorSubject<AccessToken | null>(
-    process.env.SEMIONT_ACCESS_TOKEN ? accessToken(process.env.SEMIONT_ACCESS_TOKEN) : null
-  ),
+const storage = new InMemorySessionStorage();
+setStoredSession(storage, kb.id, {
+  access: process.env.SEMIONT_ACCESS_TOKEN ?? '',
+  refresh: process.env.SEMIONT_REFRESH_TOKEN ?? '',
 });
 
-const rId = resourceId('doc-123');
-const markVM = createMarkVM(client, eventBus, rId);
-
-eventBus.get('mark:assist-request').next({
-  motivation: 'highlighting',
-  options: {
-    instructions: 'Focus on key claims and supporting evidence',
-    density: 5,
-  },
+const session = new SemiontSession({
+  kb,
+  storage,
+  // Scripts typically run inside one token lifetime. Extend with a real
+  // re-auth call if the script runs past token expiry.
+  refresh: async () => null,
 });
-
-const finished = await firstValueFrom(
-  eventBus.get('mark:assist-finished').pipe(
-    filter((e) => e.motivation === 'highlighting'),
-  ),
-);
-
-console.log(`Created ${finished.progress?.createdCount ?? 0} highlights`);
-
-markVM.dispose();
-eventBus.destroy();
+await session.ready;
 ```
 
-The MarkVM handles:
-- Calling `client.mark.assist()` when `mark:assist-request` is emitted
-- Tracking progress via `markVM.progress$`
-- Timeout (180s without progress) that emits `mark:assist-failed`
-- Clearing state on completion or failure
+## TypeScript — delegate
+
+`session.client.mark.assist(...)` returns an `Observable<MarkAssistProgress>` that emits progress updates and completes when the job finishes. `lastValueFrom` resolves with the final progress payload (carries the created count).
+
+```typescript
+const rId = resourceId('doc-123');
+
+const progress = await lastValueFrom(
+  session.client.mark.assist(rId, 'highlighting', {
+    instructions: 'Focus on key claims and supporting evidence',
+    density: 5,
+  }),
+);
+
+console.log(`Created ${progress.progress?.createdCount ?? 0} highlights`);
+
+await session.dispose();
+```
+
+To observe intermediate progress (e.g. for a progress bar), subscribe directly:
+
+```typescript
+session.client.mark.assist(rId, 'highlighting', { density: 5 }).subscribe({
+  next: (p) => console.log(`progress ${p.progress?.percentage ?? 0}%`),
+  complete: () => console.log('done'),
+  error: (e) => console.error(e),
+});
+```
+
+The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally. No separate VM construction or bus-emit is needed.
 
 ## TypeScript — manual
 
 ```typescript
-await client.mark.annotation(rId, {
+await session.client.mark.annotation(rId, {
   motivation: 'highlighting',
   target: {
     source: rId,
@@ -102,6 +124,6 @@ await client.mark.annotation(rId, {
 - **Ask what to highlight** if the user hasn't said — key claims? risks? supporting evidence? quotes? The `--instructions` flag focuses the AI on what matters.
 - **Density is the main tuning knob.** Start around 5 for selective highlighting. Go up to 10-15 for dense annotation of dense technical material. Go down to 1-3 for a light editorial pass.
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
-- **Check results** with `semiont browse resource <id> --annotations` or `client.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
+- **Check results** with `semiont browse resource <id> --annotations` or `session.client.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
 - **Manual mode is for corrections.** If the AI missed a specific passage, add it manually. Don't re-run delegate just to capture one passage.
-- **The MarkVM's `progress$` Observable** emits `{ status, percentage, createdCount }` during assist for progress tracking.
+- **Progress tracking** is available by subscribing to the Observable returned from `mark.assist`; each emission is a progress snapshot with `percentage` and `createdCount`.

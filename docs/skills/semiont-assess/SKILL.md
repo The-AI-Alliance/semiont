@@ -31,54 +31,70 @@ semiont mark --resource <id> --delegate --motivation assessing \
 - `--instructions` guides what kind of issues to surface, e.g. `"flag scheduling risks and resource conflicts"` or `"identify safety assumptions that need verification"`
 - Find the resource ID: `semiont browse resources --search "<name>"`
 
-## TypeScript — delegate
+## Session setup (shared by all TypeScript examples below)
 
-Uses `createMarkVM` from `@semiont/api-client` to manage the assist lifecycle, including timeout and error handling.
+Scripts drive the API through a `SemiontSession`. Construct it once at the top of a script and reuse the same session for every verb call.
 
 ```typescript
-import { SemiontApiClient, createMarkVM, resourceId } from '@semiont/api-client';
-import { EventBus, accessToken, type AccessToken } from '@semiont/core';
-import { firstValueFrom, BehaviorSubject } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import {
+  SemiontSession,
+  InMemorySessionStorage,
+  setStoredSession,
+  resourceId,
+  type KnowledgeBase,
+} from '@semiont/api-client';
+import { lastValueFrom } from 'rxjs';
 
-const eventBus = new EventBus();
+const apiUrl = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const kb: KnowledgeBase = {
+  id: 'script',
+  label: 'Script session',
+  protocol: apiUrl.protocol.replace(':', '') as 'http' | 'https',
+  host: apiUrl.hostname,
+  port: Number(apiUrl.port || (apiUrl.protocol === 'https:' ? 443 : 80)),
+  email: process.env.SEMIONT_USER_EMAIL ?? 'script@local',
+};
 
-const client = new SemiontApiClient({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
-  eventBus,
-  token$: new BehaviorSubject<AccessToken | null>(
-    process.env.SEMIONT_ACCESS_TOKEN ? accessToken(process.env.SEMIONT_ACCESS_TOKEN) : null
-  ),
+const storage = new InMemorySessionStorage();
+setStoredSession(storage, kb.id, {
+  access: process.env.SEMIONT_ACCESS_TOKEN ?? '',
+  refresh: process.env.SEMIONT_REFRESH_TOKEN ?? '',
 });
 
-const rId = resourceId('doc-123');
-const markVM = createMarkVM(client, eventBus, rId);
+const session = new SemiontSession({
+  kb,
+  storage,
+  refresh: async () => null,
+});
+await session.ready;
+```
 
-eventBus.get('mark:assist-request').next({
-  motivation: 'assessing',
-  options: {
+## TypeScript — delegate
+
+`session.client.mark.assist(...)` returns an `Observable<MarkAssistProgress>`. `lastValueFrom` resolves with the final progress payload once the job completes.
+
+```typescript
+const rId = resourceId('doc-123');
+
+const progress = await lastValueFrom(
+  session.client.mark.assist(rId, 'assessing', {
     tone: 'critical',
     instructions: 'Flag scheduling risks, resource conflicts, and unverified safety assumptions',
     density: 4,
-  },
-});
-
-const finished = await firstValueFrom(
-  eventBus.get('mark:assist-finished').pipe(
-    filter((e) => e.motivation === 'assessing'),
-  ),
+  }),
 );
 
-console.log(`Created ${finished.progress?.createdCount ?? 0} assessments`);
+console.log(`Created ${progress.progress?.createdCount ?? 0} assessments`);
 
-markVM.dispose();
-eventBus.destroy();
+await session.dispose();
 ```
+
+The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally.
 
 ## TypeScript — manual
 
 ```typescript
-await client.mark.annotation(rId, {
+await session.client.mark.annotation(rId, {
   motivation: 'assessing',
   target: {
     source: rId,
@@ -108,4 +124,4 @@ await client.mark.annotation(rId, {
 - **Density is lower for assessments** (1-10 vs. 1-15 for highlights). Start at 3-5 for a focused review. Only go higher for dense technical or legal documents where nearly every claim warrants scrutiny.
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
 - **Manual mode is for known issues.** If the user has already identified a problem and wants to attach it to the document, use manual mode. Delegate is for discovery.
-- **Check results** with `client.browse.annotations(rId)` — filter for `motivation === 'assessing'`.
+- **Check results** with `session.client.browse.annotations(rId)` — filter for `motivation === 'assessing'`.
