@@ -7,7 +7,7 @@ import { EventStore } from '../event-store';
 import { EventQuery } from '../query/event-query';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
-import { CREATION_METHODS, resourceId, userId, EventBus } from '@semiont/core';
+import { annotationId, CREATION_METHODS, resourceId, userId, EventBus } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -157,7 +157,7 @@ describe('Event Store', () => {
    */
   it('appendEvent awaits materialization before resolving (load-bearing for bind-stream)', async () => {
     const docId = resourceId('doc-ordering-test');
-    const annId = 'ann-ordering-test';
+    const annId = annotationId('ann-ordering-test');
 
     // Create the resource
     await eventStore.appendEvent({

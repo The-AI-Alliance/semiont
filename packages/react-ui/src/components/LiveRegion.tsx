@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState, createContext, useContext, useCallback } from 'react';
-import type { components } from '@semiont/core';
 import type { Annotator } from '../lib/annotation-registry';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 interface LiveRegionContextType {
   announce: (message: string, priority?: 'polite' | 'assertive') => void;

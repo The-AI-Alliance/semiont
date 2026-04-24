@@ -13,14 +13,12 @@
 
 import { Subscription, from } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
-import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
+import type { EventMap, GatheredContext, Logger, ResourceDescriptor } from '@semiont/core';
 import { type EventBus, resourceId, errField } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class Matcher {
   private subscriptions: Subscription[] = [];

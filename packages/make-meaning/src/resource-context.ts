@@ -6,11 +6,10 @@
  */
 
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
-import type { components } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 
 export interface ListResourcesFilters {
   search?: string;

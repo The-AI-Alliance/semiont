@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
+import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { User } from '@prisma/client';
 import type {
   EventBus as EventBusType,
@@ -26,10 +27,10 @@ function fakeStoredMarkAdded(
   rIdStr: string,
   annIdStr: string,
 ): StoredEvent<EventOfType<'mark:added'>> {
-  const annotation: components['schemas']['Annotation'] = {
+  const annotation: Annotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id: annIdStr,
+    id: annotationId(annIdStr),
     motivation: 'commenting',
     target: { source: rIdStr },
     body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],

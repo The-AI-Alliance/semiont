@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { annotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { ShellVM } from '../../flows/shell-vm';
 import { createResourceViewerPageVM } from '../resource-viewer-page-vm';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
@@ -168,8 +168,8 @@ describe('createResourceViewerPageVM', () => {
     tc.client.on('gather:requested', (e) => gatherEvents.push(e));
 
     tc.client.emit('bind:initiate', {
-      annotationId: 'ann-1',
-      resourceId: 'res-1',
+      annotationId: annotationId('ann-1'),
+      resourceId: makeResourceId('res-1'),
       defaultTitle: 'Test',
       entityTypes: ['Person'],
     });
@@ -186,8 +186,8 @@ describe('createResourceViewerPageVM', () => {
     const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
     tc.client.emit('bind:initiate', {
-      annotationId: 'ann-1',
-      resourceId: 'res-1',
+      annotationId: annotationId('ann-1'),
+      resourceId: makeResourceId('res-1'),
       defaultTitle: 'Test',
       entityTypes: [],
     });

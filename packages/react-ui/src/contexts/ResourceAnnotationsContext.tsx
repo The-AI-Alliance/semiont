@@ -3,10 +3,8 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from '../hooks/useObservable';
-import type { components, AnnotationId, ResourceId, Selector } from '@semiont/core';
+import type { Annotation, AnnotationId, ResourceId, Selector } from '@semiont/core';
 import { useLiveRegion } from '../components/LiveRegion';
-
-type Annotation = components['schemas']['Annotation'];
 // Create annotation request type - narrow target to only the object form (not string)
 type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 'creator' | '@context' | 'type' | 'target'> & {
   target: {

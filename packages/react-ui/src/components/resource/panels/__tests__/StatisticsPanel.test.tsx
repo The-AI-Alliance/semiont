@@ -5,7 +5,7 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Stable mock functions defined outside vi.mock to avoid re-render loops
 const mockIsBodyResolved = vi.fn();

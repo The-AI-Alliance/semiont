@@ -8,11 +8,10 @@
  * No React dependencies — safe to use in any JavaScript environment.
  */
 
-import type { components } from '@semiont/core';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, findTextWithContext, buildContentCache } from '@semiont/api-client';
 import type { TextSegment } from './codemirror-logic';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Re-export for consumers
 export type { TextSegment };

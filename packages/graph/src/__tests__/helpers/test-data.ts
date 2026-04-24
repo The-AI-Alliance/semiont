@@ -3,10 +3,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { components } from '@semiont/core';
-import type { CreateAnnotationInternal } from '@semiont/core';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { CreateAnnotationInternal, ResourceDescriptor } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
 
 /**
  * Create a test resource with sensible defaults
@@ -16,7 +14,7 @@ export function createTestResource(overrides: Partial<ResourceDescriptor> = {}):
 
   return {
     '@context': 'https://www.w3.org/ns/ldp',
-    '@id': id,
+    '@id': resourceId(id),
     type: 'ldp:RDFSource',
     name: 'Test Resource',
     entityTypes: ['Person'],
@@ -40,7 +38,7 @@ export function createTestHighlight(
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
-    id: uuidv4(),
+    id: annotationId(uuidv4()),
     motivation: 'highlighting',
     target: {
       source: resourceId,
@@ -72,7 +70,7 @@ export function createTestReference(
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
-    id: uuidv4(),
+    id: annotationId(uuidv4()),
     motivation: 'linking',
     target: {
       source: targetResourceId,
@@ -101,7 +99,7 @@ export function createTestEntityReference(
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
-    id: uuidv4(),
+    id: annotationId(uuidv4()),
     motivation: 'linking',
     target: {
       source: targetResourceId,

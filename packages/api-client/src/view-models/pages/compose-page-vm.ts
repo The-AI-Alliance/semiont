@@ -1,14 +1,11 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
-import type { GatheredContext, AnnotationId, ContentFormat, AccessToken } from '@semiont/core';
+import type { GatheredContext, AnnotationId, ContentFormat, AccessToken, ResourceDescriptor } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import type { components } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
 import type { SemiontApiClient } from '../../client';
 import { getPrimaryMediaType, decodeWithCharset } from '../../utils';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export type ComposeMode = 'new' | 'clone' | 'reference';
 

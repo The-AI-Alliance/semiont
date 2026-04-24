@@ -15,7 +15,7 @@ import { resourceId as makeResourceId, type ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 
 export interface LLMContextOptions {

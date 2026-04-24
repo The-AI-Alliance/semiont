@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { annotationId } from '@semiont/core';
 import { createBeckonVM, createHoverHandlers, HOVER_DELAY_MS } from '../beckon-vm';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 
@@ -88,7 +89,7 @@ describe('createBeckonVM', () => {
     const values: (string | null)[] = [];
     vm.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    vm.hover('ann-cmd');
+    vm.hover(annotationId('ann-cmd'));
     expect(values).toEqual([null, 'ann-cmd']);
     vm.dispose();
   });
@@ -98,7 +99,7 @@ describe('createBeckonVM', () => {
     const focuses: string[] = [];
     tc.client.on('beckon:focus', e => focuses.push(e.annotationId!));
 
-    vm.focus('ann-focus');
+    vm.focus(annotationId('ann-focus'));
     expect(focuses).toEqual(['ann-focus']);
     vm.dispose();
   });
@@ -108,7 +109,7 @@ describe('createBeckonVM', () => {
     const sparkles: string[] = [];
     tc.client.on('beckon:sparkle', e => sparkles.push(e.annotationId));
 
-    vm.sparkle('ann-sparkle');
+    vm.sparkle(annotationId('ann-sparkle'));
     expect(sparkles).toEqual(['ann-sparkle']);
     vm.dispose();
   });
@@ -131,7 +132,7 @@ describe('createHoverHandlers', () => {
   it('emits hover after delay', () => {
     const emit = vi.fn();
     const { handleMouseEnter } = createHoverHandlers(emit, 100);
-    handleMouseEnter('ann-1');
+    handleMouseEnter(annotationId('ann-1'));
     expect(emit).not.toHaveBeenCalled();
     vi.advanceTimersByTime(100);
     expect(emit).toHaveBeenCalledWith('ann-1');
@@ -140,7 +141,7 @@ describe('createHoverHandlers', () => {
   it('emits null immediately on mouse leave', () => {
     const emit = vi.fn();
     const { handleMouseEnter, handleMouseLeave } = createHoverHandlers(emit, 100);
-    handleMouseEnter('ann-1');
+    handleMouseEnter(annotationId('ann-1'));
     vi.advanceTimersByTime(100);
     handleMouseLeave();
     expect(emit).toHaveBeenCalledWith(null);
@@ -149,7 +150,7 @@ describe('createHoverHandlers', () => {
   it('cancels pending timer on mouse leave', () => {
     const emit = vi.fn();
     const { handleMouseEnter, handleMouseLeave } = createHoverHandlers(emit, 100);
-    handleMouseEnter('ann-1');
+    handleMouseEnter(annotationId('ann-1'));
     handleMouseLeave();
     vi.advanceTimersByTime(100);
     expect(emit).not.toHaveBeenCalled();
@@ -158,9 +159,9 @@ describe('createHoverHandlers', () => {
   it('suppresses redundant enters for the same annotation', () => {
     const emit = vi.fn();
     const { handleMouseEnter } = createHoverHandlers(emit, 100);
-    handleMouseEnter('ann-1');
+    handleMouseEnter(annotationId('ann-1'));
     vi.advanceTimersByTime(100);
-    handleMouseEnter('ann-1');
+    handleMouseEnter(annotationId('ann-1'));
     vi.advanceTimersByTime(100);
     expect(emit).toHaveBeenCalledTimes(1);
   });
@@ -168,7 +169,7 @@ describe('createHoverHandlers', () => {
   it('cleanup cancels the pending timer', () => {
     const emit = vi.fn();
     const { handleMouseEnter, cleanup } = createHoverHandlers(emit, 100);
-    handleMouseEnter('ann-1');
+    handleMouseEnter(annotationId('ann-1'));
     cleanup();
     vi.advanceTimersByTime(100);
     expect(emit).not.toHaveBeenCalled();

@@ -319,7 +319,7 @@ export class Browser {
       const referencedBy = references.map(ref => {
         const targetSource = getTargetSource(ref.target);
         const targetSelector = getTargetSelector(ref.target);
-        const doc = docMap.get(targetSource);
+        const doc = targetSource ? docMap.get(resourceId(targetSource)) : undefined;
         return {
           id: ref.id,
           resourceName: doc?.name || 'Untitled Resource',

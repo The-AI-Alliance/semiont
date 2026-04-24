@@ -18,7 +18,7 @@ import { renderWithProviders } from '../../../../test-utils';
 import { HighlightPanel } from '../HighlightPanel';
 import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock translations - simulates useTranslations('HighlightPanel')
 // The mock receives keys like 'title', 'noHighlights', etc. and returns translated strings

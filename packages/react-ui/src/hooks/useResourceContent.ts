@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { ResourceId } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId, components } from '@semiont/core';
 import { getPrimaryMediaType, decodeWithCharset } from '@semiont/api-client';
 import { useToast } from '../components/Toast';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from './useObservable';
-import type { components } from '@semiont/core';
-
-type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 export interface UseResourceContentResult {
   content: string;
@@ -15,7 +12,7 @@ export interface UseResourceContentResult {
 
 export function useResourceContent(
   rUri: ResourceId,
-  resource: SemiontResource,
+  resource: ResourceDescriptor,
   enabled = true
 ): UseResourceContentResult {
   const { showError } = useToast();
@@ -27,17 +24,22 @@ export function useResourceContent(
 
   useEffect(() => {
     if (!semiont || !enabled || !mediaType) return;
+    let cancelled = false;
     setLoading(true);
     semiont.getResourceRepresentation(rUri, {
       accept: mediaType as components['schemas']['ContentFormat'],
     }).then(({ data }) => {
+      if (cancelled) return;
       setContent(decodeWithCharset(data, mediaType));
       setLoading(false);
     }).catch((error) => {
+      if (cancelled) return;
       console.error('Failed to fetch representation:', error);
       showError('Failed to load resource representation');
       setLoading(false);
     });
+
+    return () => { cancelled = true; };
   }, [semiont, rUri, mediaType, enabled, showError]);
 
   return { content, loading };

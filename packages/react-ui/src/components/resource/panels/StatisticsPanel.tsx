@@ -1,12 +1,11 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/core';
 import { isBodyResolved } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import './StatisticsPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 interface StatisticsPanelProps {
   highlights: Annotation[];

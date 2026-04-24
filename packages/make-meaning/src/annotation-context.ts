@@ -40,8 +40,8 @@ import type { KnowledgeBase } from './knowledge-base';
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 type AnnotationContextResponse = components['schemas']['AnnotationContextResponse'];
 type ContextualSummaryResponse = components['schemas']['ContextualSummaryResponse'];
 

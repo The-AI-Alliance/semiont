@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventLog } from '../event-log';
-import { resourceId, userId } from '@semiont/core';
+import { annotationId, resourceId, userId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -80,7 +80,7 @@ describe('EventLog', () => {
         payload: {
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-            id: 'http://example.com/annotations/anno1',
+            id: annotationId('anno1'),
             type: 'Annotation' as const,
             motivation: 'commenting' as const,
             body: [{ type: 'TextualBody' as const, value: 'test comment', purpose: 'commenting' as const }],
@@ -232,7 +232,7 @@ describe('EventLog', () => {
         payload: {
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-            id: 'http://example.com/annotations/anno1',
+            id: annotationId('anno1'),
             type: 'Annotation' as const,
             motivation: 'commenting' as const,
             body: [{ type: 'TextualBody' as const, value: 'test comment', purpose: 'commenting' as const }],

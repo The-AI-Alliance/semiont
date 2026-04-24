@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import type { ResourceView } from '../../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
-import { resourceId } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
 import type { ResourceId, Motivation } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -18,7 +18,7 @@ import { v4 as uuidv4 } from 'uuid';
 function createResourceDescriptor(id: string, name: string, overrides = {}) {
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    '@id': `http://localhost:4000/resources/${id}`,
+    '@id': resourceId(id),
     name,
     representations: [],
     ...overrides,
@@ -126,7 +126,7 @@ describe('FilesystemViewStorage', () => {
       const retrieved = await storage.get(rid);
 
       expect(retrieved).not.toBeNull();
-      expect(retrieved?.resource['@id']).toBe('http://localhost:4000/resources/doc1');
+      expect(retrieved?.resource['@id']).toBe('doc1');
       expect(retrieved?.resource.name).toBe('Test Document');
       expect(retrieved?.resource.representations).toHaveLength(1);
     });
@@ -264,7 +264,7 @@ describe('FilesystemViewStorage', () => {
           annotations: [
             {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-              id: 'http://localhost:4000/annotations/anno1',
+              id: annotationId('anno1'),
               type: 'Annotation' as const,
               motivation: 'commenting' satisfies Motivation,
               body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
@@ -274,7 +274,7 @@ describe('FilesystemViewStorage', () => {
             },
             {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-              id: 'http://localhost:4000/annotations/anno2',
+              id: annotationId('anno2'),
               type: 'Annotation' as const,
               motivation: 'commenting' satisfies Motivation,
               body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],

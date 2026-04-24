@@ -1,20 +1,21 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import type { AnnotationId } from '@semiont/core';
 import type { SemiontApiClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
 export interface BeckonVM extends ViewModel {
-  hoveredAnnotationId$: Observable<string | null>;
-  hover(annotationId: string | null): void;
-  focus(annotationId: string): void;
-  sparkle(annotationId: string): void;
+  hoveredAnnotationId$: Observable<AnnotationId | null>;
+  hover(annotationId: AnnotationId | null): void;
+  focus(annotationId: AnnotationId): void;
+  sparkle(annotationId: AnnotationId): void;
 }
 
 export function createBeckonVM(client: SemiontApiClient): BeckonVM {
   const subs: Subscription[] = [];
-  const hovered$ = new BehaviorSubject<string | null>(null);
+  const hovered$ = new BehaviorSubject<AnnotationId | null>(null);
 
   subs.push(client.stream('beckon:hover').subscribe(({ annotationId }) => {
-    hovered$.next(annotationId);
+    hovered$.next(annotationId as AnnotationId | null);
     if (annotationId) {
       client.emit('beckon:sparkle', { annotationId });
     }
@@ -39,16 +40,16 @@ export function createBeckonVM(client: SemiontApiClient): BeckonVM {
 /** Default milliseconds the mouse must dwell before beckon:hover is emitted. */
 export const HOVER_DELAY_MS = 150;
 
-type EmitHover = (annotationId: string | null) => void;
+type EmitHover = (annotationId: AnnotationId | null) => void;
 
 export interface HoverHandlers {
-  handleMouseEnter: (annotationId: string) => void;
+  handleMouseEnter: (annotationId: AnnotationId) => void;
   handleMouseLeave: () => void;
   cleanup: () => void;
 }
 
 export function createHoverHandlers(emit: EmitHover, delayMs: number): HoverHandlers {
-  let currentHover: string | null = null;
+  let currentHover: AnnotationId | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const cancelTimer = () => {
@@ -58,7 +59,7 @@ export function createHoverHandlers(emit: EmitHover, delayMs: number): HoverHand
     }
   };
 
-  const handleMouseEnter = (annotationId: string) => {
+  const handleMouseEnter = (annotationId: AnnotationId) => {
     if (currentHover === annotationId) return;
     cancelTimer();
     timer = setTimeout(() => {

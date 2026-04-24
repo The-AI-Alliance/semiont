@@ -21,7 +21,7 @@ import type {
   CreateFromTokenOptions,
 } from './types';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
 type TokenGetter = () => AccessToken | undefined;
 
@@ -168,7 +168,7 @@ export class YieldNamespace implements IYieldNamespace {
       'yield:clone-resource-result',
       'yield:clone-resource-failed',
     );
-    return result.sourceResource;
+    return result.sourceResource as ResourceDescriptor;
   }
 
   async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: string }> {

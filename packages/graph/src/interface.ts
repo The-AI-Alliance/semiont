@@ -1,20 +1,18 @@
 // Graph database interface - all implementations must follow this contract
 
-import type { components } from '@semiont/core';
 import type {
+  Annotation,
   AnnotationCategory,
+  AnnotationId,
+  CreateAnnotationInternal,
+  EntityTypeStats,
   GraphConnection,
   GraphPath,
-  EntityTypeStats,
+  ResourceDescriptor,
   ResourceFilter,
-  UpdateResourceInput,
-  CreateAnnotationInternal,
   ResourceId,
-  AnnotationId,
+  UpdateResourceInput,
 } from '@semiont/core';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
 
 export interface GraphDatabase {
   // Connection management

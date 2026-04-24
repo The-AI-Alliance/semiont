@@ -2,8 +2,8 @@
 // This replaces the mock in-memory implementation
 
 import { GraphDatabase } from '../interface';
-import type { components, Logger } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
+import type { Logger } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import {
   getBodySource,
   getPrimaryRepresentation,
@@ -24,8 +24,8 @@ import type {
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+import type { ResourceDescriptor } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 export class JanusGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
@@ -373,7 +373,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
-      id,
+      id: makeAnnotationId(id),
       motivation,
       target: input.target,
       body: input.body,

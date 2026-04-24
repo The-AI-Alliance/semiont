@@ -6,14 +6,13 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import type { components } from '@semiont/core';
 import { getResourceId } from '@semiont/api-client';
 import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
 import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
 import { Toolbar } from '../../../components/Toolbar';
 import { ResourceCard } from './ResourceCard';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 
 export interface ResourceDiscoveryPageProps {
   // Data props

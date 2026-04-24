@@ -6,7 +6,7 @@ import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock @semiont/api-client
 vi.mock('@semiont/api-client', async () => {

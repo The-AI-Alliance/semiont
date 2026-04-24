@@ -18,7 +18,7 @@
  */
 
 import type { Observable } from 'rxjs';
-import type { components, paths } from '@semiont/core';
+import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
@@ -33,8 +33,8 @@ import type {
 
 // ── OpenAPI schema type aliases ─────────────────────────────────────────────
 
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
@@ -240,7 +240,7 @@ export interface BindNamespace {
   body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void>;
 
   /** UI signal: a reference-binding flow is requested for an annotation. */
-  initiate(input: components['schemas']['BindInitiateCommand']): void;
+  initiate(input: EventMap['bind:initiate']): void;
 }
 
 /**

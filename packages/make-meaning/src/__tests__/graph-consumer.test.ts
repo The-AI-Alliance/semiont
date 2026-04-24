@@ -292,7 +292,7 @@ describe('GraphDBConsumer', () => {
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             type: 'Annotation' as const,
-            id: 'ann-1',
+            id: annotationId('ann-1'),
             motivation: 'highlighting' as const,
             target: {
               source: docId,
@@ -357,13 +357,13 @@ describe('GraphDBConsumer', () => {
 
       // Mock getAnnotation to return an existing annotation
       (graphDb.getAnnotation as ReturnType<typeof vi.fn>).mockResolvedValue({
-        id: 'ann-body',
+        id: annotationId('ann-body'),
         body: [{ type: 'TextualBody', value: 'existing', purpose: 'commenting' }],
       });
       vi.clearAllMocks();
       // Re-set the mock since clearAllMocks clears implementations
       (graphDb.getAnnotation as ReturnType<typeof vi.fn>).mockResolvedValue({
-        id: 'ann-body',
+        id: annotationId('ann-body'),
         body: [{ type: 'TextualBody', value: 'existing', purpose: 'commenting' }],
       });
 
@@ -585,7 +585,7 @@ describe('GraphDBConsumer', () => {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               type: 'Annotation' as const,
-              id: `ann-batch-${i}`,
+              id: annotationId(`ann-batch-${i}`),
               motivation: 'highlighting' as const,
               target: {
                 source: docId,

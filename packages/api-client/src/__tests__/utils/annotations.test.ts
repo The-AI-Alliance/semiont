@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import type { components } from '@semiont/core';
+import { annotationId } from '@semiont/core';
 import {
   getBodySource,
   getBodyType,
@@ -26,13 +26,13 @@ import {
   extractBoundingBox,
 } from '../../utils/annotations';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 function makeAnnotation(overrides?: Partial<Annotation>): Annotation {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id: 'http://example.com/ann/1',
+    id: annotationId('ann-1'),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
     target: { source: 'http://example.com/res/1' },

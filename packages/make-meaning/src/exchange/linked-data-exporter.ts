@@ -21,9 +21,9 @@ import {
   type LinkedDataManifest,
 } from './manifest';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 type Representation = components['schemas']['Representation'];
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 /** Subset of ViewStorage used by the linked-data exporter. */
 export interface LinkedDataViewReader {
@@ -32,6 +32,17 @@ export interface LinkedDataViewReader {
     annotations: { annotations: Annotation[] };
   }>>;
 }
+
+/**
+ * Hydrated output shape: identifier fields are full URIs rather than
+ * bare branded ids. Produced only when serialising to the JSON-LD wire
+ * format; do not consume inside the domain (use `Annotation` /
+ * `ResourceDescriptor` instead).
+ */
+type HydratedAnnotation = Omit<Annotation, 'id' | 'target'> & {
+  id: string;
+  target: Annotation['target'];
+};
 
 /** Subset of WorkingTreeStore used by the linked-data exporter. */
 export interface LinkedDataContentReader {
@@ -74,8 +85,8 @@ const MANIFEST_CONTEXT: Record<string, string> = {
  * Internally Semiont stores bare IDs (UUIDs). For linked-data export we
  * construct full HTTP IRIs so the output is valid JSON-LD / W3C Web Annotation.
  */
-function hydrateAnnotation(annotation: Annotation, baseUrl: string): Annotation {
-  const hydrated = { ...annotation };
+function hydrateAnnotation(annotation: Annotation, baseUrl: string): HydratedAnnotation {
+  const hydrated = { ...annotation } as HydratedAnnotation;
 
   // annotation.id: bare annotation ID → full URI
   if (hydrated.id && !hydrated.id.startsWith('http')) {

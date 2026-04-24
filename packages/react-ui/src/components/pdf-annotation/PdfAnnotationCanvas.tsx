@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import type { components } from '@semiont/core';
-import { annotationId as toAnnotationId } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 import { createHoverHandlers, getTargetSelector, type SemiontSession } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import {
@@ -19,8 +18,6 @@ import {
   type PDFDocumentProxy
 } from '../../lib/browser-pdfjs';
 import './PdfAnnotationCanvas.css';
-
-type Annotation = components['schemas']['Annotation'];
 
 export type DrawingMode = 'rectangle' | 'circle' | 'polygon' | null;
 
@@ -279,7 +276,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          session?.client.browse.click(toAnnotationId(clickedAnnotation.id), clickedAnnotation.motivation);
+          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation);
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -356,7 +353,7 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((id) => session?.client.beckon.hover(id ? toAnnotationId(id) : null), hoverDelayMs),
+    () => createHoverHandlers((id) => session?.client.beckon.hover(id), hoverDelayMs),
     [session, hoverDelayMs]
   );
 
@@ -456,7 +453,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => session?.client.browse.click(toAnnotationId(ann.id), ann.motivation)}
+                      onClick={() => session?.client.browse.click(ann.id, ann.motivation)}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

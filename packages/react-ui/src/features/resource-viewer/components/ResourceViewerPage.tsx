@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { components, ResourceId, GatheredContext, EventMap } from '@semiont/core';
+import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/api-client';
 import { annotationId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getMimeCategory } from '@semiont/api-client';
@@ -37,7 +37,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
-type SemiontResource = components['schemas']['ResourceDescriptor'];
+type SemiontResource = ResourceDescriptor;
 
 export interface ResourceViewerPageProps {
   /**

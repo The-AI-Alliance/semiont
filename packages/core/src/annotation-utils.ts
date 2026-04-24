@@ -7,8 +7,8 @@
  */
 
 import type { components } from './types';
+import type { Annotation } from './annotation-types';
 
-type Annotation = components['schemas']['Annotation'];
 type BodyPurpose = components['schemas']['BodyPurpose'];
 
 /**

@@ -1,15 +1,12 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import type { components } from '@semiont/core';
-import { annotationId as toAnnotationId } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { SemiontSession } from '@semiont/api-client';
 import { useHoverDelay } from '../../hooks/useHoverDelay';
-
-type Annotation = components['schemas']['Annotation'];
 
 export type DrawingMode = 'rectangle' | 'polygon' | 'circle' | 'freeform' | null;
 
@@ -213,7 +210,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          session?.client.browse.click(toAnnotationId(clickedAnnotation.id), clickedAnnotation.motivation);
+          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation);
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);

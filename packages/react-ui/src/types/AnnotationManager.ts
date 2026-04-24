@@ -1,6 +1,4 @@
-import type { components, ResourceId, Selector } from '@semiont/core';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation, ResourceId, Selector } from '@semiont/core';
 
 /**
  * Parameters for creating an annotation

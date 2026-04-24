@@ -203,7 +203,7 @@ describe('ViewManager', () => {
       const cachedView: ResourceView = {
         resource: {
           '@context': 'https://www.w3.org/ns/activitystreams',
-          '@id': 'http://localhost:4000/resources/doc1',
+          '@id': rid,
           name: 'Test',
           format: 'text/plain',
           representations: [],

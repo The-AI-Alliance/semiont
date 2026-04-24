@@ -302,7 +302,7 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (id) => sessionRef.current?.client.beckon.hover(id ? toAnnotationId(id) : null),
+      (id) => sessionRef.current?.client.beckon.hover(id),
       hoverDelayMs
     );
 
@@ -310,7 +310,7 @@ export function CodeMirrorRenderer({
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
-      if (annotationId) handleMouseEnter(annotationId);
+      if (annotationId) handleMouseEnter(toAnnotationId(annotationId));
     };
 
     const handleMouseOut = (e: MouseEvent) => {

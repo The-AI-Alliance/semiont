@@ -8,7 +8,7 @@ import type { components } from '@semiont/core';
 import { BindNamespace } from '@semiont/api-client';
 import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Stable mock functions defined outside vi.mock to avoid re-render loops
 const mockGetAnnotationExactText = vi.fn();

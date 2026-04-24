@@ -13,7 +13,7 @@ import { decodeWithCharset } from '../../utils/text-encoding';
 import { isHighlight, isComment, isAssessment, isReference, isTag } from '../../utils/annotations';
 import type { ReferencedByEntry } from '../../namespaces/types';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 export interface AnnotationGroups {
   highlights: Annotation[];

@@ -14,7 +14,7 @@ import { CommentsPanel } from './CommentsPanel';
 import { TaggingPanel } from './TaggingPanel';
 import './UnifiedAnnotationsPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
 type TabKey = 'statistics' | 'reference' | 'highlight' | 'assessment' | 'comment' | 'tag';
 

@@ -19,7 +19,7 @@ import type { WorkingTreeStore } from '@semiont/content';
 import { deriveStorageUri } from '@semiont/content';
 
 type ContentFormat = components['schemas']['ContentFormat'];
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 /**
  * Resolves a content blob by its checksum.

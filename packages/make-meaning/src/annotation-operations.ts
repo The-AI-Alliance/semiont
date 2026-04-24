@@ -20,7 +20,7 @@ import { AnnotationContext } from './annotation-context';
 import type { KnowledgeBase } from './knowledge-base';
 
 type Agent = components['schemas']['Agent'];
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 

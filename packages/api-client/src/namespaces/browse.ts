@@ -1,8 +1,10 @@
 import { Observable, map } from 'rxjs';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery } from '@semiont/core';
 import type {
+  Annotation,
   EventBus,
   EventMap,
+  ResourceDescriptor,
   ResourceId,
   AnnotationId,
   AccessToken,
@@ -19,9 +21,6 @@ import type {
   ReferencedByEntry,
   AnnotationHistoryResponse,
 } from './types';
-
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type EnrichedResourceEvent = components['schemas']['EnrichedResourceEvent'];
 
@@ -103,7 +102,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         'browse:resource-result',
         'browse:resource-failed',
       );
-      return result.resource;
+      return result.resource as ResourceDescriptor;
     });
 
     this.resourceListCache = createCache<string, ResourceDescriptor[]>(async (key) => {
@@ -202,7 +201,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   annotations(resourceId: ResourceId): Observable<Annotation[] | undefined> {
     let obs = this.annotationListObs.get(resourceId);
     if (!obs) {
-      obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations));
+      obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations as Annotation[] | undefined));
       this.annotationListObs.set(resourceId, obs);
     }
     return obs;
@@ -491,7 +490,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.on('mark:body-updated', (event) => {
       const enriched = event as unknown as EnrichedResourceEvent;
       if (!enriched.resourceId || !enriched.annotation) return;
-      this.updateAnnotationInPlace(enriched.resourceId as ResourceId, enriched.annotation);
+      this.updateAnnotationInPlace(enriched.resourceId as ResourceId, enriched.annotation as Annotation);
       this.invalidateResourceEvents(enriched.resourceId as ResourceId);
     });
 

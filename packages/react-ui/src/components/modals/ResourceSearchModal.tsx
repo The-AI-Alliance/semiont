@@ -3,13 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
-import type { components } from '@semiont/core';
 import { getResourceId, getPrimaryRepresentation, createSearchPipeline } from '@semiont/api-client';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 
 type SearchResult = {
   id: string;

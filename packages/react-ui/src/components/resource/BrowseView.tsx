@@ -136,13 +136,13 @@ export const BrowseView = memo(function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          session.client.browse.click(toAnnotationId(annotationId), annotation.motivation);
+          session.client.browse.click(annotation.id, annotation.motivation);
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (id) => session.client.beckon.hover(id ? toAnnotationId(id) : null),
+      (id) => session.client.beckon.hover(id),
       hoverDelayMs
     );
 
@@ -151,7 +151,7 @@ export const BrowseView = memo(function BrowseView({
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
-      if (annotationId) handleMouseEnter(annotationId);
+      if (annotationId) handleMouseEnter(toAnnotationId(annotationId));
     };
 
     // Single mouseout handler for the container - fires once on exit

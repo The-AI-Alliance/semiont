@@ -143,7 +143,7 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
       annotation: {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         type: 'Annotation',
-        id: 'http://localhost:4100/annotations/test-anno-1',
+        id: annotationId('test-anno-1'),
         motivation: 'linking',
         target: {
           source: 'http://localhost:4100/resources/test-resource-1',

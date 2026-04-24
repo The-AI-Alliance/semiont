@@ -15,8 +15,8 @@ import { didToAgent } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 type Representation = components['schemas']['Representation'];
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 
 import type {
   PersistedEvent,
@@ -141,7 +141,7 @@ export class ViewMaterializer {
     // @id uses bare resource ID; full URI is constructed at the API boundary
     const resource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': resourceId as string,
+      '@id': resourceId,
       name: '',
       representations: [],
       archived: false,

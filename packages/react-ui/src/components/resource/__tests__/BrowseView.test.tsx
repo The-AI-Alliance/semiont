@@ -5,7 +5,7 @@ import { BrowseView } from '../BrowseView';
 import type { components, EventBus } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../test-utils';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock ResourceAnnotationsContext - keep this simple
 let mockNewAnnotationIds = new Set<string>();
