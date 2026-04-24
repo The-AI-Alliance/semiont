@@ -2,6 +2,7 @@
 
 import type { Ref } from 'react';
 import type { components } from '@semiont/core';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';
@@ -36,7 +37,7 @@ export function TagEntry({
     <div
       ref={ref}
       onClick={() => {
-        session?.client.emit('browse:click', { annotationId: tag.id, motivation: tag.motivation });
+        session?.client.browse.click(toAnnotationId(tag.id), tag.motivation);
       }}
       {...hoverProps}
       className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}

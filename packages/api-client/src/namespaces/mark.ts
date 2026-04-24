@@ -6,6 +6,7 @@ import type {
   Motivation,
   AccessToken,
   EventBus,
+  components,
 } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
@@ -156,6 +157,50 @@ export class MarkNamespace implements IMarkNamespace {
         failSub.unsubscribe();
       };
     });
+  }
+
+  request(
+    selector: components['schemas']['MarkRequestedEvent']['selector'],
+    motivation: Motivation,
+  ): void {
+    // Local emit: mark-vm subscribes via `client.stream('mark:requested')`.
+    this.http.emit('mark:requested', { selector, motivation });
+  }
+
+  requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void {
+    this.http.emit('mark:assist-request', {
+      motivation,
+      options,
+      ...(correlationId ? { correlationId } : {}),
+    } as components['schemas']['MarkAssistRequestEvent']);
+  }
+
+  submit(input: components['schemas']['MarkSubmitEvent']): void {
+    this.http.emit('mark:submit', input);
+  }
+
+  cancelPending(): void {
+    this.http.emit('mark:cancel-pending', undefined);
+  }
+
+  dismissProgress(): void {
+    this.http.emit('mark:progress-dismiss', undefined);
+  }
+
+  changeSelection(motivation: Motivation | null): void {
+    this.http.emit('mark:selection-changed', { motivation });
+  }
+
+  changeClick(action: string): void {
+    this.http.emit('mark:click-changed', { action });
+  }
+
+  changeShape(shape: string): void {
+    this.http.emit('mark:shape-changed', { shape });
+  }
+
+  toggleMode(): void {
+    this.http.emit('mark:mode-toggled', undefined);
   }
 
   private async dispatchAssist(

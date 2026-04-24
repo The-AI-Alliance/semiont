@@ -215,7 +215,7 @@ describe('MarkNamespace', () => {
 describe('BindNamespace', () => {
   it('body() emits bind:update-body on bus', async () => {
     const mock = createMockActor();
-    const bind = new BindNamespace(mock.actor);
+    const bind = new BindNamespace({} as SemiontApiClient, mock.actor);
     await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]);
     expect(mock.emitSpy).toHaveBeenCalledWith('bind:update-body', expect.objectContaining({
       annotationId: AID,
@@ -288,7 +288,7 @@ describe('MatchNamespace', () => {
     eventBus = new EventBus();
     const mock = createMockActor();
     emitSpy = mock.emitSpy;
-    match = new MatchNamespace(eventBus, mock.actor);
+    match = new MatchNamespace({} as SemiontApiClient, eventBus, mock.actor);
   });
 
   it('search() emits match:search-requested on bus', () => {

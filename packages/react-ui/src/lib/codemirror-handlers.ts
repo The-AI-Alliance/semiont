@@ -7,6 +7,7 @@
  */
 
 import type { Motivation } from '@semiont/core';
+import { annotationId as toAnnotationId, resourceId as toResourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/api-client';
 import type { TextSegment } from './codemirror-logic';
 
@@ -29,10 +30,7 @@ export function handleAnnotationClick(
   const segment = segmentsById.get(annotationId);
   if (!segment?.annotation) return false;
 
-  session.client.emit('browse:click', {
-    annotationId,
-    motivation: segment.annotation.motivation,
-  });
+  session.client.browse.click(toAnnotationId(annotationId), segment.annotation.motivation);
   return true;
 }
 
@@ -87,12 +85,9 @@ export function dispatchWidgetClick(result: WidgetClickResult, session: SemiontS
   if (!result.handled) return;
 
   if (result.action === 'navigate' && result.resourceId) {
-    session.client.emit('browse:reference-navigate', { resourceId: result.resourceId });
+    session.client.browse.navigateReference(toResourceId(result.resourceId));
   } else if (result.action === 'browse-click' && result.annotationId) {
-    session.client.emit('browse:click', {
-      annotationId: result.annotationId,
-      motivation: result.motivation || 'linking',
-    });
+    session.client.browse.click(toAnnotationId(result.annotationId), result.motivation || 'linking');
   }
 }
 

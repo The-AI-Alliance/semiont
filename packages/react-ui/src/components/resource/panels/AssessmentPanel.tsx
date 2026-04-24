@@ -147,7 +147,7 @@ export function AssessmentPanel({
         ? { type: 'TextualBody', value: trimmed, purpose: 'assessing' }
         : undefined;
 
-      session?.client.emit('mark:submit', {
+      session?.client.mark.submit({
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         ...(body !== undefined ? { body } : {}),
@@ -162,7 +162,7 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        session?.client.emit('mark:cancel-pending', undefined);
+        session?.client.mark.cancelPending();
         setNewAssessmentText('');
       }
     };
@@ -215,7 +215,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  session?.client.emit('mark:cancel-pending', undefined);
+                  session?.client.mark.cancelPending();
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

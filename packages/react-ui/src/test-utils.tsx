@@ -207,6 +207,8 @@ export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:
   eventBus: EventBus;
   /** App-scoped bus (the fake browser's own bus). */
   shellBus: EventBus;
+  /** The fake session's client — for tests that need to spy on namespace methods. */
+  client: SemiontApiClient;
 } {
   const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
   const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: SemiontApiClient } | null } }).activeSession$.getValue();
@@ -218,6 +220,7 @@ export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:
     SemiontWrapper,
     eventBus: busOf(client),
     shellBus: shellBusOf(fakeBrowser)!,
+    client,
   };
 }
 

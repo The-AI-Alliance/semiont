@@ -149,7 +149,7 @@ export function ResourceInfoPanel({
                     <button
                       key={id}
                       className="semiont-resource-info-panel__link"
-                      onClick={() => session?.client.emit('browse:reference-navigate', { resourceId: id })}
+                      onClick={() => session?.client.browse.navigateReference(makeResourceId(id))}
                     >
                       {i > 0 && ', '}{id}
                     </button>
@@ -192,7 +192,7 @@ export function ResourceInfoPanel({
       {/* Clone Action */}
       <div className="semiont-resource-info-panel__action-section">
         <button
-          onClick={() => session?.client.emit('yield:clone', undefined)}
+          onClick={() => session?.client.yield.clone()}
           className="semiont-resource-button semiont-resource-button--secondary"
         >
           🔗 {t('clone')}
@@ -207,7 +207,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => session?.client.emit('mark:unarchive', { resourceId: makeResourceId(resourceId) })}
+              onClick={() => session?.client.mark.unarchive(makeResourceId(resourceId))}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -219,7 +219,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => session?.client.emit('mark:archive', { resourceId: makeResourceId(resourceId) })}
+              onClick={() => session?.client.mark.archive(makeResourceId(resourceId))}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}

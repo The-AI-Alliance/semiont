@@ -180,4 +180,8 @@ export class YieldNamespace implements IYieldNamespace {
       'yield:clone-create-failed',
     );
   }
+
+  clone(): void {
+    this.http.emit('yield:clone', undefined);
+  }
 }

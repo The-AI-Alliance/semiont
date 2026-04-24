@@ -189,11 +189,9 @@ export function AnnotateToolbar({
   const handleSelectionClick = (motivation: SelectionMotivation | null) => {
     // If null is clicked, always deselect. Otherwise toggle.
     if (motivation === null) {
-      session?.client.emit('mark:selection-changed', { motivation: null });
+      session?.client.mark.changeSelection(null);
     } else {
-      session?.client.emit('mark:selection-changed', {
-        motivation: selectedMotivation === motivation ? null : motivation
-      });
+      session?.client.mark.changeSelection(selectedMotivation === motivation ? null : motivation);
     }
     // Close dropdown after selection
     setSelectionPinned(false);
@@ -201,21 +199,21 @@ export function AnnotateToolbar({
   };
 
   const handleClickClick = (action: ClickAction) => {
-    session?.client.emit('mark:click-changed', { action });
+    session?.client.mark.changeClick(action);
     // Close dropdown after selection
     setClickPinned(false);
     setClickHovered(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
-    session?.client.emit('mark:shape-changed', { shape });
+    session?.client.mark.changeShape(shape);
     // Close dropdown after selection
     setShapePinned(false);
     setShapeHovered(false);
   };
 
   const handleModeToggle = () => {
-    session?.client.emit('mark:mode-toggled', undefined);
+    session?.client.mark.toggleMode();
     setModePinned(false);
     setModeHovered(false);
   };

@@ -168,6 +168,10 @@ export interface BrowseNamespace {
   backlinks(resourceId: ResourceId): Promise<Annotation[]>;
   resourcesByName(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
+
+  // UI signals (fire-and-forget, broadcast to other participants via the bus)
+  click(annotationId: AnnotationId, motivation: Motivation): void;
+  navigateReference(resourceId: ResourceId): void;
 }
 
 /**
@@ -196,6 +200,30 @@ export interface MarkNamespace {
 
   // AI-assisted annotation (long-running, returns Observable with progress)
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistProgress>;
+
+  // UI signals (fire-and-forget bus emits, local-bus fan-out)
+  request(
+    selector: components['schemas']['MarkRequestedEvent']['selector'],
+    motivation: Motivation,
+  ): void;
+
+  /** Fire-and-forget variant of `assist` — mark-vm orchestrates the call and its progress Observable. */
+  requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void;
+
+  /** Submit the currently pending annotation with its selector and optional body. */
+  submit(input: components['schemas']['MarkSubmitEvent']): void;
+
+  /** Cancel the currently pending annotation (if any). */
+  cancelPending(): void;
+
+  /** Dismiss the in-progress AI-assist widget. */
+  dismissProgress(): void;
+
+  // Annotate-toolbar UI state signals (local fan-out to VMs + cross-tab via bus)
+  changeSelection(motivation: Motivation | null): void;
+  changeClick(action: string): void;
+  changeShape(shape: string): void;
+  toggleMode(): void;
 }
 
 /**
@@ -210,6 +238,9 @@ export interface MarkNamespace {
  */
 export interface BindNamespace {
   body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void>;
+
+  /** UI signal: a reference-binding flow is requested for an annotation. */
+  initiate(input: components['schemas']['BindInitiateCommand']): void;
 }
 
 /**
@@ -250,6 +281,9 @@ export interface MatchNamespace {
     context: GatheredContext,
     options?: { limit?: number; useSemanticScoring?: boolean },
   ): Observable<MatchSearchProgress>;
+
+  /** Fire-and-forget variant: match-vm orchestrates the call and its result Observable. */
+  requestSearch(input: components['schemas']['MatchSearchRequest']): void;
 }
 
 /**
@@ -276,6 +310,9 @@ export interface YieldNamespace {
   cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }>;
   fromToken(token: string): Promise<ResourceDescriptor>;
   createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: string }>;
+
+  /** UI signal: user invoked the clone action from the resource-info panel. */
+  clone(): void;
 }
 
 /**
@@ -289,6 +326,8 @@ export interface YieldNamespace {
  */
 export interface BeckonNamespace {
   attention(annotationId: AnnotationId, resourceId: ResourceId): void;
+  hover(annotationId: AnnotationId | null): void;
+  sparkle(annotationId: AnnotationId): void;
 }
 
 /**
@@ -298,6 +337,9 @@ export interface JobNamespace {
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
   cancel(jobId: JobId, type: string): Promise<void>;
+
+  /** UI signal: cancel all active jobs of a given type (e.g. "annotation"). */
+  cancelRequest(jobType: 'annotation' | 'generation'): void;
 }
 
 /**

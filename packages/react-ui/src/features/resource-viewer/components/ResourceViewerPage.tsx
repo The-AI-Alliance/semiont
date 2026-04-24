@@ -419,9 +419,9 @@ export function ResourceViewerPage({
   const resourceWithContent = { ...resource, content };
 
   // Handlers for AnnotationHistory (legacy event-based interaction)
-  const handleEventHover = useCallback((annotationId: string | null) => {
-    if (annotationId) {
-      session?.client.emit('beckon:sparkle', { annotationId });
+  const handleEventHover = useCallback((id: string | null) => {
+    if (id) {
+      session?.client.beckon.sparkle(annotationId(id));
     }
   }, [session]);
 
