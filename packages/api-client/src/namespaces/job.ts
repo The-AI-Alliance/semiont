@@ -1,4 +1,5 @@
 import type { JobId, components } from '@semiont/core';
+import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
 import { busRequest } from '../bus-request';
 import type { JobNamespace as IJobNamespace } from './types';
@@ -7,6 +8,7 @@ type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
 export class JobNamespace implements IJobNamespace {
   constructor(
+    private readonly http: SemiontApiClient,
     private readonly actor: ActorVM,
   ) {}
 
@@ -43,5 +45,11 @@ export class JobNamespace implements IJobNamespace {
 
   async cancel(jobId: JobId, type: string): Promise<void> {
     await this.actor.emit('job:cancel-requested', { jobId, type });
+  }
+
+  cancelRequest(jobType: 'annotation' | 'generation'): void {
+    // Local emit: the batch-cancel widget fires this; a VM subscribes and
+    // translates into individual cancels.
+    this.http.emit('job:cancel-requested', { jobType });
   }
 }

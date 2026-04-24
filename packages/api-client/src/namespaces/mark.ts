@@ -167,6 +167,42 @@ export class MarkNamespace implements IMarkNamespace {
     this.http.emit('mark:requested', { selector, motivation });
   }
 
+  requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void {
+    this.http.emit('mark:assist-request', {
+      motivation,
+      options,
+      ...(correlationId ? { correlationId } : {}),
+    } as components['schemas']['MarkAssistRequestEvent']);
+  }
+
+  submit(input: components['schemas']['MarkSubmitEvent']): void {
+    this.http.emit('mark:submit', input);
+  }
+
+  cancelPending(): void {
+    this.http.emit('mark:cancel-pending', undefined);
+  }
+
+  dismissProgress(): void {
+    this.http.emit('mark:progress-dismiss', undefined);
+  }
+
+  changeSelection(motivation: Motivation | null): void {
+    this.http.emit('mark:selection-changed', { motivation });
+  }
+
+  changeClick(action: string): void {
+    this.http.emit('mark:click-changed', { action });
+  }
+
+  changeShape(shape: string): void {
+    this.http.emit('mark:shape-changed', { shape });
+  }
+
+  toggleMode(): void {
+    this.http.emit('mark:mode-toggled', undefined);
+  }
+
   private async dispatchAssist(
     resourceId: ResourceId,
     motivation: Motivation,

@@ -3,6 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { EventBus } from '@semiont/core';
+import type { SemiontApiClient } from '@semiont/api-client';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -65,24 +66,30 @@ function createEventTracker() {
   return {
     events,
     clear: () => { events.length = 0; },
-    _attach(eventBus: EventBus) {
-      const resourceEvents = [
-        'yield:clone',
-        'mark:archive',
-        'mark:unarchive',
-      ] as const;
-      resourceEvents.forEach((eventName) => {
-        eventBus.get(eventName).subscribe((payload: any) => {
-          events.push({ event: eventName, payload });
-        });
+    _attach(eventBus: EventBus, client: SemiontApiClient) {
+      // `yield:clone` is a local-bus UI signal emitted by `client.yield.clone()`.
+      eventBus.get('yield:clone').subscribe((payload: any) => {
+        events.push({ event: 'yield:clone', payload });
       });
+      // `mark:archive` / `mark:unarchive` are backend-routed via `actor.emit`;
+      // spy on the namespace methods instead of subscribing to a local bus.
+      const origArchive = client.mark.archive.bind(client.mark);
+      const origUnarchive = client.mark.unarchive.bind(client.mark);
+      client.mark.archive = vi.fn(async (rid: any) => {
+        events.push({ event: 'mark:archive', payload: { resourceId: rid } });
+        return origArchive(rid);
+      }) as typeof client.mark.archive;
+      client.mark.unarchive = vi.fn(async (rid: any) => {
+        events.push({ event: 'mark:unarchive', payload: { resourceId: rid } });
+        return origUnarchive(rid);
+      }) as typeof client.mark.unarchive;
     },
   };
 }
 
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
-  if (tracker) tracker._attach(eventBus);
+  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus, client);
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );

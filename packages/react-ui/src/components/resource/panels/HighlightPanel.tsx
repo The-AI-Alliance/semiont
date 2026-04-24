@@ -132,7 +132,7 @@ export function HighlightPanel({
   // per the W3C Web Annotation Model.
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      session?.client.emit('mark:submit', {
+      session?.client.mark.submit({
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
       });

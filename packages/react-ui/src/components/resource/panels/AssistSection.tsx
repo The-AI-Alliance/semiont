@@ -70,15 +70,11 @@ export function AssistSection({
       annotationType === 'assessment' ? 'assessing' :
       'commenting';
 
-    // Emit mark:assist-request event with options
-    session?.client.emit('mark:assist-request', {
-      motivation,
-      options: {
-        instructions: instructions.trim() || undefined,
-        tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
-        density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
-        language: (annotationType === 'comment' || annotationType === 'assessment') ? locale : undefined,
-      },
+    session?.client.mark.requestAssist(motivation, {
+      instructions: instructions.trim() || undefined,
+      tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
+      density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
+      language: (annotationType === 'comment' || annotationType === 'assessment') ? locale : undefined,
     });
 
     setInstructions('');
@@ -87,7 +83,7 @@ export function AssistSection({
   }, [annotationType, instructions, tone, useDensity, density, locale, session]);
 
   const handleDismissProgress = useCallback(() => {
-    session?.client.emit('mark:progress-dismiss', undefined);
+    session?.client.mark.dismissProgress();
   }, [session]);
 
   return (

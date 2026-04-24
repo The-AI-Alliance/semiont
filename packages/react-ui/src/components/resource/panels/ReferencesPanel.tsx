@@ -203,12 +203,9 @@ export function ReferencesPanel({
   // Clear log when starting new annotation
   const handleAssist = () => {
     setLastDetectionLog(null);
-    session?.client.emit('mark:assist-request', {
-      motivation: 'linking',
-      options: {
-        entityTypes: selectedEntityTypes,
-        includeDescriptiveReferences,
-      },
+    session?.client.mark.requestAssist('linking', {
+      entityTypes: selectedEntityTypes,
+      includeDescriptiveReferences,
     });
   };
 
@@ -246,7 +243,7 @@ export function ReferencesPanel({
   const handleCreateReference = () => {
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
-      session?.client.emit('mark:submit', {
+      session?.client.mark.submit({
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
@@ -261,7 +258,7 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        session?.client.emit('mark:cancel-pending', undefined);
+        session?.client.mark.cancelPending();
         setPendingEntityTypes([]);
       }
     };
@@ -313,7 +310,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  session?.client.emit('mark:cancel-pending', undefined);
+                  session?.client.mark.cancelPending();
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"

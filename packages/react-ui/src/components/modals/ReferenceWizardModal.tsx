@@ -143,7 +143,7 @@ export function ReferenceWizardModal({
     if (!annotationId || !context || !resourceId) return;
     setIsSearching(true);
     const contextWithHint = userHint ? { ...context, userHint } : context;
-    session?.client.emit('match:search-requested', {
+    session?.client.match.requestSearch({
       correlationId: crypto.randomUUID(),
       resourceId,
       referenceId: annotationId,

@@ -1,14 +1,21 @@
 import { Observable } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { ResourceId, GatheredContext, EventBus } from '@semiont/core';
+import type { ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
+import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
 import type { MatchNamespace as IMatchNamespace, MatchSearchProgress } from './types';
 
 export class MatchNamespace implements IMatchNamespace {
   constructor(
+    private readonly http: SemiontApiClient,
     private readonly eventBus: EventBus,
     private readonly actor: ActorVM,
   ) {}
+
+  requestSearch(input: components['schemas']['MatchSearchRequest']): void {
+    // Local emit: match-vm subscribes via `client.stream`.
+    this.http.emit('match:search-requested', input);
+  }
 
   search(
     resourceId: ResourceId,

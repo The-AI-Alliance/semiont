@@ -308,12 +308,12 @@ export class SemiontApiClient {
     // Verb-oriented namespace API
     this.browse = new BrowseNamespace(this, this.eventBus, getToken, this.actor);
     this.mark = new MarkNamespace(this, this.eventBus, getToken, this.actor);
-    this.bind = new BindNamespace(this.actor);
+    this.bind = new BindNamespace(this, this.actor);
     this.gather = new GatherNamespace(this.eventBus, this.actor);
-    this.match = new MatchNamespace(this.eventBus, this.actor);
+    this.match = new MatchNamespace(this, this.eventBus, this.actor);
     this.yield = new YieldNamespace(this, this.eventBus, getToken, this.actor);
     this.beckon = new BeckonNamespace(this, this.actor);
-    this.job = new JobNamespace(this.actor);
+    this.job = new JobNamespace(this, this.actor);
     this.auth = new AuthNamespace(this, getToken);
     this.admin = new AdminNamespace(this, getToken);
 

@@ -241,10 +241,10 @@ export function ResourceViewer({
     };
   };
 
-  // Handle deleting annotations - emit event instead of direct call
+  // Handle deleting annotations
   const handleDeleteAnnotation = useCallback((id: string) => {
-    session?.client.emit('mark:delete', { annotationId: toAnnotationId(id) });
-  }, [session]);
+    session?.client.mark.delete(rUri, toAnnotationId(id));
+  }, [session, rUri]);
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {

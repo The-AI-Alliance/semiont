@@ -11,8 +11,12 @@ import { BehaviorSubject, Subject } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import { EventBus, annotationId, resourceId } from '@semiont/core';
 import { BeckonNamespace } from '../beckon';
+import { BindNamespace } from '../bind';
 import { BrowseNamespace } from '../browse';
+import { JobNamespace } from '../job';
 import { MarkNamespace } from '../mark';
+import { MatchNamespace } from '../match';
+import { YieldNamespace } from '../yield';
 import type { SemiontApiClient } from '../../client';
 import type { ActorVM, BusEvent, ConnectionState } from '../../view-models/domain/actor-vm';
 
@@ -116,6 +120,218 @@ describe('UI signal wrappers', () => {
         selector,
         motivation: 'highlighting',
       });
+    });
+  });
+
+  // ── Phase 2 wrappers ────────────────────────────────────────────────────
+
+  describe('beckon.sparkle', () => {
+    it('emits beckon:sparkle with the given annotationId (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const beckon = new BeckonNamespace(client, actor);
+
+      beckon.sparkle(AID);
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('beckon:sparkle', { annotationId: AID });
+    });
+  });
+
+  describe('bind.initiate', () => {
+    it('emits bind:initiate with the given command payload (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const bind = new BindNamespace(client, actor);
+
+      const payload = {
+        annotationId: AID as string,
+        resourceId: RID as string,
+        defaultTitle: 'Some Title',
+        entityTypes: ['Person'],
+      };
+      bind.initiate(payload);
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('bind:initiate', payload);
+    });
+  });
+
+  describe('yield.clone', () => {
+    it('emits yield:clone with no payload (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const yieldNs = new YieldNamespace(client, new EventBus(), () => undefined, actor);
+
+      yieldNs.clone();
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('yield:clone', undefined);
+    });
+  });
+
+  describe('match.requestSearch', () => {
+    it('emits match:search-requested with the given payload (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const match = new MatchNamespace(client, new EventBus(), actor);
+
+      const payload = {
+        correlationId: 'corr-1',
+        resourceId: RID as string,
+        referenceId: AID as string,
+        context: { text: 'ctx' } as never,
+        limit: 10,
+        useSemanticScoring: true,
+      };
+      match.requestSearch(payload);
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('match:search-requested', payload);
+    });
+  });
+
+  describe('job.cancelRequest', () => {
+    it('emits job:cancel-requested with the given jobType (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const job = new JobNamespace(client, actor);
+
+      job.cancelRequest('annotation');
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('job:cancel-requested', {
+        jobType: 'annotation',
+      });
+    });
+  });
+
+  describe('mark.submit', () => {
+    it('emits mark:submit with the given payload (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      const payload = {
+        motivation: 'commenting' as const,
+        selector: { type: 'TextQuoteSelector' as const, exact: 'x' },
+        body: [{ type: 'TextualBody' as const, value: 'hi', purpose: 'commenting' as const }],
+      };
+      mark.submit(payload);
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:submit', payload);
+    });
+  });
+
+  describe('mark.cancelPending', () => {
+    it('emits mark:cancel-pending with no payload (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.cancelPending();
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:cancel-pending', undefined);
+    });
+  });
+
+  describe('mark.requestAssist', () => {
+    it('emits mark:assist-request with motivation and options (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.requestAssist('linking', { entityTypes: ['Person'] });
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:assist-request', {
+        motivation: 'linking',
+        options: { entityTypes: ['Person'] },
+      });
+    });
+
+    it('threads correlationId when provided', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.requestAssist('highlighting', { density: 5 }, 'corr-123');
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:assist-request', {
+        motivation: 'highlighting',
+        options: { density: 5 },
+        correlationId: 'corr-123',
+      });
+    });
+  });
+
+  describe('mark.dismissProgress', () => {
+    it('emits mark:progress-dismiss with no payload (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.dismissProgress();
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:progress-dismiss', undefined);
+    });
+  });
+
+  describe('mark.changeSelection', () => {
+    it('emits mark:selection-changed with motivation (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.changeSelection('linking');
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:selection-changed', {
+        motivation: 'linking',
+      });
+    });
+
+    it('emits mark:selection-changed with null on deselect', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.changeSelection(null);
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:selection-changed', {
+        motivation: null,
+      });
+    });
+  });
+
+  describe('mark.changeClick', () => {
+    it('emits mark:click-changed with the given action (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.changeClick('view');
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:click-changed', { action: 'view' });
+    });
+  });
+
+  describe('mark.changeShape', () => {
+    it('emits mark:shape-changed with the given shape (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.changeShape('rectangle');
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:shape-changed', {
+        shape: 'rectangle',
+      });
+    });
+  });
+
+  describe('mark.toggleMode', () => {
+    it('emits mark:mode-toggled with no payload (local bus)', () => {
+      const { actor } = createMockActor();
+      const { client, clientEmitSpy } = createMockClient();
+      const mark = new MarkNamespace(client, new EventBus(), () => undefined, actor);
+
+      mark.toggleMode();
+
+      expect(clientEmitSpy).toHaveBeenCalledExactlyOnceWith('mark:mode-toggled', undefined);
     });
   });
 });

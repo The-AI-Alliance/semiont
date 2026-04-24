@@ -61,36 +61,57 @@ All domain calls go through `session.client`. Namespaces mirror the bus-protocol
 
 ```typescript
 // Browse — reads from materialized views; UI signals
-const resource = session.client.browse.resource(resourceId);       // Observable
-const annotations = session.client.browse.annotations(resourceId); // Observable
-const content = await session.client.browse.resourceContent(rid);   // Promise
-session.client.browse.click(annotationId, motivation);               // void (UI signal)
-session.client.browse.navigateReference(resourceId);                 // void (UI signal)
+const resource = session.client.browse.resource(resourceId);         // Observable
+const annotations = session.client.browse.annotations(resourceId);   // Observable
+const content = await session.client.browse.resourceContent(rid);     // Promise
+session.client.browse.click(annotationId, motivation);                // void (UI signal)
+session.client.browse.navigateReference(resourceId);                  // void (UI signal)
 
-// Mark — annotation CRUD + AI assist; UI signals
+// Mark — annotation CRUD + AI assist; pending-annotation flow; toolbar state
 await session.client.mark.annotation(resourceId, input);
 await session.client.mark.delete(resourceId, annotationId);
-session.client.mark.assist(resourceId, 'linking', options);         // Observable (progress)
-session.client.mark.request(selector, motivation);                   // void (UI signal)
+await session.client.mark.archive(resourceId);
+await session.client.mark.unarchive(resourceId);
+session.client.mark.assist(resourceId, 'linking', options);           // Observable (progress)
+
+session.client.mark.request(selector, motivation);                    // UI: request a new annotation
+session.client.mark.submit({ motivation, selector, body? });          // UI: submit pending annotation
+session.client.mark.cancelPending();                                   // UI: cancel pending annotation
+session.client.mark.requestAssist(motivation, options);               // UI: fire-and-forget assist trigger
+session.client.mark.dismissProgress();                                 // UI: dismiss assist progress
+
+session.client.mark.changeSelection(motivation | null);               // UI: toolbar selection state
+session.client.mark.changeClick(action);                              // UI: toolbar click-mode state
+session.client.mark.changeShape(shape);                               // UI: toolbar shape state
+session.client.mark.toggleMode();                                      // UI: annotate-mode toggle
 
 // Bind — reference linking
 await session.client.bind.body(resourceId, annotationId, operations);
+session.client.bind.initiate({ annotationId, resourceId, defaultTitle, entityTypes }); // UI signal
 
 // Gather — LLM context assembly
-session.client.gather.annotation(annotationId, resourceId);         // Observable (progress → context)
+session.client.gather.annotation(annotationId, resourceId);           // Observable (progress → context)
 
 // Match — semantic search
-session.client.match.search(resourceId, referenceId, context);      // Observable (results)
+session.client.match.search(resourceId, referenceId, context);        // Observable (results)
+session.client.match.requestSearch({ correlationId, resourceId, referenceId, context, ... }); // fire-and-forget
 
 // Yield — resource creation + AI generation
 await session.client.yield.resource(data);
-session.client.yield.fromAnnotation(resourceId, annotationId, opts); // Observable (progress)
+session.client.yield.fromAnnotation(resourceId, annotationId, opts);  // Observable (progress)
+session.client.yield.clone();                                          // UI: clone-resource action
 
 // Beckon — attention coordination
-session.client.beckon.attention(annotationId, resourceId);           // void (ephemeral)
-session.client.beckon.hover(annotationId);                           // void (UI signal; null on unhover)
+session.client.beckon.attention(annotationId, resourceId);            // void (ephemeral)
+session.client.beckon.hover(annotationId);                            // void (UI signal; null on unhover)
+session.client.beckon.sparkle(annotationId);                          // void (UI signal)
 
-// + Job, Auth, Admin namespaces
+// Job
+await session.client.job.status(jobId);
+await session.client.job.cancel(jobId, type);
+session.client.job.cancelRequest('annotation');                        // UI: cancel all jobs of a type
+
+// + Auth, Admin namespaces
 ```
 
 ## Return Type Conventions

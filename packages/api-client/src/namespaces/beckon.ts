@@ -17,4 +17,8 @@ export class BeckonNamespace implements IBeckonNamespace {
     // Local emit: beckon-vm subscribes via `client.stream` (local bus).
     this.http.emit('beckon:hover', { annotationId });
   }
+
+  sparkle(annotationId: AnnotationId): void {
+    this.http.emit('beckon:sparkle', { annotationId });
+  }
 }

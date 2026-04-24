@@ -85,7 +85,7 @@ export function ReferenceEntry({
   };
 
   const handleInitiateWizard = () => {
-    session?.client.emit('bind:initiate', {
+    session?.client.bind.initiate({
       annotationId: annotationId(reference.id),
       resourceId: resourceId(source),
       defaultTitle: selectedText,
