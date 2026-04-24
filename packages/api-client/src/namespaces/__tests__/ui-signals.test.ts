@@ -144,8 +144,8 @@ describe('UI signal wrappers', () => {
       const bind = new BindNamespace(client, actor);
 
       const payload = {
-        annotationId: AID as string,
-        resourceId: RID as string,
+        annotationId: AID,
+        resourceId: RID,
         defaultTitle: 'Some Title',
         entityTypes: ['Person'],
       };

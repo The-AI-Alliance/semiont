@@ -18,7 +18,7 @@
  */
 
 import type { Observable } from 'rxjs';
-import type { components, paths } from '@semiont/core';
+import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
@@ -240,7 +240,7 @@ export interface BindNamespace {
   body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void>;
 
   /** UI signal: a reference-binding flow is requested for an annotation. */
-  initiate(input: components['schemas']['BindInitiateCommand']): void;
+  initiate(input: EventMap['bind:initiate']): void;
 }
 
 /**

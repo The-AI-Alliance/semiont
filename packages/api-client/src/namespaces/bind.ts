@@ -1,4 +1,4 @@
-import type { ResourceId, AnnotationId, BodyOperation, components } from '@semiont/core';
+import type { ResourceId, AnnotationId, BodyOperation, EventMap } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
 import type { BindNamespace as IBindNamespace } from './types';
@@ -18,7 +18,7 @@ export class BindNamespace implements IBindNamespace {
     });
   }
 
-  initiate(input: components['schemas']['BindInitiateCommand']): void {
+  initiate(input: EventMap['bind:initiate']): void {
     // Local emit: resource-viewer-page-vm subscribes via `client.stream`.
     this.http.emit('bind:initiate', input);
   }

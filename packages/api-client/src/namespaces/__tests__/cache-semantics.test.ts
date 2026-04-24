@@ -67,7 +67,7 @@ function fakeMarkRemoved(rId: ResourceId, annIdStr: string): StoredEvent<EventOf
     userId: TEST_USER_ID,
     version: 1,
     timestamp: '2026-01-01T00:00:00Z',
-    payload: { annotationId: annIdStr },
+    payload: { annotationId: annotationId(annIdStr) },
     metadata: TEST_METADATA,
   };
 }
