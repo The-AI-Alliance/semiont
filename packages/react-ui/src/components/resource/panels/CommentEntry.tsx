@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useImperativeHandle, type Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/core';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
@@ -87,7 +88,7 @@ export function CommentEntry({
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.emit('browse:click', { annotationId: comment.id, motivation: comment.motivation });
+        session?.client.browse.click(toAnnotationId(comment.id), comment.motivation);
       }}
       {...hoverProps}
     >

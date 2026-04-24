@@ -2,6 +2,7 @@
 
 import type { Ref } from 'react';
 import type { components } from '@semiont/core';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
@@ -51,7 +52,7 @@ export function HighlightEntry({
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.emit('browse:click', { annotationId: highlight.id, motivation: highlight.motivation });
+        session?.client.browse.click(toAnnotationId(highlight.id), highlight.motivation);
       }}
       {...hoverProps}
     >

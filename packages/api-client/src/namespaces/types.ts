@@ -168,6 +168,10 @@ export interface BrowseNamespace {
   backlinks(resourceId: ResourceId): Promise<Annotation[]>;
   resourcesByName(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
+
+  // UI signals (fire-and-forget, broadcast to other participants via the bus)
+  click(annotationId: AnnotationId, motivation: Motivation): void;
+  navigateReference(resourceId: ResourceId): void;
 }
 
 /**
@@ -196,6 +200,12 @@ export interface MarkNamespace {
 
   // AI-assisted annotation (long-running, returns Observable with progress)
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistProgress>;
+
+  // UI signals (fire-and-forget)
+  request(
+    selector: components['schemas']['MarkRequestedEvent']['selector'],
+    motivation: Motivation,
+  ): void;
 }
 
 /**
@@ -289,6 +299,7 @@ export interface YieldNamespace {
  */
 export interface BeckonNamespace {
   attention(annotationId: AnnotationId, resourceId: ResourceId): void;
+  hover(annotationId: AnnotationId | null): void;
 }
 
 /**

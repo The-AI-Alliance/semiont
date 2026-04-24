@@ -149,7 +149,7 @@ export function ResourceInfoPanel({
                     <button
                       key={id}
                       className="semiont-resource-info-panel__link"
-                      onClick={() => session?.client.emit('browse:reference-navigate', { resourceId: id })}
+                      onClick={() => session?.client.browse.navigateReference(makeResourceId(id))}
                     >
                       {i > 0 && ', '}{id}
                     </button>

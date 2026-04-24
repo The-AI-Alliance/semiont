@@ -7,6 +7,7 @@ import type {
   AnnotationId,
   AccessToken,
   GraphConnection,
+  Motivation,
   components,
 } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
@@ -316,6 +317,16 @@ export class BrowseNamespace implements IBrowseNamespace {
       'browse:directory-result',
       'browse:directory-failed',
     );
+  }
+
+  // ── UI signals (fire-and-forget bus emits) ─────────────────────────────
+
+  click(annotationId: AnnotationId, motivation: Motivation): void {
+    this.actor.emit('browse:click', { annotationId, motivation }).catch(() => {});
+  }
+
+  navigateReference(resourceId: ResourceId): void {
+    this.actor.emit('browse:reference-navigate', { resourceId }).catch(() => {});
   }
 
   // ── Cache-mutation API (used by the bus-event subscribers below and by

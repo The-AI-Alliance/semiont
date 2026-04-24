@@ -6,6 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } fr
 import { markdown } from '@codemirror/lang-markdown';
 import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from '../lib/codemirror-widgets';
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { isReference, createHoverHandlers, type SemiontSession } from '@semiont/api-client';
 import {
   convertSegmentPositions,
@@ -301,7 +302,7 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => sessionRef.current?.client.emit('beckon:hover', { annotationId }),
+      (id) => sessionRef.current?.client.beckon.hover(id ? toAnnotationId(id) : null),
       hoverDelayMs
     );
 

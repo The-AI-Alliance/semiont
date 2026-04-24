@@ -10,4 +10,8 @@ export class BeckonNamespace implements IBeckonNamespace {
   attention(annotationId: AnnotationId, resourceId: ResourceId): void {
     this.actor.emit('beckon:focus', { annotationId, resourceId }).catch(() => {});
   }
+
+  hover(annotationId: AnnotationId | null): void {
+    this.actor.emit('beckon:hover', { annotationId }).catch(() => {});
+  }
 }

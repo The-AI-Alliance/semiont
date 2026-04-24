@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { getMimeCategory, isPdfMimeType, createHoverHandlers } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
@@ -135,13 +136,13 @@ export const BrowseView = memo(function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          session.client.emit('browse:click', { annotationId, motivation: annotation.motivation });
+          session.client.browse.click(toAnnotationId(annotationId), annotation.motivation);
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => session.client.emit('beckon:hover', { annotationId }),
+      (id) => session.client.beckon.hover(id ? toAnnotationId(id) : null),
       hoverDelayMs
     );
 

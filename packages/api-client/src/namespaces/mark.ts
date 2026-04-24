@@ -6,6 +6,7 @@ import type {
   Motivation,
   AccessToken,
   EventBus,
+  components,
 } from '@semiont/core';
 import type { SemiontApiClient } from '../client';
 import type { ActorVM } from '../view-models/domain/actor-vm';
@@ -156,6 +157,13 @@ export class MarkNamespace implements IMarkNamespace {
         failSub.unsubscribe();
       };
     });
+  }
+
+  request(
+    selector: components['schemas']['MarkRequestedEvent']['selector'],
+    motivation: Motivation,
+  ): void {
+    this.actor.emit('mark:requested', { selector, motivation }).catch(() => {});
   }
 
   private async dispatchAssist(

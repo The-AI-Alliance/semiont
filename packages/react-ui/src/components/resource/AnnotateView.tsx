@@ -176,10 +176,7 @@ export function AnnotateView({
         const selectors = buildTextSelectors(content, text, start, end);
         if (!selectors) return;
 
-        session?.client.emit('mark:requested', {
-          selector: selectors,
-          motivation: selectedMotivation
-        });
+        session?.client.mark.request(selectors, selectedMotivation);
 
         // Clear selection after creating annotation
         selection.removeAllRanges();

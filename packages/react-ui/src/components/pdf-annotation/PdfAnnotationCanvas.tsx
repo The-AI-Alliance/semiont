@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { components } from '@semiont/core';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { createHoverHandlers, getTargetSelector, type SemiontSession } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import {
@@ -278,7 +279,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          session?.client.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          session?.client.browse.click(toAnnotationId(clickedAnnotation.id), clickedAnnotation.motivation);
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -317,14 +318,14 @@ export function PdfAnnotationCanvas({
 
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
-      session.client.emit('mark:requested', {
-        selector: {
+      session.client.mark.request(
+        {
           type: 'FragmentSelector',
           conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
-          value: fragmentSelector
+          value: fragmentSelector,
         },
-        motivation: selectedMotivation
-      });
+        selectedMotivation,
+      );
     }
 
     // Keep drawing state active to show preview until annotation is persisted
@@ -355,7 +356,7 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => session?.client.emit('beckon:hover', { annotationId }), hoverDelayMs),
+    () => createHoverHandlers((id) => session?.client.beckon.hover(id ? toAnnotationId(id) : null), hoverDelayMs),
     [session, hoverDelayMs]
   );
 
@@ -455,7 +456,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => session?.client.emit('browse:click', { annotationId: ann.id, motivation: ann.motivation })}
+                      onClick={() => session?.client.browse.click(toAnnotationId(ann.id), ann.motivation)}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

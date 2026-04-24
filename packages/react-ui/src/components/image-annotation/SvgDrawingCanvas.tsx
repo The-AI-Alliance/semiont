@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import type { components } from '@semiont/core';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -212,7 +213,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          session?.client.emit('browse:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          session?.client.browse.click(toAnnotationId(clickedAnnotation.id), clickedAnnotation.motivation);
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -275,13 +276,10 @@ export function SvgDrawingCanvas({
 
     // Emit annotation:requested event with SvgSelector
     if (session && selectedMotivation) {
-      session.client.emit('mark:requested', {
-        selector: {
-          type: 'SvgSelector',
-          value: nativeSvg
-        },
-        motivation: selectedMotivation
-      });
+      session.client.mark.request(
+        { type: 'SvgSelector', value: nativeSvg },
+        selectedMotivation,
+      );
     }
 
     // Reset drawing state

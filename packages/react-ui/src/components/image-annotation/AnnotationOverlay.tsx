@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { components } from '@semiont/core';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { createHoverHandlers, getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
 import type { SemiontSession } from '@semiont/api-client';
@@ -80,7 +81,7 @@ export function AnnotationOverlay({
   const scaleY = displayHeight / imageHeight;
 
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => session?.client.emit('beckon:hover', { annotationId }), hoverDelayMs),
+    () => createHoverHandlers((id) => session?.client.beckon.hover(id ? toAnnotationId(id) : null), hoverDelayMs),
     [session, hoverDelayMs]
   );
 
@@ -130,7 +131,7 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => session?.client.emit('browse:click', { annotationId: annotation.id, motivation: annotation.motivation })}
+                  onClick={() => session?.client.browse.click(toAnnotationId(annotation.id), annotation.motivation)}
                   onMouseEnter={() => handleMouseEnter(annotation.id)}
                   onMouseLeave={handleMouseLeave}
                 />
@@ -143,7 +144,7 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      session?.client.emit('browse:click', { annotationId: annotation.id, motivation: annotation.motivation });
+                      session?.client.browse.click(toAnnotationId(annotation.id), annotation.motivation);
                     }}
                     onMouseEnter={() => handleMouseEnter(annotation.id)}
                     onMouseLeave={handleMouseLeave}
@@ -177,7 +178,7 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => session?.client.emit('browse:click', { annotationId: annotation.id, motivation: annotation.motivation })}
+                  onClick={() => session?.client.browse.click(toAnnotationId(annotation.id), annotation.motivation)}
                   onMouseEnter={() => handleMouseEnter(annotation.id)}
                   onMouseLeave={handleMouseLeave}
                 />
@@ -190,7 +191,7 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      session?.client.emit('browse:click', { annotationId: annotation.id, motivation: annotation.motivation });
+                      session?.client.browse.click(toAnnotationId(annotation.id), annotation.motivation);
                     }}
                     onMouseEnter={() => handleMouseEnter(annotation.id)}
                     onMouseLeave={handleMouseLeave}
@@ -237,7 +238,7 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => session?.client.emit('browse:click', { annotationId: annotation.id, motivation: annotation.motivation })}
+                  onClick={() => session?.client.browse.click(toAnnotationId(annotation.id), annotation.motivation)}
                   onMouseEnter={() => handleMouseEnter(annotation.id)}
                   onMouseLeave={handleMouseLeave}
                 />
@@ -250,7 +251,7 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      session?.client.emit('browse:click', { annotationId: annotation.id, motivation: annotation.motivation });
+                      session?.client.browse.click(toAnnotationId(annotation.id), annotation.motivation);
                     }}
                     onMouseEnter={() => handleMouseEnter(annotation.id)}
                     onMouseLeave={handleMouseLeave}
