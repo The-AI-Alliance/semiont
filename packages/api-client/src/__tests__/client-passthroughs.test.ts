@@ -284,8 +284,8 @@ describe('SemiontClient passthrough wiring', () => {
       });
 
       let capturedCorrelationId = '';
-      emit.mockImplementation(async (_channel: string, payload: Record<string, unknown>) => {
-        capturedCorrelationId = payload.correlationId as string;
+      emit.mockImplementation(async (_channel, payload) => {
+        capturedCorrelationId = (payload as Record<string, unknown>).correlationId as string;
       });
 
       const promise = client.getAnnotation(aId);
