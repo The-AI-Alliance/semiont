@@ -1,12 +1,12 @@
 ---
 name: semiont-wiki
-description: Run the knowledge enrichment pipeline on a resource using @semiont/api-client — detect entity references, resolve them against the KB, and generate new resources for unresolved ones
+description: Run the knowledge enrichment pipeline on a resource using @semiont/sdk — detect entity references, resolve them against the KB, and generate new resources for unresolved ones
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping implement the Semiont knowledge enrichment pipeline using `@semiont/api-client`. This pipeline transforms a document into a connected wiki: it detects entity mentions, links them to existing resources in the knowledge base, and generates new stub resources for anything that isn't there yet.
+You are helping implement the Semiont knowledge enrichment pipeline using `@semiont/sdk`. This pipeline transforms a document into a connected wiki: it detects entity mentions, links them to existing resources in the knowledge base, and generates new stub resources for anything that isn't there yet.
 
 The pipeline has five steps:
 
@@ -30,7 +30,7 @@ import {
   resourceId,
   annotationId,
   type KnowledgeBase,
-} from '@semiont/api-client';
+} from '@semiont/sdk';
 import { entityType, type GatheredContext } from '@semiont/core';
 import { firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -155,7 +155,7 @@ import {
   resourceId,
   annotationId,
   type KnowledgeBase,
-} from '@semiont/api-client';
+} from '@semiont/sdk';
 import { entityType, type GatheredContext } from '@semiont/core';
 import { firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';

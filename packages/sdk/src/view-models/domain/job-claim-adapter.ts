@@ -17,7 +17,7 @@
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { firstValueFrom, merge, filter, map, take, timeout } from 'rxjs';
-import type { ActorVM } from './actor-vm';
+import type { ActorVM } from '@semiont/api-client';
 
 export interface JobAssignment {
   jobId: string;

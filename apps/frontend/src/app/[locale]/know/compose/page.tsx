@@ -20,7 +20,7 @@ import {
   ResourceComposePage,
 } from '@semiont/react-ui';
 import type { SaveResourceParams as UISaveResourceParams } from '@semiont/react-ui';
-import { createComposePageVM } from '@semiont/api-client';
+import { createComposePageVM } from '@semiont/sdk';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 function ComposeResourceContent() {

@@ -11,7 +11,7 @@ import {
   useViewModel,
   AdminExchangePage,
 } from '@semiont/react-ui';
-import { createExchangeVM } from '@semiont/api-client';
+import { createExchangeVM } from '@semiont/sdk';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function AdminExchangeClient() {

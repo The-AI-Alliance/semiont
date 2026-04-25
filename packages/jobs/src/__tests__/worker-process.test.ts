@@ -27,7 +27,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ActiveJob, JobClaimAdapter, SemiontSession } from '@semiont/api-client';
+import type { ActiveJob, JobClaimAdapter, SemiontSession } from '@semiont/sdk';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
 import {
   processHighlightJob,
@@ -393,8 +393,8 @@ describe('startWorkerProcess', () => {
     const failJob = vi.fn();
     const adapterStart = vi.fn();
 
-    vi.doMock('@semiont/api-client', async () => {
-      const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+    vi.doMock('@semiont/sdk', async () => {
+      const actual = await vi.importActual<typeof import('@semiont/sdk')>('@semiont/sdk');
       return {
         ...actual,
         createJobClaimAdapter: vi.fn(() => ({
@@ -434,7 +434,7 @@ describe('startWorkerProcess', () => {
     expect(h.busEmits.map((e) => e.channel)).toContain('job:start');
     expect(h.busEmits.map((e) => e.channel)).toContain('job:complete');
 
-    vi.doUnmock('@semiont/api-client');
+    vi.doUnmock('@semiont/sdk');
     vi.resetModules();
   });
 
@@ -445,8 +445,8 @@ describe('startWorkerProcess', () => {
     const failJob = vi.fn();
     const adapterStart = vi.fn();
 
-    vi.doMock('@semiont/api-client', async () => {
-      const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
+    vi.doMock('@semiont/sdk', async () => {
+      const actual = await vi.importActual<typeof import('@semiont/sdk')>('@semiont/sdk');
       return {
         ...actual,
         createJobClaimAdapter: vi.fn(() => ({
@@ -486,7 +486,7 @@ describe('startWorkerProcess', () => {
     expect(failEmit!.scope).toBe(RID);
     expect(failJob).toHaveBeenCalledWith(JID, 'inference blew up');
 
-    vi.doUnmock('@semiont/api-client');
+    vi.doUnmock('@semiont/sdk');
     vi.resetModules();
   });
 });

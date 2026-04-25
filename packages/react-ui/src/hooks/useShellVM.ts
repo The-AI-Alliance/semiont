@@ -1,6 +1,6 @@
 'use client';
 
-import { createShellVM, type ShellVM, type ToolbarPanelType } from '@semiont/api-client';
+import { createShellVM, type ShellVM, type ToolbarPanelType } from '@semiont/sdk';
 import { useSemiont } from '../session/SemiontProvider';
 import { useViewModel } from './useViewModel';
 

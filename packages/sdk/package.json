@@ -1,0 +1,60 @@
+{
+  "name": "@semiont/sdk",
+  "version": "0.4.22",
+  "description": "Semiont SDK — SemiontClient, namespaces, session/browser, view-models, and the bus-request/cache helpers. Transport-agnostic; pair with @semiont/api-client (HttpTransport) or @semiont/make-meaning (LocalTransport) for the wire.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/sdk"
+  },
+  "scripts": {
+    "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/api-client --if-present",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@semiont/api-client": "*",
+    "@semiont/core": "*",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.6.3"
+  },
+  "keywords": [
+    "semiont",
+    "sdk",
+    "client",
+    "annotations",
+    "w3c"
+  ],
+  "author": "Semiont Team",
+  "license": "Apache-2.0"
+}

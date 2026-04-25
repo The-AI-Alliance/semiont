@@ -8,7 +8,8 @@ import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-pa
 import { SemiontProject } from '@semiont/core/node';
 import type { BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
-import { HttpContentTransport, HttpTransport, SemiontClient } from '@semiont/api-client';
+import { SemiontClient } from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
 import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**

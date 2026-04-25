@@ -16,7 +16,7 @@ import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
-import { createGatherVM } from '@semiont/api-client';
+import { createGatherVM } from '@semiont/sdk';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';

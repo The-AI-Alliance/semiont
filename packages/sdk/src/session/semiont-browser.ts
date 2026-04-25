@@ -21,8 +21,8 @@ import {
   type EventMap,
 } from '@semiont/core';
 import { SemiontClient } from '../client';
-import { HttpTransport } from '../transport/http-transport';
-import { HttpContentTransport } from '../transport/http-content-transport';
+import { HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport } from '@semiont/api-client';
 import {
   ACTIVE_KEY,
   clearStoredSession,

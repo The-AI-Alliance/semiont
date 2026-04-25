@@ -5,8 +5,7 @@
  */
 
 import React, { useRef, useState, useCallback } from 'react';
-import type { ImportPreview } from '@semiont/api-client';
-
+import type { ImportPreview } from '@semiont/sdk';
 export type { ImportPreview };
 
 export interface ImportCardTranslations {

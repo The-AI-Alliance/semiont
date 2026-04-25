@@ -303,7 +303,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 ```typescript
 import { Context, Next } from 'hono';
 import { OAuthService } from '../auth/oauth';
-import { accessToken } from '@semiont/api-client';
+import { accessToken } from '@semiont/core';
 
 export const authMiddleware = async (c: Context, next: Next): Promise<Response | void> => {
   const logger = c.get('logger');

@@ -11,7 +11,7 @@ import {
   useViewModel,
   EntityTagsPage,
 } from '@semiont/react-ui';
-import { createEntityTagsVM } from '@semiont/api-client';
+import { createEntityTagsVM } from '@semiont/sdk';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function EntityTagsPageWrapper() {

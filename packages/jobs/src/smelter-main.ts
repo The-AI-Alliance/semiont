@@ -15,7 +15,7 @@
 
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import { createSmelterActorVM, type SmelterActorVM } from '@semiont/api-client';
+import { createSmelterActorVM, type SmelterActorVM } from '@semiont/sdk';
 import { burstBuffer, createTomlConfigLoader } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';

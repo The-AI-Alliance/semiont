@@ -12,8 +12,7 @@ import {
   CheckCircleIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
-
+import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/sdk';
 export interface OAuthProvider {
   name: string;
   clientId?: string;

@@ -5,7 +5,7 @@ import type { Annotation } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/core';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
-import type { SemiontSession } from '@semiont/api-client';
+import type { SemiontSession } from '@semiont/sdk';
 import { useHoverDelay } from '../../hooks/useHoverDelay';
 
 export type DrawingMode = 'rectangle' | 'polygon' | 'circle' | 'freeform' | null;

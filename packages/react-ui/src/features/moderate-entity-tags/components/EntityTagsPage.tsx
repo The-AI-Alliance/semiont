@@ -11,8 +11,7 @@ import {
   PlusIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
-
+import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/sdk';
 export interface EntityTagsPageProps {
   // Data props
   entityTypes: string[];

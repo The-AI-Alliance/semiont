@@ -26,8 +26,7 @@ import {
   type ResourceId,
 } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
-import { SemiontClient } from '@semiont/api-client';
-
+import { SemiontClient } from '@semiont/sdk';
 import { LocalTransport } from '../local-transport';
 import { LocalContentTransport } from '../local-content-transport';
 import { ResourceOperations } from '../resource-operations';

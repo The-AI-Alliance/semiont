@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
 import { getResourceId, getPrimaryRepresentation } from '@semiont/core';
-import { createSearchPipeline } from '@semiont/api-client';
+import { createSearchPipeline } from '@semiont/sdk';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';

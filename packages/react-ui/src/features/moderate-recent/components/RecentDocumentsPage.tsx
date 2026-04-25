@@ -7,8 +7,7 @@
 
 import React from 'react';
 import { ClockIcon } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
-
+import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/sdk';
 export interface RecentDocumentsPageProps {
   // Data props
   hasDocuments: boolean;

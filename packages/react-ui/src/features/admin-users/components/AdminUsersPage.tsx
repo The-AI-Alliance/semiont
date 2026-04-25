@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
+import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/sdk';
 import {
   PlusIcon,
   MagnifyingGlassIcon,

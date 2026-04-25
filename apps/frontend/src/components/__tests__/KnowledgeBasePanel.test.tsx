@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import type { KnowledgeBase } from '@semiont/api-client';
-
+import type { KnowledgeBase } from '@semiont/sdk';
 const translations: Record<string, string> = {
   'KnowledgeBasePanel.title': 'Knowledge Bases',
   'KnowledgeBasePanel.connectTitle': 'Connect to Knowledge Base',

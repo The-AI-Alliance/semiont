@@ -77,7 +77,7 @@ Human actors interact through the **Semiont Browser** — the `apps/frontend` si
 
 The SPA is internally a literal Model–View–ViewModel split:
 
-- **Model** — `@semiont/api-client` namespaces (browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
+- **Model** — `@semiont/sdk` namespaces (browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
 - **ViewModel** — one factory per verb (`createBrowseVM`, `createMarkVM`, `createBindVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBeckonVM`) plus page-level composite VMs; pure RxJS, framework-agnostic, unit-testable without a renderer.
 - **View** — React components in `@semiont/react-ui` and `apps/frontend`, reduced to two adapters (`useViewModel`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 
@@ -296,9 +296,9 @@ The three Semiont-code backend containers communicate exclusively through the un
 
 ### Unified Bus and SemiontSession
 
-Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, and smelter — is a bus participant using the same primitives in `@semiont/api-client`. The backend exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
+Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, and smelter — is a bus participant using the same primitives in `@semiont/sdk`. The backend exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
 
-The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/api-client` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontApiClient` exposes `emit`, `on`, and `stream` methods over its private bus; the invariant "nothing outside client or session touches the bus" is type-enforced rather than convention.
+The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/sdk` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the sdk and not part of the consumer surface.
 
 A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker and smelter containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the frontend; just different storage and different channels.
 
@@ -332,10 +332,18 @@ Semiont is a monorepo with modular packages organized in four layers:
 
 ```
 Foundation Layer:
-  @semiont/core           - Core types, EventBus, event map, branded IDs
-  @semiont/api-client     - OpenAPI-generated types; unified bus client; SemiontSession
-                            and storage adapters; ViewModel factories (MVVM); ActorVM /
-                            WorkerVM / SmelterActorVM primitives
+  @semiont/core           - OpenAPI-generated types, branded IDs, event map,
+                            EventBus, ITransport contract, W3C-annotation and
+                            ResourceDescriptor accessors, locale/text helpers
+  @semiont/sdk            - SemiontClient, verb-oriented namespaces (browse,
+                            mark, bind, gather, match, yield, beckon, job,
+                            auth, admin), SemiontSession + SemiontBrowser +
+                            storage adapters, ViewModel factories (MVVM),
+                            bus-request, cache. Pre-bundles HttpTransport from
+                            api-client for convenience.
+  @semiont/api-client     - HTTP-specific transport adapters (HttpTransport,
+                            HttpContentTransport) plus the SSE actor-vm
+                            machinery they use.
 
 Domain Layer:
   @semiont/ontology       - Entity types and vocabularies

@@ -29,7 +29,7 @@ import {
   PERSISTED_EVENT_TYPES,
   RESOURCE_BROADCAST_TYPES,
 } from '@semiont/core';
-import { createActorVM, type ActorVM } from '../view-models/domain/actor-vm';
+import { createActorVM, type ActorVM } from './actor-vm';
 import type {
   ConnectionState,
   ITransport,

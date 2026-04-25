@@ -17,10 +17,12 @@ const actorHarness = {
   removeChannels: vi.fn(),
 };
 
-vi.mock('../view-models/domain/actor-vm', async () => {
+vi.mock('@semiont/api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/api-client')>();
   const { BehaviorSubject, Subject } = await import('rxjs');
   const { filter, map } = await import('rxjs/operators');
   return {
+    ...actual,
     createActorVM: () => {
       const events$ = new Subject<{ channel: string; payload: Record<string, unknown> }>();
       actorHarness.events$ = events$;
@@ -44,8 +46,8 @@ vi.mock('../view-models/domain/actor-vm', async () => {
 
 import ky from 'ky';
 import { SemiontClient } from '../client';
-import { HttpTransport } from '../transport/http-transport';
-import { HttpContentTransport } from '../transport/http-content-transport';
+import { HttpTransport } from '@semiont/api-client';
+import { HttpContentTransport } from '@semiont/api-client';
 import type { ContentFormat } from '@semiont/core';
 import { baseUrl, resourceId, annotationId, jobId, cloneToken, entityType } from '@semiont/core';
 

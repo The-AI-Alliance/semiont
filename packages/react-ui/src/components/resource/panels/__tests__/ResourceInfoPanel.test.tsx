@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { EventBus } from '@semiont/core';
-import type { SemiontClient } from '@semiont/api-client';
+import type { SemiontClient } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 

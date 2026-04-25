@@ -8,7 +8,7 @@ wrong and needs updating, deliberately. No third option.
 Transport-agnostic guarantees (at-most-once emit, per-channel ordering,
 `busRequest` semantics, `_userId` injection invariant) live in the
 shared contract at
-[`packages/api-client/docs/TRANSPORT-CONTRACT.md`](../../../packages/api-client/docs/TRANSPORT-CONTRACT.md).
+[`packages/core/docs/TRANSPORT-CONTRACT.md`](../../../packages/core/docs/TRANSPORT-CONTRACT.md).
 This doc covers only what's specific to the HTTP + SSE wire.
 
 Neighboring docs:
@@ -23,7 +23,7 @@ Neighboring docs:
 
 - **Not an implementation guide.** `STREAMS.md` does that.
 - **Not the shared transport contract.** See
-  [`packages/api-client/docs/TRANSPORT-CONTRACT.md`](../../../packages/api-client/docs/TRANSPORT-CONTRACT.md)
+  [`packages/core/docs/TRANSPORT-CONTRACT.md`](../../../packages/core/docs/TRANSPORT-CONTRACT.md)
   for guarantees that every `ITransport` honors.
 - **Not a wishlist.** This doc describes what *is*, not what should be.
   Known gaps are called out in a dedicated section so they can't be
@@ -405,7 +405,7 @@ the contract are visible.
   now formally documents this requirement. Regression-tested.
 - **2026-04-26** — scope narrowed to HTTP-specific. Shared transport
   guarantees moved to
-  [`packages/api-client/docs/TRANSPORT-CONTRACT.md`](../../../packages/api-client/docs/TRANSPORT-CONTRACT.md).
+  [`packages/core/docs/TRANSPORT-CONTRACT.md`](../../../packages/core/docs/TRANSPORT-CONTRACT.md).
   This doc now covers only HTTP + SSE wire concerns: schema validation
   at `/bus/emit`, `Last-Event-ID` resumption, the six-state connection
   machine, SSE parser chunking obligations, response-lost on reconnect,

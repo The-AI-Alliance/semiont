@@ -1,7 +1,11 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
 import type { ConnectionState } from '@semiont/core';
-import type { ViewModel } from '../lib/view-model';
+
+/** Minimal ViewModel surface — anything with a `dispose()` method. */
+interface ViewModel {
+  dispose(): void;
+}
 
 export type { ConnectionState };
 

@@ -34,7 +34,7 @@
     "@semiont/vectors": "*"
   },
   "devDependencies": {
-    "@semiont/api-client": "*",
+    "@semiont/sdk": "*",
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3"

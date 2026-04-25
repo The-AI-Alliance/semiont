@@ -9,12 +9,8 @@ import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import {
-  HttpContentTransport,
-  HttpTransport,
-  SemiontClient,
-  type SemiontBrowser,
-} from '@semiont/api-client';
+import { SemiontClient, type SemiontBrowser } from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
 import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './components/Toast';

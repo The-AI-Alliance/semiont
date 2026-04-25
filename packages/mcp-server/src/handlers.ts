@@ -8,7 +8,7 @@
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { getExactText, getBodySource } from '@semiont/core';
-import { SemiontClient, createGatherVM, createMarkVM, createYieldVM } from '@semiont/api-client';
+import { SemiontClient, createGatherVM, createMarkVM, createYieldVM } from '@semiont/sdk';
 import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };

@@ -38,7 +38,7 @@ import {
 } from '@semiont/core';
 import type { components, EventMap } from '@semiont/core';
 import { SemiontClient, APIError } from '../client';
-import type { ConnectionState } from '../view-models/domain/actor-vm';
+import type { ConnectionState } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 import {
   clearStoredSession,
