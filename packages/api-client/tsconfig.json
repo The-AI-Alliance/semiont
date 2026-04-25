@@ -12,5 +12,14 @@
     "incremental": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    // Imports `@semiont/make-meaning`, which transitively depends on
+    // `@semiont/api-client` itself — typecheck-time cycle that breaks
+    // CI's clean build (api-client typechecks before make-meaning's
+    // dist exists). Vitest still typechecks the file at run time via
+    // its own loader, where all workspace packages are already linked.
+    "src/__tests__/local-transport.test.ts"
+  ]
 }

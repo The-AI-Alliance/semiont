@@ -16,7 +16,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
 import {
-  accessToken,
   baseUrl,
   email as makeEmail,
   entityType,
@@ -285,7 +284,7 @@ describe('SemiontClient passthrough wiring', () => {
       });
 
       let capturedCorrelationId = '';
-      emit.mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+      emit.mockImplementation(async (_channel: string, payload: Record<string, unknown>) => {
         capturedCorrelationId = payload.correlationId as string;
       });
 
