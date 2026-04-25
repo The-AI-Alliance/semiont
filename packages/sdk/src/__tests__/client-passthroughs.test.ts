@@ -395,7 +395,7 @@ describe('SemiontClient passthrough wiring', () => {
       }
       return new Subject<never>().asObservable() as never;
     });
-    vi.mocked(transport.emit).mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+    (transport.emit as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
       if (channel === requestChannel) {
         queueMicrotask(() => {
           resultSubject.next({ correlationId: payload.correlationId as string, response });
