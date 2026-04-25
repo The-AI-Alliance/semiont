@@ -35,6 +35,7 @@
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",
     "@semiont/inference": "*",
+    "@semiont/sdk": "*",
     "@semiont/vectors": "*",
     "winston": "^3.17.0"
   },
