@@ -12,31 +12,23 @@
  * is `SemiontSession.subscribe(channel, handler)`, which reads from
  * `client.bus`.
  *
- * Legacy bulk methods (e.g. `browseResource`, `markAnnotation`) remain on
- * the class for CLI / MCP consumers that have not yet migrated to typed
- * namespace methods. Those route through `this.transport`.
+ * The remaining flat methods on the class (auth/admin/exchange/system)
+ * are HTTP-only passthroughs to `this.transport`. They do not route
+ * through the bus and have no namespace-shaped equivalent for those
+ * back-channels yet.
  */
 
-import type { paths, components } from '@semiont/core';
+import type { paths } from '@semiont/core';
 import type {
   ResourceId,
-  AnnotationId,
   AccessToken,
   BaseUrl,
-  BodyOperation,
-  CloneToken,
-  ContentFormat,
   Email,
-  EntityType,
   GoogleCredential,
-  JobId,
-  Motivation,
   RefreshToken,
-  SearchQuery,
   UserDID,
 } from '@semiont/core';
 import { EventBus } from '@semiont/core';
-import { busRequest } from './bus-request';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
@@ -188,272 +180,6 @@ export class SemiontClient {
     return undefined as unknown as ResponseContent<paths['/api/users/logout']['post']>;
   }
 
-  // ── BINARY I/O (delegates to HttpContentTransport) ────────────────────
-
-  async yieldResource(data: {
-    name: string;
-    file: File | Buffer;
-    format: string;
-    entityTypes?: string[];
-    language?: string;
-    creationMethod?: string;
-    sourceAnnotationId?: string;
-    sourceResourceId?: string;
-    storageUri: string;
-    generationPrompt?: string;
-    generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
-    isDraft?: boolean;
-  }, options?: RequestOptions): Promise<ResponseContent<paths['/resources']['post']>> {
-    const result = await this.content.putBinary(
-      {
-        name: data.name,
-        file: data.file,
-        format: data.format,
-        storageUri: data.storageUri,
-        ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
-        ...(data.language ? { language: data.language } : {}),
-        ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
-        ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
-        ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
-        ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
-        ...(data.generator ? { generator: data.generator } : {}),
-        ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
-      },
-      options?.auth ? { auth: options.auth } : undefined,
-    );
-    return result as unknown as ResponseContent<paths['/resources']['post']>;
-  }
-
-  async getResourceRepresentation(
-    id: ResourceId,
-    options?: { accept?: ContentFormat; auth?: AccessToken },
-  ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    return this.content.getBinary(id, {
-      ...(options?.accept ? { accept: options.accept } : {}),
-      ...(options?.auth ? { auth: options.auth } : {}),
-    });
-  }
-
-  async getResourceRepresentationStream(
-    id: ResourceId,
-    options?: { accept?: ContentFormat; auth?: AccessToken },
-  ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
-    return this.content.getBinaryStream(id, {
-      ...(options?.accept ? { accept: options.accept } : {}),
-      ...(options?.auth ? { auth: options.auth } : {}),
-    });
-  }
-
-  // ── LEGACY BUS/HTTP PASSTHROUGHS (unchanged during the migration) ─────
-  //
-  // These methods are used by CLI / MCP consumers that have not yet
-  // migrated to typed namespace methods (e.g. `semiont.browse.resource`).
-  // They route through `this.transport` (bus emit + busRequest) directly,
-  // both now owned by HttpTransport.
-
-  async browseResource(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['GetResourceResponse']> {
-    return busRequest(this.transport, 'browse:resource-requested', { resourceId: id }, 'browse:resource-result', 'browse:resource-failed');
-  }
-
-  async browseResources(
-    limit?: number,
-    archived?: boolean,
-    query?: SearchQuery,
-    _options?: RequestOptions,
-  ): Promise<components['schemas']['ListResourcesResponse']> {
-    return busRequest(this.transport, 'browse:resources-requested',
-      { search: query, archived, limit: limit ?? 100, offset: 0 },
-      'browse:resources-result', 'browse:resources-failed');
-  }
-
-  async getResourceEvents(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['GetEventsResponse']> {
-    return busRequest(this.transport, 'browse:events-requested', { resourceId: id }, 'browse:events-result', 'browse:events-failed');
-  }
-
-  async browseReferences(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['GetReferencedByResponse']> {
-    return busRequest(this.transport, 'browse:referenced-by-requested', { resourceId: id }, 'browse:referenced-by-result', 'browse:referenced-by-failed');
-  }
-
-  async generateCloneToken(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['CloneResourceWithTokenResponse']> {
-    return busRequest(this.transport, 'yield:clone-token-requested', { resourceId: id }, 'yield:clone-token-generated', 'yield:clone-token-failed');
-  }
-
-  async getResourceByToken(token: CloneToken, _options?: RequestOptions): Promise<components['schemas']['GetResourceByTokenResponse']> {
-    return busRequest(this.transport, 'yield:clone-resource-requested', { token }, 'yield:clone-resource-result', 'yield:clone-resource-failed');
-  }
-
-  async createResourceFromToken(
-    data: { token: string; name: string; content: string; archiveOriginal?: boolean },
-    _options?: RequestOptions,
-  ): Promise<{ resourceId: string }> {
-    return busRequest(this.transport, 'yield:clone-create', data as unknown as Record<string, unknown>, 'yield:clone-created', 'yield:clone-create-failed');
-  }
-
-  // ── ANNOTATIONS (bus passthroughs) ────────────────────────────────────
-
-  async markAnnotation(
-    resourceId: ResourceId,
-    request: components['schemas']['CreateAnnotationRequest'],
-    _options?: RequestOptions,
-  ): Promise<{ annotationId: string }> {
-    return busRequest<{ annotationId: string }>(this.transport, 'mark:create-request',
-      { resourceId, request: request as unknown as Record<string, unknown> },
-      'mark:create-ok', 'mark:create-failed');
-  }
-
-  async getAnnotation(id: AnnotationId, _options?: RequestOptions): Promise<components['schemas']['GetAnnotationResponse']> {
-    return busRequest(this.transport, 'browse:annotation-requested', { annotationId: id }, 'browse:annotation-result', 'browse:annotation-failed');
-  }
-
-  async browseAnnotation(resourceId: ResourceId, annotationId: AnnotationId, _options?: RequestOptions): Promise<components['schemas']['GetAnnotationResponse']> {
-    return busRequest(this.transport, 'browse:annotation-requested', { resourceId, annotationId }, 'browse:annotation-result', 'browse:annotation-failed');
-  }
-
-  async browseAnnotations(
-    id: ResourceId,
-    _motivation?: Motivation,
-    _options?: RequestOptions,
-  ): Promise<components['schemas']['GetAnnotationsResponse']> {
-    return busRequest(this.transport, 'browse:annotations-requested', { resourceId: id }, 'browse:annotations-result', 'browse:annotations-failed');
-  }
-
-  async deleteAnnotation(resourceId: ResourceId, annotationId: AnnotationId, _options?: RequestOptions): Promise<void> {
-    await this.transport.emit('mark:delete', { annotationId, resourceId });
-  }
-
-  async bindAnnotation(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    data: { operations: BodyOperation[] },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string }> {
-    const correlationId = crypto.randomUUID();
-    await this.transport.emit('bind:update-body', { correlationId, annotationId, resourceId, operations: data.operations });
-    return { correlationId };
-  }
-
-  async getAnnotationHistory(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    _options?: RequestOptions,
-  ): Promise<components['schemas']['GetAnnotationHistoryResponse']> {
-    return busRequest(this.transport, 'browse:annotation-history-requested', { resourceId, annotationId }, 'browse:annotation-history-result', 'browse:annotation-history-failed');
-  }
-
-  // ── ANNOTATION ASSIST (jobs) ──────────────────────────────────────────
-
-  async annotateReferences(
-    resourceId: ResourceId,
-    data: { entityTypes: string[]; includeDescriptiveReferences?: boolean },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
-      { jobType: 'reference-annotation', resourceId, params: data as unknown as Record<string, unknown> },
-      'job:created', 'job:create-failed');
-    return { correlationId: crypto.randomUUID(), jobId };
-  }
-
-  async annotateHighlights(
-    resourceId: ResourceId,
-    data: { instructions?: string; density?: number },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
-      { jobType: 'highlight-annotation', resourceId, params: data as unknown as Record<string, unknown> },
-      'job:created', 'job:create-failed');
-    return { correlationId: crypto.randomUUID(), jobId };
-  }
-
-  async annotateTags(
-    resourceId: ResourceId,
-    data: { schemaId: string; categories: string[] },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
-      { jobType: 'tag-annotation', resourceId, params: data as unknown as Record<string, unknown> },
-      'job:created', 'job:create-failed');
-    return { correlationId: crypto.randomUUID(), jobId };
-  }
-
-  async yieldResourceFromAnnotation(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    data: { title: string; storageUri: string; context: Record<string, unknown> },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
-      {
-        jobType: 'generation',
-        resourceId,
-        params: {
-          referenceId: annotationId,
-          title: data.title,
-          storageUri: data.storageUri,
-          context: data.context,
-        },
-      },
-      'job:created', 'job:create-failed');
-    return { correlationId: crypto.randomUUID(), jobId };
-  }
-
-  async gatherAnnotationContext(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    data: { correlationId: string; contextWindow?: number },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string }> {
-    await this.transport.emit('gather:requested', {
-      correlationId: data.correlationId,
-      annotationId,
-      resourceId,
-      options: { contextWindow: data.contextWindow ?? 2000 },
-    });
-    return { correlationId: data.correlationId };
-  }
-
-  async matchSearch(
-    resourceId: ResourceId,
-    data: { correlationId: string; referenceId: string; context: unknown; limit?: number; useSemanticScoring?: boolean },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string }> {
-    await this.transport.emit('match:search-requested', {
-      correlationId: data.correlationId,
-      resourceId,
-      referenceId: data.referenceId,
-      context: data.context as never,
-      limit: data.limit ?? 10,
-      useSemanticScoring: data.useSemanticScoring ?? true,
-    });
-    return { correlationId: data.correlationId };
-  }
-
-  // ── ENTITY TYPES ──────────────────────────────────────────────────────
-
-  async addEntityType(type: EntityType, _options?: RequestOptions): Promise<void> {
-    await this.transport.emit('mark:add-entity-type', { tag: type });
-  }
-
-  async addEntityTypesBulk(types: EntityType[], _options?: RequestOptions): Promise<void> {
-    for (const tag of types) {
-      await this.transport.emit('mark:add-entity-type', { tag });
-    }
-  }
-
-  async listEntityTypes(_options?: RequestOptions): Promise<components['schemas']['GetEntityTypesResponse']> {
-    return busRequest(this.transport, 'browse:entity-types-requested', {}, 'browse:entity-types-result', 'browse:entity-types-failed');
-  }
-
-  // ── PARTICIPANTS ──────────────────────────────────────────────────────
-
-  async beckonAttention(
-    _participantId: string,
-    data: { annotationId?: string; resourceId: string; message?: string },
-    _options?: RequestOptions,
-  ): Promise<components['schemas']['BeckonResponse']> {
-    await this.transport.emit('beckon:focus', data as unknown as Record<string, unknown>);
-    return {} as components['schemas']['BeckonResponse'];
-  }
-
   // ── ADMIN (delegates to HttpTransport) ────────────────────────────────
 
   async listUsers(_options?: RequestOptions): Promise<ResponseContent<paths['/api/admin/users']['get']>> {
@@ -507,12 +233,6 @@ export class SemiontClient {
     return this.transport.importKnowledgeBase(file, options?.onProgress);
   }
 
-  // ── JOB STATUS ────────────────────────────────────────────────────────
-
-  async getJobStatus(id: JobId, _options?: RequestOptions): Promise<components['schemas']['JobStatusResponse']> {
-    return busRequest(this.transport, 'job:status-requested', { jobId: id }, 'job:status-result', 'job:status-failed');
-  }
-
   // ── SYSTEM STATUS (delegates to HttpTransport) ────────────────────────
 
   async healthCheck(_options?: RequestOptions): Promise<ResponseContent<paths['/api/health']['get']>> {
@@ -522,18 +242,4 @@ export class SemiontClient {
   async getStatus(_options?: RequestOptions): Promise<ResponseContent<paths['/api/status']['get']>> {
     return this.transport.getStatus() as Promise<ResponseContent<paths['/api/status']['get']>>;
   }
-
-  async browseFiles(
-    dirPath?: string,
-    sort?: 'name' | 'mtime' | 'annotationCount',
-    _options?: RequestOptions,
-  ): Promise<components['schemas']['BrowseFilesResponse']> {
-    return busRequest(this.transport, 'browse:directory-requested',
-      { path: dirPath ?? '.', sort: sort ?? 'name' },
-      'browse:directory-result', 'browse:directory-failed');
-  }
 }
-
-// Suppress "unused imports" warnings when the surface uses them only via type
-// positions that the compiler already elides.
-export type { Motivation };

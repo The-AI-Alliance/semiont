@@ -161,7 +161,7 @@ describe('runYield', () => {
     vi.clearAllMocks();
     mockYieldResource.mockResolvedValue({ resourceId: 'urn:semiont:resource:new-1' });
     mockLoadCachedClient.mockReturnValue({
-      semiont: { yieldResource: mockYieldResource, sse: mockSse },
+      semiont: { yield: { resource: mockYieldResource }, sse: mockSse },
       token: 'mock-token',
     });
   });

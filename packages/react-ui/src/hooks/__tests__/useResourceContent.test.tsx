@@ -6,9 +6,11 @@ import '@testing-library/jest-dom';
 import { useResourceContent } from '../useResourceContent';
 
 const mockShowError = vi.fn();
-const mockGetResourceRepresentation = vi.fn();
+const mockResourceRepresentation = vi.fn();
 const stableMockClient = {
-  get getResourceRepresentation() { return mockGetResourceRepresentation; },
+  browse: {
+    get resourceRepresentation() { return mockResourceRepresentation; },
+  },
 };
 const stableMockSession = { client: stableMockClient };
 const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
@@ -43,11 +45,11 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 describe('useResourceContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetResourceRepresentation.mockResolvedValue({ data: '', contentType: 'text/plain' });
+    mockResourceRepresentation.mockResolvedValue({ data: '', contentType: 'text/plain' });
   });
 
   it('returns empty content and not loading when fetch resolves with empty data', async () => {
-    mockGetResourceRepresentation.mockResolvedValue({ data: '', contentType: 'text/plain' });
+    mockResourceRepresentation.mockResolvedValue({ data: '', contentType: 'text/plain' });
 
     const { result } = renderHook(
       () => useResourceContent('res-1' as any, { representations: [{ mediaType: 'text/plain' }] } as any),
@@ -62,7 +64,7 @@ describe('useResourceContent', () => {
   });
 
   it('returns content when data is available', async () => {
-    mockGetResourceRepresentation.mockResolvedValue({ data: 'Hello World', contentType: 'text/plain' });
+    mockResourceRepresentation.mockResolvedValue({ data: 'Hello World', contentType: 'text/plain' });
 
     const { result } = renderHook(
       () => useResourceContent('res-2' as any, { representations: [{ mediaType: 'text/plain' }] } as any),
@@ -78,7 +80,7 @@ describe('useResourceContent', () => {
 
   it('transitions through loading states', async () => {
     const loadingStates: boolean[] = [];
-    mockGetResourceRepresentation.mockResolvedValue({ data: 'done', contentType: 'text/plain' });
+    mockResourceRepresentation.mockResolvedValue({ data: 'done', contentType: 'text/plain' });
 
     const { result } = renderHook(
       () => {
@@ -98,7 +100,7 @@ describe('useResourceContent', () => {
   });
 
   it('calls showError when error occurs', async () => {
-    mockGetResourceRepresentation.mockRejectedValue(new Error('Network error'));
+    mockResourceRepresentation.mockRejectedValue(new Error('Network error'));
 
     renderHook(
       () => useResourceContent('res-4' as any, { representations: [{ mediaType: 'text/plain' }] } as any),

@@ -13,26 +13,31 @@ import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
+const defined = <T>(v: T | undefined): v is T => v !== undefined;
+
 // ── Browse ──────────────────────────────────────────────────────────────────
 
 export async function browseResource(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseResource(resourceId(args?.id), { auth: undefined });
+  const data = await firstValueFrom(semiont.browse.resource(resourceId(args?.id)).pipe(filter(defined)));
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
 export async function browseResources(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseResources(args?.limit, args?.archived ?? false, undefined, { auth: undefined });
+  const filters: { limit?: number; archived?: boolean } = {};
+  if (args?.limit !== undefined) filters.limit = args.limit;
+  filters.archived = args?.archived ?? false;
+  const resources = await firstValueFrom(semiont.browse.resources(filters).pipe(filter(defined)));
   return {
     content: [{
       type: 'text',
-      text: `Found ${data.total} resources:\n${data.resources.map((d: any) => `- ${d.name} (${d['@id'] ?? d.id}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
+      text: `Found ${resources.length} resources:\n${resources.map((d: any) => `- ${d.name} (${d['@id'] ?? d.id}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
     }],
   };
 }
 
 export async function browseHighlights(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseAnnotations(resourceId(args?.resourceId), undefined, { auth: undefined });
-  const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
+  const annotations = await firstValueFrom(semiont.browse.annotations(resourceId(args?.resourceId)).pipe(filter(defined)));
+  const highlights = annotations.filter(a => a.motivation === 'highlighting');
   return {
     content: [{
       type: 'text',
@@ -48,8 +53,8 @@ export async function browseHighlights(semiont: SemiontClient, args: any): Promi
 }
 
 export async function browseReferences(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseAnnotations(resourceId(args?.resourceId), undefined, { auth: undefined });
-  const references = data.annotations.filter(a => a.motivation === 'linking');
+  const annotations = await firstValueFrom(semiont.browse.annotations(resourceId(args?.resourceId)).pipe(filter(defined)));
+  const references = annotations.filter(a => a.motivation === 'linking');
   return {
     content: [{
       type: 'text',

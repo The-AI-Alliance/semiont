@@ -15,12 +15,16 @@
  */
 
 import { z } from 'zod';
+import { firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
 
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
+
+const defined = <T>(v: T | undefined): v is T => v !== undefined;
 
 // =====================================================================
 // SCHEMA
@@ -69,7 +73,7 @@ export type BrowseOptions = z.output<typeof BrowseOptionsSchema>;
 export async function runBrowse(options: BrowseOptions): Promise<CommandResults> {
   const startTime = Date.now();
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   const [subcommand, rawResourceId, rawAnnotationId] = options.args;
 
@@ -77,34 +81,29 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   let label: string;
 
   if (subcommand === 'resources') {
-    const data = await semiont.browseResources(
-      options.limit,
-      undefined,
-      options.search as any,
-      { auth: token }
-    );
-    result = data;
-    const items = Array.isArray(data) ? data : (data as any)?.resources ?? [];
+    const filters: { limit?: number; search?: string } = { limit: options.limit };
+    if (options.search) filters.search = options.search;
+    const items = await firstValueFrom(semiont.browse.resources(filters).pipe(filter(defined)));
+    result = items;
     label = `${items.length} resource${items.length !== 1 ? 's' : ''} found`;
 
   } else if (subcommand === 'resource') {
     const id = toResourceId(rawResourceId);
-    const resourceData = await semiont.browseResource(id, { auth: token });
+    const resourceData = await firstValueFrom(semiont.browse.resource(id).pipe(filter(defined)));
 
     if (options.annotations || options.references) {
-      const annotationsData = await semiont.browseAnnotations(id, undefined, { auth: token });
-      const annotations = (annotationsData as any)?.annotations ?? annotationsData ?? [];
+      const annotations = options.annotations
+        ? await firstValueFrom(semiont.browse.annotations(id).pipe(filter(defined)))
+        : undefined;
 
-      let referencedBy: unknown[] = [];
-      if (options.references) {
-        const refData = await semiont.browseReferences(id, { auth: token });
-        referencedBy = refData.referencedBy ?? [];
-      }
+      const referencedBy = options.references
+        ? await firstValueFrom(semiont.browse.referencedBy(id).pipe(filter(defined)))
+        : undefined;
 
       result = {
         ...(resourceData as object),
-        ...(options.annotations ? { annotations } : {}),
-        ...(options.references ? { referencedBy } : {}),
+        ...(annotations ? { annotations } : {}),
+        ...(referencedBy ? { referencedBy } : {}),
       };
     } else {
       result = resourceData;
@@ -114,41 +113,39 @@ export async function runBrowse(options: BrowseOptions): Promise<CommandResults>
   } else if (subcommand === 'annotation') {
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    result = await semiont.browseAnnotation(resourceId, annotationId, { auth: token });
+    result = await firstValueFrom(semiont.browse.annotation(resourceId, annotationId).pipe(filter(defined)));
     label = `${rawAnnotationId}: annotation on ${rawResourceId}`;
 
   } else if (subcommand === 'references') {
     const id = toResourceId(rawResourceId);
-    const data = await semiont.browseReferences(id, { auth: token });
-    result = data.referencedBy ?? [];
-    const count = Array.isArray(result) ? result.length : 0;
-    label = `${count} resource${count !== 1 ? 's' : ''} reference ${rawResourceId}`;
+    const refs = await firstValueFrom(semiont.browse.referencedBy(id).pipe(filter(defined)));
+    result = refs;
+    label = `${refs.length} resource${refs.length !== 1 ? 's' : ''} reference ${rawResourceId}`;
 
   } else if (subcommand === 'events') {
     const id = toResourceId(rawResourceId);
-    const data = await semiont.getResourceEvents(id, { auth: token });
-    result = data.events ?? data;
-    const items = Array.isArray(result) ? result : [];
-    label = `${items.length} event${items.length !== 1 ? 's' : ''} for ${rawResourceId}`;
+    const events = await semiont.browse.resourceEvents(id);
+    result = events;
+    label = `${events.length} event${events.length !== 1 ? 's' : ''} for ${rawResourceId}`;
 
   } else if (subcommand === 'history') {
     const resourceId = toResourceId(rawResourceId);
     const annotationId = toAnnotationId(rawAnnotationId);
-    result = await semiont.getAnnotationHistory(resourceId, annotationId, { auth: token });
+    result = await semiont.browse.annotationHistory(resourceId, annotationId);
     label = `history for annotation ${rawAnnotationId} on ${rawResourceId}`;
 
   } else if (subcommand === 'files') {
     const dirPath = options.args[1];
-    const data = await semiont.browseFiles(dirPath, options.sort, { auth: token });
+    const data = await semiont.browse.files(dirPath, options.sort);
     result = data;
     const entries = (data as any)?.entries ?? [];
     label = `${entries.length} entr${entries.length !== 1 ? 'ies' : 'y'} in ${dirPath ?? '/'}`;
 
   } else {
     // subcommand === 'entity-types'
-    result = await semiont.listEntityTypes({ auth: token });
-    const items = Array.isArray(result) ? result : (result as any)?.tags ?? [];
-    label = `${items.length} entity type${items.length !== 1 ? 's' : ''}`;
+    const tags = await firstValueFrom(semiont.browse.entityTypes().pipe(filter(defined)));
+    result = tags;
+    label = `${tags.length} entity type${tags.length !== 1 ? 's' : ''}`;
   }
 
   if (!options.quiet) process.stderr.write(label + '\n');

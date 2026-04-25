@@ -31,7 +31,6 @@ import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { SemiontClient } from '@semiont/sdk';
-import type { AccessToken } from '@semiont/core';
 
 function guessFormat(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -99,7 +98,6 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 
 async function runDelegate(
   semiont: SemiontClient,
-  _token: AccessToken,
   options: YieldOptions,
 ): Promise<{ resourceId?: string; resourceName?: string }> {
   const rawResourceId = options.resource!;
@@ -167,12 +165,12 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
   const projectRoot = findProjectRoot();
 
   // ── Delegate mode ──────────────────────────────────────────────────
   if (options.delegate) {
-    const { resourceId, resourceName } = await runDelegate(semiont, token, options);
+    const { resourceId, resourceName } = await runDelegate(semiont, options);
     const label = resourceName ?? resourceId ?? options.storageUri!;
     if (!options.quiet) printSuccess(`Yielded: ${options.storageUri} → ${resourceId ?? '(pending)'}`);
     process.stdout.write(JSON.stringify({ resourceId, resourceName, storageUri: options.storageUri }));
@@ -215,9 +213,8 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
     const name = options.name ?? path.basename(filePath, path.extname(filePath));
     const format = guessFormat(filePath);
 
-    const { resourceId } = await semiont.yieldResource(
+    const { resourceId } = await semiont.yield.resource(
       { name, file: content, format, storageUri },
-      { auth: token },
     );
 
     if (!options.quiet) printSuccess(`Yielded: ${filePath} → ${resourceId}`);

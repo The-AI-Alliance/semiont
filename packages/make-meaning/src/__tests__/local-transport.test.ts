@@ -34,6 +34,8 @@ import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } fro
 
 const SETTLE_MS = 5_000;
 
+const defined = <T>(v: T | undefined): v is T => v !== undefined;
+
 const silentLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
@@ -145,22 +147,20 @@ describe('SemiontClient over LocalTransport', () => {
     it('returns an empty list for an empty knowledge base', async () => {
       const h = await bootHarness();
       try {
-        const result = await h.client.browseResources();
-        expect(result.resources).toHaveLength(0);
-        expect(result.total).toBe(0);
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        expect(resources).toHaveLength(0);
       } finally {
         await h.dispose();
       }
     });
 
-    it('lists a seeded resource via browseResources', async () => {
+    it('lists a seeded resource via browse.resources', async () => {
       const h = await bootHarness();
       try {
         const id = await h.seedResource({ name: 'overview', content: 'hello world' });
-        const result = await h.client.browseResources();
-        expect(result.total).toBe(1);
-        expect(result.resources).toHaveLength(1);
-        const got = result.resources[0]!;
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        expect(resources).toHaveLength(1);
+        const got = resources[0]!;
         expect(got['@id'] ?? got.id).toBe(id);
         expect(got.name).toBe('overview');
       } finally {
@@ -168,23 +168,30 @@ describe('SemiontClient over LocalTransport', () => {
       }
     });
 
-    it('returns the seeded resource via browseResource(id)', async () => {
+    it('returns the seeded resource via browse.resource(id)', async () => {
       const h = await bootHarness();
       try {
         const id = await h.seedResource({ name: 'doc', content: 'body' });
-        const result = await h.client.browseResource(id);
-        expect(result.resource).toBeDefined();
-        expect(result.resource['@id'] ?? result.resource.id).toBe(id);
+        const resource = await firstValueFrom(h.client.browse.resource(id).pipe(filter(defined)));
+        expect(resource).toBeDefined();
+        expect(resource['@id'] ?? resource.id).toBe(id);
       } finally {
         await h.dispose();
       }
     });
 
-    it('rejects browseResource for a non-existent id', async () => {
+    it('emits browse:resource-failed for a non-existent id', async () => {
       const h = await bootHarness();
       try {
-        const missing = makeResourceId('does-not-exist');
-        await expect(h.client.browseResource(missing)).rejects.toThrow();
+        const failed$ = (
+          h.client.bus.get('browse:resource-failed') as unknown as Observable<{ message: string }>
+        ).pipe(take(1));
+        const observed = firstValueFrom(failed$);
+
+        h.client.browse.resource(makeResourceId('does-not-exist')).subscribe();
+
+        const ev = await observed;
+        expect(ev.message).toBeTruthy();
       } finally {
         await h.dispose();
       }
@@ -202,7 +209,7 @@ describe('SemiontClient over LocalTransport', () => {
         // and `eventStore.appendEvent` materializes the view before
         // publishing the typed channel. So the view is current by the
         // time this resolves.
-        const { annotationId } = await h.client.markAnnotation(rId, {
+        const { annotationId } = await h.client.mark.annotation(rId, {
           motivation: 'highlighting',
           target: {
             source: rId as unknown as string,
@@ -213,9 +220,9 @@ describe('SemiontClient over LocalTransport', () => {
           },
         });
 
-        const list = await h.client.browseAnnotations(rId);
-        expect(list.annotations.length).toBeGreaterThan(0);
-        expect(list.annotations.map((a) => a.id)).toContain(annotationId);
+        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(defined)));
+        expect(list.length).toBeGreaterThan(0);
+        expect(list.map((a) => a.id)).toContain(annotationId);
       } finally {
         await h.dispose();
       }
@@ -226,7 +233,7 @@ describe('SemiontClient over LocalTransport', () => {
       try {
         const rId = await h.seedResource({ name: 'doc', content: 'hello world' });
 
-        const { annotationId: aIdStr } = await h.client.markAnnotation(rId, {
+        const { annotationId: aIdStr } = await h.client.mark.annotation(rId, {
           motivation: 'highlighting',
           target: {
             source: rId as unknown as string,
@@ -238,15 +245,18 @@ describe('SemiontClient over LocalTransport', () => {
         });
         const aId = makeAnnotationId(aIdStr);
 
-        await h.client.deleteAnnotation(rId, aId);
+        await h.client.mark.delete(rId, aId);
 
         await waitForEvent(
           h.client.bus.get('mark:delete-ok') as unknown as Observable<{ annotationId: string }>,
           (e) => e.annotationId === aIdStr,
         );
 
-        const list = await h.client.browseAnnotations(rId);
-        expect(list.annotations.map((a) => a.id)).not.toContain(aIdStr);
+        // Cache may still hold the pre-delete snapshot; observe a fresh fetch
+        // by invalidating then waiting on the next emission.
+        h.client.browse.invalidateAnnotationList(rId);
+        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(defined)));
+        expect(list.map((a) => a.id)).not.toContain(aIdStr);
       } finally {
         await h.dispose();
       }
@@ -260,7 +270,7 @@ describe('SemiontClient over LocalTransport', () => {
         const sourceId = await h.seedResource({ name: 'src', content: 'see also: target' });
         const targetId = await h.seedResource({ name: 'target', content: 'target body' });
 
-        const { annotationId: aIdStr } = await h.client.markAnnotation(sourceId, {
+        const { annotationId: aIdStr } = await h.client.mark.annotation(sourceId, {
           motivation: 'linking',
           target: {
             source: sourceId as unknown as string,
@@ -272,22 +282,21 @@ describe('SemiontClient over LocalTransport', () => {
         });
         const aId = makeAnnotationId(aIdStr);
 
-        await h.client.bindAnnotation(sourceId, aId, {
-          operations: [
-            {
-              op: 'add',
-              item: { type: 'SpecificResource', source: targetId as unknown as string, purpose: 'linking' },
-            },
-          ],
-        });
+        await h.client.bind.body(sourceId, aId, [
+          {
+            op: 'add',
+            item: { type: 'SpecificResource', source: targetId as unknown as string, purpose: 'linking' },
+          },
+        ]);
 
         await waitForEvent(
           h.client.bus.get('bind:body-updated') as unknown as Observable<{ annotationId: string }>,
           (e) => e.annotationId === aIdStr,
         );
 
-        const list = await h.client.browseAnnotations(sourceId);
-        const linked = list.annotations.find((a) => a.id === aIdStr);
+        h.client.browse.invalidateAnnotationList(sourceId);
+        const list = await firstValueFrom(h.client.browse.annotations(sourceId).pipe(filter(defined)));
+        const linked = list.find((a) => a.id === aIdStr);
         expect(linked).toBeDefined();
         const bodies = Array.isArray(linked!.body) ? linked!.body : (linked!.body ? [linked!.body] : []);
         const linkedBody = bodies.find(
@@ -305,7 +314,7 @@ describe('SemiontClient over LocalTransport', () => {
       const h = await bootHarness();
       try {
         const tag = makeEntityType('Person');
-        await h.client.addEntityType(tag);
+        await h.client.mark.entityType(tag);
 
         // `mark:entity-type-added` carries a `StoredEvent` whose
         // `payload.entityType` echoes the tag; wait for it to
@@ -316,25 +325,9 @@ describe('SemiontClient over LocalTransport', () => {
           (e) => e.payload?.entityType === (tag as unknown as string),
         );
 
-        const result = await h.client.listEntityTypes();
-        expect(result.entityTypes).toContain(tag);
-      } finally {
-        await h.dispose();
-      }
-    });
-
-    it('failure events are bridged into client.bus', async () => {
-      const h = await bootHarness();
-      try {
-        const failed$ = (
-          h.client.bus.get('browse:resource-failed') as unknown as Observable<{ message: string }>
-        ).pipe(take(1));
-        const observed = firstValueFrom(failed$);
-
-        await expect(h.client.browseResource(makeResourceId('does-not-exist'))).rejects.toThrow();
-
-        const ev = await observed;
-        expect(ev.message).toBeTruthy();
+        h.client.browse.invalidateEntityTypes();
+        const result = await firstValueFrom(h.client.browse.entityTypes().pipe(filter(defined)));
+        expect(result).toContain(tag);
       } finally {
         await h.dispose();
       }
@@ -343,7 +336,7 @@ describe('SemiontClient over LocalTransport', () => {
     it('client.dispose() does not throw and tears down the transport', async () => {
       const h = await bootHarness();
       try {
-        await h.client.browseResources();
+        await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
         expect(() => h.client.dispose()).not.toThrow();
       } finally {
         // Avoid double-disposing the client; harness.dispose() guards.

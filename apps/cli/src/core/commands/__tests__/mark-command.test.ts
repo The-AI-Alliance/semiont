@@ -183,7 +183,7 @@ describe('runMark', () => {
     vi.clearAllMocks();
     mockMarkAnnotation.mockResolvedValue({ annotationId: 'urn:semiont:annotation:new-1' });
     mockLoadCachedClient.mockReturnValue({
-      semiont: { markAnnotation: mockMarkAnnotation, sse: mockSse },
+      semiont: { mark: { annotation: mockMarkAnnotation }, sse: mockSse },
       token: 'mock-token',
     });
     // SSE mocks do NOT resolve — delegate tests fire-and-forget then manually emit events
@@ -202,7 +202,6 @@ await runMark(makeManualOptions({ motivation: 'commenting', bodyText: 'nice' }))
     expect(mockMarkAnnotation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ motivation: 'commenting' }),
-      expect.any(Object),
     );
   });
 

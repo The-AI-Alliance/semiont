@@ -31,7 +31,6 @@ import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 import { createMarkVM } from '@semiont/sdk';
-import type { AccessToken } from '@semiont/core';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 
@@ -114,9 +113,8 @@ export type MarkOptions = z.output<typeof MarkOptionsSchema>;
 async function fetchResourceText(
   semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
-  token: AccessToken,
 ): Promise<string> {
-  const { data } = await semiont.getResourceRepresentation(resourceId, { accept: 'text/plain', auth: token });
+  const { data } = await semiont.browse.resourceRepresentation(resourceId, { accept: 'text/plain' });
   return new TextDecoder().decode(data);
 }
 
@@ -168,7 +166,6 @@ async function buildSelector(
   options: MarkOptions,
   semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
-  token: AccessToken,
 ): Promise<CreateAnnotationRequest['target']['selector']> {
   const hasText = options.quote !== undefined || (options.start !== undefined && options.end !== undefined);
   const hasSvg = options.svg !== undefined;
@@ -192,7 +189,7 @@ async function buildSelector(
   if (!hasText) return undefined as any;
 
   const content = options.fetchContent
-    ? await fetchResourceText(semiont, resourceId, token)
+    ? await fetchResourceText(semiont, resourceId)
     : undefined;
 
   const selectors = buildTextSelector(options, content);
@@ -292,7 +289,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   // ── Delegate mode ────────────────────────────────────────────────────
   if (options.delegate) {
@@ -312,7 +309,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
 
   const rawResourceId = options.resourceIdArr[0];
   const resourceId = toResourceId(rawResourceId);
-  const selector = await buildSelector(options, semiont, resourceId, token);
+  const selector = await buildSelector(options, semiont, resourceId);
   const body = buildBody(options);
 
   const target = (selector !== undefined
@@ -325,7 +322,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
     body,
   };
 
-  const { annotationId } = await semiont.markAnnotation(resourceId, request, { auth: token });
+  const { annotationId } = await semiont.mark.annotation(resourceId, request);
 
   if (!options.quiet) printSuccess(`Marked: ${rawResourceId} → ${annotationId}`);
 
