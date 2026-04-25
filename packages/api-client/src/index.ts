@@ -25,24 +25,11 @@ export * from './client';
 export { busRequest, BusRequestError, type BusRequestPrimitive } from './bus-request';
 export { createCache, type Cache } from './cache';
 
-// Transport abstraction
-export {
-  type ITransport,
-  type IContentTransport,
-  type PutBinaryRequest,
-  type ProgressEvent,
-  type ProgressCallback,
-  type ConnectionState,
-  type HealthCheckResponse,
-  type StatusResponse,
-  type UserResponse,
-  type UpdateUserRequest,
-  type UpdateUserResponse,
-  type ListUsersResponse,
-} from './transport/types';
+// HTTP-specific transport implementations. The shared transport contract
+// (`ITransport`, `IContentTransport`, `BRIDGED_CHANNELS`, response types,
+// `ConnectionState`) lives in `@semiont/core`; consumers import from there.
 export { HttpTransport, type HttpTransportConfig } from './transport/http-transport';
 export { HttpContentTransport } from './transport/http-content-transport';
-export { BRIDGED_CHANNELS, type BridgedChannel } from './transport/bridged-channels';
 
 
 // Verb-oriented namespace API

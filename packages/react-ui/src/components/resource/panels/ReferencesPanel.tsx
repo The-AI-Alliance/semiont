@@ -9,7 +9,7 @@ import type { RouteBuilder, LinkComponentProps } from '../../../contexts/Routing
 import { AnnotateReferencesProgressWidget } from '../../AnnotateReferencesProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, Selector } from '@semiont/core';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
 

@@ -47,7 +47,7 @@ import { BeckonNamespace } from './namespaces/beckon';
 import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
-import type { ITransport, IContentTransport } from './transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 
 export { APIError, type TokenRefresher, HttpTransport, type HttpTransportConfig } from './transport/http-transport';
 export { HttpContentTransport } from './transport/http-content-transport';
@@ -103,10 +103,10 @@ export class SemiontClient {
    * The client *owns* its bus. The constructor creates a fresh `EventBus`
    * and hands it to the transport via `transport.bridgeInto(this.bus)`.
    * The reference flows client → transport, never the other way:
-   *   - `HttpTransport.bridgeInto(bus)` pumps SSE events into the bus.
-   *   - `LocalTransport.bridgeInto(bus)` wires its in-process
-   *     KnowledgeSystem actors to emit/listen on that bus, so client and
-   *     KnowledgeSystem share one bus by construction.
+   * the transport stores the reference and publishes the events it
+   * receives onto that bus. `HttpTransport` does so for every channel
+   * delivered on its SSE wire; in-process transports adapt their
+   * internal source.
    *
    * Callers do not pass a bus in. If they need to interact with the bus
    * (e.g. for tests or to subscribe to arbitrary channels), they read it

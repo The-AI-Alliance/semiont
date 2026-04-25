@@ -5,7 +5,8 @@ import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
 import type { SemiontClient } from '../../client';
-import { getPrimaryMediaType, decodeWithCharset } from '../../utils';
+import { getPrimaryMediaType } from '@semiont/core';
+import { decodeWithCharset } from '../../utils';
 
 export type ComposeMode = 'new' | 'clone' | 'reference';
 

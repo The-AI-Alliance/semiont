@@ -28,7 +28,7 @@ vi.mock('../../../../lib/tag-schemas', () => ({
   getTagSchema: vi.fn(),
 }));
 
-import { getAnnotationExactText } from '@semiont/api-client';
+import { getAnnotationExactText } from '@semiont/core';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../../lib/tag-schemas';
 import type { MockedFunction } from 'vitest';

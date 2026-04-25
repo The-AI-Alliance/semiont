@@ -6,7 +6,7 @@ import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
-import type { ITransport, IContentTransport } from '../../transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');

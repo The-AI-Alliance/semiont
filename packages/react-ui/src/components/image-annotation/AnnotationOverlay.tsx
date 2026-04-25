@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react';
 import type { Annotation } from '@semiont/core';
-import { createHoverHandlers, getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
+import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/core';
+import { createHoverHandlers } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
 import type { SemiontSession } from '@semiont/api-client';
 

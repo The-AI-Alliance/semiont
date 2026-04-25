@@ -12,16 +12,7 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import {
-  getBodySource,
-  getResourceId,
-  getTargetSource,
-  getTargetSelector,
-  getResourceEntityTypes,
-  getTextPositionSelector,
-  getPrimaryRepresentation,
-  decodeRepresentation,
-} from '@semiont/api-client';
+import { getBodySource, getResourceId, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 
 import type {

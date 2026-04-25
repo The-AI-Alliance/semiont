@@ -1,5 +1,5 @@
 import type { EventBus, JobId, components } from '@semiont/core';
-import type { ITransport } from '../transport/types';
+import type { ITransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
 import type { JobNamespace as IJobNamespace } from './types';
 

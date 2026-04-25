@@ -2,9 +2,9 @@
  * Helper functions for working with W3C ResourceDescriptor
  */
 
-import type { components } from '@semiont/core';
+import type { components } from './types';
+import type { ResourceDescriptor } from './graph';
 
-import type { ResourceDescriptor } from '@semiont/core';
 type Representation = components['schemas']['Representation'];
 
 /**

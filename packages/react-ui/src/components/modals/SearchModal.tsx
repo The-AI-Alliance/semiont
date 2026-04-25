@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import { map } from 'rxjs/operators';
-import { getResourceId, createSearchPipeline } from '@semiont/api-client';
+import { getResourceId } from '@semiont/core';
+import { createSearchPipeline } from '@semiont/api-client';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';

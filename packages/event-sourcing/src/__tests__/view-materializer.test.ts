@@ -17,8 +17,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { getPrimaryRepresentation } from '@semiont/api-client';
-
+import { getPrimaryRepresentation } from '@semiont/core';
 describe('ViewMaterializer', () => {
   let testDir: string;
   let projector: ViewMaterializer;

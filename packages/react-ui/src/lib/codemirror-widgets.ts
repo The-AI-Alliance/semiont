@@ -10,8 +10,7 @@
  */
 
 import { WidgetType } from '@codemirror/view';
-import { isResolvedReference, getBodySource } from '@semiont/api-client';
-
+import { isResolvedReference, getBodySource } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
 /**

@@ -1,5 +1,5 @@
 import type { ResourceId, AnnotationId, BodyOperation, EventBus, EventMap } from '@semiont/core';
-import type { ITransport } from '../transport/types';
+import type { ITransport } from '@semiont/core';
 import type { BindNamespace as IBindNamespace } from './types';
 
 export class BindNamespace implements IBindNamespace {

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { annotationId } from '@semiont/core';
+import { annotationId } from '../identifiers';
 import {
   getBodySource,
   getBodyType,
@@ -18,15 +18,17 @@ import {
   getExactText,
   getAnnotationExactText,
   getPrimarySelector,
-  getTextPositionSelector,
   getTextQuoteSelector,
+  extractBoundingBox,
+} from '../web-annotation-utils';
+import {
+  getTextPositionSelector,
   getSvgSelector,
   getFragmentSelector,
   validateSvgMarkup,
-  extractBoundingBox,
-} from '../../utils/annotations';
+} from '../annotation-assembly';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation } from '../annotation-types';
 
 function makeAnnotation(overrides?: Partial<Annotation>): Annotation {
   return {

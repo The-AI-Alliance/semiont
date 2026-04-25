@@ -5,7 +5,7 @@
  * Does NOT touch the graph - graph queries go through GraphContext
  */
 
-import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
+import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 

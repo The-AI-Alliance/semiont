@@ -8,7 +8,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
+import { getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
 import { eventBusRequest } from '../../../utils/event-bus-request';

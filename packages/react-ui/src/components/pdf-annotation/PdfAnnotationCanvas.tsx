@@ -2,7 +2,8 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { Annotation } from '@semiont/core';
-import { createHoverHandlers, getTargetSelector, type SemiontSession } from '@semiont/api-client';
+import { getTargetSelector } from '@semiont/core';
+import { createHoverHandlers, type SemiontSession } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import {
   canvasToPdfCoordinates,

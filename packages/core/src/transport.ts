@@ -1,44 +1,67 @@
 /**
- * Transport interfaces — the seam between `SemiontClient` and the wire.
+ * Transport interfaces — the shared contract for any wire-or-local
+ * communication path consumed by `SemiontClient`. Concrete implementations
+ * live alongside the runtime they wrap (`HttpTransport` in
+ * `@semiont/api-client`, in-process variants in `@semiont/make-meaning`,
+ * etc.).
  *
- * Phase 1 of TRANSPORT-ABSTRACTION. Two interfaces live here:
+ * Two interfaces:
  *
- *   ITransport          — full remote surface: bus primitives + auth +
- *                         admin + exchange + health/status. In HTTP
- *                         mode this is all HTTP; in local mode (Phase 2)
- *                         each method is either in-process or throws.
+ *   ITransport          — full surface: bus primitives + auth + admin +
+ *                         exchange + health/status + connection state.
  *   IContentTransport   — binary I/O (putBinary / getBinary). Narrow by
  *                         design because binary has different backpressure
  *                         and streaming characteristics.
  *
- * Namespaces receive these as constructor args; they never care which
- * concrete transport is behind them.
+ * The behavioral guarantees every implementation must honor are documented
+ * in `packages/api-client/docs/TRANSPORT-CONTRACT.md`.
  */
 
 import type { Observable } from 'rxjs';
+
+import type { components, paths } from './types';
 import type {
   AccessToken,
-  AnnotationId,
   BaseUrl,
   ContentFormat,
-  CreationMethod,
   Email,
-  EventBus,
-  EventMap,
   GoogleCredential,
   RefreshToken,
-  ResourceId,
   UserDID,
-  components,
-  paths,
-} from '@semiont/core';
-import type { ConnectionState } from '../view-models/domain/actor-vm';
+} from './branded-types';
+import type { CreationMethod } from './creation-methods';
+import type { AnnotationId, ResourceId } from './identifiers';
+import type { EventMap } from './bus-protocol';
+import type { EventBus } from './event-bus';
 
 type Agent = components['schemas']['Agent'];
 
-export type { ConnectionState };
+// ── Connection state ────────────────────────────────────────────────────
 
-// ── Response type helpers (match the legacy client's shape) ─────────────
+/**
+ * Six-state lifecycle for a transport's connection. Drives UI affordances
+ * (connecting spinners, reconnecting banners, etc.) and is observed via
+ * `ITransport.state$`.
+ *
+ *   initial      ─ pre-`start()`; never enters subscribers' streams
+ *                  except as the first replayed value
+ *   connecting   ─ in-flight initial open
+ *   open         ─ healthy, delivering events
+ *   reconnecting ─ open → dropped, retrying; may be transient
+ *   degraded     ─ has been reconnecting for > DEGRADED_THRESHOLD_MS;
+ *                  UI banner threshold; distinguishes brief mount-
+ *                  churn cycles from sustained disconnection
+ *   closed       ─ stop()/dispose() called; terminal
+ */
+export type ConnectionState =
+  | 'initial'
+  | 'connecting'
+  | 'open'
+  | 'reconnecting'
+  | 'degraded'
+  | 'closed';
+
+// ── Response type helpers (shape-equivalent to the OpenAPI surface) ─────
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
@@ -75,9 +98,7 @@ export type ProgressCallback = (event: ProgressEvent) => void;
 export interface ITransport {
   /**
    * Base URL the transport speaks to. For HTTP this is `https://host[:port]`;
-   * for local transports, an in-process identifier (e.g. `local://kb-id`).
-   * Exposed so consumers can compose URLs to endpoints not covered by the
-   * typed methods (e.g. media URLs assembled in JSX).
+   * for in-process transports, an opaque identifier (e.g. `local://kb-id`).
    */
   readonly baseUrl: BaseUrl;
 
@@ -87,10 +108,7 @@ export interface ITransport {
    *
    * `resourceScope`, when set, marks the emit as a resource-scoped
    * broadcast — only delivered to subscribers attached to that
-   * resource's scope. HTTP routes via `POST /bus/emit` with
-   * `scope: <resourceId>`; local transports publish on
-   * `eventBus.scope(resourceId)`. Used by worker processes for
-   * `RESOURCE_BROADCAST_TYPES` events; ordinary commands omit it.
+   * resource's scope.
    */
   emit<K extends keyof EventMap>(
     channel: K,
@@ -102,8 +120,8 @@ export interface ITransport {
 
   /**
    * Subscribe to a resource-scoped channel set. HTTP attaches a scope to
-   * its SSE connection; local transports are a no-op because in-process
-   * events are delivered without scoping.
+   * its SSE connection; in-process transports may be a no-op because
+   * local events are delivered without scoping.
    *
    * Returns a disposer that detaches the scope when the last subscriber
    * unsubscribes (ref-counted).
@@ -111,16 +129,16 @@ export interface ITransport {
   subscribeToResource(resourceId: ResourceId): () => void;
 
   /**
-   * Wire this transport's event fan-in into the given bus. HTTP bridges
-   * every channel it receives from SSE; LocalTransport is a no-op because
-   * wire == local.
+   * Hand the given bus to the transport so the transport can publish
+   * the events it receives into it. The reference flows
+   * client → transport (the client owns the bus); transports never
+   * construct or replace it. Concrete transports decide what "receives"
+   * means: HTTP bridges every channel it observes on its SSE wire;
+   * an in-process transport bridges from the local actor bus.
    */
   bridgeInto(bus: EventBus): void;
 
   // ── Auth ──────────────────────────────────────────────────────────────
-  // Precedes any bus session because the session needs a token. In HTTP
-  // mode these are POSTs to /api/tokens/*; in local mode they'd validate
-  // against an attached Users DB or throw if embedded-unauthenticated.
 
   authenticatePassword(email: Email, password: string): Promise<AuthResponse>;
   authenticateGoogle(credential: GoogleCredential): Promise<AuthResponse>;
@@ -138,7 +156,7 @@ export interface ITransport {
   updateUser(id: UserDID, data: UpdateUserRequest): Promise<UpdateUserResponse>;
   getOAuthConfig(): Promise<OAuthConfigResponse>;
 
-  // ── Exchange (SSE-streamed; raw Response for download endpoints) ─────
+  // ── Exchange ──────────────────────────────────────────────────────────
 
   backupKnowledgeBase(): Promise<Response>;
   restoreKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
@@ -154,8 +172,8 @@ export interface ITransport {
 
   /**
    * Transport-level connection state. For HTTP, reflects the SSE
-   * connection's health; for local transports, always `'open'` after
-   * construction (no connection to lose).
+   * connection's health; for in-process transports, typically `'open'`
+   * from construction onward (no connection to lose).
    */
   readonly state$: Observable<ConnectionState>;
 

@@ -15,7 +15,7 @@ import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '../../view-models/domain/actor-vm';
 import { BrowseNamespace } from '../browse';
-import type { ITransport, IContentTransport } from '../../transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';

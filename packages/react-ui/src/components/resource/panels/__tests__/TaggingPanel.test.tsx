@@ -112,8 +112,7 @@ vi.mock('../../../../lib/tag-schemas', () => ({
   ]),
 }));
 
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
-
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 const mockGetTextPositionSelector = getTextPositionSelector as MockedFunction<typeof getTextPositionSelector>;
 const mockGetTargetSelector = getTargetSelector as MockedFunction<typeof getTargetSelector>;
 

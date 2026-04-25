@@ -4,12 +4,7 @@
 import { GraphDatabase } from '../interface';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import {
-  getBodySource,
-  getPrimaryRepresentation,
-  getResourceId,
-  getExactText,
-} from '@semiont/api-client';
+import { getBodySource, getPrimaryRepresentation, getResourceId, getExactText } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import type {
   AnnotationCategory,

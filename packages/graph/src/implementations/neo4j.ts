@@ -17,13 +17,7 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  getExactText,
-  getBodySource,
-  getTargetSource,
-  getTargetSelector,
-  getPrimaryRepresentation
-} from '@semiont/api-client';
+import { getExactText, getBodySource, getTargetSource, getTargetSelector, getPrimaryRepresentation } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 
 import type { ResourceDescriptor } from '@semiont/core';
