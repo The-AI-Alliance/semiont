@@ -9,7 +9,7 @@ import { E2E_PASSWORD } from '../playwright.config';
  * lifetime is now owned by `SemiontBrowser.setActiveKb` — `signOut`
  * disposes the old `SemiontSession` (which closes its client, completes
  * its observables, and unsubscribes the SessionStorage listener), and
- * `signIn` constructs a fresh session with a new `SemiontApiClient`
+ * `signIn` constructs a fresh session with a new `SemiontClient`
  * that spins up its own EventBus and its own SSE ActorVM. If any part
  * of the new session wiring regresses — `client.emit` routing to a
  * dead bus, SSE not reconnecting on the new client, storage adapter

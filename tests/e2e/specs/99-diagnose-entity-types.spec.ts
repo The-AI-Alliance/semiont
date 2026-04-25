@@ -78,7 +78,7 @@ test.describe('diagnose', () => {
     console.log(`Chip visible: ${chipVisible}`);
     const countBy = (re: RegExp) => diagLines.filter(l => re.test(l)).length;
     // eslint-disable-next-line no-console
-    console.log(`SemiontApiClient constructions: ${countBy(/SemiontApiClient #\d+ constructed/)}`);
+    console.log(`SemiontClient constructions: ${countBy(/SemiontClient #\d+ constructed/)}`);
     // eslint-disable-next-line no-console
     console.log(`ActorVM constructions: ${countBy(/ActorVM #\d+ constructed/)}`);
     // eslint-disable-next-line no-console
