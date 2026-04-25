@@ -51,11 +51,11 @@ semiont match doc-123 ann-456
 semiont bind doc-123 ann-456 target-789
 ```
 
-**[API Client](packages/api-client/README.md)** — type-safe TypeScript SDK organized by the seven verbs. Calls go through a connected `SemiontSession` (see the [API Client README](packages/api-client/README.md) for session setup):
+**[Semiont SDK](packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. Calls go through a connected `SemiontSession` (see the [SDK README](packages/sdk/README.md) for session setup):
 
 ```typescript
 await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
-const context = await firstValueFrom(session.client.gather.annotation(annId, resourceId));
+const context = await lastValueFrom(session.client.gather.annotation(annId, resourceId));
 const results = await firstValueFrom(session.client.match.search(resourceId, refId, context));
 await session.client.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
 ```
