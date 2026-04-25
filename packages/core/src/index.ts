@@ -149,6 +149,71 @@ export {
 } from './annotation-assembly';
 export type { AssembledAnnotation } from './annotation-assembly';
 
+// W3C Web Annotation accessors (target/body/selector helpers + type guards)
+export {
+  getBodySource,
+  getBodyType,
+  isBodyResolved,
+  getTargetSource,
+  getTargetSelector,
+  hasTargetSelector,
+  isHighlight,
+  isReference,
+  isAssessment,
+  isComment,
+  isTag,
+  getCommentText,
+  isStubReference,
+  isResolvedReference,
+  getExactText,
+  getAnnotationExactText,
+  getPrimarySelector,
+  getTextQuoteSelector,
+  extractBoundingBox,
+} from './web-annotation-utils';
+export type {
+  TextPositionSelector,
+  TextQuoteSelector,
+  SvgSelector,
+  FragmentSelector,
+} from './web-annotation-utils';
+
+// ResourceDescriptor accessors
+export {
+  getResourceId,
+  getPrimaryRepresentation,
+  getPrimaryMediaType,
+  getChecksum,
+  getLanguage,
+  getStorageUri,
+  getCreator,
+  getDerivedFrom,
+  isArchived,
+  getResourceEntityTypes,
+  isDraft,
+  getNodeEncoding,
+  decodeRepresentation,
+} from './resource-utils';
+
+// Transport contract — interfaces every concrete transport must satisfy.
+export type {
+  ITransport,
+  IContentTransport,
+  PutBinaryRequest,
+  ConnectionState,
+  ProgressEvent,
+  ProgressCallback,
+  HealthCheckResponse,
+  StatusResponse,
+  UserResponse,
+  UpdateUserRequest,
+  UpdateUserResponse,
+  ListUsersResponse,
+} from './transport';
+
+// Channel set every concrete transport bridges into the client's bus.
+export { BRIDGED_CHANNELS, type BridgedChannel } from './bridged-channels';
+
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 

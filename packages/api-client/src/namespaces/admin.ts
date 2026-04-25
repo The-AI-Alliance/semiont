@@ -3,7 +3,7 @@
  */
 
 import type { UserDID, components, paths } from '@semiont/core';
-import type { ITransport } from '../transport/types';
+import type { ITransport } from '@semiont/core';
 import type { AdminNamespace as IAdminNamespace, User, RequestContent, ResponseContent } from './types';
 
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];

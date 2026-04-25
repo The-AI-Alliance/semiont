@@ -6,8 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getNodeEncoding, decodeRepresentation } from '@semiont/api-client';
-
+import { getNodeEncoding, decodeRepresentation } from '@semiont/core';
 describe('Resource Helpers - Charset Handling', () => {
   describe('getNodeEncoding', () => {
     it('should map UTF-8 variants correctly', () => {

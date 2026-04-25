@@ -36,7 +36,7 @@ import type { EmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/vectors';
 import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/vectors';
 import type { WorkingTreeStore } from '@semiont/content';
-import { getExactText, getTargetSelector } from '@semiont/api-client';
+import { getExactText, getTargetSelector } from '@semiont/core';
 import type { EmbeddingStore } from './embedding-store.js';
 import { partitionByType } from './batch-utils.js';
 

@@ -1,6 +1,9 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
+import type { ConnectionState } from '@semiont/core';
 import type { ViewModel } from '../lib/view-model';
+
+export type { ConnectionState };
 
 /**
  * Runtime-toggleable cross-wire bus logging. Off by default — zero
@@ -50,30 +53,6 @@ export interface ActorVMOptions {
   scope?: string;
   reconnectMs?: number;
 }
-
-/**
- * Connection state exposed by the SSE bus actor.
- *
- *   initial      ─ before start() has been called
- *   connecting   ─ fetch() in flight, no bytes yet
- *   open         ─ SSE stream live, first byte seen
- *   reconnecting ─ open → dropped, retrying; may be transient
- *   degraded     ─ has been reconnecting for > DEGRADED_THRESHOLD_MS;
- *                  UI banner threshold; distinguishes brief mount-
- *                  churn cycles from sustained disconnection
- *   closed       ─ stop()/dispose() called; terminal
- *
- * Transition rules are enforced by a helper that throws on invalid
- * transitions — catches bugs in the reconnect loop that would
- * otherwise strand the observable in a lying value.
- */
-export type ConnectionState =
-  | 'initial'
-  | 'connecting'
-  | 'open'
-  | 'reconnecting'
-  | 'degraded'
-  | 'closed';
 
 /** Time in the `reconnecting` state before transitioning to `degraded`. */
 export const DEGRADED_THRESHOLD_MS = 3_000;

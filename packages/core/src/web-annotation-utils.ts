@@ -9,17 +9,17 @@
  * Target can be simple string IRI or object with source and optional selector
  */
 
-import type { components, Selector } from '@semiont/core';
+import type { components } from './types';
+import type { Selector } from './payload-types';
+import type { Annotation } from './annotation-types';
 
-// Re-export selector utilities from core (canonical location)
+// Re-export selector utilities (canonical location is annotation-assembly)
 export {
   getTextPositionSelector,
   getSvgSelector,
   getFragmentSelector,
   validateSvgMarkup,
-} from '@semiont/core';
-
-import type { Annotation } from '@semiont/core';
+} from './annotation-assembly';
 type HighlightAnnotation = Annotation;
 type ReferenceAnnotation = Annotation;
 type TextPositionSelector = components['schemas']['TextPositionSelector'];

@@ -6,7 +6,7 @@ import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { TagEntry } from './TagEntry';
 import { PanelHeader } from './PanelHeader';
 import { getAllTagSchemas } from '../../../lib/tag-schemas';

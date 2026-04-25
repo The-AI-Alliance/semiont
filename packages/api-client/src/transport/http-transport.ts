@@ -41,8 +41,8 @@ import type {
   ListUsersResponse,
   ProgressCallback,
   ProgressEvent,
-} from './types';
-import { BRIDGED_CHANNELS } from './bridged-channels';
+} from '@semiont/core';
+import { BRIDGED_CHANNELS } from '@semiont/core';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
@@ -527,4 +527,4 @@ export class HttpTransport implements ITransport {
 }
 
 // Re-export for convenience
-export type { ConnectionState } from './types';
+export type { ConnectionState } from '@semiont/core';

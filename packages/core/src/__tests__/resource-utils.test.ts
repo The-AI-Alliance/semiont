@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
-import type { components } from '@semiont/core';
-import { resourceId } from '@semiont/core';
+import type { components } from '../types';
+import { resourceId } from '../identifiers';
 import {
   getResourceId,
   getPrimaryRepresentation,
@@ -15,9 +15,9 @@ import {
   isDraft,
   getNodeEncoding,
   decodeRepresentation,
-} from '../../utils/resources';
+} from '../resource-utils';
 
-import type { ResourceDescriptor } from '@semiont/core';
+import type { ResourceDescriptor } from '../graph';
 type Representation = components['schemas']['Representation'];
 
 function makeResource(overrides?: Partial<ResourceDescriptor>): ResourceDescriptor {

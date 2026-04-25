@@ -17,7 +17,7 @@ vi.mock('@semiont/api-client', async () => {
   };
 });
 
-import { getAnnotationExactText } from '@semiont/api-client';
+import { getAnnotationExactText } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 import { AssessmentEntry } from '../AssessmentEntry';
 

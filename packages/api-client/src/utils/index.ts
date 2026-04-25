@@ -5,10 +5,8 @@
  * No React dependencies - safe to use in any JavaScript environment.
  */
 
-export * from './annotations';
 export * from './fuzzy-anchor';
 export * from './locales';
-export * from './resources';
 export * from './svg-utils';
 export * from './text-context';
 export * from './text-encoding';

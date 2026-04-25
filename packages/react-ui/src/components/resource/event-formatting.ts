@@ -6,7 +6,7 @@
  */
 
 import type { StoredEventLike, PersistedEventType } from '@semiont/core';
-import { getExactText, getTargetSelector } from '@semiont/api-client';
+import { getExactText, getTargetSelector } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 
 import type { Annotation } from '@semiont/core';

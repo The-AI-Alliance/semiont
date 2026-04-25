@@ -11,7 +11,7 @@ import type {
   Motivation,
   components,
 } from '@semiont/core';
-import type { ITransport, IContentTransport } from '../transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
 import { createCache, type Cache } from '../cache';
 import type {

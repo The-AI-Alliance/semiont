@@ -60,6 +60,7 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
+    "fast-check": "^4.3.0",
     "json-schema-to-typescript": "^15.0.2",
     "openapi-typescript": "^7.10.1",
     "tsup": "^8.5.1",

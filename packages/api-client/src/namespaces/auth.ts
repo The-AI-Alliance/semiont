@@ -4,7 +4,7 @@
 
 import type { ResourceId, components } from '@semiont/core';
 import { email as makeEmail, googleCredential, refreshToken as makeRefreshToken } from '@semiont/core';
-import type { ITransport } from '../transport/types';
+import type { ITransport } from '@semiont/core';
 import type { AuthNamespace as IAuthNamespace, User } from './types';
 
 type AuthResponse = components['schemas']['AuthResponse'];

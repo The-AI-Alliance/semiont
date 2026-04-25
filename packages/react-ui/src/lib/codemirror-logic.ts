@@ -6,8 +6,7 @@
  */
 
 import { ANNOTATORS } from './annotation-registry';
-import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
-
+import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
 export interface TextSegment {

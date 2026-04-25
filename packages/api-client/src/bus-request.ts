@@ -11,8 +11,8 @@ export class BusRequestError extends Error {
 
 /**
  * Subset of ITransport that `busRequest` needs: a way to send a command and
- * a way to observe channels. Generic enough that LocalTransport can satisfy
- * it without round-tripping through HTTP.
+ * a way to observe channels. Generic enough that an in-process transport
+ * can satisfy it without round-tripping through HTTP.
  */
 export interface BusRequestPrimitive {
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void>;

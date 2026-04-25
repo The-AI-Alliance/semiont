@@ -1,5 +1,5 @@
 import type { AnnotationId, EventBus, ResourceId } from '@semiont/core';
-import type { ITransport } from '../transport/types';
+import type { ITransport } from '@semiont/core';
 import type { BeckonNamespace as IBeckonNamespace } from './types';
 
 export class BeckonNamespace implements IBeckonNamespace {

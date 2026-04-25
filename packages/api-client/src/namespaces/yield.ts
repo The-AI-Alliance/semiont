@@ -10,7 +10,7 @@ import type {
 // YieldProgress is the per-yield view of a job's JobProgress payload;
 // we don't need a separate schema type now that job:* carries both.
 type YieldProgress = components['schemas']['JobProgress'];
-import type { ITransport, IContentTransport } from '../transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
 import type {
   YieldNamespace as IYieldNamespace,

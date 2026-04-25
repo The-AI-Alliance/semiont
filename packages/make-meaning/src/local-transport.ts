@@ -42,7 +42,7 @@ import {
   type UpdateUserRequest,
   type UpdateUserResponse,
   type UserResponse,
-} from '@semiont/api-client';
+} from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
 
