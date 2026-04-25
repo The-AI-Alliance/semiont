@@ -65,6 +65,18 @@ const testBaseUrl = baseUrl('http://localhost:4000');
 const testResourceId = resourceId('test-resource-id');
 const testResourceUrl = `${testBaseUrl}/resources/${testResourceId}`;
 
+/** Build a `data: <json>\n\n` SSE-shaped ReadableStream for restore/import tests. */
+function encodeSseStream(events: Array<Record<string, unknown>>): ReadableStream<Uint8Array> {
+  const lines = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
+  const bytes = new TextEncoder().encode(lines);
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
 describe('HttpTransport — HTTP wire shape', () => {
   let transport: HttpTransport;
   let content: HttpContentTransport;
@@ -112,6 +124,158 @@ describe('HttpTransport — HTTP wire shape', () => {
         `${testBaseUrl}/api/tokens/password`,
         expect.objectContaining({ json: { email: 'user@test.local', password: 'pw' } }),
       );
+    });
+
+    test('authenticateGoogle posts credential to /api/tokens/google', async () => {
+      vi.mocked(mockKy.post).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ token: 'tok' }),
+      } as never);
+      await transport.authenticateGoogle('google-cred' as never);
+      expect(mockKy.post).toHaveBeenCalledWith(
+        `${testBaseUrl}/api/tokens/google`,
+        expect.objectContaining({ json: { credential: 'google-cred' } }),
+      );
+    });
+
+    test('refreshAccessToken posts refreshToken to /api/tokens/refresh', async () => {
+      vi.mocked(mockKy.post).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ access: 'a', refresh: 'r' }),
+      } as never);
+      await transport.refreshAccessToken('refresh-tok' as never);
+      expect(mockKy.post).toHaveBeenCalledWith(
+        `${testBaseUrl}/api/tokens/refresh`,
+        expect.objectContaining({ json: { refreshToken: 'refresh-tok' } }),
+      );
+    });
+
+    test('acceptTerms posts to /api/users/accept-terms', async () => {
+      vi.mocked(mockKy.post).mockReturnValue({
+        json: vi.fn().mockResolvedValue(undefined),
+      } as never);
+      await transport.acceptTerms();
+      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/accept-terms`, { headers: {} });
+    });
+
+    test('generateMcpToken posts to /api/tokens/mcp-generate', async () => {
+      vi.mocked(mockKy.post).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ token: 'mcp-tok' }),
+      } as never);
+      const result = await transport.generateMcpToken();
+      expect(result).toEqual({ token: 'mcp-tok' });
+      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/tokens/mcp-generate`, { headers: {} });
+    });
+
+    test('getMediaToken posts resourceId to /api/tokens/media', async () => {
+      vi.mocked(mockKy.post).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ token: 'media-tok' }),
+      } as never);
+      await transport.getMediaToken(testResourceId);
+      expect(mockKy.post).toHaveBeenCalledWith(
+        `${testBaseUrl}/api/tokens/media`,
+        expect.objectContaining({ json: { resourceId: testResourceId } }),
+      );
+    });
+  });
+
+  describe('Admin', () => {
+    test('listUsers gets /api/admin/users', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ users: [] }),
+      } as never);
+      await transport.listUsers();
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/users`, { headers: {} });
+    });
+
+    test('getUserStats gets /api/admin/users/stats', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ count: 0 }),
+      } as never);
+      await transport.getUserStats();
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/users/stats`, { headers: {} });
+    });
+
+    test('updateUser PATCHes /api/admin/users/{id} with the patch body', async () => {
+      vi.mocked(mockKy.patch).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ updated: true }),
+      } as never);
+      const userId = 'did:web:example.com:users:alice%40example.com' as never;
+      const patch = { isAdmin: true } as never;
+      await transport.updateUser(userId, patch);
+      expect(mockKy.patch).toHaveBeenCalledWith(
+        `${testBaseUrl}/api/admin/users/${userId}`,
+        expect.objectContaining({ json: patch }),
+      );
+    });
+
+    test('getOAuthConfig gets /api/admin/oauth/config', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ google: { clientId: 'x' } }),
+      } as never);
+      await transport.getOAuthConfig();
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/oauth/config`, { headers: {} });
+    });
+  });
+
+  describe('Exchange', () => {
+    test('backupKnowledgeBase posts to /api/admin/exchange/backup and returns the raw Response', async () => {
+      const response = new Response(new Blob(['backup-data']));
+      vi.mocked(mockKy.post).mockResolvedValue(response as never);
+      const result = await transport.backupKnowledgeBase();
+      expect(result).toBe(response);
+      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/exchange/backup`, { headers: {} });
+    });
+
+    test('exportKnowledgeBase posts to /api/moderate/exchange/export with default params', async () => {
+      const response = new Response(new Blob(['export-data']));
+      vi.mocked(mockKy.post).mockResolvedValue(response as never);
+      const result = await transport.exportKnowledgeBase();
+      expect(result).toBe(response);
+      expect(mockKy.post).toHaveBeenCalledWith(
+        `${testBaseUrl}/api/moderate/exchange/export`,
+        { headers: {} },
+      );
+    });
+
+    test('exportKnowledgeBase forwards includeArchived as a search param', async () => {
+      const response = new Response(new Blob(['export-data']));
+      vi.mocked(mockKy.post).mockResolvedValue(response as never);
+      await transport.exportKnowledgeBase({ includeArchived: true });
+      const [, init] = vi.mocked(mockKy.post).mock.calls[0]!;
+      const sp = (init as { searchParams: URLSearchParams }).searchParams;
+      expect(sp.get('includeArchived')).toBe('true');
+    });
+
+    test('restoreKnowledgeBase posts multipart and parses an SSE completion event', async () => {
+      const sseBody = encodeSseStream([
+        { phase: 'progress', message: '50%' },
+        { phase: 'complete', result: { restored: 3 } },
+      ]);
+      vi.mocked(mockKy.post).mockResolvedValue(new Response(sseBody) as never);
+
+      const onProgress = vi.fn();
+      const file = new File(['x'], 'kb.tgz', { type: 'application/gzip' });
+      const result = await transport.restoreKnowledgeBase(file, onProgress);
+
+      expect(mockKy.post).toHaveBeenCalledWith(
+        `${testBaseUrl}/api/admin/exchange/restore`,
+        expect.objectContaining({ body: expect.any(FormData), headers: {} }),
+      );
+      expect(onProgress).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ phase: 'complete', result: { restored: 3 } });
+    });
+
+    test('importKnowledgeBase posts multipart and parses SSE completion', async () => {
+      const sseBody = encodeSseStream([{ phase: 'complete', result: { imported: 5 } }]);
+      vi.mocked(mockKy.post).mockResolvedValue(new Response(sseBody) as never);
+
+      const file = new File(['y'], 'kb.tgz', { type: 'application/gzip' });
+      const result = await transport.importKnowledgeBase(file);
+
+      expect(mockKy.post).toHaveBeenCalledWith(
+        `${testBaseUrl}/api/moderate/exchange/import`,
+        expect.objectContaining({ body: expect.any(FormData), headers: {} }),
+      );
+      expect(result).toEqual({ phase: 'complete', result: { imported: 5 } });
     });
   });
 
