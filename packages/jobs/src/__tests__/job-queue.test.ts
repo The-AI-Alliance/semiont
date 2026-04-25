@@ -507,7 +507,8 @@ describe('JobQueue', () => {
       expect(events[0]).toEqual({
         jobId: jobId('job-with-event'),
         jobType: 'reference-annotation',
-        resourceId: job.params.resourceId
+        resourceId: job.params.resourceId,
+        userId: job.metadata.userId,
       });
     });
 

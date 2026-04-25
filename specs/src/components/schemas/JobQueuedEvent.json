@@ -10,11 +10,16 @@
     },
     "resourceId": {
       "type": "string"
+    },
+    "userId": {
+      "type": "string",
+      "description": "DID of the user who initiated the job (audit)."
     }
   },
   "required": [
     "jobId",
     "jobType",
-    "resourceId"
+    "resourceId",
+    "userId"
   ]
 }

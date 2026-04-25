@@ -60,14 +60,15 @@ export class ResourceOperations {
       ),
     );
 
-    // Emit the command
+    // Emit the command. In-process callers stamp `_userId` directly,
+    // mirroring what the gateway does for wire callers.
     eventBus.get('yield:create').next({
       name: input.name,
       storageUri: input.storageUri,
       contentChecksum: input.contentChecksum,
       byteSize: input.byteSize,
       format: input.format,
-      userId,
+      _userId: userId,
       language: input.language,
       entityTypes: input.entityTypes,
       creationMethod: input.creationMethod,

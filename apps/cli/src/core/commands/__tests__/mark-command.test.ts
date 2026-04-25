@@ -255,7 +255,7 @@ await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
       mockSse.markHighlights.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
           eventBus.get('job:complete').next({
-            jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'highlight-annotation',
+            jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'highlight-annotation',
             result: { highlightsFound: 3, highlightsCreated: 3 },
           });
         });
@@ -271,7 +271,7 @@ await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
       mockSse.markReferences.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
           eventBus.get('job:complete').next({
-            jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'reference-annotation',
+            jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
             result: { totalFound: 5, totalEmitted: 5, errors: 0 },
           });
         });
@@ -286,7 +286,7 @@ await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
       mockSse.markHighlights.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
         queueMicrotask(() => {
           eventBus.get('job:fail').next({
-            jobId: 'j1', resourceId: 'res-1', userId: 'u', jobType: 'highlight-annotation',
+            jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'highlight-annotation',
             error: 'AI service down',
           });
         });

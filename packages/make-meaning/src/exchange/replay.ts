@@ -189,7 +189,7 @@ async function replayResourceCreated(
     contentChecksum: stored.checksum,
     byteSize: stored.byteSize,
     format: payload.format as ContentFormat,
-    userId: event.userId,
+    _userId: event.userId,
     language: payload.language,
     entityTypes: payload.entityTypes,
     creationMethod: payload.creationMethod,
@@ -215,7 +215,7 @@ async function replayAnnotationAdded(
 
   eventBus.get('mark:create').next({
     annotation: event.payload.annotation as Annotation,
-    userId: event.userId,
+    _userId: event.userId,
     resourceId: event.resourceId as ResourceId,
   });
 
@@ -236,7 +236,7 @@ async function replayAnnotationBodyUpdated(
 
   eventBus.get('mark:update-body').next({
     annotationId: event.payload.annotationId as AnnotationId,
-    userId: event.userId,
+    _userId: event.userId,
     resourceId: event.resourceId as ResourceId,
     operations: event.payload.operations,
   });
@@ -258,7 +258,7 @@ async function replayAnnotationRemoved(
 
   eventBus.get('mark:delete').next({
     annotationId: event.payload.annotationId as AnnotationId,
-    userId: event.userId,
+    _userId: event.userId,
     resourceId: event.resourceId as ResourceId,
   });
 

@@ -2,14 +2,15 @@
   "type": "object",
   "description": "Bus command to update an annotation's body with patch operations.",
   "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
     "correlationId": {
       "type": "string",
       "description": "Correlation id threaded from the originating route through to event metadata. Lets the events-stream deliver matched results to the client that initiated the bind."
     },
     "annotationId": {
-      "type": "string"
-    },
-    "userId": {
       "type": "string"
     },
     "resourceId": {
@@ -19,12 +20,22 @@
       "type": "array",
       "items": {
         "oneOf": [
-          { "$ref": "./BodyOperationAdd.json" },
-          { "$ref": "./BodyOperationRemove.json" },
-          { "$ref": "./BodyOperationReplace.json" }
+          {
+            "$ref": "./BodyOperationAdd.json"
+          },
+          {
+            "$ref": "./BodyOperationRemove.json"
+          },
+          {
+            "$ref": "./BodyOperationReplace.json"
+          }
         ]
       }
     }
   },
-  "required": ["annotationId", "userId", "resourceId", "operations"]
+  "required": [
+    "annotationId",
+    "resourceId",
+    "operations"
+  ]
 }

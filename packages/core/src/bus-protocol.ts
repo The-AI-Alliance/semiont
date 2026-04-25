@@ -18,23 +18,24 @@
  */
 
 import type { components } from './types';
-import type { AnnotationId, ResourceId, UserId } from './identifiers';
+import type { AnnotationId, ResourceId } from './identifiers';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
 
 // Branded overrides for OpenAPI command payloads that carry identifier
 // fields. Narrows `string` → branded at the TypeScript layer.
+//
+// `_userId` is the gateway-injected authenticated DID (string at the
+// schema layer); handlers that need a `UserId` brand it locally.
 type MarkDeleteCommand =
   components['schemas']['MarkDeleteCommand'] & {
     annotationId: AnnotationId;
     resourceId?: ResourceId;
-    userId?: UserId;
   };
 type MarkUpdateBodyCommand =
   components['schemas']['MarkUpdateBodyCommand'] & {
     annotationId: AnnotationId;
     resourceId: ResourceId;
-    userId: UserId;
   };
 type BindInitiateCommand =
   components['schemas']['BindInitiateCommand'] & {
@@ -45,7 +46,6 @@ type BindUpdateBodyCommand =
   components['schemas']['BindUpdateBodyCommand'] & {
     annotationId: AnnotationId;
     resourceId: ResourceId;
-    userId?: UserId;
   };
 
 /**

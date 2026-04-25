@@ -127,6 +127,7 @@ export class FsJobQueue implements JobQueue {
         jobId: job.metadata.id,
         jobType: job.metadata.type,
         resourceId: job.params.resourceId,
+        userId: job.metadata.userId,
       });
     }
   }

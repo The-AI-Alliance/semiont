@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Bus command to update a yielded resource's storage content.",
   "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
     "resourceId": {
       "type": "string"
     },
@@ -14,12 +18,14 @@
     "byteSize": {
       "type": "integer"
     },
-    "userId": {
-      "type": "string"
-    },
     "noGit": {
       "type": "boolean"
     }
   },
-  "required": ["resourceId", "storageUri", "contentChecksum", "byteSize", "userId"]
+  "required": [
+    "resourceId",
+    "storageUri",
+    "contentChecksum",
+    "byteSize"
+  ]
 }
