@@ -1,10 +1,7 @@
 import { resourceId, userId, didToAgent, assembleAnnotation } from '@semiont/core';
-import type { EventBus, components } from '@semiont/core';
-import { getLogger } from '../logger';
+import type { EventBus, Logger, components } from '@semiont/core';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
-
-const logger = () => getLogger().child({ component: 'annotation-assembly' });
 
 /**
  * Handles `mark:create-request` — the bus command for creating an annotation.
@@ -22,9 +19,8 @@ const logger = () => getLogger().child({ component: 'annotation-assembly' });
  * This is a deferred-ack pattern: the result event attests that Stower has
  * persisted the annotation, not merely that the command was well-formed.
  */
-export function registerAnnotationAssemblyHandler(eventBus: EventBus): void {
-  // In-flight commands keyed by correlationId; value is the annotationId so
-  // we can echo it back on the ok event.
+export function registerAnnotationAssemblyHandler(eventBus: EventBus, parentLogger: Logger): void {
+  const logger = parentLogger.child({ component: 'annotation-assembly' });
   const inflight = new Map<string, { annotationId: string }>();
 
   eventBus.get('mark:create-request').subscribe((command) => {
@@ -51,12 +47,12 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus): void {
         resourceId: resourceId(resId as string),
       } as never);
 
-      logger().info('Annotation assembled, awaiting persistence', {
+      logger.info('Annotation assembled, awaiting persistence', {
         annotationId: annotation.id,
         correlationId: cid,
       });
     } catch (error) {
-      logger().warn('mark:create-request failed during assembly', {
+      logger.warn('mark:create-request failed during assembly', {
         correlationId: cid,
         error: (error as Error).message,
       });
@@ -67,8 +63,6 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus): void {
     }
   });
 
-  // Deferred ok: fire only after Stower has appended the event and
-  // EventStore publishes mark:added with the correlationId in metadata.
   eventBus.get('mark:added').subscribe((event) => {
     const cid = event.metadata?.correlationId;
     if (!cid) return;
@@ -79,16 +73,12 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus): void {
       correlationId: cid,
       response: { annotationId: pending.annotationId },
     });
-    logger().info('Annotation persisted', { annotationId: pending.annotationId, correlationId: cid });
+    logger.info('Annotation persisted', { annotationId: pending.annotationId, correlationId: cid });
   });
 
-  // Deferred failure: Stower emits mark:create-failed with correlationId
-  // when appendEvent throws. Forward to the caller.
   eventBus.get('mark:create-failed').subscribe((event) => {
     const cid = (event as { correlationId?: string }).correlationId;
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
-    // Failure already on the right channel with correlationId; caller's
-    // busRequest filter will pick it up. Nothing more to do.
   });
 }

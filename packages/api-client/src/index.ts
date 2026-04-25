@@ -42,6 +42,7 @@ export {
 } from './transport/types';
 export { HttpTransport, type HttpTransportConfig } from './transport/http-transport';
 export { HttpContentTransport } from './transport/http-content-transport';
+export { BRIDGED_CHANNELS, type BridgedChannel } from './transport/bridged-channels';
 
 
 // Verb-oriented namespace API

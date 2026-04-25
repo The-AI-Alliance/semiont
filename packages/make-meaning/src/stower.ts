@@ -280,7 +280,14 @@ export class Stower {
   }
 
   private async handleMarkDelete(event: EventMap['mark:delete']): Promise<void> {
-    if (!event.userId || !event.resourceId) {
+    // Accept either `_userId` (gateway-injected by HTTP /bus/emit and
+    // LocalTransport) or `userId` (set explicitly by in-process callers
+    // like AnnotationOperations / replay). The two-convention quirk is
+    // tracked in .plans/HANDLE-MARK-DELETE.md — every Stower handler
+    // and every in-process caller will eventually settle on `_userId`,
+    // at which point the cast and the fallback both go away.
+    const uid = (event as { _userId?: string })._userId ?? event.userId;
+    if (!uid || !event.resourceId) {
       return; // Frontend-only event — handled by route, not Stower
     }
 
@@ -288,7 +295,7 @@ export class Stower {
       await this.kb.eventStore.appendEvent({
         type: 'mark:removed',
         resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event.userId),
+        userId: makeUserId(uid),
         version: 1,
         payload: { annotationId: annotationId(event.annotationId) },
       });

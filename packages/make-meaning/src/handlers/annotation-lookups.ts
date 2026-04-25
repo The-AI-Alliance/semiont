@@ -1,10 +1,8 @@
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
-import type { AnnotationId, ResourceId, EventBus } from '@semiont/core';
-import { AnnotationContext } from '@semiont/make-meaning';
-import type { KnowledgeBase } from '@semiont/make-meaning';
-import { getLogger } from '../logger';
+import type { AnnotationId, ResourceId, EventBus, Logger } from '@semiont/core';
 
-const logger = () => getLogger().child({ component: 'annotation-lookups' });
+import { AnnotationContext } from '../annotation-context.js';
+import type { KnowledgeBase } from '../knowledge-base.js';
 
 interface Gatherer {
   generateAnnotationSummary(annId: AnnotationId, resId: ResourceId): Promise<Record<string, unknown>>;
@@ -14,7 +12,10 @@ export function registerAnnotationLookupHandlers(
   eventBus: EventBus,
   kb: KnowledgeBase,
   gatherer: Gatherer,
+  parentLogger: Logger,
 ): void {
+  const logger = parentLogger.child({ component: 'annotation-lookups' });
+
   eventBus.get('browse:annotation-context-requested').subscribe(async (command) => {
     const { correlationId } = command as Record<string, unknown>;
     const annId = (command as Record<string, unknown>).annotationId as string;
@@ -36,7 +37,7 @@ export function registerAnnotationLookupHandlers(
         response,
       });
     } catch (error) {
-      logger().warn('annotation-context failed', { correlationId, error: (error as Error).message });
+      logger.warn('annotation-context failed', { correlationId, error: (error as Error).message });
       (eventBus.get('browse:annotation-context-failed') as { next(v: unknown): void }).next({
         correlationId,
         message: (error as Error).message,
@@ -60,7 +61,7 @@ export function registerAnnotationLookupHandlers(
         response,
       });
     } catch (error) {
-      logger().warn('gather:summary failed', { correlationId, error: (error as Error).message });
+      logger.warn('gather:summary failed', { correlationId, error: (error as Error).message });
       (eventBus.get('gather:summary-failed') as { next(v: unknown): void }).next({
         correlationId,
         message: (error as Error).message,

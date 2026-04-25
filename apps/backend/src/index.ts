@@ -95,21 +95,13 @@ if (databaseUrlConstructed) {
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
 
-// Initialize make-meaning service (job queue, workers, graph consumer)
+// Initialize make-meaning service (job queue, workers, graph consumer).
+// startMakeMeaning registers all bus command handlers (annotation-assembly,
+// annotation-lookups, bind-update-body, job-commands) on the EventBus —
+// previously those were registered here in the backend. Moved into
+// make-meaning so LocalTransport and any future transport get the same
+// translation layer for free.
 const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
-
-// Register bus command handlers
-import { registerJobCommandHandlers } from './handlers/job-commands';
-registerJobCommandHandlers(eventBus, makeMeaning.jobQueue);
-
-import { registerAnnotationLookupHandlers } from './handlers/annotation-lookups';
-registerAnnotationLookupHandlers(eventBus, makeMeaning.knowledgeSystem.kb, makeMeaning.knowledgeSystem.gatherer);
-
-import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
-registerAnnotationAssemblyHandler(eventBus);
-
-import { registerBindUpdateBodyHandler } from './handlers/bind-update-body';
-registerBindUpdateBodyHandler(eventBus);
 
 // Import route definitions
 import { rootRouter } from './routes/root';

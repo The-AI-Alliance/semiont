@@ -23,6 +23,7 @@ import { eventAnnotationId, readAnnotationFromView } from './event-enrichment';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
+import { registerBusHandlers } from './handlers';
 import type { Subscription } from 'rxjs';
 
 export type { MakeMeaningConfig } from './config';
@@ -174,6 +175,13 @@ export async function startMakeMeaning(
 
   const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
+
+  // Register the bus command handlers that translate caller-facing
+  // request channels (mark:create-request, bind:update-body, job:create,
+  // browse:annotation-context-requested, gather:summary-requested) into
+  // the underlying make-meaning pipeline. Lives here so every transport
+  // (HTTP gateway, LocalTransport, future ones) gets the same contract.
+  registerBusHandlers(eventBus, knowledgeSystem, jobQueue, logger);
 
   return {
     knowledgeSystem,

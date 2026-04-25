@@ -42,6 +42,7 @@ import type {
   ProgressCallback,
   ProgressEvent,
 } from './types';
+import { BRIDGED_CHANNELS } from './bridged-channels';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
@@ -53,42 +54,6 @@ const RESOURCE_SCOPED_CHANNELS = [
   ...PERSISTED_EVENT_TYPES.filter((t) => t !== 'mark:entity-type-added'),
   ...RESOURCE_BROADCAST_TYPES,
 ];
-
-/**
- * Global-SSE-delivered channels that HttpTransport fans into its internal
- * `events$` subject. Any namespace (or the caller-supplied local bus via
- * `bridgeInto`) that subscribes to one of these observes the event without
- * needing to know the SSE wire format.
- */
-const BRIDGED_CHANNELS = [
-  'browse:resources-result', 'browse:resources-failed',
-  'browse:resource-result', 'browse:resource-failed',
-  'browse:annotations-result', 'browse:annotations-failed',
-  'browse:annotation-result', 'browse:annotation-failed',
-  'browse:annotation-history-result', 'browse:annotation-history-failed',
-  'browse:events-result', 'browse:events-failed',
-  'browse:referenced-by-result', 'browse:referenced-by-failed',
-  'browse:entity-types-result', 'browse:entity-types-failed',
-  'browse:directory-result', 'browse:directory-failed',
-  'browse:annotation-context-result', 'browse:annotation-context-failed',
-  'mark:delete-ok', 'mark:delete-failed',
-  'mark:create-ok', 'mark:create-failed',
-  'match:search-results', 'match:search-failed',
-  'gather:complete', 'gather:failed',
-  'gather:annotation-progress', 'gather:annotation-finished',
-  'gather:summary-result', 'gather:summary-failed',
-  'bind:body-updated', 'bind:body-update-failed',
-  'job:report-progress', 'job:complete', 'job:fail',
-  'job:status-result', 'job:status-failed',
-  'job:created', 'job:create-failed',
-  'job:claimed', 'job:claim-failed',
-  'yield:clone-token-generated', 'yield:clone-token-failed',
-  'yield:clone-resource-result', 'yield:clone-resource-failed',
-  'yield:clone-created', 'yield:clone-create-failed',
-  'mark:entity-type-added',
-  'beckon:focus', 'beckon:sparkle',
-  'bus:resume-gap',
-] as const;
 
 export class APIError extends Error {
   constructor(
