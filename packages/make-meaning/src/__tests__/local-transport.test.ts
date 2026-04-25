@@ -26,16 +26,12 @@ import {
   type ResourceId,
 } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
-import {
-  LocalTransport,
-  LocalContentTransport,
-  ResourceOperations,
-  startMakeMeaning,
-  type MakeMeaningConfig,
-  type MakeMeaningService,
-} from '@semiont/make-meaning';
+import { SemiontClient } from '@semiont/api-client';
 
-import { SemiontClient } from '../client';
+import { LocalTransport } from '../local-transport';
+import { LocalContentTransport } from '../local-content-transport';
+import { ResourceOperations } from '../resource-operations';
+import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
 
 const SETTLE_MS = 5_000;
 

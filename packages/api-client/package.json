@@ -49,7 +49,6 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@semiont/make-meaning": "*",
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.5.1",
     "typescript": "^5.6.3"
