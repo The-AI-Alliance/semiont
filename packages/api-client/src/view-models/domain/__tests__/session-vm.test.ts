@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import type { SemiontApiClient } from '../../../client';
+import type { SemiontClient } from '../../../client';
 import { createSessionVM } from '../session-vm';
 
-function mockClient(logout?: ReturnType<typeof vi.fn>): SemiontApiClient {
+function mockClient(logout?: ReturnType<typeof vi.fn>): SemiontClient {
   return {
     logout: logout ?? vi.fn().mockResolvedValue(undefined),
-  } as unknown as SemiontApiClient;
+  } as unknown as SemiontClient;
 }
 
 describe('createSessionVM', () => {

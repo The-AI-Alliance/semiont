@@ -1,13 +1,13 @@
 import { Observable, merge } from 'rxjs';
 import { filter, map, takeUntil } from 'rxjs/operators';
 import type { AnnotationId, ResourceId, EventBus } from '@semiont/core';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { ITransport } from '../transport/types';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
 
 export class GatherNamespace implements IGatherNamespace {
   constructor(
-    private readonly eventBus: EventBus,
-    private readonly actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
   ) {}
 
   annotation(
@@ -18,15 +18,15 @@ export class GatherNamespace implements IGatherNamespace {
     return new Observable((subscriber) => {
       const correlationId = crypto.randomUUID();
 
-      const complete$ = this.eventBus.get('gather:complete').pipe(
+      const complete$ = this.bus.get('gather:complete').pipe(
         filter((e) => e.correlationId === correlationId),
       );
-      const failed$ = this.eventBus.get('gather:failed').pipe(
+      const failed$ = this.bus.get('gather:failed').pipe(
         filter((e) => e.correlationId === correlationId),
       );
 
       const sub = merge(
-        this.eventBus.get('gather:annotation-progress').pipe(
+        this.bus.get('gather:annotation-progress').pipe(
           filter((e) => (e as { annotationId?: string }).annotationId === (annotationId as string)),
           map((e) => e as GatherAnnotationProgress),
         ),
@@ -47,11 +47,11 @@ export class GatherNamespace implements IGatherNamespace {
         subscriber.error(new Error(e.message));
       });
 
-      this.actor.emit('gather:requested', {
+      this.transport.emit('gather:requested', {
         correlationId,
         annotationId,
         resourceId,
-        contextWindow: options?.contextWindow ?? 2000,
+        options: { contextWindow: options?.contextWindow ?? 2000 },
       }).catch((error) => {
         subscriber.error(error);
       });

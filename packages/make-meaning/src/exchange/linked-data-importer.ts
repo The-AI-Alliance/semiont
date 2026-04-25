@@ -227,7 +227,7 @@ async function addEntityType(
 
   eventBus.get('mark:add-entity-type').next({
     tag: entityType,
-    userId,
+    _userId: userId,
   });
 
   await firstValueFrom(result$);

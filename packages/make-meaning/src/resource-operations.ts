@@ -5,8 +5,6 @@
  * — the Stower actor subscribes and handles persistence.
  *
  * For create: emits yield:create, awaits yield:created / yield:create-failed.
- * For archive/unarchive: emits mark:archive / mark:unarchive on scoped bus.
- * For entity type updates: emits mark:update-entity-types.
  */
 
 import { firstValueFrom, race, timer } from 'rxjs';
@@ -21,15 +19,6 @@ import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 type Agent = components['schemas']['Agent'];
-
-export interface UpdateResourceInput {
-  resourceId: ResourceId;
-  userId: UserId;
-  currentArchived?: boolean;
-  updatedArchived?: boolean;
-  currentEntityTypes?: string[];
-  updatedEntityTypes?: string[];
-}
 
 export interface CreateResourceInput {
   name: string;
@@ -94,32 +83,5 @@ export class ResourceOperations {
     }
 
     return makeResourceId(outcome.result.resourceId);
-  }
-
-  /**
-   * Update resource metadata via EventBus → Stower
-   */
-  static async updateResource(
-    input: UpdateResourceInput,
-    eventBus: EventBus,
-  ): Promise<void> {
-    // Handle archived status change (emit on global bus with resourceId for Stower)
-    if (input.updatedArchived !== undefined && input.updatedArchived !== input.currentArchived) {
-      if (input.updatedArchived) {
-        eventBus.get('mark:archive').next({ userId: input.userId, resourceId: input.resourceId });
-      } else {
-        eventBus.get('mark:unarchive').next({ userId: input.userId, resourceId: input.resourceId });
-      }
-    }
-
-    // Handle entity type changes
-    if (input.updatedEntityTypes && input.currentEntityTypes) {
-      eventBus.get('mark:update-entity-types').next({
-        resourceId: input.resourceId,
-        userId: input.userId,
-        currentEntityTypes: input.currentEntityTypes,
-        updatedEntityTypes: input.updatedEntityTypes,
-      });
-    }
   }
 }

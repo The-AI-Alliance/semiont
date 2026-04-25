@@ -78,56 +78,5 @@
         }
       }
     }
-  },
-  "patch": {
-    "summary": "Update resource metadata",
-    "description": "Archive/unarchive or update entity types. Emits mark:archive / mark:unarchive / mark:update-entity-types on the bus; returns 202 immediately. Frontend reconciles state via SSE domain events.",
-    "tags": ["Resources"],
-    "security": [
-      { "bearerAuth": [] }
-    ],
-    "parameters": [
-      {
-        "name": "id",
-        "in": "path",
-        "required": true,
-        "schema": { "type": "string" }
-      }
-    ],
-    "requestBody": {
-      "required": true,
-      "content": {
-        "application/json": {
-          "schema": {
-            "$ref": "../components/schemas/UpdateResourceRequest.json"
-          }
-        }
-      }
-    },
-    "responses": {
-      "202": {
-        "description": "Update accepted"
-      },
-      "401": {
-        "description": "Authentication required",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
-      },
-      "404": {
-        "description": "Resource not found",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
-      }
-    }
   }
 }

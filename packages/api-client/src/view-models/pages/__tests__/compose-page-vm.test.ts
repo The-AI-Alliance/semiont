@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { SemiontApiClient } from '../../../client';
+import type { SemiontClient } from '../../../client';
 import type { ShellVM } from '../../flows/shell-vm';
 import { createComposePageVM } from '../compose-page-vm';
 
@@ -16,7 +16,7 @@ function mockClient(overrides: {
   createFromToken?: ReturnType<typeof vi.fn>;
   resource?: ReturnType<typeof vi.fn>;
   body?: ReturnType<typeof vi.fn>;
-} = {}): SemiontApiClient {
+} = {}): SemiontClient {
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person']);
   return {
     browse: {
@@ -34,7 +34,7 @@ function mockClient(overrides: {
       data: new TextEncoder().encode('source content').buffer,
       contentType: 'text/plain',
     }),
-  } as unknown as SemiontApiClient;
+  } as unknown as SemiontClient;
 }
 
 describe('createComposePageVM', () => {

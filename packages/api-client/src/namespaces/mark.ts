@@ -4,12 +4,10 @@ import type {
   ResourceId,
   AnnotationId,
   Motivation,
-  AccessToken,
   EventBus,
   components,
 } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { ITransport } from '../transport/types';
 import { busRequest } from '../bus-request';
 import type {
   MarkNamespace as IMarkNamespace,
@@ -17,21 +15,16 @@ import type {
   MarkAssistOptions,
   MarkAssistProgress,
 } from './types';
-import type { UpdateResourceInput } from '@semiont/core';
-
-type TokenGetter = () => AccessToken | undefined;
 
 export class MarkNamespace implements IMarkNamespace {
   constructor(
-    private readonly http: SemiontApiClient,
-    private readonly eventBus: EventBus,
-    private readonly getToken: TokenGetter,
-    private readonly actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
   ) {}
 
   async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: string }> {
     return busRequest<{ annotationId: string }>(
-      this.actor,
+      this.transport,
       'mark:create-request',
       { resourceId, request: input as unknown as Record<string, unknown> },
       'mark:create-ok',
@@ -40,29 +33,25 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
-    await this.actor.emit('mark:delete', { annotationId, resourceId });
+    await this.transport.emit('mark:delete', { annotationId, resourceId });
   }
 
   async entityType(type: string): Promise<void> {
-    await this.actor.emit('mark:add-entity-type', { tag: type });
+    await this.transport.emit('mark:add-entity-type', { tag: type });
   }
 
   async entityTypes(types: string[]): Promise<void> {
     for (const tag of types) {
-      await this.actor.emit('mark:add-entity-type', { tag });
+      await this.transport.emit('mark:add-entity-type', { tag });
     }
   }
 
-  async updateResource(resourceId: ResourceId, data: UpdateResourceInput): Promise<void> {
-    return this.http.updateResource(resourceId, data, { auth: this.getToken() });
-  }
-
   async archive(resourceId: ResourceId): Promise<void> {
-    await this.actor.emit('mark:archive', { resourceId });
+    await this.transport.emit('mark:archive', { resourceId });
   }
 
   async unarchive(resourceId: ResourceId): Promise<void> {
-    await this.actor.emit('mark:unarchive', { resourceId });
+    await this.transport.emit('mark:unarchive', { resourceId });
   }
 
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistProgress> {
@@ -85,7 +74,7 @@ export class MarkNamespace implements IMarkNamespace {
           pollInterval = setInterval(() => {
             if (done) return;
             busRequest<{ status: string; result?: unknown; error?: string }>(
-              this.actor, 'job:status-requested', { jobId }, 'job:status-result', 'job:status-failed',
+              this.transport, 'job:status-requested', { jobId }, 'job:status-result', 'job:status-failed',
             ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
@@ -108,13 +97,13 @@ export class MarkNamespace implements IMarkNamespace {
       // and the `activeJobId` guard on the filter keeps each Observable
       // isolated to its own job.
       let activeJobId: string | null = null;
-      const progress$ = this.eventBus.get('job:report-progress').pipe(
+      const progress$ = this.bus.get('job:report-progress').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const complete$ = this.eventBus.get('job:complete').pipe(
+      const complete$ = this.bus.get('job:complete').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const fail$ = this.eventBus.get('job:fail').pipe(
+      const fail$ = this.bus.get('job:fail').pipe(
         filter((e) => e.jobId === activeJobId),
       );
 
@@ -137,8 +126,7 @@ export class MarkNamespace implements IMarkNamespace {
         subscriber.error(new Error(e.error));
       });
 
-      const auth = this.getToken();
-      this.dispatchAssist(resourceId, motivation, options, auth)
+      this.dispatchAssist(resourceId, motivation, options)
         .then(({ jobId }) => {
           if (jobId && !done) {
             activeJobId = jobId;
@@ -163,12 +151,12 @@ export class MarkNamespace implements IMarkNamespace {
     selector: components['schemas']['MarkRequestedEvent']['selector'],
     motivation: Motivation,
   ): void {
-    // Local emit: mark-vm subscribes via `client.stream('mark:requested')`.
-    this.http.emit('mark:requested', { selector, motivation });
+    // Local emit: mark-vm subscribes via the local bus.
+    this.bus.get('mark:requested').next({ selector, motivation });
   }
 
   requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void {
-    this.http.emit('mark:assist-request', {
+    this.bus.get('mark:assist-request').next({
       motivation,
       options,
       ...(correlationId ? { correlationId } : {}),
@@ -176,38 +164,37 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   submit(input: components['schemas']['MarkSubmitEvent']): void {
-    this.http.emit('mark:submit', input);
+    this.bus.get('mark:submit').next(input);
   }
 
   cancelPending(): void {
-    this.http.emit('mark:cancel-pending', undefined);
+    this.bus.get('mark:cancel-pending').next(undefined);
   }
 
   dismissProgress(): void {
-    this.http.emit('mark:progress-dismiss', undefined);
+    this.bus.get('mark:progress-dismiss').next(undefined);
   }
 
   changeSelection(motivation: Motivation | null): void {
-    this.http.emit('mark:selection-changed', { motivation });
+    this.bus.get('mark:selection-changed').next({ motivation });
   }
 
   changeClick(action: string): void {
-    this.http.emit('mark:click-changed', { action });
+    this.bus.get('mark:click-changed').next({ action });
   }
 
   changeShape(shape: string): void {
-    this.http.emit('mark:shape-changed', { shape });
+    this.bus.get('mark:shape-changed').next({ shape });
   }
 
   toggleMode(): void {
-    this.http.emit('mark:mode-toggled', undefined);
+    this.bus.get('mark:mode-toggled').next(undefined);
   }
 
   private async dispatchAssist(
     resourceId: ResourceId,
     motivation: Motivation,
     options: MarkAssistOptions,
-    _auth: AccessToken | undefined,
   ): Promise<{ jobId: string }> {
     const jobTypeMap: Record<string, string> = {
       tagging: 'tag-annotation',
@@ -236,7 +223,7 @@ export class MarkNamespace implements IMarkNamespace {
     if (options.categories !== undefined) params.categories = options.categories;
 
     return busRequest<{ jobId: string }>(
-      this.actor,
+      this.transport,
       'job:create',
       { jobType, resourceId, params },
       'job:created',

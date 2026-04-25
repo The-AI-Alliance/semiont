@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { SemiontApiClient } from '../../../client';
+import type { SemiontClient } from '../../../client';
 import { createWelcomeVM } from '../welcome-vm';
 
 function mockClient(overrides: {
   getMe?: ReturnType<typeof vi.fn>;
   acceptTerms?: ReturnType<typeof vi.fn>;
-} = {}): SemiontApiClient {
+} = {}): SemiontClient {
   return {
     getMe: overrides.getMe ?? vi.fn().mockResolvedValue({ termsAcceptedAt: undefined }),
     acceptTerms: overrides.acceptTerms ?? vi.fn().mockResolvedValue(undefined),
-  } as unknown as SemiontApiClient;
+  } as unknown as SemiontClient;
 }
 
 describe('createWelcomeVM', () => {

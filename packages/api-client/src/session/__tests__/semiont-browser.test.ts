@@ -1,6 +1,6 @@
 /**
  * SemiontBrowser — unit tests for the registry, D2 setActiveKb contract,
- * and open-resources CRUD. Mocks SemiontApiClient so no HTTP/SSE is needed.
+ * and open-resources CRUD. Mocks SemiontClient so no HTTP/SSE is needed.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -21,7 +21,7 @@ vi.mock('../../client', async () => {
   }
   return {
     ...actual,
-    SemiontApiClient: MockSemiontApiClient,
+    SemiontClient: MockSemiontApiClient,
   };
 });
 

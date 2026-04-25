@@ -56,7 +56,7 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
       timer(10_000).pipe(map(() => ({ ok: false as const, error: new Error(`Timeout adding entity type: ${entityType}`) }))),
     );
 
-    eventBus.get('mark:add-entity-type').next({ tag: entityType, userId: SYSTEM_USER_ID });
+    eventBus.get('mark:add-entity-type').next({ tag: entityType, _userId: SYSTEM_USER_ID });
 
     const outcome = await firstValueFrom(result$);
     if (!outcome.ok) {

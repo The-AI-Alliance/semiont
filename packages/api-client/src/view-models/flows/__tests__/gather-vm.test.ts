@@ -51,7 +51,7 @@ describe('createGatherVM', () => {
     const loading: boolean[] = [];
     vm.loading$.subscribe(v => loading.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(loading).toEqual([false, true]);
     expect(gatherFn).toHaveBeenCalledOnce();
     vm.dispose();
@@ -65,7 +65,7 @@ describe('createGatherVM', () => {
     const ids: unknown[] = [];
     vm.annotationId$.subscribe(v => ids.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(ids).toEqual([null, AID]);
     vm.dispose();
   });
@@ -84,7 +84,7 @@ describe('createGatherVM', () => {
     vm.context$.subscribe(v => ctx.push(v));
     vm.loading$.subscribe(v => loading.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(ctx).toEqual([null, null, mockContext]);
     expect(loading[loading.length - 1]).toBe(false);
     vm.dispose();
@@ -101,7 +101,7 @@ describe('createGatherVM', () => {
     const ctx: unknown[] = [];
     vm.context$.subscribe(v => ctx.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     // Initial null, cleared null from gather:requested, no context set (response has no context)
     expect(ctx.every(v => v === null)).toBe(true);
     vm.dispose();
@@ -119,7 +119,7 @@ describe('createGatherVM', () => {
     vm.error$.subscribe(v => errors.push(v));
     vm.loading$.subscribe(v => loading.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(errors[errors.length - 1]).toEqual(new Error('gather failed'));
     expect(loading[loading.length - 1]).toBe(false);
     vm.dispose();
@@ -136,11 +136,11 @@ describe('createGatherVM', () => {
     const errors: unknown[] = [];
     vm.error$.subscribe(v => errors.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(errors[errors.length - 1]).toEqual(new Error('fail'));
 
     // Second request clears error
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(errors[errors.length - 1]).toBeNull();
     vm.dispose();
   });
@@ -153,8 +153,8 @@ describe('createGatherVM', () => {
     const ids: unknown[] = [];
     vm.annotationId$.subscribe(v => ids.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
-    tc.client.emit('gather:requested', { annotationId: AID2 as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID2 as string } as any);
     expect(ids).toEqual([null, AID, AID2]);
     vm.dispose();
   });
@@ -170,7 +170,7 @@ describe('createGatherVM', () => {
     vm.error$.subscribe(v => errors.push(v));
     vm.loading$.subscribe(v => loading.push(v));
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(loading[loading.length - 1]).toBe(true);
 
     vi.advanceTimersByTime(60_000);
@@ -187,7 +187,7 @@ describe('createGatherVM', () => {
     const vm = createGatherVM(tc.client, RID);
     vm.dispose();
 
-    tc.client.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
     expect(gatherFn).not.toHaveBeenCalled();
   });
 });

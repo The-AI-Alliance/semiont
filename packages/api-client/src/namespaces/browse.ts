@@ -7,13 +7,11 @@ import type {
   ResourceDescriptor,
   ResourceId,
   AnnotationId,
-  AccessToken,
   GraphConnection,
   Motivation,
   components,
 } from '@semiont/core';
-import type { SemiontApiClient } from '../client';
-import type { ActorVM } from '../view-models/domain/actor-vm';
+import type { ITransport, IContentTransport } from '../transport/types';
 import { busRequest } from '../bus-request';
 import { createCache, type Cache } from '../cache';
 import type {
@@ -26,8 +24,6 @@ type EnrichedResourceEvent = components['schemas']['EnrichedResourceEvent'];
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
-
-type TokenGetter = () => AccessToken | undefined;
 
 type ResourceListFilters = { limit?: number; archived?: boolean; search?: string };
 
@@ -74,18 +70,11 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly annotationListObs = new Map<ResourceId, Observable<Annotation[] | undefined>>();
 
-  private readonly getToken: TokenGetter;
-  private readonly actor: ActorVM;
-
   constructor(
-    private readonly http: SemiontApiClient,
-    private readonly eventBus: EventBus,
-    getToken: TokenGetter,
-    actor: ActorVM,
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
+    private readonly content: IContentTransport,
   ) {
-    this.getToken = getToken;
-    this.actor = actor;
-
     // TEMPORARY DIAGNOSTIC — BrowseNamespace instance counter.
     const g = globalThis as { __SEMIONT_BROWSE_INSTANCES__?: number };
     g.__SEMIONT_BROWSE_INSTANCES__ = (g.__SEMIONT_BROWSE_INSTANCES__ ?? 0) + 1;
@@ -96,7 +85,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await busRequest<GetResourceResponse>(
-        this.actor,
+        this.transport,
         'browse:resource-requested',
         { resourceId: id },
         'browse:resource-result',
@@ -109,7 +98,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       const filters = this.resourceListFilters.get(key) ?? {};
       const search = filters.search ? searchQuery(filters.search) : undefined;
       const result = await busRequest<{ resources: ResourceDescriptor[] }>(
-        this.actor,
+        this.transport,
         'browse:resources-requested',
         { search, archived: filters.archived, limit: filters.limit ?? 100, offset: 0 },
         'browse:resources-result',
@@ -120,7 +109,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.annotationListCache = createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
       return busRequest<AnnotationsListResponse>(
-        this.actor,
+        this.transport,
         'browse:annotations-requested',
         { resourceId },
         'browse:annotations-result',
@@ -134,7 +123,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         throw new Error(`Cannot fetch annotation ${annotationId}: no resourceId known`);
       }
       const result = await busRequest<{ annotation: Annotation }>(
-        this.actor,
+        this.transport,
         'browse:annotation-requested',
         { resourceId, annotationId },
         'browse:annotation-result',
@@ -148,7 +137,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       // eslint-disable-next-line no-console
       console.debug(`[diag] BrowseNamespace#${serial} entityTypes fetchFn START`);
       const result = await busRequest<{ entityTypes: string[] }>(
-        this.actor,
+        this.transport,
         'browse:entity-types-requested',
         {},
         'browse:entity-types-result',
@@ -161,7 +150,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
       const result = await busRequest<{ referencedBy: ReferencedByEntry[] }>(
-        this.actor,
+        this.transport,
         'browse:referenced-by-requested',
         { resourceId },
         'browse:referenced-by-result',
@@ -172,7 +161,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.resourceEventsCache = createCache<ResourceId, StoredEventResponse[]>(async (resourceId) => {
       const result = await busRequest<{ events: StoredEventResponse[] }>(
-        this.actor,
+        this.transport,
         'browse:events-requested',
         { resourceId },
         'browse:events-result',
@@ -244,10 +233,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   // ── One-shot reads ──────────────────────────────────────────────────────
 
   async resourceContent(resourceId: ResourceId): Promise<string> {
-    const result = await this.http.getResourceRepresentation(resourceId, {
-      accept: 'text/plain' as components['schemas']['ContentFormat'],
-      auth: this.getToken(),
-    });
+    const result = await this.content.getBinary(resourceId, { accept: 'text/plain' });
     const decoder = new TextDecoder();
     return decoder.decode(result.data);
   }
@@ -256,25 +242,19 @@ export class BrowseNamespace implements IBrowseNamespace {
     resourceId: ResourceId,
     options?: { accept?: string },
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    return this.http.getResourceRepresentation(resourceId, {
-      accept: options?.accept as components['schemas']['ContentFormat'],
-      auth: this.getToken(),
-    });
+    return this.content.getBinary(resourceId, options?.accept ? { accept: options.accept } : undefined);
   }
 
   async resourceRepresentationStream(
     resourceId: ResourceId,
     options?: { accept?: string },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
-    return this.http.getResourceRepresentationStream(resourceId, {
-      accept: options?.accept as components['schemas']['ContentFormat'],
-      auth: this.getToken(),
-    });
+    return this.content.getBinaryStream(resourceId, options?.accept ? { accept: options.accept } : undefined);
   }
 
   async resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]> {
     const result = await busRequest<{ events: StoredEventResponse[] }>(
-      this.actor,
+      this.transport,
       'browse:events-requested',
       { resourceId },
       'browse:events-result',
@@ -285,7 +265,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   async annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse> {
     return busRequest<AnnotationHistoryResponse>(
-      this.actor,
+      this.transport,
       'browse:annotation-history-requested',
       { resourceId, annotationId },
       'browse:annotation-history-result',
@@ -310,7 +290,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     sort?: 'name' | 'mtime' | 'annotationCount',
   ): Promise<components['schemas']['BrowseFilesResponse']> {
     return busRequest<components['schemas']['BrowseFilesResponse']>(
-      this.actor,
+      this.transport,
       'browse:directory-requested',
       { path: dirPath ?? '.', sort: sort ?? 'name' },
       'browse:directory-result',
@@ -318,14 +298,14 @@ export class BrowseNamespace implements IBrowseNamespace {
     );
   }
 
-  // ── UI signals (local bus fan-out — subscribers listen via `client.stream`) ─
+  // ── UI signals (local bus fan-out) ────────────────────────────────────
 
   click(annotationId: AnnotationId, motivation: Motivation): void {
-    this.http.emit('browse:click', { annotationId, motivation });
+    this.bus.get('browse:click').next({ annotationId, motivation });
   }
 
   navigateReference(resourceId: ResourceId): void {
-    this.http.emit('browse:reference-navigate', { resourceId });
+    this.bus.get('browse:reference-navigate').next({ resourceId });
   }
 
   // ── Cache-mutation API (used by the bus-event subscribers below and by
@@ -395,7 +375,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): void {
-    (this.eventBus.get(channel) as { subscribe(fn: (p: EventMap[K]) => void): unknown }).subscribe(handler);
+    (this.bus.get(channel) as { subscribe(fn: (p: EventMap[K]) => void): unknown }).subscribe(handler);
   }
 
   /**

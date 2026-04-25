@@ -27,7 +27,7 @@ describe('createBeckonVM', () => {
     const values: (string | null)[] = [];
     vm.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.client.emit('beckon:hover', { annotationId: 'ann-1' });
+    tc.bus.get('beckon:hover').next({ annotationId: 'ann-1' });
     expect(values).toEqual([null, 'ann-1']);
     vm.dispose();
   });
@@ -37,8 +37,8 @@ describe('createBeckonVM', () => {
     const values: (string | null)[] = [];
     vm.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.client.emit('beckon:hover', { annotationId: 'ann-1' });
-    tc.client.emit('beckon:hover', { annotationId: null });
+    tc.bus.get('beckon:hover').next({ annotationId: 'ann-1' });
+    tc.bus.get('beckon:hover').next({ annotationId: null });
     expect(values).toEqual([null, 'ann-1', null]);
     vm.dispose();
   });
@@ -46,9 +46,9 @@ describe('createBeckonVM', () => {
   it('emits beckon:sparkle on non-null hover', () => {
     const vm = createBeckonVM(tc.client);
     const sparkles: string[] = [];
-    tc.client.on('beckon:sparkle', e => sparkles.push(e.annotationId));
+    tc.bus.get('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
 
-    tc.client.emit('beckon:hover', { annotationId: 'ann-2' });
+    tc.bus.get('beckon:hover').next({ annotationId: 'ann-2' });
     expect(sparkles).toEqual(['ann-2']);
     vm.dispose();
   });
@@ -56,9 +56,9 @@ describe('createBeckonVM', () => {
   it('does not emit beckon:sparkle on null hover', () => {
     const vm = createBeckonVM(tc.client);
     const sparkles: string[] = [];
-    tc.client.on('beckon:sparkle', e => sparkles.push(e.annotationId));
+    tc.bus.get('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
 
-    tc.client.emit('beckon:hover', { annotationId: null });
+    tc.bus.get('beckon:hover').next({ annotationId: null });
     expect(sparkles).toEqual([]);
     vm.dispose();
   });
@@ -66,9 +66,9 @@ describe('createBeckonVM', () => {
   it('relays browse:click to beckon:focus', () => {
     const vm = createBeckonVM(tc.client);
     const focuses: string[] = [];
-    tc.client.on('beckon:focus', e => focuses.push(e.annotationId!));
+    tc.bus.get('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
 
-    tc.client.emit('browse:click', { annotationId: 'ann-click', motivation: 'highlighting' });
+    tc.bus.get('browse:click').next({ annotationId: 'ann-click', motivation: 'highlighting' });
     expect(focuses).toEqual(['ann-click']);
     vm.dispose();
   });
@@ -78,8 +78,8 @@ describe('createBeckonVM', () => {
     const values: (string | null)[] = [];
     vm.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.client.emit('beckon:hover', { annotationId: 'ann-hovered' });
-    tc.client.emit('browse:click', { annotationId: 'ann-clicked', motivation: 'highlighting' });
+    tc.bus.get('beckon:hover').next({ annotationId: 'ann-hovered' });
+    tc.bus.get('browse:click').next({ annotationId: 'ann-clicked', motivation: 'highlighting' });
     expect(values).toEqual([null, 'ann-hovered']);
     vm.dispose();
   });
@@ -97,7 +97,7 @@ describe('createBeckonVM', () => {
   it('focus() command pushes to EventBus', () => {
     const vm = createBeckonVM(tc.client);
     const focuses: string[] = [];
-    tc.client.on('beckon:focus', e => focuses.push(e.annotationId!));
+    tc.bus.get('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
 
     vm.focus(annotationId('ann-focus'));
     expect(focuses).toEqual(['ann-focus']);
@@ -107,7 +107,7 @@ describe('createBeckonVM', () => {
   it('sparkle() command pushes to EventBus', () => {
     const vm = createBeckonVM(tc.client);
     const sparkles: string[] = [];
-    tc.client.on('beckon:sparkle', e => sparkles.push(e.annotationId));
+    tc.bus.get('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
 
     vm.sparkle(annotationId('ann-sparkle'));
     expect(sparkles).toEqual(['ann-sparkle']);
@@ -120,7 +120,7 @@ describe('createBeckonVM', () => {
     vm.hoveredAnnotationId$.subscribe(v => values.push(v));
 
     vm.dispose();
-    tc.client.emit('beckon:hover', { annotationId: 'ghost' });
+    tc.bus.get('beckon:hover').next({ annotationId: 'ghost' });
     expect(values).toEqual([null]); // only the initial null, no 'ghost'
   });
 });

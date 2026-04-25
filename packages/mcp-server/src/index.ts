@@ -7,7 +7,7 @@ import {
   ListResourcesRequestSchema,
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { SemiontApiClient } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport, SemiontClient } from '@semiont/api-client';
 import { baseUrl, accessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
 
@@ -31,10 +31,11 @@ const SEMIONT_API_URL = process.env.SEMIONT_API_URL;
 const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
 const token = accessToken(SEMIONT_ACCESS_TOKEN);
 
-const semiont = new SemiontApiClient({
+const transport = new HttpTransport({
   baseUrl: baseUrl(SEMIONT_API_URL),
   token$: new BehaviorSubject<typeof token | null>(token),
 });
+const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
 
 const server = new Server(
   { name: 'semiont-mcp', version: '0.2.0' },

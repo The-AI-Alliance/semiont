@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { SemiontApiClient } from '../../../client';
+import type { SemiontClient } from '../../../client';
 import type { ShellVM } from '../../flows/shell-vm';
 import { createEntityTagsVM } from '../entity-tags-vm';
 
@@ -12,7 +12,7 @@ function mockBrowse(): ShellVM {
 function mockClient(overrides: {
   entityTypes$?: BehaviorSubject<string[] | undefined>;
   entityType?: ReturnType<typeof vi.fn>;
-} = {}): SemiontApiClient {
+} = {}): SemiontClient {
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person', 'Place']);
   return {
     browse: {
@@ -21,7 +21,7 @@ function mockClient(overrides: {
     mark: {
       entityType: overrides.entityType ?? vi.fn().mockResolvedValue(undefined),
     },
-  } as unknown as SemiontApiClient;
+  } as unknown as SemiontClient;
 }
 
 describe('createEntityTagsVM', () => {

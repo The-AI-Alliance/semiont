@@ -3,7 +3,7 @@
  * shared `ActorVM`.
  *
  * Replaces the old `WorkerVM`, which owned its own actor and
- * duplicated the SSE connection that `SemiontApiClient` already held.
+ * duplicated the SSE connection that `SemiontClient` already held.
  * Workers now construct a `SemiontSession` normally (one actor, one
  * SSE connection) and use this adapter to attach job-claim behaviour
  * on top of `session.client.actor`.

@@ -32,7 +32,7 @@ export * from './exchange';
 
 // Resource operations
 export { ResourceOperations } from './resource-operations';
-export type { UpdateResourceInput, CreateResourceInput } from './resource-operations';
+export type { CreateResourceInput } from './resource-operations';
 
 // Annotation assembly (pure functions)
 export { assembleAnnotation, applyBodyOperations } from './annotation-assembly';

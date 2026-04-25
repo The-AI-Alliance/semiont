@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { SemiontApiClient } from '../../../client';
+import type { SemiontClient } from '../../../client';
 import type { ShellVM } from '../../flows/shell-vm';
 import { createDiscoverVM } from '../discover-vm';
 
@@ -12,7 +12,7 @@ function mockBrowse(): ShellVM {
 function mockClient(overrides: {
   resources$?: BehaviorSubject<unknown[] | undefined>;
   entityTypes$?: BehaviorSubject<string[] | undefined>;
-} = {}): SemiontApiClient {
+} = {}): SemiontClient {
   const resources$ = overrides.resources$ ?? new BehaviorSubject<unknown[] | undefined>([{ '@id': 'r1' }]);
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person']);
   return {
@@ -20,7 +20,7 @@ function mockClient(overrides: {
       resources: () => resources$.asObservable(),
       entityTypes: () => entityTypes$.asObservable(),
     },
-  } as unknown as SemiontApiClient;
+  } as unknown as SemiontClient;
 }
 
 describe('createDiscoverVM', () => {

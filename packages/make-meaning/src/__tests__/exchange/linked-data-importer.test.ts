@@ -358,7 +358,7 @@ describe('linked-data-importer', () => {
     const customUser = 'did:web:example.com:users:bob' as UserId;
 
     eventBus.get('mark:add-entity-type').subscribe((msg) => {
-      expect(msg.userId).toBe(customUser);
+      expect(msg._userId).toBe(customUser);
       defer(() => eventBus.get('mark:entity-type-added').next({ tag: msg.tag } as any));
     });
 

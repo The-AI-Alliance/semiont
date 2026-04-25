@@ -1,7 +1,7 @@
 import { type Observable, map } from 'rxjs';
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import type { ViewModel } from '../lib/view-model';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 
 export interface ResourceLoaderVM extends ViewModel {
   resource$: Observable<ResourceDescriptor | undefined>;
@@ -10,7 +10,7 @@ export interface ResourceLoaderVM extends ViewModel {
 }
 
 export function createResourceLoaderVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   resourceId: ResourceId,
 ): ResourceLoaderVM {
   const raw$ = client.browse.resource(resourceId);

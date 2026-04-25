@@ -36,16 +36,15 @@ vi.mock('../../../hooks/useResourceContent', () => ({
 
 
 // Stub SemiontBrowser whose activeSession$ emits a session carrying a real
-// SemiontApiClient (wired to a dummy baseUrl). The real client surface lets
+// SemiontClient (wired to a dummy baseUrl). The real client surface lets
 // createResourceViewerPageVM run against the full namespace API without us
 // hand-stubbing every method it touches.
 const { stubBrowser } = vi.hoisted(() => {
   const { BehaviorSubject } = require('rxjs');
-  const { SemiontApiClient } = require('@semiont/api-client');
+  const { SemiontClient, HttpTransport, HttpContentTransport } = require('@semiont/api-client');
   const { baseUrl } = require('@semiont/core');
-  const client = new SemiontApiClient({
-    baseUrl: baseUrl('http://localhost:4000'),
-  });
+  const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000') });
+  const client = new SemiontClient(transport, new HttpContentTransport(transport));
   const stubActiveSession$ = new BehaviorSubject({ client });
   const stubOpenResources$ = new BehaviorSubject([]);
   const stubBrowser = {

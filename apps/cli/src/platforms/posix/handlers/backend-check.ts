@@ -8,7 +8,7 @@ import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-pa
 import { SemiontProject } from '@semiont/core/node';
 import type { BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
-import { SemiontApiClient } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport, SemiontClient } from '@semiont/api-client';
 import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
@@ -112,7 +112,8 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   // Use localhost for POSIX platform (publicURL may require external auth in environments like Codespaces)
   if (status === 'unhealthy' || status === 'unknown') {
     const localUrl = `http://localhost:${config.port}`;
-    const client = new SemiontApiClient({ baseUrl: baseUrl(localUrl) });
+    const transport = new HttpTransport({ baseUrl: baseUrl(localUrl) });
+    const client = new SemiontClient(transport, new HttpContentTransport(transport));
 
     try {
       const healthData = await client.healthCheck();

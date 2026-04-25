@@ -165,9 +165,9 @@ describe('createResourceViewerPageVM', () => {
     tc = clientWithNamespaces();
     const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
     const gatherEvents: unknown[] = [];
-    tc.client.on('gather:requested', (e) => gatherEvents.push(e));
+    tc.bus.get('gather:requested').subscribe((e) => gatherEvents.push(e));
 
-    tc.client.emit('bind:initiate', {
+    tc.bus.get('bind:initiate').next({
       annotationId: annotationId('ann-1'),
       resourceId: makeResourceId('res-1'),
       defaultTitle: 'Test',
@@ -185,7 +185,7 @@ describe('createResourceViewerPageVM', () => {
     tc = clientWithNamespaces();
     const vm = createResourceViewerPageVM(tc.client, RID, 'en', mockBrowse());
 
-    tc.client.emit('bind:initiate', {
+    tc.bus.get('bind:initiate').next({
       annotationId: annotationId('ann-1'),
       resourceId: makeResourceId('res-1'),
       defaultTitle: 'Test',

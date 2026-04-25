@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { SemiontApiClient } from '../../../client';
+import type { SemiontClient } from '../../../client';
 import { createResourceLoaderVM } from '../resource-loader-vm';
 
 const RID = makeResourceId('res-1');
 
-function mockClient(resource$?: BehaviorSubject<unknown>): SemiontApiClient {
+function mockClient(resource$?: BehaviorSubject<unknown>): SemiontClient {
   const subject = resource$ ?? new BehaviorSubject<unknown>({ '@id': 'res-1', name: 'Test' });
   const invalidate = vi.fn();
   return {
@@ -15,7 +15,7 @@ function mockClient(resource$?: BehaviorSubject<unknown>): SemiontApiClient {
       resource: () => subject.asObservable(),
       invalidateResourceDetail: invalidate,
     },
-  } as unknown as SemiontApiClient;
+  } as unknown as SemiontClient;
 }
 
 describe('createResourceLoaderVM', () => {

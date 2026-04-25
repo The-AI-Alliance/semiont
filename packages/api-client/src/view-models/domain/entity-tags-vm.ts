@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, map } from 'rxjs';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 
 export interface EntityTagsVM extends ViewModel {
   browse: ShellVM;
@@ -16,7 +16,7 @@ export interface EntityTagsVM extends ViewModel {
 }
 
 export function createEntityTagsVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   browse: ShellVM,
 ): EntityTagsVM {
   const disposer = createDisposer();

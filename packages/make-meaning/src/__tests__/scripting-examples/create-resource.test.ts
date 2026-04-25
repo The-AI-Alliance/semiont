@@ -153,15 +153,10 @@ describe('Scripting Example: Create Resource', () => {
     );
 
     // Now create another event (like archiving the resource)
-    await ResourceOperations.updateResource(
-      {
-        resourceId: result,
-        userId: userId('test-script'),
-        currentArchived: false,
-        updatedArchived: true,
-      },
-      eventBus,
-    );
+    eventBus.get('mark:archive').next({
+      _userId: 'test-script',
+      resourceId: result,
+    });
 
     // Give events time to propagate
     await new Promise(resolve => setTimeout(resolve, 100));

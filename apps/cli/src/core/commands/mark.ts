@@ -29,7 +29,7 @@ import { printSuccess } from '../io/cli-logger.js';
 
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
-import type { SemiontApiClient } from '@semiont/api-client';
+import type { SemiontClient } from '@semiont/api-client';
 import { createMarkVM } from '@semiont/api-client';
 import type { AccessToken } from '@semiont/core';
 
@@ -112,7 +112,7 @@ export type MarkOptions = z.output<typeof MarkOptionsSchema>;
 // =====================================================================
 
 async function fetchResourceText(
-  semiont: SemiontApiClient,
+  semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
   token: AccessToken,
 ): Promise<string> {
@@ -166,7 +166,7 @@ function buildTextSelector(options: MarkOptions, content?: string): any[] {
 
 async function buildSelector(
   options: MarkOptions,
-  semiont: SemiontApiClient,
+  semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
   token: AccessToken,
 ): Promise<CreateAnnotationRequest['target']['selector']> {
@@ -226,7 +226,7 @@ function buildBody(options: MarkOptions): CreateAnnotationRequest['body'] {
 // =====================================================================
 
 async function runDelegate(
-  semiont: SemiontApiClient,
+  semiont: SemiontClient,
   options: MarkOptions,
 ): Promise<{ motivation: string; resourceId: string; createdCount: number }> {
   const rawResourceId = options.resourceIdArr[0];
@@ -238,7 +238,7 @@ async function runDelegate(
   const vm = createMarkVM(semiont, rId);
 
   try {
-    semiont.emit('mark:assist-request', {
+    semiont.bus.get('mark:assist-request').next({
       motivation: motivation as Motivation,
       options: {
         instructions,
@@ -253,7 +253,7 @@ async function runDelegate(
 
     const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
       const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeUnsub = semiont.on('job:complete', (event) => {
+      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         // Every JobXAnnotationResult variant has a `*Created` field,
@@ -268,12 +268,12 @@ async function runDelegate(
           0;
         resolve({ createdCount });
       });
-      const failUnsub = semiont.on('job:fail', (event) => {
+      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         reject(new Error(event.error ?? 'Annotation failed'));
       });
-      function cleanup() { completeUnsub(); failUnsub(); }
+      function cleanup() { completeSub.unsubscribe(); failSub.unsubscribe(); }
     });
 
     if (!options.quiet) process.stderr.write(`✓ ${result.createdCount} annotations created\n`);

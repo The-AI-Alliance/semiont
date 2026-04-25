@@ -70,7 +70,7 @@ describe('ListenOptionsSchema', () => {
 describe('runListen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ semiont: { sse: mockSse }, token: 'mock-token' });
     mockSse.globalEvents.mockReturnValue(mockStream);
     mockSse.resourceEvents.mockReturnValue(mockStream);
   });

@@ -1,5 +1,5 @@
 import { BehaviorSubject, Subject, type Observable, map } from 'rxjs';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
 export interface Job {
@@ -25,7 +25,7 @@ export interface JobQueueVM extends ViewModel {
   jobFailed$: Observable<Job>;
 }
 
-export function createJobQueueVM(client: SemiontApiClient): JobQueueVM {
+export function createJobQueueVM(client: SemiontClient): JobQueueVM {
   const jobs$ = new BehaviorSubject<Job[]>([]);
   const jobCreated$ = new Subject<Job>();
   const jobCompleted$ = new Subject<Job>();
@@ -60,7 +60,7 @@ export function createJobQueueVM(client: SemiontApiClient): JobQueueVM {
   };
 
   const subs = [
-    client.stream('job:queued').subscribe((event) => {
+    client.bus.get('job:queued').subscribe((event) => {
       const job: Job = {
         jobId: event.jobId,
         type: event.jobType,
@@ -73,7 +73,7 @@ export function createJobQueueVM(client: SemiontApiClient): JobQueueVM {
       jobCreated$.next(job);
     }),
 
-    client.stream('job:complete').subscribe((event) => {
+    client.bus.get('job:complete').subscribe((event) => {
       const job: Job = {
         jobId: event.jobId,
         type: event.jobType ?? '',
@@ -88,7 +88,7 @@ export function createJobQueueVM(client: SemiontApiClient): JobQueueVM {
       jobCompleted$.next(job);
     }),
 
-    client.stream('job:fail').subscribe((event) => {
+    client.bus.get('job:fail').subscribe((event) => {
       const job: Job = {
         jobId: event.jobId,
         type: event.jobType ?? '',

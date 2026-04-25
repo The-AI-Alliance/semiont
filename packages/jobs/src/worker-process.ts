@@ -2,11 +2,15 @@
  * Worker Process Entry Point
  *
  * Standalone Node process that hangs a job-claim loop off a
- * `SemiontSession`'s actor. Receives job assignments, processes them
+ * `SemiontSession`'s transport. Receives job assignments, processes them
  * with an inference provider, and emits domain events through
- * `session.client.actor.emit`. All HTTP and SSE goes through the
- * api-client — no raw `fetch`, no hand-rolled multipart, no
- * duplicate actor.
+ * `session.client.transport.emit`. All HTTP and SSE goes through the
+ * api-client — no raw `fetch`, no hand-rolled multipart.
+ *
+ * Workers are inherently bound to HTTP transport (they connect to a
+ * remote backend over the wire). The cast to `HttpTransport` to reach
+ * the underlying `ActorVM` for `JobClaimAdapter` reflects that — local
+ * workers don't make sense.
  *
  * Usage:
  *   node worker-process.js
@@ -21,8 +25,9 @@ import {
   type JobClaimAdapter,
   type ActiveJob,
   type SemiontSession,
+  type HttpTransport,
 } from '@semiont/api-client';
-import { RESOURCE_BROADCAST_TYPES, type EventMap } from '@semiont/core';
+import { RESOURCE_BROADCAST_TYPES, resourceId as makeResourceId, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
@@ -57,25 +62,30 @@ export interface WorkerProcessConfig {
 }
 
 /**
- * Route `actor.emit` calls — choosing resource-scoped vs global based
+ * Route `transport.emit` calls — choosing resource-scoped vs global based
  * on whether the event is a cross-subscriber broadcast. Extracted
  * from the deleted `WorkerVM.emitEvent`; kept here as a module-level
  * helper because `handleJob` uses it a dozen times.
  */
-async function emitEvent(
+async function emitEvent<K extends keyof EventMap>(
   session: SemiontSession,
-  channel: keyof EventMap,
+  channel: K,
   payload: Record<string, unknown>,
 ): Promise<void> {
   const isBroadcast = (RESOURCE_BROADCAST_TYPES as readonly string[]).includes(channel as string);
-  const resourceScope = isBroadcast ? (payload.resourceId as string | undefined) : undefined;
-  await session.client.actor.emit(channel as string, payload, resourceScope);
+  const rawScope = isBroadcast ? ((payload as { resourceId?: string }).resourceId) : undefined;
+  const resourceScope = rawScope ? makeResourceId(rawScope) : undefined;
+  await session.client.transport.emit(channel, payload as EventMap[K], resourceScope);
 }
 
 export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter {
   const { session, logger } = config;
+  // Workers are HTTP-bound; the actor is needed for the job-claim
+  // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
+  // is intentional: `LocalTransport` workers don't exist.
+  const httpTransport = session.client.transport as HttpTransport;
   const adapter = createJobClaimAdapter({
-    actor: session.client.actor,
+    actor: httpTransport.actor,
     jobTypes: config.jobTypes,
   });
 

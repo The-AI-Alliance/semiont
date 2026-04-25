@@ -26,7 +26,7 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
  * routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
  * they have no session UI.
  *
- * The `SemiontApiClient` is owned by the per-KB `SemiontSession`, which
+ * The `SemiontClient` is owned by the per-KB `SemiontSession`, which
  * `SemiontBrowser` constructs on demand. Components read
  * `useObservable(useSemiont().activeSession$)?.client`.
  *

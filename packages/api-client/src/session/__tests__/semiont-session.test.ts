@@ -2,7 +2,7 @@
  * SemiontSession — unit tests for lifecycle, token wiring, and the
  * refresh/validate callback contract.
  *
- * `SemiontApiClient` is mocked at the module level (the session only
+ * `SemiontClient` is mocked at the module level (the session only
  * uses it to propagate token$ into HTTP calls; the test harness
  * doesn't exercise any real HTTP or SSE). Auth is parameterized
  * entirely through callbacks now, so tests provide `refresh` and
@@ -11,25 +11,27 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { firstValueFrom, skip, take } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 
 const mockDispose = vi.fn();
-const mockActorStateSubject = { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) };
+const mockStateSubject = { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) };
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
   class MockSemiontApiClient {
     dispose = mockDispose;
-    actor = { state$: mockActorStateSubject };
-    eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
+    state$ = mockStateSubject;
+    bus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
   }
   return {
     ...actual,
-    SemiontApiClient: MockSemiontApiClient,
+    SemiontClient: MockSemiontApiClient,
   };
 });
 
+import { SemiontClient } from '../../client';
 import { SemiontSession, type SemiontSessionConfig } from '../semiont-session';
+import type { AccessToken } from '@semiont/core';
 import { SESSION_PREFIX_RE, storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
 
 function freshJwt(expSecondsFromNow = 3600): string {
@@ -53,9 +55,14 @@ let validate: NonNullable<SemiontSessionConfig['validate']> & ReturnType<typeof 
 
 /** Shortcut: new session with the default test callbacks. */
 function newSession(overrides?: Partial<SemiontSessionConfig>): SemiontSession {
+  // The mock SemiontClient ignores its constructor args; pass dummies.
+  const client = new (SemiontClient as unknown as new (...args: unknown[]) => SemiontClient)();
+  const token$ = new BehaviorSubject<AccessToken | null>(null);
   return new SemiontSession({
     kb: KB,
     storage,
+    client,
+    token$,
     refresh,
     validate,
     ...overrides,

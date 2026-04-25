@@ -360,9 +360,6 @@
       "UpdateAnnotationBodyRequest": {
         "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"
       },
-      "UpdateResourceRequest": {
-        "$ref": "components/schemas/UpdateResourceRequest.json"
-      },
       "UpdateUserRequest": {
         "$ref": "components/schemas/UpdateUserRequest.json"
       },

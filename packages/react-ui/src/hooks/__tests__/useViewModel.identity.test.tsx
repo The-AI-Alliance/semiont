@@ -22,14 +22,12 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { BehaviorSubject, Subject, filter, map } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 import { EventBus } from '@semiont/core';
 import {
   BrowseNamespace,
-  type SemiontApiClient,
-  type ActorVM,
-  type BusEvent,
-  type ConnectionState,
+  type ITransport,
+  type IContentTransport,
 } from '@semiont/api-client';
 import { useViewModel } from '../useViewModel';
 import { useObservable } from '../useObservable';
@@ -40,38 +38,40 @@ const NINE_TYPES = [
 ];
 
 /**
- * Build a minimal BrowseNamespace with a controllable mock actor. The
- * returned `answer` function lets the test decide when/what the actor
- * emits in response to the next entity-types request.
+ * Build a minimal BrowseNamespace with a controllable mock transport. The
+ * `answerEntityTypes` argument decides what the transport emits in response
+ * to the next `browse:entity-types-requested`.
  */
 function makeBrowse(answerEntityTypes: string[]) {
-  const events$ = new Subject<BusEvent>();
+  const transportBus = new EventBus();
   const emit = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
     if (channel === 'browse:entity-types-requested') {
       const correlationId = payload.correlationId as string;
       queueMicrotask(() => {
-        events$.next({
-          channel: 'browse:entity-types-result',
-          payload: { correlationId, response: { entityTypes: answerEntityTypes } },
-        });
+        (transportBus.get('browse:entity-types-result') as { next(v: unknown): void })
+          .next({ correlationId, response: { entityTypes: answerEntityTypes } });
       });
     }
   });
-  const actor = {
-    on$<T>(channel: string) {
-      return events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T));
-    },
+  const transport = {
     emit,
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    addChannels: vi.fn(),
-    removeChannels: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
+    on: <K extends never>(channel: K, handler: (p: never) => void) => {
+      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: <K extends never>(channel: K) => transportBus.get(channel),
+    subscribeToResource: vi.fn().mockReturnValue(() => {}),
+    bridgeInto: vi.fn(),
+    state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
     dispose: vi.fn(),
-  } as ActorVM;
-  const http = {} as unknown as SemiontApiClient;
-  const eventBus = new EventBus();
-  return new BrowseNamespace(http, eventBus, () => undefined, actor);
+  } as unknown as ITransport;
+  const content: IContentTransport = {
+    putBinary: vi.fn(),
+    getBinary: vi.fn(),
+    getBinaryStream: vi.fn(),
+    dispose: vi.fn(),
+  };
+  return new BrowseNamespace(transport, new EventBus(), content);
 }
 
 /**
@@ -124,25 +124,27 @@ describe('useViewModel identity seam — stale client references', () => {
     'STALE-FETCH DANGER: if client swap happens BEFORE first fetch resolves, the live client never gets queried',
     async () => {
       // Defer browseA's response so the client swap wins the race.
-      const deferredEvents$ = new Subject<BusEvent>();
+      const deferredTransportBus = new EventBus();
       const deferredEmit = vi.fn().mockImplementation(async () => { /* never answers */ });
-      const browseA = new BrowseNamespace(
-        {} as unknown as SemiontApiClient,
-        new EventBus(),
-        () => undefined,
-        {
-          on$<T>(channel: string) {
-            return deferredEvents$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T));
-          },
-          emit: deferredEmit,
-          state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-          addChannels: vi.fn(),
-          removeChannels: vi.fn(),
-          start: vi.fn(),
-          stop: vi.fn(),
-          dispose: vi.fn(),
-        } as ActorVM,
-      );
+      const deferredTransport = {
+        emit: deferredEmit,
+        on: <K extends never>(channel: K, handler: (p: never) => void) => {
+          const sub = (deferredTransportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+          return () => sub.unsubscribe();
+        },
+        stream: <K extends never>(channel: K) => deferredTransportBus.get(channel),
+        subscribeToResource: vi.fn().mockReturnValue(() => {}),
+        bridgeInto: vi.fn(),
+        state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+        dispose: vi.fn(),
+      } as unknown as ITransport;
+      const deferredContent: IContentTransport = {
+        putBinary: vi.fn(),
+        getBinary: vi.fn(),
+        getBinaryStream: vi.fn(),
+        dispose: vi.fn(),
+      };
+      const browseA = new BrowseNamespace(deferredTransport, new EventBus(), deferredContent);
       const browseB = makeBrowse(['FromBrowseB']);
 
       let observedTypes: string[] = [];
@@ -173,7 +175,7 @@ describe('useViewModel identity seam — stale client references', () => {
       // This test demonstrates the "fetch resolves into a cache nobody
       // reads" failure mode. Useful as a regression marker even though
       // it follows directly from the previous test's setup.
-      const events$ = new Subject<BusEvent>();
+      const transportBus = new EventBus();
       const pendingCids: string[] = [];
       const emit = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
         if (channel === 'browse:entity-types-requested') {
@@ -181,23 +183,25 @@ describe('useViewModel identity seam — stale client references', () => {
           // Don't respond yet — test resolves this manually.
         }
       });
-      const browseA = new BrowseNamespace(
-        {} as unknown as SemiontApiClient,
-        new EventBus(),
-        () => undefined,
-        {
-          on$<T>(channel: string) {
-            return events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T));
-          },
-          emit,
-          state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-          addChannels: vi.fn(),
-          removeChannels: vi.fn(),
-          start: vi.fn(),
-          stop: vi.fn(),
-          dispose: vi.fn(),
-        } as ActorVM,
-      );
+      const transport = {
+        emit,
+        on: <K extends never>(channel: K, handler: (p: never) => void) => {
+          const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+          return () => sub.unsubscribe();
+        },
+        stream: <K extends never>(channel: K) => transportBus.get(channel),
+        subscribeToResource: vi.fn().mockReturnValue(() => {}),
+        bridgeInto: vi.fn(),
+        state$: new BehaviorSubject<'connected'>('connected').asObservable() as never,
+        dispose: vi.fn(),
+      } as unknown as ITransport;
+      const content: IContentTransport = {
+        putBinary: vi.fn(),
+        getBinary: vi.fn(),
+        getBinaryStream: vi.fn(),
+        dispose: vi.fn(),
+      };
+      const browseA = new BrowseNamespace(transport, new EventBus(), content);
       const browseB = makeBrowse(NINE_TYPES);
 
       let observedTypes: string[] = [];
@@ -215,10 +219,8 @@ describe('useViewModel identity seam — stale client references', () => {
       rerender(<Harness browse={browseB} />);
 
       // Now resolve browseA's fetch — late. Nobody's listening.
-      events$.next({
-        channel: 'browse:entity-types-result',
-        payload: { correlationId: pendingCids[0]!, response: { entityTypes: NINE_TYPES } },
-      });
+      (transportBus.get('browse:entity-types-result') as { next(v: unknown): void })
+        .next({ correlationId: pendingCids[0]!, response: { entityTypes: NINE_TYPES } });
       await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
       // VM is still pinned to browseA; that cache DID receive the value,

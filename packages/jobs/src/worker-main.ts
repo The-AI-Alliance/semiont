@@ -35,11 +35,17 @@ import {
   type EnvironmentConfig,
 } from '@semiont/core';
 import {
-  SemiontSession,
+  HttpContentTransport,
+  HttpTransport,
   InMemorySessionStorage,
+  SemiontClient,
+  SemiontSession,
+  kbBackendUrl,
   setStoredSession,
   type KnowledgeBase,
 } from '@semiont/api-client';
+import { baseUrl, type AccessToken } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
 
 type Agent = components['schemas']['Agent'];
 
@@ -206,9 +212,20 @@ async function main() {
   const storage = new InMemorySessionStorage();
   setStoredSession(storage, kbId, { access: initialToken, refresh: '' });
 
-  const session = new SemiontSession({
+  const token$ = new BehaviorSubject<AccessToken | null>(null);
+  let session!: SemiontSession;
+  const transport = new HttpTransport({
+    baseUrl: baseUrl(kbBackendUrl(kb)),
+    token$,
+    tokenRefresher: () => session.refresh().then((t) => t ?? null),
+  });
+  const content = new HttpContentTransport(transport);
+  const client = new SemiontClient(transport, content);
+  session = new SemiontSession({
     kb,
     storage,
+    client,
+    token$,
     refresh: async () => {
       try {
         return await authenticate();

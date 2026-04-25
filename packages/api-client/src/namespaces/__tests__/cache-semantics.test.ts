@@ -10,13 +10,12 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { Subject, firstValueFrom, filter, map, BehaviorSubject } from 'rxjs';
+import { firstValueFrom, filter, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '../../view-models/domain/actor-vm';
 import { BrowseNamespace } from '../browse';
-import type { SemiontApiClient } from '../../client';
-import type { ActorVM, BusEvent } from '../../view-models/domain/actor-vm';
+import type { ITransport, IContentTransport } from '../../transport/types';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -112,7 +111,7 @@ interface HarnessOptions {
 }
 
 function createHarness(opts: HarnessOptions = {}) {
-  const events$ = new Subject<BusEvent>();
+  const transportBus = new EventBus();
   const state = {
     resourceName: opts.resourceName ?? ((id: string) => `Resource ${id}`),
     rejectRemaining: opts.rejectNext ?? 0,
@@ -172,41 +171,38 @@ function createHarness(opts: HarnessOptions = {}) {
     if (state.rejectRemaining > 0) {
       state.rejectRemaining--;
       queueMicrotask(() => {
-        events$.next({
-          channel: resultChannel.replace('-result', '-failed'),
-          payload: { correlationId, error: { message: 'rejected by test' } },
-        });
+        (transportBus.get(resultChannel.replace('-result', '-failed') as never) as { next(v: unknown): void })
+          .next({ correlationId, error: { message: 'rejected by test' } });
       });
     } else {
       queueMicrotask(() => {
-        events$.next({ channel: resultChannel, payload: { correlationId, response } });
+        (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
       });
     }
   });
 
-  const actor = {
-    on$<T = Record<string, unknown>>(channel: string) {
-      return events$.pipe(
-        filter((e) => e.channel === channel),
-        map((e) => e.payload as T),
-      );
-    },
+  const transport = {
     emit: emitSpy,
-    state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable(),
-    addChannels: vi.fn(),
-    removeChannels: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
+    on: <K extends never>(channel: K, handler: (p: never) => void) => {
+      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: <K extends never>(channel: K) => transportBus.get(channel),
+    subscribeToResource: vi.fn().mockReturnValue(() => {}),
+    bridgeInto: vi.fn(),
+    state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable() as never,
     dispose: vi.fn(),
-  } as ActorVM;
+  } as unknown as ITransport;
 
-  const http = {
-    getResourceRepresentation: vi.fn(),
-    getResourceRepresentationStream: vi.fn(),
-  } as unknown as SemiontApiClient;
+  const content: IContentTransport = {
+    putBinary: vi.fn(),
+    getBinary: vi.fn(),
+    getBinaryStream: vi.fn(),
+    dispose: vi.fn(),
+  };
 
   const eventBus = new EventBus();
-  const browse = new BrowseNamespace(http, eventBus, () => undefined, actor);
+  const browse = new BrowseNamespace(transport, eventBus, content);
 
   return { browse, eventBus, emitSpy, state };
 }

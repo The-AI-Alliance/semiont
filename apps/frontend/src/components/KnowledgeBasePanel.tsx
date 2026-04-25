@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import {
-  SemiontApiClient,
+  HttpContentTransport,
+  HttpTransport,
+  SemiontClient,
   defaultProtocol,
   isValidHostname,
   type KnowledgeBase,
@@ -135,7 +137,8 @@ function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
 
 async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; label: string; gitBranch?: string }> {
   const origin = `${protocol}://${host}:${port}`;
-  const client = new SemiontApiClient({ baseUrl: baseUrl(origin) });
+  const transport = new HttpTransport({ baseUrl: baseUrl(origin) });
+  const client = new SemiontClient(transport, new HttpContentTransport(transport));
 
   const authResult = await client.authenticatePassword(makeEmail(emailStr), password);
   const token = (authResult as any).token ?? (authResult as any).accessToken;
