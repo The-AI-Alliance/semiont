@@ -99,12 +99,24 @@ export class SemiontClient {
   public readonly auth: AuthNamespace;
   public readonly admin: AdminNamespace;
 
+  /**
+   * The client *owns* its bus. The constructor creates a fresh `EventBus`
+   * and hands it to the transport via `transport.bridgeInto(this.bus)`.
+   * The reference flows client → transport, never the other way:
+   *   - `HttpTransport.bridgeInto(bus)` pumps SSE events into the bus.
+   *   - `LocalTransport.bridgeInto(bus)` wires its in-process
+   *     KnowledgeSystem actors to emit/listen on that bus, so client and
+   *     KnowledgeSystem share one bus by construction.
+   *
+   * Callers do not pass a bus in. If they need to interact with the bus
+   * (e.g. for tests or to subscribe to arbitrary channels), they read it
+   * back via `client.bus`.
+   */
   constructor(transport: ITransport, content: IContentTransport) {
     this.transport = transport;
     this.content = content;
     this.baseUrl = transport.baseUrl;
 
-    // Local coordination bus. Wire events flow in via the transport bridge.
     this.bus = new EventBus();
     this.transport.bridgeInto(this.bus);
 

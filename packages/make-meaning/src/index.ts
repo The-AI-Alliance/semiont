@@ -9,6 +9,10 @@ export type { MakeMeaningService, MakeMeaningConfig } from './service';
 export type { KnowledgeSystem } from './knowledge-system';
 export { stopKnowledgeSystem } from './knowledge-system';
 
+// Local transport (in-process ITransport / IContentTransport for the SemiontClient)
+export { LocalTransport, type LocalTransportConfig } from './local-transport';
+export { LocalContentTransport } from './local-content-transport';
+
 // Bootstrap
 export { bootstrapEntityTypes } from './bootstrap/entity-types';
 
