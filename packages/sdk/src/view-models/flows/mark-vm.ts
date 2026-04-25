@@ -101,7 +101,12 @@ export function createMarkVM(
     const assistSub = client.mark.assist(resourceId, event.motivation, event.options).pipe(
       timeout({ each: 180_000 }),
     ).subscribe({
-      next: (p) => progress$.next(p),
+      next: (e) => {
+        // Surface only the live progress events to the UI; the final
+        // `complete` event carries `result` for callers awaiting the
+        // Observable, but the panel just dismisses on `complete`.
+        if (e.kind === 'progress') progress$.next(e.data);
+      },
       complete: () => {
         assistingMotivation$.next(null);
         clearProgressTimer();

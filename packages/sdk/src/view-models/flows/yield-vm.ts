@@ -45,9 +45,14 @@ export function createYieldVM(
     ).pipe(
       timeout({ each: 300_000 }),
     ).subscribe({
-      next: (chunk) => {
-        progress$.next(chunk);
-        isGenerating$.next(true);
+      next: (e) => {
+        // Surface live progress to the UI; `complete` events carry the
+        // final job result for awaiting callers but produce no extra
+        // panel signal here (the `complete` callback fires next).
+        if (e.kind === 'progress') {
+          progress$.next(e.data);
+          isGenerating$.next(true);
+        }
       },
       complete: () => {
         isGenerating$.next(false);

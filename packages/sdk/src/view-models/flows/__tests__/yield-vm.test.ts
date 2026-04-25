@@ -4,8 +4,11 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createYieldVM } from '../yield-vm';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import type { YieldGenerationEvent } from '../../../namespaces/types';
 
 type JobProgress = components['schemas']['JobProgress'];
+
+const progressEvent = (p: JobProgress): YieldGenerationEvent => ({ kind: 'progress', data: p });
 
 const RID = makeResourceId('res-1');
 const REF_ID = 'ref-ann-1';
@@ -61,8 +64,8 @@ describe('createYieldVM', () => {
 
   it('pipes Observable next into progress$ and flips isGenerating=true', () => {
     const p = makeProgress({ percentage: 25 });
-    const fromAnnotationFn = vi.fn(() => new Observable<JobProgress>((sub) => {
-      sub.next(p);
+    const fromAnnotationFn = vi.fn(() => new Observable<YieldGenerationEvent>((sub) => {
+      sub.next(progressEvent(p));
     }));
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
@@ -78,7 +81,7 @@ describe('createYieldVM', () => {
   });
 
   it('handles multiple next emissions in sequence', () => {
-    const progressSubject = new Subject<JobProgress>();
+    const progressSubject = new Subject<YieldGenerationEvent>();
     const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
@@ -89,15 +92,15 @@ describe('createYieldVM', () => {
 
     const p1 = makeProgress({ percentage: 30 });
     const p2 = makeProgress({ percentage: 60 });
-    progressSubject.next(p1);
-    progressSubject.next(p2);
+    progressSubject.next(progressEvent(p1));
+    progressSubject.next(progressEvent(p2));
     expect(prog).toEqual([null, p1, p2]);
     vm.dispose();
   });
 
   it('flips isGenerating=false on Observable complete and dismisses progress after 2s', () => {
     vi.useFakeTimers();
-    const progressSubject = new Subject<JobProgress>();
+    const progressSubject = new Subject<YieldGenerationEvent>();
     const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
@@ -107,7 +110,7 @@ describe('createYieldVM', () => {
     vm.progress$.subscribe(v => prog.push(v));
 
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
-    progressSubject.next(makeProgress({ percentage: 75 }));
+    progressSubject.next(progressEvent(makeProgress({ percentage: 75 })));
     progressSubject.complete();
 
     expect(gen[gen.length - 1]).toBe(false);
@@ -121,8 +124,8 @@ describe('createYieldVM', () => {
   });
 
   it('clears progress and stops generating on Observable error', () => {
-    const fromAnnotationFn = vi.fn(() => new Observable<JobProgress>((sub) => {
-      sub.next(makeProgress({ percentage: 40 }));
+    const fromAnnotationFn = vi.fn(() => new Observable<YieldGenerationEvent>((sub) => {
+      sub.next(progressEvent(makeProgress({ percentage: 40 })));
       sub.error(new Error('Generation failed'));
     }));
     tc = withYield(fromAnnotationFn);
@@ -160,7 +163,7 @@ describe('createYieldVM', () => {
 
   it('resets timeout on each progress emission', () => {
     vi.useFakeTimers();
-    const progressSubject = new Subject<JobProgress>();
+    const progressSubject = new Subject<YieldGenerationEvent>();
     const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
@@ -170,7 +173,7 @@ describe('createYieldVM', () => {
     vm.generate(REF_ID, { title: 'T', storageUri: 's', context: {} as any });
 
     vi.advanceTimersByTime(290_000);
-    progressSubject.next(makeProgress({ percentage: 50 }));
+    progressSubject.next(progressEvent(makeProgress({ percentage: 50 })));
 
     // 290s after last progress — still within 300s window
     vi.advanceTimersByTime(290_000);
@@ -185,7 +188,7 @@ describe('createYieldVM', () => {
   });
 
   it('stops responding after dispose', () => {
-    const progressSubject = new Subject<JobProgress>();
+    const progressSubject = new Subject<YieldGenerationEvent>();
     const fromAnnotationFn = vi.fn(() => progressSubject.asObservable());
     tc = withYield(fromAnnotationFn);
     const vm = createYieldVM(tc.client, RID, 'en');
@@ -196,7 +199,7 @@ describe('createYieldVM', () => {
     vm.dispose();
 
     // Any subsequent emission should not update post-dispose state
-    progressSubject.next(makeProgress());
+    progressSubject.next(progressEvent(makeProgress()));
     // The BehaviorSubject completed on dispose; no new emissions from it.
     expect(gen.at(-1)).toBe(false);  // last seen was the dispose teardown
   });

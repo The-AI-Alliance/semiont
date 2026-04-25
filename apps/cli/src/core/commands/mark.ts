@@ -30,7 +30,7 @@ import { printSuccess } from '../io/cli-logger.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
-import { createMarkVM } from '@semiont/sdk';
+import { lastValueFrom } from 'rxjs';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 
@@ -232,10 +232,8 @@ async function runDelegate(
 
   if (!options.quiet) process.stderr.write(`Annotating ${motivation} on ${rawResourceId}...\n`);
 
-  const vm = createMarkVM(semiont, rId);
-
-  try {
-    semiont.mark.requestAssist(motivation as Motivation, {
+  const final = await lastValueFrom(
+    semiont.mark.assist(rId, motivation as Motivation, {
       instructions,
       density,
       tone,
@@ -243,38 +241,22 @@ async function runDelegate(
       includeDescriptiveReferences: includeDescriptive,
       schemaId: schemaId as string | undefined,
       categories: category as string[] | undefined,
-    });
+    }),
+  );
 
-    const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
-      const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeSub = semiont.job.complete$.subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        // Every JobXAnnotationResult variant has a `*Created` field,
-        // differently named per job type. Pull the first numeric one.
-        const r = (event.result ?? {}) as Record<string, unknown>;
-        const createdCount =
-          (typeof r.highlightsCreated === 'number' && r.highlightsCreated) ||
-          (typeof r.commentsCreated === 'number' && r.commentsCreated) ||
-          (typeof r.assessmentsCreated === 'number' && r.assessmentsCreated) ||
-          (typeof r.tagsCreated === 'number' && r.tagsCreated) ||
-          (typeof r.totalEmitted === 'number' && r.totalEmitted) ||
-          0;
-        resolve({ createdCount });
-      });
-      const failSub = semiont.job.fail$.subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        reject(new Error(event.error ?? 'Annotation failed'));
-      });
-      function cleanup() { completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
+  // Every JobXAnnotationResult variant has a `*Created` field, differently
+  // named per job type. Pull the first numeric one.
+  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as Record<string, unknown>;
+  const createdCount =
+    (typeof r.highlightsCreated === 'number' && r.highlightsCreated) ||
+    (typeof r.commentsCreated === 'number' && r.commentsCreated) ||
+    (typeof r.assessmentsCreated === 'number' && r.assessmentsCreated) ||
+    (typeof r.tagsCreated === 'number' && r.tagsCreated) ||
+    (typeof r.totalEmitted === 'number' && r.totalEmitted) ||
+    0;
 
-    if (!options.quiet) process.stderr.write(`✓ ${result.createdCount} annotations created\n`);
-    return { motivation, resourceId: rawResourceId, createdCount: result.createdCount };
-  } finally {
-    vm.dispose();
-  }
+  if (!options.quiet) process.stderr.write(`✓ ${createdCount} annotations created\n`);
+  return { motivation, resourceId: rawResourceId, createdCount };
 }
 
 // =====================================================================

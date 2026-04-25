@@ -38,7 +38,6 @@ type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
 type JobProgress = components['schemas']['JobProgress'];
-type YieldProgress = JobProgress;  // alias retained for the yield namespace's Observable signature
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
@@ -130,11 +129,30 @@ export type GatherAnnotationProgress = GatherProgress | GatherAnnotationComplete
 export type MatchSearchProgress = MatchSearchResult;
 
 /**
- * Progress emitted by mark.assist() Observable.
- * Each emission is a JobProgress snapshot (unified job lifecycle). The
- * Observable completes on `job:complete`; errors on `job:fail`.
+ * Progress payload emitted by mark.assist() and yield.fromAnnotation()
+ * Observables. Each progress emission carries a JobProgress snapshot
+ * (unified job lifecycle).
  */
 export type MarkAssistProgress = JobProgress;
+
+/**
+ * Discriminated event yielded by the `mark.assist()` Observable. Progress
+ * events stream while the worker runs; the final value before the
+ * Observable completes is a `complete` event carrying the `JobCompleteCommand`
+ * payload (with `result`, `jobId`, `jobType`, etc.). The Observable errors
+ * on `job:fail`.
+ */
+export type MarkAssistEvent =
+  | { kind: 'progress'; data: MarkAssistProgress }
+  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
+
+/**
+ * Discriminated event yielded by the `yield.fromAnnotation()` Observable.
+ * Same shape and semantics as `MarkAssistEvent`.
+ */
+export type YieldGenerationEvent =
+  | { kind: 'progress'; data: JobProgress }
+  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
 
 // ── Namespace interfaces ────────────────────────────────────────────────────
 
@@ -196,8 +214,8 @@ export interface MarkNamespace {
   archive(resourceId: ResourceId): Promise<void>;
   unarchive(resourceId: ResourceId): Promise<void>;
 
-  // AI-assisted annotation (long-running, returns Observable with progress)
-  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistProgress>;
+  // AI-assisted annotation (long-running, returns Observable with progress + final result)
+  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistEvent>;
 
   // UI signals (fire-and-forget bus emits, local-bus fan-out)
   request(
@@ -297,12 +315,12 @@ export interface YieldNamespace {
   // File upload (synchronous)
   resource(data: CreateResourceInput): Promise<{ resourceId: string }>;
 
-  // Generation from annotation (long-running, LLM-based)
+  // Generation from annotation (long-running, LLM-based — yields progress, then a final complete event)
   fromAnnotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options: GenerationOptions,
-  ): Observable<YieldProgress>;
+  ): Observable<YieldGenerationEvent>;
 
   // Clone
   cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }>;

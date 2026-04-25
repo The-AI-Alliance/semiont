@@ -21,7 +21,6 @@ import { z } from 'zod';
 import { lastValueFrom } from 'rxjs';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
-import { createYieldVM } from '@semiont/sdk';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -111,10 +110,11 @@ async function runDelegate(
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
-  // Step 2: generate via YieldVM
-  const yieldVM = createYieldVM(semiont, rId, options.language ?? 'en');
-  try {
-    yieldVM.generate(aId as string, {
+  // Step 2: generate — yield.fromAnnotation Observable yields progress
+  // events, then a final `complete` event carrying the JobCompleteCommand
+  // (with `result.resourceId` / `result.resourceName`).
+  const final = await lastValueFrom(
+    semiont.yield.fromAnnotation(rId, aId, {
       title: options.title ?? rawAnnotationId,
       storageUri: options.storageUri!,
       context,
@@ -122,25 +122,10 @@ async function runDelegate(
       language: options.language,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
-    });
-
-    return await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-      const completeSub = semiont.job.complete$.subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        const r = (event.result ?? {}) as { resourceId?: string; resourceName?: string };
-        resolve({ resourceId: r.resourceId, resourceName: r.resourceName });
-      });
-      const failSub = semiont.job.fail$.subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        reject(new Error(event.error ?? 'Generation failed'));
-      });
-      function cleanup() { completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
-  } finally {
-    yieldVM.dispose();
-  }
+    }),
+  );
+  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as { resourceId?: string; resourceName?: string };
+  return { resourceId: r.resourceId, resourceName: r.resourceName };
 }
 
 // =====================================================================

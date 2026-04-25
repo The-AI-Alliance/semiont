@@ -6,9 +6,9 @@
  */
 
 import { firstValueFrom, lastValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { filter, tap } from 'rxjs/operators';
 import { getExactText, getBodySource } from '@semiont/core';
-import { SemiontClient, createMarkVM, createYieldVM } from '@semiont/sdk';
+import { SemiontClient } from '@semiont/sdk';
 import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
@@ -96,39 +96,28 @@ export async function markAnnotation(semiont: SemiontClient, args: any): Promise
 
 export async function markAssist(semiont: SemiontClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
-  const vm = createMarkVM(semiont, rId);
+  const progressMessages: string[] = [];
 
   try {
-    const progressMessages: string[] = [];
-    semiont.mark.requestAssist('linking', {
-      entityTypes: args?.entityTypes || [],
-      includeDescriptiveReferences: false,
-    });
-
-    return await new Promise<McpResult>((resolve) => {
-      const progressSub = vm.progress$.pipe(
-        filter((p): p is NonNullable<typeof p> => p !== null),
-      ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage ?? 0}%`); });
-
-      const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeSub = semiont.job.complete$.subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        const foundCount = (event.result as { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number } | undefined);
-        const count =
-          foundCount?.totalFound ?? foundCount?.highlightsFound ?? foundCount?.commentsFound ??
-          foundCount?.assessmentsFound ?? foundCount?.tagsFound ?? 0;
-        resolve({ content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] });
-      });
-      const failSub = semiont.job.fail$.subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        resolve({ content: [{ type: 'text', text: `Detection failed: ${event.error}` }], isError: true });
-      });
-      function cleanup() { progressSub.unsubscribe(); completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
-  } finally {
-    vm.dispose();
+    const final = await lastValueFrom(
+      semiont.mark.assist(rId, 'linking', {
+        entityTypes: args?.entityTypes || [],
+        includeDescriptiveReferences: false,
+      }).pipe(
+        tap((e) => {
+          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage ?? 0}%`);
+        }),
+      ),
+    );
+    const r = (final.kind === 'complete' ? final.data.result : undefined) as
+      | { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number }
+      | undefined;
+    const count =
+      r?.totalFound ?? r?.highlightsFound ?? r?.commentsFound ??
+      r?.assessmentsFound ?? r?.tagsFound ?? 0;
+    return { content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] };
+  } catch (err) {
+    return { content: [{ type: 'text', text: `Detection failed: ${(err as Error).message}` }], isError: true };
   }
 }
 
@@ -181,36 +170,25 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
     semiont.gather.annotation(aId, rId, { contextWindow: 2000 }),
   ) as GatheredContext;
 
-  // Step 2: generate via YieldVM
-  const yieldVM = createYieldVM(semiont, rId, args?.language ?? 'en');
+  // Step 2: generate. yield.fromAnnotation streams progress, then ends with
+  // a `complete` event carrying the JobCompleteCommand (with `result`).
+  const progressMessages: string[] = [];
   try {
-    yieldVM.generate(aId as string, {
-      title: args?.title ?? 'Generated',
-      storageUri: args?.storageUri,
-      context: ctx,
-      prompt: args?.prompt,
-      language: args?.language,
-    });
-
-    const progressMessages: string[] = [];
-    return await new Promise<McpResult>((resolve) => {
-      const progressSub = yieldVM.progress$.pipe(
-        filter((p): p is NonNullable<typeof p> => p !== null),
-      ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage}%`); });
-
-      const completeSub = semiont.job.complete$.subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        resolve({ content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] });
-      });
-      const failSub = semiont.job.fail$.subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        resolve({ content: [{ type: 'text', text: `Generation failed: ${event.error}` }], isError: true });
-      });
-      function cleanup() { progressSub.unsubscribe(); completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
-  } finally {
-    yieldVM.dispose();
+    await lastValueFrom(
+      semiont.yield.fromAnnotation(rId, aId, {
+        title: args?.title ?? 'Generated',
+        storageUri: args?.storageUri,
+        context: ctx,
+        prompt: args?.prompt,
+        language: args?.language,
+      }).pipe(
+        tap((e) => {
+          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage}%`);
+        }),
+      ),
+    );
+    return { content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] };
+  } catch (err) {
+    return { content: [{ type: 'text', text: `Generation failed: ${(err as Error).message}` }], isError: true };
   }
 }

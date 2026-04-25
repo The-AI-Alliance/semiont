@@ -7,9 +7,6 @@ import type {
   components,
 } from '@semiont/core';
 
-// YieldProgress is the per-yield view of a job's JobProgress payload;
-// we don't need a separate schema type now that job:* carries both.
-type YieldProgress = components['schemas']['JobProgress'];
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
 import type {
@@ -17,6 +14,7 @@ import type {
   CreateResourceInput,
   GenerationOptions,
   CreateFromTokenOptions,
+  YieldGenerationEvent,
 } from './types';
 
 import type { ResourceDescriptor } from '@semiont/core';
@@ -51,7 +49,7 @@ export class YieldNamespace implements IYieldNamespace {
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options: GenerationOptions,
-  ): Observable<YieldProgress> {
+  ): Observable<YieldGenerationEvent> {
     return new Observable((subscriber) => {
       let done = false;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -70,13 +68,22 @@ export class YieldNamespace implements IYieldNamespace {
           if (done) return;
           pollInterval = setInterval(() => {
             if (done) return;
-            busRequest<{ status: string; result?: Record<string, unknown>; error?: string }>(
+            busRequest<{ status: string; result?: Record<string, unknown>; error?: string; jobType?: string }>(
               this.transport, 'job:status-requested', { jobId: jid }, 'job:status-result', 'job:status-failed',
             ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
                   cleanup();
-                  subscriber.next({ stage: 'complete', percentage: 100, message: 'Generation complete' });
+                  // Synthesize a `complete` event from polled status.
+                  subscriber.next({
+                    kind: 'complete',
+                    data: {
+                      jobId: jid,
+                      jobType: (status.jobType ?? 'generation') as components['schemas']['JobType'],
+                      resourceId: resourceId as string,
+                      result: status.result as components['schemas']['JobResult'] | undefined,
+                    },
+                  });
                   subscriber.complete();
                 } else if (status.status === 'failed') {
                   cleanup();
@@ -108,12 +115,13 @@ export class YieldNamespace implements IYieldNamespace {
       const progressSub = progress$
         .pipe(takeUntil(merge(complete$, fail$)))
         .subscribe((e) => {
-          subscriber.next(e.progress as YieldProgress);
+          if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
           if (activeJobId) resetPollTimer(activeJobId);
         });
 
-      const completeSub = complete$.subscribe(() => {
+      const completeSub = complete$.subscribe((e) => {
         cleanup();
+        subscriber.next({ kind: 'complete', data: e });
         subscriber.complete();
       });
 
