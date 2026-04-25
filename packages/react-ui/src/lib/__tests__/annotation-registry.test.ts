@@ -2,12 +2,16 @@ import { describe, it, expect, vi } from 'vitest';
 import { ANNOTATORS } from '../annotation-registry';
 
 // Mock api-client type guards
-vi.mock('@semiont/core', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   isHighlight: vi.fn((ann: any) => ann.motivation === 'highlighting'),
   isComment: vi.fn((ann: any) => ann.motivation === 'commenting'),
   isReference: vi.fn((ann: any) => ann.motivation === 'linking'),
   isTag: vi.fn((ann: any) => ann.motivation === 'tagging'),
-}));
+  };
+});
 
 describe('annotation-registry ANNOTATORS', () => {
   describe('structure', () => {

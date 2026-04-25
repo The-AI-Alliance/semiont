@@ -26,11 +26,15 @@ vi.mock('@semiont/event-sourcing', () => ({
   generateAnnotationId: vi.fn(() => 'ann-test-123'),
 }));
 
-vi.mock('@semiont/core', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   validateAndCorrectOffsets: vi.fn((_content, start, end, exact) => ({
     start, end, exact, prefix: '', suffix: '', corrected: false,
   })),
-}));
+  };
+});
 
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';

@@ -9,10 +9,14 @@ import {
 } from '../event-formatting';
 
 // Mock api-client functions
-vi.mock('@semiont/core', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   getExactText: vi.fn((selector: any) => selector?.exact ?? null),
   getTargetSelector: vi.fn((target: any) => target?.selector ?? null),
-}));
+  };
+});
 
 const t = vi.fn((key: string, params?: Record<string, string | number>) => {
   if (params) return `${key}(${JSON.stringify(params)})`;

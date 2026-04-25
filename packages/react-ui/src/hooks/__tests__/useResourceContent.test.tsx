@@ -18,10 +18,14 @@ vi.mock('../../components/Toast', () => ({
   useToast: () => ({ showError: mockShowError }),
 }));
 
-vi.mock('@semiont/core', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   getPrimaryMediaType: vi.fn(() => 'text/plain'),
   decodeWithCharset: vi.fn((data: string) => data),
-}));
+  };
+});
 
 vi.mock('../../session/SemiontProvider', async () => {
   const actual = await vi.importActual<typeof import('../../session/SemiontProvider')>('../../session/SemiontProvider');

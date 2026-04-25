@@ -16,9 +16,13 @@ vi.mock('../../../hooks/useSearchAnnouncements', () => ({
 }));
 
 // Mock getResourceId
-vi.mock('@semiont/core', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   getResourceId: vi.fn((resource: any) => resource?.id)
-}));
+  };
+});
 
 describe('SearchModal Component - Basic Rendering', () => {
   const defaultProps = {

@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { segmentTextWithAnnotations } from '../text-segmentation';
 
 // Mock api-client functions used by segmentTextWithAnnotations
-vi.mock('@semiont/core', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   getTargetSelector: vi.fn((target: any) => {
     if (Array.isArray(target)) return target[0];
     return target;
@@ -35,7 +38,8 @@ vi.mock('@semiont/core', () => ({
     return null;
   }),
   buildContentCache: vi.fn(() => ({})),
-}));
+  };
+});
 
 function makeAnnotation(id: string, start: number, end: number, exact?: string): any {
   return {
