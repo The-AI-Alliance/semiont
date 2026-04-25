@@ -126,7 +126,7 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
     });
 
     const userId = `did:web:localhost:users:${process.env.USER ?? 'cli'}` as UserId;
-    eventBus.get('yield:mv').next({ fromUri, toUri, userId, noGit: options.noGit });
+    eventBus.get('yield:mv').next({ fromUri, toUri, _userId: userId, noGit: options.noGit });
     await movedPromise;
 
     if (!options.quiet) {

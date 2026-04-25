@@ -4,9 +4,10 @@
  * Business logic for annotation CRUD operations. All writes go through the
  * EventBus — the Stower actor subscribes and handles persistence.
  *
- * - Create: emits mark:create with full annotation + userId + resourceId
- * - Update body: emits mark:update-body
- * - Delete: emits mark:delete with annotationId + userId + resourceId
+ * In-process callers pass a `UserId` to these operations; the
+ * EventBus emits stamp it onto the gateway-injection field `_userId`,
+ * matching the wire-side convention so Stower handlers see one shape
+ * regardless of where the command originated.
  */
 
 import type { components } from '@semiont/core';
@@ -48,7 +49,7 @@ export class AnnotationOperations {
     // Emit mark:create — Stower subscribes and appends to event store
     eventBus.get('mark:create').next({
       annotation,
-      userId,
+      _userId: userId,
       resourceId: resId,
     });
 
@@ -79,7 +80,7 @@ export class AnnotationOperations {
     // Emit mark:update-body — Stower subscribes and appends to event store
     eventBus.get('mark:update-body').next({
       annotationId: annotationId(id),
-      userId,
+      _userId: userId,
       resourceId: resId,
       operations: request.operations as BodyOperation[],
     });
@@ -119,7 +120,7 @@ export class AnnotationOperations {
     // Emit mark:delete — Stower subscribes and appends to event store
     eventBus.get('mark:delete').next({
       annotationId: annotationId(id),
-      userId,
+      _userId: userId,
       resourceId: resId,
     });
 

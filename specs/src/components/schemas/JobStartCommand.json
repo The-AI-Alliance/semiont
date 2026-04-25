@@ -2,10 +2,11 @@
   "type": "object",
   "description": "Command to start a job",
   "properties": {
-    "resourceId": {
-      "type": "string"
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
-    "userId": {
+    "resourceId": {
       "type": "string"
     },
     "jobId": {
@@ -21,7 +22,6 @@
   },
   "required": [
     "resourceId",
-    "userId",
     "jobId",
     "jobType"
   ]

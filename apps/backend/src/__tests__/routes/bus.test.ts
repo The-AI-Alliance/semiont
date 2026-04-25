@@ -257,7 +257,7 @@ describe('bus routes', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channel: 'job:queued',
-          payload: { jobId: 'j-1', jobType: 'highlight-annotation', resourceId: 'res-1' },
+          payload: { jobId: 'j-1', jobType: 'highlight-annotation', resourceId: 'res-1', userId: 'u-1' },
         }),
       });
 

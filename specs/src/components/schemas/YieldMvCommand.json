@@ -2,18 +2,22 @@
   "type": "object",
   "description": "Bus command to move (rename) a yielded resource.",
   "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
     "fromUri": {
       "type": "string"
     },
     "toUri": {
       "type": "string"
     },
-    "userId": {
-      "type": "string"
-    },
     "noGit": {
       "type": "boolean"
     }
   },
-  "required": ["fromUri", "toUri", "userId"]
+  "required": [
+    "fromUri",
+    "toUri"
+  ]
 }

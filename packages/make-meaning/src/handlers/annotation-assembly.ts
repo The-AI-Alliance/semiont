@@ -1,4 +1,4 @@
-import { resourceId, userId, didToAgent, assembleAnnotation } from '@semiont/core';
+import { resourceId, didToAgent, assembleAnnotation } from '@semiont/core';
 import type { EventBus, Logger, components } from '@semiont/core';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -43,7 +43,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, parentLogg
       eventBus.get('mark:create').next({
         correlationId: cid,
         annotation,
-        userId: userId(_userId),
+        _userId,
         resourceId: resourceId(resId as string),
       } as never);
 

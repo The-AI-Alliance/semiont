@@ -7,6 +7,7 @@ export interface Job {
   type: string;
   status: string;
   resourceId: string;
+  /** DID of the user who initiated the job (audit). */
   userId: string;
   created: string;
   startedAt?: string;
@@ -65,8 +66,8 @@ export function createJobQueueVM(client: SemiontClient): JobQueueVM {
         jobId: event.jobId,
         type: event.jobType,
         status: 'pending',
-        resourceId: event.resourceId ?? '',
-        userId: '',
+        resourceId: event.resourceId,
+        userId: event.userId,
         created: new Date().toISOString(),
       };
       addOrUpdate(job);
@@ -74,12 +75,15 @@ export function createJobQueueVM(client: SemiontClient): JobQueueVM {
     }),
 
     client.bus.get('job:complete').subscribe((event) => {
+      if (!event._userId) {
+        throw new Error('job:complete missing _userId (gateway injection)');
+      }
       const job: Job = {
         jobId: event.jobId,
-        type: event.jobType ?? '',
+        type: event.jobType,
         status: 'complete',
-        resourceId: event.resourceId ?? '',
-        userId: event.userId ?? '',
+        resourceId: event.resourceId,
+        userId: event._userId,
         created: '',
         completedAt: new Date().toISOString(),
         result: event.result as Record<string, unknown>,
@@ -89,15 +93,18 @@ export function createJobQueueVM(client: SemiontClient): JobQueueVM {
     }),
 
     client.bus.get('job:fail').subscribe((event) => {
+      if (!event._userId) {
+        throw new Error('job:fail missing _userId (gateway injection)');
+      }
       const job: Job = {
         jobId: event.jobId,
-        type: event.jobType ?? '',
+        type: event.jobType,
         status: 'failed',
-        resourceId: event.resourceId ?? '',
-        userId: event.userId ?? '',
+        resourceId: event.resourceId,
+        userId: event._userId,
         created: '',
         completedAt: new Date().toISOString(),
-        error: event.error ?? 'Unknown error',
+        error: event.error,
       };
       addOrUpdate(job);
       jobFailed$.next(job);

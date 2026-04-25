@@ -91,6 +91,10 @@ export class Stower {
   // ========================================================================
 
   private async handleYieldCreate(event: EventMap['yield:create']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('yield:create missing _userId (gateway injection)');
+    }
+    const uid = makeUserId(event._userId);
     try {
       const rId = resourceId(generateUuid());
 
@@ -116,7 +120,7 @@ export class Stower {
       await this.kb.eventStore.appendEvent({
         type: 'yield:created',
         resourceId: rId,
-        userId: makeUserId(event.userId),
+        userId: uid,
         version: 1,
         payload: {
           name: event.name,
@@ -167,7 +171,7 @@ export class Stower {
       if (generatedFrom) {
         this.eventBus.get('mark:update-body').next({
           annotationId: generatedFrom.annotationId,
-          userId: makeUserId(event.userId),
+          _userId: event._userId,
           resourceId: generatedFrom.resourceId,
           operations: [
             {
@@ -195,6 +199,9 @@ export class Stower {
   }
 
   private async handleYieldUpdate(event: EventMap['yield:update']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('yield:update missing _userId (gateway injection)');
+    }
     try {
       // Content is already on disk at storageUri (callers write before emitting).
       // register() verifies the file exists and validates the checksum.
@@ -202,7 +209,7 @@ export class Stower {
       await this.kb.eventStore.appendEvent({
         type: 'yield:updated',
         resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event.userId),
+        userId: makeUserId(event._userId),
         version: 1,
         payload: {
           contentChecksum: event.contentChecksum,
@@ -233,12 +240,15 @@ export class Stower {
       return;
     }
 
+    if (!event._userId) {
+      throw new Error('yield:mv missing _userId (gateway injection)');
+    }
     try {
       await this.kb.content.move(event.fromUri, event.toUri, { noGit: event.noGit });
       await this.kb.eventStore.appendEvent({
         type: 'yield:moved',
         resourceId: rId,
-        userId: makeUserId(event.userId),
+        userId: makeUserId(event._userId),
         version: 1,
         payload: {
           fromUri: event.fromUri,
@@ -256,13 +266,16 @@ export class Stower {
   }
 
   private async handleMarkCreate(event: EventMap['mark:create']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:create missing _userId (gateway injection)');
+    }
     try {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
       await this.kb.eventStore.appendEvent(
         {
           type: 'mark:added',
           resourceId: resourceId(event.resourceId),
-          userId: makeUserId(event.userId),
+          userId: makeUserId(event._userId),
           version: 1,
           payload: { annotation: event.annotation as Annotation },
         },
@@ -280,22 +293,17 @@ export class Stower {
   }
 
   private async handleMarkDelete(event: EventMap['mark:delete']): Promise<void> {
-    // Accept either `_userId` (gateway-injected by HTTP /bus/emit and
-    // LocalTransport) or `userId` (set explicitly by in-process callers
-    // like AnnotationOperations / replay). The two-convention quirk is
-    // tracked in .plans/HANDLE-MARK-DELETE.md — every Stower handler
-    // and every in-process caller will eventually settle on `_userId`,
-    // at which point the cast and the fallback both go away.
-    const uid = (event as { _userId?: string })._userId ?? event.userId;
-    if (!uid || !event.resourceId) {
-      return; // Frontend-only event — handled by route, not Stower
+    if (!event._userId) {
+      throw new Error('mark:delete missing _userId (gateway injection)');
     }
-
+    if (!event.resourceId) {
+      throw new Error('mark:delete missing resourceId');
+    }
     try {
       await this.kb.eventStore.appendEvent({
         type: 'mark:removed',
         resourceId: resourceId(event.resourceId),
-        userId: makeUserId(uid),
+        userId: makeUserId(event._userId),
         version: 1,
         payload: { annotationId: annotationId(event.annotationId) },
       });
@@ -309,12 +317,15 @@ export class Stower {
   }
 
   private async handleMarkUpdateBody(event: EventMap['mark:update-body']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:update-body missing _userId (gateway injection)');
+    }
     try {
       await this.kb.eventStore.appendEvent(
         {
           type: 'mark:body-updated',
           resourceId: resourceId(event.resourceId),
-          userId: makeUserId(event.userId),
+          userId: makeUserId(event._userId),
           version: 1,
           payload: { annotationId: event.annotationId, operations: event.operations },
         },
@@ -421,10 +432,13 @@ export class Stower {
   }
 
   private async handleJobStart(event: EventMap['job:start']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('job:start missing _userId (gateway injection)');
+    }
     await this.kb.eventStore.appendEvent({
       type: 'job:started',
       resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event.userId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -435,10 +449,13 @@ export class Stower {
   }
 
   private async handleJobComplete(event: EventMap['job:complete']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('job:complete missing _userId (gateway injection)');
+    }
     await this.kb.eventStore.appendEvent({
       type: 'job:completed',
       resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event.userId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -450,10 +467,13 @@ export class Stower {
   }
 
   private async handleJobFail(event: EventMap['job:fail']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('job:fail missing _userId (gateway injection)');
+    }
     await this.kb.eventStore.appendEvent({
       type: 'job:failed',
       resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event.userId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {
         jobId: event.jobId,

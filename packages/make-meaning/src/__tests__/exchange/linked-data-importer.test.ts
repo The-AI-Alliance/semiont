@@ -363,7 +363,7 @@ describe('linked-data-importer', () => {
     });
 
     eventBus.get('yield:create').subscribe((msg) => {
-      expect(msg.userId).toBe(customUser);
+      expect(msg._userId).toBe(customUser);
       defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,

@@ -288,7 +288,7 @@ async function importResource(
     contentChecksum: stored.checksum,
     byteSize: stored.byteSize,
     format,
-    userId,
+    _userId: userId,
     language,
     entityTypes: entityTypes ?? [],
     creationMethod: creationMethod as CreationMethod | undefined,
@@ -326,7 +326,7 @@ async function createAnnotation(
 
   eventBus.get('mark:create').next({
     annotation: dehydrateAnnotation(annotation),
-    userId,
+    _userId: userId,
     resourceId,
   });
 
