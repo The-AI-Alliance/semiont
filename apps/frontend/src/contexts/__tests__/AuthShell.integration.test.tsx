@@ -13,9 +13,9 @@
  * If any link in this chain breaks, the user sees an empty page instead of
  * the modal. This is the integration the unit tests miss.
  *
- * We spy on `SemiontClient.prototype.getMe` / `refreshToken` rather than
+ * We spy on `AuthNamespace.prototype.me` / `refresh` rather than
  * replacing the class, because `SemiontSession` constructs `SemiontClient`
- * via an internal reference inside `@semiont/api-client`'s bundle — a
+ * via an internal reference inside `@semiont/sdk`'s bundle — a
  * package-level `vi.mock` would not intercept that. Prototype-level spies
  * patch every instance regardless of where it's constructed.
  */
@@ -26,7 +26,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
-import { SemiontBrowser, SemiontClient } from '@semiont/sdk';
+import { SemiontBrowser, AuthNamespace } from '@semiont/sdk';
 import { APIError } from '@semiont/api-client';
 // Spies set up in beforeEach; tests configure `.mockResolvedValue` / `.mockRejectedValue` on them.
 let getMeSpy: ReturnType<typeof vi.spyOn>;
@@ -91,8 +91,8 @@ describe('AuthShell integration — KB session validation → modal', () => {
     // Patch the real client's prototype. Applies to every SemiontClient
     // constructed during the test, including the throwaway clients that
     // `SemiontSession.validate` spins up.
-    getMeSpy = vi.spyOn(SemiontClient.prototype, 'getMe');
-    refreshTokenSpy = vi.spyOn(SemiontClient.prototype, 'refreshToken');
+    getMeSpy = vi.spyOn(AuthNamespace.prototype, 'me');
+    refreshTokenSpy = vi.spyOn(AuthNamespace.prototype, 'refresh');
   });
 
   afterEach(() => {

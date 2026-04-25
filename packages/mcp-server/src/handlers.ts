@@ -5,10 +5,10 @@
  * Returns MCP-shaped { content: [{ type: 'text', text }] }.
  */
 
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { getExactText, getBodySource } from '@semiont/core';
-import { SemiontClient, createGatherVM, createMarkVM, createYieldVM } from '@semiont/sdk';
+import { SemiontClient, createMarkVM, createYieldVM } from '@semiont/sdk';
 import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
@@ -100,9 +100,9 @@ export async function markAssist(semiont: SemiontClient, args: any): Promise<Mcp
 
   try {
     const progressMessages: string[] = [];
-    semiont.bus.get('mark:assist-request').next({
-      motivation: 'linking',
-      options: { entityTypes: args?.entityTypes || [], includeDescriptiveReferences: false },
+    semiont.mark.requestAssist('linking', {
+      entityTypes: args?.entityTypes || [],
+      includeDescriptiveReferences: false,
     });
 
     return await new Promise<McpResult>((resolve) => {
@@ -111,7 +111,7 @@ export async function markAssist(semiont: SemiontClient, args: any): Promise<Mcp
       ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage ?? 0}%`); });
 
       const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
+      const completeSub = semiont.job.complete$.subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         const foundCount = (event.result as { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number } | undefined);
@@ -120,7 +120,7 @@ export async function markAssist(semiont: SemiontClient, args: any): Promise<Mcp
           foundCount?.assessmentsFound ?? foundCount?.tagsFound ?? 0;
         resolve({ content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] });
       });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
+      const failSub = semiont.job.fail$.subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         resolve({ content: [{ type: 'text', text: `Detection failed: ${event.error}` }], isError: true });
@@ -148,24 +148,12 @@ export async function bindBody(semiont: SemiontClient, args: any): Promise<McpRe
 export async function gatherAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
-  const vm = createGatherVM(semiont, rId);
 
-  try {
-    semiont.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: aId as string,
-      resourceId: rId as string,
-      options: { contextWindow: args?.contextWindow ?? 2000 },
-    });
+  const context = await lastValueFrom(
+    semiont.gather.annotation(aId, rId, { contextWindow: args?.contextWindow ?? 2000 }),
+  );
 
-    const context = await firstValueFrom(
-      vm.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
-    );
-
-    return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
-  } finally {
-    vm.dispose();
-  }
+  return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
 }
 
 // ── Yield ───────────────────────────────────────────────────────────────────
@@ -188,22 +176,10 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
 
-  // Step 1: gather context via GatherVM
-  const gatherVM = createGatherVM(semiont, rId);
-  let ctx: GatheredContext;
-  try {
-    semiont.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: aId as string,
-      resourceId: rId as string,
-      options: { contextWindow: 2000 },
-    });
-    ctx = await firstValueFrom(
-      gatherVM.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
-    );
-  } finally {
-    gatherVM.dispose();
-  }
+  // Step 1: gather context
+  const ctx = await lastValueFrom(
+    semiont.gather.annotation(aId, rId, { contextWindow: 2000 }),
+  ) as GatheredContext;
 
   // Step 2: generate via YieldVM
   const yieldVM = createYieldVM(semiont, rId, args?.language ?? 'en');
@@ -222,12 +198,12 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
         filter((p): p is NonNullable<typeof p> => p !== null),
       ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage}%`); });
 
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
+      const completeSub = semiont.job.complete$.subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         resolve({ content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] });
       });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
+      const failSub = semiont.job.fail$.subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         resolve({ content: [{ type: 'text', text: `Generation failed: ${event.error}` }], isError: true });

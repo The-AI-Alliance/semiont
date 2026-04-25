@@ -18,11 +18,10 @@
 import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
-import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { lastValueFrom } from 'rxjs';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
-import { createGatherVM, createYieldVM } from '@semiont/sdk';
+import { createYieldVM } from '@semiont/sdk';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -105,22 +104,10 @@ async function runDelegate(
   const rId = toResourceId(rawResourceId);
   const aId = toAnnotationId(rawAnnotationId);
 
-  // Step 1: gather context via GatherVM
-  const gatherVM = createGatherVM(semiont, rId);
-  let context: GatheredContext;
-  try {
-    semiont.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: aId as string,
-      resourceId: rId as string,
-      options: { contextWindow: options.contextWindow },
-    });
-    context = await firstValueFrom(
-      gatherVM.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
-    );
-  } finally {
-    gatherVM.dispose();
-  }
+  // Step 1: gather context
+  const context = await lastValueFrom(
+    semiont.gather.annotation(aId, rId, { contextWindow: options.contextWindow }),
+  ) as GatheredContext;
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
@@ -138,13 +125,13 @@ async function runDelegate(
     });
 
     return await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
+      const completeSub = semiont.job.complete$.subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         const r = (event.result ?? {}) as { resourceId?: string; resourceName?: string };
         resolve({ resourceId: r.resourceId, resourceName: r.resourceName });
       });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
+      const failSub = semiont.job.fail$.subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         reject(new Error(event.error ?? 'Generation failed'));

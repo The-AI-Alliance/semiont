@@ -332,6 +332,15 @@ export interface BeckonNamespace {
  * Job — worker lifecycle
  */
 export interface JobNamespace {
+  /** Live stream of `job:queued` events from the bus. */
+  readonly queued$: Observable<EventMap['job:queued']>;
+  /** Live stream of `job:report-progress` events from the bus. */
+  readonly progress$: Observable<EventMap['job:report-progress']>;
+  /** Live stream of `job:complete` events from the bus. */
+  readonly complete$: Observable<EventMap['job:complete']>;
+  /** Live stream of `job:fail` events from the bus. */
+  readonly fail$: Observable<EventMap['job:fail']>;
+
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
   cancel(jobId: JobId, type: string): Promise<void>;

@@ -235,22 +235,19 @@ async function runDelegate(
   const vm = createMarkVM(semiont, rId);
 
   try {
-    semiont.bus.get('mark:assist-request').next({
-      motivation: motivation as Motivation,
-      options: {
-        instructions,
-        density,
-        tone,
-        entityTypes: entityType as string[] | undefined,
-        includeDescriptiveReferences: includeDescriptive,
-        schemaId: schemaId as string | undefined,
-        categories: category as string[] | undefined,
-      },
+    semiont.mark.requestAssist(motivation as Motivation, {
+      instructions,
+      density,
+      tone,
+      entityTypes: entityType as string[] | undefined,
+      includeDescriptiveReferences: includeDescriptive,
+      schemaId: schemaId as string | undefined,
+      categories: category as string[] | undefined,
     });
 
     const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
       const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
+      const completeSub = semiont.job.complete$.subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         // Every JobXAnnotationResult variant has a `*Created` field,
@@ -265,7 +262,7 @@ async function runDelegate(
           0;
         resolve({ createdCount });
       });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
+      const failSub = semiont.job.fail$.subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         reject(new Error(event.error ?? 'Annotation failed'));

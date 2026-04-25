@@ -1,4 +1,5 @@
-import type { EventBus, JobId, components } from '@semiont/core';
+import type { Observable } from 'rxjs';
+import type { EventBus, EventMap, JobId, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
 import type { JobNamespace as IJobNamespace } from './types';
@@ -10,6 +11,30 @@ export class JobNamespace implements IJobNamespace {
     private readonly transport: ITransport,
     private readonly bus: EventBus,
   ) {}
+
+  /**
+   * Live stream of `job:queued` events. Surfaces a typed view onto the
+   * underlying bus channel for consumers (CLIs, MCP handlers, widgets)
+   * that orchestrate jobs and need to react to lifecycle transitions.
+   */
+  get queued$(): Observable<EventMap['job:queued']> {
+    return this.bus.get('job:queued');
+  }
+
+  /** Live stream of `job:report-progress` events. */
+  get progress$(): Observable<EventMap['job:report-progress']> {
+    return this.bus.get('job:report-progress');
+  }
+
+  /** Live stream of `job:complete` events. */
+  get complete$(): Observable<EventMap['job:complete']> {
+    return this.bus.get('job:complete');
+  }
+
+  /** Live stream of `job:fail` events. */
+  get fail$(): Observable<EventMap['job:fail']> {
+    return this.bus.get('job:fail');
+  }
 
   async status(jobId: JobId): Promise<JobStatusResponse> {
     return busRequest<JobStatusResponse>(

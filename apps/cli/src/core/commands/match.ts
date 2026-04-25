@@ -12,11 +12,9 @@
  */
 
 import { z } from 'zod';
-import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
-import { createGatherVM } from '@semiont/sdk';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -56,22 +54,10 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const rawBusUrl = resolveBusUrl(options.bus);
   const { semiont } = loadCachedClient(rawBusUrl);
 
-  // Step 1: gather context via GatherVM
-  const gatherVM = createGatherVM(semiont, resourceId);
-  let context: GatheredContext;
-  try {
-    semiont.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: annotationId as string,
-      resourceId: resourceId as string,
-      options: { contextWindow: options.contextWindow },
-    });
-    context = await firstValueFrom(
-      gatherVM.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
-    );
-  } finally {
-    gatherVM.dispose();
-  }
+  // Step 1: gather context
+  let context = await lastValueFrom(
+    semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }),
+  ) as GatheredContext;
 
   if (options.userHint) {
     context = { ...context, userHint: options.userHint };
