@@ -516,22 +516,27 @@ export class SemiontBrowser {
   }
 
   /**
-   * Validate an access token by calling `getMe` on a throwaway
+   * Validate an access token by calling `auth.me` on a throwaway
    * client. The session uses this once at startup to populate
    * `user$`; 401 triggers a refresh-then-retry inside the session.
+   *
+   * The throwaway transport is seeded with the specific token to
+   * validate so the request actually carries it (HttpTransport
+   * sources `Authorization` from its `token$`).
    */
-  private async performValidate(kb: KnowledgeBase, _token: AccessToken): Promise<UserInfo | null> {
-    // _token is the access token the session wants to validate, but the
-    // throwaway transport pulls auth from its own configured headers. The
-    // callback contract is preserved for the session signature; revisiting
-    // this needs the throwaway to accept a per-call auth token.
-    const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(kb)) });
+  private async performValidate(kb: KnowledgeBase, token: AccessToken): Promise<UserInfo | null> {
+    const tokenSubject = new BehaviorSubject<AccessToken | null>(token);
+    const throwawayTransport = new HttpTransport({
+      baseUrl: baseUrl(kbBackendUrl(kb)),
+      token$: tokenSubject,
+    });
     const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
     try {
       const data = await throwaway.auth.me();
       return data as UserInfo;
     } finally {
       throwaway.dispose();
+      tokenSubject.complete();
     }
   }
 
