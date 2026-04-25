@@ -61,12 +61,21 @@ function makeFakeSessionAndAdapter() {
   const yieldResourceCalls: Parameters<SemiontSession['client']['yield']['resource']>[0][] = [];
   const adapterCalls: AdapterCall[] = [];
 
+  const transportEmit = vi.fn(async (channel: string, payload: Record<string, unknown>, scope?: string) => {
+    busEmits.push({ channel, payload, scope });
+  });
   const session = {
     client: {
-      actor: {
-        emit: vi.fn(async (channel: string, payload: Record<string, unknown>, scope?: string) => {
-          busEmits.push({ channel, payload, scope });
-        }),
+      transport: {
+        emit: transportEmit,
+        // `startWorkerProcess` reads `transport.actor` to attach the job-claim
+        // adapter; test needs a minimal ActorVM-shaped stand-in.
+        actor: {
+          on$: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
+          emit: transportEmit,
+          addChannels: vi.fn(),
+          removeChannels: vi.fn(),
+        },
       },
       browse: {
         resourceContent: vi.fn(async (_rid: string) => 'the content'),
