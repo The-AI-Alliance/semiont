@@ -8,7 +8,8 @@
 
 import React, { useState, useEffect } from 'react';
 import type { GatheredContext } from '@semiont/core';
-import { isImageMimeType, isPdfMimeType, LOCALES, type CloneData, type ReferenceData } from '@semiont/api-client';
+import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/core';
+import { type CloneData, type ReferenceData } from '@semiont/api-client';
 import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/api-client';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';

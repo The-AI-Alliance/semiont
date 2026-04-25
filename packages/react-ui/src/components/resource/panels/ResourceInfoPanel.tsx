@@ -3,7 +3,7 @@
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
-import { formatLocaleDisplay } from '@semiont/api-client';
+import { formatLocaleDisplay } from '@semiont/core';
 import { resourceId as makeResourceId, type components } from '@semiont/core';
 import './ResourceInfoPanel.css';
 

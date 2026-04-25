@@ -15,13 +15,11 @@ this doc is wrong and needs updating, deliberately. No third option.
 gather, match, yield, beckon, job, auth, admin) consume it. The seam
 hides whether a method goes over the network or runs in-process.
 
-Current implementations:
-
-- `HttpTransport` — HTTP + SSE to a remote Semiont backend. See
-  [apps/backend/docs/TRANSPORT.md](../../../apps/backend/docs/TRANSPORT.md)
-  for the HTTP-specific wire contract.
-- `LocalTransport` *(Phase 2, not yet landed)* — direct in-process
-  access to a `@semiont/make-meaning` runtime.
+The canonical wire implementation, `HttpTransport`, lives in this
+package and is documented in
+[apps/backend/docs/TRANSPORT.md](../../../apps/backend/docs/TRANSPORT.md).
+Other implementations (e.g. in-process variants) live alongside the
+runtime they wrap and are documented there.
 
 ## The surface
 
@@ -100,12 +98,11 @@ its `EventBus` internally and hands a *reference* to the transport via
 way. Transports do not construct, replace, or substitute the bus; they
 adapt to it.
 
-- `HttpTransport.bridgeInto(bus)` stores the reference and pumps every
-  channel it receives from SSE into that bus (and any subsequent
-  per-resource scoped channels opened by `subscribeToResource`).
-- `LocalTransport.bridgeInto(bus)` stores the reference and wires its
-  in-process `KnowledgeSystem` actors to emit/listen on that bus, so
-  client and KnowledgeSystem share one bus by construction.
+`HttpTransport.bridgeInto(bus)` stores the reference and pumps every
+channel it receives from SSE into that bus (and any subsequent
+per-resource scoped channels opened by `subscribeToResource`).
+In-process transports adapt the same hook to whatever local source they
+wrap.
 
 Constructors of concrete transports never accept a bus. The bus arrives
 *only* through `bridgeInto`, which is called once by `SemiontClient` at
@@ -124,7 +121,7 @@ payload. Clients do not set it; handlers cannot trust a client-supplied
 
 - `HttpTransport` — the `/bus/emit` gateway reads the JWT subject and
   injects it as `_userId` before publishing on the bus.
-- `LocalTransport` — the host process's service principal is the
+- In-process transports — the host process's service principal is the
   source; the transport injects its identity into every emitted
   payload.
 
@@ -149,8 +146,9 @@ failChannel, timeoutMs?)` is a shared helper built on the primitives:
 
 HTTP-specific: if the SSE connection drops after the emit and the
 result arrives during the outage, it may be lost even on reconnect
-(the result event is ephemeral, not persisted). `LocalTransport` is
-synchronous — no outage, no loss.
+(the result event is ephemeral, not persisted). In-process transports
+that publish on the same in-memory bus they read from have no outage
+and no loss.
 
 ## Connection state
 
@@ -163,9 +161,9 @@ same six-state union:
 
 `HttpTransport` drives all six (see
 [apps/backend/docs/TRANSPORT.md](../../../apps/backend/docs/TRANSPORT.md)
-for the state machine). `LocalTransport` emits `'connected'` once at
+for the state machine). An in-process transport is `'open'` from
 construction and never changes — consumers that show connecting /
-reconnecting UI should treat `'connected'` as terminal.
+reconnecting UI should treat the open state as terminal.
 
 ## Event categorization
 

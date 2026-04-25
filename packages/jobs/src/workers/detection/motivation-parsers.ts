@@ -9,8 +9,7 @@
  * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
-import { validateAndCorrectOffsets } from '@semiont/api-client';
-
+import { validateAndCorrectOffsets } from '@semiont/core';
 /**
  * Best-effort extractor that pulls a JSON array of objects out of a raw
  * LLM response. Tolerates:

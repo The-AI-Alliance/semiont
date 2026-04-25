@@ -2,9 +2,9 @@
  * BRIDGED_CHANNELS
  *
  * The set of bus channels that any concrete transport bridges into the
- * caller-supplied bus via `bridgeInto`. Transport-neutral: shared by
- * `HttpTransport` (delivers via SSE) and `LocalTransport` (forwards
- * directly from the in-process make-meaning bus).
+ * caller-supplied bus via `bridgeInto`. Transport-neutral: every concrete
+ * `ITransport` shares the same set; HTTP delivers them via SSE,
+ * in-process transports forward them directly from the local actor bus.
  *
  * Note: this is the *fan-in* set — channels for events the transport
  * receives and pushes onto the client's bus. It is not the same as the

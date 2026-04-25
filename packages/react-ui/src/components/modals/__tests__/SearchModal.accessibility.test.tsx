@@ -15,9 +15,13 @@ vi.mock('../../../hooks/useSearchAnnouncements', () => ({
 }));
 
 // Mock getResourceId
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   getResourceId: vi.fn((resource: any) => resource?.id)
-}));
+  };
+});
 
 describe.skip('SearchModal Component - Accessibility', () => {
   // TODO: All SearchModal tests skipped due to HeadlessUI Dialog + jsdom memory issues

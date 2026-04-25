@@ -22,7 +22,7 @@ import type { ResourceId } from '@semiont/core';
 import type { VectorStore, EmbeddingProvider, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import { createVectorStore, createEmbeddingProvider, chunkText } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/vectors';
-import { getExactText, getTargetSelector } from '@semiont/api-client';
+import { getExactText, getTargetSelector } from '@semiont/core';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';

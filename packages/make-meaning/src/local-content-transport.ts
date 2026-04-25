@@ -14,7 +14,7 @@
  */
 
 import type { AccessToken, ContentFormat, ResourceId, components } from '@semiont/core';
-import type { IContentTransport, PutBinaryRequest } from '@semiont/api-client';
+import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
 

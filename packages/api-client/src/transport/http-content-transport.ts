@@ -9,7 +9,7 @@
 
 import type { AccessToken, ContentFormat, ResourceId } from '@semiont/core';
 import type { HttpTransport } from './http-transport';
-import type { IContentTransport, PutBinaryRequest } from './types';
+import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 export class HttpContentTransport implements IContentTransport {
   constructor(private readonly transport: HttpTransport) {}

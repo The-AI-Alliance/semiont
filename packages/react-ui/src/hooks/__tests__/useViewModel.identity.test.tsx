@@ -24,11 +24,8 @@ import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject, map } from 'rxjs';
 import { EventBus } from '@semiont/core';
-import {
-  BrowseNamespace,
-  type ITransport,
-  type IContentTransport,
-} from '@semiont/api-client';
+import { type ITransport, type IContentTransport } from '@semiont/core';
+import { BrowseNamespace } from '@semiont/api-client';
 import { useViewModel } from '../useViewModel';
 import { useObservable } from '../useObservable';
 

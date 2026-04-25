@@ -1,7 +1,7 @@
 import { Observable, merge } from 'rxjs';
 import { filter, map, takeUntil } from 'rxjs/operators';
 import type { AnnotationId, ResourceId, EventBus } from '@semiont/core';
-import type { ITransport } from '../transport/types';
+import type { ITransport } from '@semiont/core';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
 
 export class GatherNamespace implements IGatherNamespace {

@@ -61,7 +61,8 @@ export interface SemiontSessionConfig {
   /**
    * Pre-built api client. The session does not construct it — caller
    * builds the transport stack and passes the client in. This is the
-   * seam where consumers swap HTTP for `LocalTransport`.
+   * seam where consumers swap one `ITransport` implementation for
+   * another (HTTP, in-process, etc.).
    */
   client: SemiontClient;
   /**

@@ -8,7 +8,8 @@
  * No React dependencies — safe to use in any JavaScript environment.
  */
 
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, findTextWithContext, buildContentCache } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector } from '@semiont/core';
+import { findTextWithContext, buildContentCache } from '@semiont/core';
 import type { TextSegment } from './codemirror-logic';
 
 import type { Annotation } from '@semiont/core';

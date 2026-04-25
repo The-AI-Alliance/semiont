@@ -13,8 +13,7 @@
  */
 
 import type { components } from '@semiont/core';
-import { isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
-
+import { isHighlight, isComment, isReference, isTag } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
 

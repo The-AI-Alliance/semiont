@@ -17,7 +17,7 @@ import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
 import { type EventBus, CREATION_METHODS, cloneToken as makeCloneToken, type CloneToken, resourceId, userId as makeUserId } from '@semiont/core';
-import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-client';
+import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { ResourceOperations } from './resource-operations';

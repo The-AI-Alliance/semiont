@@ -7,9 +7,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
-import type { ConnectionState } from '@semiont/api-client';
+import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
-import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getMimeCategory } from '@semiont/api-client';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/core';
+import { getMimeCategory } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';

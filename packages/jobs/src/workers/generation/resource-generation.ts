@@ -4,7 +4,7 @@
  * Generates markdown resources from topics using AI inference.
  */
 
-import { getLocaleEnglishName } from '@semiont/api-client';
+import { getLocaleEnglishName } from '@semiont/core';
 import type { GatheredContext, Logger } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 

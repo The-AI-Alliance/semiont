@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useImperativeHandle, type Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { Annotation } from '@semiont/core';
-import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
+import { getAnnotationExactText, getCommentText } from '@semiont/core';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom, filter } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
-import type { ITransport, IContentTransport } from '../../transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';

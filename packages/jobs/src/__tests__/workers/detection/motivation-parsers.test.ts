@@ -9,7 +9,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { MotivationParsers, extractObjectsFromArray } from '../../../workers/detection/motivation-parsers';
 
 // Mock validateAndCorrectOffsets
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   validateAndCorrectOffsets: vi.fn((content: string, start: number, end: number, exact: string) => {
     // Simple validation: check if the text at offsets matches exact
     const extracted = content.substring(start, end);
@@ -25,7 +28,8 @@ vi.mock('@semiont/api-client', () => ({
     // If mismatch, throw to simulate validation failure
     throw new Error(`Text mismatch: expected "${exact}", got "${extracted}"`);
   })
-}));
+  };
+});
 
 describe('MotivationParsers', () => {
   const testContent = 'Alice went to Paris. Bob stayed home.';

@@ -17,7 +17,7 @@ import { JobNamespace } from '../job';
 import { MarkNamespace } from '../mark';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
-import type { ITransport, IContentTransport } from '../../transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 
 function makeMockTransport(): ITransport {
   return {

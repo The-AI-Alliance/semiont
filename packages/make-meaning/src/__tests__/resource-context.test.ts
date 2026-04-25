@@ -8,14 +8,18 @@ import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
 
-// Mock dependencies
-vi.mock('@semiont/api-client', () => ({
-  getPrimaryRepresentation: vi.fn(),
-  decodeRepresentation: vi.fn(),
-}));
+// Mock the helpers ResourceContext reads from core. Use importOriginal so
+// branded constructors (resourceId, etc.) keep their real implementations.
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
+    getPrimaryRepresentation: vi.fn(),
+    decodeRepresentation: vi.fn(),
+  };
+});
 
-import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
-
+import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 describe('ResourceContext', () => {
   let mockKb: KnowledgeBase;
   let mockViewStorage: any;

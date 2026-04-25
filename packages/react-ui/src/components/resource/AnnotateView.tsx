@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
+import { getMimeCategory, isPdfMimeType } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';

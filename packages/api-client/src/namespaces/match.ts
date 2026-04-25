@@ -1,7 +1,7 @@
 import { Observable } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
-import type { ITransport } from '../transport/types';
+import type { ITransport } from '@semiont/core';
 import type { MatchNamespace as IMatchNamespace, MatchSearchProgress } from './types';
 
 export class MatchNamespace implements IMatchNamespace {

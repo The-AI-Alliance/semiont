@@ -24,8 +24,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getCommentText: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock('@semiont/api-client', async () => {
   };
 });
 
-import { getCommentText, getAnnotationExactText } from '@semiont/api-client';
+import { getCommentText, getAnnotationExactText } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 
 const mockGetCommentText = getCommentText as MockedFunction<typeof getCommentText>;

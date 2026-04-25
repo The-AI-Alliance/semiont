@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { validateData, JWTTokenSchema } from '@semiont/api-client';
+import { validateData, JWTTokenSchema } from '@semiont/core';
 import {
   ImageURLSchema,
   OAuthUserSchema,

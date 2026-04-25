@@ -28,7 +28,7 @@ import type {
   UserId,
 } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
-import type { ITransport, IContentTransport } from '../../transport/types';
+import type { ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 

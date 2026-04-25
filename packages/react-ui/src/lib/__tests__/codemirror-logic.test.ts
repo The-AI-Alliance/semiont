@@ -9,7 +9,10 @@ import {
 import type { TextSegment } from '../codemirror-logic';
 
 // Mock api-client type guards
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
   isHighlight: vi.fn((ann: any) => ann.motivation === 'highlighting'),
   isComment: vi.fn((ann: any) => ann.motivation === 'commenting'),
   isReference: vi.fn((ann: any) => ann.motivation === 'linking'),
@@ -17,7 +20,8 @@ vi.mock('@semiont/api-client', () => ({
   isAssessment: vi.fn((ann: any) => ann.motivation === 'assessing'),
   isTag: vi.fn((ann: any) => ann.motivation === 'tagging'),
   getBodySource: vi.fn((body: any) => body?.[0]?.source ?? null),
-}));
+  };
+});
 
 // Mock annotation-registry
 vi.mock('../annotation-registry', () => ({

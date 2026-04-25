@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { isBodyResolved } from '@semiont/api-client';
+import { isBodyResolved } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import './StatisticsPanel.css';
 

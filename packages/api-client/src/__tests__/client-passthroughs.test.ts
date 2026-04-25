@@ -3,8 +3,9 @@
  *
  * These exercise the methods on `client.ts` that delegate directly to
  * `this.transport` (auth, admin, exchange, system, lifecycle) and the
- * one bus-routed passthrough that wasn't covered by the in-process
- * LocalTransport contract suite (`getAnnotation`).
+ * one bus-routed passthrough that isn't covered by the in-process
+ * contract suite that lives next to its concrete transport
+ * (`getAnnotation`).
  *
  * Strategy: pass a recording mock `ITransport` (and a mock
  * `IContentTransport`) into `new SemiontClient(...)`. No HTTP, no real
@@ -29,7 +30,7 @@ import {
 } from '@semiont/core';
 
 import { SemiontClient } from '../client';
-import type { ConnectionState, ITransport, IContentTransport } from '../transport/types';
+import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 
 const TEST_BASE = baseUrl('http://test.local');
 

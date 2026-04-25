@@ -10,7 +10,7 @@ import type {
   GraphConnection,
   GraphPath,
 } from '@semiont/core';
-import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
+import { getResourceId, getResourceEntityTypes } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 
 import type { Annotation } from '@semiont/core';

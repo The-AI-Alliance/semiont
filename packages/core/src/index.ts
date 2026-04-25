@@ -149,6 +149,128 @@ export {
 } from './annotation-assembly';
 export type { AssembledAnnotation } from './annotation-assembly';
 
+// W3C Web Annotation accessors (target/body/selector helpers + type guards)
+export {
+  getBodySource,
+  getBodyType,
+  isBodyResolved,
+  getTargetSource,
+  getTargetSelector,
+  hasTargetSelector,
+  isHighlight,
+  isReference,
+  isAssessment,
+  isComment,
+  isTag,
+  getCommentText,
+  isStubReference,
+  isResolvedReference,
+  getExactText,
+  getAnnotationExactText,
+  getPrimarySelector,
+  getTextQuoteSelector,
+  extractBoundingBox,
+} from './web-annotation-utils';
+export type {
+  TextPositionSelector,
+  TextQuoteSelector,
+  SvgSelector,
+  FragmentSelector,
+} from './web-annotation-utils';
+
+// ResourceDescriptor accessors
+export {
+  getResourceId,
+  getPrimaryRepresentation,
+  getPrimaryMediaType,
+  getChecksum,
+  getLanguage,
+  getStorageUri,
+  getCreator,
+  getDerivedFrom,
+  isArchived,
+  getResourceEntityTypes,
+  isDraft,
+  getNodeEncoding,
+  decodeRepresentation,
+} from './resource-utils';
+
+// Transport contract — interfaces every concrete transport must satisfy.
+export type {
+  ITransport,
+  IContentTransport,
+  PutBinaryRequest,
+  ConnectionState,
+  ProgressEvent,
+  ProgressCallback,
+  HealthCheckResponse,
+  StatusResponse,
+  UserResponse,
+  UpdateUserRequest,
+  UpdateUserResponse,
+  ListUsersResponse,
+} from './transport';
+
+// Channel set every concrete transport bridges into the client's bus.
+export { BRIDGED_CHANNELS, type BridgedChannel } from './bridged-channels';
+
+// Fuzzy text anchoring (annotation re-anchoring under content edits)
+export {
+  normalizeText,
+  buildContentCache,
+  findBestTextMatch,
+  findTextWithContext,
+  verifyPosition,
+} from './fuzzy-anchor';
+export type { TextPosition, MatchQuality, ContentCache } from './fuzzy-anchor';
+
+// Locale info table
+export {
+  LOCALES,
+  getLocaleInfo,
+  getLocaleNativeName,
+  getLocaleEnglishName,
+  formatLocaleDisplay,
+  getAllLocaleCodes,
+} from './locales';
+export type { LocaleInfo } from './locales';
+
+// SVG utilities
+export {
+  createRectangleSvg,
+  createPolygonSvg,
+  createCircleSvg,
+  parseSvgSelector,
+  normalizeCoordinates,
+  scaleSvgToNative,
+} from './svg-utils';
+export type { Point, BoundingBox } from './svg-utils';
+
+// Text context extraction (depends on fuzzy-anchor)
+export { extractContext, validateAndCorrectOffsets } from './text-context';
+export type { ValidatedAnnotation } from './text-context';
+
+// Text encoding helpers
+export { extractCharset, decodeWithCharset } from './text-encoding';
+
+// Schema validation helpers
+export {
+  JWTTokenSchema,
+  validateData,
+  isValidEmail,
+} from './validation';
+export type { ValidationSuccess, ValidationFailure, ValidationResult } from './validation';
+
+// MIME type helpers
+export {
+  getExtensionForMimeType,
+  isImageMimeType,
+  isTextMimeType,
+  isPdfMimeType,
+  getMimeCategory,
+} from './mime-utils';
+export type { MimeCategory } from './mime-utils';
+
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 

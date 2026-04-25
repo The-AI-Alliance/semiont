@@ -3,8 +3,9 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { getSvgSelector, validateSvgMarkup, extractBoundingBox } from '../utils/annotations';
-import type { SvgSelector, TextPositionSelector } from '../utils/annotations';
+import { getSvgSelector, validateSvgMarkup } from '../annotation-assembly';
+import { extractBoundingBox } from '../web-annotation-utils';
+import type { SvgSelector, TextPositionSelector } from '../web-annotation-utils';
 
 describe('SVG Selector Utilities', () => {
   describe('getSvgSelector', () => {

@@ -38,8 +38,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     formatLocaleDisplay: vi.fn((locale: string) => `Language: ${locale}`),

@@ -58,8 +58,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getTextPositionSelector: vi.fn(),
@@ -86,8 +86,7 @@ vi.mock('../AssistSection', () => ({
   ),
 }));
 
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
-
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 const mockGetTextPositionSelector = getTextPositionSelector as MockedFunction<typeof getTextPositionSelector>;
 const mockGetTargetSelector = getTargetSelector as MockedFunction<typeof getTargetSelector>;
 

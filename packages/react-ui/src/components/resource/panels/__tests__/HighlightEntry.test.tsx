@@ -9,15 +9,15 @@ import type { components } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
 // Mock @semiont/api-client
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getAnnotationExactText: vi.fn(),
   };
 });
 
-import { getAnnotationExactText } from '@semiont/api-client';
+import { getAnnotationExactText } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 import { HighlightEntry } from '../HighlightEntry';
 

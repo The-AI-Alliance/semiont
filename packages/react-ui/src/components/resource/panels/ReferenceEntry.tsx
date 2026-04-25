@@ -5,7 +5,7 @@ import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { Annotation } from '@semiont/core';
 import { resourceId } from '@semiont/core';
-import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
+import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { useSemiont } from '../../../session/SemiontProvider';

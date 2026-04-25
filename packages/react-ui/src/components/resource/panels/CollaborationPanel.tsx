@@ -1,6 +1,6 @@
 'use client';
 
-import type { ConnectionState } from '@semiont/api-client';
+import type { ConnectionState } from '@semiont/core';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import './CollaborationPanel.css';
 

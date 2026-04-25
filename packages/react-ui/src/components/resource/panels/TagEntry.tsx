@@ -2,7 +2,7 @@
 
 import type { Ref } from 'react';
 import type { Annotation } from '@semiont/core';
-import { getAnnotationExactText } from '@semiont/api-client';
+import { getAnnotationExactText } from '@semiont/core';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';
 import { useSemiont } from '../../../session/SemiontProvider';

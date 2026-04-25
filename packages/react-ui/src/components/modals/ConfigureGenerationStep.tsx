@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react';
 import type { GatheredContext } from '@semiont/core';
-import { LOCALES } from '@semiont/api-client';
-
+import { LOCALES } from '@semiont/core';
 export interface GenerationConfig {
   title: string;
   storagePath: string;

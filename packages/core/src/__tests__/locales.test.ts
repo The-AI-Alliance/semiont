@@ -6,7 +6,7 @@ import {
   getLocaleEnglishName,
   formatLocaleDisplay,
   getAllLocaleCodes,
-} from '../../utils/locales';
+} from '../locales';
 
 describe('LOCALES', () => {
   test('contains English', () => {
