@@ -1,29 +1,25 @@
 /**
- * SemiontClient passthrough tests.
+ * SemiontClient lifecycle + namespace-routing tests.
  *
- * These exercise the methods on `client.ts` that delegate directly to
- * `this.transport` (auth, admin, exchange, system, lifecycle) and the
- * one bus-routed passthrough that isn't covered by the in-process
- * contract suite that lives next to its concrete transport
- * (`getAnnotation`).
+ * Covers the wiring on `client.ts` itself: bus bridge construction,
+ * `state$` / `subscribeToResource` / `dispose` plumbing, and the few
+ * namespace flows that resolve via the bridged `client.bus` rather than
+ * `transport.stream` directly (match.search, gather.annotation).
  *
  * Strategy: pass a recording mock `ITransport` (and a mock
  * `IContentTransport`) into `new SemiontClient(...)`. No HTTP, no real
- * bus, no real KS — these are unit tests of the wiring on `client.ts`,
- * not transport behavior. The transport contract itself is exercised by
- * `local-transport.test.ts` (and, in the future, an HTTP runner).
+ * bus, no real KS — unit tests of the client-level wiring. The transport
+ * contract itself is exercised by `local-transport.test.ts` and
+ * `http-transport.http-paths.test.ts`. Each namespace's behavior is
+ * exercised by its own suite under `namespaces/__tests__/`.
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
 import {
   baseUrl,
-  email as makeEmail,
-  googleCredential,
-  refreshToken,
   resourceId,
   annotationId,
-  userDID,
   type EventMap,
 } from '@semiont/core';
 
@@ -84,7 +80,7 @@ function makeMockContent(): IContentTransport {
   };
 }
 
-describe('SemiontClient passthrough wiring', () => {
+describe('SemiontClient lifecycle + namespace routing', () => {
   let transport: ITransport;
   let content: IContentTransport;
   let client: SemiontClient;
@@ -93,147 +89,6 @@ describe('SemiontClient passthrough wiring', () => {
     transport = makeMockTransport();
     content = makeMockContent();
     client = new SemiontClient(transport, content);
-  });
-
-  // ── Auth ────────────────────────────────────────────────────────────────
-  describe('auth', () => {
-    test('authenticatePassword forwards email + password', async () => {
-      const reply = { access: 'a', refresh: 'r' };
-      vi.mocked(transport.authenticatePassword).mockResolvedValue(reply as never);
-      const result = await client.authenticatePassword(makeEmail('a@b'), 'pw');
-      expect(transport.authenticatePassword).toHaveBeenCalledWith(makeEmail('a@b'), 'pw');
-      expect(result).toEqual(reply);
-    });
-
-    test('refreshToken forwards to refreshAccessToken', async () => {
-      const reply = { access: 'a2', refresh: 'r2' };
-      vi.mocked(transport.refreshAccessToken).mockResolvedValue(reply as never);
-      const result = await client.refreshToken(refreshToken('r-token'));
-      expect(transport.refreshAccessToken).toHaveBeenCalledWith(refreshToken('r-token'));
-      expect(result).toEqual(reply);
-    });
-
-    test('authenticateGoogle forwards the credential', async () => {
-      const reply = { access: 'a3', refresh: 'r3' };
-      vi.mocked(transport.authenticateGoogle).mockResolvedValue(reply as never);
-      const result = await client.authenticateGoogle(googleCredential('g-cred'));
-      expect(transport.authenticateGoogle).toHaveBeenCalledWith(googleCredential('g-cred'));
-      expect(result).toEqual(reply);
-    });
-
-    test('getMediaToken forwards the resource id', async () => {
-      vi.mocked(transport.getMediaToken).mockResolvedValue({ token: 'media-tok' });
-      const id = resourceId('res-1');
-      const result = await client.getMediaToken(id);
-      expect(transport.getMediaToken).toHaveBeenCalledWith(id);
-      expect(result).toEqual({ token: 'media-tok' });
-    });
-
-    test('getMe forwards to getCurrentUser', async () => {
-      const user = { did: userDID('did:test:u'), email: 'a@b' };
-      vi.mocked(transport.getCurrentUser).mockResolvedValue(user as never);
-      const result = await client.getMe();
-      expect(transport.getCurrentUser).toHaveBeenCalledWith();
-      expect(result).toEqual(user);
-    });
-
-    test('acceptTerms calls transport.acceptTerms', async () => {
-      vi.mocked(transport.acceptTerms).mockResolvedValue(undefined);
-      await client.acceptTerms();
-      expect(transport.acceptTerms).toHaveBeenCalled();
-    });
-
-    test('logout calls transport.logout', async () => {
-      vi.mocked(transport.logout).mockResolvedValue(undefined);
-      await client.logout();
-      expect(transport.logout).toHaveBeenCalled();
-    });
-  });
-
-  // ── Admin ───────────────────────────────────────────────────────────────
-  describe('admin', () => {
-    test('listUsers forwards to transport.listUsers', async () => {
-      vi.mocked(transport.listUsers).mockResolvedValue({ users: [] } as never);
-      const result = await client.listUsers();
-      expect(transport.listUsers).toHaveBeenCalled();
-      expect(result).toEqual({ users: [] });
-    });
-
-    test('getUserStats forwards to transport.getUserStats', async () => {
-      vi.mocked(transport.getUserStats).mockResolvedValue({ count: 0 } as never);
-      const result = await client.getUserStats();
-      expect(transport.getUserStats).toHaveBeenCalled();
-      expect(result).toEqual({ count: 0 });
-    });
-
-    test('updateUser forwards id + patch', async () => {
-      const reply = { updated: true };
-      vi.mocked(transport.updateUser).mockResolvedValue(reply as never);
-      const id = userDID('did:test:victim');
-      const patch = { isAdmin: true };
-      const result = await client.updateUser(id, patch as never);
-      expect(transport.updateUser).toHaveBeenCalledWith(id, patch);
-      expect(result).toEqual(reply);
-    });
-
-    test('getOAuthConfig forwards to transport.getOAuthConfig', async () => {
-      vi.mocked(transport.getOAuthConfig).mockResolvedValue({ google: { clientId: 'x' } } as never);
-      const result = await client.getOAuthConfig();
-      expect(transport.getOAuthConfig).toHaveBeenCalled();
-      expect(result).toEqual({ google: { clientId: 'x' } });
-    });
-  });
-
-  // ── Exchange ────────────────────────────────────────────────────────────
-  describe('exchange', () => {
-    test('backupKnowledgeBase forwards', async () => {
-      const r = new Response(new Blob(['b']));
-      vi.mocked(transport.backupKnowledgeBase).mockResolvedValue(r);
-      const result = await client.backupKnowledgeBase();
-      expect(transport.backupKnowledgeBase).toHaveBeenCalled();
-      expect(result).toBe(r);
-    });
-
-    test('restoreKnowledgeBase forwards file + onProgress', async () => {
-      const file = new File(['x'], 'x.tgz');
-      const onProgress = vi.fn();
-      vi.mocked(transport.restoreKnowledgeBase).mockResolvedValue({ phase: 'done' } as never);
-      await client.restoreKnowledgeBase(file, { onProgress });
-      expect(transport.restoreKnowledgeBase).toHaveBeenCalledWith(file, onProgress);
-    });
-
-    test('exportKnowledgeBase forwards params', async () => {
-      const r = new Response(new Blob(['e']));
-      vi.mocked(transport.exportKnowledgeBase).mockResolvedValue(r);
-      const result = await client.exportKnowledgeBase({ includeArchived: true });
-      expect(transport.exportKnowledgeBase).toHaveBeenCalledWith({ includeArchived: true });
-      expect(result).toBe(r);
-    });
-
-    test('importKnowledgeBase forwards file + onProgress', async () => {
-      const file = new File(['i'], 'i.tgz');
-      const onProgress = vi.fn();
-      vi.mocked(transport.importKnowledgeBase).mockResolvedValue({ phase: 'done' } as never);
-      await client.importKnowledgeBase(file, { onProgress });
-      expect(transport.importKnowledgeBase).toHaveBeenCalledWith(file, onProgress);
-    });
-  });
-
-  // ── System ──────────────────────────────────────────────────────────────
-  describe('system', () => {
-    test('healthCheck forwards', async () => {
-      vi.mocked(transport.healthCheck).mockResolvedValue({ status: 'ok' } as never);
-      const result = await client.healthCheck();
-      expect(transport.healthCheck).toHaveBeenCalled();
-      expect(result).toEqual({ status: 'ok' });
-    });
-
-    test('getStatus forwards', async () => {
-      vi.mocked(transport.getStatus).mockResolvedValue({ status: 'running' } as never);
-      const result = await client.getStatus();
-      expect(transport.getStatus).toHaveBeenCalled();
-      expect(result).toEqual({ status: 'running' });
-    });
   });
 
   // ── Lifecycle / connection ─────────────────────────────────────────────

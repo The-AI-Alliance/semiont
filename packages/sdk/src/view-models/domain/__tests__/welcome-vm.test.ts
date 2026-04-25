@@ -9,8 +9,10 @@ function mockClient(overrides: {
   acceptTerms?: ReturnType<typeof vi.fn>;
 } = {}): SemiontClient {
   return {
-    getMe: overrides.getMe ?? vi.fn().mockResolvedValue({ termsAcceptedAt: undefined }),
-    acceptTerms: overrides.acceptTerms ?? vi.fn().mockResolvedValue(undefined),
+    auth: {
+      me: overrides.getMe ?? vi.fn().mockResolvedValue({ termsAcceptedAt: undefined }),
+      acceptTerms: overrides.acceptTerms ?? vi.fn().mockResolvedValue(undefined),
+    },
   } as unknown as SemiontClient;
 }
 

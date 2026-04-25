@@ -76,7 +76,7 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
         const client = new SemiontClient(transport, new HttpContentTransport(transport));
 
         try {
-          const healthData = await client.healthCheck();
+          const healthData = await client.admin.healthCheck();
           health = {
             healthy: dockerHealthStatus !== 'unhealthy',
             details: {

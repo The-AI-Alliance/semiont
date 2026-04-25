@@ -21,7 +21,6 @@ import { SemiontClient } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
 import { BehaviorSubject } from 'rxjs';
 import {
-  email as toEmail,
   accessToken as toAccessToken,
   baseUrl as toBaseUrl,
   type AccessToken,
@@ -98,7 +97,7 @@ export async function acquireToken(
 ): Promise<void> {
   const transport = new HttpTransport({ baseUrl: toBaseUrl(rawBusUrl) });
   const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
-  const authResult = await semiont.authenticatePassword(toEmail(emailStr), passwordStr);
+  const authResult = await semiont.auth.password(emailStr, passwordStr);
   const cache: TokenCache = {
     bus: rawBusUrl,
     email: emailStr,

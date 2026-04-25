@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { SemiontClient, defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
-import { baseUrl, email as makeEmail, accessToken } from '@semiont/core';
+import { baseUrl } from '@semiont/core';
 import {
   useSemiont,
   useObservable,
@@ -133,7 +133,7 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   const transport = new HttpTransport({ baseUrl: baseUrl(origin) });
   const client = new SemiontClient(transport, new HttpContentTransport(transport));
 
-  const authResult = await client.authenticatePassword(makeEmail(emailStr), password);
+  const authResult = await client.auth.password(emailStr, password);
   const token = (authResult as any).token ?? (authResult as any).accessToken;
   const refreshToken = (authResult as any).refreshToken;
   if (!token) throw new Error('No access token received');
@@ -142,7 +142,7 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   let label = `${host}:${port}`;
   let gitBranch: string | undefined;
   try {
-    const status = await client.getStatus({ auth: accessToken(token) });
+    const status = await client.admin.status();
     if ((status as any).projectName) label = (status as any).projectName;
     if ((status as any).gitBranch) gitBranch = (status as any).gitBranch;
   } catch { /* use default label */ }

@@ -11,23 +11,9 @@
  * namespace methods. The single sanctioned channel-by-name escape hatch
  * is `SemiontSession.subscribe(channel, handler)`, which reads from
  * `client.bus`.
- *
- * The remaining flat methods on the class (auth/admin/exchange/system)
- * are HTTP-only passthroughs to `this.transport`. They do not route
- * through the bus and have no namespace-shaped equivalent for those
- * back-channels yet.
  */
 
-import type { paths } from '@semiont/core';
-import type {
-  ResourceId,
-  AccessToken,
-  BaseUrl,
-  Email,
-  GoogleCredential,
-  RefreshToken,
-  UserDID,
-} from '@semiont/core';
+import type { ResourceId, BaseUrl } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
@@ -53,22 +39,6 @@ export {
   type HttpTransportConfig,
   HttpContentTransport,
 } from '@semiont/api-client';
-
-// Type helpers to extract request/response types from OpenAPI paths
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
-  ? R
-  : T extends { responses: { 201: { content: { 'application/json': infer R } } } }
-    ? R
-    : T extends { responses: { 202: { content: { 'application/json': infer R } } } }
-      ? R
-      : never;
-
-type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
-
-export interface RequestOptions {
-  /** Access token for this request */
-  auth?: AccessToken;
-}
 
 export class SemiontClient {
   /**
@@ -146,100 +116,5 @@ export class SemiontClient {
   dispose(): void {
     this.transport.dispose();
     this.content.dispose();
-  }
-
-  // ── AUTH (delegates to HttpTransport) ─────────────────────────────────
-
-  async authenticatePassword(email: Email, password: string, _options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/password']['post']>> {
-    return this.transport.authenticatePassword(email, password) as unknown as Promise<ResponseContent<paths['/api/tokens/password']['post']>>;
-  }
-
-  async refreshToken(token: RefreshToken, _options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/refresh']['post']>> {
-    return this.transport.refreshAccessToken(token) as unknown as Promise<ResponseContent<paths['/api/tokens/refresh']['post']>>;
-  }
-
-  async authenticateGoogle(credential: GoogleCredential, _options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/google']['post']>> {
-    return this.transport.authenticateGoogle(credential) as unknown as Promise<ResponseContent<paths['/api/tokens/google']['post']>>;
-  }
-
-  async getMediaToken(resourceId: ResourceId, _options?: RequestOptions): Promise<{ token: string }> {
-    return this.transport.getMediaToken(resourceId);
-  }
-
-  async getMe(_options?: RequestOptions): Promise<ResponseContent<paths['/api/users/me']['get']>> {
-    return this.transport.getCurrentUser() as unknown as Promise<ResponseContent<paths['/api/users/me']['get']>>;
-  }
-
-  async acceptTerms(_options?: RequestOptions): Promise<ResponseContent<paths['/api/users/accept-terms']['post']>> {
-    await this.transport.acceptTerms();
-    return undefined as unknown as ResponseContent<paths['/api/users/accept-terms']['post']>;
-  }
-
-  async logout(_options?: RequestOptions): Promise<ResponseContent<paths['/api/users/logout']['post']>> {
-    await this.transport.logout();
-    return undefined as unknown as ResponseContent<paths['/api/users/logout']['post']>;
-  }
-
-  // ── ADMIN (delegates to HttpTransport) ────────────────────────────────
-
-  async listUsers(_options?: RequestOptions): Promise<ResponseContent<paths['/api/admin/users']['get']>> {
-    return this.transport.listUsers() as Promise<ResponseContent<paths['/api/admin/users']['get']>>;
-  }
-
-  async getUserStats(_options?: RequestOptions): Promise<ResponseContent<paths['/api/admin/users/stats']['get']>> {
-    return this.transport.getUserStats() as Promise<ResponseContent<paths['/api/admin/users/stats']['get']>>;
-  }
-
-  async updateUser(
-    id: UserDID,
-    data: RequestContent<paths['/api/admin/users/{id}']['patch']>,
-    _options?: RequestOptions,
-  ): Promise<ResponseContent<paths['/api/admin/users/{id}']['patch']>> {
-    return this.transport.updateUser(id, data) as Promise<ResponseContent<paths['/api/admin/users/{id}']['patch']>>;
-  }
-
-  async getOAuthConfig(_options?: RequestOptions): Promise<ResponseContent<paths['/api/admin/oauth/config']['get']>> {
-    return this.transport.getOAuthConfig() as Promise<ResponseContent<paths['/api/admin/oauth/config']['get']>>;
-  }
-
-  // ── EXCHANGE (delegates to HttpTransport) ─────────────────────────────
-
-  async backupKnowledgeBase(_options?: RequestOptions): Promise<Response> {
-    return this.transport.backupKnowledgeBase();
-  }
-
-  async restoreKnowledgeBase(
-    file: File,
-    options?: RequestOptions & {
-      onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
-    },
-  ): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }> {
-    return this.transport.restoreKnowledgeBase(file, options?.onProgress);
-  }
-
-  async exportKnowledgeBase(
-    params?: { includeArchived?: boolean },
-    _options?: RequestOptions,
-  ): Promise<Response> {
-    return this.transport.exportKnowledgeBase(params);
-  }
-
-  async importKnowledgeBase(
-    file: File,
-    options?: RequestOptions & {
-      onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
-    },
-  ): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }> {
-    return this.transport.importKnowledgeBase(file, options?.onProgress);
-  }
-
-  // ── SYSTEM STATUS (delegates to HttpTransport) ────────────────────────
-
-  async healthCheck(_options?: RequestOptions): Promise<ResponseContent<paths['/api/health']['get']>> {
-    return this.transport.healthCheck() as Promise<ResponseContent<paths['/api/health']['get']>>;
-  }
-
-  async getStatus(_options?: RequestOptions): Promise<ResponseContent<paths['/api/status']['get']>> {
-    return this.transport.getStatus() as Promise<ResponseContent<paths['/api/status']['get']>>;
   }
 }

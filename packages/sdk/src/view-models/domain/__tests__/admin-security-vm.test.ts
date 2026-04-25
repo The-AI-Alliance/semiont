@@ -9,8 +9,8 @@ function mockBrowse(): ShellVM {
   return { dispose: vi.fn() } as unknown as ShellVM;
 }
 
-function mockClient(getOAuthConfig: ReturnType<typeof vi.fn>): SemiontClient {
-  return { getOAuthConfig } as unknown as SemiontClient;
+function mockClient(oauthConfig: ReturnType<typeof vi.fn>): SemiontClient {
+  return { admin: { oauthConfig } } as unknown as SemiontClient;
 }
 
 describe('createAdminSecurityVM', () => {

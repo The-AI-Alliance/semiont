@@ -22,7 +22,7 @@ export function createAdminSecurityVM(
   const allowedDomains$ = new BehaviorSubject<string[]>([]);
   const isLoading$ = new BehaviorSubject<boolean>(true);
 
-  client.getOAuthConfig()
+  client.admin.oauthConfig()
     .then((data) => {
       const config = data as { providers?: unknown[]; allowedDomains?: string[] };
       providers$.next(config.providers ?? []);

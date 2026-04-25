@@ -16,7 +16,6 @@ import { BehaviorSubject, Subject, type Observable } from 'rxjs';
 import {
   EventBus,
   baseUrl,
-  refreshToken as makeRefreshToken,
   type AccessToken,
   type EventMap,
 } from '@semiont/core';
@@ -496,8 +495,8 @@ export class SemiontBrowser {
       const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(kb)) });
       const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
       try {
-        const response = await throwaway.refreshToken(makeRefreshToken(stored.refresh));
-        const newAccess = response.access_token;
+        const response = await throwaway.auth.refresh(stored.refresh);
+        const newAccess = (response as unknown as { access_token?: string }).access_token;
         if (!newAccess) return null;
         setStoredSession(this.storage, kb.id, { access: newAccess, refresh: stored.refresh });
         return newAccess;
@@ -521,11 +520,15 @@ export class SemiontBrowser {
    * client. The session uses this once at startup to populate
    * `user$`; 401 triggers a refresh-then-retry inside the session.
    */
-  private async performValidate(kb: KnowledgeBase, token: AccessToken): Promise<UserInfo | null> {
+  private async performValidate(kb: KnowledgeBase, _token: AccessToken): Promise<UserInfo | null> {
+    // _token is the access token the session wants to validate, but the
+    // throwaway transport pulls auth from its own configured headers. The
+    // callback contract is preserved for the session signature; revisiting
+    // this needs the throwaway to accept a per-call auth token.
     const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(kb)) });
     const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
     try {
-      const data = await throwaway.getMe({ auth: token });
+      const data = await throwaway.auth.me();
       return data as UserInfo;
     } finally {
       throwaway.dispose();

@@ -5,7 +5,7 @@ import { createSessionVM } from '../session-vm';
 
 function mockClient(logout?: ReturnType<typeof vi.fn>): SemiontClient {
   return {
-    logout: logout ?? vi.fn().mockResolvedValue(undefined),
+    auth: { logout: logout ?? vi.fn().mockResolvedValue(undefined) },
   } as unknown as SemiontClient;
 }
 

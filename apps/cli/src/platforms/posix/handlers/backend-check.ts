@@ -117,7 +117,7 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
     const client = new SemiontClient(transport, new HttpContentTransport(transport));
 
     try {
-      const healthData = await client.healthCheck();
+      const healthData = await client.admin.healthCheck();
       healthy = true;
       status = 'running';
       details.health = healthData;
