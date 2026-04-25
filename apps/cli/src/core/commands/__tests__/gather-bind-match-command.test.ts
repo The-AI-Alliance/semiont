@@ -131,7 +131,7 @@ describe('runGather', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ semiont: { sse: mockSse }, token: 'mock-token' });
     mockSse.gatherResource.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => eventBus.get('gather:finished').next({ context: mockContext }));
     });
@@ -196,7 +196,7 @@ describe('BindOptionsSchema', () => {
 describe('runBind', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ semiont: { sse: mockSse }, token: 'mock-token' });
     mockSse.bindAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => eventBus.get('bind:finished').next({}));
     });
@@ -269,7 +269,7 @@ describe('runMatch', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ client: { sse: mockSse }, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ semiont: { sse: mockSse }, token: 'mock-token' });
     // gatherAnnotation resolves with context
     mockSse.gatherAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
       queueMicrotask(() => {

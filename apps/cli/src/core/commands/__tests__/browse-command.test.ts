@@ -134,7 +134,7 @@ describe('BrowseOptionsSchema', () => {
 describe('runBrowse', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ client: mockClient, token: 'mock-token' });
+    mockLoadCachedClient.mockReturnValue({ semiont: mockClient, token: 'mock-token' });
     mockClient.browseResources.mockResolvedValue({ resources: [], total: 0 });
     mockClient.browseResource.mockResolvedValue({ name: 'Doc 1', '@id': 'doc-1' });
     mockClient.browseAnnotations.mockResolvedValue({ annotations: [] });

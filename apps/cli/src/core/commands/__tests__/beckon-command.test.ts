@@ -101,7 +101,7 @@ describe('runBeckon', () => {
     vi.clearAllMocks();
     mockBeckonAttention.mockResolvedValue({ participant: 'alice', resourceId: 'urn:semiont:resource:doc-1' });
     mockLoadCachedClient.mockReturnValue({
-      client: { beckonAttention: mockBeckonAttention },
+      semiont: { beckonAttention: mockBeckonAttention },
       token: 'mock-token',
     });
   });
