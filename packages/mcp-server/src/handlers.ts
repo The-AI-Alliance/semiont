@@ -94,7 +94,7 @@ export async function markAssist(semiont: SemiontClient, args: any): Promise<Mcp
 
   try {
     const progressMessages: string[] = [];
-    semiont.emit('mark:assist-request', {
+    semiont.bus.get('mark:assist-request').next({
       motivation: 'linking',
       options: { entityTypes: args?.entityTypes || [], includeDescriptiveReferences: false },
     });
@@ -105,7 +105,7 @@ export async function markAssist(semiont: SemiontClient, args: any): Promise<Mcp
       ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage ?? 0}%`); });
 
       const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeUnsub = semiont.on('job:complete', (event) => {
+      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         const foundCount = (event.result as { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number } | undefined);
@@ -114,12 +114,12 @@ export async function markAssist(semiont: SemiontClient, args: any): Promise<Mcp
           foundCount?.assessmentsFound ?? foundCount?.tagsFound ?? 0;
         resolve({ content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] });
       });
-      const failUnsub = semiont.on('job:fail', (event) => {
+      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
         if (!isAnnotationJob(event.jobType)) return;
         cleanup();
         resolve({ content: [{ type: 'text', text: `Detection failed: ${event.error}` }], isError: true });
       });
-      function cleanup() { progressSub.unsubscribe(); completeUnsub(); failUnsub(); }
+      function cleanup() { progressSub.unsubscribe(); completeSub.unsubscribe(); failSub.unsubscribe(); }
     });
   } finally {
     vm.dispose();
@@ -145,7 +145,7 @@ export async function gatherAnnotation(semiont: SemiontClient, args: any): Promi
   const vm = createGatherVM(semiont, rId);
 
   try {
-    semiont.emit('gather:requested', {
+    semiont.bus.get('gather:requested').next({
       correlationId: crypto.randomUUID(),
       annotationId: aId as string,
       resourceId: rId as string,
@@ -186,7 +186,7 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
   const gatherVM = createGatherVM(semiont, rId);
   let ctx: GatheredContext;
   try {
-    semiont.emit('gather:requested', {
+    semiont.bus.get('gather:requested').next({
       correlationId: crypto.randomUUID(),
       annotationId: aId as string,
       resourceId: rId as string,
@@ -216,17 +216,17 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
         filter((p): p is NonNullable<typeof p> => p !== null),
       ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage}%`); });
 
-      const completeUnsub = semiont.on('job:complete', (event) => {
+      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         resolve({ content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] });
       });
-      const failUnsub = semiont.on('job:fail', (event) => {
+      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         resolve({ content: [{ type: 'text', text: `Generation failed: ${event.error}` }], isError: true });
       });
-      function cleanup() { progressSub.unsubscribe(); completeUnsub(); failUnsub(); }
+      function cleanup() { progressSub.unsubscribe(); completeSub.unsubscribe(); failSub.unsubscribe(); }
     });
   } finally {
     yieldVM.dispose();
