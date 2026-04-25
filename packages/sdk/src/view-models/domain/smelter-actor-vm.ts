@@ -1,7 +1,8 @@
 import { Observable, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { ViewModel } from '../lib/view-model';
-import { createActorVM, type ActorVM, type ConnectionState } from './actor-vm';
+import type { ConnectionState } from '@semiont/core';
+import { createActorVM, type ActorVM } from '@semiont/api-client';
 
 export interface SmelterEvent {
   type: string;

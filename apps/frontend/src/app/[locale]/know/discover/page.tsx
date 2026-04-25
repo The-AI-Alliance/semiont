@@ -14,8 +14,7 @@ import {
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useShellVM } from '@semiont/react-ui';
-import { createDiscoverVM } from '@semiont/api-client';
-
+import { createDiscoverVM } from '@semiont/sdk';
 export default function DiscoverPage() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`Discover.${k}`, p as any) as string;

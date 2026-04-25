@@ -8,7 +8,7 @@
 
 import type { Motivation } from '@semiont/core';
 import { annotationId as toAnnotationId, resourceId as toResourceId } from '@semiont/core';
-import type { SemiontSession } from '@semiont/api-client';
+import type { SemiontSession } from '@semiont/sdk';
 import type { TextSegment } from './codemirror-logic';
 
 /**

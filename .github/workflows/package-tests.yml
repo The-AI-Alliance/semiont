@@ -27,6 +27,7 @@ jobs:
           - mcp-server
           - ontology
           - react-ui
+          - sdk
 
     steps:
       - name: Checkout code
@@ -56,6 +57,13 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
+            sdk)
+              # sdk depends on core (contract + types) and api-client
+              # (re-exports HttpTransport for the convenience-bundle).
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/api-client
+              ;;
             ontology)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
@@ -71,6 +79,7 @@ jobs:
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
               npm run build --workspace=@semiont/inference
@@ -81,6 +90,7 @@ jobs:
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
               npm run build --workspace=@semiont/inference
@@ -93,11 +103,13 @@ jobs:
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
               ;;
             mcp-server)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
               ;;
           esac
 

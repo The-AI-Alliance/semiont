@@ -17,7 +17,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { HttpContentTransport, HttpTransport, SemiontClient } from '@semiont/api-client';
+import { SemiontClient } from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
 import { BehaviorSubject } from 'rxjs';
 import {
   email as toEmail,

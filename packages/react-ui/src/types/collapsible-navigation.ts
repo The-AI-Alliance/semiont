@@ -1,6 +1,5 @@
 import { ComponentType, ReactNode } from 'react';
-import type { OpenResource } from '@semiont/api-client';
-
+import type { OpenResource } from '@semiont/sdk';
 /**
  * Props for the sortable resource tab component
  */

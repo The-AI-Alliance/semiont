@@ -31,7 +31,7 @@ import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
-import { createResourceViewerPageVM } from '@semiont/api-client';
+import { createResourceViewerPageVM } from '@semiont/sdk';
 import { useViewModel } from '../../../hooks/useViewModel';
 import { useShellVM } from '../../../hooks/useShellVM';
 import { useTranslations } from '../../../contexts/TranslationContext';

@@ -5,7 +5,7 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
-import { BindNamespace } from '@semiont/api-client';
+import { BindNamespace } from '@semiont/sdk';
 import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 
 import type { Annotation } from '@semiont/core';

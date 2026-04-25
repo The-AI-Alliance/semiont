@@ -26,8 +26,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
-import { SemiontBrowser, SemiontClient, APIError } from '@semiont/api-client';
-
+import { SemiontBrowser, SemiontClient } from '@semiont/sdk';
+import { APIError } from '@semiont/api-client';
 // Spies set up in beforeEach; tests configure `.mockResolvedValue` / `.mockRejectedValue` on them.
 let getMeSpy: ReturnType<typeof vi.spyOn>;
 let refreshTokenSpy: ReturnType<typeof vi.spyOn>;

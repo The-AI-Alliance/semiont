@@ -10,8 +10,7 @@ import {
   CollapsibleResourceNavigation,
   type NavigationItem,
 } from '@semiont/react-ui';
-import type { OpenResource } from '@semiont/api-client';
-
+import type { OpenResource } from '@semiont/sdk';
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
   <span className={className} style={{ fontSize: '1.25rem', lineHeight: '1' }}>🔭</span>

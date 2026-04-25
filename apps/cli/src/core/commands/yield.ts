@@ -22,7 +22,7 @@ import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
-import { createGatherVM, createYieldVM } from '@semiont/api-client';
+import { createGatherVM, createYieldVM } from '@semiont/sdk';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -30,7 +30,7 @@ import { printSuccess, printWarning } from '../io/cli-logger.js';
 
 import { findProjectRoot } from '../config-loader.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
-import type { SemiontClient } from '@semiont/api-client';
+import type { SemiontClient } from '@semiont/sdk';
 import type { AccessToken } from '@semiont/core';
 
 function guessFormat(filePath: string): string {

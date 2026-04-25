@@ -3,10 +3,9 @@
 import { useMemo } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/core';
-import { createHoverHandlers } from '@semiont/api-client';
+import { createHoverHandlers } from '@semiont/sdk';
 import { parseSvgSelector } from '@semiont/core';
-import type { SemiontSession } from '@semiont/api-client';
-
+import type { SemiontSession } from '@semiont/sdk';
 interface AnnotationOverlayProps {
   annotations: Annotation[];
   imageWidth: number;

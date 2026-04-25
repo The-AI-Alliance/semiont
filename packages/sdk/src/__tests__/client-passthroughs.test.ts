@@ -371,6 +371,354 @@ describe('SemiontClient passthrough wiring', () => {
     });
   });
 
+  // ── Bus busRequest passthroughs (channel name + payload shape) ──────────
+  //
+  // Pattern: every method emits a request channel with the right payload
+  // shape, then resolves when a matching `correlationId` arrives on the
+  // result channel. We assert on the emit and feed back a result.
+
+  /** Helper: capture the emitted correlationId, then push a result. */
+  function setBusResponse(
+    requestChannel: string,
+    resultChannel: string,
+    response: Record<string, unknown>,
+  ) {
+    const eventSubjects = (transport as unknown as { __subjects?: Map<string, Subject<unknown>> }).__subjects;
+    const resultSubject = new Subject<{ correlationId: string; response: unknown }>();
+    vi.mocked(transport.stream).mockImplementation((ch: string) => {
+      if (ch === resultChannel) return resultSubject.asObservable() as never;
+      // Fall through to default subjects for failure/other channels.
+      const m = eventSubjects;
+      if (m) {
+        if (!m.has(ch)) m.set(ch, new Subject<unknown>());
+        return m.get(ch)!.asObservable() as never;
+      }
+      return new Subject<never>().asObservable() as never;
+    });
+    (transport.emit as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+      if (channel === requestChannel) {
+        queueMicrotask(() => {
+          resultSubject.next({ correlationId: payload.correlationId as string, response });
+        });
+      }
+    });
+  }
+
+  const testResourceId = resourceId('test-resource-id');
+  const testAnnotationId = annotationId('test-annotation-id');
+
+  describe('browseResource (bus)', () => {
+    test('emits browse:resource-requested and returns result', async () => {
+      setBusResponse('browse:resource-requested', 'browse:resource-result', {
+        resource: { '@id': testResourceId, name: 'Test' },
+      });
+      const result = await client.browseResource(testResourceId);
+      expect(transport.emit).toHaveBeenCalledWith(
+        'browse:resource-requested',
+        expect.objectContaining({ resourceId: testResourceId }),
+      );
+      expect((result as { resource: { name: string } }).resource.name).toBe('Test');
+    });
+  });
+
+  describe('browseResources (bus)', () => {
+    test('emits browse:resources-requested with filters', async () => {
+      setBusResponse('browse:resources-requested', 'browse:resources-result', { resources: [], total: 0 });
+      await client.browseResources(10, false);
+      expect(transport.emit).toHaveBeenCalledWith(
+        'browse:resources-requested',
+        expect.objectContaining({ limit: 10, archived: false }),
+      );
+    });
+  });
+
+  describe('getResourceEvents (bus)', () => {
+    test('emits browse:events-requested and returns events', async () => {
+      setBusResponse('browse:events-requested', 'browse:events-result', { events: [], total: 0 });
+      const result = await client.getResourceEvents(testResourceId);
+      expect((result as { events: unknown[] }).events).toEqual([]);
+    });
+  });
+
+  describe('browseReferences (bus)', () => {
+    test('emits browse:referenced-by-requested', async () => {
+      setBusResponse('browse:referenced-by-requested', 'browse:referenced-by-result', { referencedBy: [] });
+      await client.browseReferences(testResourceId);
+      expect(transport.emit).toHaveBeenCalledWith(
+        'browse:referenced-by-requested',
+        expect.objectContaining({ resourceId: testResourceId }),
+      );
+    });
+  });
+
+  describe('browseAnnotation / browseAnnotations (bus)', () => {
+    test('browseAnnotation emits browse:annotation-requested', async () => {
+      setBusResponse('browse:annotation-requested', 'browse:annotation-result', { annotation: {} });
+      await client.browseAnnotation(testResourceId, testAnnotationId);
+      expect(transport.emit).toHaveBeenCalledWith(
+        'browse:annotation-requested',
+        expect.objectContaining({ resourceId: testResourceId, annotationId: testAnnotationId }),
+      );
+    });
+
+    test('browseAnnotations emits browse:annotations-requested', async () => {
+      setBusResponse('browse:annotations-requested', 'browse:annotations-result', { annotations: [] });
+      await client.browseAnnotations(testResourceId);
+      expect(transport.emit).toHaveBeenCalledWith(
+        'browse:annotations-requested',
+        expect.objectContaining({ resourceId: testResourceId }),
+      );
+    });
+  });
+
+  describe('getAnnotationHistory (bus)', () => {
+    test('emits browse:annotation-history-requested', async () => {
+      setBusResponse('browse:annotation-history-requested', 'browse:annotation-history-result', { events: [] });
+      await client.getAnnotationHistory(testResourceId, testAnnotationId);
+      expect(transport.emit).toHaveBeenCalledWith(
+        'browse:annotation-history-requested',
+        expect.objectContaining({ resourceId: testResourceId, annotationId: testAnnotationId }),
+      );
+    });
+  });
+
+  describe('listEntityTypes (bus)', () => {
+    test('emits browse:entity-types-requested', async () => {
+      setBusResponse('browse:entity-types-requested', 'browse:entity-types-result', { entityTypes: ['Person'] });
+      const result = await client.listEntityTypes();
+      expect((result as { entityTypes: string[] }).entityTypes).toEqual(['Person']);
+    });
+  });
+
+  describe('browseFiles (bus)', () => {
+    test('emits browse:directory-requested with path and sort', async () => {
+      setBusResponse('browse:directory-requested', 'browse:directory-result', { files: [] });
+      await client.browseFiles('docs', 'mtime');
+      expect(transport.emit).toHaveBeenCalledWith(
+        'browse:directory-requested',
+        expect.objectContaining({ path: 'docs', sort: 'mtime' }),
+      );
+    });
+  });
+
+  describe('job-creating commands (bus)', () => {
+    test('annotateReferences emits job:create with reference-annotation type', async () => {
+      setBusResponse('job:create', 'job:created', { jobId: 'j1' });
+      const result = await client.annotateReferences(testResourceId, { entityTypes: ['Person'] });
+      expect(transport.emit).toHaveBeenCalledWith(
+        'job:create',
+        expect.objectContaining({
+          jobType: 'reference-annotation',
+          resourceId: testResourceId,
+          params: { entityTypes: ['Person'] },
+        }),
+      );
+      expect(result.jobId).toBe('j1');
+    });
+
+    test('annotateHighlights emits job:create with highlight-annotation type', async () => {
+      setBusResponse('job:create', 'job:created', { jobId: 'j1' });
+      await client.annotateHighlights(testResourceId, { density: 5 });
+      expect(transport.emit).toHaveBeenCalledWith(
+        'job:create',
+        expect.objectContaining({ jobType: 'highlight-annotation' }),
+      );
+    });
+
+    test('annotateTags emits job:create with tag-annotation type', async () => {
+      setBusResponse('job:create', 'job:created', { jobId: 'j1' });
+      await client.annotateTags(testResourceId, { schemaId: 's1', categories: ['a'] });
+      expect(transport.emit).toHaveBeenCalledWith(
+        'job:create',
+        expect.objectContaining({ jobType: 'tag-annotation' }),
+      );
+    });
+
+    test('yieldResourceFromAnnotation emits job:create with generation type', async () => {
+      setBusResponse('job:create', 'job:created', { jobId: 'j1' });
+      await client.yieldResourceFromAnnotation(testResourceId, testAnnotationId, {
+        title: 'T',
+        storageUri: 'file://x',
+        context: {},
+      });
+      expect(transport.emit).toHaveBeenCalledWith(
+        'job:create',
+        expect.objectContaining({
+          jobType: 'generation',
+          resourceId: testResourceId,
+          params: expect.objectContaining({ referenceId: testAnnotationId }),
+        }),
+      );
+    });
+  });
+
+  describe('clone token flows (bus)', () => {
+    test('generateCloneToken emits yield:clone-token-requested', async () => {
+      setBusResponse('yield:clone-token-requested', 'yield:clone-token-generated', {
+        token: 'tok',
+        expiresAt: '2026-01-01',
+      });
+      const result = await client.generateCloneToken(testResourceId);
+      expect((result as { token: string }).token).toBe('tok');
+    });
+
+    test('getResourceByToken emits yield:clone-resource-requested', async () => {
+      setBusResponse('yield:clone-resource-requested', 'yield:clone-resource-result', {
+        sourceResource: { name: 'src' },
+      });
+      const ct = await import('@semiont/core').then((m) => m.cloneToken);
+      const result = await client.getResourceByToken(ct('tok-1'));
+      expect((result as { sourceResource: { name: string } }).sourceResource.name).toBe('src');
+    });
+
+    test('createResourceFromToken emits yield:clone-create', async () => {
+      setBusResponse('yield:clone-create', 'yield:clone-created', { resourceId: 'res-new' });
+      const result = await client.createResourceFromToken({ token: 'tok', name: 'new', content: 'c' });
+      expect(result.resourceId).toBe('res-new');
+    });
+  });
+
+  describe('annotation creation (bus)', () => {
+    test('markAnnotation emits mark:create-request and returns annotationId', async () => {
+      setBusResponse('mark:create-request', 'mark:create-ok', { annotationId: 'ann-new' });
+      const result = await client.markAnnotation(testResourceId, {
+        motivation: 'highlighting',
+        target: { source: testResourceId },
+      } as never);
+      expect(result.annotationId).toBe('ann-new');
+      expect(transport.emit).toHaveBeenCalledWith(
+        'mark:create-request',
+        expect.objectContaining({ resourceId: testResourceId }),
+      );
+    });
+  });
+
+  // ── Bus fire-and-forget extensions ──────────────────────────────────────
+
+  describe('fire-and-forget bus commands (extended)', () => {
+    test('deleteAnnotation emits mark:delete', async () => {
+      await client.deleteAnnotation(testResourceId, testAnnotationId);
+      expect(transport.emit).toHaveBeenCalledWith('mark:delete', {
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
+      });
+    });
+
+    test('addEntityTypesBulk emits one event per tag', async () => {
+      await client.addEntityTypesBulk([entityType('Person'), entityType('Place')]);
+      expect(transport.emit).toHaveBeenCalledTimes(2);
+      expect(transport.emit).toHaveBeenNthCalledWith(1, 'mark:add-entity-type', { tag: 'Person' });
+      expect(transport.emit).toHaveBeenNthCalledWith(2, 'mark:add-entity-type', { tag: 'Place' });
+    });
+
+    test('bindAnnotation emits bind:update-body with correlationId', async () => {
+      const result = await client.bindAnnotation(testResourceId, testAnnotationId, {
+        operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'r' } }],
+      });
+      expect(transport.emit).toHaveBeenCalledWith(
+        'bind:update-body',
+        expect.objectContaining({
+          annotationId: testAnnotationId,
+          resourceId: testResourceId,
+          operations: expect.any(Array),
+        }),
+      );
+      expect(result.correlationId).toMatch(/^[a-f0-9-]+$/);
+    });
+
+    test('gatherAnnotationContext emits gather:requested', async () => {
+      await client.gatherAnnotationContext(testResourceId, testAnnotationId, {
+        correlationId: 'c1',
+        contextWindow: 500,
+      });
+      expect(transport.emit).toHaveBeenCalledWith(
+        'gather:requested',
+        expect.objectContaining({
+          correlationId: 'c1',
+          options: expect.objectContaining({ contextWindow: 500 }),
+          annotationId: testAnnotationId,
+          resourceId: testResourceId,
+        }),
+      );
+    });
+  });
+
+  // ── SIMPLE-BUS gap #1: results without subscribeToResource ──────────────
+  //
+  // `match.search()` and `gather.annotation()` return Observables that
+  // resolve from a globally-delivered (un-scoped) result event keyed on
+  // `correlationId`. They must work without the caller having called
+  // `subscribeToResource(resourceId)` first.
+
+  describe('results without subscribeToResource', () => {
+    // Match/gather Observables read from `client.bus` (the bridged surface),
+    // not from `transport.stream` directly. To simulate a global result
+    // arriving without a resource scope, push onto `client.bus` directly —
+    // this is what the transport bridge would do on a real wire.
+
+    test('client.match.search() resolves from a global match:search-results event', async () => {
+      const { firstValueFrom } = await import('rxjs');
+      const gathered = { sourceContext: {}, targetContext: {} } as never;
+      const searchP = firstValueFrom(client.match.search(testResourceId, 'ref-1', gathered, { limit: 5 }));
+
+      await Promise.resolve();
+      const emitted = vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'match:search-requested');
+      expect(emitted).toBeTruthy();
+      const cid = (emitted![1] as { correlationId: string }).correlationId;
+
+      (client.bus.get('match:search-results') as unknown as Subject<unknown>).next({
+        correlationId: cid,
+        referenceId: 'ref-1',
+        response: [],
+      });
+
+      const result = await searchP;
+      expect((result as { correlationId: string }).correlationId).toBe(cid);
+      expect(transport.subscribeToResource).not.toHaveBeenCalled();
+    });
+
+    test('client.gather.annotation() resolves from a global gather:complete event', async () => {
+      const { lastValueFrom } = await import('rxjs');
+      const gatherP = lastValueFrom(
+        client.gather.annotation(testAnnotationId, testResourceId, { contextWindow: 500 }),
+      );
+
+      await Promise.resolve();
+      const emitted = vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'gather:requested');
+      expect(emitted).toBeTruthy();
+      const cid = (emitted![1] as { correlationId: string }).correlationId;
+
+      (client.bus.get('gather:complete') as unknown as Subject<unknown>).next({
+        correlationId: cid,
+        annotationId: testAnnotationId as unknown as string,
+        response: { sourceContext: {} },
+      });
+
+      const result = await gatherP;
+      expect((result as { correlationId: string }).correlationId).toBe(cid);
+      expect(transport.subscribeToResource).not.toHaveBeenCalled();
+    });
+
+    test('a failed match:search-failed event resolves the Observable with an error', async () => {
+      const { firstValueFrom } = await import('rxjs');
+      const gathered = { sourceContext: {}, targetContext: {} } as never;
+      const searchP = firstValueFrom(client.match.search(testResourceId, 'ref-x', gathered));
+
+      await Promise.resolve();
+      const cid = (vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'match:search-requested')![1] as {
+        correlationId: string;
+      }).correlationId;
+
+      (client.bus.get('match:search-failed') as unknown as Subject<unknown>).next({
+        correlationId: cid,
+        referenceId: 'ref-x',
+        error: 'inference provider down',
+      });
+
+      await expect(searchP).rejects.toThrow(/inference provider down/);
+    });
+  });
+
   // ── Connection state propagation through dispose semantics ──────────────
   describe('initialization', () => {
     test('SemiontClient construction calls transport.bridgeInto with its bus', () => {

@@ -5,18 +5,19 @@
  *
  * Build order (SPEC-FIRST ARCHITECTURE):
  * 1. @semiont/core - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
- * 2. @semiont/api-client - API client SDK - depends on @semiont/core for OpenAPI types and branded types
- * 3. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/core)
- * 4. @semiont/content - Content-addressed storage (depends on @semiont/core only)
- * 5. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
- * 6. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
- * 7. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
- * 8. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core, @semiont/api-client, @semiont/event-sourcing, @semiont/inference)
- * 9. @semiont/make-meaning - Context assembly, pattern detection, and relationship reasoning (depends on @semiont/inference, @semiont/graph, @semiont/ontology)
- * 10. @semiont/react-ui - React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/core, @semiont/ontology)
- * 11. Backend - Consumes types from @semiont/core, @semiont/api-client, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, @semiont/inference, and @semiont/make-meaning
- * 12. @semiont/test-utils - Testing utilities
- * 13. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
+ * 2. @semiont/api-client - HTTP transport adapters - depends on @semiont/core
+ * 3. @semiont/sdk - Developer-facing SDK (SemiontClient, namespaces, session, view-models) - depends on @semiont/core and @semiont/api-client
+ * 4. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/core)
+ * 5. @semiont/content - Content-addressed storage (depends on @semiont/core only)
+ * 6. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
+ * 7. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
+ * 8. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
+ * 9. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/sdk, @semiont/event-sourcing, @semiont/inference)
+ * 10. @semiont/make-meaning - Context assembly, pattern detection, and relationship reasoning (depends on @semiont/sdk, @semiont/inference, @semiont/graph, @semiont/ontology)
+ * 11. @semiont/react-ui - React components and hooks for Semiont applications (depends on @semiont/sdk, @semiont/core, @semiont/ontology)
+ * 12. Backend - Consumes types from @semiont/core, @semiont/api-client, @semiont/sdk, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, @semiont/inference, and @semiont/make-meaning
+ * 13. @semiont/test-utils - Testing utilities
+ * 14. @semiont/mcp-server - MCP server (depends on @semiont/sdk)
  */
 
 const { execFileSync } = require('child_process');
@@ -51,6 +52,11 @@ const buildSteps = [
     name: '@semiont/api-client',
     type: 'package',
     description: 'API client (depends on @semiont/core for OpenAPI types and branded types)'
+  },
+  {
+    name: '@semiont/sdk',
+    type: 'package',
+    description: 'Developer-facing SDK (SemiontClient, namespaces, session, view-models — depends on @semiont/core and @semiont/api-client)'
   },
   {
     name: '@semiont/ontology',

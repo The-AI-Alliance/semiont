@@ -20,13 +20,8 @@
  * job processors to the adapter and drives lifecycle emissions.
  */
 
-import {
-  createJobClaimAdapter,
-  type JobClaimAdapter,
-  type ActiveJob,
-  type SemiontSession,
-  type HttpTransport,
-} from '@semiont/api-client';
+import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob, type SemiontSession } from '@semiont/sdk';
+import { type HttpTransport } from '@semiont/api-client';
 import { RESOURCE_BROADCAST_TYPES, resourceId as makeResourceId, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';

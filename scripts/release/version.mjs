@@ -20,6 +20,7 @@ const rootDir = resolve(__dirname, '..');
 const VERSION_FILE = resolve(rootDir, 'version.json');
 const PACKAGE_PATHS = {
   '@semiont/api-client': 'packages/api-client/package.json',
+  '@semiont/sdk': 'packages/sdk/package.json',
   '@semiont/core': 'packages/core/package.json',
   '@semiont/ontology': 'packages/ontology/package.json',
   '@semiont/content': 'packages/content/package.json',

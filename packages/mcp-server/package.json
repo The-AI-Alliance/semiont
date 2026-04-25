@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
-    "@semiont/api-client": "*"
+    "@semiont/api-client": "*",
+    "@semiont/sdk": "*"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

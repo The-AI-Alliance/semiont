@@ -49,8 +49,18 @@ import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
 import type { ITransport, IContentTransport } from '@semiont/core';
 
-export { APIError, type TokenRefresher, HttpTransport, type HttpTransportConfig } from './transport/http-transport';
-export { HttpContentTransport } from './transport/http-content-transport';
+// Convenience re-exports of the HTTP adapters from @semiont/api-client so
+// consumers can `import { SemiontClient, HttpTransport } from '@semiont/sdk'`
+// without a separate api-client import. Non-HTTP transports
+// (e.g. LocalTransport from @semiont/make-meaning) are wired directly by
+// callers; the sdk does not pre-bundle them.
+export {
+  APIError,
+  type TokenRefresher,
+  HttpTransport,
+  type HttpTransportConfig,
+  HttpContentTransport,
+} from '@semiont/api-client';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }

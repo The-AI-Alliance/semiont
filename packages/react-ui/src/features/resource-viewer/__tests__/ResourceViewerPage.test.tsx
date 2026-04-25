@@ -41,7 +41,7 @@ vi.mock('../../../hooks/useResourceContent', () => ({
 // hand-stubbing every method it touches.
 const { stubBrowser } = vi.hoisted(() => {
   const { BehaviorSubject } = require('rxjs');
-  const { SemiontClient, HttpTransport, HttpContentTransport } = require('@semiont/api-client');
+  const { SemiontClient, HttpTransport, HttpContentTransport } = require('@semiont/sdk');
   const { baseUrl } = require('@semiont/core');
   const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000') });
   const client = new SemiontClient(transport, new HttpContentTransport(transport));

@@ -12,10 +12,7 @@ import {
   ToastProvider,
   SemiontProvider,
 } from '@semiont/react-ui';
-import {
-  SemiontBrowser,
-  InMemorySessionStorage,
-} from '@semiont/api-client';
+import { SemiontBrowser, InMemorySessionStorage } from '@semiont/sdk';
 import {
   defaultMocks,
   TestProvidersOptions,

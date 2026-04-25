@@ -37,7 +37,7 @@ import {
   setStoredSession,
   resourceId,
   type KnowledgeBase,
-} from '@semiont/api-client';
+} from '@semiont/sdk';
 import { lastValueFrom } from 'rxjs';
 
 const apiUrl = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');

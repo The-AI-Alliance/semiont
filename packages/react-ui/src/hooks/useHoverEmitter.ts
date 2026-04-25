@@ -2,12 +2,11 @@
 
 import { useRef, useCallback, useEffect } from 'react';
 import type { AnnotationId } from '@semiont/core';
-import { HOVER_DELAY_MS } from '@semiont/api-client';
+import { HOVER_DELAY_MS } from '@semiont/sdk';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from './useObservable';
 
-export { HOVER_DELAY_MS } from '@semiont/api-client';
-
+export { HOVER_DELAY_MS } from '@semiont/sdk';
 export interface HoverEmitterProps {
   onMouseEnter: () => void;
   onMouseLeave: () => void;

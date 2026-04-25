@@ -29,8 +29,8 @@ import { printSuccess } from '../io/cli-logger.js';
 
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
-import type { SemiontClient } from '@semiont/api-client';
-import { createMarkVM } from '@semiont/api-client';
+import type { SemiontClient } from '@semiont/sdk';
+import { createMarkVM } from '@semiont/sdk';
 import type { AccessToken } from '@semiont/core';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];

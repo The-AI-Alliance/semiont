@@ -49,6 +49,7 @@
     "@heroicons/react": "^2.2.0",
     "@semiont/api-client": "0.4.22",
     "@semiont/react-ui": "0.4.22",
+    "@semiont/sdk": "0.4.22",
     "i18next": "^24.2.3",
     "i18next-http-backend": "^3.0.2",
     "react": "^19.2.4",

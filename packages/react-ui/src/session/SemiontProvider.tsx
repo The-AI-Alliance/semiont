@@ -12,7 +12,7 @@
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { SemiontBrowser, getBrowser } from '@semiont/api-client';
+import { SemiontBrowser, getBrowser } from '@semiont/sdk';
 import { WebBrowserStorage } from './web-browser-storage';
 
 const SemiontContext = createContext<SemiontBrowser | null>(null);

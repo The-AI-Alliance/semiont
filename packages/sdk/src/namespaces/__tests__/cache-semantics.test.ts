@@ -13,7 +13,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom, filter, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
-import type { ConnectionState } from '../../view-models/domain/actor-vm';
+import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import type { ITransport, IContentTransport } from '@semiont/core';
 

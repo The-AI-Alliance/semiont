@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Subject, firstValueFrom, skip, take } from 'rxjs';
-import type { ActorVM } from '../actor-vm';
+import type { ActorVM } from '@semiont/api-client';
 import { createJobClaimAdapter } from '../job-claim-adapter';
 
 function fakeActor() {

@@ -8,7 +8,7 @@ import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from 
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
 import { annotationId as toAnnotationId } from '@semiont/core';
 import { isReference } from '@semiont/core';
-import { createHoverHandlers, type SemiontSession } from '@semiont/api-client';
+import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import {
   convertSegmentPositions,
   computeAnnotationDecorations,

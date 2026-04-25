@@ -1,7 +1,7 @@
 /**
  * LocalTransport — `ITransport` for an in-process `KnowledgeSystem`.
  *
- * Bus-ownership pattern (see `packages/api-client/docs/TRANSPORT-CONTRACT.md`):
+ * Bus-ownership pattern (see `packages/core/docs/TRANSPORT-CONTRACT.md`):
  *   - The caller owns a make-meaning `EventBus` and passes it to both
  *     `startMakeMeaning` and `LocalTransport` so the transport can publish
  *     directly onto the bus the `KnowledgeSystem` actors are listening on.
