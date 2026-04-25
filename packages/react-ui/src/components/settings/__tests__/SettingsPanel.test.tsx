@@ -13,9 +13,9 @@ vi.mock('../../LiveRegion', () => ({
   })),
 }));
 
-// Mock LOCALES from api-client
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+// Mock LOCALES (lives in @semiont/core)
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     LOCALES: [

@@ -15,7 +15,7 @@ vi.mock('../../../hooks/useSearchAnnouncements', () => ({
 }));
 
 // Mock getResourceId
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   getResourceId: vi.fn((resource: any) => resource?.id)
 }));
 

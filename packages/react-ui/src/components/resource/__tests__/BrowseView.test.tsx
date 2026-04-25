@@ -15,9 +15,9 @@ vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   })),
 }));
 
-// Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+// Mock @semiont/core utilities (these helpers and `resourceId` all live in core).
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getMimeCategory: vi.fn((mimeType: string) => {

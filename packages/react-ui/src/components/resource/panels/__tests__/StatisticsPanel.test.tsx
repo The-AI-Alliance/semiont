@@ -11,8 +11,8 @@ import type { Annotation } from '@semiont/core';
 const mockIsBodyResolved = vi.fn();
 const mockGetEntityTypes = vi.fn();
 
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     isBodyResolved: (...args: unknown[]) => mockIsBodyResolved(...args),

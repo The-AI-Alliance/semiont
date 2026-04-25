@@ -26,7 +26,7 @@ vi.mock('@semiont/event-sourcing', () => ({
   generateAnnotationId: vi.fn(() => 'ann-test-123'),
 }));
 
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   validateAndCorrectOffsets: vi.fn((_content, start, end, exact) => ({
     start, end, exact, prefix: '', suffix: '', corrected: false,
   })),

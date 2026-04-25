@@ -18,7 +18,7 @@ vi.mock('../../components/Toast', () => ({
   useToast: () => ({ showError: mockShowError }),
 }));
 
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   getPrimaryMediaType: vi.fn(() => 'text/plain'),
   decodeWithCharset: vi.fn((data: string) => data),
 }));

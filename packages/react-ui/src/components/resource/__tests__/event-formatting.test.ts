@@ -9,7 +9,7 @@ import {
 } from '../event-formatting';
 
 // Mock api-client functions
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   getExactText: vi.fn((selector: any) => selector?.exact ?? null),
   getTargetSelector: vi.fn((target: any) => target?.selector ?? null),
 }));

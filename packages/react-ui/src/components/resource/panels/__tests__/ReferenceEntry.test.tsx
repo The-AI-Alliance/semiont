@@ -21,8 +21,8 @@ const mockGetEntityTypes = vi.fn();
 const mockNavigate = vi.fn();
 const mockHoverProps = { onMouseEnter: vi.fn(), onMouseLeave: vi.fn() };
 
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getAnnotationExactText: (...args: unknown[]) => mockGetAnnotationExactText(...args),

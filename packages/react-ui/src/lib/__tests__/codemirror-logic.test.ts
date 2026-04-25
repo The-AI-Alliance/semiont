@@ -9,7 +9,7 @@ import {
 import type { TextSegment } from '../codemirror-logic';
 
 // Mock api-client type guards
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   isHighlight: vi.fn((ann: any) => ann.motivation === 'highlighting'),
   isComment: vi.fn((ann: any) => ann.motivation === 'commenting'),
   isReference: vi.fn((ann: any) => ann.motivation === 'linking'),

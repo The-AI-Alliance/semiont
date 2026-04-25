@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { buildTextSelectors, fallbackTextPosition } from '../text-selection-handler';
 
 // Mock extractContext from api-client
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   extractContext: vi.fn((content: string, start: number, end: number) => {
     const prefix = start > 0 ? content.slice(Math.max(0, start - 10), start) : undefined;
     const suffix = end < content.length ? content.slice(end, Math.min(content.length, end + 10)) : undefined;

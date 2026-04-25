@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { MotivationParsers, extractObjectsFromArray } from '../../../workers/detection/motivation-parsers';
 
 // Mock validateAndCorrectOffsets
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   validateAndCorrectOffsets: vi.fn((content: string, start: number, end: number, exact: string) => {
     // Simple validation: check if the text at offsets matches exact
     const extracted = content.substring(start, end);

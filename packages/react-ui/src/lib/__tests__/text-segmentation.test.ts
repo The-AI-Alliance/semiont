@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { segmentTextWithAnnotations } from '../text-segmentation';
 
 // Mock api-client functions used by segmentTextWithAnnotations
-vi.mock('@semiont/api-client', () => ({
+vi.mock('@semiont/core', () => ({
   getTargetSelector: vi.fn((target: any) => {
     if (Array.isArray(target)) return target[0];
     return target;
