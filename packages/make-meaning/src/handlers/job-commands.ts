@@ -1,10 +1,6 @@
-import { nanoid } from 'nanoid';
-import { jobId, userId, resourceId, entityType } from '@semiont/core';
-import type { EventBus } from '@semiont/core';
+import { generateUuid, jobId, userId, resourceId, entityType } from '@semiont/core';
+import type { EventBus, Logger } from '@semiont/core';
 import type { JobQueue } from '@semiont/jobs';
-import { getLogger } from '../logger';
-
-const logger = () => getLogger().child({ component: 'job-commands' });
 
 function parseDidUser(did: string): { userId: string; email: string; domain: string } {
   const parts = did.split(':');
@@ -14,7 +10,9 @@ function parseDidUser(did: string): { userId: string; email: string; domain: str
   return { userId: did, email, domain };
 }
 
-export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueue): void {
+export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueue, parentLogger: Logger): void {
+  const logger = parentLogger.child({ component: 'job-commands' });
+
   eventBus.get('job:create').subscribe(async (command) => {
     const { correlationId, jobType, resourceId: resId, params, _userId } = command as Record<string, unknown>;
 
@@ -28,7 +26,7 @@ export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueu
       const job = {
         status: 'pending' as const,
         metadata: {
-          id: jobId(`job-${nanoid()}`),
+          id: jobId(`job-${generateUuid()}`),
           type: jobType as string,
           userId: userId(_userId),
           userName: user.email,
@@ -51,14 +49,14 @@ export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueu
 
       await jobQueue.createJob(job as never);
 
-      logger().info('Job created via bus', { jobId: job.metadata.id, jobType, correlationId });
+      logger.info('Job created via bus', { jobId: job.metadata.id, jobType, correlationId });
 
       (eventBus.get('job:created') as { next(v: unknown): void }).next({
         correlationId,
         response: { jobId: job.metadata.id },
       });
     } catch (error) {
-      logger().error('job:create failed', { correlationId, error: (error as Error).message });
+      logger.error('job:create failed', { correlationId, error: (error as Error).message });
       (eventBus.get('job:create-failed') as { next(v: unknown): void }).next({
         correlationId,
         message: (error as Error).message,

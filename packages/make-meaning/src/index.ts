@@ -13,6 +13,16 @@ export { stopKnowledgeSystem } from './knowledge-system';
 export { LocalTransport, type LocalTransportConfig } from './local-transport';
 export { LocalContentTransport } from './local-content-transport';
 
+// Bus command handlers — registered automatically by `startMakeMeaning`;
+// also exported individually for callers that bring their own bootstrap.
+export {
+  registerBusHandlers,
+  registerAnnotationAssemblyHandler,
+  registerAnnotationLookupHandlers,
+  registerBindUpdateBodyHandler,
+  registerJobCommandHandlers,
+} from './handlers';
+
 // Bootstrap
 export { bootstrapEntityTypes } from './bootstrap/entity-types';
 

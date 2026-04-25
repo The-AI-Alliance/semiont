@@ -1,8 +1,5 @@
 import { resourceId, userId, annotationId } from '@semiont/core';
-import type { EventBus, BodyOperation } from '@semiont/core';
-import { getLogger } from '../logger';
-
-const logger = () => getLogger().child({ component: 'bind-update-body' });
+import type { EventBus, Logger, BodyOperation } from '@semiont/core';
 
 /**
  * Handles `bind:update-body` — the Bind flow's authoritative "apply body
@@ -20,7 +17,8 @@ const logger = () => getLogger().child({ component: 'bind-update-body' });
  *      matches by correlationId, and emits bind:body-updated / bind:body-update-failed
  *      so the caller learns the real outcome — not an optimistic ack.
  */
-export function registerBindUpdateBodyHandler(eventBus: EventBus): void {
+export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: Logger): void {
+  const logger = parentLogger.child({ component: 'bind-update-body' });
   const inflight = new Set<string>();
 
   eventBus.get('bind:update-body').subscribe((command) => {
@@ -46,12 +44,12 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus): void {
         operations: operations as BodyOperation[],
       });
 
-      logger().info('Bind update-body forwarded to mark:update-body, awaiting persistence', {
+      logger.info('Bind update-body forwarded to mark:update-body, awaiting persistence', {
         annotationId: annId,
         correlationId: cid,
       });
     } catch (error) {
-      logger().warn('bind:update-body failed before forwarding', {
+      logger.warn('bind:update-body failed before forwarding', {
         correlationId: cid,
         error: (error as Error).message,
       });
@@ -62,8 +60,6 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus): void {
     }
   });
 
-  // Deferred success: mark:body-updated is the persisted domain event.
-  // Match by correlationId in metadata; emit bind:body-updated to the caller.
   eventBus.get('mark:body-updated').subscribe((event) => {
     const cid = event.metadata?.correlationId;
     if (!cid || !inflight.has(cid)) return;
@@ -73,10 +69,9 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus): void {
       correlationId: cid,
       annotationId: annId,
     });
-    logger().info('Bind body-updated confirmed', { annotationId: annId, correlationId: cid });
+    logger.info('Bind body-updated confirmed', { annotationId: annId, correlationId: cid });
   });
 
-  // Deferred failure: Stower emits mark:body-update-failed with correlationId.
   eventBus.get('mark:body-update-failed').subscribe((event) => {
     const cid = (event as { correlationId?: string }).correlationId;
     if (!cid || !inflight.has(cid)) return;
@@ -86,6 +81,6 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus): void {
       correlationId: cid,
       message,
     });
-    logger().warn('Bind body-update failed after forwarding', { correlationId: cid, message });
+    logger.warn('Bind body-update failed after forwarding', { correlationId: cid, message });
   });
 }
