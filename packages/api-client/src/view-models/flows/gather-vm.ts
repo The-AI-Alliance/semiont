@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
 import { annotationId as makeAnnotationId } from '@semiont/core';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
 export interface GatherVM extends ViewModel {
@@ -13,7 +13,7 @@ export interface GatherVM extends ViewModel {
 }
 
 export function createGatherVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   resourceId: ResourceId,
 ): GatherVM {
   const subs: Subscription[] = [];
@@ -22,7 +22,7 @@ export function createGatherVM(
   const error$ = new BehaviorSubject<Error | null>(null);
   const annotationId$ = new BehaviorSubject<AnnotationId | null>(null);
 
-  subs.push(client.stream('gather:requested').subscribe((event) => {
+  subs.push(client.bus.get('gather:requested').subscribe((event) => {
     loading$.next(true);
     error$.next(null);
     context$.next(null);

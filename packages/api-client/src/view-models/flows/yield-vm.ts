@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { ResourceId, GatheredContext, components } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
 type JobProgress = components['schemas']['JobProgress'];
@@ -24,7 +24,7 @@ export interface YieldVM extends ViewModel {
 }
 
 export function createYieldVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   resourceId: ResourceId,
   locale: string,
 ): YieldVM {

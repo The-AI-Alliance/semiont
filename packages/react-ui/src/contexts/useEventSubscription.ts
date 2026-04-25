@@ -8,7 +8,7 @@ import { useObservable } from '../hooks/useObservable';
  *
  * Two buses exist: the app-scoped bus on `SemiontBrowser` (panel, shell,
  * tabs, nav, settings — events that must work without a KB session) and
- * the per-session bus on `SemiontApiClient` (mark, beckon, gather,
+ * the per-session bus on `SemiontClient` (mark, beckon, gather,
  * match, bind, yield, browse — events tied to a live KB). This hook
  * subscribes to BOTH so components don't need to know which scope a
  * channel is on. Each channel only fires on one bus, so there's no
@@ -48,7 +48,7 @@ export function useEventSubscription<K extends keyof EventMap>(
  * Subscribe to multiple bus events at once. Same semantics as
  * `useEventSubscription`, batched — each channel is subscribed on both
  * the app bus (`SemiontBrowser`) and the session bus
- * (`SemiontApiClient`, when a session is active).
+ * (`SemiontClient`, when a session is active).
  *
  * @example
  * ```tsx

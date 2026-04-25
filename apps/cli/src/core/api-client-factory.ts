@@ -17,7 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { SemiontApiClient } from '@semiont/api-client';
+import { HttpContentTransport, HttpTransport, SemiontClient } from '@semiont/api-client';
 import { BehaviorSubject } from 'rxjs';
 import {
   email as toEmail,
@@ -27,7 +27,7 @@ import {
 } from '@semiont/core';
 
 export interface AuthenticatedClient {
-  semiont: SemiontApiClient;
+  semiont: SemiontClient;
   token: AccessToken;
 }
 
@@ -95,7 +95,8 @@ export async function acquireToken(
   emailStr: string,
   passwordStr: string,
 ): Promise<void> {
-  const semiont = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl) });
+  const transport = new HttpTransport({ baseUrl: toBaseUrl(rawBusUrl) });
+  const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
   const authResult = await semiont.authenticatePassword(toEmail(emailStr), passwordStr);
   const cache: TokenCache = {
     bus: rawBusUrl,
@@ -125,10 +126,8 @@ export function loadCachedClient(rawBusUrl: string): AuthenticatedClient {
 
   const token = toAccessToken(cached.token);
   const token$ = new BehaviorSubject<AccessToken | null>(token);
-  const semiont = new SemiontApiClient({
-    baseUrl: toBaseUrl(rawBusUrl),
-    token$,
-  });
+  const transport = new HttpTransport({ baseUrl: toBaseUrl(rawBusUrl), token$ });
+  const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
   return { semiont, token };
 }
 

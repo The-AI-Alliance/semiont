@@ -9,7 +9,12 @@ import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { SemiontApiClient, type SemiontBrowser } from '@semiont/api-client';
+import {
+  HttpContentTransport,
+  HttpTransport,
+  SemiontClient,
+  type SemiontBrowser,
+} from '@semiont/api-client';
 import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { ToastProvider } from './components/Toast';
@@ -18,7 +23,7 @@ import { SemiontProvider } from './session/SemiontProvider';
 
 /**
  * Minimal fake SemiontBrowser for tests. Emits a fake session whose `client`
- * is a fresh SemiontApiClient constructed off `apiBaseUrl`. Tests that spy
+ * is a fresh SemiontClient constructed off `apiBaseUrl`. Tests that spy
  * on client methods (e.g. `BindNamespace.prototype.body`) rely on the
  * real-ish client surface. Tests that inspect events production code emits
  * subscribe via `client.on(channel, handler)`.
@@ -26,9 +31,8 @@ import { SemiontProvider } from './session/SemiontProvider';
 function createFakeBrowserForTests(
   apiBaseUrl: string,
 ): SemiontBrowser {
-  const client = new SemiontApiClient({
-    baseUrl: baseUrl(apiBaseUrl),
-  });
+  const transport = new HttpTransport({ baseUrl: baseUrl(apiBaseUrl) });
+  const client = new SemiontClient(transport, new HttpContentTransport(transport));
   const fakeSession = {
     client,
     kb: null,
@@ -37,8 +41,11 @@ function createFakeBrowserForTests(
     expiresAt: null,
     refresh: vi.fn(async () => null),
     /** Generic-channel subscription carve-out — mirror of SemiontSession.subscribe. */
-    subscribe: <K extends string>(channel: K, handler: (payload: any) => void) =>
-      client.on(channel as any, handler),
+    subscribe: <K extends string>(channel: K, handler: (payload: any) => void) => {
+      const sub = (client.bus.get(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } })
+        .subscribe(handler as never);
+      return () => sub.unsubscribe();
+    },
   };
   // Modal-state mock sits on its own BehaviorSubject so tests that
   // exercise the session-expired / permission-denied paths can poke
@@ -124,15 +131,14 @@ export interface TestProvidersOptions {
 }
 
 /**
- * Extract the internal bus from a client for test assertions. Production
- * code uses `client.emit` / `client.on` / `client.stream`; tests still
- * reach for raw subjects because many pre-existing test suites do
- * `bus.get(channel).subscribe(...)` / `.next(...)`. That migration is
- * tracked as a follow-up; in the meantime, this cast is the single
- * sanctioned escape hatch.
+ * Test access to the client's local bus. Production code uses typed
+ * namespace methods or `session.subscribe(channel, handler)` — never
+ * direct bus access. Tests need raw subjects to drive `bus.get(channel).next(...)`
+ * / `subscribe(...)` against the live client wiring; `client.bus` is
+ * read-only public for that.
  */
-function busOf(client: SemiontApiClient): EventBus {
-  return (client as unknown as { eventBus: EventBus }).eventBus;
+function busOf(client: SemiontClient): EventBus {
+  return client.bus;
 }
 
 export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
@@ -175,7 +181,7 @@ export function renderWithProviders(
   } = options || {};
 
   const fakeBrowser = browser ?? createFakeBrowserForTests(apiBaseUrl);
-  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client?: SemiontApiClient } | null } }).activeSession$.getValue();
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client?: SemiontClient } | null } }).activeSession$.getValue();
   const client = fakeSession?.client;
 
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -211,10 +217,10 @@ export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:
   /** App-scoped bus (the fake browser's own bus). */
   shellBus: EventBus;
   /** The fake session's client — for tests that need to spy on namespace methods. */
-  client: SemiontApiClient;
+  client: SemiontClient;
 } {
   const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
-  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: SemiontApiClient } | null } }).activeSession$.getValue();
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: SemiontClient } | null } }).activeSession$.getValue();
   const client = fakeSession!.client;
   const SemiontWrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontProvider browser={fakeBrowser}>{children}</SemiontProvider>

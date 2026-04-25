@@ -1,17 +1,20 @@
 /**
- * SemiontApiClient — the verb-oriented namespace surface.
+ * SemiontClient — the verb-oriented namespace surface.
  *
- * After the transport-abstraction Phase 1 refactor, this class is a thin
- * coordinator: it owns an `HttpTransport` (wire surface — bus + auth +
- * admin + exchange + system) and an `HttpContentTransport` (binary I/O),
- * plus a per-client local EventBus for UI-signal channels. Namespaces
- * receive the legacy `(http, eventBus, getToken, actor)` args during the
- * migration; a later pass collapses those to `(transport, bus)`.
+ * Thin coordinator over an injected transport pair. Owns a local
+ * `EventBus` (`bus`) for UI-signal channels and bridges wire events into
+ * it via `transport.bridgeInto(bus)`. Namespaces receive `(transport,
+ * bus)` (and `content` for binary-I/O namespaces) and choose internally
+ * whether each method goes over the wire or stays local.
  *
- * Legacy HTTP methods (e.g. `markAnnotation`, `browseResource`) remain on
+ * No public `emit`/`on`/`stream` shortcuts: consumers call typed
+ * namespace methods. The single sanctioned channel-by-name escape hatch
+ * is `SemiontSession.subscribe(channel, handler)`, which reads from
+ * `client.bus`.
+ *
+ * Legacy bulk methods (e.g. `browseResource`, `markAnnotation`) remain on
  * the class for CLI / MCP consumers that have not yet migrated to typed
- * namespace methods. Those call the `HttpTransport`'s ky instance via
- * `this.http` and read `this.baseUrl`.
+ * namespace methods. Those route through `this.transport`.
  */
 
 import type { paths, components } from '@semiont/core';
@@ -32,10 +35,8 @@ import type {
   SearchQuery,
   UserDID,
 } from '@semiont/core';
-import { EventBus, type EventMap } from '@semiont/core';
-import type { ActorVM } from './view-models/domain/actor-vm';
+import { EventBus } from '@semiont/core';
 import { busRequest } from './bus-request';
-import { BehaviorSubject, type Observable } from 'rxjs';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
@@ -46,11 +47,10 @@ import { BeckonNamespace } from './namespaces/beckon';
 import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
-import type { Logger } from '@semiont/core';
-import { HttpTransport, type HttpTransportConfig, type TokenRefresher } from './transport/http-transport';
-import { HttpContentTransport } from './transport/http-content-transport';
+import type { ITransport, IContentTransport } from './transport/types';
 
-export { APIError, type TokenRefresher } from './transport/http-transport';
+export { APIError, type TokenRefresher, HttpTransport, type HttpTransportConfig } from './transport/http-transport';
+export { HttpContentTransport } from './transport/http-content-transport';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
@@ -63,41 +63,29 @@ type ResponseContent<T> = T extends { responses: { 200: { content: { 'applicatio
 
 type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } } ? R : never;
 
-export interface SemiontApiClientConfig {
-  baseUrl: BaseUrl;
-  /**
-   * Observable access token. All auth (HTTP + bus) reads the current value.
-   * Update by calling `.next(newToken)` on the BehaviorSubject. The bus actor
-   * auto-starts when the value transitions from null to a real token.
-   * If omitted, the client operates unauthenticated (public endpoints only).
-   */
-  token$?: BehaviorSubject<AccessToken | null>;
-  timeout?: number;
-  retry?: number;
-  logger?: Logger;
-  /** Optional 401-recovery hook. See {@link TokenRefresher}. */
-  tokenRefresher?: TokenRefresher;
-}
-
 export interface RequestOptions {
   /** Access token for this request */
   auth?: AccessToken;
 }
 
-export class SemiontApiClient {
-  /** The wire-facing transport. Owns bus actor + ky instance + HTTP endpoints. */
-  private readonly transport: HttpTransport;
-  /** Binary I/O transport; delegates HTTP-level auth to {@link transport}. */
-  private readonly content: HttpContentTransport;
-  readonly baseUrl: BaseUrl;
+export class SemiontClient {
   /**
-   * Per-client local EventBus. Wire events received on SSE are bridged into
-   * this bus by `transport.bridgeInto(this.eventBus)` so namespaces can
-   * observe a single bus without knowing whether events came from the wire
-   * or a local emit. Also carries fire-and-forget UI-signal channels like
-   * `beckon:hover`, `mark:requested`, etc., that stay tab-local.
+   * The wire-facing transport. Owns bus actor, HTTP, auth, admin, exchange,
+   * system. Exposed for advanced consumers (workers, custom job adapters)
+   * that need raw `transport.emit(channel, payload, scope)` access. Ordinary
+   * consumers go through typed namespace methods.
    */
-  private readonly eventBus: EventBus;
+  readonly transport: ITransport;
+  /** Binary I/O transport. */
+  private readonly content: IContentTransport;
+  /**
+   * Per-client local EventBus. Wire events flow in via the transport
+   * bridge. Read-only public so `SemiontSession.subscribe(channel, …)`
+   * can wire arbitrary-channel subscriptions; everything else uses
+   * typed namespace methods.
+   */
+  readonly bus: EventBus;
+  readonly baseUrl: BaseUrl;
 
   // ── Verb-oriented namespace API ──────────────────────────────────────────
   public readonly browse: BrowseNamespace;
@@ -111,42 +99,30 @@ export class SemiontApiClient {
   public readonly auth: AuthNamespace;
   public readonly admin: AdminNamespace;
 
-  constructor(config: SemiontApiClientConfig) {
-    // Build the wire transport first; it owns ky, actor, and token$.
-    const transportConfig: HttpTransportConfig = {
-      baseUrl: config.baseUrl,
-      ...(config.token$ ? { token$: config.token$ } : {}),
-      ...(config.timeout !== undefined ? { timeout: config.timeout } : {}),
-      ...(config.retry !== undefined ? { retry: config.retry } : {}),
-      ...(config.logger ? { logger: config.logger } : {}),
-      ...(config.tokenRefresher ? { tokenRefresher: config.tokenRefresher } : {}),
-    };
-    this.transport = new HttpTransport(transportConfig);
-    this.content = new HttpContentTransport(this.transport);
-    this.baseUrl = this.transport.baseUrl;
+  constructor(transport: ITransport, content: IContentTransport) {
+    this.transport = transport;
+    this.content = content;
+    this.baseUrl = transport.baseUrl;
 
     // Local coordination bus. Wire events flow in via the transport bridge.
-    this.eventBus = new EventBus();
-    this.transport.bridgeInto(this.eventBus);
+    this.bus = new EventBus();
+    this.transport.bridgeInto(this.bus);
 
-    // Namespaces use the (transport, bus) shape; binary-I/O namespaces also
-    // take content. They have no awareness of HTTP vs local — they call
-    // `transport.emit/stream` for wire ops and `bus.get(channel)` for local.
-    this.browse = new BrowseNamespace(this.transport, this.eventBus, this.content);
-    this.mark   = new MarkNamespace(this.transport, this.eventBus);
-    this.bind   = new BindNamespace(this.transport, this.eventBus);
-    this.gather = new GatherNamespace(this.transport, this.eventBus);
-    this.match  = new MatchNamespace(this.transport, this.eventBus);
-    this.yield  = new YieldNamespace(this.transport, this.eventBus, this.content);
-    this.beckon = new BeckonNamespace(this.transport, this.eventBus);
-    this.job    = new JobNamespace(this.transport, this.eventBus);
+    this.browse = new BrowseNamespace(this.transport, this.bus, this.content);
+    this.mark   = new MarkNamespace(this.transport, this.bus);
+    this.bind   = new BindNamespace(this.transport, this.bus);
+    this.gather = new GatherNamespace(this.transport, this.bus);
+    this.match  = new MatchNamespace(this.transport, this.bus);
+    this.yield  = new YieldNamespace(this.transport, this.bus, this.content);
+    this.beckon = new BeckonNamespace(this.transport, this.bus);
+    this.job    = new JobNamespace(this.transport, this.bus);
     this.auth   = new AuthNamespace(this.transport);
     this.admin  = new AdminNamespace(this.transport);
   }
 
-  /** The shared bus actor. Delegated from the wire transport. */
-  get actor(): ActorVM {
-    return this.transport.actor;
+  /** Transport-level connection state. HTTP reflects SSE health; local is always 'connected'. */
+  get state$() {
+    return this.transport.state$;
   }
 
   subscribeToResource(resourceId: ResourceId): () => void {
@@ -156,27 +132,6 @@ export class SemiontApiClient {
   dispose(): void {
     this.transport.dispose();
     this.content.dispose();
-  }
-
-  // ── Event bus surface ─────────────────────────────────────────────────
-  // The ONE public path to the local client bus. VMs, session, and
-  // components route through these methods. Wire events flow in via
-  // `transport.bridgeInto(this.eventBus)` during construction.
-
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
-    this.eventBus.get(channel).next(payload);
-  }
-
-  on<K extends keyof EventMap>(
-    channel: K,
-    handler: (payload: EventMap[K]) => void,
-  ): () => void {
-    const sub = this.eventBus.get(channel).subscribe(handler);
-    return () => sub.unsubscribe();
-  }
-
-  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.eventBus.get(channel).asObservable();
   }
 
   // ── AUTH (delegates to HttpTransport) ─────────────────────────────────
@@ -275,7 +230,7 @@ export class SemiontApiClient {
   //
   // These methods are used by CLI / MCP consumers that have not yet
   // migrated to typed namespace methods (e.g. `semiont.browse.resource`).
-  // They continue to use `this.actor` (bus) or `this.http` (ky) directly,
+  // They route through `this.transport` (bus emit + busRequest) directly,
   // both now owned by HttpTransport.
 
   async browseResource(id: ResourceId, _options?: RequestOptions): Promise<components['schemas']['GetResourceResponse']> {
@@ -345,7 +300,7 @@ export class SemiontApiClient {
   }
 
   async deleteAnnotation(resourceId: ResourceId, annotationId: AnnotationId, _options?: RequestOptions): Promise<void> {
-    await this.actor.emit('mark:delete', { annotationId, resourceId });
+    await this.transport.emit('mark:delete', { annotationId, resourceId });
   }
 
   async bindAnnotation(
@@ -355,7 +310,7 @@ export class SemiontApiClient {
     _options?: RequestOptions,
   ): Promise<{ correlationId: string }> {
     const correlationId = crypto.randomUUID();
-    await this.actor.emit('bind:update-body', { correlationId, annotationId, resourceId, operations: data.operations });
+    await this.transport.emit('bind:update-body', { correlationId, annotationId, resourceId, operations: data.operations });
     return { correlationId };
   }
 
@@ -451,11 +406,11 @@ export class SemiontApiClient {
     data: { correlationId: string; contextWindow?: number },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string }> {
-    await this.actor.emit('gather:requested', {
+    await this.transport.emit('gather:requested', {
       correlationId: data.correlationId,
       annotationId,
       resourceId,
-      contextWindow: data.contextWindow ?? 2000,
+      options: { contextWindow: data.contextWindow ?? 2000 },
     });
     return { correlationId: data.correlationId };
   }
@@ -465,11 +420,11 @@ export class SemiontApiClient {
     data: { correlationId: string; referenceId: string; context: unknown; limit?: number; useSemanticScoring?: boolean },
     _options?: RequestOptions,
   ): Promise<{ correlationId: string }> {
-    await this.actor.emit('match:search-requested', {
+    await this.transport.emit('match:search-requested', {
       correlationId: data.correlationId,
       resourceId,
       referenceId: data.referenceId,
-      context: data.context as Record<string, unknown>,
+      context: data.context as never,
       limit: data.limit ?? 10,
       useSemanticScoring: data.useSemanticScoring ?? true,
     });
@@ -479,12 +434,12 @@ export class SemiontApiClient {
   // ── ENTITY TYPES ──────────────────────────────────────────────────────
 
   async addEntityType(type: EntityType, _options?: RequestOptions): Promise<void> {
-    await this.actor.emit('mark:add-entity-type', { tag: type });
+    await this.transport.emit('mark:add-entity-type', { tag: type });
   }
 
   async addEntityTypesBulk(types: EntityType[], _options?: RequestOptions): Promise<void> {
     for (const tag of types) {
-      await this.actor.emit('mark:add-entity-type', { tag });
+      await this.transport.emit('mark:add-entity-type', { tag });
     }
   }
 
@@ -499,7 +454,7 @@ export class SemiontApiClient {
     data: { annotationId?: string; resourceId: string; message?: string },
     _options?: RequestOptions,
   ): Promise<components['schemas']['BeckonResponse']> {
-    await this.actor.emit('beckon:focus', data as unknown as Record<string, unknown>);
+    await this.transport.emit('beckon:focus', data as unknown as Record<string, unknown>);
     return {} as components['schemas']['BeckonResponse'];
   }
 

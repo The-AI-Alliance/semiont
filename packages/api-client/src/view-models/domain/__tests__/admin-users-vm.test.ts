@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { SemiontApiClient } from '../../../client';
+import type { SemiontClient } from '../../../client';
 import type { ShellVM } from '../../flows/shell-vm';
 import { createAdminUsersVM } from '../admin-users-vm';
 
@@ -13,12 +13,12 @@ function mockClient(overrides: {
   listUsers?: ReturnType<typeof vi.fn>;
   getUserStats?: ReturnType<typeof vi.fn>;
   updateUser?: ReturnType<typeof vi.fn>;
-} = {}): SemiontApiClient {
+} = {}): SemiontClient {
   return {
     listUsers: overrides.listUsers ?? vi.fn().mockResolvedValue({ users: [] }),
     getUserStats: overrides.getUserStats ?? vi.fn().mockResolvedValue({ stats: null }),
     updateUser: overrides.updateUser ?? vi.fn().mockResolvedValue(undefined),
-  } as unknown as SemiontApiClient;
+  } as unknown as SemiontClient;
 }
 
 describe('createAdminUsersVM', () => {

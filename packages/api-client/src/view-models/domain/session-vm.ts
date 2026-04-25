@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import type { ViewModel } from '../lib/view-model';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 
 export interface SessionVM extends ViewModel {
   isLoggingOut$: Observable<boolean>;
@@ -8,7 +8,7 @@ export interface SessionVM extends ViewModel {
 }
 
 export function createSessionVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
 ): SessionVM {
   const isLoggingOut$ = new BehaviorSubject<boolean>(false);
 

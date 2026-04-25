@@ -60,7 +60,7 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
   const gatherVM = createGatherVM(semiont, resourceId);
   let context: GatheredContext;
   try {
-    semiont.emit('gather:requested', {
+    semiont.bus.get('gather:requested').next({
       correlationId: crypto.randomUUID(),
       annotationId: annotationId as string,
       resourceId: resourceId as string,

@@ -1,6 +1,6 @@
 /**
  * SemiontSession — per-backend session lifetime object. Owns the
- * SemiontApiClient, the access token BehaviorSubject, and optionally
+ * SemiontClient, the access token BehaviorSubject, and optionally
  * an authenticated user. One SemiontSession exists per active backend
  * connection; lifetime is decoupled from React mount lifetime.
  *
@@ -34,18 +34,16 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
-  baseUrl,
   type AccessToken,
 } from '@semiont/core';
 import type { components, EventMap } from '@semiont/core';
-import { SemiontApiClient, APIError } from '../client';
+import { SemiontClient, APIError } from '../client';
 import type { ConnectionState } from '../view-models/domain/actor-vm';
 import type { KnowledgeBase } from './knowledge-base';
 import {
   clearStoredSession,
   getStoredSession,
   isJwtExpired,
-  kbBackendUrl,
   parseJwtExpiry,
   REFRESH_BEFORE_EXP_MS,
   sessionKey,
@@ -61,13 +59,24 @@ export interface SemiontSessionConfig {
   /** Persistence adapter. Reads/writes tokens via this. */
   storage: SessionStorage;
   /**
+   * Pre-built api client. The session does not construct it — caller
+   * builds the transport stack and passes the client in. This is the
+   * seam where consumers swap HTTP for `LocalTransport`.
+   */
+  client: SemiontClient;
+  /**
+   * Token observable shared with the transport. Caller must pass the
+   * SAME instance to both the transport (via `HttpTransport` config)
+   * and the session. The session writes refreshed tokens here; the
+   * transport reads from here.
+   */
+  token$: BehaviorSubject<AccessToken | null>;
+  /**
    * Re-authenticate after expiry / 401. Returns a new access token
    * (no "Bearer " prefix) on success, or null if recovery is
-   * impossible (user needs to sign in again, or the service secret
-   * is missing). Callers must dedupe concurrent invocations if the
-   * underlying auth call isn't itself idempotent.
+   * impossible. Omit for transports where tokens don't apply.
    */
-  refresh: () => Promise<string | null>;
+  refresh?: () => Promise<string | null>;
   /**
    * Validate the stored token at startup and populate `user$`. Omit
    * for service-principal sessions (worker, CLI tools) where there
@@ -85,7 +94,7 @@ export interface SemiontSessionConfig {
 
 export class SemiontSession {
   readonly kb: KnowledgeBase;
-  readonly client: SemiontApiClient;
+  readonly client: SemiontClient;
   readonly token$: BehaviorSubject<AccessToken | null>;
   readonly user$: BehaviorSubject<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
@@ -94,7 +103,7 @@ export class SemiontSession {
   readonly ready: Promise<void>;
 
   private readonly storage: SessionStorage;
-  private readonly doRefresh: () => Promise<string | null>;
+  private readonly doRefresh?: () => Promise<string | null>;
   private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
   private readonly onAuthFailed: (message: string | null) => void;
   private readonly onError: (err: SemiontError) => void;
@@ -109,21 +118,20 @@ export class SemiontSession {
     this.doValidate = config.validate;
     this.onAuthFailed = config.onAuthFailed ?? (() => {});
     this.onError = config.onError ?? (() => {});
-
-    const stored = getStoredSession(this.storage, this.kb.id);
-    const initialToken =
-      stored && !isJwtExpired(stored.access) ? accessToken(stored.access) : null;
-
-    this.token$ = new BehaviorSubject<AccessToken | null>(initialToken);
+    this.client = config.client;
+    this.token$ = config.token$;
     this.user$ = new BehaviorSubject<UserInfo | null>(null);
 
-    this.client = new SemiontApiClient({
-      baseUrl: baseUrl(kbBackendUrl(this.kb)),
-      token$: this.token$,
-      tokenRefresher: () => this.refresh().then((t) => t ?? null),
-    });
+    // Reconcile stored token: if there's a fresh stored access token
+    // and `token$` hasn't been seeded yet, push the stored value so the
+    // transport (which shares this token$) sees it on first auth.
+    const stored = getStoredSession(this.storage, this.kb.id);
+    if (stored && !isJwtExpired(stored.access) && this.token$.getValue() === null) {
+      this.token$.next(accessToken(stored.access));
+    }
+    const initialToken = this.token$.getValue();
 
-    this.streamState$ = this.client.actor.state$;
+    this.streamState$ = this.client.state$;
 
     if (initialToken) {
       this.scheduleProactiveRefresh(initialToken);
@@ -151,7 +159,7 @@ export class SemiontSession {
     if (!stored) return;
 
     const startToken = isJwtExpired(stored.access)
-      ? await this.doRefresh()
+      ? (this.doRefresh ? await this.doRefresh() : null)
       : stored.access;
     if (!startToken) {
       if (isJwtExpired(stored.access)) {
@@ -178,7 +186,7 @@ export class SemiontSession {
       } catch (err) {
         if (this.disposed) return;
         if (err instanceof APIError && err.status === 401) {
-          const refreshed = await this.doRefresh();
+          const refreshed = this.doRefresh ? await this.doRefresh() : null;
           if (this.disposed) return;
           if (refreshed) {
             this.token$.next(accessToken(refreshed));
@@ -213,6 +221,7 @@ export class SemiontSession {
    */
   async refresh(): Promise<AccessToken | null> {
     if (this.disposed) return null;
+    if (!this.doRefresh) return null;
     const newAccess = await this.doRefresh();
     if (this.disposed) return null;
     if (newAccess) {
@@ -282,9 +291,7 @@ export class SemiontSession {
    * Subscribe to a session-bus channel. The single sanctioned escape hatch
    * for generic-channel subscription (the case `useEventSubscription` needs
    * — channel name is a hook parameter, not known statically). All other
-   * consumers must call typed namespace methods (e.g. `session.client.mark.archive(...)`)
-   * rather than raw `.client.on/.stream/.emit`. The compliance audit at
-   * `scripts/compliance/audit-raw-bus.sh` flags any other caller.
+   * consumers must call typed namespace methods (e.g. `session.client.mark.archive(...)`).
    *
    * @returns disposer that unsubscribes the handler.
    */
@@ -292,7 +299,8 @@ export class SemiontSession {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): () => void {
-    return this.client.on(channel, handler);
+    const sub = this.client.bus.get(channel).subscribe(handler);
+    return () => sub.unsubscribe();
   }
 
   async dispose(): Promise<void> {

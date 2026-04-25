@@ -1,8 +1,8 @@
 /**
- * makeTestClient — structurally-typed `SemiontApiClient` stand-in for VM
- * factory tests. Implements the bus surface (`emit` / `on` / `stream`)
- * backed by a real `EventBus` the test retains access to, plus whatever
- * HTTP namespaces the caller supplies via `overrides`.
+ * makeTestClient — structurally-typed `SemiontClient` stand-in for VM
+ * factory tests. Exposes a real `EventBus` as `client.bus` (the same
+ * shape production code reads), plus whatever HTTP namespaces the caller
+ * supplies via `overrides`.
  *
  * Usage:
  *
@@ -10,7 +10,7 @@
  * // bus-only VM
  * const { bus, client } = makeTestClient();
  * const vm = createShellVM(client);
- * client.emit('panel:toggle', { panel: 'annotations' });
+ * client.bus.get('panel:toggle').next({ panel: 'annotations' });
  * bus.destroy(); // in afterEach
  *
  * // VM that also calls HTTP namespaces
@@ -23,21 +23,18 @@
  * const vm = createMarkVM(client, resourceId);
  * ```
  *
- * The `client` is cast `as unknown as SemiontApiClient`, matching the
- * established pattern for structural mocks in this codebase (see earlier
- * bespoke `mockClient()` helpers in mark-vm.test.ts etc. — all of which
- * should migrate to this shared helper).
+ * The `client` is cast `as unknown as SemiontClient`, matching the
+ * established pattern for structural mocks in this codebase.
  */
 
-import { EventBus, type EventMap } from '@semiont/core';
-import type { Observable } from 'rxjs';
-import type { SemiontApiClient } from '../client';
+import { EventBus } from '@semiont/core';
+import type { SemiontClient } from '../client';
 
 export interface TestClient {
-  /** The real bus backing emit/on/stream — exposed so tests can
-   *  destroy() it in afterEach and, if needed, inspect raw subjects. */
+  /** The real bus backing `client.bus` — exposed so tests can
+   *  destroy() it in afterEach. Same instance as `client.bus`. */
   bus: EventBus;
-  client: SemiontApiClient;
+  client: SemiontClient;
 }
 
 export function makeTestClient(
@@ -46,13 +43,7 @@ export function makeTestClient(
   const bus = new EventBus();
   const client = {
     ...overrides,
-    emit: <K extends keyof EventMap>(ch: K, p: EventMap[K]) => bus.get(ch).next(p),
-    on: <K extends keyof EventMap>(ch: K, h: (p: EventMap[K]) => void) => {
-      const sub = bus.get(ch).subscribe(h);
-      return () => sub.unsubscribe();
-    },
-    stream: <K extends keyof EventMap>(ch: K): Observable<EventMap[K]> =>
-      bus.get(ch).asObservable(),
-  } as unknown as SemiontApiClient;
+    bus,
+  } as unknown as SemiontClient;
   return { bus, client };
 }

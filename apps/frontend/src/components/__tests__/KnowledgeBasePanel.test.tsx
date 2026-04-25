@@ -82,7 +82,7 @@ vi.mock('@semiont/api-client', async () => {
   const actual = await vi.importActual<typeof import('@semiont/api-client')>('@semiont/api-client');
   return {
     ...actual,
-    SemiontApiClient: vi.fn(),
+    SemiontClient: vi.fn(),
   };
 });
 

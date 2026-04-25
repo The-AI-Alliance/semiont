@@ -59,7 +59,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
     const vm = createGatherVM(semiont, rid);
 
     try {
-      semiont.emit('gather:requested', {
+      semiont.bus.get('gather:requested').next({
         correlationId: crypto.randomUUID(),
         annotationId: aid as string,
         resourceId: rid as string,

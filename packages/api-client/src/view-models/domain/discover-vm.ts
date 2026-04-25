@@ -4,7 +4,7 @@ import type { ViewModel } from '../lib/view-model';
 import { createDisposer } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
 import { createSearchPipeline, type SearchPipeline } from '../lib/search-pipeline';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 
 const RECENT_LIMIT = 10;
 const SEARCH_LIMIT = 20;
@@ -18,7 +18,7 @@ export interface DiscoverVM extends ViewModel {
 }
 
 export function createDiscoverVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   browse: ShellVM,
 ): DiscoverVM {
   const disposer = createDisposer();

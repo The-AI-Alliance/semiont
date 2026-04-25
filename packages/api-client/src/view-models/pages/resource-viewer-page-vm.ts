@@ -8,7 +8,7 @@ import { createMarkVM, type MarkVM } from '../flows/mark-vm';
 import { createGatherVM, type GatherVM } from '../flows/gather-vm';
 import { createMatchVM } from '../flows/match-vm';
 import { createYieldVM, type YieldVM } from '../flows/yield-vm';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 import { decodeWithCharset } from '../../utils/text-encoding';
 import { isHighlight, isComment, isAssessment, isReference, isTag } from '../../utils/annotations';
 import type { ReferencedByEntry } from '../../namespaces/types';
@@ -57,7 +57,7 @@ export interface ResourceViewerPageVM extends ViewModel {
 }
 
 export function createResourceViewerPageVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   resourceId: ResourceId,
   locale: string,
   browse: ShellVM,
@@ -136,7 +136,7 @@ export function createResourceViewerPageVM(
   const unsubscribeResource = client.subscribeToResource(resourceId);
   disposer.add(unsubscribeResource);
 
-  const bindInitiateSub = client.stream('bind:initiate').subscribe((event) => {
+  const bindInitiateSub = client.bus.get('bind:initiate').subscribe((event) => {
     wizard$.next({
       open: true,
       annotationId: event.annotationId,
@@ -144,7 +144,7 @@ export function createResourceViewerPageVM(
       defaultTitle: event.defaultTitle,
       entityTypes: event.entityTypes,
     });
-    client.emit('gather:requested', {
+    client.bus.get('gather:requested').next({
       correlationId: crypto.randomUUID(),
       annotationId: event.annotationId,
       resourceId: event.resourceId,

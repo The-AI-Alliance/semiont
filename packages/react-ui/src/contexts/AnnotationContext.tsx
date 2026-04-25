@@ -18,7 +18,7 @@ export interface AnnotationProviderProps {
  *
  * Example usage:
  * ```typescript
- * function useAnnotationManager(client: SemiontApiClient): AnnotationManager {
+ * function useAnnotationManager(client: SemiontClient): AnnotationManager {
  *   return {
  *     markAnnotation: async (params) => {
  *       const result = await client.markAnnotation(params.rUri, {

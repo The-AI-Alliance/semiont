@@ -28,7 +28,7 @@ describe('createMatchVM', () => {
     tc = withMatch(searchFn);
     const vm = createMatchVM(tc.client, RID);
 
-    tc.client.emit('match:search-requested', {
+    tc.bus.get('match:search-requested').next({
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: { annotation: {} } as any,
@@ -55,9 +55,9 @@ describe('createMatchVM', () => {
     const vm = createMatchVM(tc.client, RID);
 
     const results: unknown[] = [];
-    tc.client.on('match:search-results', r => results.push(r));
+    tc.bus.get('match:search-results').subscribe(r => results.push(r));
 
-    tc.client.emit('match:search-requested', {
+    tc.bus.get('match:search-requested').next({
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -77,9 +77,9 @@ describe('createMatchVM', () => {
     const vm = createMatchVM(tc.client, RID);
 
     const failures: unknown[] = [];
-    tc.client.on('match:search-failed', f => failures.push(f));
+    tc.bus.get('match:search-failed').subscribe(f => failures.push(f));
 
-    tc.client.emit('match:search-requested', {
+    tc.bus.get('match:search-requested').next({
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -101,9 +101,9 @@ describe('createMatchVM', () => {
     tc = withMatch(searchFn);
     const vm = createMatchVM(tc.client, RID);
     const failures: unknown[] = [];
-    tc.client.on('match:search-failed', f => failures.push(f));
+    tc.bus.get('match:search-failed').subscribe(f => failures.push(f));
 
-    tc.client.emit('match:search-requested', {
+    tc.bus.get('match:search-requested').next({
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -123,7 +123,7 @@ describe('createMatchVM', () => {
     const vm = createMatchVM(tc.client, RID);
     vm.dispose();
 
-    tc.client.emit('match:search-requested', {
+    tc.bus.get('match:search-requested').next({
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,

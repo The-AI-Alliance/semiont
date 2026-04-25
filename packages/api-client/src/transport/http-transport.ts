@@ -239,9 +239,9 @@ export class HttpTransport implements ITransport {
 
   // ── Lazy actor construction + per-channel fan-in to bridges ───────────
   //
-  // `actor` is exposed so the legacy `SemiontApiClient` can keep `.actor`
+  // `actor` is exposed so the legacy `SemiontClient` can keep `.actor`
   // pointing at the same ActorVM during the transport-abstraction
-  // migration. Once SemiontApiClient is removed, this should be made
+  // migration. Once SemiontClient is removed, this should be made
   // private again — external callers should use emit/on/stream/state$.
 
   get actor(): ActorVM {
@@ -264,8 +264,23 @@ export class HttpTransport implements ITransport {
 
   // ── ITransport — bus primitives ───────────────────────────────────────
 
-  async emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void> {
-    await this.actor.emit(channel as string, payload as unknown as Record<string, unknown>);
+  async emit<K extends keyof EventMap>(
+    channel: K,
+    payload: EventMap[K],
+    resourceScope?: ResourceId,
+  ): Promise<void> {
+    if (resourceScope !== undefined) {
+      await this.actor.emit(
+        channel as string,
+        payload as unknown as Record<string, unknown>,
+        resourceScope as string,
+      );
+    } else {
+      await this.actor.emit(
+        channel as string,
+        payload as unknown as Record<string, unknown>,
+      );
+    }
   }
 
   on<K extends keyof EventMap>(

@@ -20,7 +20,9 @@ import {
   type AccessToken,
   type EventMap,
 } from '@semiont/core';
-import { SemiontApiClient } from '../client';
+import { SemiontClient } from '../client';
+import { HttpTransport } from '../transport/http-transport';
+import { HttpContentTransport } from '../transport/http-content-transport';
 import {
   ACTIVE_KEY,
   clearStoredSession,
@@ -95,7 +97,7 @@ export class SemiontBrowser {
    * App-scoped EventBus. Hosts UI-shell events that must work regardless
    * of whether a KB session is active: panel toggles, sidebar state,
    * tab reorders, routing, settings, etc. Disjoint from the per-session
-   * bus inside `SemiontApiClient`, which carries KB-content events
+   * bus inside `SemiontClient`, which carries KB-content events
    * (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*, browse:click).
    */
   private readonly eventBus: EventBus = new EventBus();
@@ -303,9 +305,25 @@ export class SemiontBrowser {
       // before the session's ctor does its startup validation.
       const signals = new FrontendSessionSignals();
 
-      const session = new SemiontSession({
+      // Build transport stack: caller (this) owns token$ and threads it
+      // through transport (which reads it on every request) and session
+      // (which writes refreshed values into it). The `tokenRefresher`
+      // closure resolves `session` lazily — `session` is defined right
+      // after, before any 401 could fire.
+      const token$ = new BehaviorSubject<AccessToken | null>(null);
+      let session!: SemiontSession;
+      const transport = new HttpTransport({
+        baseUrl: baseUrl(kbBackendUrl(kb)),
+        token$,
+        tokenRefresher: () => session.refresh().then((t) => t ?? null),
+      });
+      const content = new HttpContentTransport(transport);
+      const client = new SemiontClient(transport, content);
+      session = new SemiontSession({
         kb,
         storage: this.storage,
+        client,
+        token$,
         refresh: () => this.performRefresh(kb),
         validate: (token) => this.performValidate(kb, token),
         onAuthFailed: (msg) => signals.notifySessionExpired(msg),
@@ -464,7 +482,7 @@ export class SemiontBrowser {
    * dedupe through `inFlightRefreshes`, so simultaneous 401s trigger
    * only one `/api/tokens/refresh` round trip.
    *
-   * Uses a throwaway `SemiontApiClient` with no `tokenRefresher` —
+   * Uses a throwaway `SemiontClient` with no `tokenRefresher` —
    * a refresh call returning 401 would otherwise re-enter this
    * function infinitely.
    */
@@ -475,9 +493,8 @@ export class SemiontBrowser {
     const promise = (async () => {
       const stored = getStoredSession(this.storage, kb.id);
       if (!stored) return null;
-      const throwaway = new SemiontApiClient({
-        baseUrl: baseUrl(kbBackendUrl(kb)),
-      });
+      const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(kb)) });
+      const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
       try {
         const response = await throwaway.refreshToken(makeRefreshToken(stored.refresh));
         const newAccess = response.access_token;
@@ -505,9 +522,8 @@ export class SemiontBrowser {
    * `user$`; 401 triggers a refresh-then-retry inside the session.
    */
   private async performValidate(kb: KnowledgeBase, token: AccessToken): Promise<UserInfo | null> {
-    const throwaway = new SemiontApiClient({
-      baseUrl: baseUrl(kbBackendUrl(kb)),
-    });
+    const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(kb)) });
+    const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
     try {
       const data = await throwaway.getMe({ auth: token });
       return data as UserInfo;

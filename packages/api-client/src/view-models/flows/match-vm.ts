@@ -2,18 +2,18 @@ import type { Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { ResourceId, GatheredContext } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
 export interface MatchVM extends ViewModel {}
 
 export function createMatchVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   _resourceId: ResourceId,
 ): MatchVM {
   const subs: Subscription[] = [];
 
-  subs.push(client.stream('match:search-requested').subscribe((event) => {
+  subs.push(client.bus.get('match:search-requested').subscribe((event) => {
     const searchSub = client.match.search(
       makeResourceId(event.resourceId),
       event.referenceId,
@@ -22,8 +22,8 @@ export function createMatchVM(
     ).pipe(
       timeout(60_000),
     ).subscribe({
-      next: (result) => client.emit('match:search-results', result),
-      error: (err) => client.emit('match:search-failed', {
+      next: (result) => client.bus.get('match:search-results').next(result),
+      error: (err) => client.bus.get('match:search-failed').next({
         correlationId: event.correlationId,
         referenceId: event.referenceId,
         error: err instanceof Error ? err.message : String(err),

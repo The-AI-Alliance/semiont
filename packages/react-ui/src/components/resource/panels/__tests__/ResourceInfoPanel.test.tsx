@@ -3,7 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { EventBus } from '@semiont/core';
-import type { SemiontApiClient } from '@semiont/api-client';
+import type { SemiontClient } from '@semiont/api-client';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -66,7 +66,7 @@ function createEventTracker() {
   return {
     events,
     clear: () => { events.length = 0; },
-    _attach(eventBus: EventBus, client: SemiontApiClient) {
+    _attach(eventBus: EventBus, client: SemiontClient) {
       // `yield:clone` is a local-bus UI signal emitted by `client.yield.clone()`.
       eventBus.get('yield:clone').subscribe((payload: any) => {
         events.push({ event: 'yield:clone', payload });

@@ -3,7 +3,7 @@ import { userDID } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 
 export interface AdminUsersVM extends ViewModel {
   browse: ShellVM;
@@ -15,7 +15,7 @@ export interface AdminUsersVM extends ViewModel {
 }
 
 export function createAdminUsersVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   browse: ShellVM,
 ): AdminUsersVM {
   const disposer = createDisposer();

@@ -4,7 +4,7 @@ import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
-import type { SemiontApiClient } from '../../client';
+import type { SemiontClient } from '../../client';
 import { getPrimaryMediaType, decodeWithCharset } from '../../utils';
 
 export type ComposeMode = 'new' | 'clone' | 'reference';
@@ -58,7 +58,7 @@ export interface ComposePageVM extends ViewModel {
 }
 
 export function createComposePageVM(
-  client: SemiontApiClient,
+  client: SemiontClient,
   browse: ShellVM,
   params: ComposeParams,
   auth?: AccessToken,

@@ -7,19 +7,19 @@
 
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { SemiontApiClient, getExactText, getBodySource, createGatherVM, createMarkVM, createYieldVM } from '@semiont/api-client';
+import { SemiontClient, getExactText, getBodySource, createGatherVM, createMarkVM, createYieldVM } from '@semiont/api-client';
 import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
 // ── Browse ──────────────────────────────────────────────────────────────────
 
-export async function browseResource(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function browseResource(semiont: SemiontClient, args: any): Promise<McpResult> {
   const data = await semiont.browseResource(resourceId(args?.id), { auth: undefined });
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
-export async function browseResources(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function browseResources(semiont: SemiontClient, args: any): Promise<McpResult> {
   const data = await semiont.browseResources(args?.limit, args?.archived ?? false, undefined, { auth: undefined });
   return {
     content: [{
@@ -29,7 +29,7 @@ export async function browseResources(semiont: SemiontApiClient, args: any): Pro
   };
 }
 
-export async function browseHighlights(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function browseHighlights(semiont: SemiontClient, args: any): Promise<McpResult> {
   const data = await semiont.browseAnnotations(resourceId(args?.resourceId), undefined, { auth: undefined });
   const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
   return {
@@ -46,7 +46,7 @@ export async function browseHighlights(semiont: SemiontApiClient, args: any): Pr
   };
 }
 
-export async function browseReferences(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function browseReferences(semiont: SemiontClient, args: any): Promise<McpResult> {
   const data = await semiont.browseAnnotations(resourceId(args?.resourceId), undefined, { auth: undefined });
   const references = data.annotations.filter(a => a.motivation === 'linking');
   return {
@@ -64,7 +64,7 @@ export async function browseReferences(semiont: SemiontApiClient, args: any): Pr
 
 // ── Mark ────────────────────────────────────────────────────────────────────
 
-export async function markAnnotation(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function markAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
   const selectionData = args?.selectionData || {};
   const entityTypes = args?.entityTypes || [];
 
@@ -88,7 +88,7 @@ export async function markAnnotation(semiont: SemiontApiClient, args: any): Prom
   return { content: [{ type: 'text', text: `Annotation created: ${data.annotationId}` }] };
 }
 
-export async function markAssist(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function markAssist(semiont: SemiontClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const vm = createMarkVM(semiont, rId);
 
@@ -128,7 +128,7 @@ export async function markAssist(semiont: SemiontApiClient, args: any): Promise<
 
 // ── Bind ────────────────────────────────────────────────────────────────────
 
-export async function bindBody(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function bindBody(semiont: SemiontClient, args: any): Promise<McpResult> {
   await semiont.bind.body(
     resourceId(args?.sourceResourceId),
     annotationId(args?.annotationId),
@@ -139,7 +139,7 @@ export async function bindBody(semiont: SemiontApiClient, args: any): Promise<Mc
 
 // ── Gather ──────────────────────────────────────────────────────────────────
 
-export async function gatherAnnotation(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function gatherAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
   const vm = createGatherVM(semiont, rId);
@@ -164,7 +164,7 @@ export async function gatherAnnotation(semiont: SemiontApiClient, args: any): Pr
 
 // ── Yield ───────────────────────────────────────────────────────────────────
 
-export async function yieldResource(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function yieldResource(semiont: SemiontClient, args: any): Promise<McpResult> {
   const format = args?.contentType || 'text/plain';
   const content = args?.content || '';
   const blob = new Blob([content], { type: format });
@@ -178,7 +178,7 @@ export async function yieldResource(semiont: SemiontApiClient, args: any): Promi
   return { content: [{ type: 'text', text: `Resource created: ${data.resourceId}` }] };
 }
 
-export async function yieldFromAnnotation(semiont: SemiontApiClient, args: any): Promise<McpResult> {
+export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
 

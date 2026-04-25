@@ -30,7 +30,7 @@ import { printSuccess, printWarning } from '../io/cli-logger.js';
 
 import { findProjectRoot } from '../config-loader.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
-import type { SemiontApiClient } from '@semiont/api-client';
+import type { SemiontClient } from '@semiont/api-client';
 import type { AccessToken } from '@semiont/core';
 
 function guessFormat(filePath: string): string {
@@ -98,7 +98,7 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 // =====================================================================
 
 async function runDelegate(
-  semiont: SemiontApiClient,
+  semiont: SemiontClient,
   _token: AccessToken,
   options: YieldOptions,
 ): Promise<{ resourceId?: string; resourceName?: string }> {
@@ -111,7 +111,7 @@ async function runDelegate(
   const gatherVM = createGatherVM(semiont, rId);
   let context: GatheredContext;
   try {
-    semiont.emit('gather:requested', {
+    semiont.bus.get('gather:requested').next({
       correlationId: crypto.randomUUID(),
       annotationId: aId as string,
       resourceId: rId as string,
@@ -140,18 +140,18 @@ async function runDelegate(
     });
 
     return await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-      const completeUnsub = semiont.on('job:complete', (event) => {
+      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         const r = (event.result ?? {}) as { resourceId?: string; resourceName?: string };
         resolve({ resourceId: r.resourceId, resourceName: r.resourceName });
       });
-      const failUnsub = semiont.on('job:fail', (event) => {
+      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
         if (event.jobType !== 'generation') return;
         cleanup();
         reject(new Error(event.error ?? 'Generation failed'));
       });
-      function cleanup() { completeUnsub(); failUnsub(); }
+      function cleanup() { completeSub.unsubscribe(); failSub.unsubscribe(); }
     });
   } finally {
     yieldVM.dispose();

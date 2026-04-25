@@ -17,7 +17,9 @@
 
 import type { Observable } from 'rxjs';
 import type {
+  AccessToken,
   AnnotationId,
+  BaseUrl,
   ContentFormat,
   CreationMethod,
   Email,
@@ -71,8 +73,30 @@ export type ProgressCallback = (event: ProgressEvent) => void;
 // ── ITransport ──────────────────────────────────────────────────────────
 
 export interface ITransport {
+  /**
+   * Base URL the transport speaks to. For HTTP this is `https://host[:port]`;
+   * for local transports, an in-process identifier (e.g. `local://kb-id`).
+   * Exposed so consumers can compose URLs to endpoints not covered by the
+   * typed methods (e.g. media URLs assembled in JSX).
+   */
+  readonly baseUrl: BaseUrl;
+
   // Bus primitives
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void>;
+  /**
+   * Publish a payload on the named channel.
+   *
+   * `resourceScope`, when set, marks the emit as a resource-scoped
+   * broadcast — only delivered to subscribers attached to that
+   * resource's scope. HTTP routes via `POST /bus/emit` with
+   * `scope: <resourceId>`; local transports publish on
+   * `eventBus.scope(resourceId)`. Used by worker processes for
+   * `RESOURCE_BROADCAST_TYPES` events; ordinary commands omit it.
+   */
+  emit<K extends keyof EventMap>(
+    channel: K,
+    payload: EventMap[K],
+    resourceScope?: ResourceId,
+  ): Promise<void>;
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void;
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
 
@@ -156,16 +180,19 @@ export interface PutBinaryRequest {
 }
 
 export interface IContentTransport {
-  putBinary(request: PutBinaryRequest): Promise<{ resourceId: ResourceId }>;
+  putBinary(
+    request: PutBinaryRequest,
+    options?: { auth?: AccessToken },
+  ): Promise<{ resourceId: ResourceId }>;
 
   getBinary(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string },
+    options?: { accept?: ContentFormat | string; auth?: AccessToken },
   ): Promise<{ data: ArrayBuffer; contentType: string }>;
 
   getBinaryStream(
     resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string },
+    options?: { accept?: ContentFormat | string; auth?: AccessToken },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
 
   dispose(): void;

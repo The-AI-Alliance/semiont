@@ -43,12 +43,14 @@ vi.mock('../view-models/domain/actor-vm', async () => {
 });
 
 import ky from 'ky';
-import { SemiontApiClient } from '../client';
+import { SemiontClient } from '../client';
+import { HttpTransport } from '../transport/http-transport';
+import { HttpContentTransport } from '../transport/http-content-transport';
 import type { ContentFormat } from '@semiont/core';
 import { baseUrl, resourceId, annotationId, jobId, cloneToken, entityType } from '@semiont/core';
 
-describe('SemiontApiClient', () => {
-  let client: SemiontApiClient;
+describe('SemiontClient', () => {
+  let client: SemiontClient;
   let mockKy: KyInstance;
   const testBaseUrl = baseUrl('http://localhost:4000');
   const testResourceId = resourceId('test-resource-id');
@@ -80,10 +82,11 @@ describe('SemiontApiClient', () => {
     vi.mocked(ky.create).mockReturnValue(mockKy);
     (actorHarness as any).onEmit = undefined;
 
-    client = new SemiontApiClient({
+    const transport = new HttpTransport({
       baseUrl: testBaseUrl,
       timeout: 10000,
     });
+    client = new SemiontClient(transport, new HttpContentTransport(transport));
   });
 
   describe('Auth (HTTP)', () => {
@@ -574,7 +577,7 @@ describe('SemiontApiClient', () => {
         'gather:requested',
         expect.objectContaining({
           correlationId: 'c1',
-          contextWindow: 500,
+          options: expect.objectContaining({ contextWindow: 500 }),
           annotationId: testAnnotationId,
           resourceId: testResourceId,
         }),
@@ -614,19 +617,16 @@ describe('SemiontApiClient', () => {
     test('namespaces and actor read the current token from the observable', async () => {
       const { BehaviorSubject } = await import('rxjs');
       const token$ = new BehaviorSubject<any>('tok-1');
-      const c = new SemiontApiClient({
-        baseUrl: testBaseUrl,
-        token$,
-      });
+      const transport = new HttpTransport({ baseUrl: testBaseUrl, token$ });
+      const c = new SemiontClient(transport, new HttpContentTransport(transport));
       expect(c).toBeDefined();
       token$.next('tok-2');
       // No error — the observable is the source of truth; updates just propagate.
     });
 
     test('defaults to null BehaviorSubject when token$ is omitted', () => {
-      const c = new SemiontApiClient({
-        baseUrl: testBaseUrl,
-      });
+      const transport = new HttpTransport({ baseUrl: testBaseUrl });
+      const c = new SemiontClient(transport, new HttpContentTransport(transport));
       expect(c).toBeDefined();
     });
   });
@@ -763,9 +763,8 @@ describe('SemiontApiClient', () => {
     });
 
     test('is safe to call without active actor', () => {
-      const freshClient = new SemiontApiClient({
-        baseUrl: testBaseUrl,
-      });
+      const transport = new HttpTransport({ baseUrl: testBaseUrl });
+      const freshClient = new SemiontClient(transport, new HttpContentTransport(transport));
       expect(() => freshClient.dispose()).not.toThrow();
     });
   });
