@@ -160,10 +160,6 @@ export class SemiontClient {
     return this.transport.authenticateGoogle(credential) as unknown as Promise<ResponseContent<paths['/api/tokens/google']['post']>>;
   }
 
-  async generateMCPToken(_options?: RequestOptions): Promise<ResponseContent<paths['/api/tokens/mcp-generate']['post']>> {
-    return this.transport.generateMcpToken() as unknown as Promise<ResponseContent<paths['/api/tokens/mcp-generate']['post']>>;
-  }
-
   async getMediaToken(resourceId: ResourceId, _options?: RequestOptions): Promise<{ token: string }> {
     return this.transport.getMediaToken(resourceId);
   }
@@ -358,28 +354,6 @@ export class SemiontClient {
     return { correlationId: crypto.randomUUID(), jobId };
   }
 
-  async annotateAssessments(
-    resourceId: ResourceId,
-    data: { instructions?: string; tone?: string; density?: number; language?: string },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
-      { jobType: 'assessment-annotation', resourceId, params: data as unknown as Record<string, unknown> },
-      'job:created', 'job:create-failed');
-    return { correlationId: crypto.randomUUID(), jobId };
-  }
-
-  async annotateComments(
-    resourceId: ResourceId,
-    data: { instructions?: string; tone?: string; density?: number; language?: string },
-    _options?: RequestOptions,
-  ): Promise<{ correlationId: string; jobId: string }> {
-    const { jobId } = await busRequest<{ jobId: string }>(this.transport, 'job:create',
-      { jobType: 'comment-annotation', resourceId, params: data as unknown as Record<string, unknown> },
-      'job:created', 'job:create-failed');
-    return { correlationId: crypto.randomUUID(), jobId };
-  }
-
   async annotateTags(
     resourceId: ResourceId,
     data: { schemaId: string; categories: string[] },
@@ -527,23 +501,6 @@ export class SemiontClient {
 
   async getJobStatus(id: JobId, _options?: RequestOptions): Promise<components['schemas']['JobStatusResponse']> {
     return busRequest(this.transport, 'job:status-requested', { jobId: id }, 'job:status-result', 'job:status-failed');
-  }
-
-  async pollJobUntilComplete(
-    id: JobId,
-    options?: {
-      pollInterval?: number;
-      maxAttempts?: number;
-    } & RequestOptions,
-  ): Promise<components['schemas']['JobStatusResponse']> {
-    const pollInterval = options?.pollInterval ?? 2000;
-    const maxAttempts = options?.maxAttempts ?? 150;
-    for (let i = 0; i < maxAttempts; i++) {
-      const status = await this.getJobStatus(id);
-      if (status.status === 'complete' || status.status === 'failed') return status;
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
-    }
-    throw new Error(`Job ${id} did not complete within ${maxAttempts * pollInterval}ms`);
   }
 
   // ── SYSTEM STATUS (delegates to HttpTransport) ────────────────────────
