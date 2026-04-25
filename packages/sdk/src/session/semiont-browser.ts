@@ -496,7 +496,7 @@ export class SemiontBrowser {
       const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
       try {
         const response = await throwaway.auth.refresh(stored.refresh);
-        const newAccess = (response as unknown as { access_token?: string }).access_token;
+        const newAccess = response.access_token;
         if (!newAccess) return null;
         setStoredSession(this.storage, kb.id, { access: newAccess, refresh: stored.refresh });
         return newAccess;

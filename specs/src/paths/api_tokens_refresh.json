@@ -20,7 +20,7 @@
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "../components/schemas/GoogleAuthRequest.json"
+              "$ref": "../components/schemas/TokenRefreshResponse.json"
             }
           }
         }

@@ -8,6 +8,7 @@ import type { ITransport } from '@semiont/core';
 import type { AuthNamespace as IAuthNamespace, User } from './types';
 
 type AuthResponse = components['schemas']['AuthResponse'];
+type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 
 export class AuthNamespace implements IAuthNamespace {
   constructor(private readonly transport: ITransport) {}
@@ -20,7 +21,7 @@ export class AuthNamespace implements IAuthNamespace {
     return this.transport.authenticateGoogle(googleCredential(credential));
   }
 
-  async refresh(token: string): Promise<AuthResponse> {
+  async refresh(token: string): Promise<TokenRefreshResponse> {
     return this.transport.refreshAccessToken(makeRefreshToken(token));
   }
 

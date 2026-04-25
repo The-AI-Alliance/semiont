@@ -41,6 +41,7 @@ type JobProgress = components['schemas']['JobProgress'];
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
+type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 
@@ -373,7 +374,7 @@ export interface JobNamespace {
 export interface AuthNamespace {
   password(email: string, password: string): Promise<AuthResponse>;
   google(credential: string): Promise<AuthResponse>;
-  refresh(token: string): Promise<AuthResponse>;
+  refresh(token: string): Promise<TokenRefreshResponse>;
   logout(): Promise<void>;
   me(): Promise<User>;
   acceptTerms(): Promise<void>;
