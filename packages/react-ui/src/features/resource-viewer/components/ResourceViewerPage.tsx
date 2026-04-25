@@ -10,7 +10,7 @@ import type { components, ResourceDescriptor, ResourceId, GatheredContext, Event
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/core';
-import { getMimeCategory } from '@semiont/api-client';
+import { getMimeCategory } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';

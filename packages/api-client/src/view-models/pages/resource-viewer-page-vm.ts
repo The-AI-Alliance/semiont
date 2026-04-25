@@ -9,7 +9,7 @@ import { createGatherVM, type GatherVM } from '../flows/gather-vm';
 import { createMatchVM } from '../flows/match-vm';
 import { createYieldVM, type YieldVM } from '../flows/yield-vm';
 import type { SemiontClient } from '../../client';
-import { decodeWithCharset } from '../../utils/text-encoding';
+import { decodeWithCharset } from '@semiont/core';
 import { isHighlight, isComment, isAssessment, isReference, isTag } from '@semiont/core';
 import type { ReferencedByEntry } from '../../namespaces/types';
 

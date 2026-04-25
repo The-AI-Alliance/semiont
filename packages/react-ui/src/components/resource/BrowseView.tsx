@@ -4,7 +4,8 @@ import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'r
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { annotationId as toAnnotationId } from '@semiont/core';
-import { getMimeCategory, isPdfMimeType, createHoverHandlers } from '@semiont/api-client';
+import { getMimeCategory, isPdfMimeType } from '@semiont/core';
+import { createHoverHandlers } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { ImageViewer } from '../viewers';

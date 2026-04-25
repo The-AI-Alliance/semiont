@@ -5,8 +5,7 @@
  * from a text selection. No DOM, React, or CodeMirror dependencies.
  */
 
-import { extractContext } from '@semiont/api-client';
-
+import { extractContext } from '@semiont/core';
 /**
  * A pair of selectors for a text annotation:
  * TextPositionSelector (exact position) + TextQuoteSelector (fuzzy anchoring)

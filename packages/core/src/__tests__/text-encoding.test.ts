@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { extractCharset, decodeWithCharset } from '../../utils/text-encoding';
+import { extractCharset, decodeWithCharset } from '../text-encoding';
 
 describe('extractCharset', () => {
   test('extracts charset from media type', () => {

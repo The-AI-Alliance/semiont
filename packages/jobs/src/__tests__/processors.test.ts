@@ -35,7 +35,7 @@ vi.mock('@semiont/api-client', () => ({
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
 import { generateResourceFromTopic } from '../workers/generation/resource-generation';
-import { validateAndCorrectOffsets } from '@semiont/api-client';
+import { validateAndCorrectOffsets } from '@semiont/core';
 import {
   processHighlightJob,
   processCommentJob,

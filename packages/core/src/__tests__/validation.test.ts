@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { JWTTokenSchema, validateData, isValidEmail } from '../../utils/validation';
+import { JWTTokenSchema, validateData, isValidEmail } from '../validation';
 
 describe('JWTTokenSchema', () => {
   describe('parse', () => {

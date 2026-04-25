@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { LOCALES } from '@semiont/api-client';
+import { LOCALES } from '@semiont/core';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { useLanguageChangeAnnouncements } from '../LiveRegion';
 import { useSemiont } from '../../session/SemiontProvider';

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { extractContext, validateAndCorrectOffsets } from '../../utils/text-context';
+import { extractContext, validateAndCorrectOffsets } from '../text-context';
 
 describe('extractContext', () => {
   test('extracts prefix and suffix', () => {

@@ -76,14 +76,3 @@ export { notifySessionExpired, notifyPermissionDenied } from './session/notify';
 
 // View models (MVVM layer)
 export * from './view-models';
-
-// Handwritten utilities
-export * from './utils/index';
-export {
-  getExtensionForMimeType,
-  isImageMimeType,
-  isTextMimeType,
-  isPdfMimeType,
-  getMimeCategory,
-  type MimeCategory
-} from './mime-utils';

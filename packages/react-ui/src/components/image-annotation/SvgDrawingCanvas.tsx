@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation } from '@semiont/core';
-import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/api-client';
+import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/core';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { SemiontSession } from '@semiont/api-client';

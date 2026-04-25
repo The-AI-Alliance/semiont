@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ResourceDescriptor, ResourceId, components } from '@semiont/core';
 import { getPrimaryMediaType } from '@semiont/core';
-import { decodeWithCharset } from '@semiont/api-client';
+import { decodeWithCharset } from '@semiont/core';
 import { useToast } from '../components/Toast';
 import { useSemiont } from '../session/SemiontProvider';
 import { useObservable } from './useObservable';

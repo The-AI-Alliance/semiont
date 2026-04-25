@@ -15,7 +15,7 @@ import { extractEntities } from './workers/detection/entity-extractor';
 import { generateResourceFromTopic } from './workers/generation/resource-generation';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { didToAgent, type ResourceId, type components } from '@semiont/core';
-import { validateAndCorrectOffsets } from '@semiont/api-client';
+import { validateAndCorrectOffsets } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
   HighlightDetectionParams,

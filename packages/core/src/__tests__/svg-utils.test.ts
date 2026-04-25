@@ -6,7 +6,7 @@ import {
   parseSvgSelector,
   normalizeCoordinates,
   scaleSvgToNative,
-} from '../../utils/svg-utils';
+} from '../svg-utils';
 
 describe('createRectangleSvg', () => {
   test('creates SVG rect from two points', () => {
