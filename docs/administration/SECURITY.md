@@ -149,6 +149,16 @@ full request trace, and the `bus.dispatch:*` server spans on
 4. **Audit Trails**: Retain logs for security analysis (all events include userId)
 5. **Secret Rotation**: Regularly rotate JWT_SECRET, NEXTAUTH_SECRET, and OAuth credentials
 
+### Supply-Chain Integrity
+
+The published `semiont-frontend` container image is Trivy-scanned for
+HIGH/CRITICAL CVEs before push and signed with Sigstore-backed
+build-provenance + SBOM attestations stored as OCI artifacts in
+GHCR. Operators pulling the image should verify the attestations
+before running it in production. See
+[Supply-chain verification](./IMAGES.md#supply-chain-verification)
+for the verify command and what it confirms.
+
 ## Known Limitations
 
 The following security features are **not yet implemented** and are planned for future releases:
