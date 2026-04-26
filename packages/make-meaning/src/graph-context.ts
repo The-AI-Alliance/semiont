@@ -41,7 +41,7 @@ export class GraphContext {
    * Requires graph traversal - must use graph database
    */
   static async getBacklinks(resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation[]> {
-    return await kb.graph.getResourceReferencedBy(resourceId);
+    return kb.graph.getResourceReferencedBy(resourceId);
   }
 
   /**
@@ -54,7 +54,7 @@ export class GraphContext {
     kb: KnowledgeBase,
     maxDepth?: number
   ): Promise<GraphPath[]> {
-    return await kb.graph.findPath(fromResourceId, toResourceId, maxDepth);
+    return kb.graph.findPath(fromResourceId, toResourceId, maxDepth);
   }
 
   /**
@@ -62,7 +62,7 @@ export class GraphContext {
    * Requires graph traversal - must use graph database
    */
   static async getResourceConnections(resourceId: ResourceId, kb: KnowledgeBase): Promise<GraphConnection[]> {
-    return await kb.graph.getResourceConnections(resourceId);
+    return kb.graph.getResourceConnections(resourceId);
   }
 
   /**
@@ -70,7 +70,7 @@ export class GraphContext {
    * Requires full-text search - must use graph database
    */
   static async searchResources(query: string, kb: KnowledgeBase, limit?: number): Promise<ResourceDescriptor[]> {
-    return await kb.graph.searchResources(query, limit);
+    return kb.graph.searchResources(query, limit);
   }
 
   /**

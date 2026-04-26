@@ -78,7 +78,7 @@ export class ResourceContext {
     resources: ResourceDescriptor[],
     kb: KnowledgeBase
   ): Promise<Array<ResourceDescriptor & { content: string }>> {
-    return await Promise.all(
+    return Promise.all(
       resources.map(async (doc) => {
         try {
           if (doc.storageUri) {

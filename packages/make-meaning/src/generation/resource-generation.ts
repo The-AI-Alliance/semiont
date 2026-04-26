@@ -33,7 +33,7 @@ ${truncatedContent}
 
 Write a 2-3 sentence summary that captures the key points and would help someone understand what this resource contains.`;
 
-  return await client.generateText(prompt, 150, 0.5);
+  return client.generateText(prompt, 150, 0.5);
 }
 
 /**
