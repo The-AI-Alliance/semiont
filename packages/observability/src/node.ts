@@ -5,12 +5,16 @@
  * Configuration is via standard `OTEL_*` env vars:
  *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `semiont-backend`)
  *   - `OTEL_EXPORTER_OTLP_ENDPOINT` — collector endpoint (HTTP)
- *   - `OTEL_TRACES_SAMPLER`         — sampler (default: `parentbased_traceidratio`)
+ *   - `OTEL_TRACES_SAMPLER`         — sampler (default: `parentbased_always_on`)
  *   - `OTEL_TRACES_SAMPLER_ARG`     — sampler ratio (default: `1.0`)
+ *   - `OTEL_CONSOLE_EXPORTER=true`  — dev-only: emit spans + metrics to stderr
+ *   - `OTEL_SDK_DISABLED=true`      — skip initialization entirely
  *
- * Without `OTEL_EXPORTER_OTLP_ENDPOINT`, falls back to a console exporter
- * — useful for dev. When `OTEL_SDK_DISABLED=true`, skips initialization
- * entirely (the api module's no-op tracer takes over).
+ * **Off-by-default invariant**: with neither `OTEL_EXPORTER_OTLP_ENDPOINT`
+ * nor `OTEL_CONSOLE_EXPORTER=true` set, this function is a no-op and the
+ * `@opentelemetry/api` no-op tracer takes over. This avoids accidentally
+ * flooding production stderr (and CloudWatch) when an operator deploys
+ * without configuring an exporter.
  */
 
 import { metrics } from '@opentelemetry/api';
@@ -48,17 +52,25 @@ const DEFAULT_METRIC_EXPORT_INTERVAL_MS = 30_000;
 /**
  * Initialize OTel for the current process. Wires up both tracing and
  * metrics. Idempotent — calling twice is a no-op. Returns `true` if the
- * SDK started, `false` if disabled or already initialized.
+ * SDK started, `false` if disabled, no exporter is configured, or
+ * already initialized.
  *
  * Metrics export at `OTEL_METRIC_EXPORT_INTERVAL` ms (default 30s) to
- * the same `OTEL_EXPORTER_OTLP_ENDPOINT` as traces. With no endpoint,
- * falls back to a console exporter for both.
+ * the same `OTEL_EXPORTER_OTLP_ENDPOINT` as traces.
  */
 export function initObservabilityNode(config: NodeObservabilityConfig): boolean {
   if (sdkInstance) return false;
   if (process.env['OTEL_SDK_DISABLED'] === 'true') return false;
 
   const endpoint = process.env['OTEL_EXPORTER_OTLP_ENDPOINT'];
+  const useConsole = process.env['OTEL_CONSOLE_EXPORTER'] === 'true';
+
+  // No exporter configured = no SDK init. The `@opentelemetry/api`
+  // no-op tracer takes over; `withSpan` still runs `fn` but emits
+  // nothing, `getActiveSpan()` returns a sentinel. Avoids flooding
+  // production stderr when no collector endpoint is set.
+  if (!endpoint && !useConsole) return false;
+
   const traceExporter = endpoint
     ? new OTLPTraceExporter()  // reads OTEL_EXPORTER_OTLP_ENDPOINT itself
     : new ConsoleSpanExporter();
@@ -77,6 +89,8 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 
   // Metric SDK (independent of NodeSDK to keep the metrics path explicit
   // and not entangled with tracing's auto-instrumentation surface).
+  // Same exporter selection as traces — endpoint wins, otherwise console
+  // (only reachable here when OTEL_CONSOLE_EXPORTER=true).
   const metricExporter = endpoint
     ? new OTLPMetricExporter()
     : new ConsoleMetricExporter();

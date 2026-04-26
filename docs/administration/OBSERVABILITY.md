@@ -64,16 +64,23 @@ inherit from your shell; for containers, add to compose / ECS task env.
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT`     | (none — uses console exporter)         | OTLP HTTP collector URL            |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`     | (none — SDK does not initialize)       | OTLP HTTP collector URL            |
 | `OTEL_EXPORTER_OTLP_HEADERS`      | (none)                                 | Auth headers for SaaS APMs         |
 | `OTEL_SERVICE_NAME`               | `semiont-backend` / `-worker` / `-smelter` | Service identity                |
 | `OTEL_TRACES_SAMPLER`             | `parentbased_always_on`                | Sampler                            |
 | `OTEL_TRACES_SAMPLER_ARG`         | (n/a)                                  | Ratio for traceidratio samplers    |
+| `OTEL_CONSOLE_EXPORTER`           | `false`                                | Set `true` for stderr exporter (dev only) |
 | `OTEL_SDK_DISABLED`               | `false`                                | Set `true` to skip init entirely   |
 
-When no `OTEL_EXPORTER_OTLP_ENDPOINT` is set, the SDK falls back to a
-console exporter (stderr). Useful for local dev — set
-`OTEL_LOG_LEVEL=debug` for more detail.
+**Off-by-default invariant**: with neither
+`OTEL_EXPORTER_OTLP_ENDPOINT` nor `OTEL_CONSOLE_EXPORTER=true` set,
+the SDK does not initialize — the `@opentelemetry/api` no-op tracer
+takes over and `withSpan` becomes a free pass-through. This prevents
+accidental stderr / CloudWatch flooding when an operator deploys
+without configuring a collector.
+
+For local dev without a collector, set `OTEL_CONSOLE_EXPORTER=true`
+to print spans + metrics to stderr.
 
 ### Frontend (SPA)
 
@@ -92,7 +99,7 @@ Semiont does not store traces; the operator picks a backend.
 
 | Deployment              | Recommended target                                                                              |
 |-------------------------|-------------------------------------------------------------------------------------------------|
-| Local dev (default)     | Console exporter to stderr — no backend needed.                                                 |
+| Local dev (default)     | SDK off — set `OTEL_CONSOLE_EXPORTER=true` for stderr output, or skip and rely on `busLog`.     |
 | Local dev (richer)      | `docker compose` Jaeger sidecar at `http://jaeger:4318`.                                        |
 | Self-hosted prod        | Jaeger (Cassandra/ES-backed) or Grafana Tempo (S3-backed, pairs with Loki).                      |
 | AWS prod                | AWS X-Ray via the AWS Distro for OpenTelemetry collector sidecar (translates OTLP → X-Ray).      |
@@ -168,9 +175,9 @@ Additional vars:
 |-----------------------------------|---------|-----------------------------------------------|
 | `OTEL_METRIC_EXPORT_INTERVAL`     | `30000` | Push interval in ms                           |
 
-With no `OTEL_EXPORTER_OTLP_ENDPOINT`, metrics fall back to the
-console exporter (same as traces) — useful for verifying instruments
-fire during dev without running a collector.
+Metrics follow the same on/off invariant as traces — neither exports
+unless an exporter is configured. With `OTEL_CONSOLE_EXPORTER=true`,
+metric snapshots also print to stderr at each export interval.
 
 ## Log correlation (Tier 3)
 
