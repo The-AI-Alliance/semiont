@@ -3,8 +3,8 @@ name: "Enhanced Security CodeQL Config"
 disable-default-queries: false
 
 queries:
-  - name: security-extended
-    uses: security-extended
+  # `security-and-quality` is a superset of `security-extended` plus
+  # quality/maintainability/reliability/correctness queries.
   - name: security-and-quality
     uses: security-and-quality
 
