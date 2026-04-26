@@ -26,6 +26,7 @@ import { RESOURCE_BROADCAST_TYPES, resourceId as makeResourceId, type EventMap }
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri } from '@semiont/content';
+import { SpanKind, withSpan } from '@semiont/observability';
 import {
   processHighlightJob,
   processCommentJob,
@@ -111,6 +112,25 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
 // is the only thing not otherwise exercised by processors.test.ts.
 // Do not call from outside the worker process.
 export async function handleJob(
+  adapter: JobClaimAdapter,
+  config: WorkerProcessConfig,
+  job: ActiveJob,
+): Promise<void> {
+  return withSpan(
+    `job:${job.type}`,
+    () => handleJobInner(adapter, config, job),
+    {
+      kind: SpanKind.CONSUMER,
+      attrs: {
+        'job.type': job.type,
+        'job.id': job.jobId,
+        'resource.id': job.resourceId as unknown as string,
+      },
+    },
+  );
+}
+
+async function handleJobInner(
   adapter: JobClaimAdapter,
   config: WorkerProcessConfig,
   job: ActiveJob,

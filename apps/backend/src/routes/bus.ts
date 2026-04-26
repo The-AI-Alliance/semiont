@@ -5,6 +5,12 @@ import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent } from '@semiont/core';
 import { CHANNEL_SCHEMAS, busLog, userToDid, resourceId as makeResourceId } from '@semiont/core';
+import {
+  SpanKind,
+  injectTraceparent,
+  withSpan,
+  withTraceparent,
+} from '@semiont/observability';
 import { validateSchema } from '../utils/openapi-validator';
 import { getLogger } from '../logger';
 import type { startMakeMeaning } from '@semiont/make-meaning';
@@ -102,6 +108,13 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           id = makePersistedId(eventScope, seq);
         } else {
           id = nextEphemeralId();
+        }
+        // Tier 2: attach the active span's W3C traceparent to the payload
+        // so the receiving client can stitch its bus.recv span as a
+        // child. SSE has no header trailer, so trace-context rides on
+        // the payload as `_trace`.
+        if (payload && typeof payload === 'object') {
+          injectTraceparent(payload as Record<string, unknown>);
         }
         const data = eventScope
           ? JSON.stringify({ channel, payload, scope: eventScope })
@@ -283,12 +296,36 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       payload._userId = userToDid(user);
     }
 
-    const bus = scope ? eventBus.scope(scope) : eventBus;
-    const subject = bus.get(channel as keyof EventMap);
-    subject.next(payload as never);
+    // Tier 2: parent span comes from the W3C traceparent on the request.
+    // Subscribers fire synchronously inside Subject.next, so they run
+    // under the active bus.dispatch span (and any in-process spans
+    // they create become children).
+    const traceparent = c.req.header('traceparent');
+    const tracestate = c.req.header('tracestate');
+    const carrier = traceparent
+      ? (tracestate ? { traceparent, tracestate } : { traceparent })
+      : undefined;
 
-    busLog('EMIT', channel, payload, scope);
-    getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
+    await withTraceparent(carrier, () =>
+      withSpan(
+        `bus.dispatch:${channel}`,
+        () => {
+          const bus = scope ? eventBus.scope(scope) : eventBus;
+          const subject = bus.get(channel as keyof EventMap);
+          subject.next(payload as never);
+
+          busLog('EMIT', channel, payload, scope);
+          getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
+        },
+        {
+          kind: SpanKind.SERVER,
+          attrs: {
+            'bus.channel': channel,
+            ...(scope ? { 'bus.scope': scope } : {}),
+          },
+        },
+      ),
+    );
 
     return c.json(null, 202);
   });

@@ -1,6 +1,13 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
 import { busLog, type ConnectionState } from '@semiont/core';
+import {
+  SpanKind,
+  extractTraceparent,
+  getActiveTraceparent,
+  withSpan,
+  withTraceparent,
+} from '@semiont/observability';
 
 /** Minimal ViewModel surface — anything with a `dispose()` method. */
 interface ViewModel {
@@ -211,7 +218,26 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
               if (currentId !== undefined) lastEventId = currentId;
               const parsed = JSON.parse(currentData) as BusEvent;
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
-              events$.next(parsed);
+              // Tier 2: lift trace context off the SSE payload (the
+              // backend's writeBusEvent puts it there). The synchronous
+              // fan-out to subscribers happens inside the bus.recv span,
+              // so handlers see the parent trace.
+              const carrier = extractTraceparent(
+                parsed.payload as Record<string, unknown>,
+              );
+              await withTraceparent(carrier, () =>
+                withSpan(
+                  `bus.recv:${parsed.channel}`,
+                  () => { events$.next(parsed); },
+                  {
+                    kind: SpanKind.CONSUMER,
+                    attrs: {
+                      'bus.channel': parsed.channel,
+                      ...(parsed.scope ? { 'bus.scope': parsed.scope } : {}),
+                    },
+                  },
+                ),
+              );
             }
             currentEvent = '';
             currentData = '';
@@ -279,16 +305,24 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     },
 
     emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void> => {
-      // EMIT logging lives at the transport contract layer
-      // (`HttpTransport.emit`), not here. ActorVM is plumbing.
+      // EMIT logging + bus.emit span live at the transport contract layer
+      // (`HttpTransport.emit`). ActorVM is plumbing. We do propagate the
+      // active span's W3C traceparent on the outbound POST so the backend
+      // can stitch the bus.dispatch server span as a child.
       const body: Record<string, unknown> = { channel, payload };
       if (emitScope) body.scope = emitScope;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getToken()}`,
+      };
+      const trace = getActiveTraceparent();
+      if (trace) {
+        headers['traceparent'] = trace.traceparent;
+        if (trace.tracestate) headers['tracestate'] = trace.tracestate;
+      }
       await fetch(`${baseUrl}/bus/emit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
+        headers,
         body: JSON.stringify(body),
       });
     },

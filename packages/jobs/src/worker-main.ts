@@ -184,6 +184,11 @@ async function authenticate(): Promise<string> {
 }
 
 async function main() {
+  // Tier 2 observability — must come before any spanning code. No-op if
+  // no OTEL_EXPORTER_OTLP_ENDPOINT (or OTEL_SDK_DISABLED=true).
+  const { initObservabilityNode } = await import('@semiont/observability/node');
+  initObservabilityNode({ serviceName: 'semiont-worker' });
+
   logger.info('Authenticating', { baseUrl: backendBaseUrl });
   const initialToken = await authenticate();
   logger.info('Authenticated');

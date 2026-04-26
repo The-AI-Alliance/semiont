@@ -30,6 +30,7 @@
     "@semiont/graph": "*",
     "@semiont/inference": "*",
     "@semiont/jobs": "*",
+    "@semiont/observability": "*",
     "@semiont/ontology": "*",
     "@semiont/vectors": "*"
   },

@@ -30,6 +30,7 @@ import type {
   components,
 } from '@semiont/core';
 import { baseUrl as makeBaseUrl, busLog } from '@semiont/core';
+import { SpanKind, withSpan } from '@semiont/observability';
 import {
   BRIDGED_CHANNELS,
   type ConnectionState,
@@ -107,13 +108,26 @@ export class LocalTransport implements ITransport {
     resourceScope?: ResourceId,
   ): Promise<void> {
     busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
-    // Gateway-injection: stamp the host identity onto every emit so handlers
-    // can trust `_userId` regardless of which transport delivered the event.
-    const stamped = { ...(payload as object), _userId: this.userId };
-    const target = resourceScope === undefined
-      ? this.bus.get(channel)
-      : this.bus.scope(resourceScope as unknown as string).get(channel);
-    (target as unknown as { next(v: unknown): void }).next(stamped);
+    await withSpan(
+      `bus.emit:${channel as string}`,
+      () => {
+        // Gateway-injection: stamp the host identity onto every emit so
+        // handlers can trust `_userId` regardless of which transport
+        // delivered the event.
+        const stamped = { ...(payload as object), _userId: this.userId };
+        const target = resourceScope === undefined
+          ? this.bus.get(channel)
+          : this.bus.scope(resourceScope as unknown as string).get(channel);
+        (target as unknown as { next(v: unknown): void }).next(stamped);
+      },
+      {
+        kind: SpanKind.PRODUCER,
+        attrs: {
+          'bus.channel': channel as string,
+          ...(resourceScope ? { 'bus.scope': resourceScope as string } : {}),
+        },
+      },
+    );
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {
@@ -140,7 +154,16 @@ export class LocalTransport implements ITransport {
       this.bridgeSubs.push(
         upstream.subscribe((payload) => {
           busLog('RECV', channel, payload);
-          (bus.get(channel as keyof EventMap) as unknown as { next(v: unknown): void }).next(payload);
+          // Tier 2: in-process — no _trace field on payload, parent
+          // context comes from the active OTel context (inherited from
+          // whichever code path emitted the event).
+          void withSpan(
+            `bus.recv:${channel}`,
+            () => {
+              (bus.get(channel as keyof EventMap) as unknown as { next(v: unknown): void }).next(payload);
+            },
+            { kind: SpanKind.CONSUMER, attrs: { 'bus.channel': channel } },
+          );
         }),
       );
     }

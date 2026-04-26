@@ -15,6 +15,7 @@
 
 import type { AccessToken, ContentFormat, ResourceId, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
+import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
@@ -45,7 +46,11 @@ export class LocalContentTransport implements IContentTransport {
     options?: { accept?: ContentFormat | string; auth?: AccessToken },
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
     busLog('GET', 'content', { resourceId, accept: options?.accept });
-    return this.loadBinary(resourceId);
+    return withSpan(
+      'content.get',
+      () => this.loadBinary(resourceId),
+      { kind: SpanKind.INTERNAL, attrs: { 'resource.id': resourceId as unknown as string } },
+    );
   }
 
   async getBinaryStream(
@@ -53,18 +58,27 @@ export class LocalContentTransport implements IContentTransport {
     options?: { accept?: ContentFormat | string; auth?: AccessToken },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
     busLog('GET', 'content', { resourceId, accept: options?.accept, stream: true });
-    // Local content store is buffer-oriented, not streaming. Read fully
-    // and wrap in a one-shot ReadableStream so callers that prefer the
-    // streaming surface still work.
-    const { data, contentType } = await this.loadBinary(resourceId);
-    const bytes = new Uint8Array(data);
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(bytes);
-        controller.close();
+    return withSpan(
+      'content.get',
+      async () => {
+        // Local content store is buffer-oriented, not streaming. Read
+        // fully and wrap in a one-shot ReadableStream so callers that
+        // prefer the streaming surface still work.
+        const { data, contentType } = await this.loadBinary(resourceId);
+        const bytes = new Uint8Array(data);
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bytes);
+            controller.close();
+          },
+        });
+        return { stream, contentType };
       },
-    });
-    return { stream, contentType };
+      {
+        kind: SpanKind.INTERNAL,
+        attrs: { 'resource.id': resourceId as unknown as string, 'content.stream': true },
+      },
+    );
   }
 
   private async loadBinary(

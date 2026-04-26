@@ -258,6 +258,12 @@ const port = backendService.port || 4000;
 
 // Only start server if not in test environment
 if (config.env?.NODE_ENV !== 'test') {
+  // Tier 2 observability — no-op when no OTEL_EXPORTER_OTLP_ENDPOINT set
+  // (or `OTEL_SDK_DISABLED=true`). Init before serve() so any spans
+  // created during request handling are captured.
+  const { initObservabilityNode } = await import('@semiont/observability/node');
+  initObservabilityNode({ serviceName: 'semiont-backend' });
+
   serve({
     fetch: app.fetch,
     port: port,

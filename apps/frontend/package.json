@@ -48,6 +48,7 @@
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
     "@semiont/api-client": "0.4.22",
+    "@semiont/observability": "0.4.22",
     "@semiont/react-ui": "0.4.22",
     "@semiont/sdk": "0.4.22",
     "i18next": "^24.2.3",
