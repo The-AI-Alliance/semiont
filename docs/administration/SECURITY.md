@@ -135,6 +135,12 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 - Set up alerts for suspicious activities
 - Monitor for brute force attempts on authentication endpoints
 
+See [Observability](./OBSERVABILITY.md) for the trace and metric
+surfaces that back these checks: structured logs are auto-tagged with
+`trace_id` and `span_id` so a failing-auth log entry links to its
+full request trace, and the `bus.dispatch:*` server spans on
+`/bus/emit` carry user identity for anomaly queries.
+
 ### Data Protection
 
 1. **Backups**: Implement regular backup procedures for event store and projections

@@ -21,7 +21,7 @@ Most `semiont` commands are run from your project directory, and the `--semiont-
 - [Monitoring & Maintenance](#monitoring--maintenance)
 - [Troubleshooting](#troubleshooting)
 
-**Related guides**: [Platforms](../platforms/README.md) | [Scaling](./SCALING.md) | [Maintenance](./MAINTENANCE.md) | [Troubleshooting](./TROUBLESHOOTING.md)
+**Related guides**: [Platforms](../platforms/README.md) | [Scaling](./SCALING.md) | [Maintenance](./MAINTENANCE.md) | [Observability](./OBSERVABILITY.md) | [Troubleshooting](./TROUBLESHOOTING.md)
 
 ## Quick Start
 
@@ -530,6 +530,11 @@ semiont update
 ```
 
 ## Monitoring & Maintenance
+
+For OpenTelemetry traces, metrics, and trace-tagged structured logs,
+see [Observability](./OBSERVABILITY.md). The commands below cover
+service-health checks and log streaming; the observability stack
+covers distributed tracing, RED metrics, and log↔trace correlation.
 
 ### Real-Time Monitoring
 

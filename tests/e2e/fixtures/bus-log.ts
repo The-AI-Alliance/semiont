@@ -4,28 +4,45 @@ import { expect } from '@playwright/test';
 /**
  * Bus-log capture for e2e tests.
  *
- * Enables the frontend's cross-wire logging (see busLog() in
- * `packages/api-client/src/view-models/domain/actor-vm.ts`) by flipping
- * `globalThis.__SEMIONT_BUS_LOG__` at page init, then listens for
- * `console.debug` lines matching the "[bus EMIT|RECV]" format and
- * collects them into a structured entry list.
+ * Enables the cross-wire logging (`busLog()` in `@semiont/core`) by
+ * flipping `globalThis.__SEMIONT_BUS_LOG__` at page init, then listens
+ * for `console.debug` lines matching the `[bus OP]` format and
+ * collects them into structured entries.
  *
- * Tests use this to assert **protocol-level** behavior, not just UI
- * outcomes. For example, "selecting text created a highlight" (UI) is
- * weaker than "mark:create-request was emitted, mark:create-ok was
- * received with matching correlationId" (protocol).
+ * Five ops are captured (matches the `BusOp` union in core):
+ *   - `EMIT` / `RECV` — bus events (channel = `<channel>`)
+ *   - `SSE`           — server SSE write (only seen if the test surfaces
+ *                       backend stderr; usually not visible from a
+ *                       browser-only fixture)
+ *   - `PUT` / `GET`   — content uploads / downloads (channel = `'content'`)
+ *
+ * Tests use this for **protocol-level** assertions, not UI outcomes.
+ * "Selecting text created a highlight" (UI) is weaker than
+ * "`mark:create-request` was emitted, `mark:create-ok` was received
+ * with matching correlationId" (protocol).
+ *
+ * When an OTel SDK is initialized in the page (Tier 2), each entry
+ * also carries a `trace` field — the active span's W3C trace-id, first
+ * 8 hex. The fixture captures it but does not require it; tests can
+ * use it to correlate with span trees in the APM UI.
  */
 
+export type BusOp = 'EMIT' | 'RECV' | 'SSE' | 'PUT' | 'GET';
+
 export interface BusLogEntry {
-  direction: 'EMIT' | 'RECV';
+  op: BusOp;
   channel: string;
   scope: string | undefined;
+  /** correlationId — first 8 hex of `payload.correlationId` if present. */
   cid: string | undefined;
+  /** W3C trace-id — first 8 hex of the active span, when an OTel SDK is active. */
+  trace: string | undefined;
   raw: string;
   at: number;
 }
 
-const LINE_RE = /^\[bus (EMIT|RECV)\] (\S+)(?: scope=(\S+))?(?: cid=(\S+))?/;
+const LINE_RE =
+  /^\[bus (EMIT|RECV|SSE|PUT|GET)\] (\S+)(?: scope=(\S+))?(?: cid=(\S+))?(?: trace=(\S+))?/;
 
 export class BusLogCapture {
   readonly entries: BusLogEntry[] = [];
@@ -36,53 +53,89 @@ export class BusLogCapture {
     const m = LINE_RE.exec(text);
     if (!m) return;
     this.entries.push({
-      direction: m[1] as 'EMIT' | 'RECV',
+      op: m[1] as BusOp,
       channel: m[2] as string,
       scope: m[3],
       cid: m[4],
+      trace: m[5],
       raw: text,
       at: Date.now(),
     });
   }
 
+  // ── Op-specific filters ───────────────────────────────────────────────
+
   emits(channel: string): BusLogEntry[] {
-    return this.entries.filter(e => e.direction === 'EMIT' && e.channel === channel);
+    return this.byOp('EMIT', channel);
   }
 
   receives(channel: string): BusLogEntry[] {
-    return this.entries.filter(e => e.direction === 'RECV' && e.channel === channel);
+    return this.byOp('RECV', channel);
   }
+
+  /** Server-side SSE writes (visible only when the backend's stderr is captured). */
+  sses(channel: string): BusLogEntry[] {
+    return this.byOp('SSE', channel);
+  }
+
+  /** Content uploads. Channel is always `'content'`. */
+  contentPuts(): BusLogEntry[] {
+    return this.byOp('PUT', 'content');
+  }
+
+  /** Content downloads. Channel is always `'content'`. */
+  contentGets(): BusLogEntry[] {
+    return this.byOp('GET', 'content');
+  }
+
+  /** Generic op + optional channel filter. */
+  byOp(op: BusOp, channel?: string): BusLogEntry[] {
+    return this.entries.filter(
+      e => e.op === op && (channel === undefined || e.channel === channel),
+    );
+  }
+
+  // ── Polling waiters ───────────────────────────────────────────────────
 
   /** Poll until a RECV for `channel` (optionally matching `cid`) appears, or time out. */
   async waitForRecv(channel: string, opts: { cid?: string; timeout?: number } = {}): Promise<BusLogEntry> {
+    return this.waitForOp('RECV', channel, opts);
+  }
+
+  /** Poll until an EMIT for `channel` appears. */
+  async waitForEmit(channel: string, opts: { cid?: string; timeout?: number } = {}): Promise<BusLogEntry> {
+    return this.waitForOp('EMIT', channel, opts);
+  }
+
+  /** Poll until a PUT on `'content'` appears. */
+  async waitForPut(opts: { timeout?: number } = {}): Promise<BusLogEntry> {
+    return this.waitForOp('PUT', 'content', opts);
+  }
+
+  /** Poll until a GET on `'content'` appears. */
+  async waitForGet(opts: { timeout?: number } = {}): Promise<BusLogEntry> {
+    return this.waitForOp('GET', 'content', opts);
+  }
+
+  /** Generic poller for any op + channel + optional cid match. */
+  async waitForOp(
+    op: BusOp,
+    channel: string,
+    opts: { cid?: string; timeout?: number } = {},
+  ): Promise<BusLogEntry> {
     const timeout = opts.timeout ?? 10_000;
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       const hit = this.entries.find(
-        e => e.direction === 'RECV' && e.channel === channel && (!opts.cid || e.cid === opts.cid),
+        e => e.op === op && e.channel === channel && (!opts.cid || e.cid === opts.cid),
       );
       if (hit) return hit;
       await new Promise(r => setTimeout(r, 50));
     }
     throw new Error(
-      `Timed out after ${timeout}ms waiting for RECV on "${channel}"` +
-      (opts.cid ? ` with cid=${opts.cid}` : '') +
-      `. Recent entries: ${JSON.stringify(this.entries.slice(-10).map(e => ({ d: e.direction, c: e.channel, cid: e.cid })))}`,
-    );
-  }
-
-  /** Poll until an EMIT for `channel` appears. */
-  async waitForEmit(channel: string, opts: { timeout?: number } = {}): Promise<BusLogEntry> {
-    const timeout = opts.timeout ?? 10_000;
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      const hit = this.entries.find(e => e.direction === 'EMIT' && e.channel === channel);
-      if (hit) return hit;
-      await new Promise(r => setTimeout(r, 50));
-    }
-    throw new Error(
-      `Timed out after ${timeout}ms waiting for EMIT on "${channel}". ` +
-      `Recent entries: ${JSON.stringify(this.entries.slice(-10).map(e => ({ d: e.direction, c: e.channel })))}`,
+      `Timed out after ${timeout}ms waiting for ${op} on "${channel}"` +
+        (opts.cid ? ` with cid=${opts.cid}` : '') +
+        `. Recent entries: ${JSON.stringify(this.entries.slice(-10).map(e => ({ op: e.op, c: e.channel, cid: e.cid })))}`,
     );
   }
 

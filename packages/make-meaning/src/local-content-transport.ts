@@ -14,6 +14,8 @@
  */
 
 import type { AccessToken, ContentFormat, ResourceId, components } from '@semiont/core';
+import { busLog } from '@semiont/core';
+import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
@@ -41,7 +43,46 @@ export class LocalContentTransport implements IContentTransport {
 
   async getBinary(
     resourceId: ResourceId,
-    _options?: { accept?: ContentFormat | string; auth?: AccessToken },
+    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+  ): Promise<{ data: ArrayBuffer; contentType: string }> {
+    busLog('GET', 'content', { resourceId, accept: options?.accept });
+    return withSpan(
+      'content.get',
+      () => this.loadBinary(resourceId),
+      { kind: SpanKind.INTERNAL, attrs: { 'resource.id': resourceId as unknown as string } },
+    );
+  }
+
+  async getBinaryStream(
+    resourceId: ResourceId,
+    options?: { accept?: ContentFormat | string; auth?: AccessToken },
+  ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
+    busLog('GET', 'content', { resourceId, accept: options?.accept, stream: true });
+    return withSpan(
+      'content.get',
+      async () => {
+        // Local content store is buffer-oriented, not streaming. Read
+        // fully and wrap in a one-shot ReadableStream so callers that
+        // prefer the streaming surface still work.
+        const { data, contentType } = await this.loadBinary(resourceId);
+        const bytes = new Uint8Array(data);
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bytes);
+            controller.close();
+          },
+        });
+        return { stream, contentType };
+      },
+      {
+        kind: SpanKind.INTERNAL,
+        attrs: { 'resource.id': resourceId as unknown as string, 'content.stream': true },
+      },
+    );
+  }
+
+  private async loadBinary(
+    resourceId: ResourceId,
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
     const view = await this.ks.kb.views.get(resourceId);
     if (!view) throw new Error(`Resource not found: ${resourceId}`);
@@ -52,24 +93,6 @@ export class LocalContentTransport implements IContentTransport {
     const buf = await this.ks.kb.content.retrieve(rep.storageUri);
     const data = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
     return { data, contentType: rep.mediaType };
-  }
-
-  async getBinaryStream(
-    resourceId: ResourceId,
-    options?: { accept?: ContentFormat | string; auth?: AccessToken },
-  ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
-    // Local content store is buffer-oriented, not streaming. Read fully
-    // and wrap in a one-shot ReadableStream so callers that prefer the
-    // streaming surface still work.
-    const { data, contentType } = await this.getBinary(resourceId, options);
-    const bytes = new Uint8Array(data);
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(bytes);
-        controller.close();
-      },
-    });
-    return { stream, contentType };
   }
 
   dispose(): void {

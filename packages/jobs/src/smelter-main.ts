@@ -336,6 +336,9 @@ async function batchAnnotationAdded(events: SmelterEvent[]): Promise<void> {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
+  const { initObservabilityNode } = await import('@semiont/observability/node');
+  initObservabilityNode({ serviceName: 'semiont-smelter' });
+
   logger.info('Authenticating', { baseUrl });
   authToken = await authenticate();
   logger.info('Authenticated');

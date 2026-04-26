@@ -37,6 +37,7 @@
     "@semiont/event-sourcing": "0.4.22",
     "@semiont/jobs": "0.4.22",
     "@semiont/make-meaning": "0.4.22",
+    "@semiont/observability": "0.4.22",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "argon2": "^0.44.0",

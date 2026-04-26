@@ -1,0 +1,71 @@
+{
+  "name": "@semiont/observability",
+  "version": "0.4.22",
+  "description": "OpenTelemetry-based tracing for Semiont — Tier 2 of OBSERVABILITY.md. Process-init helpers (Node + Web), withSpan helper, W3C traceparent inject/extract for bus payloads. No-op when no exporter is configured.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "default": "./dist/node.js"
+    },
+    "./web": {
+      "types": "./dist/web.d.ts",
+      "import": "./dist/web.js",
+      "default": "./dist/web.js"
+    }
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/observability"
+  },
+  "scripts": {
+    "pretypecheck": "npm run build --workspace=@semiont/core --if-present",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "author": "Semiont Team",
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.0"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@semiont/core": "*",
+    "@opentelemetry/context-async-hooks": "^2.7.0",
+    "@opentelemetry/core": "^2.7.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.215.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.215.0",
+    "@opentelemetry/resources": "^2.7.0",
+    "@opentelemetry/sdk-metrics": "^2.7.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
+    "@opentelemetry/sdk-trace-web": "^2.7.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0"
+  }
+}

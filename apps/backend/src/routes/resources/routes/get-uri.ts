@@ -8,11 +8,12 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
+import { busLog, getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
 import { eventBusRequest } from '../../../utils/event-bus-request';
 import { getLogger } from '../../../logger';
+import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 const getRouteLogger = () => getLogger().child({ component: 'get-resource-uri' });
 
@@ -29,28 +30,47 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       .map(t => t.trim())
       .filter(t => t !== 'application/ld+json' && t !== 'application/json')
       .join(', ') || '*/*';
-    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+    busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
 
-    let resource: any;
-    try {
-      resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
-    } catch {
-      throw new HTTPException(500, { message: 'Failed to retrieve resource' });
-    }
-    if (!resource) throw new HTTPException(404, { message: 'Resource not found' });
-    if (!resource.storageUri) throw new HTTPException(404, { message: 'Resource representation not found' });
+    const traceparent = c.req.header('traceparent');
+    const tracestate = c.req.header('tracestate');
+    const carrier = traceparent
+      ? (tracestate ? { traceparent, tracestate } : { traceparent })
+      : undefined;
 
-    const content = await kb.content.retrieve(resource.storageUri);
-    if (!content) throw new HTTPException(404, { message: 'Resource representation not found' });
+    return withTraceparent(carrier, () =>
+      withSpan(
+        'content.get.server',
+        async () => {
+          const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
-    const mediaType = getPrimaryMediaType(resource);
-    c.header('Cache-Control', 'public, max-age=31536000, immutable');
-    if (mediaType) c.header('Content-Type', mediaType);
+          let resource: any;
+          try {
+            resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
+          } catch {
+            throw new HTTPException(500, { message: 'Failed to retrieve resource' });
+          }
+          if (!resource) throw new HTTPException(404, { message: 'Resource not found' });
+          if (!resource.storageUri) throw new HTTPException(404, { message: 'Resource representation not found' });
 
-    if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
-      return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType! });
-    }
-    return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
+          const content = await kb.content.retrieve(resource.storageUri);
+          if (!content) throw new HTTPException(404, { message: 'Resource representation not found' });
+
+          const mediaType = getPrimaryMediaType(resource);
+          c.header('Cache-Control', 'public, max-age=31536000, immutable');
+          if (mediaType) c.header('Content-Type', mediaType);
+
+          if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
+            return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType! });
+          }
+          return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
+        },
+        {
+          kind: SpanKind.SERVER,
+          attrs: { 'resource.id': id, 'http.accept': acceptHeader },
+        },
+      ),
+    );
   });
 
   router.get('/resources/:id', async (c) => {
@@ -62,43 +82,62 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // If requesting raw representation (text/plain, text/markdown, images, etc.)
     // Binary content stays direct — excluded from EventBus by design
     if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
-      const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+      busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
 
-      let resource: any;
-      try {
-        resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
-      } catch (error: any) {
-        getRouteLogger().error('Failed to get resource metadata', {
-          resourceId: id,
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined
-        });
-        throw new HTTPException(500, { message: 'Failed to retrieve resource' });
-      }
+      const traceparent = c.req.header('traceparent');
+      const tracestate = c.req.header('tracestate');
+      const carrier = traceparent
+        ? (tracestate ? { traceparent, tracestate } : { traceparent })
+        : undefined;
 
-      if (!resource) {
-        throw new HTTPException(404, { message: 'Resource not found' });
-      }
+      return withTraceparent(carrier, () =>
+        withSpan(
+          'content.get.server',
+          async () => {
+            const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
-      if (!resource.storageUri) {
-        throw new HTTPException(404, { message: 'Resource representation not found' });
-      }
+            let resource: any;
+            try {
+              resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
+            } catch (error: any) {
+              getRouteLogger().error('Failed to get resource metadata', {
+                resourceId: id,
+                error: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined
+              });
+              throw new HTTPException(500, { message: 'Failed to retrieve resource' });
+            }
 
-      const content = await kb.content.retrieve(resource.storageUri);
-      if (!content) {
-        throw new HTTPException(404, { message: 'Resource representation not found' });
-      }
+            if (!resource) {
+              throw new HTTPException(404, { message: 'Resource not found' });
+            }
 
-      const mediaType = getPrimaryMediaType(resource);
-      if (mediaType) {
-        c.header('Content-Type', mediaType);
-      }
+            if (!resource.storageUri) {
+              throw new HTTPException(404, { message: 'Resource representation not found' });
+            }
 
-      if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
-        return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType });
-      } else {
-        return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
-      }
+            const content = await kb.content.retrieve(resource.storageUri);
+            if (!content) {
+              throw new HTTPException(404, { message: 'Resource representation not found' });
+            }
+
+            const mediaType = getPrimaryMediaType(resource);
+            if (mediaType) {
+              c.header('Content-Type', mediaType);
+            }
+
+            if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
+              return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType });
+            } else {
+              return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
+            }
+          },
+          {
+            kind: SpanKind.SERVER,
+            attrs: { 'resource.id': id, 'http.accept': acceptHeader },
+          },
+        ),
+      );
     }
 
     // JSON-LD metadata path — delegate to EventBus → Gatherer

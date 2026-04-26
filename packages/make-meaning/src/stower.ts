@@ -41,6 +41,7 @@ import { concatMap } from 'rxjs/operators';
 import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
 import { EventBus, annotationId, errField, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
 
@@ -65,7 +66,11 @@ export class Stower {
     this.logger.info('Stower actor initialized');
 
     const pipe = <K extends keyof EventMap>(event: K, handler: (e: EventMap[K]) => Promise<void>) =>
-      this.eventBus.get(event).pipe(concatMap((e) => from(handler(e))));
+      this.eventBus.get(event).pipe(
+        concatMap((e) =>
+          from(withActorSpan('stower', event as string, () => handler(e))),
+        ),
+      );
 
     this.subscription = merge(
       pipe('yield:create', (e) => this.handleYieldCreate(e)),

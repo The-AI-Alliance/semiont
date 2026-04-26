@@ -16,6 +16,7 @@ import { concatMap } from 'rxjs/operators';
 import type { EventMap, GatheredContext, Logger, ResourceDescriptor } from '@semiont/core';
 import { type EventBus, resourceId, errField } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
@@ -40,7 +41,9 @@ export class Matcher {
     const errorHandler = (err: unknown) => this.logger.error('Matcher pipeline error', { error: err });
 
     const search$ = this.eventBus.get('match:search-requested').pipe(
-      concatMap((event) => from(this.handleSearch(event))),
+      concatMap((event) =>
+        from(withActorSpan('matcher', 'match:search-requested', () => this.handleSearch(event))),
+      ),
     );
 
     this.subscriptions.push(

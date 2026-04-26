@@ -28,7 +28,9 @@ import type {
 import {
   PERSISTED_EVENT_TYPES,
   RESOURCE_BROADCAST_TYPES,
+  busLog,
 } from '@semiont/core';
+import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorVM, type ActorVM } from './actor-vm';
 import type {
   ConnectionState,
@@ -235,18 +237,32 @@ export class HttpTransport implements ITransport {
     payload: EventMap[K],
     resourceScope?: ResourceId,
   ): Promise<void> {
-    if (resourceScope !== undefined) {
-      await this.actor.emit(
-        channel as string,
-        payload as unknown as Record<string, unknown>,
-        resourceScope as string,
-      );
-    } else {
-      await this.actor.emit(
-        channel as string,
-        payload as unknown as Record<string, unknown>,
-      );
-    }
+    busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
+    recordBusEmit(channel as string, resourceScope as string | undefined);
+    await withSpan(
+      `bus.emit:${channel as string}`,
+      async () => {
+        if (resourceScope !== undefined) {
+          await this.actor.emit(
+            channel as string,
+            payload as unknown as Record<string, unknown>,
+            resourceScope as string,
+          );
+        } else {
+          await this.actor.emit(
+            channel as string,
+            payload as unknown as Record<string, unknown>,
+          );
+        }
+      },
+      {
+        kind: SpanKind.PRODUCER,
+        attrs: {
+          'bus.channel': channel as string,
+          ...(resourceScope ? { 'bus.scope': resourceScope as string } : {}),
+        },
+      },
+    );
   }
 
   on<K extends keyof EventMap>(

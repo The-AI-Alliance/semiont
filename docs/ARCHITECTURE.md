@@ -396,6 +396,7 @@ See [CLI Documentation](../apps/cli/README.md) and [Configuration Guide](./admin
 
 - [Configuration Guide](./administration/CONFIGURATION.md) — Environment configuration
 - [Authentication](./administration/AUTHENTICATION.md) — OAuth, JWT, MCP token flows
+- [Observability](./administration/OBSERVABILITY.md) — Traces, metrics, log correlation, and `busLog` timeline
 - [API Documentation](../specs/docs/API.md) — REST API reference
 - [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) — Annotation data model
 - [Services Overview](./services/OVERVIEW.md) — Service index and data architecture

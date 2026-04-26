@@ -23,6 +23,7 @@ import { mergeMap } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
 import { EventBus, resourceId, annotationId, errField } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import { getExactText, getTargetSource, getTargetSelector, getResourceEntityTypes, getBodySource } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
@@ -60,7 +61,11 @@ export class Browser {
     const pipe = <K extends keyof EventMap>(
       name: K,
       handler: (event: EventMap[K]) => Promise<void>,
-    ) => this.eventBus.get(name).pipe(mergeMap((event) => from(handler(event))));
+    ) => this.eventBus.get(name).pipe(
+      mergeMap((event) =>
+        from(withActorSpan('browser', name as string, () => handler(event))),
+      ),
+    );
 
     this.subscriptions.push(
       pipe('browse:resource-requested',          (e) => this.handleBrowseResource(e)).subscribe({ error: errorHandler }),

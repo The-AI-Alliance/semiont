@@ -1,34 +1,106 @@
 # Bus logging
 
-Protocol-level visibility into the frontend↔backend event bus. Every
-event that crosses the wire in either direction is logged as a single
-`console.debug` line with a grep-friendly format:
+Protocol-level visibility into every bus and content event that crosses
+a transport boundary, in either direction. Each event is logged as a
+single `console.debug` line in a grep-friendly format:
 
 ```
-[bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
-[bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
+[bus EMIT] <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
+[bus RECV] <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
+[bus SSE]  <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
+[bus PUT]  content   [cid=<first8>] [trace=<first8>] <payload>
+[bus GET]  content   [cid=<first8>] [trace=<first8>] <payload>
 ```
 
-Both call sites live in `ActorVM`
-([`packages/api-client/src/view-models/domain/actor-vm.ts`](../../../packages/api-client/src/view-models/domain/actor-vm.ts))
-— one inside `emit()` (outgoing), one inside the SSE parser
-(incoming). Anything that crosses the wire goes through one of those
-two lines, so the log is exhaustive. Local-only events (purely
-in-browser) stay invisible — by design.
+The `trace=` suffix is present only when an OTel SDK is initialized in
+the process and a span is active when the line is emitted (Tier 2 of
+[Observability](../../docs/administration/OBSERVABILITY.md)). It's the
+first 8 hex of the W3C trace-id, so it correlates the grep timeline
+with the span tree in any APM UI.
 
 Cost when disabled: a single truthy check, zero allocations.
 
-## Enable in a running browser
+This is **Tier 1 of the OBSERVABILITY plan** ([`.plans/OBSERVABILITY.md`](../../../.plans/OBSERVABILITY.md)) —
+correlation-ID discipline at the transport contract layer. Tier 2
+(OpenTelemetry spans) and Tier 3 (metrics + log correlation) reuse the
+same choke points.
 
-From DevTools console:
+## Choke points
+
+Instrumentation lives at `ITransport` and `IContentTransport` — the
+transport contract layer — not at any single implementation. Every
+event flows through one of these regardless of whether the bytes move
+over HTTP+SSE or stay in-process.
+
+| Op     | Site                                                         |
+|--------|--------------------------------------------------------------|
+| `EMIT` | `HttpTransport.emit()` (api-client)                          |
+| `EMIT` | `LocalTransport.emit()` (make-meaning)                       |
+| `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-vm) |
+| `RECV` | `LocalTransport.bridgeInto` subscriber callback              |
+| `EMIT` | Backend `/bus/emit` HTTP route                               |
+| `SSE`  | Backend `writeBusEvent()` in `apps/backend/src/routes/bus.ts`|
+| `PUT`  | `HttpContentTransport.putBinary()` + matching backend route  |
+| `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching backend route |
+| `GET`  | `LocalContentTransport.getBinary()` / `getBinaryStream()` (in-process)            |
+
+`ActorVM` and namespace methods (`client.mark.assist`, etc.) are
+**not** choke points. Namespace methods ride on top of the transport;
+their traffic shows up as the transport calls they make.
+
+## Enable
+
+### Browser (frontend)
+
+Run-time toggle in DevTools or e2e init script:
 
 ```js
 window.__SEMIONT_BUS_LOG__ = true;
 ```
 
-Then reproduce. Clears on refresh.
+Clears on refresh.
 
-## Enable in e2e tests
+### Node (backend, worker, smelter, CLI, MCP, tests)
+
+Process-env toggle, read once at module load:
+
+```bash
+SEMIONT_BUS_LOG=1 <command>
+```
+
+For local POSIX backend dev: setting `SEMIONT_BUS_LOG=1` in the parent
+shell flows through automatically — `apps/cli`'s POSIX backend-start
+spreads `process.env` into the child. Container/ECS deployments need
+the variable added to their compose / task-definition env list.
+
+## A typical full-trace timeline
+
+With both flags on, opening a resource produces a contiguous timeline:
+
+```
+[frontend] [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, ...}
+[backend]  [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, _userId, ...}
+[backend]  [bus SSE]  browse:resource-result    cid=a89a670a {correlationId, response}
+[frontend] [bus RECV] browse:resource-result    cid=a89a670a {correlationId, response}
+```
+
+A worker generation that uploads new content adds a content pair:
+
+```
+[worker]  [bus PUT]  content size=14823 storageUri=...
+[backend] [bus PUT]  content size=14823 storageUri=...
+```
+
+Failure modes — each obvious from a missing line:
+
+| Missing line   | Diagnosis                                                          |
+|----------------|--------------------------------------------------------------------|
+| Backend `EMIT` | Client never reached the server (auth, CORS, network).             |
+| Backend `SSE`  | In-process handler never emitted a result, or no subscriber fired. |
+| Frontend `RECV`| Backend wrote to the SSE stream but bytes never parsed client-side.|
+| Backend `PUT`  | Client started an upload but the body never reached the server.    |
+
+## E2E capture API
 
 Automatic. The `bus` fixture in
 [`fixtures/auth.ts`](../fixtures/auth.ts) flips the flag via
@@ -55,28 +127,36 @@ test('...', async ({ signedInPage: page, bus }) => {
 });
 ```
 
-## Capture API
-
-| Method | Purpose |
-|---|---|
-| `bus.entries` | Raw array of all captured entries (in order). |
-| `bus.emits(channel)` | Filter to outgoing on one channel. |
-| `bus.receives(channel)` | Filter to incoming on one channel. |
-| `bus.waitForEmit(channel, { timeout? })` | Resolve when an emit is seen, or throw. |
-| `bus.waitForRecv(channel, { cid?, timeout? })` | Resolve when a receive is seen, with optional cid match. |
-| `bus.expectRequestResponse(req, ok, timeout?)` | Assert matching-cid request→response round-trip. |
-| `bus.clear()` | Empty the capture (use between phases). |
+| Method                                              | Purpose                                                                 |
+|-----------------------------------------------------|-------------------------------------------------------------------------|
+| `bus.entries`                                       | Raw array of all captured entries (in order).                           |
+| `bus.emits(channel)`                                | Filter to `EMIT` on one channel.                                        |
+| `bus.receives(channel)`                             | Filter to `RECV` on one channel.                                        |
+| `bus.sses(channel)`                                 | Filter to `SSE` on one channel (server-side write).                     |
+| `bus.contentPuts()`                                 | Filter to `PUT` on the synthetic `content` channel.                     |
+| `bus.contentGets()`                                 | Filter to `GET` on the synthetic `content` channel.                     |
+| `bus.byOp(op, channel?)`                            | Generic op + optional channel filter.                                   |
+| `bus.waitForEmit(channel, { cid?, timeout? })`      | Resolve when an `EMIT` is seen, with optional cid match.                |
+| `bus.waitForRecv(channel, { cid?, timeout? })`      | Resolve when a `RECV` is seen, with optional cid match.                 |
+| `bus.waitForPut({ timeout? })`                      | Resolve when a content `PUT` is seen.                                   |
+| `bus.waitForGet({ timeout? })`                      | Resolve when a content `GET` is seen.                                   |
+| `bus.waitForOp(op, channel, { cid?, timeout? })`    | Generic poller.                                                         |
+| `bus.expectRequestResponse(req, ok, timeout?)`      | Assert matching-cid request→response round-trip.                        |
+| `bus.clear()`                                       | Empty the capture (use between phases).                                 |
 
 Entry shape:
 
 ```ts
+type BusOp = 'EMIT' | 'RECV' | 'SSE' | 'PUT' | 'GET';
+
 interface BusLogEntry {
-  direction: 'EMIT' | 'RECV';
+  op: BusOp;
   channel: string;
   scope: string | undefined;
-  cid: string | undefined;   // correlationId, first 8 chars
-  raw: string;               // original console.debug text
-  at: number;                // Date.now() at capture
+  cid: string | undefined;     // correlationId, first 8 hex
+  trace: string | undefined;   // W3C trace-id, first 8 hex (Tier 2)
+  raw: string;                 // original console.debug text
+  at: number;                  // Date.now() at capture
 }
 ```
 

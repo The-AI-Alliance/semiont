@@ -4,7 +4,16 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent } from '@semiont/core';
-import { CHANNEL_SCHEMAS, userToDid, resourceId as makeResourceId } from '@semiont/core';
+import { CHANNEL_SCHEMAS, busLog, userToDid, resourceId as makeResourceId } from '@semiont/core';
+import {
+  SpanKind,
+  injectTraceparent,
+  recordBusEmit,
+  recordSubscriberConnect,
+  recordSubscriberDisconnect,
+  withSpan,
+  withTraceparent,
+} from '@semiont/observability';
 import { validateSchema } from '../utils/openapi-validator';
 import { getLogger } from '../logger';
 import type { startMakeMeaning } from '@semiont/make-meaning';
@@ -80,6 +89,12 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       let ephemeralCounter = 0;
       const nextEphemeralId = () => makeEphemeralId(connectionId, ++ephemeralCounter);
 
+      // Tier 3: track active SSE subscribers via UpDownCounter. Connect
+      // increments; disconnect (stream.onAbort) decrements. The gauge
+      // reflects current concurrent SSE connections per service instance.
+      recordSubscriberConnect();
+      stream.onAbort(() => recordSubscriberDisconnect());
+
       /** Tracks last persisted seq delivered per scope, for replay→live dedup. */
       const lastDeliveredSeq = new Map<string, number>();
 
@@ -103,9 +118,17 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         } else {
           id = nextEphemeralId();
         }
+        // Tier 2: attach the active span's W3C traceparent to the payload
+        // so the receiving client can stitch its bus.recv span as a
+        // child. SSE has no header trailer, so trace-context rides on
+        // the payload as `_trace`.
+        if (payload && typeof payload === 'object') {
+          injectTraceparent(payload as Record<string, unknown>);
+        }
         const data = eventScope
           ? JSON.stringify({ channel, payload, scope: eventScope })
           : JSON.stringify({ channel, payload });
+        busLog('SSE', channel, payload, eventScope);
         await stream.writeSSE({ event: 'bus-event', data, id }).catch(() => {});
       };
 
@@ -282,11 +305,37 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       payload._userId = userToDid(user);
     }
 
-    const bus = scope ? eventBus.scope(scope) : eventBus;
-    const subject = bus.get(channel as keyof EventMap);
-    subject.next(payload as never);
+    // Tier 2: parent span comes from the W3C traceparent on the request.
+    // Subscribers fire synchronously inside Subject.next, so they run
+    // under the active bus.dispatch span (and any in-process spans
+    // they create become children).
+    const traceparent = c.req.header('traceparent');
+    const tracestate = c.req.header('tracestate');
+    const carrier = traceparent
+      ? (tracestate ? { traceparent, tracestate } : { traceparent })
+      : undefined;
 
-    getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
+    await withTraceparent(carrier, () =>
+      withSpan(
+        `bus.dispatch:${channel}`,
+        () => {
+          const bus = scope ? eventBus.scope(scope) : eventBus;
+          const subject = bus.get(channel as keyof EventMap);
+          subject.next(payload as never);
+
+          busLog('EMIT', channel, payload, scope);
+          recordBusEmit(channel, scope);
+          getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
+        },
+        {
+          kind: SpanKind.SERVER,
+          attrs: {
+            'bus.channel': channel,
+            ...(scope ? { 'bus.scope': scope } : {}),
+          },
+        },
+      ),
+    );
 
     return c.json(null, 202);
   });

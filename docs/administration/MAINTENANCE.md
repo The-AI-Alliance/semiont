@@ -2,6 +2,12 @@
 
 This document outlines all maintenance procedures and schedules for the Semiont semantic knowledge platform infrastructure on AWS.
 
+For distributed tracing, RED metrics, and trace-tagged log fields,
+see [Observability](./OBSERVABILITY.md). The structured logs referenced
+below are auto-tagged with `trace_id` and `span_id` when an OTel
+exporter is configured, so log queries can jump to the corresponding
+trace in the APM UI.
+
 ## Authentication System Notes
 
 ### API Authentication Model
