@@ -104,6 +104,7 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 | **[API Reference](specs/docs/API.md)** | HTTP endpoints ([OpenAPI spec](specs/README.md)) |
 | **[Packages](packages/README.md)** | All published npm packages with dependency graph |
 | **[Deployment](docs/administration/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
+| **[Observability](docs/administration/OBSERVABILITY.md)** | Tracing, metrics, log correlation, and the `busLog` grep timeline |
 | **[Security](docs/administration/SECURITY.md)** | Authentication, RBAC, and security controls |
 | **[Contributing](CONTRIBUTING.md)** | How to participate, testing guide, and development standards |
 

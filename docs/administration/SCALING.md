@@ -2,6 +2,12 @@
 
 This document describes how the Semiont semantic knowledge platform architecture will grow in response to various scaling factors and provides cost models for different user populations.
 
+For real-time scaling signals, the OTel metrics described in
+[Observability](./OBSERVABILITY.md) are the authoritative source —
+particularly `semiont.job.queue.size` (worker fan-out trigger),
+`semiont.handler.duration` (per-actor latency), and
+`semiont.sse.subscribers` (concurrent client load).
+
 ## Architecture Scaling Patterns
 
 ### Response to More Users

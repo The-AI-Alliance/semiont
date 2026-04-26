@@ -1,10 +1,22 @@
 # Observability
 
-Semiont emits OpenTelemetry traces from every process — backend,
-worker, smelter, and the SPA. Tracing is **off by default**: with no
-exporter configured, the SDK no-ops (spans are created in-memory and
-discarded at flush). Set an exporter endpoint to start receiving
-spans.
+Semiont ships three layers of observability, each independently
+toggleable:
+
+1. **`busLog` grep timeline** — opt-in via `SEMIONT_BUS_LOG=1`. One
+   line per cross-process bus event, in a grep-friendly format.
+   Developer-terminal target. See
+   [Bus logging](../../tests/e2e/docs/bus-logging.md) for the format,
+   capture API, and e2e fixture integration.
+2. **OpenTelemetry traces** (this doc) — distributed tracing from
+   every process (backend, worker, smelter, SPA). Off by default; set
+   `OTEL_EXPORTER_OTLP_ENDPOINT` to enable.
+3. **OpenTelemetry metrics + log correlation** (this doc) — counters,
+   histograms, and gauges across the same OTLP endpoint, plus
+   `trace_id` / `span_id` auto-tagged on every structured log line.
+
+All three correlate by W3C `trace_id` (the `cid` printed by `busLog`
+is its first-8-hex prefix).
 
 ## What gets traced
 
@@ -114,22 +126,23 @@ semiont start --service backend
    SDK no-ops — spans are created in-memory and dropped at the
    `BatchSpanProcessor` flush. Zero network cost, zero storage cost.
 
-## Relationship to other layers
+## Relationship to the structured logger and `busLog`
 
-- **Structured logger** (`getLogger()`) — JSON-line, level-filtered,
-  always on. Logs *semantic events* (validation failed, user
-  authenticated). Goes to log aggregator. Tier 3 will tag every log
-  line with the active span's `trace_id` / `span_id` for
-  log↔trace navigation.
-- **`busLog`** — grep-text, opt-in via `SEMIONT_BUS_LOG=1`. Logs
-  every wire-level bus event. Targets developer terminal/stderr.
-  Forward-compatible with traces — the `cid` it prints is the prefix
-  of the W3C trace-id.
-- **OTel spans** (this doc) — distributed tracing. Targets a
-  collector + APM backend.
-
-All three correlate by `correlationId` today; once Tier 3 lands, all
-three correlate by W3C `trace_id`.
+- **Structured logger** (`getLogger()` on backend,
+  `createProcessLogger()` in workers/smelter) — JSON-line,
+  level-filtered, always on. Logs semantic events (validation failed,
+  user authenticated). Goes to log aggregator. Every line is auto-
+  tagged with the active span's `trace_id` / `span_id` when one
+  exists — operators can jump from a log line in CloudWatch / Loki /
+  Datadog to the trace in Tempo / Jaeger / X-Ray.
+- **`busLog`** — grep-text, opt-in via `SEMIONT_BUS_LOG=1` (Node) or
+  `window.__SEMIONT_BUS_LOG__ = true` (browser). One line per
+  cross-process bus event. Targets developer terminal / stderr / e2e
+  fixture capture. The `cid` it prints is the first 8 hex of the
+  W3C trace-id, so a `busLog` timeline collates with traces in the
+  APM UI.
+- **OTel spans + metrics** (this doc) — distributed tracing and
+  metrics over OTLP. Targets a collector + APM backend.
 
 ## Metrics (Tier 3)
 
@@ -137,12 +150,17 @@ Alongside traces, every Node process exports a small set of metrics
 through the same OTLP endpoint. No extra config required — the
 `OTEL_EXPORTER_OTLP_ENDPOINT` you set for traces also drives metrics.
 
-| Metric                       | Type      | Attributes                                   | Where                                         |
-|------------------------------|-----------|----------------------------------------------|-----------------------------------------------|
-| `semiont.bus.emit`           | counter   | `bus.channel`, `bus.scope`                   | Every transport `emit` (frontend, in-process, server) |
-| `semiont.handler.duration`   | histogram | `actor`, `bus.channel`                       | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
-| `semiont.job.outcome`        | counter   | `job.type`, `job.outcome` (`completed` / `failed`) | Worker `handleJob`                       |
-| `semiont.job.duration`       | histogram | `job.type`, `job.outcome`                    | Worker `handleJob`                            |
+| Metric                       | Type             | Attributes                                              | Where                                         |
+|------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
+| `semiont.bus.emit`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (frontend, in-process, server) |
+| `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
+| `semiont.job.outcome`        | counter          | `job.type`, `job.outcome` (`completed` / `failed`)      | Worker `handleJob`                       |
+| `semiont.job.duration`       | histogram        | `job.type`, `job.outcome`                               | Worker `handleJob`                            |
+| `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
+| `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
+| `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
+| `semiont.sse.subscribers`    | up-down counter  | (none)                                                  | `/bus/subscribe` connect/disconnect           |
+| `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Backend `FsJobQueue.getStats()` |
 
 Additional vars:
 
@@ -171,20 +189,30 @@ When no SDK is initialized (or no span is active), the helper returns
 
 ## Limitations
 
-- **Outbound services not auto-instrumented.** Anthropic / OpenAI /
-  Ollama / Postgres / Qdrant calls are not traced by default.
-  Operators who want this can add `@opentelemetry/instrumentation-pg`,
+- **Outbound services not auto-instrumented for tracing.** Anthropic /
+  OpenAI / Ollama / Postgres / Qdrant calls are not auto-traced
+  (Anthropic + Ollama *are* metered for token / call / duration via
+  the `semiont.inference.*` family). Operators who want full
+  outbound HTTP / DB tracing can add
+  `@opentelemetry/instrumentation-pg`,
   `@opentelemetry/instrumentation-http`, etc. to their own startup
   shim — Semiont's observability package deliberately doesn't bundle
   them so the dependency surface stays small.
+- **No vector-index-size metric yet.** Adding it requires a new
+  `count()` method on the `VectorStore` interface implemented across
+  all backends (Qdrant, in-memory). Not urgent; deferred until
+  capacity-planning needs surface.
 - **Frontend uses `XMLHttpRequest` / `fetch` directly** for the
   transport's underlying calls. Auto-instrumenting these is
   intentionally not enabled — the transport-call spans we emit name
   the operation semantically (`bus.emit:mark:create`) instead of by
   URL.
 
-## Plan reference
+## Related documentation
 
-See [`.plans/OBSERVABILITY.md`](../../.plans/OBSERVABILITY.md) for the
-tiered design (Tier 1 = grep-line bus log, Tier 2 = these spans,
-Tier 3 = metrics + log correlation).
+- [Bus logging](../../tests/e2e/docs/bus-logging.md) — `busLog` format,
+  enable flags, e2e capture API.
+- [Architecture](../ARCHITECTURE.md) — actor topology and event-bus
+  design that the trace and metric attributes describe.
+- [Troubleshooting](./TROUBLESHOOTING.md) — incident workflows that
+  reference traces and structured logs.

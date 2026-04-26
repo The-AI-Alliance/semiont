@@ -2,6 +2,13 @@
 
 This guide provides commands to view logs, perform health checks, and resolve common issues with the Semiont semantic knowledge platform infrastructure.
 
+For protocol-level diagnostics — distributed traces across processes,
+RED metrics, the `busLog` grep timeline, and trace-correlated log
+fields — see [Observability](./OBSERVABILITY.md). Every structured
+log line below is auto-tagged with `trace_id` and `span_id` when an
+OTel exporter is configured; filter by those fields to jump straight
+from a failing log line to the trace span tree.
+
 ## Quick Health Check Commands
 
 ### Overall System Health
