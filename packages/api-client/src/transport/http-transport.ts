@@ -30,7 +30,7 @@ import {
   RESOURCE_BROADCAST_TYPES,
   busLog,
 } from '@semiont/core';
-import { SpanKind, withSpan } from '@semiont/observability';
+import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorVM, type ActorVM } from './actor-vm';
 import type {
   ConnectionState,
@@ -238,6 +238,7 @@ export class HttpTransport implements ITransport {
     resourceScope?: ResourceId,
   ): Promise<void> {
     busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
+    recordBusEmit(channel as string, resourceScope as string | undefined);
     await withSpan(
       `bus.emit:${channel as string}`,
       async () => {

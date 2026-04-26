@@ -24,11 +24,15 @@
 
 import {
   context,
+  isSpanContextValid,
+  metrics,
   propagation,
   SpanKind,
   SpanStatusCode,
   trace,
   type Attributes,
+  type Counter,
+  type Histogram,
   type Span,
 } from '@opentelemetry/api';
 
@@ -157,20 +161,115 @@ export function withTraceparent<T>(
  * (Subject.next runs synchronously inside the dispatch span), or the
  * `bus.emit:<channel>` span when an actor emits to itself.
  */
-export function withActorSpan<T>(
+export async function withActorSpan<T>(
   actor: string,
   channel: string,
   fn: (span: Span) => Promise<T> | T,
   extraAttrs?: Attributes,
 ): Promise<T> {
-  return withSpan(`actor.${actor}:${channel}`, fn, {
-    kind: SpanKind.CONSUMER,
-    attrs: {
-      actor,
-      'bus.channel': channel,
-      ...(extraAttrs ?? {}),
-    },
+  const start = performance.now();
+  try {
+    return await withSpan(`actor.${actor}:${channel}`, fn, {
+      kind: SpanKind.CONSUMER,
+      attrs: {
+        actor,
+        'bus.channel': channel,
+        ...(extraAttrs ?? {}),
+      },
+    });
+  } finally {
+    recordHandlerDuration(actor, channel, performance.now() - start);
+  }
+}
+
+// ── Log correlation ────────────────────────────────────────────────────
+
+/**
+ * Read the active span's `trace_id` / `span_id` for log-line correlation.
+ * Tier 3 of `.plans/OBSERVABILITY.md`. Each structured log line gets
+ * tagged with these so a log query in CloudWatch / Loki / Datadog can
+ * jump to the trace in Tempo / Jaeger / X-Ray.
+ *
+ * Returns `undefined` if no span is active, or if the active span's
+ * context is invalid (uninitialized SDK, no-op tracer).
+ */
+export function getLogTraceContext(): { trace_id: string; span_id: string } | undefined {
+  const span = trace.getActiveSpan();
+  if (!span) return undefined;
+  const ctx = span.spanContext();
+  if (!isSpanContextValid(ctx)) return undefined;
+  return { trace_id: ctx.traceId, span_id: ctx.spanId };
+}
+
+// ── Metrics — Tier 3 ───────────────────────────────────────────────────
+
+const METER_NAME = 'semiont';
+
+const meter = () => metrics.getMeter(METER_NAME);
+
+let _busEmitCounter: Counter | undefined;
+let _handlerDurationHistogram: Histogram | undefined;
+let _jobOutcomeCounter: Counter | undefined;
+let _jobDurationHistogram: Histogram | undefined;
+
+function busEmitCounter(): Counter {
+  if (!_busEmitCounter) {
+    _busEmitCounter = meter().createCounter('semiont.bus.emit', {
+      description: 'Bus emits by channel and scope',
+    });
+  }
+  return _busEmitCounter;
+}
+
+function handlerDurationHistogram(): Histogram {
+  if (!_handlerDurationHistogram) {
+    _handlerDurationHistogram = meter().createHistogram('semiont.handler.duration', {
+      description: 'In-process actor handler duration',
+      unit: 'ms',
+    });
+  }
+  return _handlerDurationHistogram;
+}
+
+function jobOutcomeCounter(): Counter {
+  if (!_jobOutcomeCounter) {
+    _jobOutcomeCounter = meter().createCounter('semiont.job.outcome', {
+      description: 'Worker job completions by type and outcome',
+    });
+  }
+  return _jobOutcomeCounter;
+}
+
+function jobDurationHistogram(): Histogram {
+  if (!_jobDurationHistogram) {
+    _jobDurationHistogram = meter().createHistogram('semiont.job.duration', {
+      description: 'Worker job duration by type',
+      unit: 'ms',
+    });
+  }
+  return _jobDurationHistogram;
+}
+
+/** Increment the bus-emit counter. Called at every transport `emit` site. */
+export function recordBusEmit(channel: string, scope?: string): void {
+  busEmitCounter().add(1, {
+    'bus.channel': channel,
+    ...(scope ? { 'bus.scope': scope } : {}),
   });
+}
+
+/** Record an in-process actor handler's duration. */
+export function recordHandlerDuration(actor: string, channel: string, durationMs: number): void {
+  handlerDurationHistogram().record(durationMs, {
+    actor,
+    'bus.channel': channel,
+  });
+}
+
+/** Record a worker job's outcome and duration. */
+export function recordJobOutcome(jobType: string, outcome: 'completed' | 'failed', durationMs: number): void {
+  jobOutcomeCounter().add(1, { 'job.type': jobType, 'job.outcome': outcome });
+  jobDurationHistogram().record(durationMs, { 'job.type': jobType, 'job.outcome': outcome });
 }
 
 // ── Re-exports from @opentelemetry/api ─────────────────────────────────

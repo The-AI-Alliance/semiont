@@ -6,6 +6,22 @@
  */
 
 import winston from 'winston';
+import { getLogTraceContext } from '@semiont/observability';
+
+/**
+ * Winston format that injects the active OTel span's trace_id/span_id
+ * into every log line — Tier 3 of OBSERVABILITY.md. Cheap when no SDK
+ * is initialized (returns undefined immediately). Lets operators jump
+ * from a log line in their aggregator to the trace in their APM.
+ */
+const traceContextFormat = winston.format((info) => {
+  const trace = getLogTraceContext();
+  if (trace) {
+    info.trace_id = trace.trace_id;
+    info.span_id = trace.span_id;
+  }
+  return info;
+})();
 
 /**
  * Log levels supported by the logger
@@ -63,6 +79,7 @@ function createFormat(config: LoggerConfig): winston.Logform.Format {
     return winston.format.combine(
       winston.format.timestamp(),
       winston.format.errors({ stack: true }),
+      traceContextFormat,
       winston.format.json()
     );
   }
@@ -71,6 +88,7 @@ function createFormat(config: LoggerConfig): winston.Logform.Format {
   return winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),
+    traceContextFormat,
     winston.format.printf(({ level, message, timestamp, ...meta }) => {
       const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
       return `${timestamp} [${level.toUpperCase()}] ${message}${metaStr}`;

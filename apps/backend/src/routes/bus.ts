@@ -8,6 +8,7 @@ import { CHANNEL_SCHEMAS, busLog, userToDid, resourceId as makeResourceId } from
 import {
   SpanKind,
   injectTraceparent,
+  recordBusEmit,
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
@@ -315,6 +316,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           subject.next(payload as never);
 
           busLog('EMIT', channel, payload, scope);
+          recordBusEmit(channel, scope);
           getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
         },
         {
