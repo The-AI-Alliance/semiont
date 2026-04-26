@@ -34,6 +34,17 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Build
+        # Frontend memory note: with `VITE_OTEL_OTLP_ENDPOINT` set at
+        # build time the OTel web SDK is bundled into the SPA, and
+        # vite's chunking step needs ~2GB of Node heap. Default
+        # `ubuntu-latest` runners have ~7GB RAM and Node's default
+        # heap (~1.7GB) is enough on the margin, but if you ever see
+        # `Reached heap limit Allocation failed - JavaScript heap out
+        # of memory` here, set
+        # `NODE_OPTIONS=--max-old-space-size=2560` on this step.
+        # With the env var unset (current default), the SDK is dynamic-
+        # imported and dropped from the bundle entirely, so the build
+        # is comfortably within memory.
         run: ./scripts/ci/build.sh
 
       - name: Determine version

@@ -12,7 +12,7 @@
  */
 
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
   BatchSpanProcessor,
   ConsoleSpanExporter,
@@ -60,7 +60,7 @@ export function initObservabilityWeb(config: WebObservabilityConfig): boolean {
       })
     : new ConsoleSpanExporter();
 
-  const resource = new Resource({
+  const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: config.serviceName,
     [ATTR_SERVICE_VERSION]: config.serviceVersion ?? '0.0.0',
   });

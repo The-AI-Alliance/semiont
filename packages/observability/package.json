@@ -57,14 +57,14 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@semiont/core": "*",
-    "@opentelemetry/core": "^1.30.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
-    "@opentelemetry/resources": "^1.30.0",
-    "@opentelemetry/sdk-metrics": "^1.30.0",
-    "@opentelemetry/sdk-node": "^0.57.0",
-    "@opentelemetry/sdk-trace-base": "^1.30.0",
-    "@opentelemetry/sdk-trace-web": "^1.30.0",
-    "@opentelemetry/semantic-conventions": "^1.28.0"
+    "@opentelemetry/context-async-hooks": "^2.7.0",
+    "@opentelemetry/core": "^2.7.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.215.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.215.0",
+    "@opentelemetry/resources": "^2.7.0",
+    "@opentelemetry/sdk-metrics": "^2.7.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
+    "@opentelemetry/sdk-trace-web": "^2.7.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0"
   }
 }

@@ -15,19 +15,31 @@
  * `@opentelemetry/api` no-op tracer takes over. This avoids accidentally
  * flooding production stderr (and CloudWatch) when an operator deploys
  * without configuring an exporter.
+ *
+ * Implementation note: this module wires `BasicTracerProvider` and
+ * `MeterProvider` (both from the stable `@opentelemetry/sdk-trace-base`
+ * 2.x line) directly, plus `AsyncLocalStorageContextManager` for Node
+ * async-context propagation. We deliberately avoid `@opentelemetry/sdk-node`
+ * because its `0.x` experimental versions cross-depend on older 2.0.x
+ * SDKs, forcing npm to nest duplicate copies of the stable packages and
+ * blowing up bundles for every consumer.
  */
 
-import { metrics } from '@opentelemetry/api';
+import { context, metrics, trace } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
   ConsoleMetricExporter,
   MeterProvider,
   PeriodicExportingMetricReader,
 } from '@opentelemetry/sdk-metrics';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
+import {
+  BasicTracerProvider,
+  BatchSpanProcessor,
+  ConsoleSpanExporter,
+} from '@opentelemetry/sdk-trace-base';
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -40,7 +52,7 @@ export interface NodeObservabilityConfig {
   serviceVersion?: string;
 }
 
-let sdkInstance: NodeSDK | undefined;
+let tracerProviderInstance: BasicTracerProvider | undefined;
 let meterProviderInstance: MeterProvider | undefined;
 
 /**
@@ -59,7 +71,7 @@ const DEFAULT_METRIC_EXPORT_INTERVAL_MS = 30_000;
  * the same `OTEL_EXPORTER_OTLP_ENDPOINT` as traces.
  */
 export function initObservabilityNode(config: NodeObservabilityConfig): boolean {
-  if (sdkInstance) return false;
+  if (tracerProviderInstance) return false;
   if (process.env['OTEL_SDK_DISABLED'] === 'true') return false;
 
   const endpoint = process.env['OTEL_EXPORTER_OTLP_ENDPOINT'];
@@ -71,29 +83,26 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   // production stderr when no collector endpoint is set.
   if (!endpoint && !useConsole) return false;
 
-  const traceExporter = endpoint
-    ? new OTLPTraceExporter()  // reads OTEL_EXPORTER_OTLP_ENDPOINT itself
-    : new ConsoleSpanExporter();
-
-  const resource = new Resource({
+  const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: process.env['OTEL_SERVICE_NAME'] ?? config.serviceName,
     [ATTR_SERVICE_VERSION]: config.serviceVersion ?? '0.0.0',
   });
 
   // Trace SDK
-  sdkInstance = new NodeSDK({
+  const traceExporter = endpoint ? new OTLPTraceExporter() : new ConsoleSpanExporter();
+  tracerProviderInstance = new BasicTracerProvider({
     resource,
-    spanProcessor: new BatchSpanProcessor(traceExporter),
+    spanProcessors: [new BatchSpanProcessor(traceExporter)],
   });
-  sdkInstance.start();
 
-  // Metric SDK (independent of NodeSDK to keep the metrics path explicit
-  // and not entangled with tracing's auto-instrumentation surface).
-  // Same exporter selection as traces — endpoint wins, otherwise console
-  // (only reachable here when OTEL_CONSOLE_EXPORTER=true).
-  const metricExporter = endpoint
-    ? new OTLPMetricExporter()
-    : new ConsoleMetricExporter();
+  // Async-context propagation across `await` boundaries — equivalent
+  // to what NodeSDK installs internally, but pinned to the stable 2.x
+  // cohort.
+  context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+  trace.setGlobalTracerProvider(tracerProviderInstance);
+
+  // Metric SDK — same exporter selection as traces.
+  const metricExporter = endpoint ? new OTLPMetricExporter() : new ConsoleMetricExporter();
   const intervalRaw = process.env['OTEL_METRIC_EXPORT_INTERVAL'];
   const exportIntervalMillis = intervalRaw
     ? Number.parseInt(intervalRaw, 10)
@@ -115,10 +124,10 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   // Flush traces + metrics on shutdown so nothing is lost on SIGTERM/SIGINT.
   const shutdown = () => {
     Promise.all([
-      sdkInstance?.shutdown().catch(() => {}),
+      tracerProviderInstance?.shutdown().catch(() => {}),
       meterProviderInstance?.shutdown().catch(() => {}),
     ]).finally(() => {
-      sdkInstance = undefined;
+      tracerProviderInstance = undefined;
       meterProviderInstance = undefined;
     });
   };
@@ -131,9 +140,9 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 /** Force-flush + shutdown both SDKs. Test cleanup, not production. */
 export async function shutdownObservabilityNode(): Promise<void> {
   await Promise.all([
-    sdkInstance?.shutdown(),
+    tracerProviderInstance?.shutdown(),
     meterProviderInstance?.shutdown(),
   ]);
-  sdkInstance = undefined;
+  tracerProviderInstance = undefined;
   meterProviderInstance = undefined;
 }
