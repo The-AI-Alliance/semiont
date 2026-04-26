@@ -27,7 +27,7 @@ export function useResourceContent(
     if (!semiont || !enabled || !mediaType) return;
     let cancelled = false;
     setLoading(true);
-    semiont.getResourceRepresentation(rUri, {
+    semiont.browse.resourceRepresentation(rUri, {
       accept: mediaType as components['schemas']['ContentFormat'],
     }).then(({ data }) => {
       if (cancelled) return;

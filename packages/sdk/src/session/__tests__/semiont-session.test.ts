@@ -6,8 +6,8 @@
  * uses it to propagate token$ into HTTP calls; the test harness
  * doesn't exercise any real HTTP or SSE). Auth is parameterized
  * entirely through callbacks now, so tests provide `refresh` and
- * optional `validate` directly rather than mocking `client.getMe` /
- * `client.refreshToken`.
+ * optional `validate` directly rather than mocking `client.auth.me` /
+ * `client.auth.refresh`.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

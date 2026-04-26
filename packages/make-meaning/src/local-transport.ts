@@ -47,6 +47,7 @@ import {
 import type { KnowledgeSystem } from './knowledge-system.js';
 
 type AuthResponse = components['schemas']['AuthResponse'];
+type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 
@@ -151,7 +152,7 @@ export class LocalTransport implements ITransport {
   async authenticateGoogle(_credential: GoogleCredential): Promise<AuthResponse> {
     throw NOT_SUPPORTED('authenticateGoogle');
   }
-  async refreshAccessToken(_token: RefreshToken): Promise<AuthResponse> {
+  async refreshAccessToken(_token: RefreshToken): Promise<TokenRefreshResponse> {
     throw NOT_SUPPORTED('refreshAccessToken');
   }
   async logout(): Promise<void> {

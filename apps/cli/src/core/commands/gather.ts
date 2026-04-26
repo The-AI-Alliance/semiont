@@ -9,10 +9,8 @@
  */
 
 import { z } from 'zod';
-import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { lastValueFrom } from 'rxjs';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
-import { createGatherVM } from '@semiont/sdk';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -56,22 +54,9 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
     }
     const rid = toResourceId(rawResourceId);
     const aid = toAnnotationId(rawAnnotationId);
-    const vm = createGatherVM(semiont, rid);
-
-    try {
-      semiont.bus.get('gather:requested').next({
-        correlationId: crypto.randomUUID(),
-        annotationId: aid as string,
-        resourceId: rid as string,
-        options: { contextWindow: options.contextWindow },
-      });
-
-      result = await firstValueFrom(
-        vm.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
-      );
-    } finally {
-      vm.dispose();
-    }
+    result = await lastValueFrom(
+      semiont.gather.annotation(aid, rid, { contextWindow: options.contextWindow }),
+    );
   } else {
     throw new Error(`Unknown subcommand: ${subcommand}. Use 'resource' or 'annotation'.`);
   }

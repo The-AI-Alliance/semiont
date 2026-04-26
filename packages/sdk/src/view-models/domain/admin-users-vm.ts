@@ -28,7 +28,7 @@ export function createAdminUsersVM(
 
   const fetchUsers = () => {
     usersLoading$.next(true);
-    client.listUsers()
+    client.admin.users()
       .then((data) => {
         users$.next((data as { users?: unknown[] }).users ?? []);
         usersLoading$.next(false);
@@ -38,7 +38,7 @@ export function createAdminUsersVM(
 
   const fetchStats = () => {
     statsLoading$.next(true);
-    client.getUserStats()
+    client.admin.userStats()
       .then((data) => {
         stats$.next((data as { stats?: unknown }).stats ?? null);
         statsLoading$.next(false);
@@ -50,7 +50,7 @@ export function createAdminUsersVM(
   fetchStats();
 
   const updateUser = async (id: string, data: { isAdmin?: boolean; isActive?: boolean }): Promise<void> => {
-    await client.updateUser(userDID(id), data);
+    await client.admin.updateUser(userDID(id), data);
     fetchUsers();
     fetchStats();
   };

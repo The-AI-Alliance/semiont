@@ -21,7 +21,7 @@ export interface AnnotationProviderProps {
  * function useAnnotationManager(client: SemiontClient): AnnotationManager {
  *   return {
  *     markAnnotation: async (params) => {
- *       const result = await client.markAnnotation(params.rUri, {
+ *       const result = await client.mark.annotation(params.rUri, {
  *         motivation: params.motivation,
  *         target: { source: params.rUri, selector: params.selector },
  *         body: params.body,
@@ -29,7 +29,7 @@ export interface AnnotationProviderProps {
  *       return result.annotation;
  *     },
  *     deleteAnnotation: async (params) => {
- *       await client.deleteAnnotation(params.rUri, params.annotationId);
+ *       await client.mark.delete(params.rUri, params.annotationId);
  *     }
  *   };
  * }

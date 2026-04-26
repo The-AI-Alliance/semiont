@@ -13,9 +13,8 @@ const mockRefreshToken = vi.fn();
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
   class MockSemiontApiClient {
-    getMe = mockGetMe;
+    auth = { me: mockGetMe, refresh: mockRefreshToken };
     dispose = mockDispose;
-    refreshToken = mockRefreshToken;
     actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
     eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
   }

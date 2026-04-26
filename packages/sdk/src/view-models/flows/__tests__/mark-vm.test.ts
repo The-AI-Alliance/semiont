@@ -184,7 +184,7 @@ describe('createMarkVM', () => {
     vm.progress$.subscribe(v => prog.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    progressSubject.next({ stage: 'analyzing', percentage: 42, message: 'working' });
+    progressSubject.next({ kind: 'progress', data: { stage: 'analyzing', percentage: 42, message: 'working' } });
     expect(prog[prog.length - 1]).toEqual({ stage: 'analyzing', percentage: 42, message: 'working' });
     vm.dispose();
   });
@@ -215,7 +215,7 @@ describe('createMarkVM', () => {
     vm.progress$.subscribe(v => prog.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    progressSubject.next({ stage: 'x', percentage: 50, message: 'm' });
+    progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
     progressSubject.error(new Error('LLM error'));
 
     expect(motiv[motiv.length - 1]).toBeNull();
@@ -232,7 +232,7 @@ describe('createMarkVM', () => {
     vm.progress$.subscribe(v => prog.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    progressSubject.next({ stage: 'x', percentage: 50, message: 'm' });
+    progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
     tc.bus.get('mark:progress-dismiss').next(undefined);
     expect(prog[prog.length - 1]).toBeNull();
     vm.dispose();
@@ -248,7 +248,7 @@ describe('createMarkVM', () => {
     vm.progress$.subscribe(v => prog.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    progressSubject.next({ stage: 'x', percentage: 50, message: 'm' });
+    progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
     progressSubject.complete();
 
     expect(prog[prog.length - 1]).not.toBeNull();
@@ -304,7 +304,7 @@ describe('createMarkVM', () => {
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(170_000);
-    progressSubject.next({ stage: 'analyzing', percentage: 50, message: 'm' });
+    progressSubject.next({ kind: 'progress', data: { stage: 'analyzing', percentage: 50, message: 'm' } });
 
     vi.advanceTimersByTime(170_000);
     expect(motiv[motiv.length - 1]).toBe('highlighting');

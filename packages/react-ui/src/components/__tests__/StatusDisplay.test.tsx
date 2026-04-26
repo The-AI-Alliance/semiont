@@ -8,7 +8,9 @@ import { StatusDisplay } from '../StatusDisplay';
 
 let mockGetStatus: ReturnType<typeof vi.fn>;
 const stableMockClient = {
-  get getStatus() { return mockGetStatus; },
+  admin: {
+    get status() { return mockGetStatus; },
+  },
 };
 const stableMockSession = { client: stableMockClient };
 const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);

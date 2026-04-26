@@ -15,7 +15,7 @@ export function createSessionVM(
   const logout = async (): Promise<void> => {
     isLoggingOut$.next(true);
     try {
-      await client.logout();
+      await client.auth.logout();
     } catch {
       // best-effort — session may already be cleared server-side
     } finally {

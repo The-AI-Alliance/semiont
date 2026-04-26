@@ -64,6 +64,7 @@ export type ConnectionState =
 // ── Response type helpers (shape-equivalent to the OpenAPI surface) ─────
 
 type AuthResponse = components['schemas']['AuthResponse'];
+type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 
@@ -142,7 +143,7 @@ export interface ITransport {
 
   authenticatePassword(email: Email, password: string): Promise<AuthResponse>;
   authenticateGoogle(credential: GoogleCredential): Promise<AuthResponse>;
-  refreshAccessToken(token: RefreshToken): Promise<AuthResponse>;
+  refreshAccessToken(token: RefreshToken): Promise<TokenRefreshResponse>;
   logout(): Promise<void>;
   acceptTerms(): Promise<void>;
   getCurrentUser(): Promise<UserResponse>;

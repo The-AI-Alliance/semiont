@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_LOCALE, isSupportedLocale } from './i18n/config';
 
@@ -57,6 +57,21 @@ function LocaleGuard({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * ProtectedLayout — pathless wrapper that mounts AuthShell once for every
+ * authenticated route group below it. Section layouts (know/, admin/,
+ * moderate/, auth/welcome) live under this route so cross-section
+ * navigation keeps the AuthShell tree (ProtectedErrorBoundary + the two
+ * auth-failure modals) mounted instead of tearing it down and rebuilding.
+ */
+function ProtectedLayout() {
+  return (
+    <AuthShell>
+      <Outlet />
+    </AuthShell>
+  );
+}
+
+/**
  * RootRedirect — detect browser language and redirect / to /:locale
  */
 function RootRedirect() {
@@ -92,36 +107,40 @@ export default function App() {
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
 
-          {/* Auth routes */}
+          {/* Auth routes (pre-app — no AuthShell) */}
           <Route path="auth/connect" element={<ConnectPage />} />
           <Route path="auth/signup" element={<SignUpPage />} />
           <Route path="auth/error" element={<AuthErrorPage />} />
-          <Route path="auth/welcome" element={<AuthShell><WelcomePage /></AuthShell>} />
 
-          {/* Knowledge section */}
-          <Route path="know" element={<KnowledgeLayout />}>
-            <Route index element={<KnowledgePage />} />
-            <Route path="discover" element={<KnowledgeDiscoverPage />} />
-            <Route path="compose" element={<KnowledgeComposePage />} />
-            <Route path="resource/:id" element={<KnowledgeResourcePage />} />
-          </Route>
+          {/* Protected routes — single AuthShell parent across every authenticated section */}
+          <Route element={<ProtectedLayout />}>
+            <Route path="auth/welcome" element={<WelcomePage />} />
 
-          {/* Admin section */}
-          <Route path="admin" element={<AdminLayout />}>
-            <Route index element={<AdminPage />} />
-            <Route path="users" element={<AdminUsersPage />} />
-            <Route path="security" element={<AdminSecurityPage />} />
-            <Route path="exchange" element={<AdminExchangePage />} />
-            <Route path="devops" element={<AdminDevOpsPage />} />
-          </Route>
+            {/* Knowledge section */}
+            <Route path="know" element={<KnowledgeLayout />}>
+              <Route index element={<KnowledgePage />} />
+              <Route path="discover" element={<KnowledgeDiscoverPage />} />
+              <Route path="compose" element={<KnowledgeComposePage />} />
+              <Route path="resource/:id" element={<KnowledgeResourcePage />} />
+            </Route>
 
-          {/* Moderation section */}
-          <Route path="moderate" element={<ModerateLayout />}>
-            <Route index element={<ModeratePage />} />
-            <Route path="recent" element={<ModerateRecentPage />} />
-            <Route path="entity-tags" element={<ModerateEntityTagsPage />} />
-            <Route path="tag-schemas" element={<ModerateTagSchemasPage />} />
-            <Route path="linked-data" element={<ModerateLinkedDataPage />} />
+            {/* Admin section */}
+            <Route path="admin" element={<AdminLayout />}>
+              <Route index element={<AdminPage />} />
+              <Route path="users" element={<AdminUsersPage />} />
+              <Route path="security" element={<AdminSecurityPage />} />
+              <Route path="exchange" element={<AdminExchangePage />} />
+              <Route path="devops" element={<AdminDevOpsPage />} />
+            </Route>
+
+            {/* Moderation section */}
+            <Route path="moderate" element={<ModerateLayout />}>
+              <Route index element={<ModeratePage />} />
+              <Route path="recent" element={<ModerateRecentPage />} />
+              <Route path="entity-tags" element={<ModerateEntityTagsPage />} />
+              <Route path="tag-schemas" element={<ModerateTagSchemasPage />} />
+              <Route path="linked-data" element={<ModerateLinkedDataPage />} />
+            </Route>
           </Route>
 
           {/* 404 within locale */}

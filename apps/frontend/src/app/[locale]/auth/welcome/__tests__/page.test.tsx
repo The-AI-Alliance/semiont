@@ -38,7 +38,9 @@ const { mockSignOut, mockGetMe, mockAcceptTerms, user$, activeSession$, activeKb
   const { BehaviorSubject } = require('rxjs');
   const mockGetMe = vi.fn();
   const mockAcceptTerms = vi.fn();
-  const stableMockClient = { getMe: mockGetMe, acceptTerms: mockAcceptTerms };
+  // createWelcomeVM calls client.auth.me() and client.auth.acceptTerms() —
+  // namespace shape, not flat.
+  const stableMockClient = { auth: { me: mockGetMe, acceptTerms: mockAcceptTerms } };
   const user$ = new BehaviorSubject(null);
   const token$ = new BehaviorSubject(null);
   const activeSession$ = new BehaviorSubject(null);

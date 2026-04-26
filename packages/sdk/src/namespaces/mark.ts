@@ -13,7 +13,7 @@ import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
   MarkAssistOptions,
-  MarkAssistProgress,
+  MarkAssistEvent,
 } from './types';
 
 export class MarkNamespace implements IMarkNamespace {
@@ -54,7 +54,7 @@ export class MarkNamespace implements IMarkNamespace {
     await this.transport.emit('mark:unarchive', { resourceId });
   }
 
-  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistProgress> {
+  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistEvent> {
     return new Observable((subscriber) => {
       let done = false;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,13 +73,22 @@ export class MarkNamespace implements IMarkNamespace {
           if (done) return;
           pollInterval = setInterval(() => {
             if (done) return;
-            busRequest<{ status: string; result?: unknown; error?: string }>(
+            busRequest<{ status: string; result?: unknown; error?: string; jobType?: string }>(
               this.transport, 'job:status-requested', { jobId }, 'job:status-result', 'job:status-failed',
             ).then((status) => {
                 if (done) return;
                 if (status.status === 'complete') {
                   cleanup();
-                  subscriber.next({ motivation, resourceId: resourceId as string, progress: status.result } as unknown as MarkAssistProgress);
+                  // Synthesize a `complete` event from polled status.
+                  subscriber.next({
+                    kind: 'complete',
+                    data: {
+                      jobId,
+                      jobType: (status.jobType ?? 'annotation') as components['schemas']['JobType'],
+                      resourceId: resourceId as string,
+                      result: status.result as components['schemas']['JobResult'] | undefined,
+                    },
+                  });
                   subscriber.complete();
                 } else if (status.status === 'failed') {
                   cleanup();
@@ -110,14 +119,13 @@ export class MarkNamespace implements IMarkNamespace {
       const progressSub = progress$
         .pipe(takeUntil(merge(complete$, fail$)))
         .subscribe((e) => {
-          // e.progress is the JobProgress payload. Consumers expect
-          // progress-shaped events; we forward that directly.
-          subscriber.next(e.progress as MarkAssistProgress);
+          if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
           if (activeJobId) resetPollTimer(activeJobId);
         });
 
-      const completeSub = complete$.subscribe(() => {
+      const completeSub = complete$.subscribe((e) => {
         cleanup();
+        subscriber.next({ kind: 'complete', data: e });
         subscriber.complete();
       });
 

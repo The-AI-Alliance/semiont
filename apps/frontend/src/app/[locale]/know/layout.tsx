@@ -16,7 +16,6 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
-import { AuthShell } from '@/contexts/AuthShell';
 
 function GlobalEventsConnector() {
   return null;
@@ -161,9 +160,7 @@ function KnowledgeLayoutBody() {
 }
 
 export default function KnowledgeLayout() {
-  return (
-    <AuthShell>
-      <KnowledgeLayoutBody />
-    </AuthShell>
-  );
+  // AuthShell is mounted by the parent ProtectedLayout in App.tsx so it
+  // survives navigation between know/, admin/, and moderate/ sections.
+  return <KnowledgeLayoutBody />;
 }

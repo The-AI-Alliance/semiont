@@ -5,34 +5,39 @@
  * Returns MCP-shaped { content: [{ type: 'text', text }] }.
  */
 
-import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
+import { filter, tap } from 'rxjs/operators';
 import { getExactText, getBodySource } from '@semiont/core';
-import { SemiontClient, createGatherVM, createMarkVM, createYieldVM } from '@semiont/sdk';
+import { SemiontClient } from '@semiont/sdk';
 import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
+const defined = <T>(v: T | undefined): v is T => v !== undefined;
+
 // ── Browse ──────────────────────────────────────────────────────────────────
 
 export async function browseResource(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseResource(resourceId(args?.id), { auth: undefined });
+  const data = await firstValueFrom(semiont.browse.resource(resourceId(args?.id)).pipe(filter(defined)));
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
 export async function browseResources(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseResources(args?.limit, args?.archived ?? false, undefined, { auth: undefined });
+  const filters: { limit?: number; archived?: boolean } = {};
+  if (args?.limit !== undefined) filters.limit = args.limit;
+  filters.archived = args?.archived ?? false;
+  const resources = await firstValueFrom(semiont.browse.resources(filters).pipe(filter(defined)));
   return {
     content: [{
       type: 'text',
-      text: `Found ${data.total} resources:\n${data.resources.map((d: any) => `- ${d.name} (${d['@id'] ?? d.id}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
+      text: `Found ${resources.length} resources:\n${resources.map((d: any) => `- ${d.name} (${d['@id'] ?? d.id}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
     }],
   };
 }
 
 export async function browseHighlights(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseAnnotations(resourceId(args?.resourceId), undefined, { auth: undefined });
-  const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
+  const annotations = await firstValueFrom(semiont.browse.annotations(resourceId(args?.resourceId)).pipe(filter(defined)));
+  const highlights = annotations.filter(a => a.motivation === 'highlighting');
   return {
     content: [{
       type: 'text',
@@ -48,8 +53,8 @@ export async function browseHighlights(semiont: SemiontClient, args: any): Promi
 }
 
 export async function browseReferences(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await semiont.browseAnnotations(resourceId(args?.resourceId), undefined, { auth: undefined });
-  const references = data.annotations.filter(a => a.motivation === 'linking');
+  const annotations = await firstValueFrom(semiont.browse.annotations(resourceId(args?.resourceId)).pipe(filter(defined)));
+  const references = annotations.filter(a => a.motivation === 'linking');
   return {
     content: [{
       type: 'text',
@@ -91,39 +96,28 @@ export async function markAnnotation(semiont: SemiontClient, args: any): Promise
 
 export async function markAssist(semiont: SemiontClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
-  const vm = createMarkVM(semiont, rId);
+  const progressMessages: string[] = [];
 
   try {
-    const progressMessages: string[] = [];
-    semiont.bus.get('mark:assist-request').next({
-      motivation: 'linking',
-      options: { entityTypes: args?.entityTypes || [], includeDescriptiveReferences: false },
-    });
-
-    return await new Promise<McpResult>((resolve) => {
-      const progressSub = vm.progress$.pipe(
-        filter((p): p is NonNullable<typeof p> => p !== null),
-      ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage ?? 0}%`); });
-
-      const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        const foundCount = (event.result as { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number } | undefined);
-        const count =
-          foundCount?.totalFound ?? foundCount?.highlightsFound ?? foundCount?.commentsFound ??
-          foundCount?.assessmentsFound ?? foundCount?.tagsFound ?? 0;
-        resolve({ content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] });
-      });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        resolve({ content: [{ type: 'text', text: `Detection failed: ${event.error}` }], isError: true });
-      });
-      function cleanup() { progressSub.unsubscribe(); completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
-  } finally {
-    vm.dispose();
+    const final = await lastValueFrom(
+      semiont.mark.assist(rId, 'linking', {
+        entityTypes: args?.entityTypes || [],
+        includeDescriptiveReferences: false,
+      }).pipe(
+        tap((e) => {
+          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage ?? 0}%`);
+        }),
+      ),
+    );
+    const r = (final.kind === 'complete' ? final.data.result : undefined) as
+      | { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number }
+      | undefined;
+    const count =
+      r?.totalFound ?? r?.highlightsFound ?? r?.commentsFound ??
+      r?.assessmentsFound ?? r?.tagsFound ?? 0;
+    return { content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] };
+  } catch (err) {
+    return { content: [{ type: 'text', text: `Detection failed: ${(err as Error).message}` }], isError: true };
   }
 }
 
@@ -143,24 +137,12 @@ export async function bindBody(semiont: SemiontClient, args: any): Promise<McpRe
 export async function gatherAnnotation(semiont: SemiontClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
-  const vm = createGatherVM(semiont, rId);
 
-  try {
-    semiont.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: aId as string,
-      resourceId: rId as string,
-      options: { contextWindow: args?.contextWindow ?? 2000 },
-    });
+  const context = await lastValueFrom(
+    semiont.gather.annotation(aId, rId, { contextWindow: args?.contextWindow ?? 2000 }),
+  );
 
-    const context = await firstValueFrom(
-      vm.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
-    );
-
-    return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
-  } finally {
-    vm.dispose();
-  }
+  return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
 }
 
 // ── Yield ───────────────────────────────────────────────────────────────────
@@ -183,53 +165,30 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
 
-  // Step 1: gather context via GatherVM
-  const gatherVM = createGatherVM(semiont, rId);
-  let ctx: GatheredContext;
+  // Step 1: gather context
+  const ctx = await lastValueFrom(
+    semiont.gather.annotation(aId, rId, { contextWindow: 2000 }),
+  ) as GatheredContext;
+
+  // Step 2: generate. yield.fromAnnotation streams progress, then ends with
+  // a `complete` event carrying the JobCompleteCommand (with `result`).
+  const progressMessages: string[] = [];
   try {
-    semiont.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: aId as string,
-      resourceId: rId as string,
-      options: { contextWindow: 2000 },
-    });
-    ctx = await firstValueFrom(
-      gatherVM.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
+    await lastValueFrom(
+      semiont.yield.fromAnnotation(rId, aId, {
+        title: args?.title ?? 'Generated',
+        storageUri: args?.storageUri,
+        context: ctx,
+        prompt: args?.prompt,
+        language: args?.language,
+      }).pipe(
+        tap((e) => {
+          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage}%`);
+        }),
+      ),
     );
-  } finally {
-    gatherVM.dispose();
-  }
-
-  // Step 2: generate via YieldVM
-  const yieldVM = createYieldVM(semiont, rId, args?.language ?? 'en');
-  try {
-    yieldVM.generate(aId as string, {
-      title: args?.title ?? 'Generated',
-      storageUri: args?.storageUri,
-      context: ctx,
-      prompt: args?.prompt,
-      language: args?.language,
-    });
-
-    const progressMessages: string[] = [];
-    return await new Promise<McpResult>((resolve) => {
-      const progressSub = yieldVM.progress$.pipe(
-        filter((p): p is NonNullable<typeof p> => p !== null),
-      ).subscribe((p) => { progressMessages.push(`${p.stage}: ${p.percentage}%`); });
-
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        resolve({ content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] });
-      });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        resolve({ content: [{ type: 'text', text: `Generation failed: ${event.error}` }], isError: true });
-      });
-      function cleanup() { progressSub.unsubscribe(); completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
-  } finally {
-    yieldVM.dispose();
+    return { content: [{ type: 'text', text: `Generation complete.\n${progressMessages.join('\n')}` }] };
+  } catch (err) {
+    return { content: [{ type: 'text', text: `Generation failed: ${(err as Error).message}` }], isError: true };
   }
 }

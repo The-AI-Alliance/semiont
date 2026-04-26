@@ -32,7 +32,9 @@ import {
   setStoredSession,
   type KnowledgeBase,
 } from '@semiont/sdk';
-import { baseUrl, accessToken } from '@semiont/core';
+import { accessToken } from '@semiont/core';
+import { firstValueFrom } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 const kb: KnowledgeBase = {
   id: 'local',
@@ -47,8 +49,10 @@ const storage = new InMemorySessionStorage();
 setStoredSession(storage, kb.id, { access: accessToken('your-jwt'), refresh: '' });
 
 const session = await SemiontSession.create({ kb, storage });
-const result = await session.client.browse.resources({ limit: 10 });
-console.log(result.resources);
+const resources = await firstValueFrom(
+  session.client.browse.resources({ limit: 10 }).pipe(filter((r): r is NonNullable<typeof r> => r !== undefined)),
+);
+console.log(resources);
 ```
 
 ## Quick start (in-process)
@@ -87,8 +91,8 @@ const { annotationId } = await client.mark.annotation(rid, request);
 await client.bind.body(rid, aid, [{ op: 'add', item: { ... } }]);
 
 // Gather / Match
-const ctx = await firstValueFrom(createGatherVM(client, rid).context$);
-client.match.search(rid, { context, limit: 10 }).subscribe(/* ... */);
+const ctx = await lastValueFrom(client.gather.annotation(aid, rid));
+client.match.search(rid, refId, ctx, { limit: 10 }).subscribe(/* ... */);
 
 // Yield
 const { resourceId } = await client.yield.resource({ name, file, format, storageUri });

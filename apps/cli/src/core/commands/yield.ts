@@ -18,11 +18,9 @@
 import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
-import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { lastValueFrom } from 'rxjs';
 import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
-import { createGatherVM, createYieldVM } from '@semiont/sdk';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -31,7 +29,6 @@ import { printSuccess, printWarning } from '../io/cli-logger.js';
 import { findProjectRoot } from '../config-loader.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { SemiontClient } from '@semiont/sdk';
-import type { AccessToken } from '@semiont/core';
 
 function guessFormat(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -99,7 +96,6 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 
 async function runDelegate(
   semiont: SemiontClient,
-  _token: AccessToken,
   options: YieldOptions,
 ): Promise<{ resourceId?: string; resourceName?: string }> {
   const rawResourceId = options.resource!;
@@ -107,29 +103,18 @@ async function runDelegate(
   const rId = toResourceId(rawResourceId);
   const aId = toAnnotationId(rawAnnotationId);
 
-  // Step 1: gather context via GatherVM
-  const gatherVM = createGatherVM(semiont, rId);
-  let context: GatheredContext;
-  try {
-    semiont.bus.get('gather:requested').next({
-      correlationId: crypto.randomUUID(),
-      annotationId: aId as string,
-      resourceId: rId as string,
-      options: { contextWindow: options.contextWindow },
-    });
-    context = await firstValueFrom(
-      gatherVM.context$.pipe(filter((c): c is NonNullable<typeof c> => c !== null)),
-    );
-  } finally {
-    gatherVM.dispose();
-  }
+  // Step 1: gather context
+  const context = await lastValueFrom(
+    semiont.gather.annotation(aId, rId, { contextWindow: options.contextWindow }),
+  ) as GatheredContext;
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
-  // Step 2: generate via YieldVM
-  const yieldVM = createYieldVM(semiont, rId, options.language ?? 'en');
-  try {
-    yieldVM.generate(aId as string, {
+  // Step 2: generate — yield.fromAnnotation Observable yields progress
+  // events, then a final `complete` event carrying the JobCompleteCommand
+  // (with `result.resourceId` / `result.resourceName`).
+  const final = await lastValueFrom(
+    semiont.yield.fromAnnotation(rId, aId, {
       title: options.title ?? rawAnnotationId,
       storageUri: options.storageUri!,
       context,
@@ -137,25 +122,10 @@ async function runDelegate(
       language: options.language,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
-    });
-
-    return await new Promise<{ resourceId?: string; resourceName?: string }>((resolve, reject) => {
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        const r = (event.result ?? {}) as { resourceId?: string; resourceName?: string };
-        resolve({ resourceId: r.resourceId, resourceName: r.resourceName });
-      });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
-        if (event.jobType !== 'generation') return;
-        cleanup();
-        reject(new Error(event.error ?? 'Generation failed'));
-      });
-      function cleanup() { completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
-  } finally {
-    yieldVM.dispose();
-  }
+    }),
+  );
+  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as { resourceId?: string; resourceName?: string };
+  return { resourceId: r.resourceId, resourceName: r.resourceName };
 }
 
 // =====================================================================
@@ -167,12 +137,12 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
   const projectRoot = findProjectRoot();
 
   // ── Delegate mode ──────────────────────────────────────────────────
   if (options.delegate) {
-    const { resourceId, resourceName } = await runDelegate(semiont, token, options);
+    const { resourceId, resourceName } = await runDelegate(semiont, options);
     const label = resourceName ?? resourceId ?? options.storageUri!;
     if (!options.quiet) printSuccess(`Yielded: ${options.storageUri} → ${resourceId ?? '(pending)'}`);
     process.stdout.write(JSON.stringify({ resourceId, resourceName, storageUri: options.storageUri }));
@@ -215,9 +185,8 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
     const name = options.name ?? path.basename(filePath, path.extname(filePath));
     const format = guessFormat(filePath);
 
-    const { resourceId } = await semiont.yieldResource(
+    const { resourceId } = await semiont.yield.resource(
       { name, file: content, format, storageUri },
-      { auth: token },
     );
 
     if (!options.quiet) printSuccess(`Yielded: ${filePath} → ${resourceId}`);

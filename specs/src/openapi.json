@@ -165,9 +165,6 @@
       "BodyOperationReplace": {
         "$ref": "components/schemas/BodyOperationReplace.json"
       },
-      "BeckonResponse": {
-        "$ref": "components/schemas/BeckonResponse.json"
-      },
       "CloneResourceWithTokenResponse": {
         "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
       },

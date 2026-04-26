@@ -100,9 +100,8 @@ export function createComposePageVM(
         if (tokenResult && auth) {
           const rId = makeResourceId(tokenResult['@id']);
           const mediaType = getPrimaryMediaType(tokenResult) || 'text/plain';
-          const { data } = await client.getResourceRepresentation(rId, {
+          const { data } = await client.browse.resourceRepresentation(rId, {
             accept: mediaType as ContentFormat,
-            auth,
           });
           const content = decodeWithCharset(data, mediaType);
           cloneData$.next({ sourceResource: tokenResult, sourceContent: content });

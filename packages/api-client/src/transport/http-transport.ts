@@ -45,6 +45,7 @@ import type {
 import { BRIDGED_CHANNELS } from '@semiont/core';
 
 type AuthResponse = components['schemas']['AuthResponse'];
+type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 
@@ -351,7 +352,7 @@ export class HttpTransport implements ITransport {
     }).json();
   }
 
-  async refreshAccessToken(token: RefreshToken): Promise<AuthResponse> {
+  async refreshAccessToken(token: RefreshToken): Promise<TokenRefreshResponse> {
     return this.http.post(`${this.baseUrl}/api/tokens/refresh`, {
       json: { refreshToken: token },
       headers: this.authHeaders(),

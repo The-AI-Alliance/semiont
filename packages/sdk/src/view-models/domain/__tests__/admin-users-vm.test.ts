@@ -15,9 +15,11 @@ function mockClient(overrides: {
   updateUser?: ReturnType<typeof vi.fn>;
 } = {}): SemiontClient {
   return {
-    listUsers: overrides.listUsers ?? vi.fn().mockResolvedValue({ users: [] }),
-    getUserStats: overrides.getUserStats ?? vi.fn().mockResolvedValue({ stats: null }),
-    updateUser: overrides.updateUser ?? vi.fn().mockResolvedValue(undefined),
+    admin: {
+      users: overrides.listUsers ?? vi.fn().mockResolvedValue({ users: [] }),
+      userStats: overrides.getUserStats ?? vi.fn().mockResolvedValue({ stats: null }),
+      updateUser: overrides.updateUser ?? vi.fn().mockResolvedValue(undefined),
+    },
   } as unknown as SemiontClient;
 }
 

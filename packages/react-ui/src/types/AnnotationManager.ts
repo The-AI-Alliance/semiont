@@ -29,11 +29,11 @@ export interface DeleteAnnotationParams {
  * function useAnnotationManager(client: SemiontClient): AnnotationManager {
  *   return {
  *     markAnnotation: async (params) => {
- *       const result = await client.markAnnotation(params.rUri, {...});
+ *       const result = await client.mark.annotation(params.rUri, {...});
  *       return result.annotation;
  *     },
  *     deleteAnnotation: async (params) => {
- *       await client.deleteAnnotation(params.rUri, params.annotationId);
+ *       await client.mark.delete(params.rUri, params.annotationId);
  *     }
  *   };
  * }

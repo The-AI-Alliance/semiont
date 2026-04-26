@@ -30,8 +30,7 @@ import { printSuccess } from '../io/cli-logger.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
-import { createMarkVM } from '@semiont/sdk';
-import type { AccessToken } from '@semiont/core';
+import { lastValueFrom } from 'rxjs';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 
@@ -114,9 +113,8 @@ export type MarkOptions = z.output<typeof MarkOptionsSchema>;
 async function fetchResourceText(
   semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
-  token: AccessToken,
 ): Promise<string> {
-  const { data } = await semiont.getResourceRepresentation(resourceId, { accept: 'text/plain', auth: token });
+  const { data } = await semiont.browse.resourceRepresentation(resourceId, { accept: 'text/plain' });
   return new TextDecoder().decode(data);
 }
 
@@ -168,7 +166,6 @@ async function buildSelector(
   options: MarkOptions,
   semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
-  token: AccessToken,
 ): Promise<CreateAnnotationRequest['target']['selector']> {
   const hasText = options.quote !== undefined || (options.start !== undefined && options.end !== undefined);
   const hasSvg = options.svg !== undefined;
@@ -192,7 +189,7 @@ async function buildSelector(
   if (!hasText) return undefined as any;
 
   const content = options.fetchContent
-    ? await fetchResourceText(semiont, resourceId, token)
+    ? await fetchResourceText(semiont, resourceId)
     : undefined;
 
   const selectors = buildTextSelector(options, content);
@@ -235,52 +232,31 @@ async function runDelegate(
 
   if (!options.quiet) process.stderr.write(`Annotating ${motivation} on ${rawResourceId}...\n`);
 
-  const vm = createMarkVM(semiont, rId);
+  const final = await lastValueFrom(
+    semiont.mark.assist(rId, motivation as Motivation, {
+      instructions,
+      density,
+      tone,
+      entityTypes: entityType as string[] | undefined,
+      includeDescriptiveReferences: includeDescriptive,
+      schemaId: schemaId as string | undefined,
+      categories: category as string[] | undefined,
+    }),
+  );
 
-  try {
-    semiont.bus.get('mark:assist-request').next({
-      motivation: motivation as Motivation,
-      options: {
-        instructions,
-        density,
-        tone,
-        entityTypes: entityType as string[] | undefined,
-        includeDescriptiveReferences: includeDescriptive,
-        schemaId: schemaId as string | undefined,
-        categories: category as string[] | undefined,
-      },
-    });
+  // Every JobXAnnotationResult variant has a `*Created` field, differently
+  // named per job type. Pull the first numeric one.
+  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as Record<string, unknown>;
+  const createdCount =
+    (typeof r.highlightsCreated === 'number' && r.highlightsCreated) ||
+    (typeof r.commentsCreated === 'number' && r.commentsCreated) ||
+    (typeof r.assessmentsCreated === 'number' && r.assessmentsCreated) ||
+    (typeof r.tagsCreated === 'number' && r.tagsCreated) ||
+    (typeof r.totalEmitted === 'number' && r.totalEmitted) ||
+    0;
 
-    const result = await new Promise<{ createdCount: number }>((resolve, reject) => {
-      const isAnnotationJob = (jt: string) => jt !== 'generation';
-      const completeSub = semiont.bus.get('job:complete').subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        // Every JobXAnnotationResult variant has a `*Created` field,
-        // differently named per job type. Pull the first numeric one.
-        const r = (event.result ?? {}) as Record<string, unknown>;
-        const createdCount =
-          (typeof r.highlightsCreated === 'number' && r.highlightsCreated) ||
-          (typeof r.commentsCreated === 'number' && r.commentsCreated) ||
-          (typeof r.assessmentsCreated === 'number' && r.assessmentsCreated) ||
-          (typeof r.tagsCreated === 'number' && r.tagsCreated) ||
-          (typeof r.totalEmitted === 'number' && r.totalEmitted) ||
-          0;
-        resolve({ createdCount });
-      });
-      const failSub = semiont.bus.get('job:fail').subscribe((event) => {
-        if (!isAnnotationJob(event.jobType)) return;
-        cleanup();
-        reject(new Error(event.error ?? 'Annotation failed'));
-      });
-      function cleanup() { completeSub.unsubscribe(); failSub.unsubscribe(); }
-    });
-
-    if (!options.quiet) process.stderr.write(`✓ ${result.createdCount} annotations created\n`);
-    return { motivation, resourceId: rawResourceId, createdCount: result.createdCount };
-  } finally {
-    vm.dispose();
-  }
+  if (!options.quiet) process.stderr.write(`✓ ${createdCount} annotations created\n`);
+  return { motivation, resourceId: rawResourceId, createdCount };
 }
 
 // =====================================================================
@@ -292,7 +268,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   // ── Delegate mode ────────────────────────────────────────────────────
   if (options.delegate) {
@@ -312,7 +288,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
 
   const rawResourceId = options.resourceIdArr[0];
   const resourceId = toResourceId(rawResourceId);
-  const selector = await buildSelector(options, semiont, resourceId, token);
+  const selector = await buildSelector(options, semiont, resourceId);
   const body = buildBody(options);
 
   const target = (selector !== undefined
@@ -325,7 +301,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
     body,
   };
 
-  const { annotationId } = await semiont.markAnnotation(resourceId, request, { auth: token });
+  const { annotationId } = await semiont.mark.annotation(resourceId, request);
 
   if (!options.quiet) printSuccess(`Marked: ${rawResourceId} → ${annotationId}`);
 

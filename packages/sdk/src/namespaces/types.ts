@@ -38,10 +38,10 @@ type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
 type JobProgress = components['schemas']['JobProgress'];
-type YieldProgress = JobProgress;  // alias retained for the yield namespace's Observable signature
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
+type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 
@@ -130,11 +130,30 @@ export type GatherAnnotationProgress = GatherProgress | GatherAnnotationComplete
 export type MatchSearchProgress = MatchSearchResult;
 
 /**
- * Progress emitted by mark.assist() Observable.
- * Each emission is a JobProgress snapshot (unified job lifecycle). The
- * Observable completes on `job:complete`; errors on `job:fail`.
+ * Progress payload emitted by mark.assist() and yield.fromAnnotation()
+ * Observables. Each progress emission carries a JobProgress snapshot
+ * (unified job lifecycle).
  */
 export type MarkAssistProgress = JobProgress;
+
+/**
+ * Discriminated event yielded by the `mark.assist()` Observable. Progress
+ * events stream while the worker runs; the final value before the
+ * Observable completes is a `complete` event carrying the `JobCompleteCommand`
+ * payload (with `result`, `jobId`, `jobType`, etc.). The Observable errors
+ * on `job:fail`.
+ */
+export type MarkAssistEvent =
+  | { kind: 'progress'; data: MarkAssistProgress }
+  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
+
+/**
+ * Discriminated event yielded by the `yield.fromAnnotation()` Observable.
+ * Same shape and semantics as `MarkAssistEvent`.
+ */
+export type YieldGenerationEvent =
+  | { kind: 'progress'; data: JobProgress }
+  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
 
 // ── Namespace interfaces ────────────────────────────────────────────────────
 
@@ -196,8 +215,8 @@ export interface MarkNamespace {
   archive(resourceId: ResourceId): Promise<void>;
   unarchive(resourceId: ResourceId): Promise<void>;
 
-  // AI-assisted annotation (long-running, returns Observable with progress)
-  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistProgress>;
+  // AI-assisted annotation (long-running, returns Observable with progress + final result)
+  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistEvent>;
 
   // UI signals (fire-and-forget bus emits, local-bus fan-out)
   request(
@@ -297,12 +316,12 @@ export interface YieldNamespace {
   // File upload (synchronous)
   resource(data: CreateResourceInput): Promise<{ resourceId: string }>;
 
-  // Generation from annotation (long-running, LLM-based)
+  // Generation from annotation (long-running, LLM-based — yields progress, then a final complete event)
   fromAnnotation(
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options: GenerationOptions,
-  ): Observable<YieldProgress>;
+  ): Observable<YieldGenerationEvent>;
 
   // Clone
   cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }>;
@@ -332,6 +351,15 @@ export interface BeckonNamespace {
  * Job — worker lifecycle
  */
 export interface JobNamespace {
+  /** Live stream of `job:queued` events from the bus. */
+  readonly queued$: Observable<EventMap['job:queued']>;
+  /** Live stream of `job:report-progress` events from the bus. */
+  readonly progress$: Observable<EventMap['job:report-progress']>;
+  /** Live stream of `job:complete` events from the bus. */
+  readonly complete$: Observable<EventMap['job:complete']>;
+  /** Live stream of `job:fail` events from the bus. */
+  readonly fail$: Observable<EventMap['job:fail']>;
+
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
   cancel(jobId: JobId, type: string): Promise<void>;
@@ -346,7 +374,7 @@ export interface JobNamespace {
 export interface AuthNamespace {
   password(email: string, password: string): Promise<AuthResponse>;
   google(credential: string): Promise<AuthResponse>;
-  refresh(token: string): Promise<AuthResponse>;
+  refresh(token: string): Promise<TokenRefreshResponse>;
   logout(): Promise<void>;
   me(): Promise<User>;
   acceptTerms(): Promise<void>;

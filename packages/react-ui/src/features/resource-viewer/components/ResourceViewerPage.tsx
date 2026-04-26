@@ -289,7 +289,7 @@ export function ResourceViewerPage({
   const handleResourceClone = useCallback(async () => {
     if (!semiont) return;
     try {
-      const result = await semiont.generateCloneToken(rUri);
+      const result = await semiont.yield.cloneToken(rUri);
       const token = result.token;
       browser.emit('nav:push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {

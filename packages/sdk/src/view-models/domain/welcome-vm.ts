@@ -17,14 +17,14 @@ export function createWelcomeVM(
   const userData$ = new BehaviorSubject<{ termsAcceptedAt?: string } | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
 
-  client.getMe()
+  client.auth.me()
     .then((data) => userData$.next(data as { termsAcceptedAt?: string }))
     .catch(() => {});
 
   const acceptTerms = async (): Promise<void> => {
     isProcessing$.next(true);
     try {
-      await client.acceptTerms();
+      await client.auth.acceptTerms();
       userData$.next({ ...userData$.getValue(), termsAcceptedAt: new Date().toISOString() });
     } finally {
       isProcessing$.next(false);

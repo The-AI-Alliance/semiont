@@ -58,7 +58,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
         body,
       };
 
-      const result = await semiont.markAnnotation(rUri, createData);
+      const result = await semiont.mark.annotation(rUri, createData);
 
       // Track this as a new annotation for sparkle animation
       if (result.annotationId) {

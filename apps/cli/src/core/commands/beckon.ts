@@ -46,19 +46,20 @@ export async function runBeckon(options: BeckonOptions): Promise<CommandResults>
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { semiont, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   const [participantId] = options.participantArr;
 
-  const result = await semiont.beckonAttention(
-    participantId,
-    {
-      resourceId: options.resource,
-      ...(options.annotation ? { annotationId: options.annotation } : {}),
-      ...(options.message ? { message: options.message } : {}),
-    },
-    { auth: token }
-  );
+  // beckon:focus carries optional annotationId and an optional human-readable
+  // message; the namespace surface (`client.beckon.attention(aid, rid)`) only
+  // supports the both-required shape, so emit directly for the CLI's broader
+  // signal envelope.
+  await semiont.transport.emit('beckon:focus', {
+    resourceId: options.resource,
+    ...(options.annotation ? { annotationId: options.annotation } : {}),
+    ...(options.message ? { message: options.message } : {}),
+  });
+  const result = {};
 
   if (!options.quiet) {
     const target = options.annotation

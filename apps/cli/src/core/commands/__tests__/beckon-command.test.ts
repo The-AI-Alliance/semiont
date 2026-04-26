@@ -10,10 +10,10 @@ import { BeckonOptionsSchema, runBeckon, type BeckonOptions } from '../beckon.js
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const { mockBeckonAttention, mockLoadCachedClient } = vi.hoisted(() => {
-  const mockBeckonAttention = vi.fn();
+const { mockEmit, mockLoadCachedClient } = vi.hoisted(() => {
+  const mockEmit = vi.fn().mockResolvedValue(undefined);
   const mockLoadCachedClient = vi.fn();
-  return { mockBeckonAttention, mockLoadCachedClient };
+  return { mockEmit, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
@@ -99,9 +99,8 @@ describe('BeckonOptionsSchema', () => {
 describe('runBeckon', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockBeckonAttention.mockResolvedValue({ participant: 'alice', resourceId: 'urn:semiont:resource:doc-1' });
     mockLoadCachedClient.mockReturnValue({
-      semiont: { beckonAttention: mockBeckonAttention },
+      semiont: { transport: { emit: mockEmit } },
       token: 'mock-token',
     });
   });
@@ -115,20 +114,19 @@ describe('runBeckon', () => {
     expect(result.summary.failed).toBe(0);
   });
 
-  it('calls beckonAttention with resourceId only when no annotation', async () => {
+  it('emits beckon:focus with resourceId only when no annotation', async () => {
     await runBeckon(makeOptions());
-    expect(mockBeckonAttention).toHaveBeenCalledWith(
-      'alice',
+    expect(mockEmit).toHaveBeenCalledWith(
+      'beckon:focus',
       expect.objectContaining({ resourceId: 'urn:semiont:resource:doc-1' }),
-      expect.any(Object),
     );
-    const [, body] = mockBeckonAttention.mock.calls[0];
+    const [, body] = mockEmit.mock.calls[0];
     expect(body.annotationId).toBeUndefined();
   });
 
   it('includes annotationId when provided', async () => {
     await runBeckon(makeOptions({ annotation: 'urn:semiont:annotation:ann-1' }));
-    const [, body] = mockBeckonAttention.mock.calls[0];
+    const [, body] = mockEmit.mock.calls[0];
     expect(body.annotationId).toBe('urn:semiont:annotation:ann-1');
   });
 
