@@ -24,6 +24,7 @@ permissions:
   contents: read
   packages: write
   id-token: write
+  attestations: write
 
 jobs:
   publish:
@@ -90,6 +91,7 @@ jobs:
           vuln-type: os,library
 
       - name: Build and push Docker image
+        id: build-push
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -102,6 +104,38 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Generate SBOM from the same amd64 image we already scanned. OS
+      # packages and language libraries are platform-independent, so the
+      # amd64 SBOM accurately describes the multi-arch image's contents.
+      - name: Generate SBOM with Trivy
+        if: ${{ !inputs.dry_run }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-frontend:scan
+          format: spdx-json
+          output: sbom.spdx.json
+
+      # SLSA build provenance via GitHub's OIDC + Sigstore. Stored as an
+      # OCI attestation alongside the image in GHCR. Verify with:
+      #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-frontend:VERSION \
+      #     --owner The-AI-Alliance
+      - name: Attest build provenance
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/the-ai-alliance/semiont-frontend
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-sbom@v2
+        with:
+          subject-name: ghcr.io/the-ai-alliance/semiont-frontend
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
       - name: Summary
         run: |
           echo "## Frontend Container Image" >> $GITHUB_STEP_SUMMARY
@@ -113,4 +147,10 @@ jobs:
           echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ghcr.io/the-ai-alliance/semiont-frontend:${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verify supply-chain attestations:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-frontend:${{ inputs.version }} \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --owner The-AI-Alliance" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
