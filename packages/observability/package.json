@@ -39,6 +39,7 @@
     "directory": "packages/observability"
   },
   "scripts": {
+    "pretypecheck": "npm run build --workspace=@semiont/core --if-present",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup",
     "watch": "tsup --watch",

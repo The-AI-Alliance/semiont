@@ -49,9 +49,14 @@ const buildSteps = [
     description: 'Core event types and utilities (generates types from openapi.json - SPEC-FIRST, NO DEPENDENCIES)'
   },
   {
+    name: '@semiont/observability',
+    type: 'package',
+    description: 'OpenTelemetry tracing/metrics + log correlation (depends on @semiont/core only; consumed by api-client, jobs, make-meaning, inference, backend)'
+  },
+  {
     name: '@semiont/api-client',
     type: 'package',
-    description: 'API client (depends on @semiont/core for OpenAPI types and branded types)'
+    description: 'API client (depends on @semiont/core for OpenAPI types and branded types, @semiont/observability for transport-call spans)'
   },
   {
     name: '@semiont/sdk',

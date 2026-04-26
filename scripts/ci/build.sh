@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Full build order
-ALL=(api-client ontology core content event-sourcing graph inference vectors jobs make-meaning react-ui backend frontend cli)
+ALL=(api-client ontology core observability content event-sourcing graph inference vectors jobs make-meaning react-ui backend frontend cli)
 
 # Resolve which packages to build
 if [[ -n "$START_FROM" ]]; then
@@ -87,7 +87,7 @@ npm run openapi:bundle
 
 banner "BUILD LIBRARY PACKAGES"
 
-LIBS=(api-client ontology core content event-sourcing graph inference vectors jobs make-meaning react-ui)
+LIBS=(core observability api-client ontology content event-sourcing graph inference vectors jobs make-meaning react-ui)
 for pkg in "${LIBS[@]}"; do
   if should_build "$pkg"; then
     step "Building @semiont/$pkg..."
