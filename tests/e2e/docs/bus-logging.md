@@ -5,12 +5,18 @@ a transport boundary, in either direction. Each event is logged as a
 single `console.debug` line in a grep-friendly format:
 
 ```
-[bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
-[bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
-[bus SSE]  <channel> [scope=X] [cid=<first8>] <payload>
-[bus PUT]  content   [cid=<first8>] <payload>
-[bus GET]  content   [cid=<first8>] <payload>
+[bus EMIT] <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
+[bus RECV] <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
+[bus SSE]  <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
+[bus PUT]  content   [cid=<first8>] [trace=<first8>] <payload>
+[bus GET]  content   [cid=<first8>] [trace=<first8>] <payload>
 ```
+
+The `trace=` suffix is present only when an OTel SDK is initialized in
+the process and a span is active when the line is emitted (Tier 2 of
+[Observability](../../docs/administration/OBSERVABILITY.md)). It's the
+first 8 hex of the W3C trace-id, so it correlates the grep timeline
+with the span tree in any APM UI.
 
 Cost when disabled: a single truthy check, zero allocations.
 
@@ -121,26 +127,36 @@ test('...', async ({ signedInPage: page, bus }) => {
 });
 ```
 
-| Method | Purpose |
-|---|---|
-| `bus.entries` | Raw array of all captured entries (in order). |
-| `bus.emits(channel)` | Filter to outgoing on one channel. |
-| `bus.receives(channel)` | Filter to incoming on one channel. |
-| `bus.waitForEmit(channel, { timeout? })` | Resolve when an emit is seen, or throw. |
-| `bus.waitForRecv(channel, { cid?, timeout? })` | Resolve when a receive is seen, with optional cid match. |
-| `bus.expectRequestResponse(req, ok, timeout?)` | Assert matching-cid request→response round-trip. |
-| `bus.clear()` | Empty the capture (use between phases). |
+| Method                                              | Purpose                                                                 |
+|-----------------------------------------------------|-------------------------------------------------------------------------|
+| `bus.entries`                                       | Raw array of all captured entries (in order).                           |
+| `bus.emits(channel)`                                | Filter to `EMIT` on one channel.                                        |
+| `bus.receives(channel)`                             | Filter to `RECV` on one channel.                                        |
+| `bus.sses(channel)`                                 | Filter to `SSE` on one channel (server-side write).                     |
+| `bus.contentPuts()`                                 | Filter to `PUT` on the synthetic `content` channel.                     |
+| `bus.contentGets()`                                 | Filter to `GET` on the synthetic `content` channel.                     |
+| `bus.byOp(op, channel?)`                            | Generic op + optional channel filter.                                   |
+| `bus.waitForEmit(channel, { cid?, timeout? })`      | Resolve when an `EMIT` is seen, with optional cid match.                |
+| `bus.waitForRecv(channel, { cid?, timeout? })`      | Resolve when a `RECV` is seen, with optional cid match.                 |
+| `bus.waitForPut({ timeout? })`                      | Resolve when a content `PUT` is seen.                                   |
+| `bus.waitForGet({ timeout? })`                      | Resolve when a content `GET` is seen.                                   |
+| `bus.waitForOp(op, channel, { cid?, timeout? })`    | Generic poller.                                                         |
+| `bus.expectRequestResponse(req, ok, timeout?)`      | Assert matching-cid request→response round-trip.                        |
+| `bus.clear()`                                       | Empty the capture (use between phases).                                 |
 
 Entry shape:
 
 ```ts
+type BusOp = 'EMIT' | 'RECV' | 'SSE' | 'PUT' | 'GET';
+
 interface BusLogEntry {
-  direction: 'EMIT' | 'RECV';
+  op: BusOp;
   channel: string;
   scope: string | undefined;
-  cid: string | undefined;   // correlationId, first 8 chars
-  raw: string;               // original console.debug text
-  at: number;                // Date.now() at capture
+  cid: string | undefined;     // correlationId, first 8 hex
+  trace: string | undefined;   // W3C trace-id, first 8 hex (Tier 2)
+  raw: string;                 // original console.debug text
+  at: number;                  // Date.now() at capture
 }
 ```
 

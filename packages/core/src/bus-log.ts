@@ -30,6 +30,24 @@ export function busLogEnabled(): boolean {
   return NODE_BUS_LOG;
 }
 
+/**
+ * Optional active-span trace-id provider. When a Tier 2 OTel SDK is
+ * initialized, `@semiont/observability` registers a provider here that
+ * returns the active span's W3C `trace_id`. busLog appends it to each
+ * emitted line so the grep-timeline correlates with the span tree in
+ * an APM UI.
+ *
+ * Decoupling: `@semiont/core` does not depend on `@opentelemetry/api`.
+ * If no provider is registered (Tier 1-only deployments, or before
+ * `initObservabilityNode` runs), the field is omitted from the line —
+ * same shape as before this hook existed.
+ */
+let traceIdProvider: (() => string | undefined) | undefined;
+
+export function setBusLogTraceIdProvider(fn: (() => string | undefined) | undefined): void {
+  traceIdProvider = fn;
+}
+
 export function busLog(
   op: BusOp,
   channel: string,
@@ -39,10 +57,15 @@ export function busLog(
   if (!busLogEnabled()) return;
   const cidRaw = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
   const cid = typeof cidRaw === 'string' ? cidRaw.slice(0, 8) : undefined;
+  let traceId: string | undefined;
+  if (traceIdProvider) {
+    try { traceId = traceIdProvider(); } catch { /* noop */ }
+  }
   const tag =
     `[bus ${op}] ${channel}` +
     (scope ? ` scope=${scope}` : '') +
-    (cid ? ` cid=${cid}` : '');
+    (cid ? ` cid=${cid}` : '') +
+    (traceId ? ` trace=${traceId.slice(0, 8)}` : '');
   // eslint-disable-next-line no-console
   console.debug(tag, payload);
 }

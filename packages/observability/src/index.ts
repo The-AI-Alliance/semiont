@@ -37,6 +37,19 @@ import {
   type Span,
   type UpDownCounter,
 } from '@opentelemetry/api';
+import { setBusLogTraceIdProvider } from '@semiont/core';
+
+// Wire `busLog`'s trace-id provider once at module load. When an OTel
+// SDK is initialized (and a span is active when `busLog` fires), the
+// emitted line gets a `trace=<8hex>` suffix that correlates the
+// grep-timeline with the trace UI. No-op when no SDK is active.
+setBusLogTraceIdProvider(() => {
+  const span = trace.getActiveSpan();
+  if (!span) return undefined;
+  const ctx = span.spanContext();
+  if (!isSpanContextValid(ctx)) return undefined;
+  return ctx.traceId;
+});
 
 const TRACER_NAME = 'semiont';
 
