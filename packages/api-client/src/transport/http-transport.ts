@@ -28,6 +28,7 @@ import type {
 import {
   PERSISTED_EVENT_TYPES,
   RESOURCE_BROADCAST_TYPES,
+  busLog,
 } from '@semiont/core';
 import { createActorVM, type ActorVM } from './actor-vm';
 import type {
@@ -235,6 +236,7 @@ export class HttpTransport implements ITransport {
     payload: EventMap[K],
     resourceScope?: ResourceId,
   ): Promise<void> {
+    busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
     if (resourceScope !== undefined) {
       await this.actor.emit(
         channel as string,

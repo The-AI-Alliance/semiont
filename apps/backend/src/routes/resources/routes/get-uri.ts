@@ -8,7 +8,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
+import { busLog, getPrimaryMediaType, decodeRepresentation } from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
 import { eventBusRequest } from '../../../utils/event-bus-request';
@@ -29,6 +29,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       .map(t => t.trim())
       .filter(t => t !== 'application/ld+json' && t !== 'application/json')
       .join(', ') || '*/*';
+    busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
     const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
     let resource: any;
@@ -62,6 +63,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // If requesting raw representation (text/plain, text/markdown, images, etc.)
     // Binary content stays direct — excluded from EventBus by design
     if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
+      busLog('GET', 'content', { resourceId: id, accept: acceptHeader });
       const { knowledgeSystem: { kb } } = c.get('makeMeaning');
 
       let resource: any;

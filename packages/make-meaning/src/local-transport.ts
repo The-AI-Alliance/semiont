@@ -29,7 +29,7 @@ import type {
   UserDID,
   components,
 } from '@semiont/core';
-import { baseUrl as makeBaseUrl } from '@semiont/core';
+import { baseUrl as makeBaseUrl, busLog } from '@semiont/core';
 import {
   BRIDGED_CHANNELS,
   type ConnectionState,
@@ -106,6 +106,7 @@ export class LocalTransport implements ITransport {
     payload: EventMap[K],
     resourceScope?: ResourceId,
   ): Promise<void> {
+    busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
     // Gateway-injection: stamp the host identity onto every emit so handlers
     // can trust `_userId` regardless of which transport delivered the event.
     const stamped = { ...(payload as object), _userId: this.userId };
@@ -138,6 +139,7 @@ export class LocalTransport implements ITransport {
       const upstream = this.bus.get(channel as keyof EventMap) as unknown as Observable<unknown>;
       this.bridgeSubs.push(
         upstream.subscribe((payload) => {
+          busLog('RECV', channel, payload);
           (bus.get(channel as keyof EventMap) as unknown as { next(v: unknown): void }).next(payload);
         }),
       );

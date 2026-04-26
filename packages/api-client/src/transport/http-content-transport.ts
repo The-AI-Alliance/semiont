@@ -8,6 +8,7 @@
  */
 
 import type { AccessToken, ContentFormat, ResourceId } from '@semiont/core';
+import { busLog } from '@semiont/core';
 import type { HttpTransport } from './http-transport';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
@@ -18,6 +19,12 @@ export class HttpContentTransport implements IContentTransport {
     request: PutBinaryRequest,
     options?: { auth?: AccessToken },
   ): Promise<{ resourceId: ResourceId }> {
+    busLog('PUT', 'content', {
+      name: request.name,
+      format: request.format,
+      storageUri: request.storageUri,
+      sizeBytes: request.file instanceof File ? request.file.size : request.file.length,
+    });
     const formData = new FormData();
     formData.append('name', request.name);
     formData.append('format', request.format);
@@ -57,6 +64,7 @@ export class HttpContentTransport implements IContentTransport {
     resourceId: ResourceId,
     options?: { accept?: ContentFormat | string; auth?: AccessToken },
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
+    busLog('GET', 'content', { resourceId, accept: options?.accept });
     const response = await this.transport.rawHttp.get(`${this.transport.baseUrl}/resources/${resourceId}`, {
       headers: {
         Accept: options?.accept ?? 'text/plain',
@@ -72,6 +80,7 @@ export class HttpContentTransport implements IContentTransport {
     resourceId: ResourceId,
     options?: { accept?: ContentFormat | string; auth?: AccessToken },
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
+    busLog('GET', 'content', { resourceId, accept: options?.accept, stream: true });
     const response = await this.transport.rawHttp.get(`${this.transport.baseUrl}/resources/${resourceId}`, {
       headers: {
         Accept: options?.accept ?? 'text/plain',

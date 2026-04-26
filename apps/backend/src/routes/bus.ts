@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent } from '@semiont/core';
-import { CHANNEL_SCHEMAS, userToDid, resourceId as makeResourceId } from '@semiont/core';
+import { CHANNEL_SCHEMAS, busLog, userToDid, resourceId as makeResourceId } from '@semiont/core';
 import { validateSchema } from '../utils/openapi-validator';
 import { getLogger } from '../logger';
 import type { startMakeMeaning } from '@semiont/make-meaning';
@@ -106,6 +106,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         const data = eventScope
           ? JSON.stringify({ channel, payload, scope: eventScope })
           : JSON.stringify({ channel, payload });
+        busLog('SSE', channel, payload, eventScope);
         await stream.writeSSE({ event: 'bus-event', data, id }).catch(() => {});
       };
 
@@ -286,6 +287,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const subject = bus.get(channel as keyof EventMap);
     subject.next(payload as never);
 
+    busLog('EMIT', channel, payload, scope);
     getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
 
     return c.json(null, 202);

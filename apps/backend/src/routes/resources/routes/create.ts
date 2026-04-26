@@ -8,7 +8,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { userId, userToDid, type CreationMethod } from '@semiont/core';
+import { busLog, userId, userToDid, type CreationMethod } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
@@ -51,6 +51,13 @@ export function registerCreateResource(router: ResourcesRouterType) {
 
     // Type-cast to ContentFormat (OpenAPI validates this enum at spec level)
     const format = formatRaw as ContentFormat;
+
+    busLog('PUT', 'content', {
+      name,
+      format,
+      storageUri,
+      sizeBytes: file.size,
+    });
 
     // Parse entityTypes from JSON string
     const entityTypes = entityTypesStr ? JSON.parse(entityTypesStr) : [];

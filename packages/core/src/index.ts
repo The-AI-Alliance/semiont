@@ -134,6 +134,9 @@ export { serializePerKey } from './serialize-per-key';
 export type { Logger } from './logger';
 export { errField } from './logger';
 
+// Bus logging — Tier 1 cross-wire observability (see .plans/OBSERVABILITY.md)
+export { busLog, busLogEnabled, type BusOp } from './bus-log';
+
 // Annotation body matcher (used by mark:body-updated event replay)
 export { findBodyItem } from './annotation-utils';
 export type { BodyItemIdentity } from './annotation-utils';

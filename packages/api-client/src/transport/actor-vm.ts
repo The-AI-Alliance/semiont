@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import type { ConnectionState } from '@semiont/core';
+import { busLog, type ConnectionState } from '@semiont/core';
 
 /** Minimal ViewModel surface — anything with a `dispose()` method. */
 interface ViewModel {
@@ -8,41 +8,6 @@ interface ViewModel {
 }
 
 export type { ConnectionState };
-
-/**
- * Runtime-toggleable cross-wire bus logging. Off by default — zero
- * cost on the hot path when `window.__SEMIONT_BUS_LOG__` is falsy.
- *
- * Turn on from DevTools:
- *   window.__SEMIONT_BUS_LOG__ = true
- * Or from a Playwright test:
- *   page.addInitScript(() => { window.__SEMIONT_BUS_LOG__ = true; });
- *
- * Output format (grep-friendly):
- *   [bus EMIT] <channel> [scope=X] [cid=<first 8>] <payload>
- *   [bus RECV] <channel> [scope=X] [cid=<first 8>] <payload>
- *
- * This covers only events that cross the browser↔backend boundary —
- * local-only eventBus emissions stay invisible here (by design:
- * they don't go through ActorVM). For full local-bus observation,
- * hook `@semiont/core`'s EventBus separately.
- */
-function busLog(
-  direction: 'EMIT' | 'RECV',
-  channel: string,
-  payload: Record<string, unknown>,
-  scope?: string,
-): void {
-  if (typeof globalThis === 'undefined') return;
-  const g = globalThis as { __SEMIONT_BUS_LOG__?: boolean };
-  if (!g.__SEMIONT_BUS_LOG__) return;
-  const cid = (payload as { correlationId?: string } | undefined)?.correlationId;
-  const tag = `[bus ${direction}] ${channel}` +
-    (scope ? ` scope=${scope}` : '') +
-    (cid ? ` cid=${String(cid).slice(0, 8)}` : '');
-  // eslint-disable-next-line no-console
-  console.debug(tag, payload);
-}
 
 export interface BusEvent {
   channel: string;
@@ -314,7 +279,8 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
     },
 
     emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void> => {
-      busLog('EMIT', channel, payload, emitScope);
+      // EMIT logging lives at the transport contract layer
+      // (`HttpTransport.emit`), not here. ActorVM is plumbing.
       const body: Record<string, unknown> = { channel, payload };
       if (emitScope) body.scope = emitScope;
       await fetch(`${baseUrl}/bus/emit`, {
