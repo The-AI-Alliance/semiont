@@ -12,7 +12,6 @@ import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useRouter } from '@/i18n/routing';
-import { AuthShell } from '@/contexts/AuthShell';
 
 function AdminLayoutBody() {
   const { t } = useTranslation();
@@ -73,9 +72,7 @@ function AdminLayoutBody() {
 }
 
 export default function AdminLayout() {
-  return (
-    <AuthShell>
-      <AdminLayoutBody />
-    </AuthShell>
-  );
+  // AuthShell is mounted by the parent ProtectedLayout in App.tsx so it
+  // survives navigation between know/, admin/, and moderate/ sections.
+  return <AdminLayoutBody />;
 }
