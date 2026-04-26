@@ -63,6 +63,32 @@ jobs:
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
           echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
 
+      # Single-platform build for scanning. amd64 OS-package CVEs cover
+      # arm64 too since base layers share package versions, so one scan
+      # is sufficient. Both builds share the GHA cache; the multi-arch
+      # rebuild below is a near-instant cache hit on amd64.
+      - name: Build image (amd64, for Trivy scan)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./apps/frontend/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: semiont-frontend:scan
+          build-args: |
+            SEMIONT_FRONTEND_VERSION=${{ inputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-frontend:scan
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
