@@ -9,6 +9,7 @@ import { FsJobQueue, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, jobId } from '@semiont/core';
+import { registerJobQueueProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
 import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
@@ -44,6 +45,10 @@ async function createJobQueue(
   const jobQueueLogger = logger.child({ component: 'job-queue' });
   const jobQueue = new FsJobQueue(project, jobQueueLogger, eventBus);
   await jobQueue.initialize();
+
+  // Tier 3 observability: report queue size by status. The provider is
+  // polled at the metric-collection interval (default 30s).
+  registerJobQueueProvider(() => jobQueue.getStats());
 
   const jobStatusSubscription = eventBus.get('job:status-requested').pipe(
     mergeMap((event) => from((async () => {

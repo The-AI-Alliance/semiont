@@ -9,6 +9,8 @@ import {
   SpanKind,
   injectTraceparent,
   recordBusEmit,
+  recordSubscriberConnect,
+  recordSubscriberDisconnect,
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
@@ -86,6 +88,12 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       const connectionId = crypto.randomUUID();
       let ephemeralCounter = 0;
       const nextEphemeralId = () => makeEphemeralId(connectionId, ++ephemeralCounter);
+
+      // Tier 3: track active SSE subscribers via UpDownCounter. Connect
+      // increments; disconnect (stream.onAbort) decrements. The gauge
+      // reflects current concurrent SSE connections per service instance.
+      recordSubscriberConnect();
+      stream.onAbort(() => recordSubscriberDisconnect());
 
       /** Tracks last persisted seq delivered per scope, for replay→live dedup. */
       const lastDeliveredSeq = new Map<string, number>();

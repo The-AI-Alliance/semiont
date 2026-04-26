@@ -2,12 +2,17 @@
 // Uses native Ollama HTTP API (no SDK dependency)
 
 import type { Logger } from '@semiont/core';
+import { recordInferenceUsage } from '@semiont/observability';
 import { InferenceClient, InferenceResponse } from '../interface.js';
 
 interface OllamaGenerateResponse {
   response: string;
   done: boolean;
   done_reason?: string;
+  /** Number of prompt tokens evaluated. Available on most Ollama versions. */
+  prompt_eval_count?: number;
+  /** Number of tokens generated. */
+  eval_count?: number;
 }
 
 export class OllamaInferenceClient implements InferenceClient {
@@ -36,23 +41,41 @@ export class OllamaInferenceClient implements InferenceClient {
     });
 
     const url = `${this.baseURL}/api/generate`;
+    const start = performance.now();
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.modelId,
+          prompt,
+          stream: false,
+          think: false,
+          options: {
+            num_predict: maxTokens,
+            temperature,
+          },
+        }),
+      });
+    } catch (err) {
+      recordInferenceUsage({
+        provider: this.type,
         model: this.modelId,
-        prompt,
-        stream: false,
-        think: false,
-        options: {
-          num_predict: maxTokens,
-          temperature,
-        },
-      }),
-    });
+        durationMs: performance.now() - start,
+        outcome: 'error',
+      });
+      throw err;
+    }
 
     if (!res.ok) {
+      recordInferenceUsage({
+        provider: this.type,
+        model: this.modelId,
+        durationMs: performance.now() - start,
+        outcome: 'error',
+      });
       const body = await res.text();
       this.logger?.error('Ollama API error', {
         model: this.modelId,
@@ -65,9 +88,26 @@ export class OllamaInferenceClient implements InferenceClient {
     const data = await res.json() as OllamaGenerateResponse;
 
     if (!data.response) {
+      recordInferenceUsage({
+        provider: this.type,
+        model: this.modelId,
+        durationMs: performance.now() - start,
+        outcome: 'error',
+        inputTokens: data.prompt_eval_count,
+        outputTokens: data.eval_count,
+      });
       this.logger?.error('Empty response from Ollama', { model: this.modelId });
       throw new Error('Empty response from Ollama');
     }
+
+    recordInferenceUsage({
+      provider: this.type,
+      model: this.modelId,
+      durationMs: performance.now() - start,
+      outcome: 'success',
+      inputTokens: data.prompt_eval_count,
+      outputTokens: data.eval_count,
+    });
 
     const stopReason = mapStopReason(data.done_reason);
 

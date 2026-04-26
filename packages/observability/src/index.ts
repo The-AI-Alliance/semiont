@@ -33,7 +33,9 @@ import {
   type Attributes,
   type Counter,
   type Histogram,
+  type ObservableGauge,
   type Span,
+  type UpDownCounter,
 } from '@opentelemetry/api';
 
 const TRACER_NAME = 'semiont';
@@ -211,6 +213,23 @@ let _busEmitCounter: Counter | undefined;
 let _handlerDurationHistogram: Histogram | undefined;
 let _jobOutcomeCounter: Counter | undefined;
 let _jobDurationHistogram: Histogram | undefined;
+let _inferenceCallsCounter: Counter | undefined;
+let _inferenceTokensCounter: Counter | undefined;
+let _inferenceDurationHistogram: Histogram | undefined;
+let _sseSubscribers: UpDownCounter | undefined;
+let _jobQueueGauge: ObservableGauge | undefined;
+let _jobQueueProvider: (() => Promise<JobQueueSnapshot> | JobQueueSnapshot) | undefined;
+let _vectorIndexSizeGauge: ObservableGauge | undefined;
+let _vectorIndexSizeProvider: (() => Promise<number> | number) | undefined;
+
+/** Snapshot of job-queue contents by status. Match `JobQueue.getStats()`. */
+export interface JobQueueSnapshot {
+  pending: number;
+  running: number;
+  complete: number;
+  failed: number;
+  cancelled: number;
+}
 
 function busEmitCounter(): Counter {
   if (!_busEmitCounter) {
@@ -250,6 +269,43 @@ function jobDurationHistogram(): Histogram {
   return _jobDurationHistogram;
 }
 
+function inferenceCallsCounter(): Counter {
+  if (!_inferenceCallsCounter) {
+    _inferenceCallsCounter = meter().createCounter('semiont.inference.calls', {
+      description: 'Inference API calls by provider, model, and outcome',
+    });
+  }
+  return _inferenceCallsCounter;
+}
+
+function inferenceTokensCounter(): Counter {
+  if (!_inferenceTokensCounter) {
+    _inferenceTokensCounter = meter().createCounter('semiont.inference.tokens', {
+      description: 'Inference token usage by provider, model, and direction',
+    });
+  }
+  return _inferenceTokensCounter;
+}
+
+function inferenceDurationHistogram(): Histogram {
+  if (!_inferenceDurationHistogram) {
+    _inferenceDurationHistogram = meter().createHistogram('semiont.inference.duration', {
+      description: 'Inference call duration by provider, model, and outcome',
+      unit: 'ms',
+    });
+  }
+  return _inferenceDurationHistogram;
+}
+
+function sseSubscribersCounter(): UpDownCounter {
+  if (!_sseSubscribers) {
+    _sseSubscribers = meter().createUpDownCounter('semiont.sse.subscribers', {
+      description: 'Active SSE subscribers',
+    });
+  }
+  return _sseSubscribers;
+}
+
 /** Increment the bus-emit counter. Called at every transport `emit` site. */
 export function recordBusEmit(channel: string, scope?: string): void {
   busEmitCounter().add(1, {
@@ -270,6 +326,101 @@ export function recordHandlerDuration(actor: string, channel: string, durationMs
 export function recordJobOutcome(jobType: string, outcome: 'completed' | 'failed', durationMs: number): void {
   jobOutcomeCounter().add(1, { 'job.type': jobType, 'job.outcome': outcome });
   jobDurationHistogram().record(durationMs, { 'job.type': jobType, 'job.outcome': outcome });
+}
+
+/** Increment the SSE subscriber gauge — call on `/bus/subscribe` open. */
+export function recordSubscriberConnect(): void {
+  sseSubscribersCounter().add(1);
+}
+
+/** Decrement on disconnect. Pair with `recordSubscriberConnect`. */
+export function recordSubscriberDisconnect(): void {
+  sseSubscribersCounter().add(-1);
+}
+
+/**
+ * Register a callback that returns the current job-queue snapshot.
+ * Polled at the SDK's metric-collection interval. The single gauge
+ * emits one observation per status (`pending`, `running`, …) tagged
+ * with the `job.status` attribute. Idempotent — last registered
+ * provider wins.
+ */
+export function registerJobQueueProvider(
+  provider: () => Promise<JobQueueSnapshot> | JobQueueSnapshot,
+): void {
+  _jobQueueProvider = provider;
+  if (!_jobQueueGauge) {
+    _jobQueueGauge = meter().createObservableGauge('semiont.job.queue.size', {
+      description: 'Job queue size by status',
+    });
+    _jobQueueGauge.addCallback(async (observer) => {
+      if (!_jobQueueProvider) return;
+      const snap = await _jobQueueProvider();
+      observer.observe(snap.pending, { 'job.status': 'pending' });
+      observer.observe(snap.running, { 'job.status': 'running' });
+      observer.observe(snap.complete, { 'job.status': 'complete' });
+      observer.observe(snap.failed, { 'job.status': 'failed' });
+      observer.observe(snap.cancelled, { 'job.status': 'cancelled' });
+    });
+  }
+}
+
+/**
+ * Register a callback that returns the current vector-index size
+ * (point count). Async to allow remote queries (Qdrant). Polled at
+ * the metric-collection interval.
+ */
+export function registerVectorIndexSizeProvider(
+  provider: () => Promise<number> | number,
+): void {
+  _vectorIndexSizeProvider = provider;
+  if (!_vectorIndexSizeGauge) {
+    _vectorIndexSizeGauge = meter().createObservableGauge('semiont.vector.index.size', {
+      description: 'Vector store point count',
+    });
+    _vectorIndexSizeGauge.addCallback(async (observer) => {
+      if (_vectorIndexSizeProvider) {
+        const value = await _vectorIndexSizeProvider();
+        observer.observe(value);
+      }
+    });
+  }
+}
+
+/**
+ * Record an inference call. Token counts are optional — providers that
+ * don't expose them (or fail before generating) record only call count
+ * and duration.
+ */
+export function recordInferenceUsage(opts: {
+  provider: string;
+  model: string;
+  durationMs: number;
+  outcome: 'success' | 'error';
+  inputTokens?: number;
+  outputTokens?: number;
+}): void {
+  const baseAttrs = {
+    'inference.provider': opts.provider,
+    'inference.model': opts.model,
+    'inference.outcome': opts.outcome,
+  };
+  inferenceCallsCounter().add(1, baseAttrs);
+  inferenceDurationHistogram().record(opts.durationMs, baseAttrs);
+  if (opts.inputTokens != null && opts.inputTokens > 0) {
+    inferenceTokensCounter().add(opts.inputTokens, {
+      'inference.provider': opts.provider,
+      'inference.model': opts.model,
+      'inference.direction': 'input',
+    });
+  }
+  if (opts.outputTokens != null && opts.outputTokens > 0) {
+    inferenceTokensCounter().add(opts.outputTokens, {
+      'inference.provider': opts.provider,
+      'inference.model': opts.model,
+      'inference.direction': 'output',
+    });
+  }
 }
 
 // ── Re-exports from @opentelemetry/api ─────────────────────────────────
