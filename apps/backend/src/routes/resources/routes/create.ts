@@ -13,6 +13,7 @@ import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { deriveStorageUri } from '@semiont/content';
+import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 type Agent = components['schemas']['Agent'];
@@ -59,46 +60,68 @@ export function registerCreateResource(router: ResourcesRouterType) {
       sizeBytes: file.size,
     });
 
-    // Parse entityTypes from JSON string
-    const entityTypes = entityTypesStr ? JSON.parse(entityTypesStr) : [];
-    const generator = generatorStr ? (JSON.parse(generatorStr) as Agent | Agent[]) : undefined;
-
-    // Flat HTTP wire → nested bus-command shape. The HTTP form keeps
-    // names flat for multipart convenience; the bus/event schema uses
-    // nested `generatedFrom` per the W3C prov-style semantics.
-    const generatedFrom = (sourceResourceId || sourceAnnotationId)
-      ? {
-          ...(sourceResourceId ? { resourceId: sourceResourceId } : {}),
-          ...(sourceAnnotationId ? { annotationId: sourceAnnotationId } : {}),
-        }
+    // Tier 2: parent the server span on the client transport's
+    // traceparent header (sent by HttpContentTransport.putBinary).
+    const traceparent = c.req.header('traceparent');
+    const tracestate = c.req.header('tracestate');
+    const carrier = traceparent
+      ? (tracestate ? { traceparent, tracestate } : { traceparent })
       : undefined;
 
-    // Write content to disk before emitting on the bus (no Buffer on bus)
-    const arrayBuffer = await file.arrayBuffer();
-    const contentBuffer = Buffer.from(arrayBuffer);
-    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-    const resolvedUri = storageUri || deriveStorageUri(name, format);
-    const stored = await kb.content.store(contentBuffer, resolvedUri);
+    const resourceId = await withTraceparent(carrier, () =>
+      withSpan(
+        'content.put.server',
+        async () => {
+          // Parse entityTypes from JSON string
+          const entityTypes = entityTypesStr ? JSON.parse(entityTypesStr) : [];
+          const generator = generatorStr ? (JSON.parse(generatorStr) as Agent | Agent[]) : undefined;
 
-    // Delegate to make-meaning for resource creation (via EventBus)
-    const eventBus = c.get('eventBus');
-    const resourceId = await ResourceOperations.createResource(
-      {
-        name,
-        storageUri: resolvedUri,
-        contentChecksum: stored.checksum,
-        byteSize: stored.byteSize,
-        format,
-        language: language || undefined,
-        entityTypes,
-        creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
-        generatedFrom,
-        generationPrompt: generationPrompt || undefined,
-        generator,
-        isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
-      },
-      userId(userToDid(user)),
-      eventBus,
+          // Flat HTTP wire → nested bus-command shape. The HTTP form keeps
+          // names flat for multipart convenience; the bus/event schema uses
+          // nested `generatedFrom` per the W3C prov-style semantics.
+          const generatedFrom = (sourceResourceId || sourceAnnotationId)
+            ? {
+                ...(sourceResourceId ? { resourceId: sourceResourceId } : {}),
+                ...(sourceAnnotationId ? { annotationId: sourceAnnotationId } : {}),
+              }
+            : undefined;
+
+          // Write content to disk before emitting on the bus (no Buffer on bus)
+          const arrayBuffer = await file.arrayBuffer();
+          const contentBuffer = Buffer.from(arrayBuffer);
+          const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+          const resolvedUri = storageUri || deriveStorageUri(name, format);
+          const stored = await kb.content.store(contentBuffer, resolvedUri);
+
+          // Delegate to make-meaning for resource creation (via EventBus)
+          const eventBus = c.get('eventBus');
+          return ResourceOperations.createResource(
+            {
+              name,
+              storageUri: resolvedUri,
+              contentChecksum: stored.checksum,
+              byteSize: stored.byteSize,
+              format,
+              language: language || undefined,
+              entityTypes,
+              creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
+              generatedFrom,
+              generationPrompt: generationPrompt || undefined,
+              generator,
+              isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
+            },
+            userId(userToDid(user)),
+            eventBus,
+          );
+        },
+        {
+          kind: SpanKind.SERVER,
+          attrs: {
+            'content.format': format,
+            'content.size_bytes': file.size,
+          },
+        },
+      ),
     );
 
     return c.json({ resourceId }, 202);

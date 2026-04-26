@@ -28,6 +28,7 @@ import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId, resourceId, errField } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
@@ -58,7 +59,9 @@ export class Gatherer {
       groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
-          concatMap((event) => from(this.handleAnnotationGather(event))),
+          concatMap((event) =>
+            from(withActorSpan('gatherer', 'gather:requested', () => this.handleAnnotationGather(event))),
+          ),
         ),
       ),
     );
@@ -68,7 +71,9 @@ export class Gatherer {
       groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
-          concatMap((event) => from(this.handleResourceGather(event))),
+          concatMap((event) =>
+            from(withActorSpan('gatherer', 'gather:resource-requested', () => this.handleResourceGather(event))),
+          ),
         ),
       ),
     );

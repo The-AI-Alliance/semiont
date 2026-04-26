@@ -39,6 +39,7 @@ import type { WorkingTreeStore } from '@semiont/content';
 import { getExactText, getTargetSelector } from '@semiont/core';
 import type { EmbeddingStore } from './embedding-store.js';
 import { partitionByType } from './batch-utils.js';
+import { withActorSpan } from '@semiont/observability';
 
 export class Smelter {
   private static readonly SMELTER_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
@@ -93,9 +94,15 @@ export class Smelter {
           }),
           concatMap((eventOrBatch: StoredEvent | StoredEvent[]) => {
             if (Array.isArray(eventOrBatch)) {
-              return from(this.processBatch(eventOrBatch));
+              return from(
+                withActorSpan('smelter', 'batch', () => this.processBatch(eventOrBatch), {
+                  'batch.size': eventOrBatch.length,
+                }),
+              );
             }
-            return from(this.safeProcessEvent(eventOrBatch));
+            return from(
+              withActorSpan('smelter', eventOrBatch.type as string, () => this.safeProcessEvent(eventOrBatch)),
+            );
           }),
         ),
       ),
