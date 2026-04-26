@@ -101,3 +101,39 @@ updates:
     commit-message:
       prefix: "actions"
       include: "scope"
+
+  # Frontend Docker base image (apps/frontend/Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/apps/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "docker"
+    commit-message:
+      prefix: "frontend-docker"
+      include: "scope"
+
+  # Desktop builder Docker base image (apps/desktop/Dockerfile.builder)
+  - package-ecosystem: "docker"
+    directory: "/apps/desktop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "The-AI-Alliance/maintainers"
+    labels:
+      - "dependencies"
+      - "desktop"
+      - "docker"
+    commit-message:
+      prefix: "desktop-docker"
+      include: "scope"
