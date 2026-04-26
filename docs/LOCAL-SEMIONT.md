@@ -49,6 +49,8 @@ In a second terminal, start a Semiont browser using the published container imag
 container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
 
+Want to verify image provenance before running? See [Supply-chain verification](./administration/IMAGES.md#supply-chain-verification).
+
 Or use the script from the KB template (builds locally instead of pulling):
 
 ```bash
