@@ -158,7 +158,7 @@ export async function handleJob(
   };
 
   const fetchContent = async (): Promise<string> => {
-    return await session.client.browse.resourceContent(resourceId as never);
+    return session.client.browse.resourceContent(resourceId as never);
   };
 
   if (jobType === 'highlight-annotation') {

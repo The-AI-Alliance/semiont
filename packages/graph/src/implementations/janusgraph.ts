@@ -676,7 +676,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .has('source', resourceId)
       .toList();
 
-    return await this.fetchAnnotationsWithEntityTypes(vertices);
+    return this.fetchAnnotationsWithEntityTypes(vertices);
   }
   
   async getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]> {
