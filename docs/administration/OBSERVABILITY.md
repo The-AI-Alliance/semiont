@@ -123,6 +123,52 @@ semiont start --service backend
 # 3. Browse traces at http://localhost:16686
 ```
 
+### Containerized stack with `--observe`
+
+The `template-kb`-style start script supports a `--observe` flag that
+brings up Jaeger as a sidecar and wires `OTEL_EXPORTER_OTLP_ENDPOINT`
+into backend / worker / smelter automatically:
+
+```bash
+ANTHROPIC_API_KEY=<key> NPM_REGISTRY=http://192.168.64.1:4873 \
+  ./.semiont/scripts/start.sh --observe --no-cache --config anthropic \
+  --email admin@example.com --password password
+```
+
+Use this for development / e2e workflows where you want to inspect
+cross-service trace propagation without standing Jaeger up by hand.
+
+### Verifying spans are flowing
+
+```bash
+# Services that have reported spans
+curl -s http://localhost:16686/api/services | jq -r '.data[]'
+
+# Operations on a service
+curl -s http://localhost:16686/api/services/semiont-backend/operations | jq -r '.data[]'
+
+# Cross-service traces (most useful for debugging propagation)
+curl -s 'http://localhost:16686/api/traces?service=semiont-backend&limit=200&lookback=10m' \
+  | jq -r '.data[] | select(([.processes[].serviceName] | unique | length) > 1) | "\(.traceID) services=\([.processes[].serviceName] | unique | join(","))"'
+```
+
+If Jaeger only knows about itself (`jaeger-all-in-one`), no Semiont
+process has exported spans. Most likely causes:
+
+1. `OTEL_EXPORTER_OTLP_ENDPOINT` is set but unreachable — verify with
+   `container exec semiont-backend wget -qO- http://...:4318` from
+   inside the backend container.
+2. `@semiont/observability` isn't installed in the running backend.
+   Verify: `container exec semiont-backend ls /home/semiont/.local/share/semiont/node_modules/@semiont/`.
+3. Backend image was built before observability was bumped — rebuild
+   with `--no-cache`.
+
+If services appear but every trace is single-service (no cross-service
+propagation), the W3C trace-context propagator likely isn't
+registered. `initObservabilityNode` registers it explicitly because
+we don't use `@opentelemetry/sdk-node` (which would do it
+implicitly) — see `packages/observability/src/node.ts`.
+
 ## Two invariants
 
 1. **No co-location with KB data.** Traces never go in Postgres, the

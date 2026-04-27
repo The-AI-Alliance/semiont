@@ -74,6 +74,59 @@ npm run version:bump    # Bump version (patch/minor/major)
 npm run version:set     # Set a specific version
 ```
 
+## Package manifest: `version.json`
+
+`version.json` is the workspace's single source of truth for the
+package list. Every script that walks the package set reads from it:
+
+- `scripts/dev/build-packages.js` — build orchestrator (used by
+  `npm run build`)
+- `scripts/ci/build.sh` — CI build (libraries + apps in dependency
+  order)
+- `scripts/ci/publish.sh` — version stamping + npm publish
+- `scripts/release/version-bump.sh` and `scripts/release/version.mjs` —
+  version management
+- `.github/workflows/publish-npm-packages.yml` — release-summary readout
+
+Each entry in `version.json.packages` looks like:
+
+```json
+"@semiont/core": {
+  "dir": "packages/core",
+  "version": "0.4.22",
+  "publish": true
+}
+```
+
+Optional `stage` field for apps that publish from a staging directory
+(currently `semiont-backend` and `semiont-frontend`):
+
+```json
+"semiont-backend": {
+  "dir": "apps/backend",
+  "stage": ".npm-stage/backend",
+  "version": "0.4.22",
+  "publish": true
+}
+```
+
+Insertion order in the `packages` object is the build order — list
+each package after its dependencies.
+
+### Adding a new workspace package
+
+1. Create the package directory and its `package.json` as usual.
+2. Add an entry to `version.json` in the right dependency-order
+   position, with `publish: true` if it should ship to npm or
+   `publish: false` for internal packages (test helpers, MCP
+   integration, the desktop app).
+3. That's it. Every script picks it up automatically — no other
+   list to update.
+
+If you forget step 2, `local-build.sh` will silently skip the package,
+the npm install for any consumer will 404, and you'll waste an hour
+chasing it. (Speaking from experience.)
+
 ## Complete Release Example
 
 ```bash
