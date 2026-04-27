@@ -1,4 +1,4 @@
-# API Client Usage Guide
+# `@semiont/sdk` Usage Guide
 
 ## Table of Contents
 
@@ -19,70 +19,129 @@
 
 ## Setup
 
+There are four idiomatic construction shapes, by audience:
+
+### One-shot scripts with credentials: `SemiontClient.signIn(...)`
+
+The credentials-first one-line construction. Calls `auth.password(email, password)` and returns a wired-up client with the access token populated.
+
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, accessToken, type AccessToken } from '@semiont/core';
-import { BehaviorSubject } from 'rxjs';
+import { SemiontClient } from '@semiont/sdk';
 
-const token$ = new BehaviorSubject<AccessToken | null>(accessToken(myToken));
-
-const client = new SemiontApiClient({
-  baseUrl: baseUrl('http://localhost:4000'),
-  token$,
+const semiont = await SemiontClient.signIn({
+  baseUrl: 'http://localhost:4000',
+  email: 'me@example.com',
+  password: 'pwd',
 });
+
+// ...use semiont.browse / mark / bind / gather / match / yield / etc.
+
+semiont.dispose();
 ```
 
-Each client owns a private `EventBus`. No `eventBus` parameter is
-needed or accepted — all bus traffic happens through
-`client.emit(channel, payload)`, `client.on(channel, handler)`, and
-`client.stream(channel)`.
+This is the right entry point for skills, CLI scripts, and any consumer that starts with email + password rather than a JWT already on hand. Throws on auth failure with no resources leaked.
 
-All namespace calls and the bus SSE connection read the current value
-from `token$`. Update by calling `.next(newToken)` — the client's bus
-actor reconnects with the new token automatically.
+### Long-running scripts with credentials: `SemiontSession.signIn(...)`
+
+Same credentials shape, plus the session machinery: proactive refresh (using the refresh token returned by `auth.password`, automatically wired), validation, storage persistence, lifecycle observables.
+
+`kb` is required. Its `id` is the storage key for this session — distinct scripts sharing the same `SessionStorage` instance must use distinct `id`s to avoid trampling each other's tokens. The factory does not synthesize a default; the consumer makes the choice.
 
 ```typescript
-// After token refresh
+import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@semiont/sdk';
+
+const kb: KnowledgeBase = {
+  id: 'my-watcher',
+  label: 'My Watcher',
+  protocol: 'http',
+  host: 'localhost',
+  port: 4000,
+  email: 'me@example.com',
+};
+
+const session = await SemiontSession.signIn({
+  kb,
+  storage: new InMemorySessionStorage(),
+  baseUrl: 'http://localhost:4000',
+  email: 'me@example.com',
+  password: 'pwd',
+});
+
+// session.client is the same SemiontClient surface; the session manages
+// the access-token lifecycle around it (proactive refresh, validation,
+// storage-adapter wiring).
+```
+
+The default `refresh` callback uses the refresh token returned by `auth.password`. Override only for non-standard refresh flows (worker-pool shared secret, OAuth refresh-token grant, interactive re-prompt).
+
+### Already-have-a-token: `SemiontClient.fromHttp(...)` / `SemiontSession.fromHttp(...)`
+
+For consumers that already hold a JWT (CLI cached-token path, env-var token, embedded auth flow that produced one elsewhere), skip the auth round-trip:
+
+```typescript
+import { SemiontClient, SemiontSession, InMemorySessionStorage } from '@semiont/sdk';
+
+// One-shot
+const semiont = SemiontClient.fromHttp({
+  baseUrl: 'http://localhost:4000',
+  token: 'your-jwt',
+});
+
+// Long-running — supply your own refresh callback
+const session = SemiontSession.fromHttp({
+  kb: { id: 'local', label: 'Local Backend', protocol: 'http', host: 'localhost', port: 4000, email: 'me@example.com' },
+  storage: new InMemorySessionStorage(),
+  baseUrl: 'http://localhost:4000',
+  token: 'your-jwt',
+  refresh: async () => /* return new access token, or null */ null,
+});
+await session.ready;
+```
+
+The session factory owns the load-bearing "same `BehaviorSubject` instance flows into both transport and session" invariant for you — there is no separate `token$` to thread.
+
+### Manual construction (advanced)
+
+When you need direct control of `token$`, an alternate transport (`LocalTransport` from `@semiont/make-meaning`, a future `GrpcTransport`, etc.), or to inject a `tokenRefresher` callback at the transport level, construct each piece by hand:
+
+```typescript
+import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
+import { baseUrl, accessToken, type AccessToken } from '@semiont/sdk';
+import { BehaviorSubject } from 'rxjs';
+
+const token$ = new BehaviorSubject<AccessToken | null>(accessToken('your-jwt'));
+const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), token$ });
+const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
+
+// Update token from outside
 token$.next(accessToken(newToken));
 ```
 
-Omit `token$` for unauthenticated usage (public endpoints only). The
-bus actor will not connect until a non-null token is available.
+`@semiont/sdk` re-exports the brand-cast functions (`accessToken`, `baseUrl`, `resourceId`, `annotationId`, `entityType`) and the common branded types from `@semiont/core` for one-import convenience.
 
-### In apps that use `SemiontBrowser`
+### Public bus access
 
-When the app lives behind `SemiontBrowser` (browser / CLI / MCP), you
-rarely construct the client directly. The browser owns the
-`SemiontSession`, which owns the client:
-
-```ts
-import { SemiontBrowser, InMemorySessionStorage } from '@semiont/api-client';
-
-const browser = new SemiontBrowser({ storage: new InMemorySessionStorage() });
-await browser.addKb({ ... });
-await browser.signIn(kbId, accessToken, refreshToken);
-
-const session = browser.activeSession$.getValue()!;
-session.client.emit('mark:create-request', { ... });
-```
-
-See [SESSION.md in `@semiont/react-ui`](../../react-ui/docs/SESSION.md)
-for the full class model, including the second (app-scoped) bus on
-`SemiontBrowser` for `panel:*` / `shell:*` / `tabs:*` / `nav:*` /
-`settings:*` channels.
+The client does **not** expose `emit / on / stream` methods. All bus traffic flows through typed namespace methods (`semiont.mark.archive(...)`, `semiont.browse.resource(...)`, etc.). The single sanctioned escape hatch for arbitrary-channel subscription is `session.subscribe(channel, handler)`, available when you go through `SemiontSession`.
 
 ## Browse
 
-Browse methods read from materialized views. Live queries return Observables that emit initial state and re-emit when the bus gateway delivers relevant domain events.
+Browse methods read from materialized views. Live queries return `CacheObservable<T>` — an Observable subclass that's also awaitable. `await` resolves to the loaded value (skipping the initial `undefined` "loading" state); `.subscribe(...)` yields the full sequence so reactive consumers can render a loading state.
 
-### Live Queries (Observable)
+### Awaitable observables
+
+The streaming and live-query namespace methods on `SemiontClient` return one of two thenable Observable subclasses, both of which implement `PromiseLike<T>`:
+
+- `StreamObservable<T>` — for bounded streams (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`). `await` resolves to the **last** emitted value on completion.
+- `CacheObservable<T>` — for live queries (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`). `await` resolves to the **first non-undefined** value (skipping the loading state).
+
+Either subclass can be `.subscribe(...)`d like a plain Observable. `.pipe(...)` returns a plain `Observable<T>` — once you compose with RxJS operators you've explicitly opted into RxJS land, and `lastValueFrom` from `rxjs` is the right bridge for awaiting the result. The `firstValueFrom`/`lastValueFrom` re-exports from `@semiont/sdk` stay available for that case.
+
+### Live Queries (subscribe)
 
 ```typescript
-import { firstValueFrom } from 'rxjs';
-
 // Subscribe to a resource — re-emits on yield:updated, mark:archived, etc.
 semiont.browse.resource(resourceId).subscribe((resource) => {
-  console.log('Resource:', resource?.name);
+  console.log('Resource:', resource?.name);   // resource: ResourceDescriptor | undefined
 });
 
 // Subscribe to annotations — re-emits on mark:added, mark:removed, mark:body-updated
@@ -95,8 +154,8 @@ semiont.browse.entityTypes().subscribe((types) => {
   console.log('Entity types:', types);
 });
 
-// One-shot read from Observable
-const resource = await firstValueFrom(semiont.browse.resource(resourceId));
+// One-shot read — await directly, no firstValueFrom wrapper needed.
+const resource = await semiont.browse.resource(resourceId);   // resource: ResourceDescriptor
 ```
 
 ### One-Shot Reads (Promise)

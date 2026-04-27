@@ -1,7 +1,8 @@
-import { Observable, merge } from 'rxjs';
+import { merge } from 'rxjs';
 import { filter, map, takeUntil } from 'rxjs/operators';
 import type { AnnotationId, ResourceId, EventBus } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
+import { StreamObservable } from '../awaitable';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
 
 export class GatherNamespace implements IGatherNamespace {
@@ -14,8 +15,8 @@ export class GatherNamespace implements IGatherNamespace {
     annotationId: AnnotationId,
     resourceId: ResourceId,
     options?: { contextWindow?: number },
-  ): Observable<GatherAnnotationProgress> {
-    return new Observable((subscriber) => {
+  ): StreamObservable<GatherAnnotationProgress> {
+    return new StreamObservable<GatherAnnotationProgress>((subscriber) => {
       const correlationId = crypto.randomUUID();
 
       const complete$ = this.bus.get('gather:complete').pipe(
@@ -67,7 +68,7 @@ export class GatherNamespace implements IGatherNamespace {
   resource(
     _resourceId: ResourceId,
     _options?: { contextWindow?: number },
-  ): Observable<GatherAnnotationProgress> {
+  ): StreamObservable<GatherAnnotationProgress> {
     throw new Error('Not implemented: gather.resource() — no backend route yet');
   }
 }

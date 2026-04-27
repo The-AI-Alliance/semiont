@@ -23,6 +23,10 @@
 // SemiontClient + the convenience HTTP-adapter re-exports.
 export * from './client';
 
+// Thenable Observable subclasses — let scripts `await` namespace-method
+// results directly without `lastValueFrom`/`firstValueFrom` wrappers.
+export { StreamObservable, CacheObservable } from './awaitable';
+
 // Bus-request helper + cache primitive.
 export { busRequest, BusRequestError, type BusRequestPrimitive } from './bus-request';
 export { createCache, type Cache } from './cache';
@@ -40,8 +44,43 @@ export { AuthNamespace } from './namespaces/auth';
 export { AdminNamespace } from './namespaces/admin';
 export type * from './namespaces/types';
 
-// Logger interface for observability (re-export from core)
-export type { Logger } from '@semiont/core';
+// Re-exports from @semiont/core for one-import convenience. The principled
+// boundary still holds — sdk depends on core, never the reverse — but most
+// consumers don't care about the layering and importing branded IDs from
+// the same package as `SemiontClient` is the ergonomic default.
+export type {
+  Logger,
+  // Branded ID + URL + token types
+  AccessToken,
+  AnnotationId,
+  BaseUrl,
+  RefreshToken,
+  ResourceId,
+  UserId,
+  // Verb / shape types
+  Annotation,
+  BodyItem,
+  BodyOperation,
+  EntityType,
+  EventMap,
+  GatheredContext,
+  Motivation,
+  ResourceDescriptor,
+  // Transport contracts
+  ConnectionState,
+  IContentTransport,
+  ITransport,
+} from '@semiont/core';
+export {
+  // Brand-cast functions
+  accessToken,
+  annotationId,
+  baseUrl,
+  entityType,
+  refreshToken,
+  resourceId,
+  userId,
+} from '@semiont/core';
 
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, notify module for out-of-React callers.
@@ -71,3 +110,10 @@ export { notifySessionExpired, notifyPermissionDenied } from './session/notify';
 
 // View models (MVVM layer)
 export * from './view-models';
+
+// RxJS bridges — re-exported so consumers can unwrap our Observables to
+// Promises without a separate `import { firstValueFrom } from 'rxjs'`.
+// `mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`
+// all return Observables that consumers typically `lastValueFrom` to await
+// the final value, or `firstValueFrom` to grab the first non-undefined emit.
+export { firstValueFrom, lastValueFrom } from 'rxjs';

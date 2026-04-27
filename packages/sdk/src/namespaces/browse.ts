@@ -1,4 +1,5 @@
 import { Observable, map } from 'rxjs';
+import { CacheObservable } from '../awaitable';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery } from '@semiont/core';
 import type {
   Annotation,
@@ -75,14 +76,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     private readonly bus: EventBus,
     private readonly content: IContentTransport,
   ) {
-    // TEMPORARY DIAGNOSTIC — BrowseNamespace instance counter.
-    const g = globalThis as { __SEMIONT_BROWSE_INSTANCES__?: number };
-    g.__SEMIONT_BROWSE_INSTANCES__ = (g.__SEMIONT_BROWSE_INSTANCES__ ?? 0) + 1;
-    const browseSerial = g.__SEMIONT_BROWSE_INSTANCES__;
-    (this as unknown as { __serial__: number }).__serial__ = browseSerial;
-    // eslint-disable-next-line no-console
-    console.debug(`[diag] BrowseNamespace #${browseSerial} constructed`);
-
     this.resourceCache = createCache<ResourceId, ResourceDescriptor>(async (id) => {
       const result = await busRequest<GetResourceResponse>(
         this.transport,
@@ -133,9 +126,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.entityTypesCache = createCache<string, string[]>(async () => {
-      const serial = (this as unknown as { __serial__: number }).__serial__;
-      // eslint-disable-next-line no-console
-      console.debug(`[diag] BrowseNamespace#${serial} entityTypes fetchFn START`);
       const result = await busRequest<{ entityTypes: string[] }>(
         this.transport,
         'browse:entity-types-requested',
@@ -143,8 +133,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         'browse:entity-types-result',
         'browse:entity-types-failed',
       );
-      // eslint-disable-next-line no-console
-      console.debug(`[diag] BrowseNamespace#${serial} entityTypes fetchFn RESOLVE`, JSON.stringify(result.entityTypes).slice(0, 200));
       return result.entityTypes;
     });
 
@@ -174,60 +162,50 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   // ── Live queries ────────────────────────────────────────────────────────
+  //
+  // These return `CacheObservable<T>`: subscribers see `T | undefined`
+  // (with `undefined` during initial load), and `await` resolves to the
+  // first non-undefined value.
 
-  resource(resourceId: ResourceId): Observable<ResourceDescriptor | undefined> {
-    return this.resourceCache.observe(resourceId);
+  resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor> {
+    return CacheObservable.from(this.resourceCache.observe(resourceId));
   }
 
-  resources(filters?: ResourceListFilters): Observable<ResourceDescriptor[] | undefined> {
+  resources(filters?: ResourceListFilters): CacheObservable<ResourceDescriptor[]> {
     const key = JSON.stringify(filters ?? {});
     // Remember the filter blob so `invalidateResourceLists` can drive
     // per-key SWR refetches without the caller re-passing filters.
     this.resourceListFilters.set(key, filters ?? {});
-    return this.resourceListCache.observe(key);
+    return CacheObservable.from(this.resourceListCache.observe(key));
   }
 
-  annotations(resourceId: ResourceId): Observable<Annotation[] | undefined> {
+  annotations(resourceId: ResourceId): CacheObservable<Annotation[]> {
     let obs = this.annotationListObs.get(resourceId);
     if (!obs) {
       obs = this.annotationListCache.observe(resourceId).pipe(map((r) => r?.annotations as Annotation[] | undefined));
       this.annotationListObs.set(resourceId, obs);
     }
-    return obs;
+    return CacheObservable.from(obs);
   }
 
-  annotation(resourceId: ResourceId, annotationId: AnnotationId): Observable<Annotation | undefined> {
+  annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation> {
     // Record the routing hint so the cache's fetchFn (which only sees
     // the cache key, `annotationId`) can look up the resourceId it
     // needs for the bus request.
     this.annotationResources.set(annotationId, resourceId);
-    return this.annotationDetailCache.observe(annotationId);
+    return CacheObservable.from(this.annotationDetailCache.observe(annotationId));
   }
 
-  entityTypes(): Observable<string[] | undefined> {
-    const serial = (this as unknown as { __serial__: number }).__serial__;
-    // eslint-disable-next-line no-console
-    console.debug(`[diag] BrowseNamespace#${serial} entityTypes() called`);
-    // Memo the instrumented observable once — calling .pipe(...) on every
-    // invocation would return a fresh reference and violate B4 (per-key
-    // observable stability). One-shot emission logging is attached here.
-    const self = this as unknown as { __entityTypesDiag__?: Observable<string[] | undefined> };
-    if (!self.__entityTypesDiag__) {
-      self.__entityTypesDiag__ = this.entityTypesCache.observe(ENTITY_TYPES_KEY).pipe(map((v) => {
-        // eslint-disable-next-line no-console
-        console.debug(`[diag] BrowseNamespace#${serial} entityTypes$ EMIT`, v === undefined ? 'undefined' : JSON.stringify(v).slice(0, 200));
-        return v;
-      }));
-    }
-    return self.__entityTypesDiag__;
+  entityTypes(): CacheObservable<string[]> {
+    return CacheObservable.from(this.entityTypesCache.observe(ENTITY_TYPES_KEY));
   }
 
-  referencedBy(resourceId: ResourceId): Observable<ReferencedByEntry[] | undefined> {
-    return this.referencedByCache.observe(resourceId);
+  referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
+    return CacheObservable.from(this.referencedByCache.observe(resourceId));
   }
 
-  events(resourceId: ResourceId): Observable<StoredEventResponse[] | undefined> {
-    return this.resourceEventsCache.observe(resourceId);
+  events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]> {
+    return CacheObservable.from(this.resourceEventsCache.observe(resourceId));
   }
 
   // ── One-shot reads ──────────────────────────────────────────────────────

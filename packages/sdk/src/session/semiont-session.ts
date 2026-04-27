@@ -34,10 +34,12 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
+  baseUrl,
   type AccessToken,
+  type BaseUrl,
 } from '@semiont/core';
 import type { components, EventMap } from '@semiont/core';
-import { SemiontClient, APIError } from '../client';
+import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
 import type { ConnectionState } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 import {
@@ -47,6 +49,7 @@ import {
   parseJwtExpiry,
   REFRESH_BEFORE_EXP_MS,
   sessionKey,
+  setStoredSession,
   type StoredSession,
 } from './storage';
 import { SemiontError } from './errors';
@@ -318,5 +321,127 @@ export class SemiontSession {
 
     this.token$.complete();
     this.user$.complete();
+  }
+
+  /**
+   * Convenience factory for the default HTTP setup. Constructs the
+   * shared `BehaviorSubject<AccessToken | null>`, an `HttpTransport`,
+   * an `HttpContentTransport`, and a `SemiontClient`, then wires
+   * the session over them. Removes the load-bearing
+   * "same-token$-instance" invariant from the caller's hands.
+   *
+   * Strings are accepted for `baseUrl` and `token`; they are branded
+   * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.
+   *
+   * The remaining options (`refresh`, `validate`, `onAuthFailed`,
+   * `onError`) match `SemiontSessionConfig` exactly.
+   */
+  static fromHttp(opts: {
+    kb: KnowledgeBase;
+    storage: SessionStorage;
+    baseUrl: BaseUrl | string;
+    token?: AccessToken | string | null;
+    refresh?: () => Promise<string | null>;
+    validate?: (token: AccessToken) => Promise<UserInfo | null>;
+    onAuthFailed?: (message: string | null) => void;
+    onError?: (err: SemiontError) => void;
+  }): SemiontSession {
+    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
+    const tok = opts.token == null
+      ? null
+      : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
+    const token$ = new BehaviorSubject<AccessToken | null>(tok);
+    const transport = new HttpTransport({ baseUrl: url, token$ });
+    const content = new HttpContentTransport(transport);
+    const client = new SemiontClient(transport, content);
+    const config: SemiontSessionConfig = { kb: opts.kb, storage: opts.storage, client, token$ };
+    if (opts.refresh) config.refresh = opts.refresh;
+    if (opts.validate) config.validate = opts.validate;
+    if (opts.onAuthFailed) config.onAuthFailed = opts.onAuthFailed;
+    if (opts.onError) config.onError = opts.onError;
+    return new SemiontSession(config);
+  }
+
+  /**
+   * Async factory for the credentials-first long-running script case.
+   * Builds the transport stack, calls `auth.password(email, password)`
+   * to acquire access + refresh tokens, persists them via the storage
+   * adapter, wires a default `refresh` callback that exchanges the
+   * refresh token via `auth.refresh(...)`, and returns the ready
+   * session.
+   *
+   * The consumer-supplied `refresh` callback becomes optional — only
+   * needed for non-standard refresh flows (worker-pool shared secret,
+   * OAuth refresh-token grant, interactive re-prompt). The default
+   * uses the refresh token returned by `auth.password`.
+   *
+   * `kb` is required and must be a full `KnowledgeBase`. The `id` field
+   * is the storage key for this session — distinct scripts sharing the
+   * same `SessionStorage` instance must use distinct ids to avoid
+   * trampling each other's tokens. The factory does not synthesize a
+   * default; the consumer makes the choice.
+   *
+   * Throws on auth failure with no resources leaked. On success, the
+   * returned session's `ready` promise has already resolved.
+   */
+  static async signIn(opts: {
+    kb: KnowledgeBase;
+    storage: SessionStorage;
+    baseUrl: BaseUrl | string;
+    email: string;
+    password: string;
+    validate?: (token: AccessToken) => Promise<UserInfo | null>;
+    onAuthFailed?: (message: string | null) => void;
+    onError?: (err: SemiontError) => void;
+  }): Promise<SemiontSession> {
+    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
+
+    // Phase 1: build a transient transport with no token, authenticate,
+    // and capture the full StoredSession from the response.
+    const token$ = new BehaviorSubject<AccessToken | null>(null);
+    const transport = new HttpTransport({ baseUrl: url, token$ });
+    const content = new HttpContentTransport(transport);
+    const client = new SemiontClient(transport, content);
+
+    let auth: components['schemas']['AuthResponse'];
+    try {
+      auth = await client.auth.password(opts.email, opts.password);
+    } catch (err) {
+      client.dispose();
+      throw err;
+    }
+
+    setStoredSession(opts.storage, opts.kb.id, { access: auth.token, refresh: auth.refreshToken });
+    token$.next(accessToken(auth.token));
+
+    // Phase 2: wire a default refresh callback that uses the stored
+    // refresh token (read at refresh time, not capture-time, so storage
+    // updates from elsewhere are honored). The session itself updates
+    // storage on each successful refresh, so this stays in sync.
+    const defaultRefresh = async (): Promise<string | null> => {
+      const stored = getStoredSession(opts.storage, opts.kb.id);
+      if (!stored) return null;
+      try {
+        const response = await client.auth.refresh(stored.refresh);
+        return response.access_token;
+      } catch {
+        return null;
+      }
+    };
+
+    const config: SemiontSessionConfig = {
+      kb: opts.kb,
+      storage: opts.storage,
+      client,
+      token$,
+      refresh: defaultRefresh,
+    };
+    if (opts.validate) config.validate = opts.validate;
+    if (opts.onAuthFailed) config.onAuthFailed = opts.onAuthFailed;
+    if (opts.onError) config.onError = opts.onError;
+
+    const session = new SemiontSession(config);
+    await session.ready;
+    return session;
   }
 }

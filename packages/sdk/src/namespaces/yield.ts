@@ -1,4 +1,4 @@
-import { Observable, merge } from 'rxjs';
+import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import type {
   ResourceId,
@@ -9,6 +9,7 @@ import type {
 
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
+import { StreamObservable } from '../awaitable';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -49,8 +50,8 @@ export class YieldNamespace implements IYieldNamespace {
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options: GenerationOptions,
-  ): Observable<YieldGenerationEvent> {
-    return new Observable((subscriber) => {
+  ): StreamObservable<YieldGenerationEvent> {
+    return new StreamObservable<YieldGenerationEvent>((subscriber) => {
       let done = false;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
       let pollInterval: ReturnType<typeof setInterval> | null = null;

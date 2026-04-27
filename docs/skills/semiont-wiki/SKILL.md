@@ -20,57 +20,43 @@ Steps 3-5 run per annotation in a loop. The threshold between "bind to existing"
 
 ## Client setup
 
-All steps share one `SemiontClient` constructed over `HttpTransport`. For long-running scripts that may span token expiry, swap in `SemiontSession` from `@semiont/sdk` instead — it owns refresh, validation, and storage; the lighter pattern here is right for one-shot work.
+All steps share one `SemiontClient` constructed via `SemiontClient.signIn(...)`. For long-running scripts that may span token expiry, swap in `SemiontSession.signIn(...)` — it owns refresh, validation, and storage; the lighter pattern here is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
 
 ```typescript
 import {
   SemiontClient,
-  HttpTransport,
-  HttpContentTransport,
-} from '@semiont/sdk';
-import {
-  accessToken,
   annotationId,
-  baseUrl,
   entityType,
   resourceId,
-  type AccessToken,
   type GatheredContext,
-} from '@semiont/core';
-import { BehaviorSubject, firstValueFrom, lastValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+} from '@semiont/sdk';
 
-const token$ = new BehaviorSubject<AccessToken | null>(
-  accessToken(process.env.SEMIONT_ACCESS_TOKEN ?? ''),
-);
-const transport = new HttpTransport({
-  baseUrl: baseUrl(process.env.SEMIONT_API_URL ?? 'http://localhost:4000'),
-  token$,
+const semiont = await SemiontClient.signIn({
+  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  email: process.env.SEMIONT_USER_EMAIL!,
+  password: process.env.SEMIONT_USER_PASSWORD!,
 });
-const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
 ```
 
 ## Step 1 — Detect entity references (Mark)
 
-`semiont.mark.assist(...)` handles SSE streaming, progress tracking, and timeout (180 s without progress) internally.
+`semiont.mark.assist(...)` handles SSE streaming, progress tracking, and timeout (180 s without progress) internally. The returned `StreamObservable` is awaitable directly — `await` resolves with the final progress event.
 
 ```typescript
 const rId = resourceId('doc-123');
 
-const markProgress = await lastValueFrom(
-  semiont.mark.assist(rId, 'linking', {
-    entityTypes: [entityType('Location'), entityType('Person')],
-  }),
-);
+const markProgress = await semiont.mark.assist(rId, 'linking', {
+  entityTypes: [entityType('Location'), entityType('Person')],
+});
 console.log(`Detected ${markProgress.progress?.createdCount ?? 0} references`);
 ```
 
 ## Step 2 — List unresolved references
 
+`semiont.browse.annotations(...)` returns a `CacheObservable` — `await` resolves with the loaded annotation list (skipping the initial `undefined` "loading" state).
+
 ```typescript
-const annotations = await firstValueFrom(
-  semiont.browse.annotations(rId).pipe(filter((a) => a !== undefined)),
-);
+const annotations = await semiont.browse.annotations(rId);
 
 const unresolved = annotations.filter(
   (ann) => ann.motivation === 'linking' &&
@@ -92,18 +78,14 @@ for (const ann of unresolved) {
   const selectedText = ann.target?.selector?.exact ?? '';
 
   // Step 3 — Gather LLM context
-  const gatherComplete = await lastValueFrom(
-    semiont.gather.annotation(annId, rId, { contextWindow: 2000 }),
-  );
+  const gatherComplete = await semiont.gather.annotation(annId, rId, { contextWindow: 2000 });
   const context = gatherComplete.response as GatheredContext;
 
   // Step 4 — Match against the KB
-  const matchResult = await lastValueFrom(
-    semiont.match.search(rId, annId, context, {
-      limit: 10,
-      useSemanticScoring: true,
-    }),
-  );
+  const matchResult = await semiont.match.search(rId, annId, context, {
+    limit: 10,
+    useSemanticScoring: true,
+  });
   const top = matchResult.response[0];
 
   if (top && (top.score ?? 0) >= MATCH_THRESHOLD) {
@@ -115,13 +97,11 @@ for (const ann of unresolved) {
     console.log(`Bound "${selectedText}" -> ${top.name} (score ${top.score})`);
   } else {
     // Step 5b — Generate a new resource and bind
-    const yieldProgress = await lastValueFrom(
-      semiont.yield.fromAnnotation(rId, annId, {
-        title: selectedText,
-        storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
-        context,
-      }),
-    );
+    const yieldProgress = await semiont.yield.fromAnnotation(rId, annId, {
+      title: selectedText,
+      storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
+      context,
+    });
     const newResourceId = yieldProgress.result?.resourceId;
     if (!newResourceId) throw new Error('yield.fromAnnotation did not return a resourceId');
 
@@ -141,51 +121,31 @@ semiont.dispose();
 ```typescript
 import {
   SemiontClient,
-  HttpTransport,
-  HttpContentTransport,
-} from '@semiont/sdk';
-import {
-  accessToken,
   annotationId,
-  baseUrl,
   entityType,
   resourceId,
-  type AccessToken,
   type GatheredContext,
-} from '@semiont/core';
-import { BehaviorSubject, firstValueFrom, lastValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+} from '@semiont/sdk';
 
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location')
   .split(',')
   .map((t) => entityType(t.trim()));
 
-function createClient(): SemiontClient {
-  const token$ = new BehaviorSubject<AccessToken | null>(
-    accessToken(process.env.SEMIONT_ACCESS_TOKEN ?? ''),
-  );
-  const transport = new HttpTransport({
-    baseUrl: baseUrl(process.env.SEMIONT_API_URL ?? 'http://localhost:4000'),
-    token$,
-  });
-  return new SemiontClient(transport, new HttpContentTransport(transport));
-}
-
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
-  const semiont = createClient();
+  const semiont = await SemiontClient.signIn({
+    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+    email: process.env.SEMIONT_USER_EMAIL!,
+    password: process.env.SEMIONT_USER_PASSWORD!,
+  });
   const rId = resourceId(resourceIdStr);
 
   // Step 1 — Detect entity references
   console.log('Detecting entity references...');
-  await lastValueFrom(
-    semiont.mark.assist(rId, 'linking', { entityTypes: ENTITY_TYPES }),
-  );
+  await semiont.mark.assist(rId, 'linking', { entityTypes: ENTITY_TYPES });
 
   // Step 2 — Find unresolved references
-  const annotations = await firstValueFrom(
-    semiont.browse.annotations(rId).pipe(filter((a) => a !== undefined)),
-  );
+  const annotations = await semiont.browse.annotations(rId);
   const unresolved = annotations.filter(
     (ann) => ann.motivation === 'linking' &&
              !ann.body?.some((b) => b.type === 'SpecificResource'),
@@ -197,17 +157,13 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
     const annId = annotationId(ann.id);
     const selectedText = ann.target?.selector?.exact ?? '';
 
-    const gatherComplete = await lastValueFrom(
-      semiont.gather.annotation(annId, rId, { contextWindow: 2000 }),
-    );
+    const gatherComplete = await semiont.gather.annotation(annId, rId, { contextWindow: 2000 });
     const context = gatherComplete.response as GatheredContext;
 
-    const matchResult = await lastValueFrom(
-      semiont.match.search(rId, annId, context, {
-        limit: 10,
-        useSemanticScoring: true,
-      }),
-    );
+    const matchResult = await semiont.match.search(rId, annId, context, {
+      limit: 10,
+      useSemanticScoring: true,
+    });
     const top = matchResult.response[0];
 
     if (top && (top.score ?? 0) >= MATCH_THRESHOLD) {
@@ -217,13 +173,11 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
       }]);
       console.log(`Bound "${selectedText}" -> ${top.name} (score ${top.score})`);
     } else {
-      const yieldProgress = await lastValueFrom(
-        semiont.yield.fromAnnotation(rId, annId, {
-          title: selectedText,
-          storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
-          context,
-        }),
-      );
+      const yieldProgress = await semiont.yield.fromAnnotation(rId, annId, {
+        title: selectedText,
+        storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
+        context,
+      });
       const newResourceId = yieldProgress.result?.resourceId;
       if (!newResourceId) throw new Error('yield.fromAnnotation did not return a resourceId');
 
@@ -261,4 +215,4 @@ runWikiPipeline(target).catch((e) => {
 - **To run on multiple resources**, loop over results from `semiont.browse.resources()` and call `runWikiPipeline` per resource.
 - **If detection produces no annotations**, the document may not contain the requested entity types, or the format may not be supported (`text/plain` and `text/markdown` only; PDFs and images not yet supported).
 - **Timeout handling is built into the namespace methods.** `mark.assist` times out after 180 s without progress; `gather.annotation` completes on the `gather:complete` bus event; `yield.fromAnnotation` handles 300 s-per-progress timeout and polling fallback. No manual timeout code is needed.
-- **Progress observability** — if a caller wants to watch progress during a long step, subscribe to the Observable directly instead of `await lastValueFrom(...)`. Each emission is a progress snapshot; the Observable completes on success and errors on failure.
+- **Progress observability** — if a caller wants to watch progress during a long step, call `.subscribe(...)` on the returned `StreamObservable` instead of awaiting it. Each emission is a progress snapshot; the Observable completes on success and errors on failure. Awaiting yields the final emission only.

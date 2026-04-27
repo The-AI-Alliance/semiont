@@ -53,13 +53,17 @@ semiont match doc-123 ann-456
 semiont bind doc-123 ann-456 target-789
 ```
 
-**[Semiont SDK](packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. Calls go through a connected `SemiontSession` (see the [SDK README](packages/sdk/README.md) for session setup):
+**[Semiont SDK](packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. `SemiontClient.signIn(...)` is the credentials-first one-line construction for scripts. Long-running scripts that span token expiry use `SemiontSession.signIn(...)` instead — same shape, plus refresh and persistence (see the [SDK README](packages/sdk/README.md)).
 
 ```typescript
-await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
-const context = await lastValueFrom(session.client.gather.annotation(annId, resourceId));
-const results = await firstValueFrom(session.client.match.search(resourceId, refId, context));
-await session.client.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
+import { SemiontClient } from '@semiont/sdk';
+
+const semiont = await SemiontClient.signIn({ baseUrl: 'http://localhost:4000', email, password });
+
+await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
+const context = await semiont.gather.annotation(annId, resourceId);
+const results = await semiont.match.search(resourceId, refId, context);
+await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
 ```
 
 **[Agent Skills](docs/skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code can use to drive the full pipeline without writing integration code.

@@ -22,85 +22,56 @@ If none of those apply, stay on the lighter pattern.
 
 ## Setup
 
+`SemiontSession.signIn(...)` is the credentials-first long-running construction. It calls `auth.password(email, password)`, persists both access and refresh tokens via the storage adapter, wires a default `refresh` callback that exchanges the refresh token via `auth.refresh(...)`, and returns the ready session. You don't write a refresh callback; the session uses the refresh token returned by `signIn`.
+
+`kb` is required — the `id` field is the storage key for this session. Distinct scripts sharing the same `SessionStorage` instance must use distinct `id`s to avoid trampling each other's tokens. There is no default; the factory makes you choose.
+
 ```typescript
 import {
-  SemiontClient,
   SemiontSession,
-  HttpTransport,
-  HttpContentTransport,
   InMemorySessionStorage,
-  setStoredSession,
   type KnowledgeBase,
 } from '@semiont/sdk';
-import {
-  accessToken,
-  baseUrl,
-  type AccessToken,
-} from '@semiont/core';
-import { BehaviorSubject } from 'rxjs';
 
 const apiUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
 const apiUrlObj = new URL(apiUrl);
 
 const kb: KnowledgeBase = {
-  id: 'watcher',
+  id: 'watcher',                                 // storage key — must be unique per script
   label: 'Long-running watcher',
   protocol: apiUrlObj.protocol.replace(':', '') as 'http' | 'https',
   host: apiUrlObj.hostname,
   port: Number(apiUrlObj.port || (apiUrlObj.protocol === 'https:' ? 443 : 80)),
-  email: process.env.SEMIONT_USER_EMAIL ?? 'script@local',
+  email: process.env.SEMIONT_USER_EMAIL!,
 };
 
-// 1. Storage. InMemorySessionStorage is fine for daemons that re-authenticate
+// Storage. InMemorySessionStorage is fine for daemons that re-authenticate
 // at startup; for scripts that should survive process restarts, write a
 // filesystem adapter (skeleton below).
 const storage = new InMemorySessionStorage();
 
-// 2. Seed the storage with the initial token before the session reads it.
-setStoredSession(storage, kb.id, {
-  access: process.env.SEMIONT_ACCESS_TOKEN ?? '',
-  refresh: process.env.SEMIONT_REFRESH_TOKEN ?? '',
-});
-
-// 3. Shared token observable. Same instance flows into both the transport
-// (which reads it for request headers) and the session (which writes
-// refreshed tokens to it).
-const token$ = new BehaviorSubject<AccessToken | null>(
-  accessToken(process.env.SEMIONT_ACCESS_TOKEN ?? ''),
-);
-
-// 4. Build the transport stack and the client.
-const transport = new HttpTransport({ baseUrl: baseUrl(apiUrl), token$ });
-const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
-
-// 5. Construct the session — it owns refresh + validation around the client.
-const session = new SemiontSession({
+const session = await SemiontSession.signIn({
   kb,
   storage,
-  client: semiont,
-  token$,
-  refresh: async () => {
-    const refreshToken = process.env.SEMIONT_REFRESH_TOKEN;
-    if (!refreshToken) return null;
-    try {
-      const response = await semiont.auth.refresh(refreshToken);
-      return response.access_token;   // OpenAPI shape: snake_case
-    } catch {
-      return null;   // null tells the session refresh is impossible; it surfaces via onAuthFailed
-    }
-  },
+  baseUrl: apiUrl,
+  email: process.env.SEMIONT_USER_EMAIL!,
+  password: process.env.SEMIONT_USER_PASSWORD!,
   // Optional `validate` callback runs once on `ready` and populates
   // `session.user$`. Omit for service-principal sessions (workers,
   // scheduled jobs) that have no user record. User-attended scripts
-  // typically set it to `async () => semiont.auth.me()` — adjust the
-  // return shape to `UserInfo` (`components['schemas']['UserResponse']`)
+  // typically set it to `async () => session.client.auth.me()` — adjust
+  // the return shape to `UserInfo` (`components['schemas']['UserResponse']`)
   // if TS complains about the cast.
   onAuthFailed: (msg) => console.error('auth failed, terminal:', msg),
   onError: (err) => console.error('session error:', err.code, err.message),
 });
 
-await session.ready;   // resolves after the initial validate round-trip
+// session.ready has already resolved by the time signIn returns; no extra await needed.
 ```
+
+All verb access goes through `session.client` — the factory wires the same `SemiontClient` you'd construct manually, exposed for use as `session.client.mark.assist(...)`, `session.client.gather.annotation(...)`, and so on.
+
+If your script already has an access token (cached from a prior auth, supplied by an embedding host, or part of a worker-pool shared-secret exchange), use `SemiontSession.fromHttp({ baseUrl, token, storage, kb, refresh, ... })` instead and supply your own `refresh` callback.
 
 ## Filesystem-backed SessionStorage (sketch)
 
@@ -154,12 +125,11 @@ A daemon that watches for fresh `linking` annotations and runs the wiki pipeline
 
 ```typescript
 async function handleNewLinkingAnnotation(resourceIdStr: string, annotationIdStr: string) {
-  // ... gather → match → bind | yield, as in semiont-wiki.
-  // The session's `semiont` client is what you call here:
-  //   await semiont.gather.annotation(...)
-  //   await semiont.match.search(...)
-  //   await semiont.bind.body(...)
-  //   await semiont.yield.fromAnnotation(...)
+  // ... gather → match → bind | yield, as in semiont-wiki:
+  //   await session.client.gather.annotation(...)
+  //   await session.client.match.search(...)
+  //   await session.client.bind.body(...)
+  //   await session.client.yield.fromAnnotation(...)
 }
 
 const unsubAdded = session.subscribe('mark:added', (event) => {
@@ -192,9 +162,9 @@ process.on('SIGTERM', shutdown);
 ## Guidance for the AI assistant
 
 - **Reach for `SemiontSession` only when the script runs longer than one token's lifetime.** For one-shot scripts (annotate a doc, run a pipeline once), the lighter `SemiontClient` pattern in the `semiont-highlight` / `semiont-wiki` skills is correct. Don't add the session's complexity if it isn't earning anything.
-- **The `refresh` callback is the load-bearing part.** Make sure it can return a token without the current one — typically by having a refresh-token cached in storage or env, and calling `semiont.auth.refresh(refreshToken)`. If the callback returns `null`, the session is terminally unauthenticated and `onAuthFailed` fires.
-- **`token$` must be the same `BehaviorSubject` instance** passed to both the transport and the session. The session writes refreshed tokens; the transport reads them. If they're separate observables, refresh appears to succeed but the next request still uses the dead token.
-- **Validate is optional.** Service-principal scripts (workers, scheduled jobs) usually omit it — they have a token but no associated user record. User-attended scripts use `semiont.auth.me()` to populate `user$`.
+- **`SemiontSession.signIn(...)` auto-wires the default refresh.** The factory captures the refresh token returned by `auth.password` and persists it via the storage adapter; the default `refresh` callback reads from storage at refresh time and calls `auth.refresh(...)`. You only write a custom callback when refresh has to come from somewhere else (worker-pool shared secret, OAuth refresh-token grant, interactive re-prompt). For those cases, use `SemiontSession.fromHttp(...)` and supply `refresh`.
+- **`fromHttp` invariants are owned by the factory.** Both `signIn` and `fromHttp` construct the shared `BehaviorSubject<AccessToken>` internally and pass it to both the transport and the session, so the "same-instance" rule is structural. Only matters if you reach below the factory and construct `SemiontSession` directly via the constructor — then you must thread the same `BehaviorSubject` through both `HttpTransport({ token$ })` and `new SemiontSession({ token$, ... })`.
+- **Validate is optional.** Service-principal scripts (workers, scheduled jobs) usually omit it — they have a token but no associated user record. User-attended scripts use `session.client.auth.me()` to populate `user$`.
 - **Storage choice depends on restart behavior.** `InMemorySessionStorage` is fine if the script re-authenticates from env every startup. Persist via filesystem only if you want token state to survive restarts.
-- **Subscriptions are typed.** Use `session.subscribe(channel, handler)` for arbitrary channels; for verb-specific operations, prefer the namespace methods (`semiont.mark.assist(...)` etc.) — they handle SSE streaming, timeout, and progress tracking internally.
+- **Subscriptions are typed.** Use `session.subscribe(channel, handler)` for arbitrary channels; for verb-specific operations, prefer the namespace methods (`session.client.mark.assist(...)` etc.) — they handle SSE streaming, timeout, and progress tracking internally.
 - **Always dispose on shutdown.** `session.dispose()` cancels the proactive-refresh timer and disposes the client; without it, the SSE connection holds the event loop open.

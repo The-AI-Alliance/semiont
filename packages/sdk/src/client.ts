@@ -13,8 +13,9 @@
  * `client.bus`.
  */
 
-import type { ResourceId, BaseUrl } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import type { ResourceId, BaseUrl, AccessToken } from '@semiont/core';
+import { EventBus, accessToken, baseUrl } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
@@ -27,9 +28,17 @@ import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
 import type { ITransport, IContentTransport } from '@semiont/core';
 
-// Convenience re-exports of the HTTP adapters from @semiont/api-client so
-// consumers can `import { SemiontClient, HttpTransport } from '@semiont/sdk'`
-// without a separate api-client import. Non-HTTP transports
+// Local imports of the HTTP adapters from @semiont/api-client — needed
+// here so `SemiontClient.fromHttp(...)` can construct them. The same
+// names are re-exported below for consumer convenience, so
+// `import { SemiontClient, HttpTransport } from '@semiont/sdk'` Just Works
+// without a separate api-client import.
+import {
+  HttpTransport,
+  HttpContentTransport,
+} from '@semiont/api-client';
+
+// Convenience re-exports of the HTTP adapters. Non-HTTP transports
 // (e.g. LocalTransport from @semiont/make-meaning) are wired directly by
 // callers; the sdk does not pre-bundle them.
 export {
@@ -116,5 +125,77 @@ export class SemiontClient {
   dispose(): void {
     this.transport.dispose();
     this.content.dispose();
+  }
+
+  /**
+   * Convenience factory for the default HTTP setup. Constructs a
+   * `BehaviorSubject<AccessToken | null>` internally, plus an
+   * `HttpTransport` and `HttpContentTransport`, and returns the wired
+   * `SemiontClient`.
+   *
+   * Use this for one-shot scripts, CLI commands, or any consumer that
+   * doesn't need to drive the token from outside (no manual refresh,
+   * no cross-tab sync). For long-running scripts that need refresh,
+   * use `SemiontSession.fromHttp(...)` instead — it owns the same
+   * transport/client wiring plus the proactive-refresh + storage
+   * machinery.
+   *
+   * Strings are accepted for `baseUrl` and `token`; they are branded
+   * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.
+   * Pass the already-branded values if you have them.
+   *
+   * Omit `token` for unauthenticated usage (public endpoints only).
+   */
+  static fromHttp(opts: {
+    baseUrl: BaseUrl | string;
+    token?: AccessToken | string | null;
+  }): SemiontClient {
+    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
+    const tok = opts.token == null
+      ? null
+      : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
+    const token$ = new BehaviorSubject<AccessToken | null>(tok);
+    const transport = new HttpTransport({ baseUrl: url, token$ });
+    const content = new HttpContentTransport(transport);
+    return new SemiontClient(transport, content);
+  }
+
+  /**
+   * Async factory for the credentials-first script case. Builds a
+   * transient transport, calls `auth.password(email, password)` to
+   * acquire an access token, and returns the wired client with the
+   * token populated.
+   *
+   * This is the right entry point for skills, CLI scripts, and any
+   * consumer that starts with email + password rather than a JWT
+   * already on hand. For consumers that already hold a token (CLI
+   * cached-token path, env-var token, embedded auth flow), use
+   * `fromHttp({ baseUrl, token })` instead.
+   *
+   * For long-running scripts that need refresh, use
+   * `SemiontSession.signIn(...)` — same credentials shape, plus the
+   * session machinery for proactive refresh and persistence.
+   *
+   * Throws if authentication fails. The transient client is disposed
+   * before the throw, so no resources leak on failure.
+   */
+  static async signIn(opts: {
+    baseUrl: BaseUrl | string;
+    email: string;
+    password: string;
+  }): Promise<SemiontClient> {
+    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
+    const token$ = new BehaviorSubject<AccessToken | null>(null);
+    const transport = new HttpTransport({ baseUrl: url, token$ });
+    const content = new HttpContentTransport(transport);
+    const client = new SemiontClient(transport, content);
+    try {
+      const auth = await client.auth.password(opts.email, opts.password);
+      token$.next(accessToken(auth.token));
+      return client;
+    } catch (err) {
+      client.dispose();
+      throw err;
+    }
   }
 }

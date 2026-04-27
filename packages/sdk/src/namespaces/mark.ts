@@ -1,4 +1,4 @@
-import { Observable, merge } from 'rxjs';
+import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import type {
   ResourceId,
@@ -9,6 +9,7 @@ import type {
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
+import { StreamObservable } from '../awaitable';
 import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
@@ -54,8 +55,8 @@ export class MarkNamespace implements IMarkNamespace {
     await this.transport.emit('mark:unarchive', { resourceId });
   }
 
-  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistEvent> {
-    return new Observable((subscriber) => {
+  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent> {
+    return new StreamObservable<MarkAssistEvent>((subscriber) => {
       let done = false;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
       let pollInterval: ReturnType<typeof setInterval> | null = null;

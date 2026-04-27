@@ -1,23 +1,33 @@
 /**
  * Verb Namespace Interfaces
  *
- * These interfaces define the public API of the Semiont api-client,
- * organized by the 7 domain flows (Browse, Mark, Bind, Gather, Match,
- * Yield, Beckon) plus infrastructure namespaces (Job, Auth, Admin).
+ * These interfaces define the public API of `@semiont/sdk`, organized by
+ * the 7 domain flows (Browse, Mark, Bind, Gather, Match, Yield, Beckon)
+ * plus infrastructure namespaces (Job, Auth, Admin).
  *
- * Each namespace maps 1:1 to a flow. Each flow maps to a clear actor
- * on the backend. The frontend calls `client.mark.annotation()` and the
- * proxy handles HTTP, auth, SSE, and caching internally.
+ * Each namespace maps 1:1 to a flow. Each flow maps to a clear actor on
+ * the backend. The frontend calls `client.mark.annotation()` and the
+ * client handles HTTP, auth, SSE, and caching internally.
  *
  * Return type conventions:
- * - Browse live queries → Observable (bus gateway driven, cached)
- * - Browse one-shot reads → Promise (fetch once, no cache)
- * - Commands (mark, bind, yield.resource) → Promise (fire-and-forget)
- * - Long-running ops (gather, match, yield.fromAnnotation, mark.assist) → Observable (progress + result)
- * - Ephemeral signals (beckon) → void
+ * - Browse live queries → `CacheObservable<T>` (bus-driven, cached;
+ *   subscribe yields `T | undefined`, await yields `T` after first load)
+ * - Browse one-shot reads → `Promise<T>` (fetch once, no cache)
+ * - Commands (mark, bind, yield.resource) → `Promise<T>` (atomic ops)
+ * - Long-running ops (gather, match, yield.fromAnnotation, mark.assist)
+ *   → `StreamObservable<T>` (progress + result; subscribe yields every
+ *   emit, await yields the last one)
+ * - Ephemeral signals (beckon) → `void`
+ *
+ * `StreamObservable` and `CacheObservable` are `Observable` subclasses
+ * that also implement `PromiseLike<T>` — `await client.X.Y(...)` works
+ * directly without `lastValueFrom`/`firstValueFrom` wrappers.
+ * `.pipe(...)` returns a plain `Observable<T>` (the thenable subclass
+ * does not propagate through pipe — by design).
  */
 
 import type { Observable } from 'rxjs';
+import type { StreamObservable, CacheObservable } from '../awaitable';
 import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
@@ -168,13 +178,13 @@ export type YieldGenerationEvent =
  */
 export interface BrowseNamespace {
   // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
-  resource(resourceId: ResourceId): Observable<ResourceDescriptor | undefined>;
-  resources(filters?: { limit?: number; archived?: boolean; search?: string }): Observable<ResourceDescriptor[] | undefined>;
-  annotations(resourceId: ResourceId): Observable<Annotation[] | undefined>;
-  annotation(resourceId: ResourceId, annotationId: AnnotationId): Observable<Annotation | undefined>;
-  entityTypes(): Observable<string[] | undefined>;
-  referencedBy(resourceId: ResourceId): Observable<ReferencedByEntry[] | undefined>;
-  events(resourceId: ResourceId): Observable<StoredEventResponse[] | undefined>;
+  resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
+  resources(filters?: { limit?: number; archived?: boolean; search?: string }): CacheObservable<ResourceDescriptor[]>;
+  annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;
+  annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
+  entityTypes(): CacheObservable<string[]>;
+  referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
+  events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]>;
 
   // One-shot reads (Promise — no caching, no live update)
   resourceContent(resourceId: ResourceId): Promise<string>;
@@ -215,8 +225,8 @@ export interface MarkNamespace {
   archive(resourceId: ResourceId): Promise<void>;
   unarchive(resourceId: ResourceId): Promise<void>;
 
-  // AI-assisted annotation (long-running, returns Observable with progress + final result)
-  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistEvent>;
+  // AI-assisted annotation (long-running; emits progress, completes with the final event)
+  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent>;
 
   // UI signals (fire-and-forget bus emits, local-bus fan-out)
   request(
@@ -274,12 +284,12 @@ export interface GatherNamespace {
     annotationId: AnnotationId,
     resourceId: ResourceId,
     options?: { contextWindow?: number },
-  ): Observable<GatherAnnotationProgress>;
+  ): StreamObservable<GatherAnnotationProgress>;
 
   resource(
     resourceId: ResourceId,
     options?: { contextWindow?: number },
-  ): Observable<GatherAnnotationProgress>;
+  ): StreamObservable<GatherAnnotationProgress>;
 }
 
 /**
@@ -297,7 +307,7 @@ export interface MatchNamespace {
     referenceId: string,
     context: GatheredContext,
     options?: { limit?: number; useSemanticScoring?: boolean },
-  ): Observable<MatchSearchProgress>;
+  ): StreamObservable<MatchSearchProgress>;
 
   /** Fire-and-forget variant: match-vm orchestrates the call and its result Observable. */
   requestSearch(input: components['schemas']['MatchSearchRequest']): void;
@@ -321,7 +331,7 @@ export interface YieldNamespace {
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options: GenerationOptions,
-  ): Observable<YieldGenerationEvent>;
+  ): StreamObservable<YieldGenerationEvent>;
 
   // Clone
   cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }>;
