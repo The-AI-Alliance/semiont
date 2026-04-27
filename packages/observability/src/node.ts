@@ -25,8 +25,9 @@
  * blowing up bundles for every consumer.
  */
 
-import { context, metrics, trace } from '@opentelemetry/api';
+import { context, metrics, propagation, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
@@ -100,6 +101,14 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   // cohort.
   context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
   trace.setGlobalTracerProvider(tracerProviderInstance);
+
+  // W3C trace-context propagator. Without this, `propagation.inject`
+  // and `propagation.extract` walk an empty propagator chain and
+  // silently do nothing — which means traceparent never makes it onto
+  // outgoing HTTP headers or SSE `_trace` payloads, and cross-service
+  // traces stay disconnected. NodeSDK registers this for you; bare
+  // BasicTracerProvider does not.
+  propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
   // Metric SDK — same exporter selection as traces.
   const metricExporter = endpoint ? new OTLPMetricExporter() : new ConsoleMetricExporter();

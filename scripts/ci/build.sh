@@ -8,9 +8,15 @@ set -euo pipefail
 #   ./scripts/ci/build.sh --package cli,backend   # build only CLI and backend
 #   ./scripts/ci/build.sh --start-from react-ui   # skip packages before react-ui
 #
-# Build order (deterministic):
-#   api-client, ontology, core, content, event-sourcing, graph, inference,
-#   vectors, jobs, make-meaning, react-ui, backend, frontend, cli
+# The list of packages and the build order come from `version.json`
+# (the workspace's single source of truth for the package manifest).
+# Each entry's `dir` field's basename is the bare name used by the
+# `--package` / `--start-from` CLI args.
+#
+# Library packages (under `packages/`) are built first, in the order
+# version.json lists them. Apps (`backend`, `frontend`, `cli`) are
+# built after libraries — `cli` last because it bundles the staged
+# frontend artifacts.
 #
 # Dependencies are always installed. OpenAPI spec is always bundled.
 
@@ -41,8 +47,29 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Full build order
-ALL=(api-client ontology core observability content event-sourcing graph inference vectors jobs make-meaning react-ui backend frontend cli)
+# Read package manifest. ALL = bare names (basename of each `dir`) in
+# the order version.json lists them, restricted to packages that ship
+# to npm. Non-publishable entries (test-utils, mcp-server, desktop) are
+# out of scope for this script — desktop in particular has a Rust/Tauri
+# build that doesn't run in the CI node container.
+read_manifest() {
+  node -e "
+    const fs = require('fs');
+    const v = JSON.parse(fs.readFileSync('version.json', 'utf-8'));
+    for (const [name, pkg] of Object.entries(v.packages)) {
+      if (!pkg.publish) continue;
+      const pkgJson = JSON.parse(fs.readFileSync(pkg.dir + '/package.json', 'utf-8'));
+      if (pkgJson.scripts && pkgJson.scripts.build) {
+        const bare = pkg.dir.split('/').pop();
+        const kind = pkg.dir.startsWith('packages/') ? 'lib' : 'app';
+        console.log(bare + '\t' + name + '\t' + kind);
+      }
+    }
+  "
+}
+
+MANIFEST=$(read_manifest)
+ALL=($(echo "$MANIFEST" | awk '{print $1}'))
 
 # Resolve which packages to build
 if [[ -n "$START_FROM" ]]; then
@@ -87,39 +114,40 @@ npm run openapi:bundle
 
 banner "BUILD LIBRARY PACKAGES"
 
-LIBS=(core observability api-client ontology content event-sourcing graph inference vectors jobs make-meaning react-ui)
-for pkg in "${LIBS[@]}"; do
-  if should_build "$pkg"; then
-    step "Building @semiont/$pkg..."
-    npm run build --workspace=@semiont/$pkg
-    ok "@semiont/$pkg"
+# Iterate the manifest in order; build everything tagged `lib`.
+while IFS=$'\t' read -r bare name kind; do
+  [[ "$kind" == "lib" ]] || continue
+  if should_build "$bare"; then
+    step "Building $name..."
+    npm run build --workspace="$name"
+    ok "$name"
   fi
-done
+done <<< "$MANIFEST"
 
 # --- Apps ---
 
 banner "BUILD APPS"
 
-if should_build backend; then
-  step "Building backend..."
-  (cd apps/backend && npm run build)
-  ok "backend"
-fi
+# Build any non-cli apps first (backend / frontend / desktop).
+while IFS=$'\t' read -r bare name kind; do
+  [[ "$kind" == "app" && "$bare" != "cli" ]] || continue
+  if should_build "$bare"; then
+    step "Building $name..."
+    npm run build --workspace="$name"
+    ok "$name"
+  fi
+done <<< "$MANIFEST"
 
-if should_build frontend; then
-  step "Building frontend..."
-  (cd apps/frontend && npm run build)
-  ok "frontend"
-fi
-
-# Stage frontend before CLI — the CLI bundles dist/frontend/ from .npm-stage/frontend
+# Stage backend + frontend, then build CLI — the CLI bundles
+# dist/frontend/ from .npm-stage/frontend, so staging must happen
+# between the frontend build and the cli build.
 if should_build cli; then
   step "Staging apps for CLI bundling..."
   node scripts/ci/publish-npm-apps.mjs
   ok "Apps staged"
 
   step "Building CLI..."
-  (cd apps/cli && npm run build)
+  npm run build --workspace=@semiont/cli
   ok "CLI"
 fi
 

@@ -67,44 +67,36 @@ node -e "
 
   const versionJson = JSON.parse(fs.readFileSync('version.json', 'utf-8'));
   versionJson.version = version;
-  for (const pkg of Object.keys(versionJson.packages)) {
-    versionJson.packages[pkg] = version;
+  for (const pkg of Object.values(versionJson.packages)) {
+    pkg.version = version;
   }
   fs.writeFileSync('version.json', JSON.stringify(versionJson, null, 2) + '\n');
   console.log('  version.json → ' + version);
 
-  const packages = [
-    'packages/api-client',
-    'packages/ontology',
-    'packages/core',
-    'packages/content',
-    'packages/event-sourcing',
-    'packages/graph',
-    'packages/inference',
-    'packages/vectors',
-    'packages/jobs',
-    'packages/make-meaning',
-    'packages/react-ui',
-  ];
-
-  for (const dir of packages) {
-    const path = dir + '/package.json';
-    const pkg = JSON.parse(fs.readFileSync(path, 'utf-8'));
-    pkg.version = version;
-    fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
-    console.log('  ' + pkg.name + ' → ' + version);
-  }
-
-  const cliPath = 'apps/cli/package.json';
-  const cli = JSON.parse(fs.readFileSync(cliPath, 'utf-8'));
-  cli.version = version;
-  for (const dep of Object.keys(cli.dependencies || {})) {
-    if (dep.startsWith('@semiont/')) {
-      cli.dependencies[dep] = version;
+  // Stamp every package.json that has a corresponding entry in
+  // version.json — including non-published ones (test-utils,
+  // mcp-server, desktop) so the workspace stays version-coherent.
+  // Bump cross-references to other @semiont/* packages too, so
+  // published tarballs install against the new version on registries
+  // that don't honor workspace ranges.
+  for (const pkg of Object.values(versionJson.packages)) {
+    const path = pkg.dir + '/package.json';
+    const json = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    json.version = version;
+    for (const section of ['dependencies', 'devDependencies', 'peerDependencies']) {
+      if (!json[section]) continue;
+      for (const dep of Object.keys(json[section])) {
+        if (dep.startsWith('@semiont/') || dep.startsWith('semiont-')) {
+          // Don't touch '*' workspace ranges — npm resolves those at publish time.
+          if (json[section][dep] !== '*') {
+            json[section][dep] = version;
+          }
+        }
+      }
     }
+    fs.writeFileSync(path, JSON.stringify(json, null, 2) + '\n');
+    console.log('  ' + json.name + ' → ' + version);
   }
-  fs.writeFileSync(cliPath, JSON.stringify(cli, null, 2) + '\n');
-  console.log('  ' + cli.name + ' → ' + version + ' (with dependencies)');
 "
 
 # --- Stage app packages ---
@@ -143,27 +135,21 @@ publish_pkg() {
   fi
 }
 
-# Library packages and CLI
-for dir in \
-  packages/core \
-  packages/event-sourcing \
-  packages/content \
-  packages/graph \
-  packages/inference \
-  packages/vectors \
-  packages/jobs \
-  packages/make-meaning \
-  packages/api-client \
-  packages/ontology \
-  packages/react-ui \
-  apps/cli
-do
-  publish_pkg "$dir"
-done
+# Iterate every publishable package in version.json. Output is two
+# tab-separated columns: dir-to-publish-from, label. Apps with a
+# `stage` field publish from .npm-stage/<x> rather than apps/<x>.
+PUBLISH_LIST=$(node -e "
+  const v = JSON.parse(require('fs').readFileSync('version.json', 'utf-8'));
+  for (const pkg of Object.values(v.packages)) {
+    if (!pkg.publish) continue;
+    const dir = pkg.stage || pkg.dir;
+    const label = pkg.stage ? 'staged' : '';
+    console.log(dir + '\t' + label);
+  }
+")
 
-# Staged app packages
-for dir in .npm-stage/backend .npm-stage/frontend; do
-  publish_pkg "$dir" "staged"
-done
+while IFS=$'\t' read -r dir label; do
+  publish_pkg "$dir" "$label"
+done <<< "$PUBLISH_LIST"
 
 banner "PUBLISH COMPLETE ✓"
