@@ -98,7 +98,15 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 
 ## 📦 Published Artifacts
 
-- **NPM Packages** — See [packages/README.md](packages/README.md) for available packages and documentation
+| Artifact | Use it for |
+| --- | --- |
+| **`@semiont/sdk`** ([npm](https://www.npmjs.com/package/@semiont/sdk)) | TypeScript SDK — `SemiontClient`, namespaces, session, view-models. Pair with the HTTP transport for scripts and apps. |
+| **`@semiont/api-client`** ([npm](https://www.npmjs.com/package/@semiont/api-client)) | `HttpTransport` + `HttpContentTransport` — the wire adapter the SDK consumes. |
+| **`@semiont/core`** ([npm](https://www.npmjs.com/package/@semiont/core)) | OpenAPI-generated types, branded IDs, and the event protocol. |
+| **`@semiont/observability`** ([npm](https://www.npmjs.com/package/@semiont/observability)) | OpenTelemetry helpers — `withSpan`, traceparent inject/extract, Node + Web init. |
+| **`ghcr.io/the-ai-alliance/semiont-frontend`** | Browser image — signed with build provenance + SBOM. Pull, run, point at any KB backend. |
+
+See **[packages/README.md](packages/README.md)** for the full layered package list, dependency graph, and the rest of the workspace packages.
 
 ## 📖 Documentation
 
@@ -108,6 +116,7 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 | **[W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md)** | How Semiont implements the W3C standard across all layers |
 | **[Local Development](docs/development/LOCAL-DEVELOPMENT.md)** | Get running locally — prerequisites, configuration, first launch |
 | **[API Reference](specs/docs/API.md)** | HTTP endpoints ([OpenAPI spec](specs/README.md)) |
+| **[SDK](packages/sdk/README.md)** ([Usage](packages/sdk/docs/Usage.md)) | TypeScript SDK guide — namespaces, session, view-models, awaitable observables |
 | **[Packages](packages/README.md)** | All published npm packages with dependency graph |
 | **[Deployment](docs/administration/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
 | **[Observability](docs/administration/OBSERVABILITY.md)** | Tracing, metrics, log correlation, and the `busLog` grep timeline |
@@ -122,63 +131,16 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 | **[Frontend](apps/frontend/README.md)** | Vite + React SPA — annotations, accessibility, i18n, performance |
 | **[CLI](apps/cli/README.md)** | Environment management, service orchestration, deployment commands |
 
-## Core Development & Contributing
+## Contributing
 
-> ⚠️ **Early Development**: Semiont is in active alpha development. The API is not yet stable and breaking changes are expected. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to participate.
+> ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.
 
-[![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
-[![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
-[![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml?query=branch%3Amain)
-[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](apps/frontend/docs/ACCESSIBILITY.md)
+[![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
 [![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 
-**GitHub Codespaces** (Recommended for quick setup):
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
-
-See [.devcontainer/README.md](.devcontainer/README.md) for setup details.
-
-**Local Development**:
-
-Semiont uses a [CLI](apps/cli/README.md) (`semiont`) to initialize projects, provision services, and manage environments. See [LOCAL-DEVELOPMENT.md](docs/development/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to participate, testing guide, and development standards.
-
-## 📁 File Layout
-
-```text
-semiont/
-├── specs/                      # API specifications (spec-first architecture)
-│   ├── src/                    # OpenAPI source files (tracked in git)
-│   │   ├── openapi.json        # Root spec with $ref to all paths/schemas
-│   │   ├── paths/              # Individual endpoint definitions
-│   │   └── components/
-│   │       └── schemas/        # Schema definitions
-│   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
-│   └── docs/                   # API and W3C annotation documentation
-├── apps/                       # Application packages
-│   ├── frontend/               # Vite + React frontend SPA
-│   ├── backend/                # Hono backend API server
-│   └── cli/                    # Semiont management CLI
-├── packages/                   # Shared workspace packages (see packages/README.md)
-│   ├── api-client/             # OpenAPI-generated TypeScript SDK
-│   ├── core/                   # Core types and utilities
-│   ├── event-sourcing/         # Event store and view storage
-│   ├── content/                # Content-addressed storage
-│   ├── graph/                  # Graph database abstraction
-│   ├── ontology/               # Entity types and tag schemas
-│   ├── inference/              # AI prompts, parsers, and text generation
-│   ├── make-meaning/           # Context assembly, detection, reasoning
-│   ├── jobs/                   # Job queue and worker infrastructure
-│   ├── react-ui/               # React components and hooks
-│   ├── mcp-server/             # Model Context Protocol server
-│   └── test-utils/             # Testing utilities and mock factories
-├── docs/                       # System documentation
-└── scripts/                    # Build and utility scripts
-```
-
-**See [packages/README.md](packages/README.md) for detailed package documentation, architecture overview, and dependency graph.**
+- **[Monorepo orientation](docs/development/MONOREPO.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 
 ## 📜 License
 
