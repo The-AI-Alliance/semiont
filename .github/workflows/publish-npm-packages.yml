@@ -74,30 +74,47 @@ jobs:
           VERSION="${{ steps.version.outputs.publish }}"
           TAG="${{ steps.version.outputs.tag }}"
 
-          echo "## Published npm packages" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "**Dist tag:** $TAG" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Library packages:" >> $GITHUB_STEP_SUMMARY
-          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/vectors packages/jobs packages/make-meaning packages/react-ui apps/cli; do
-            NAME=$(node -p "require('./$dir/package.json').name")
-            echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
-          done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### App packages:" >> $GITHUB_STEP_SUMMARY
-          for dir in .npm-stage/backend .npm-stage/frontend; do
-            NAME=$(node -p "require('./$dir/package.json').name")
-            echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
-          done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Install with:" >> $GITHUB_STEP_SUMMARY
-          echo '```bash' >> $GITHUB_STEP_SUMMARY
-          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/vectors packages/jobs packages/make-meaning packages/react-ui; do
-            NAME=$(node -p "require('./$dir/package.json').name")
-            echo "npm install $NAME@$TAG" >> $GITHUB_STEP_SUMMARY
-          done
-          echo "npm install -g @semiont/cli@$TAG" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/backend@$TAG" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/frontend@$TAG" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Pull the published-package list from version.json (the
+          # workspace's single source of truth). Library packages live
+          # under `packages/`; apps under `apps/` (cli) or `.npm-stage/`
+          # (backend, frontend, via the `stage` field).
+          MANIFEST=$(node -e "
+            const v = JSON.parse(require('fs').readFileSync('version.json', 'utf-8'));
+            for (const [name, pkg] of Object.entries(v.packages)) {
+              if (!pkg.publish) continue;
+              const kind = pkg.dir.startsWith('packages/') ? 'lib' : 'app';
+              console.log([name, kind].join('\t'));
+            }
+          ")
+
+          {
+            echo "## Published npm packages"
+            echo ""
+            echo "**Version:** $VERSION"
+            echo "**Dist tag:** $TAG"
+            echo ""
+            echo "### Library packages:"
+            while IFS=$'\t' read -r name kind; do
+              [[ "$kind" == "lib" ]] && echo "- $name@$VERSION"
+            done <<< "$MANIFEST"
+            echo ""
+            echo "### App packages:"
+            while IFS=$'\t' read -r name kind; do
+              [[ "$kind" == "app" ]] && echo "- $name@$VERSION"
+            done <<< "$MANIFEST"
+            echo ""
+            echo "### Install with:"
+            echo '```bash'
+            while IFS=$'\t' read -r name kind; do
+              [[ "$kind" == "lib" ]] && echo "npm install $name@$TAG"
+            done <<< "$MANIFEST"
+            while IFS=$'\t' read -r name kind; do
+              [[ "$kind" == "app" ]] || continue
+              if [[ "$name" == "@semiont/cli" ]]; then
+                echo "npm install -g $name@$TAG"
+              else
+                echo "npm install $name@$TAG"
+              fi
+            done <<< "$MANIFEST"
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
