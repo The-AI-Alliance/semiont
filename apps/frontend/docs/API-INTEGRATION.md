@@ -85,7 +85,7 @@ bus actor the first time a real token arrives.
 **Reference implementation**: see
 [`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md)
 for the exact provider API. See
-[`packages/api-client/docs/Usage.md`](../../../packages/api-client/docs/Usage.md)
+[`packages/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md)
 for how the client consumes `token$`.
 
 ## Authentication Flow
@@ -156,7 +156,7 @@ SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
 See [`apps/backend/docs/STREAMS.md`](../../backend/docs/STREAMS.md) and
 [`apps/backend/docs/REAL-TIME.md`](../../backend/docs/REAL-TIME.md) for
 the backend side; see
-[`packages/api-client/docs/Usage.md`](../../../packages/api-client/docs/Usage.md)
+[`packages/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md)
 for the client side.
 
 ## W3C Web Annotation Model
@@ -297,7 +297,7 @@ like `browse:resources-failed`), raised from the promise returned by
 ### API client
 
 - [`@semiont/api-client/README.md`](../../../packages/api-client/README.md) — API overview
-- [`@semiont/api-client/docs/Usage.md`](../../../packages/api-client/docs/Usage.md) — setup + bus subscription
+- [`@semiont/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md) — setup + bus subscription
 - [`@semiont/api-client/docs/API-Reference.md`](../../../packages/api-client/docs/API-Reference.md) — namespace reference
 
 ### Backend
