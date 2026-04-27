@@ -88,7 +88,7 @@ Semiont supports multiple document formats, each with format-appropriate annotat
 - Restore archived documents
 - Version history (future)
 
-See [ARCHIVE-CLONE.md](./ARCHIVE-CLONE.md) for complete archiving and cloning documentation.
+See [ARCHIVE-CLONE.md](../../apps/frontend/docs/ARCHIVE-CLONE.md) for complete archiving and cloning documentation.
 
 ## Selection System
 
@@ -178,7 +178,7 @@ Select "Albert Einstein" and create:
 - Document reference: Link to Einstein biography
 - Result: One annotation with two bodies (one `TextualBody`, one `SpecificResource`)
 
-See [API Integration Guide](./API-INTEGRATION.md#w3c-web-annotation-model) for technical details.
+See [API Integration Guide](../../apps/frontend/docs/API-INTEGRATION.md#w3c-web-annotation-model) for technical details.
 
 ## Format-Specific Features
 
@@ -210,7 +210,7 @@ Full markdown rendering with extended features:
 - Table of contents auto-generation (future)
 - Collapsible sections (future)
 
-See [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for markdown rendering details.
+See [ANNOTATION-OVERLAY.md](../../ANNOTATION-OVERLAY.md) for markdown rendering details.
 
 ### Images (PNG/JPEG)
 
@@ -357,7 +357,7 @@ Automatically detect annotations in documents using AI (highlights, assessments,
 - Displays entities found count
 - Cancellable during processing
 
-**See**: [API Integration Guide](./API-INTEGRATION.md#entity-detection-with-sse) for implementation details.
+**See**: [API Integration Guide](../../apps/frontend/docs/API-INTEGRATION.md#entity-detection-with-sse) for implementation details.
 
 ### Document Generation
 
@@ -376,24 +376,24 @@ Generate new documents from annotations using AI.
 - Percentage complete
 - Preview of generated content (future)
 
-**See**: [API Integration Guide](./API-INTEGRATION.md#document-generation-with-sse) for implementation details.
+**See**: [API Integration Guide](../../apps/frontend/docs/API-INTEGRATION.md#document-generation-with-sse) for implementation details.
 
 ## Related Documentation
 
 ### User Guides
-- [Annotations](./ANNOTATIONS.md) - Complete annotation system documentation
+- [Annotations](../../apps/frontend/docs/ANNOTATIONS.md) - Complete annotation system documentation
 - [Keyboard Navigation](./KEYBOARD-NAV.md) - WCAG-compliant keyboard shortcuts
-- [Archive & Clone](./ARCHIVE-CLONE.md) - Document archiving and cloning
+- [Archive & Clone](../../apps/frontend/docs/ARCHIVE-CLONE.md) - Document archiving and cloning
 
 ### Technical Documentation
-- [API Integration](./API-INTEGRATION.md) - API usage, async operations, W3C annotations
-- [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
-- [Rendering Architecture](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+- [API Integration](../../apps/frontend/docs/API-INTEGRATION.md) - API usage, async operations, W3C annotations
+- [Frontend Architecture](../../apps/frontend/docs/ARCHITECTURE.md) - High-level system design
+- [Rendering Architecture](../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 
 ### Development Guides
-- [Development Guide](./DEVELOPMENT.md) - Local development workflows
-- [Style Guide](./style-guide.md) - UI/UX patterns and component guidelines
-- [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Editor implementation
+- [Development Guide](../../apps/frontend/docs/DEVELOPMENT.md) - Local development workflows
+- [Style Guide](../../apps/frontend/docs/style-guide.md) - UI/UX patterns and component guidelines
+- [CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Editor implementation
 
 ### External Resources
 - [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) - Official specification
@@ -403,4 +403,4 @@ Generate new documents from annotations using AI.
 ---
 
 **Last Updated**: 2025-10-25
-**For Feature Requests**: File an issue or see [Contributing Guide](../../../docs/CONTRIBUTING.md)
+**For Feature Requests**: File an issue or see [Contributing Guide](../../CONTRIBUTING.md)

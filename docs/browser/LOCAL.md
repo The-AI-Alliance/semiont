@@ -12,7 +12,7 @@ cd gutenberg-kb
 .semiont/scripts/local_frontend.sh
 ```
 
-The script builds and runs the frontend in a container. The backend must be running first (see [backend LOCAL.md](../../backend/docs/LOCAL.md)).
+The script builds and runs the frontend in a container. The backend must be running first (see [backend LOCAL.md](../../apps/backend/docs/LOCAL.md)).
 
 The authoritative Dockerfile and script live in the [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb) template repository under `.semiont/`.
 
@@ -46,7 +46,7 @@ tail -f ~/.local/state/semiont/frontend/app.log
 
 ## Desktop App
 
-The frontend is also available as a native desktop application (macOS, Linux). See [apps/desktop/README.md](../../desktop/README.md) for download links, per-platform install notes, and the macOS Gatekeeper workaround.
+The frontend is also available as a native desktop application (macOS, Linux). See [apps/desktop/README.md](../../apps/desktop/README.md) for download links, per-platform install notes, and the macOS Gatekeeper workaround.
 
 ## Connecting to a backend
 

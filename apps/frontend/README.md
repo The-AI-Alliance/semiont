@@ -158,7 +158,7 @@ src/
 - Full-text search with real-time results
 - Document archiving and cloning
 
-**See**: [Features Guide](./docs/FEATURES.md)
+**See**: [Features Guide](../../docs/browser/FEATURES.md)
 
 ### W3C Web Annotations
 - **Highlights**: Mark important text passages
@@ -188,7 +188,7 @@ Some operations run asynchronously via background job workers:
 ## Documentation
 
 ### Getting Started
-- **[Local Setup](./docs/LOCAL.md)** - Run the browser locally (container, npm, or desktop app)
+- **[Local Setup](../../docs/browser/LOCAL.md)** - Run the browser locally (container, npm, or desktop app)
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, common tasks, debugging
 - **[Testing Guide](./docs/TESTING.md)** - Test structure, running tests, writing tests
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Publishing and deployment workflows
@@ -199,7 +199,7 @@ Some operations run asynchronously via background job workers:
 - **[API Integration](./docs/API-INTEGRATION.md)** - API client usage, async operations, W3C annotations
 
 ### Features & UI
-- **[Features](./docs/FEATURES.md)** - Document management, annotations, search, AI features
+- **[Features](../../docs/browser/FEATURES.md)** - Document management, annotations, search, AI features
 - **[Annotations](./docs/ANNOTATIONS.md)** - W3C annotation system and UI components
 - **[Style Guide](./docs/style-guide.md)** - UI/UX patterns and component guidelines
 
@@ -209,8 +209,8 @@ Some operations run asynchronously via background job workers:
 
 ### Performance & Accessibility
 - **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, monitoring
-- **[Accessibility](./docs/ACCESSIBILITY.md)** - WCAG 2.1 Level AA compliance, screen reader support, testing
-- **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
+- **[Accessibility](../../docs/browser/ACCESSIBILITY.md)** - WCAG 2.1 Level AA compliance, screen reader support, testing
+- **[Keyboard Navigation](../../docs/browser/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
 
 ### Specialized Topics
 - **[CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details

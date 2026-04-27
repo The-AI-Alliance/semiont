@@ -42,6 +42,14 @@ Once the browser is up at `http://localhost:3000`, open the **Knowledge Bases** 
 
 If you don't have a backend running yet, clone one of the [knowledge base repos](https://github.com/The-AI-Alliance/semiont-template-kb) listed in the top-level README and follow its setup script.
 
-## Building the browser from source
+## Running locally — both install paths
 
-For frontend development (modifying the SPA, running a dev server, contributing PRs), see **[apps/frontend/docs/LOCAL.md](../../apps/frontend/docs/LOCAL.md)** — covers `npm` setup, container builds, and the local-build script.
+The container-image flow at the top of this page is the fastest path. **[LOCAL.md](LOCAL.md)** covers both install options end-to-end: container (no npm required) and the npm-based source build for contributors who want a hot-reload dev server.
+
+## Other browser-persona docs
+
+- **[FEATURES.md](FEATURES.md)** — user-facing feature tour: document management, annotations, search, AI-assisted detection.
+- **[ACCESSIBILITY.md](ACCESSIBILITY.md)** — WCAG 2.1 Level AA capability claim, screen reader support, accessibility testing.
+- **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard shortcuts and the navigation model.
+
+For frontend implementation details (architecture, component library, integration patterns) see **[apps/frontend/docs/](../../apps/frontend/docs/)** — that folder is contributor-facing.
