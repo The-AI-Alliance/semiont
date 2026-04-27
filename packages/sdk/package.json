@@ -1,6 +1,6 @@
 {
   "name": "@semiont/sdk",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Semiont SDK — SemiontClient, namespaces, session/browser, view-models, and the bus-request/cache helpers. Transport-agnostic; pair with @semiont/api-client (HttpTransport) or @semiont/make-meaning (LocalTransport) for the wire.",
   "type": "module",
   "main": "dist/index.js",

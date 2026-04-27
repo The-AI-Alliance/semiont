@@ -1,6 +1,6 @@
 {
   "name": "@semiont/mcp-server",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "MCP server for Semiont API",
   "type": "module",
   "main": "dist/index.js",

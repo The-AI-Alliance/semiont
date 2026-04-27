@@ -1,6 +1,6 @@
 {
   "name": "@semiont/observability",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "OpenTelemetry-based tracing for Semiont — Tier 2 of OBSERVABILITY.md. Process-init helpers (Node + Web), withSpan helper, W3C traceparent inject/extract for bus payloads. No-op when no exporter is configured.",
   "type": "module",
   "main": "dist/index.js",
