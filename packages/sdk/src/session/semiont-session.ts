@@ -52,7 +52,7 @@ import {
   setStoredSession,
   type StoredSession,
 } from './storage';
-import { SemiontError } from './errors';
+import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 
 export type UserInfo = components['schemas']['UserResponse'];
@@ -93,7 +93,7 @@ export interface SemiontSessionConfig {
    */
   onAuthFailed?: (message: string | null) => void;
   /** Called for session-level failures (auth, refresh exhaustion). */
-  onError?: (err: SemiontError) => void;
+  onError?: (err: SemiontSessionError) => void;
 }
 
 export class SemiontSession {
@@ -110,7 +110,7 @@ export class SemiontSession {
   private readonly doRefresh?: () => Promise<string | null>;
   private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
   private readonly onAuthFailed: (message: string | null) => void;
-  private readonly onError: (err: SemiontError) => void;
+  private readonly onError: (err: SemiontSessionError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
@@ -203,7 +203,7 @@ export class SemiontSession {
           this.onAuthFailed('Your session has expired. Please sign in again.');
         } else {
           this.onError(
-            new SemiontError(
+            new SemiontSessionError(
               'session.auth-failed',
               err instanceof Error ? err.message : String(err),
               this.kb.id,
@@ -238,7 +238,7 @@ export class SemiontSession {
     clearStoredSession(this.storage, this.kb.id);
     this.onAuthFailed('Your session has expired. Please sign in again.');
     this.onError(
-      new SemiontError('session.refresh-exhausted', 'Token refresh failed', this.kb.id),
+      new SemiontSessionError('session.refresh-exhausted', 'Token refresh failed', this.kb.id),
     );
     return null;
   }
@@ -344,7 +344,7 @@ export class SemiontSession {
     refresh?: () => Promise<string | null>;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (message: string | null) => void;
-    onError?: (err: SemiontError) => void;
+    onError?: (err: SemiontSessionError) => void;
   }): SemiontSession {
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const tok = opts.token == null
@@ -392,7 +392,7 @@ export class SemiontSession {
     password: string;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (message: string | null) => void;
-    onError?: (err: SemiontError) => void;
+    onError?: (err: SemiontSessionError) => void;
   }): Promise<SemiontSession> {
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
 

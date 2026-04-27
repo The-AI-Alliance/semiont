@@ -28,7 +28,12 @@ export * from './client';
 export { StreamObservable, CacheObservable } from './awaitable';
 
 // Bus-request helper + cache primitive.
-export { busRequest, BusRequestError, type BusRequestPrimitive } from './bus-request';
+export {
+  busRequest,
+  BusRequestError,
+  type BusRequestErrorCode,
+  type BusRequestPrimitive,
+} from './bus-request';
 export { createCache, type Cache } from './cache';
 
 // Verb-oriented namespace API.
@@ -80,14 +85,21 @@ export {
   refreshToken,
   resourceId,
   userId,
+  // Unified error base — every Semiont-thrown error extends this.
+  SemiontError,
 } from '@semiont/core';
+
+// `APIError` is thrown by the HTTP transport (`@semiont/api-client`).
+// Re-exported here so consumers don't need a third package import to
+// catch on it.
+export { APIError, type APIErrorCode } from '@semiont/api-client';
 
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
 export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
 export { FrontendSessionSignals } from './session/frontend-session-signals';
-export { SemiontError, type SemiontErrorCode } from './session/errors';
+export { SemiontSessionError, type SemiontSessionErrorCode } from './session/errors';
 export { getBrowser, type GetBrowserOptions } from './session/registry';
 export {
   type SessionStorage,

@@ -1,10 +1,20 @@
-import { Observable, firstValueFrom, merge } from 'rxjs';
-import { filter, map, take, timeout } from 'rxjs/operators';
-import type { EventMap } from '@semiont/core';
+import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
+import { catchError, filter, map, take, timeout } from 'rxjs/operators';
+import { SemiontError, type EventMap } from '@semiont/core';
 
-export class BusRequestError extends Error {
-  constructor(message: string) {
-    super(message);
+export type BusRequestErrorCode =
+  | 'bus.timeout'
+  | 'bus.rejected'
+  | 'bus.bad-payload'
+  | 'bus.unauthorized'
+  | 'bus.forbidden'
+  | 'bus.not-found';
+
+export class BusRequestError extends SemiontError {
+  declare code: BusRequestErrorCode;
+
+  constructor(message: string, code: BusRequestErrorCode, details?: Record<string, unknown>) {
+    super(message, code, details);
     this.name = 'BusRequestError';
   }
 }
@@ -37,9 +47,32 @@ export async function busRequest<TResult>(
     ),
     (bus.stream(failureChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
       filter((e) => e.correlationId === correlationId),
-      map((e) => ({ ok: false as const, error: new BusRequestError(e.message as string) })),
+      map((e) => ({
+        ok: false as const,
+        error: new BusRequestError((e.message as string) ?? 'Bus request rejected', 'bus.rejected', {
+          channel: failureChannel,
+          correlationId,
+          payload: e,
+        }),
+      })),
     ),
-  ).pipe(take(1), timeout(timeoutMs));
+  ).pipe(
+    take(1),
+    timeout(timeoutMs),
+    catchError((err) => {
+      if (err instanceof TimeoutError) {
+        return throwError(
+          () =>
+            new BusRequestError(
+              `Bus request timed out after ${timeoutMs}ms on ${resultChannel}`,
+              'bus.timeout',
+              { channel: emitChannel, resultChannel, correlationId, timeoutMs },
+            ),
+        );
+      }
+      return throwError(() => err);
+    }),
+  );
 
   const resultPromise = firstValueFrom(result$);
 

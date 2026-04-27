@@ -41,10 +41,10 @@ export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 export * from './hooks/useResourceContent';
 
 // Session (the React layer — provider + hook + browser storage adapter).
-// All session classes (`SemiontSession`, `SemiontBrowser`, `SemiontError`,
+// All session classes (`SemiontSession`, `SemiontBrowser`, `SemiontSessionError`,
 // `SessionStorage`, `InMemorySessionStorage`, the `KnowledgeBase` /
 // `OpenResource` types, `notifySessionExpired`, etc.) live in
-// `@semiont/api-client`. Callers import them from there directly.
+// `@semiont/sdk`. Callers import them from there directly.
 export { SemiontProvider, useSemiont, type SemiontProviderProps } from './session/SemiontProvider';
 export { WebBrowserStorage } from './session/web-browser-storage';
 

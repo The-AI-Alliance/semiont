@@ -101,3 +101,4 @@ await semiont.mark.annotation(rId, {
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
 - **Manual mode is for known issues.** If the user has already identified a problem and wants to attach it to the document, use manual mode. Delegate is for discovery.
 - **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'assessing'`.
+- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout`). See [Error Handling in Usage.md](../../../packages/sdk/docs/Usage.md#error-handling).

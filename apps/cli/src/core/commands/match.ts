@@ -65,7 +65,7 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
 
   // Step 2: search via namespace (MatchVM is EventBus-driven, CLI calls directly)
   const searchResult = await firstValueFrom(
-    semiont.match.search(resourceId, rawAnnotationId, context, {
+    semiont.match.search(resourceId, annotationId, context, {
       limit: options.limit,
       useSemanticScoring: !options.noSemantic,
     }),
