@@ -5,6 +5,10 @@
     "correlationId": {
       "type": "string"
     },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
     "token": {
       "type": "string"
     },
@@ -14,12 +18,9 @@
     "content": {
       "type": "string"
     },
-    "userId": {
-      "type": "string"
-    },
     "archiveOriginal": {
       "type": "boolean"
     }
   },
-  "required": ["correlationId", "token", "name", "content", "userId"]
+  "required": ["correlationId", "token", "name", "content"]
 }

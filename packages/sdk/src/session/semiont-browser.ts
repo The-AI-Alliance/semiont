@@ -38,7 +38,7 @@ import type { KnowledgeBase, KbSessionStatus, NewKnowledgeBase } from './knowled
 import type { OpenResource } from './open-resource';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { FrontendSessionSignals } from './frontend-session-signals';
-import { SemiontError } from './errors';
+import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 
 const OPEN_RESOURCES_KEY = 'openDocuments';
@@ -88,7 +88,7 @@ export class SemiontBrowser {
    */
   readonly sessionActivating$: BehaviorSubject<boolean>;
   readonly openResources$: BehaviorSubject<OpenResource[]>;
-  readonly error$: Subject<SemiontError>;
+  readonly error$: Subject<SemiontSessionError>;
   readonly identityToken$: BehaviorSubject<string | null>;
 
   private readonly storage: SessionStorage;
@@ -129,7 +129,7 @@ export class SemiontBrowser {
     this.activeSignals$ = new BehaviorSubject<FrontendSessionSignals | null>(null);
     this.sessionActivating$ = new BehaviorSubject<boolean>(false);
     this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources(this.storage));
-    this.error$ = new Subject<SemiontError>();
+    this.error$ = new Subject<SemiontSessionError>();
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
     // Persist kbs$ and activeKbId$ via the storage adapter.
@@ -333,7 +333,7 @@ export class SemiontBrowser {
         await session.ready;
       } catch (err) {
         this.error$.next(
-          new SemiontError(
+          new SemiontSessionError(
             'session.construct-failed',
             err instanceof Error ? err.message : String(err),
             id,

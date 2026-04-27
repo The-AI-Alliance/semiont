@@ -25,6 +25,7 @@ jobs:
           - jobs
           - make-meaning
           - mcp-server
+          - observability
           - ontology
           - react-ui
           - sdk
@@ -63,6 +64,11 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/api-client
+              ;;
+            observability)
+              # observability depends only on core (for setBusLogTraceIdProvider).
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
               ;;
             ontology)
               npm run openapi:bundle

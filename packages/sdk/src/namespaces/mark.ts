@@ -1,5 +1,8 @@
-import { Observable, merge } from 'rxjs';
+import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
+import {
+  annotationId as toAnnotationId,
+} from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
@@ -9,6 +12,7 @@ import type {
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
+import { StreamObservable } from '../awaitable';
 import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
@@ -22,14 +26,15 @@ export class MarkNamespace implements IMarkNamespace {
     private readonly bus: EventBus,
   ) {}
 
-  async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: string }> {
-    return busRequest<{ annotationId: string }>(
+  async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }> {
+    const result = await busRequest<{ annotationId: string }>(
       this.transport,
       'mark:create-request',
-      { resourceId, request: input as unknown as Record<string, unknown> },
+      { resourceId, request: input },
       'mark:create-ok',
       'mark:create-failed',
     );
+    return { annotationId: toAnnotationId(result.annotationId) };
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
@@ -54,8 +59,8 @@ export class MarkNamespace implements IMarkNamespace {
     await this.transport.emit('mark:unarchive', { resourceId });
   }
 
-  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistEvent> {
-    return new Observable((subscriber) => {
+  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent> {
+    return new StreamObservable<MarkAssistEvent>((subscriber) => {
       let done = false;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
       let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -204,7 +209,7 @@ export class MarkNamespace implements IMarkNamespace {
     motivation: Motivation,
     options: MarkAssistOptions,
   ): Promise<{ jobId: string }> {
-    const jobTypeMap: Record<string, string> = {
+    const jobTypeMap: Record<string, components['schemas']['JobType']> = {
       tagging: 'tag-annotation',
       linking: 'reference-annotation',
       highlighting: 'highlight-annotation',

@@ -28,45 +28,31 @@ semiont mark --resource <id> --delegate --motivation highlighting \
 
 ## Client setup (shared by all TypeScript examples below)
 
-Scripts construct a `SemiontClient` over `HttpTransport` directly. Construct it once at the top of a script and reuse the same client for every verb call. For long-running scripts that may span token expiry, use `SemiontSession` from `@semiont/sdk` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work.
+`SemiontClient.signIn(...)` is the credentials-first one-line construction for one-shot scripts. It calls `auth.password(email, password)` and returns a wired-up client with the access token populated. Construct once at the top of a script and reuse the same client for every verb call.
+
+For long-running scripts that may span token expiry, use `SemiontSession.signIn(...)` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
 
 ```typescript
-import {
-  SemiontClient,
-  HttpTransport,
-  HttpContentTransport,
-} from '@semiont/sdk';
-import {
-  accessToken,
-  baseUrl,
-  resourceId,
-  type AccessToken,
-} from '@semiont/core';
-import { BehaviorSubject, lastValueFrom } from 'rxjs';
+import { SemiontClient, resourceId } from '@semiont/sdk';
 
-const token$ = new BehaviorSubject<AccessToken | null>(
-  accessToken(process.env.SEMIONT_ACCESS_TOKEN ?? ''),
-);
-const transport = new HttpTransport({
-  baseUrl: baseUrl(process.env.SEMIONT_API_URL ?? 'http://localhost:4000'),
-  token$,
+const semiont = await SemiontClient.signIn({
+  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  email: process.env.SEMIONT_USER_EMAIL!,
+  password: process.env.SEMIONT_USER_PASSWORD!,
 });
-const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
 ```
 
 ## TypeScript — delegate
 
-`semiont.mark.assist(...)` returns an `Observable<MarkAssistProgress>` that emits progress updates and completes when the job finishes. `lastValueFrom` resolves with the final progress payload (carries the created count).
+`semiont.mark.assist(...)` returns a `StreamObservable<MarkAssistProgress>` — an Observable that's also awaitable. `await` resolves with the final progress payload (carries the created count) when the job completes.
 
 ```typescript
 const rId = resourceId('doc-123');
 
-const progress = await lastValueFrom(
-  semiont.mark.assist(rId, 'highlighting', {
-    instructions: 'Focus on key claims and supporting evidence',
-    density: 5,
-  }),
-);
+const progress = await semiont.mark.assist(rId, 'highlighting', {
+  instructions: 'Focus on key claims and supporting evidence',
+  density: 5,
+});
 
 console.log(`Created ${progress.progress?.createdCount ?? 0} highlights`);
 
@@ -115,3 +101,4 @@ await semiont.mark.annotation(rId, {
 - **Check results** with `semiont browse resource <id> --annotations` or `semiont.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
 - **Manual mode is for corrections.** If the AI missed a specific passage, add it manually. Don't re-run delegate just to capture one passage.
 - **Progress tracking** is available by subscribing to the Observable returned from `mark.assist`; each emission is a progress snapshot with `percentage` and `createdCount`.
+- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout`). See [Error Handling in Usage.md](../../../packages/sdk/docs/Usage.md#error-handling).

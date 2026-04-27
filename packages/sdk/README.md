@@ -26,41 +26,53 @@ npm install @semiont/sdk
 
 ## Quick start (HTTP)
 
+For one-shot scripts, `SemiontClient.signIn(...)` is the credentials-first one-line construction:
+
 ```ts
-import {
-  SemiontSession,
-  InMemorySessionStorage,
-  setStoredSession,
-  type KnowledgeBase,
-} from '@semiont/sdk';
-import { accessToken } from '@semiont/core';
-import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { SemiontClient } from '@semiont/sdk';
+
+const semiont = await SemiontClient.signIn({
+  baseUrl: 'http://localhost:4000',
+  email: 'me@example.com',
+  password: 'pwd',
+});
+
+const resources = await semiont.browse.resources({ limit: 10 });
+console.log(resources);
+
+semiont.dispose();
+```
+
+For long-running scripts that need to survive token expiry, use `SemiontSession.signIn(...)` — same credentials shape, plus proactive refresh, validation, storage-adapter wiring, and disposal. `kb` is required; its `id` is the storage key for this session, so distinct scripts must use distinct ids:
+
+```ts
+import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@semiont/sdk';
 
 const kb: KnowledgeBase = {
-  id: 'local',
-  label: 'Local Backend',
+  id: 'my-watcher',
+  label: 'My Watcher',
   protocol: 'http',
   host: 'localhost',
   port: 4000,
   email: 'me@example.com',
 };
 
-const storage = new InMemorySessionStorage();
-setStoredSession(storage, kb.id, {
-  access: accessToken('your-jwt'),
-  refresh: '',
+const session = await SemiontSession.signIn({
+  kb,
+  storage: new InMemorySessionStorage(),
+  baseUrl: 'http://localhost:4000',
+  email: 'me@example.com',
+  password: 'pwd',
 });
 
-const session = await SemiontSession.create({ kb, storage });
+// session.client is the same SemiontClient surface; the session manages
+// the token$ lifecycle around it (default refresh callback wired automatically).
+const resources = await session.client.browse.resources({ limit: 10 });
 
-const resources = await firstValueFrom(
-  session.client.browse.resources({ limit: 10 }).pipe(
-    filter((r): r is NonNullable<typeof r> => r !== undefined),
-  ),
-);
-console.log(resources);
+await session.dispose();
 ```
+
+If you already have an access token (CLI cached-token path, env-var token, embedded auth flow), use `SemiontClient.fromHttp({ baseUrl, token })` or `SemiontSession.fromHttp({ baseUrl, token, storage, kb, refresh, ... })` to skip the auth round-trip.
 
 ## Quick start (in-process)
 
@@ -86,23 +98,25 @@ const client = new SemiontClient(
 );
 ```
 
-Same `SemiontClient`, same verb namespaces — no network involved.
+Same `SemiontClient`, same verb namespaces — no network involved. There is no `fromLocal` factory because the in-process transport's dependencies (knowledgeSystem, eventBus, userId) are not boilerplate the SDK can hide.
 
 ## Verb namespaces
 
-All ten namespaces hang off `SemiontClient`. Each method either returns a `Promise` (one-shot RPC-style operations) or an `Observable` (streaming subscriptions). The bus is invisible to callers — channel strings, correlation IDs, and reconnection are internal.
+All ten namespaces hang off `SemiontClient`. Methods that return data return either a `Promise<T>` (atomic ops like `mark.archive`) or an awaitable Observable subclass — `StreamObservable<T>` for streams (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`) and `CacheObservable<T>` for live queries (`browse.*`). Both subclasses implement `PromiseLike<T>`, so consumers can `await` them directly. Reactive consumers can `.subscribe(...)` exactly as with a plain Observable. The bus is invisible to callers — channel strings, correlation IDs, and reconnection are internal.
 
 ```ts
-// Browse — read the knowledge graph.
-await client.browse.resources({ limit: 10 });
+// Browse — live queries; await yields the loaded value, subscribe yields
+// loading-then-loaded.
+const resources = await client.browse.resources({ limit: 10 });
 client.browse.resource(resourceId).subscribe(/* ... */);
 
-// Mark / Bind — create and modify annotations.
+// Mark / Bind — atomic operations return Promise<T>.
 const { annotationId } = await client.mark.annotation(rid, request);
 await client.bind.body(rid, aid, [{ op: 'add', item: { /* W3C body */ } }]);
 
-// Gather / Match — assemble context and run semantic search.
-const ctx = await lastValueFrom(client.gather.annotation(aid, rid));
+// Gather / Match — bounded streams; await yields the final value, subscribe
+// yields every progress emission.
+const ctx = await client.gather.annotation(aid, rid);
 client.match.search(rid, refId, ctx, { limit: 10 }).subscribe(/* ... */);
 
 // Yield — author new resources.
@@ -115,6 +129,14 @@ client.beckon.hover(annotationId);
 ```
 
 The verb-by-verb walkthroughs live in [docs/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/flows).
+
+`.pipe(...)` returns a plain `Observable<T>` — once you compose with RxJS operators you've explicitly entered RxJS land, and `lastValueFrom` from `rxjs` is the right bridge. The `firstValueFrom`/`lastValueFrom` re-exports from `@semiont/sdk` stay available for that case.
+
+## Documentation
+
+- [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace tour with concrete examples for Browse, Mark, Bind, Gather, Match, Yield, Beckon, Auth, Admin, Job, plus SSE and error handling.
+- [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's behavioral contract.
+- [`@semiont/core/docs/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/core/docs/TRANSPORT-CONTRACT.md) — the transport interface every `ITransport` must honor.
 
 ## Behavioral contract
 

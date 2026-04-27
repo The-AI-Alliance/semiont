@@ -57,13 +57,6 @@ export function createActorVM(options: ActorVMOptions): ActorVM {
   const { baseUrl, token: tokenOrGetter, channels: initialChannels, scope: initialScope, reconnectMs = 5_000 } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
-  // TEMPORARY DIAGNOSTIC — actor instance counter.
-  const g = globalThis as { __SEMIONT_ACTOR_INSTANCES__?: number };
-  g.__SEMIONT_ACTOR_INSTANCES__ = (g.__SEMIONT_ACTOR_INSTANCES__ ?? 0) + 1;
-  const actorSerial = g.__SEMIONT_ACTOR_INSTANCES__;
-  // eslint-disable-next-line no-console
-  console.debug(`[diag] ActorVM #${actorSerial} constructed (baseUrl=${baseUrl})`);
-
   const globalChannels = new Set(initialChannels);
   const scopedChannels = new Set<string>();
   let activeScope = initialScope;

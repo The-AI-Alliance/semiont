@@ -140,7 +140,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
     test('client.match.search() resolves from a global match:search-results event', async () => {
       const { firstValueFrom } = await import('rxjs');
       const gathered = { sourceContext: {}, targetContext: {} } as never;
-      const searchP = firstValueFrom(client.match.search(testResourceId, 'ref-1', gathered, { limit: 5 }));
+      const searchP = firstValueFrom(client.match.search(testResourceId, annotationId('ref-1'), gathered, { limit: 5 }));
 
       await Promise.resolve();
       const emitted = vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'match:search-requested');
@@ -183,7 +183,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
     test('a failed match:search-failed event resolves the Observable with an error', async () => {
       const { firstValueFrom } = await import('rxjs');
       const gathered = { sourceContext: {}, targetContext: {} } as never;
-      const searchP = firstValueFrom(client.match.search(testResourceId, 'ref-x', gathered));
+      const searchP = firstValueFrom(client.match.search(testResourceId, annotationId('ref-x'), gathered));
 
       await Promise.resolve();
       const cid = (vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'match:search-requested')![1] as {

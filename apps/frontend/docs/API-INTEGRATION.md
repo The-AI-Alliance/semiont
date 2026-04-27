@@ -297,8 +297,8 @@ like `browse:resources-failed`), raised from the promise returned by
 ### API client
 
 - [`@semiont/api-client/README.md`](../../../packages/api-client/README.md) — API overview
-- [`@semiont/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md) — setup + bus subscription
-- [`@semiont/api-client/docs/API-Reference.md`](../../../packages/api-client/docs/API-Reference.md) — namespace reference
+- [`@semiont/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md) — setup, bus subscription, namespace reference
+- [`@semiont/api-client/docs/API-Reference.md`](../../../packages/api-client/docs/API-Reference.md) — HTTP transport reference (`HttpTransport`, `TokenRefresher`, `APIError`)
 
 ### Backend
 

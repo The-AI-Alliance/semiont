@@ -23,6 +23,7 @@ export {
   type HttpTransportConfig,
   type TokenRefresher,
   APIError,
+  type APIErrorCode,
 } from './transport/http-transport';
 
 export { HttpContentTransport } from './transport/http-content-transport';

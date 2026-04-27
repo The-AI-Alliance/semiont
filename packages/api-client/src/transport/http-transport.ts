@@ -28,6 +28,7 @@ import type {
 import {
   PERSISTED_EVENT_TYPES,
   RESOURCE_BROADCAST_TYPES,
+  SemiontError,
   busLog,
 } from '@semiont/core';
 import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
@@ -58,15 +59,35 @@ const RESOURCE_SCOPED_CHANNELS = [
   ...RESOURCE_BROADCAST_TYPES,
 ];
 
-export class APIError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public statusText: string,
-    public details?: unknown,
-  ) {
-    super(message);
+export type APIErrorCode =
+  | 'api.bad-request'
+  | 'api.unauthorized'
+  | 'api.forbidden'
+  | 'api.not-found'
+  | 'api.conflict'
+  | 'api.server-error'
+  | 'api.error';
+
+function classifyApiCode(status: number): APIErrorCode {
+  if (status === 400) return 'api.bad-request';
+  if (status === 401) return 'api.unauthorized';
+  if (status === 403) return 'api.forbidden';
+  if (status === 404) return 'api.not-found';
+  if (status === 409) return 'api.conflict';
+  if (status >= 500) return 'api.server-error';
+  return 'api.error';
+}
+
+export class APIError extends SemiontError {
+  declare code: APIErrorCode;
+  readonly status: number;
+  readonly statusText: string;
+
+  constructor(message: string, status: number, statusText: string, body?: unknown) {
+    super(message, classifyApiCode(status), { status, statusText, body });
     this.name = 'APIError';
+    this.status = status;
+    this.statusText = statusText;
   }
 }
 
