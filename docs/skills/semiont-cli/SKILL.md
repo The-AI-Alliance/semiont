@@ -32,7 +32,8 @@ The core pipeline is: **mark → gather → match → bind**. Detect entity refe
 
 ```bash
 # 1. Detect entity references (AI-assisted)
-semiont mark "$RESOURCE_ID" --delegate --motivation linking --entity-type Location
+semiont mark "$RESOURCE_ID" --delegate --motivation linking \
+  --entity-type Location --entity-type Person
 
 # 2. For each unresolved annotation, find candidates
 semiont match "$RESOURCE_ID" "$ANN_ID"
@@ -104,7 +105,7 @@ semiont gather annotation <resourceId> <annotationId>
 ```bash
 # Delegate — AI worker detects and creates annotations
 semiont mark <resourceId> --delegate --motivation highlighting
-semiont mark <resourceId> --delegate --motivation linking --entity-type Person
+semiont mark <resourceId> --delegate --motivation linking --entity-type Person --entity-type Place
 semiont mark <resourceId> --delegate --motivation tagging --schema-id science --category Biology
 
 # Manual — specify selector and body directly

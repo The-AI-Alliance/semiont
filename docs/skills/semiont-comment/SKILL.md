@@ -31,53 +31,43 @@ semiont mark --resource <id> --delegate --motivation commenting \
 - `--instructions` guides the type of comments, e.g. `"suggest edits to align with the executive summary"` or `"ask questions a first-time reader would have"` or `"point out where more supporting evidence is needed"`
 - Find the resource ID: `semiont browse resources --search "<name>"`
 
-## Session setup (shared by all TypeScript examples below)
+## Client setup (shared by all TypeScript examples below)
 
-Scripts drive the API through a `SemiontSession`. Construct it once at the top of a script and reuse the same session for every verb call.
+Scripts construct a `SemiontClient` over `HttpTransport` directly. Construct it once at the top of a script and reuse the same client for every verb call. For long-running scripts that may span token expiry, use `SemiontSession` from `@semiont/sdk` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work.
 
 ```typescript
 import {
-  SemiontSession,
-  InMemorySessionStorage,
-  setStoredSession,
-  resourceId,
-  type KnowledgeBase,
+  SemiontClient,
+  HttpTransport,
+  HttpContentTransport,
 } from '@semiont/sdk';
-import { lastValueFrom } from 'rxjs';
+import {
+  accessToken,
+  baseUrl,
+  resourceId,
+  type AccessToken,
+} from '@semiont/core';
+import { BehaviorSubject, lastValueFrom } from 'rxjs';
 
-const apiUrl = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const kb: KnowledgeBase = {
-  id: 'script',
-  label: 'Script session',
-  protocol: apiUrl.protocol.replace(':', '') as 'http' | 'https',
-  host: apiUrl.hostname,
-  port: Number(apiUrl.port || (apiUrl.protocol === 'https:' ? 443 : 80)),
-  email: process.env.SEMIONT_USER_EMAIL ?? 'script@local',
-};
-
-const storage = new InMemorySessionStorage();
-setStoredSession(storage, kb.id, {
-  access: process.env.SEMIONT_ACCESS_TOKEN ?? '',
-  refresh: process.env.SEMIONT_REFRESH_TOKEN ?? '',
+const token$ = new BehaviorSubject<AccessToken | null>(
+  accessToken(process.env.SEMIONT_ACCESS_TOKEN ?? ''),
+);
+const transport = new HttpTransport({
+  baseUrl: baseUrl(process.env.SEMIONT_API_URL ?? 'http://localhost:4000'),
+  token$,
 });
-
-const session = new SemiontSession({
-  kb,
-  storage,
-  refresh: async () => null,
-});
-await session.ready;
+const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
 ```
 
 ## TypeScript — delegate
 
-`session.client.mark.assist(...)` returns an `Observable<MarkAssistProgress>`. `lastValueFrom` resolves with the final progress payload once the job completes.
+`semiont.mark.assist(...)` returns an `Observable<MarkAssistProgress>`. `lastValueFrom` resolves with the final progress payload once the job completes.
 
 ```typescript
 const rId = resourceId('doc-123');
 
 const progress = await lastValueFrom(
-  session.client.mark.assist(rId, 'commenting', {
+  semiont.mark.assist(rId, 'commenting', {
     tone: 'conversational',
     instructions: 'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
     density: 5,
@@ -86,7 +76,7 @@ const progress = await lastValueFrom(
 
 console.log(`Created ${progress.progress?.createdCount ?? 0} comments`);
 
-await session.dispose();
+semiont.dispose();
 ```
 
 The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally.
@@ -94,7 +84,7 @@ The namespace method handles SSE streaming, timeout (180 s without progress), an
 ## TypeScript — manual
 
 ```typescript
-await session.client.mark.annotation(rId, {
+await semiont.mark.annotation(rId, {
   motivation: 'commenting',
   target: {
     source: rId,
@@ -125,4 +115,4 @@ await session.client.mark.annotation(rId, {
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
 - **Distinguish from assessments.** Comments are for dialogue and editorial improvement. Assessments are for flagging objective risks or errors. Use `commenting` when the goal is to help the author revise or help readers understand; use `assessing` when the goal is to flag a problem.
 - **Manual mode is for specific targeted feedback.** When the user knows exactly what they want to say about a specific passage, manual mode is faster and more precise than running delegate.
-- **Check results** with `session.client.browse.annotations(rId)` — filter for `motivation === 'commenting'`.
+- **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'commenting'`.

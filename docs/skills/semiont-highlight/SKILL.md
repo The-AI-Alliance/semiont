@@ -26,55 +26,43 @@ semiont mark --resource <id> --delegate --motivation highlighting \
 - `--instructions` up to 500 chars of free-text guidance, e.g. `"focus on risk factors and mitigation strategies"`
 - Find the resource ID: `semiont browse resources --search "<name>"`
 
-## Session setup (shared by all TypeScript examples below)
+## Client setup (shared by all TypeScript examples below)
 
-Scripts drive the API through a `SemiontSession`. Construct it once at the top of a script and reuse the same session for every verb call.
+Scripts construct a `SemiontClient` over `HttpTransport` directly. Construct it once at the top of a script and reuse the same client for every verb call. For long-running scripts that may span token expiry, use `SemiontSession` from `@semiont/sdk` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work.
 
 ```typescript
 import {
-  SemiontSession,
-  InMemorySessionStorage,
-  setStoredSession,
-  resourceId,
-  type KnowledgeBase,
+  SemiontClient,
+  HttpTransport,
+  HttpContentTransport,
 } from '@semiont/sdk';
-import { lastValueFrom } from 'rxjs';
+import {
+  accessToken,
+  baseUrl,
+  resourceId,
+  type AccessToken,
+} from '@semiont/core';
+import { BehaviorSubject, lastValueFrom } from 'rxjs';
 
-const apiUrl = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const kb: KnowledgeBase = {
-  id: 'script',
-  label: 'Script session',
-  protocol: apiUrl.protocol.replace(':', '') as 'http' | 'https',
-  host: apiUrl.hostname,
-  port: Number(apiUrl.port || (apiUrl.protocol === 'https:' ? 443 : 80)),
-  email: process.env.SEMIONT_USER_EMAIL ?? 'script@local',
-};
-
-const storage = new InMemorySessionStorage();
-setStoredSession(storage, kb.id, {
-  access: process.env.SEMIONT_ACCESS_TOKEN ?? '',
-  refresh: process.env.SEMIONT_REFRESH_TOKEN ?? '',
+const token$ = new BehaviorSubject<AccessToken | null>(
+  accessToken(process.env.SEMIONT_ACCESS_TOKEN ?? ''),
+);
+const transport = new HttpTransport({
+  baseUrl: baseUrl(process.env.SEMIONT_API_URL ?? 'http://localhost:4000'),
+  token$,
 });
-
-const session = new SemiontSession({
-  kb,
-  storage,
-  // Scripts typically run inside one token lifetime. Extend with a real
-  // re-auth call if the script runs past token expiry.
-  refresh: async () => null,
-});
-await session.ready;
+const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
 ```
 
 ## TypeScript — delegate
 
-`session.client.mark.assist(...)` returns an `Observable<MarkAssistProgress>` that emits progress updates and completes when the job finishes. `lastValueFrom` resolves with the final progress payload (carries the created count).
+`semiont.mark.assist(...)` returns an `Observable<MarkAssistProgress>` that emits progress updates and completes when the job finishes. `lastValueFrom` resolves with the final progress payload (carries the created count).
 
 ```typescript
 const rId = resourceId('doc-123');
 
 const progress = await lastValueFrom(
-  session.client.mark.assist(rId, 'highlighting', {
+  semiont.mark.assist(rId, 'highlighting', {
     instructions: 'Focus on key claims and supporting evidence',
     density: 5,
   }),
@@ -82,13 +70,13 @@ const progress = await lastValueFrom(
 
 console.log(`Created ${progress.progress?.createdCount ?? 0} highlights`);
 
-await session.dispose();
+semiont.dispose();
 ```
 
 To observe intermediate progress (e.g. for a progress bar), subscribe directly:
 
 ```typescript
-session.client.mark.assist(rId, 'highlighting', { density: 5 }).subscribe({
+semiont.mark.assist(rId, 'highlighting', { density: 5 }).subscribe({
   next: (p) => console.log(`progress ${p.progress?.percentage ?? 0}%`),
   complete: () => console.log('done'),
   error: (e) => console.error(e),
@@ -100,7 +88,7 @@ The namespace method handles SSE streaming, timeout (180 s without progress), an
 ## TypeScript — manual
 
 ```typescript
-await session.client.mark.annotation(rId, {
+await semiont.mark.annotation(rId, {
   motivation: 'highlighting',
   target: {
     source: rId,
@@ -124,6 +112,6 @@ await session.client.mark.annotation(rId, {
 - **Ask what to highlight** if the user hasn't said — key claims? risks? supporting evidence? quotes? The `--instructions` flag focuses the AI on what matters.
 - **Density is the main tuning knob.** Start around 5 for selective highlighting. Go up to 10-15 for dense annotation of dense technical material. Go down to 1-3 for a light editorial pass.
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
-- **Check results** with `semiont browse resource <id> --annotations` or `session.client.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
+- **Check results** with `semiont browse resource <id> --annotations` or `semiont.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
 - **Manual mode is for corrections.** If the AI missed a specific passage, add it manually. Don't re-run delegate just to capture one passage.
 - **Progress tracking** is available by subscribing to the Observable returned from `mark.assist`; each emission is a progress snapshot with `percentage` and `createdCount`.

@@ -31,53 +31,43 @@ semiont mark --resource <id> --delegate --motivation assessing \
 - `--instructions` guides what kind of issues to surface, e.g. `"flag scheduling risks and resource conflicts"` or `"identify safety assumptions that need verification"`
 - Find the resource ID: `semiont browse resources --search "<name>"`
 
-## Session setup (shared by all TypeScript examples below)
+## Client setup (shared by all TypeScript examples below)
 
-Scripts drive the API through a `SemiontSession`. Construct it once at the top of a script and reuse the same session for every verb call.
+Scripts construct a `SemiontClient` over `HttpTransport` directly. Construct it once at the top of a script and reuse the same client for every verb call. For long-running scripts that may span token expiry, use `SemiontSession` from `@semiont/sdk` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work.
 
 ```typescript
 import {
-  SemiontSession,
-  InMemorySessionStorage,
-  setStoredSession,
-  resourceId,
-  type KnowledgeBase,
+  SemiontClient,
+  HttpTransport,
+  HttpContentTransport,
 } from '@semiont/sdk';
-import { lastValueFrom } from 'rxjs';
+import {
+  accessToken,
+  baseUrl,
+  resourceId,
+  type AccessToken,
+} from '@semiont/core';
+import { BehaviorSubject, lastValueFrom } from 'rxjs';
 
-const apiUrl = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const kb: KnowledgeBase = {
-  id: 'script',
-  label: 'Script session',
-  protocol: apiUrl.protocol.replace(':', '') as 'http' | 'https',
-  host: apiUrl.hostname,
-  port: Number(apiUrl.port || (apiUrl.protocol === 'https:' ? 443 : 80)),
-  email: process.env.SEMIONT_USER_EMAIL ?? 'script@local',
-};
-
-const storage = new InMemorySessionStorage();
-setStoredSession(storage, kb.id, {
-  access: process.env.SEMIONT_ACCESS_TOKEN ?? '',
-  refresh: process.env.SEMIONT_REFRESH_TOKEN ?? '',
+const token$ = new BehaviorSubject<AccessToken | null>(
+  accessToken(process.env.SEMIONT_ACCESS_TOKEN ?? ''),
+);
+const transport = new HttpTransport({
+  baseUrl: baseUrl(process.env.SEMIONT_API_URL ?? 'http://localhost:4000'),
+  token$,
 });
-
-const session = new SemiontSession({
-  kb,
-  storage,
-  refresh: async () => null,
-});
-await session.ready;
+const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
 ```
 
 ## TypeScript — delegate
 
-`session.client.mark.assist(...)` returns an `Observable<MarkAssistProgress>`. `lastValueFrom` resolves with the final progress payload once the job completes.
+`semiont.mark.assist(...)` returns an `Observable<MarkAssistProgress>`. `lastValueFrom` resolves with the final progress payload once the job completes.
 
 ```typescript
 const rId = resourceId('doc-123');
 
 const progress = await lastValueFrom(
-  session.client.mark.assist(rId, 'assessing', {
+  semiont.mark.assist(rId, 'assessing', {
     tone: 'critical',
     instructions: 'Flag scheduling risks, resource conflicts, and unverified safety assumptions',
     density: 4,
@@ -86,7 +76,7 @@ const progress = await lastValueFrom(
 
 console.log(`Created ${progress.progress?.createdCount ?? 0} assessments`);
 
-await session.dispose();
+semiont.dispose();
 ```
 
 The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally.
@@ -94,7 +84,7 @@ The namespace method handles SSE streaming, timeout (180 s without progress), an
 ## TypeScript — manual
 
 ```typescript
-await session.client.mark.annotation(rId, {
+await semiont.mark.annotation(rId, {
   motivation: 'assessing',
   target: {
     source: rId,
@@ -124,4 +114,4 @@ await session.client.mark.annotation(rId, {
 - **Density is lower for assessments** (1-10 vs. 1-15 for highlights). Start at 3-5 for a focused review. Only go higher for dense technical or legal documents where nearly every claim warrants scrutiny.
 - **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
 - **Manual mode is for known issues.** If the user has already identified a problem and wants to attach it to the document, use manual mode. Delegate is for discovery.
-- **Check results** with `session.client.browse.annotations(rId)` — filter for `motivation === 'assessing'`.
+- **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'assessing'`.
