@@ -2,7 +2,7 @@
 
 This guide explains how Semiont manages its PostgreSQL database for **user authentication**, including schema management, migrations, and operational procedures.
 
-**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [System Architecture](../../../docs/ARCHITECTURE.md).
+**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [System Architecture](../../../docs/system/ARCHITECTURE.md).
 
 ## Overview
 

@@ -96,41 +96,6 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 - **[Browse](docs/protocol/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
 - **[Beckon](docs/protocol/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
-## 📦 Published Artifacts
-
-| Artifact | Use it for |
-| --- | --- |
-| **`@semiont/sdk`** ([npm](https://www.npmjs.com/package/@semiont/sdk)) | TypeScript SDK — `SemiontClient`, namespaces, session, view-models. Pair with the HTTP transport for scripts and apps. |
-| **`@semiont/api-client`** ([npm](https://www.npmjs.com/package/@semiont/api-client)) | `HttpTransport` + `HttpContentTransport` — the wire adapter the SDK consumes. |
-| **`@semiont/core`** ([npm](https://www.npmjs.com/package/@semiont/core)) | OpenAPI-generated types, branded IDs, and the event protocol. |
-| **`@semiont/observability`** ([npm](https://www.npmjs.com/package/@semiont/observability)) | OpenTelemetry helpers — `withSpan`, traceparent inject/extract, Node + Web init. |
-| **`ghcr.io/the-ai-alliance/semiont-frontend`** | Browser image — signed with build provenance + SBOM. Pull, run, point at any KB backend. |
-
-See **[packages/README.md](packages/README.md)** for the full layered package list, dependency graph, and the rest of the workspace packages.
-
-## 📖 Documentation
-
-| Document | Description |
-| --- | --- |
-| **[Architecture](docs/system/ARCHITECTURE.md)** | System design, event sourcing, and layered package structure |
-| **[W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md)** | How Semiont implements the W3C standard across all layers |
-| **[Local Development](docs/development/LOCAL-DEVELOPMENT.md)** | Get running locally — prerequisites, configuration, first launch |
-| **[API Reference](specs/docs/API.md)** | HTTP endpoints ([OpenAPI spec](specs/README.md)) |
-| **[SDK](packages/sdk/README.md)** ([Usage](packages/sdk/docs/Usage.md)) | TypeScript SDK guide — namespaces, session, view-models, awaitable observables |
-| **[Packages](packages/README.md)** | All published npm packages with dependency graph |
-| **[Deployment](docs/system/administration/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
-| **[Observability](docs/system/administration/OBSERVABILITY.md)** | Tracing, metrics, log correlation, and the `busLog` grep timeline |
-| **[Security](docs/system/administration/SECURITY.md)** | Authentication, RBAC, and security controls |
-| **[Contributing](CONTRIBUTING.md)** | How to participate, testing guide, and development standards |
-
-### Applications
-
-| Application | Description |
-| --- | --- |
-| **[Backend](apps/backend/README.md)** | Hono API server — routes, event bridging, real-time SSE, logging |
-| **[Frontend](apps/frontend/README.md)** | Vite + React SPA — annotations, accessibility, i18n, performance |
-| **[CLI](apps/cli/README.md)** | Environment management, service orchestration, deployment commands |
-
 ## Contributing
 
 > ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.

@@ -717,7 +717,7 @@ jobs:
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows
 - [Deployment Guide](./DEPLOYMENT.md) - AWS and production deployment
 - [API Reference](../../../specs/docs/API.md) - Complete API documentation
-- [Architecture](../../../docs/ARCHITECTURE.md) - System architecture overview
+- [Architecture](../../../docs/system/ARCHITECTURE.md) - System architecture overview
 
 ## Support
 

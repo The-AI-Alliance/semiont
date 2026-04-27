@@ -1,6 +1,6 @@
 # Local Backend Setup
 
-Run the Semiont backend locally. Both paths below use `~/.semiontconfig` for inference providers, database credentials, graph, and vector store settings — see the **[Configuration Guide](../../docs/administration/CONFIGURATION.md)**.
+Run the Semiont backend locally. Both paths below use `~/.semiontconfig` for inference providers, database credentials, graph, and vector store settings — see the **[Configuration Guide](../../docs/system/administration/CONFIGURATION.md)**.
 
 ## Container (no npm required)
 

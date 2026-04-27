@@ -138,4 +138,4 @@ find ~/.local/state/semiont/my-project/events -name "*.jsonl" | wc -l
 - [Event Store Architecture](../../../packages/event-sourcing/docs/ARCHITECTURE.md)
 - [Job Queue Patterns](../../../packages/jobs/docs/API.md)
 - [Database Guide](./DATABASE.md) — User authentication only
-- [Configuration Guide](../../../docs/administration/CONFIGURATION.md) — XDG path configuration
+- [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) — XDG path configuration
