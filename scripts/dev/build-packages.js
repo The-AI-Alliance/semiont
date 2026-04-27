@@ -39,8 +39,13 @@ try {
 // entry's deps must appear earlier in the list. (Validate by trial: a
 // downstream build failing because an upstream dist is missing means
 // the order is wrong.)
+//
+// Restrict to `publish: true` — non-publishable entries (test-utils,
+// mcp-server, desktop) have build paths that don't fit this iteration.
+// Desktop in particular runs `cargo tauri build`, which has no place in
+// the npm dev/CI loop.
 const versionJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf-8'));
-const buildSteps = Object.entries(versionJson.packages);
+const buildSteps = Object.entries(versionJson.packages).filter(([, pkg]) => pkg.publish);
 
 console.log('🏗️  Building packages and apps in dependency order...\n');
 
