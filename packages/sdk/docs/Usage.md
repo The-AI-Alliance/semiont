@@ -367,17 +367,39 @@ actor.dispose();
 
 ## Error Handling
 
+Every error thrown through the SDK extends `SemiontError`, the unified base from `@semiont/core` (re-exported from `@semiont/sdk`). It carries a discriminated `code` field plus `details`. The subclasses tighten `code` to specific literal unions:
+
+| Class | Code prefix | Thrown by |
+|-------|-------------|-----------|
+| `APIError` | `api.*` (`api.unauthorized`, `api.not-found`, `api.server-error`, …) | HTTP transport (`@semiont/api-client`) |
+| `BusRequestError` | `bus.*` (`bus.timeout`, `bus.rejected`, …) | bus-mediated commands inside namespaces |
+| `SemiontSessionError` | `session.*` / `browser.*` | the session layer (auth-failed, refresh-exhausted, sign-in-failed) — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
+
+Catch broadly on `SemiontError` for any error the SDK can produce, or narrowly on a subclass when the handler needs subclass-specific fields like `APIError.status`.
+
 ```typescript
-import { APIError } from '@semiont/api-client';
+import { SemiontError, APIError, BusRequestError } from '@semiont/sdk';
 
 try {
   await semiont.mark.annotation(resourceId, input);
 } catch (error) {
   if (error instanceof APIError) {
-    console.error(`${error.status}: ${error.message}`);
+    console.error(`HTTP ${error.status} (${error.code}): ${error.message}`);
+  } else if (error instanceof BusRequestError) {
+    if (error.code === 'bus.timeout') {
+      console.error(`Bus request timed out: ${error.message}`);
+    } else {
+      console.error(`Bus rejected (${error.code}): ${error.message}`);
+    }
+  } else if (error instanceof SemiontError) {
+    console.error(`Semiont error (${error.code}): ${error.message}`);
+  } else {
+    throw error;
   }
 }
 ```
+
+`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. See the [long-running session skill](../../../docs/skills/semiont-session/SKILL.md) for the wiring.
 
 ## Logging
 
