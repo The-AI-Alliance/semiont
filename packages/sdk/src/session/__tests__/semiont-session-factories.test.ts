@@ -22,6 +22,18 @@ import { HttpTransport } from '@semiont/api-client';
 import { SemiontSession } from '../semiont-session';
 import { TestStorage, storageKey } from './test-storage-helpers';
 
+/**
+ * A JWT-shaped string with an unexpired `exp` claim. The session's
+ * private `validate()` runs `isJwtExpired(stored.access)` and clears
+ * storage if the token can't be parsed — so mock auth responses must
+ * return real-looking JWTs.
+ */
+function freshJwt(expSecondsFromNow = 3600): string {
+  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }));
+  return `${header}.${payload}.sig`;
+}
+
 const KB = {
   id: 'kb-factory',
   label: 'Factory KB',
@@ -99,10 +111,11 @@ describe('SemiontSession.fromHttp', () => {
 
 describe('SemiontSession.signIn', () => {
   test('runs auth.password, persists both tokens, and seeds token$', async () => {
+    const accessJwt = freshJwt();
     const passwordSpy = vi
       .spyOn(HttpTransport.prototype, 'authenticatePassword')
       .mockResolvedValue({
-        token: 'access-jwt',
+        token: accessJwt,
         refreshToken: 'refresh-tok',
         user: { did: 'did:test:u' },
       } as never);
@@ -122,13 +135,13 @@ describe('SemiontSession.signIn', () => {
       expect(passwordArg).toBe('pwd');
 
       // Token populated.
-      expect(session.token$.getValue()).toBe('access-jwt');
+      expect(session.token$.getValue()).toBe(accessJwt);
 
       // Both access and refresh persisted under the kb-scoped key.
       const stored = storage.get(storageKey(KB.id));
       expect(stored).toBeTruthy();
       const parsed = JSON.parse(stored!);
-      expect(parsed.access).toBe('access-jwt');
+      expect(parsed.access).toBe(accessJwt);
       expect(parsed.refresh).toBe('refresh-tok');
     } finally {
       await session.dispose();
@@ -137,14 +150,15 @@ describe('SemiontSession.signIn', () => {
 
   test('default refresh callback reads stored refresh token and exchanges it', async () => {
     vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockResolvedValue({
-      token: 'access-jwt',
+      token: freshJwt(),
       refreshToken: 'refresh-tok',
       user: { did: 'did:test:u' },
     } as never);
 
+    const newAccess = freshJwt();
     const refreshSpy = vi
       .spyOn(HttpTransport.prototype, 'refreshAccessToken')
-      .mockResolvedValue({ access_token: 'new-access' } as never);
+      .mockResolvedValue({ access_token: newAccess } as never);
 
     const session = await SemiontSession.signIn({
       kb: KB,
@@ -156,9 +170,9 @@ describe('SemiontSession.signIn', () => {
 
     try {
       const newToken = await session.refresh();
-      expect(newToken).toBe('new-access');
+      expect(newToken).toBe(newAccess);
       expect(refreshSpy).toHaveBeenCalledWith('refresh-tok');
-      expect(session.token$.getValue()).toBe('new-access');
+      expect(session.token$.getValue()).toBe(newAccess);
     } finally {
       await session.dispose();
     }
@@ -166,7 +180,7 @@ describe('SemiontSession.signIn', () => {
 
   test('default refresh swallows refresh failures and returns null', async () => {
     vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockResolvedValue({
-      token: 'access-jwt',
+      token: freshJwt(),
       refreshToken: 'refresh-tok',
       user: { did: 'did:test:u' },
     } as never);
@@ -215,13 +229,14 @@ describe('SemiontSession.signIn', () => {
   });
 
   test('forwards optional onAuthFailed / onError callbacks into the session config', async () => {
+    const jwt = freshJwt();
     vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockResolvedValue({
-      token: 'access-jwt',
+      token: jwt,
       refreshToken: 'refresh-tok',
       user: { did: 'did:test:u' },
     } as never);
     vi.spyOn(HttpTransport.prototype, 'refreshAccessToken').mockResolvedValue(
-      { access_token: 'access-jwt' } as never,
+      { access_token: jwt } as never,
     );
 
     const onAuthFailed = vi.fn();

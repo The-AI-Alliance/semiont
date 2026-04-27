@@ -93,14 +93,15 @@ describe('busRequest', () => {
 
   it('rejects with BusRequestError(bus.rejected) when a failure event arrives', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE);
+    const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
     bus.failureSubject.next({ correlationId: cid, message: 'permission denied' });
 
-    await expect(promise).rejects.toBeInstanceOf(BusRequestError);
-    await expect(promise).rejects.toMatchObject({
+    const err = await captured;
+    expect(err).toBeInstanceOf(BusRequestError);
+    expect(err).toMatchObject({
       code: 'bus.rejected',
       message: 'permission denied',
       name: 'BusRequestError',
@@ -109,36 +110,32 @@ describe('busRequest', () => {
 
   it('attaches structured details on bus.rejected', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE);
+    const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
     const failurePayload = { correlationId: cid, message: 'denied', extra: 'context' };
     bus.failureSubject.next(failurePayload);
 
-    try {
-      await promise;
-      throw new Error('expected reject');
-    } catch (err) {
-      expect(err).toBeInstanceOf(BusRequestError);
-      const e = err as BusRequestError;
-      expect(e.details).toMatchObject({
-        channel: FAILURE,
-        correlationId: cid,
-        payload: failurePayload,
-      });
-    }
+    const e = (await captured) as BusRequestError;
+    expect(e).toBeInstanceOf(BusRequestError);
+    expect(e.details).toMatchObject({
+      channel: FAILURE,
+      correlationId: cid,
+      payload: failurePayload,
+    });
   });
 
   it('falls back to a default message when the failure event has no `message`', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE);
+    const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE).catch((e) => e);
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;
 
     bus.failureSubject.next({ correlationId: cid });
 
-    await expect(promise).rejects.toMatchObject({
+    const err = await captured;
+    expect(err).toMatchObject({
       code: 'bus.rejected',
       message: 'Bus request rejected',
     });
@@ -148,12 +145,16 @@ describe('busRequest', () => {
     vi.useFakeTimers();
     try {
       const bus = makeBus(RESULT, FAILURE);
-      const promise = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE, 100);
+      // Attach the catch handler synchronously so the rejection is never
+      // unhandled — chained `await expect(...).rejects` triggers an
+      // unhandled-rejection window that vitest reports as a failure.
+      const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE, 100).catch((e) => e);
 
       await vi.advanceTimersByTimeAsync(101);
 
-      await expect(promise).rejects.toBeInstanceOf(BusRequestError);
-      await expect(promise).rejects.toMatchObject({
+      const err = await captured;
+      expect(err).toBeInstanceOf(BusRequestError);
+      expect(err).toMatchObject({
         code: 'bus.timeout',
         name: 'BusRequestError',
       });
@@ -166,28 +167,23 @@ describe('busRequest', () => {
     vi.useFakeTimers();
     try {
       const bus = makeBus(RESULT, FAILURE);
-      const promise = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE, 50);
+      const captured = busRequest<unknown>(bus, EMIT, {}, RESULT, FAILURE, 50).catch((e) => e);
       await Promise.resolve();
       const cid = bus.emitPayload!.correlationId as string;
 
       await vi.advanceTimersByTimeAsync(51);
 
-      try {
-        await promise;
-        throw new Error('expected reject');
-      } catch (err) {
-        const e = err as BusRequestError;
-        expect(e).toBeInstanceOf(BusRequestError);
-        expect(e.code).toBe('bus.timeout');
-        expect(e.message).toContain('50ms');
-        expect(e.message).toContain(RESULT);
-        expect(e.details).toEqual({
-          channel: EMIT,
-          resultChannel: RESULT,
-          correlationId: cid,
-          timeoutMs: 50,
-        });
-      }
+      const e = (await captured) as BusRequestError;
+      expect(e).toBeInstanceOf(BusRequestError);
+      expect(e.code).toBe('bus.timeout');
+      expect(e.message).toContain('50ms');
+      expect(e.message).toContain(RESULT);
+      expect(e.details).toEqual({
+        channel: EMIT,
+        resultChannel: RESULT,
+        correlationId: cid,
+        timeoutMs: 50,
+      });
     } finally {
       vi.useRealTimers();
     }
