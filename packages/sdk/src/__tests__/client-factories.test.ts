@@ -18,7 +18,7 @@ import {
   accessToken as makeAccessToken,
   baseUrl as makeBaseUrl,
 } from '@semiont/core';
-import { HttpTransport, HttpContentTransport } from '@semiont/api-client';
+import { HttpTransport } from '@semiont/api-client';
 
 import { SemiontClient } from '../client';
 
