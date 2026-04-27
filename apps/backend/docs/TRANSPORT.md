@@ -296,7 +296,7 @@ reference them specifically instead of rediscovering them.
 `packages/api-client/src/namespaces/browse.ts` implements
 stale-while-revalidate, in-flight dedup, and event-driven invalidation
 by hand. See
-[`packages/api-client/docs/CACHE-SEMANTICS.md`](../../../packages/api-client/docs/CACHE-SEMANTICS.md).
+[`packages/sdk/docs/CACHE-SEMANTICS.md`](../../../packages/sdk/docs/CACHE-SEMANTICS.md).
 The constraint we're honoring is framework-agnosticism — the same
 client is used by React, the CLI, MCP server, and workers.
 
