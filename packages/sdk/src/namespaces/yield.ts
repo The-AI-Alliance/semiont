@@ -194,7 +194,7 @@ export class YieldNamespace implements IYieldNamespace {
     return busRequest<{ resourceId: string }>(
       this.transport,
       'yield:clone-create',
-      options as unknown as Record<string, unknown>,
+      options,
       'yield:clone-created',
       'yield:clone-create-failed',
     );

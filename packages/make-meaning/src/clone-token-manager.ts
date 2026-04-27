@@ -163,6 +163,14 @@ export class CloneTokenManager {
 
   private async handleCreateResource(event: EventMap['yield:clone-create']): Promise<void> {
     try {
+      if (!event._userId) {
+        this.eventBus.get('yield:clone-create-failed').next({
+          correlationId: event.correlationId,
+          message: 'yield:clone-create missing _userId (gateway injection)',
+        });
+        return;
+      }
+
       const token = makeCloneToken(event.token);
       const tokenData = this.tokens.get(token);
 
@@ -214,14 +222,14 @@ export class CloneTokenManager {
           entityTypes: getResourceEntityTypes(sourceDoc),
           creationMethod: CREATION_METHODS.CLONE,
         },
-        makeUserId(event.userId),
+        makeUserId(event._userId),
         this.eventBus,
       );
 
       // Archive original if requested
       if (event.archiveOriginal && !sourceDoc.archived) {
         this.eventBus.get('mark:archive').next({
-          _userId: event.userId,
+          _userId: event._userId,
           resourceId: tokenData.resourceId,
         });
       }
