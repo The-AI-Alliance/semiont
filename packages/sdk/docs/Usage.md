@@ -399,7 +399,7 @@ try {
 }
 ```
 
-`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. See the [long-running session skill](../../../docs/skills/semiont-session/SKILL.md) for the wiring.
+`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. See the [long-running session skill](../../../docs/protocol/skills/semiont-session/SKILL.md) for the wiring.
 
 ## Logging
 

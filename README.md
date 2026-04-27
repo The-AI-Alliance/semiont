@@ -16,9 +16,9 @@ Run the published browser container image (substitute `docker` or `podman` for `
 container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
 
-The browser needs to reach a knowledge base backend running on your machine, so the container runtime must have local network permission. See [Local network access](docs/LOCAL-SEMIONT.md#local-network-access) for per-platform notes.
+The browser needs to reach a knowledge base backend running on your machine, so the container runtime must have local network permission. See [Local network access](docs/system/LOCAL-SEMIONT.md#local-network-access) for per-platform notes.
 
-The image is signed with build provenance + SBOM attestations. To verify before running, see [Supply-chain verification](docs/administration/IMAGES.md#supply-chain-verification).
+The image is signed with build provenance + SBOM attestations. To verify before running, see [Supply-chain verification](docs/system/administration/IMAGES.md#supply-chain-verification).
 
 Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Browser setup](apps/frontend/docs/LOCAL.md)** for details.
 
@@ -66,9 +66,9 @@ const results = await semiont.match.search(resourceId, refId, context);
 await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
 ```
 
-**[Agent Skills](docs/skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code can use to drive the full pipeline without writing integration code.
+**[Agent Skills](docs/protocol/skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code can use to drive the full pipeline without writing integration code.
 
-See the **[Local Semiont Overview](docs/LOCAL-SEMIONT.md)** for alternative setup paths.
+See the **[Local Semiont Overview](docs/system/LOCAL-SEMIONT.md)** for alternative setup paths.
 
 
 
@@ -86,15 +86,15 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
-**[Seven Collaborative Flows](docs/flows/README.md)** — humans and AI agents work as peers through seven composable workflows:
+**[Seven Collaborative Flows](docs/protocol/flows/README.md)** — humans and AI agents work as peers through seven composable workflows:
 
-- **[Yield](docs/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
-- **[Mark](docs/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
-- **[Match](docs/flows/MATCHER.md)** — Search the knowledge base for candidate resources using multi-source retrieval and composite scoring — structural signals plus optional LLM re-ranking
-- **[Bind](docs/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
-- **[Gather](docs/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
-- **[Browse](docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
-- **[Beckon](docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
+- **[Yield](docs/protocol/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
+- **[Mark](docs/protocol/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
+- **[Match](docs/protocol/flows/MATCHER.md)** — Search the knowledge base for candidate resources using multi-source retrieval and composite scoring — structural signals plus optional LLM re-ranking
+- **[Bind](docs/protocol/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
+- **[Gather](docs/protocol/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
+- **[Browse](docs/protocol/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
+- **[Beckon](docs/protocol/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
 ## 📦 Published Artifacts
 
@@ -112,15 +112,15 @@ See **[packages/README.md](packages/README.md)** for the full layered package li
 
 | Document | Description |
 | --- | --- |
-| **[Architecture](docs/ARCHITECTURE.md)** | System design, event sourcing, and layered package structure |
+| **[Architecture](docs/system/ARCHITECTURE.md)** | System design, event sourcing, and layered package structure |
 | **[W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md)** | How Semiont implements the W3C standard across all layers |
 | **[Local Development](docs/development/LOCAL-DEVELOPMENT.md)** | Get running locally — prerequisites, configuration, first launch |
 | **[API Reference](specs/docs/API.md)** | HTTP endpoints ([OpenAPI spec](specs/README.md)) |
 | **[SDK](packages/sdk/README.md)** ([Usage](packages/sdk/docs/Usage.md)) | TypeScript SDK guide — namespaces, session, view-models, awaitable observables |
 | **[Packages](packages/README.md)** | All published npm packages with dependency graph |
-| **[Deployment](docs/administration/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
-| **[Observability](docs/administration/OBSERVABILITY.md)** | Tracing, metrics, log correlation, and the `busLog` grep timeline |
-| **[Security](docs/administration/SECURITY.md)** | Authentication, RBAC, and security controls |
+| **[Deployment](docs/system/administration/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
+| **[Observability](docs/system/administration/OBSERVABILITY.md)** | Tracing, metrics, log correlation, and the `busLog` grep timeline |
+| **[Security](docs/system/administration/SECURITY.md)** | Authentication, RBAC, and security controls |
 | **[Contributing](CONTRIBUTING.md)** | How to participate, testing guide, and development standards |
 
 ### Applications

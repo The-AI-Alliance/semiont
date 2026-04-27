@@ -12,7 +12,7 @@ The Semiont project uses a modern testing stack built on:
 
 ## Test Types and Organization
 
-Semiont organizes tests into four distinct categories for targeted testing:
+Semiont organizes tests into five distinct categories for targeted testing:
 
 ### 🧩 **Unit Tests**
 Test individual components, functions, and hooks in isolation:
@@ -44,6 +44,16 @@ Focus on security-critical functionality:
 - GDPR compliance features
 - Cookie consent management
 - Admin access controls
+
+### 🎭 **End-to-End Tests**
+Real-browser Playwright tests that drive the live frontend against a live backend and KB stack. Catch cross-layer regressions that unit and integration tests can't see:
+- SSE timing and reconnect
+- React lifecycle ↔ event-bus interaction
+- Cross-package round-trips (frontend → backend → make-meaning → workers)
+- Auth session rebuild after sign-out/sign-in
+- Persistence: annotation reload, view-state survival
+
+Lives in [`tests/e2e/`](../../tests/e2e/) (separate npm workspace; not bundled with package tests). See the [End-to-End Tests](#end-to-end-tests) section below for the full picture.
 
 ## Test Environment Configuration
 
@@ -659,6 +669,222 @@ it('should work', () => {})
 it('should display user name after successful login', () => {})
 ```
 
+## End-to-End Tests
+
+The e2e suite at [`tests/e2e/`](../../tests/e2e/) is a separate npm workspace running Playwright against a real running stack. It exists to catch regressions that no in-process test can see: SSE timing windows, lifecycle-vs-bus race conditions, navigation tear-down, sign-out/sign-in session rebuild, and end-to-end persistence of annotations across reload.
+
+The suite is **deliberately scoped**. It is the smallest set of paths that has broken before and that unit/integration tests can't catch. Pure component logic stays in unit tests; multi-component interaction in a mocked tree stays in integration tests; e2e is reserved for cross-layer behavior that requires the real wire.
+
+### What's in scope
+
+- **Not in CI.** Run locally against a manually-brought-up stack. Adding CI requires fixture isolation work that hasn't happened yet.
+- **No fixture seeding.** Tests assume the target KB has ≥2 resources and ≥1 entity type — true of the default template KB. Property-style assertions ("the first resource", "any annotation"), not specific-content assertions.
+- **No real OAuth.** Credentials sign-in only.
+- **Single-worker.** Concurrency requires per-test isolation that doesn't exist yet.
+- **Chromium only.** No cross-browser matrix.
+
+### Layout
+
+```text
+tests/e2e/
+├── specs/                            # one .spec.ts per regression-guarded path
+│   ├── 01-sign-in.spec.ts            # sign-in → land on knowledge section
+│   ├── 02-open-resource.spec.ts      # open from Discover, content loads
+│   ├── 03-navigate-resources.spec.ts # tab between two open resources
+│   ├── 04-manual-highlight.spec.ts   # select → motivation=highlight, persists across reload
+│   ├── 05-manual-reference.spec.ts   # select → motivation=linking + entity type, persists
+│   ├── 06-assisted-reference.spec.ts # assist widget dispatches across the wire
+│   ├── 07-sign-out-sign-in.spec.ts   # session rebuilds; bus round-trips on fresh client
+│   ├── 08-hover-beckon.spec.ts       # hover annotation → BeckonVM focus signal flows
+│   └── 99-diagnose-entity-types.spec.ts  # singleton-ness diagnostic (not a guard)
+├── fixtures/
+│   ├── auth.ts                       # signedInPage fixture; depends on bus
+│   └── bus-log.ts                    # wire-level bus capture API
+├── docs/                             # the operations manual (linked below)
+├── playwright.config.ts
+└── package.json                      # separate workspace — own deps
+```
+
+A regression in any of `01`–`08` fails the corresponding test. `99-diagnose-entity-types.spec.ts` is a running dashboard for the SSE-reconnect singleton invariants — it doesn't assert pass/fail in the regression sense.
+
+### Protocol-level assertions, not just UI
+
+The unique feature of the e2e suite is **wire-level assertions** via the bus-log capture. UI assertions are weak — "the highlight appeared" passes if the UI ended up right via a stale cache, a different endpoint, or a broken handler that got backfilled by a refetch. Protocol assertions are strong — "a `mark:create-request` was emitted, and a `mark:create-ok` arrived with matching `correlationId`" fails immediately if the wire regresses.
+
+Every emit/recv/SSE/PUT/GET that crosses a transport boundary is logged in a grep-friendly format the moment `__SEMIONT_BUS_LOG__` is on:
+
+```
+[bus EMIT] mark:create-request [scope=res-1] [cid=a89a670a] [trace=8f3ca4ed] {...}
+[bus RECV] mark:create-ok      [scope=res-1] [cid=a89a670a] [trace=8f3ca4ed] {...}
+```
+
+The `bus` fixture flips that flag via `addInitScript` before page load and collects the lines into a structured capture:
+
+```ts
+import { test, expect } from '../fixtures/auth';
+
+test('manual highlight persists', async ({ signedInPage: page, bus }) => {
+  await page.goto('/en/know/discover');
+  bus.clear();  // scope assertions to what follows
+
+  await page.getByRole('button', { name: /open resource/i }).first().click();
+  // ... drive the highlight gesture ...
+
+  // Wire-level assertion — strongest:
+  await bus.expectRequestResponse('mark:create-request', 'mark:create-ok');
+
+  // UI assertion — weaker, but catches rendering bugs:
+  await expect(page.getByText(/your highlight/i)).toBeVisible();
+});
+```
+
+The same bus log works in Node — set `SEMIONT_BUS_LOG=1` and every backend / worker / smelter emit gets logged. Useful well beyond e2e; covered in [`tests/e2e/docs/bus-logging.md`](../../tests/e2e/docs/bus-logging.md).
+
+### Required environment
+
+Two required, two with local-dev defaults:
+
+| Var | Default | Purpose |
+|---|---|---|
+| `E2E_EMAIL` | (required) | User to sign in as |
+| `E2E_PASSWORD` | (required) | Password for that user |
+| `E2E_FRONTEND_URL` | `http://localhost:3000` | Frontend the browser drives |
+| `E2E_BACKEND_URL` | `http://localhost:4000` | Backend the sign-in form points at |
+
+The default seeded admin is `admin@example.com` / `password`. No fallback — the suite fails fast if `E2E_EMAIL`/`E2E_PASSWORD` aren't set, on purpose (no silent use of a default account).
+
+### Quick run
+
+The recommended path on macOS is the official Playwright container, which can reach the dev stack's bridge IPs directly:
+
+```sh
+# 1. Bring up the stack (frontend + backend + KB), once per session.
+#    See tests/e2e/README.md "Running against a freshly-built stack".
+
+# 2. Re-grab IPs every time anything restarts (Apple container reassigns them).
+container ls | grep -E 'semiont-(frontend|backend)'
+
+# 3. Run the suite.
+container run --rm \
+  -v "$(git rev-parse --show-toplevel):/workspace" \
+  -w /workspace/tests/e2e \
+  -e E2E_EMAIL=admin@example.com \
+  -e E2E_PASSWORD=password \
+  -e E2E_FRONTEND_URL=http://<frontend-ip>:3000 \
+  -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
+  -e CI=1 \
+  mcr.microsoft.com/playwright:v1.59.1-noble \
+  npx playwright test
+```
+
+Run from the host (with Node + Playwright installed):
+
+```sh
+cd tests/e2e
+npm install
+npx playwright install chromium    # one-time browser download
+npm test
+npm run test:headed     # watch the browser
+npm run test:debug      # Playwright inspector (step through)
+npm run test:ui         # Playwright runner UI
+```
+
+Run a single spec or a single test by title:
+
+```sh
+npx playwright test specs/02-open-resource.spec.ts
+npx playwright test -g 'opens the first resource'
+```
+
+`--repeat-each 5` is the default flake check — a deterministic test passes 5/5; a race fails a fraction of the time. Reach for it before claiming a flake is fixed.
+
+### Debugging failures
+
+Inner loop, in priority order:
+
+1. **Re-run the failing test with the bus log** under `--repeat-each 3` to separate flake from determinism.
+2. **Tail the backend** during the run: `container logs -f semiont-backend`. If the event never reaches the backend, it's a frontend emit/subscribe problem; if the backend logs the emit but no SSE write follows, it's a result-channel problem.
+3. **Open the trace report** (`npm run show-report`). Each failed test has a DOM snapshot, a screenshot, a video, and a `trace.zip` for time-travel debugging in Playwright's trace viewer.
+4. **Pull `console.error` from the trace** without booting the viewer — see [`tests/e2e/docs/debugging.md`](../../tests/e2e/docs/debugging.md#pulling-a-js-error-from-a-trace) for the JSONL recipe.
+5. **Write a throwaway diagnostic spec** with the minimum flow and no assertions. If the diagnostic succeeds where the real test fails, the delta between them is the bug.
+6. **Last resort: `npm run test:headed`** and watch.
+
+The recurring lesson: instrument, don't speculate. A `console.log` in the product code → rebuild → restart → re-run is a 90-second round-trip. Twenty minutes of "what should happen" reasoning rarely beats it.
+
+### Container rebuild flow (when you've changed product code)
+
+Anything inside `@semiont/*` is published to a local Verdaccio and consumed via `npm install` in the container builds — your local source tree is invisible to the running stack until you republish.
+
+| Change in | Rebuild | Restart |
+|---|---|---|
+| `packages/react-ui`, `packages/api-client`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | frontend container |
+| `apps/frontend` only | `./scripts/ci/local-build.sh` | frontend container |
+| `packages/make-meaning`, `event-sourcing`, anything backend-side | `./scripts/ci/local-build.sh` (republish) **and** KB `start.sh --no-cache` | backend (`start.sh` handles it) |
+| `apps/backend` | KB `start.sh --no-cache` | backend |
+
+Two pitfalls that have caught real time before:
+
+- **`local-build.sh` does NOT build the backend image.** It builds the frontend image and publishes packages. The backend image is built by the KB project's `.semiont/scripts/start.sh`.
+- **Apple container `--rm` is unreliable.** Stopped containers linger and conflict on next start. Wipe with `container stop $name && container rm $name` before retrying.
+
+Full step-by-step in [`tests/e2e/docs/containers.md`](../../tests/e2e/docs/containers.md).
+
+### Writing a new e2e test
+
+Keep the bar high: **a path that has broken before, that unit/integration tests can't catch.** Cross-layer regressions are the sweet spot.
+
+Spec template:
+
+```ts
+// specs/NN-short-name.spec.ts
+import { test, expect } from '../fixtures/auth';
+
+test.describe('short description', () => {
+  test('does the thing', async ({ signedInPage: page, bus }) => {
+    await page.goto('/en/know/discover');
+    bus.clear();
+
+    await page.getByRole('button', { name: /some action/i }).click();
+
+    // Strong: protocol assertion.
+    await bus.expectRequestResponse('foo:requested', 'foo:result');
+
+    // Optional: UI assertion for rendering details.
+    await expect(page.getByText(/success/i)).toBeVisible();
+  });
+});
+```
+
+Key conventions:
+
+- **Fixture ordering matters.** The `bus` fixture's `addInitScript` runs *before* `page.goto`. That ordering is guaranteed when you destructure `bus` in the test params or use `signedInPage` (which depends on `bus`). If you build a helper that creates its own `page`, re-attach the bus log there with `attachBusLog(page)` first.
+- **Selectors prefer role + accessible name.** Fall back to `getByPlaceholder` only when role-based queries can't disambiguate. No `data-testid` convention yet.
+- **Skip explicitly.** `test.skip(...)` with a one-line reason. Never let a test pass by silently returning early.
+
+Full guide: [`tests/e2e/docs/writing.md`](../../tests/e2e/docs/writing.md).
+
+### Known gotchas
+
+The ones that have cost real debugging time, captured so you don't re-discover them:
+
+- **`crypto.randomUUID` requires a secure context.** `localhost` and `127.0.0.1` count as secure; arbitrary `http://192.168.x.x` does not. The auth fixture polyfills it via `addInitScript`. The polyfill is also masking a latent product bug — any user hitting the frontend over HTTP from a non-localhost hostname hits the same issue.
+- **Container IPs change on every restart.** Apple's container runtime reassigns bridge IPs on every `container run` and every `container start`. Re-grab both IPs before each test run.
+- **Stale browser tabs poison backend logs.** A lingering tab from an earlier dev session retries SSE with an expired token, flooding `container logs` with `401`s. Close the tab before debugging.
+- **Playwright image tag must match `@playwright/test`.** When `npm install` upgrades the package, pull the matching `mcr.microsoft.com/playwright:<version>-noble`.
+
+Full list in [`tests/e2e/docs/gotchas.md`](../../tests/e2e/docs/gotchas.md).
+
+### Where to read next
+
+The operational depth lives in [`tests/e2e/docs/`](../../tests/e2e/docs/):
+
+- **[running.md](../../tests/e2e/docs/running.md)** — invocation, single spec, headed, `--repeat-each`, host vs. container.
+- **[containers.md](../../tests/e2e/docs/containers.md)** — Apple container CLI, Verdaccio, full rebuild lifecycle.
+- **[writing.md](../../tests/e2e/docs/writing.md)** — spec template, fixture ordering, selector conventions.
+- **[debugging.md](../../tests/e2e/docs/debugging.md)** — traces, JSONL recipes, diagnostic specs.
+- **[bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — `__SEMIONT_BUS_LOG__`, the `bus` capture fixture, every helper.
+- **[gotchas.md](../../tests/e2e/docs/gotchas.md)** — full list of sharp edges.
+
 ## Coverage Goals
 
 ### Current Coverage
@@ -965,6 +1191,15 @@ jobs:
 - [Frontend Testing](../../apps/frontend/README.md#testing) - Frontend-specific testing setup, scripts, and philosophy
 - [Backend Testing](../../apps/backend/README.md#testing) - Backend API testing and integration tests
 - [CLI Testing](../../apps/cli/TESTING.md) - CLI command testing and validation
+
+### End-to-End Testing
+- [tests/e2e/README.md](../../tests/e2e/README.md) - Suite overview, current spec list, full stack-rebuild flow
+- [running.md](../../tests/e2e/docs/running.md) - Invocation, single spec, headed mode, repeat-each
+- [containers.md](../../tests/e2e/docs/containers.md) - Container rebuild lifecycle, Verdaccio publishing, IP refresh
+- [writing.md](../../tests/e2e/docs/writing.md) - Spec template, fixture ordering, protocol assertions
+- [debugging.md](../../tests/e2e/docs/debugging.md) - Trace report, JSONL extraction, diagnostic specs
+- [bus-logging.md](../../tests/e2e/docs/bus-logging.md) - Wire-level capture API and helpers
+- [gotchas.md](../../tests/e2e/docs/gotchas.md) - Known sharp edges
 
 ### Component Testing
 - [Annotation Rendering Principles](../../apps/frontend/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Property-based testing for annotation renderer

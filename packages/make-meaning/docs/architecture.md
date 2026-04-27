@@ -1,6 +1,6 @@
 # Architecture
 
-`@semiont/make-meaning` implements the actor model from [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md).
+`@semiont/make-meaning` implements the actor model from [ARCHITECTURE.md](../../../docs/system/ARCHITECTURE.md).
 
 ## Actor Model
 
@@ -284,6 +284,6 @@ Resources reference their content via `storageUri` (e.g. `file://README.md`). Se
 
 ## See Also
 
-- [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) — System-wide actor model
+- [ARCHITECTURE.md](../../../docs/system/ARCHITECTURE.md) — System-wide actor model
 - [API Reference](./api-reference.md) — Context modules and operations
 - [Job Workers](./job-workers.md) — Worker implementations in @semiont/jobs

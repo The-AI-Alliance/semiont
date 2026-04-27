@@ -31,13 +31,13 @@ Self-hosted, so your data stays on your infrastructure. Inference runs on **[Ant
 
 Humans and AI agents work as peers through seven composable workflows:
 
-- **[Yield](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
-- **[Mark](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
-- **[Match](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/MATCHER.md)** — Search the knowledge base for candidate resources using multi-source retrieval and composite scoring — structural signals plus optional LLM re-ranking
-- **[Bind](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
-- **[Gather](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
-- **[Browse](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
-- **[Beckon](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
+- **[Yield](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
+- **[Mark](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
+- **[Match](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/MATCHER.md)** — Search the knowledge base for candidate resources using multi-source retrieval and composite scoring — structural signals plus optional LLM re-ranking
+- **[Bind](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
+- **[Gather](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
+- **[Browse](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
+- **[Beckon](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
 ## Use Cases
 
