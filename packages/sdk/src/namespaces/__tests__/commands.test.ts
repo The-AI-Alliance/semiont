@@ -301,7 +301,7 @@ describe('MatchNamespace', () => {
   });
 
   it('search() emits match:search-requested on bus', () => {
-    match.search(RID, 'ref-1', {} as any).subscribe(() => {});
+    match.search(RID, annotationId('ref-1'), {} as any).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('match:search-requested', expect.objectContaining({
         resourceId: RID,
@@ -313,7 +313,7 @@ describe('MatchNamespace', () => {
 
   it('search() completes on match:search-results', async () => {
     const completed = new Promise<void>((resolve) => {
-      match.search(RID, 'ref-1', {} as any).subscribe({ next: () => {}, complete: () => resolve() });
+      match.search(RID, annotationId('ref-1'), {} as any).subscribe({ next: () => {}, complete: () => resolve() });
     });
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
@@ -324,7 +324,7 @@ describe('MatchNamespace', () => {
 
   it('search() errors on match:search-failed', async () => {
     const errored = new Promise<Error>((resolve) => {
-      match.search(RID, 'ref-1', {} as any).subscribe({ error: (err) => resolve(err) });
+      match.search(RID, annotationId('ref-1'), {} as any).subscribe({ error: (err) => resolve(err) });
     });
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];

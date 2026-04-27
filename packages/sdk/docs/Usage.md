@@ -181,7 +181,7 @@ const files = await semiont.browse.files('/docs', 'mtime');
 
 ## Mark
 
-Commands return Promises that resolve on HTTP acceptance. Results appear on browse Observables via the bus gateway.
+Commands return Promises that resolve on HTTP acceptance. Results appear on browse Observables via the bus gateway. `mark.annotation` returns the new `annotationId` already branded as `AnnotationId` — pass it directly to other namespace methods (e.g. `bind.body`, `gather.annotation`) without a manual `annotationId(...)` cast.
 
 ```typescript
 // Create an annotation
@@ -248,7 +248,7 @@ semiont.gather.annotation(annotationId, resourceId, { contextWindow: 2000 }).sub
 
 ## Match
 
-Long-running. Returns Observable with scored results.
+Long-running. Returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).
 
 ```typescript
 semiont.match.search(resourceId, referenceId, gatheredContext, {

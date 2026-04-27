@@ -68,7 +68,7 @@ console.log(`Found ${unresolved.length} unresolved references`);
 
 ## Steps 3-5 — Gather, match, bind or generate
 
-For each unresolved reference: gather context, match against the KB, and either bind to the best match (if confident) or generate a new resource and bind to that. Brand the annotation id once at the top of the loop and reuse `annId` everywhere — `match.search` accepts a raw string for its `referenceId` param, but passing the branded value works too and keeps the rest of the loop consistent.
+For each unresolved reference: gather context, match against the KB, and either bind to the best match (if confident) or generate a new resource and bind to that. Brand the annotation id once at the top of the loop and reuse `annId` everywhere — `gather.annotation`, `match.search`, `bind.body`, and `yield.fromAnnotation` all take a branded `AnnotationId`.
 
 ```typescript
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);

@@ -1,5 +1,8 @@
 import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
+import {
+  annotationId as toAnnotationId,
+} from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
@@ -23,14 +26,15 @@ export class MarkNamespace implements IMarkNamespace {
     private readonly bus: EventBus,
   ) {}
 
-  async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: string }> {
-    return busRequest<{ annotationId: string }>(
+  async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }> {
+    const result = await busRequest<{ annotationId: string }>(
       this.transport,
       'mark:create-request',
-      { resourceId, request: input as unknown as Record<string, unknown> },
+      { resourceId, request: input },
       'mark:create-ok',
       'mark:create-failed',
     );
+    return { annotationId: toAnnotationId(result.annotationId) };
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
@@ -205,7 +209,7 @@ export class MarkNamespace implements IMarkNamespace {
     motivation: Motivation,
     options: MarkAssistOptions,
   ): Promise<{ jobId: string }> {
-    const jobTypeMap: Record<string, string> = {
+    const jobTypeMap: Record<string, components['schemas']['JobType']> = {
       tagging: 'tag-annotation',
       linking: 'reference-annotation',
       highlighting: 'highlight-annotation',

@@ -214,7 +214,7 @@ export interface BrowseNamespace {
  */
 export interface MarkNamespace {
   // Annotation CRUD
-  annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: string }>;
+  annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
   delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void>;
 
   // Entity types
@@ -304,7 +304,7 @@ export interface GatherNamespace {
 export interface MatchNamespace {
   search(
     resourceId: ResourceId,
-    referenceId: string,
+    referenceId: AnnotationId,
     context: GatheredContext,
     options?: { limit?: number; useSemanticScoring?: boolean },
   ): StreamObservable<MatchSearchProgress>;

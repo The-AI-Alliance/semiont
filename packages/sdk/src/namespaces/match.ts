@@ -1,5 +1,5 @@
 import { filter } from 'rxjs/operators';
-import type { ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
+import type { AnnotationId, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
 import type { MatchNamespace as IMatchNamespace, MatchSearchProgress } from './types';
@@ -17,7 +17,7 @@ export class MatchNamespace implements IMatchNamespace {
 
   search(
     resourceId: ResourceId,
-    referenceId: string,
+    referenceId: AnnotationId,
     context: GatheredContext,
     options?: { limit?: number; useSemanticScoring?: boolean },
   ): StreamObservable<MatchSearchProgress> {

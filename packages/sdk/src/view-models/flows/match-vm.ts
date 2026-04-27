@@ -1,7 +1,7 @@
 import type { Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { ResourceId, GatheredContext } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { ViewModel } from '../lib/view-model';
 
@@ -16,7 +16,7 @@ export function createMatchVM(
   subs.push(client.bus.get('match:search-requested').subscribe((event) => {
     const searchSub = client.match.search(
       makeResourceId(event.resourceId),
-      event.referenceId,
+      makeAnnotationId(event.referenceId),
       event.context as GatheredContext,
       { limit: event.limit, useSemanticScoring: event.useSemanticScoring },
     ).pipe(
