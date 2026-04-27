@@ -32,14 +32,30 @@ export const securityHeaders = (): MiddlewareHandler => {
       );
     }
 
-    // Content-Security-Policy: Restrict resource loading to prevent XSS
-    // This is a strict policy for an API - adjust if serving HTML
-    const csp = [
-      "default-src 'none'",           // Block everything by default
-      "frame-ancestors 'none'",       // Don't allow framing (backup to X-Frame-Options)
-      "base-uri 'none'",              // Prevent base tag injection
-      "form-action 'none'",           // No form submissions from this origin
-    ].join('; ');
+    // Content-Security-Policy: Restrict resource loading to prevent XSS.
+    // The default for API responses is the strictest possible policy. The
+    // Swagger UI route (`/api/docs`) is the one HTML-rendering exception:
+    // it needs to load Swagger UI's CDN-hosted JS/CSS, run its init shim,
+    // and fetch the OpenAPI JSON from this origin.
+    const isSwaggerUi = c.req.path === '/api/docs' || c.req.path === '/api/swagger';
+    const csp = isSwaggerUi
+      ? [
+          "default-src 'none'",
+          "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+          "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+          "img-src 'self' data: https://cdn.jsdelivr.net",
+          "font-src 'self' https://cdn.jsdelivr.net",
+          "connect-src 'self'",
+          "frame-ancestors 'none'",
+          "base-uri 'self'",
+          "form-action 'none'",
+        ].join('; ')
+      : [
+          "default-src 'none'",         // Block everything by default
+          "frame-ancestors 'none'",     // Don't allow framing (backup to X-Frame-Options)
+          "base-uri 'none'",            // Prevent base tag injection
+          "form-action 'none'",         // No form submissions from this origin
+        ].join('; ');
     c.res.headers.set('Content-Security-Policy', csp);
 
     // X-XSS-Protection: Enable browser's XSS filter (legacy, but doesn't hurt)
