@@ -1,7 +1,7 @@
 /**
  * RxJS-native read-through cache primitive.
  *
- * Behavioral contract: packages/api-client/docs/CACHE-SEMANTICS.md (B1–B13).
+ * Behavioral contract: packages/sdk/docs/CACHE-SEMANTICS.md (B1–B13).
  *
  * Framework-agnostic: no React, no dependency on any namespace. Used by
  * `BrowseNamespace` to back its per-key stores, but equally usable from

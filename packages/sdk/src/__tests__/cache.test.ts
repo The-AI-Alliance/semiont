@@ -2,7 +2,7 @@
  * Contract tests for the `Cache<K, V>` primitive.
  *
  * These mirror the B1–B13 behaviors spec'd in
- * `packages/api-client/docs/CACHE-SEMANTICS.md`, but assert them against
+ * `packages/sdk/docs/CACHE-SEMANTICS.md`, but assert them against
  * the primitive directly (no BrowseNamespace, no busRequest). The
  * `cache-semantics.test.ts` suite covers the same behaviors at the
  * integration layer; passing both means the primitive is a correct

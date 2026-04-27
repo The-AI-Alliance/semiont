@@ -35,7 +35,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   //
   // Each cache encapsulates the BehaviorSubject store, in-flight guard,
   // and per-key observable memoization that was previously open-coded
-  // here. Behavioral contract: `packages/api-client/docs/CACHE-SEMANTICS.md`.
+  // here. Behavioral contract: `packages/sdk/docs/CACHE-SEMANTICS.md`.
   //
   // Public surface (`resource()`, `annotations()`, etc.) is unchanged;
   // the caches are an implementation detail of this namespace.
