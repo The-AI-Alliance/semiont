@@ -654,6 +654,6 @@ The modular architecture ensures maintainability and extensibility, while the pr
 - [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView annotation rendering (DOM Range overlay)
 
 ### System Documentation
-- [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) - Overall system architecture
+- [ARCHITECTURE.md](../../../docs/system/ARCHITECTURE.md) - Overall system architecture
 - [DATABASE.md](../../backend/docs/DATABASE.md) - PostgreSQL for user accounts and job queue
 - [Graph Package](../../../packages/graph/) - Graph database implementations (Neo4j, Neptune, JanusGraph)

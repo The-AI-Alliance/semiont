@@ -42,59 +42,13 @@ In the Semiont browser's Knowledge Bases panel, enter host `localhost`, port `40
 
 ## Automate
 
-Every operation in the GUI is available programmatically. The same seven flows — yield, mark, match, bind, gather, browse, beckon — work identically whether driven by a human, a script, or an AI agent.
+Every operation in the GUI is available programmatically through three surfaces:
 
-**[Semiont CLI](apps/cli/README.md)** — pipe the full annotation pipeline from the terminal:
+- **[Semiont SDK](packages/sdk/README.md)** — type-safe TypeScript client (`@semiont/sdk`) for scripts, embeddings, and apps.
+- **[Semiont CLI](apps/cli/README.md)** — drive Semiont from the terminal.
+- **[Agent Skills](docs/protocol/skills/)** — ready-made skill definitions for agentic coding assistants like Claude Code.
 
-```bash
-semiont mark doc-123 --delegate --motivation linking --entity-type Person --entity-type Organization
-semiont gather annotation doc-123 ann-456
-semiont match doc-123 ann-456
-semiont bind doc-123 ann-456 target-789
-```
-
-**[Semiont SDK](packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. `SemiontClient.signIn(...)` is the credentials-first one-line construction for scripts. Long-running scripts that span token expiry use `SemiontSession.signIn(...)` instead — same shape, plus refresh and persistence (see the [SDK README](packages/sdk/README.md)).
-
-```typescript
-import { SemiontClient } from '@semiont/sdk';
-
-const semiont = await SemiontClient.signIn({ baseUrl: 'http://localhost:4000', email, password });
-
-await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
-const context = await semiont.gather.annotation(annId, resourceId);
-const results = await semiont.match.search(resourceId, refId, context);
-await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
-```
-
-**[Agent Skills](docs/protocol/skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code can use to drive the full pipeline without writing integration code.
-
-See the **[Local Semiont Overview](docs/system/LOCAL-SEMIONT.md)** for alternative setup paths.
-
-
-
-## Why Semiont
-
-Semiont transforms unstructured content into interconnected semantic networks, stored as portable, structured annotations anchored to source passages. Self-hosted, so your data stays on your infrastructure. Inference runs on **Anthropic** (cloud) or **Ollama** (local) — mix providers per worker to balance cost, capability, and privacy.
-
-**Eliminate Cold Starts** — Import a set of documents and the seven flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
-
-**Calibrate the Human–AI Mix** — Because humans and AI agents share identical interfaces, organizations can dial the mix to fit their constraints. A domain with abundant expert availability and a high accuracy bar can run human-primary workflows with AI suggestions; a domain rich in GPU capacity but short on specialists can run agent-primary pipelines with human spot-checks. Supervision depth, automation ratio, and quality gates are deployment decisions — not architectural rewrites.
-
-## Core Tenets
-
-**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively.
-
-**Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
-
-**[Seven Collaborative Flows](docs/protocol/flows/README.md)** — humans and AI agents work as peers through seven composable workflows:
-
-- **[Yield](docs/protocol/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
-- **[Mark](docs/protocol/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
-- **[Match](docs/protocol/flows/MATCHER.md)** — Search the knowledge base for candidate resources using multi-source retrieval and composite scoring — structural signals plus optional LLM re-ranking
-- **[Bind](docs/protocol/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
-- **[Gather](docs/protocol/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
-- **[Browse](docs/protocol/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
-- **[Beckon](docs/protocol/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
+All three are organized around **[seven composable flows](docs/protocol/flows/README.md)** — yield, mark, match, bind, gather, browse, beckon — the same verbs whether driven by a human, a script, or an AI agent. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
 
 ## Contributing
 

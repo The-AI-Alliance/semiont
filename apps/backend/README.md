@@ -181,7 +181,7 @@ Content Storage (binary/text documents, sharded)
 
 **Job Worker Integration**: Background workers process long-running AI operations (annotation detection, document generation) and emit events to the Event Store, which materializes views and updates the graph database via the event-driven architecture.
 
-See [Architecture Overview](../../docs/ARCHITECTURE.md) for complete details.
+See [Architecture Overview](../../docs/system/ARCHITECTURE.md) for complete details.
 
 ### Background Job Processing
 
@@ -470,7 +470,7 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide
 
 ### System Documentation
-- [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
+- [System Architecture](../../docs/system/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
 - [Event Sourcing Package](../../packages/event-sourcing/) - Event log and materialized views
 - [Graph Package](../../packages/graph/) - Relationship traversal

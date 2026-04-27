@@ -326,7 +326,7 @@ Routing Layer → Browser
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 - [Envoy Configuration](../../../ENVOY.md) - Envoy proxy setup
 - [Backend Container](../../backend/docs/CONTAINER.md) - Backend container configuration
-- [System Architecture](../../../docs/ARCHITECTURE.md) - Overall system architecture
+- [System Architecture](../../../docs/system/ARCHITECTURE.md) - Overall system architecture
 
 ## Support
 

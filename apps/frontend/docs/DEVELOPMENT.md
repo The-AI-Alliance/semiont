@@ -643,7 +643,7 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 - [Keyboard Navigation](./KEYBOARD-NAV.md) - WCAG accessibility
 
 ### System Documentation
-- [System Architecture](../../../docs/ARCHITECTURE.md) - Overall platform
+- [System Architecture](../../../docs/system/ARCHITECTURE.md) - Overall platform
 - [Backend README](../../backend/README.md) - Backend API
 - [CLI README](../../cli/README.md) - CLI usage
 
