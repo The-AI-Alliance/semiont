@@ -6,7 +6,7 @@ This guide covers how to create full backups of a Semiont knowledge base and res
 
 ## Overview
 
-Semiont also supports a separate [Linked Data exchange format](../EXCHANGE.md) for standards-based data sharing. This document covers the **Full Backup** format used for disaster recovery and migration.
+Semiont also supports a separate [Linked Data exchange format](../../protocol/EXCHANGE.md) for standards-based data sharing. This document covers the **Full Backup** format used for disaster recovery and migration.
 
 ## GUI: Backup & Restore
 
@@ -39,7 +39,7 @@ The restore process replays all events through the EventBus → Stower pipeline.
 
 ## CLI
 
-The CLI currently supports the [Linked Data exchange format](../EXCHANGE.md) (`semiont export` / `semiont import`), not the full backup format. Full backup and restore is available through the GUI only.
+The CLI currently supports the [Linked Data exchange format](../../protocol/EXCHANGE.md) (`semiont export` / `semiont import`), not the full backup format. Full backup and restore is available through the GUI only.
 
 ## Backup Archive Format
 

@@ -2,7 +2,7 @@
 
 This guide covers how to export and import knowledge base data as JSON-LD Linked Data. The linked data format captures the current state of resources, annotations, and content — it is designed for data sharing and interoperability rather than disaster recovery.
 
-**Related guides**: [Backup & Restore](./administration/BACKUP.md) | [Architecture](./ARCHITECTURE.md)
+**Related guides**: [Backup & Restore](../system/administration/BACKUP.md) | [Architecture](../system/ARCHITECTURE.md)
 
 ## Overview
 
