@@ -5,7 +5,7 @@ This document describes Semiont's implementation of W3C Web Annotation selectors
 **Related Documentation:**
 - [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - Complete annotation architecture
 - [API Reference](./API.md) - REST API endpoints
-- [OpenAPI Specification](../openapi.json) - Machine-readable API spec
+- [OpenAPI Specification](../../specs/openapi.json) - Machine-readable API spec
 
 ## Text Selectors (Implemented)
 

@@ -7,7 +7,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 ### 📚 Documentation
 - **[Architecture](./docs/ARCHITECTURE.md)** - Infrastructure management patterns, design principles
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
-- **[API Reference](../../specs/docs/API.md)** - API endpoints, request/response formats
+- **[API Reference](../../docs/protocol/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
 - **[Real-Time Events](./docs/REAL-TIME.md)** - SSE streaming, Event Store broadcasting, connection management
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
@@ -15,7 +15,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
 
 ### 🔗 Related Resources
-- **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
+- **[W3C Web Annotation Implementation](../../docs/protocol/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
 - **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
 - **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
@@ -471,7 +471,7 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 
 ### System Documentation
 - [System Architecture](../../docs/system/ARCHITECTURE.md) - Overall platform architecture
-- [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
+- [W3C Web Annotation](../../docs/protocol/W3C-WEB-ANNOTATION.md) - Annotation data flow
 - [Event Sourcing Package](../../packages/event-sourcing/) - Event log and materialized views
 - [Graph Package](../../packages/graph/) - Relationship traversal
 - [Jobs Package](../../packages/jobs/) - Background job processing (prototype)

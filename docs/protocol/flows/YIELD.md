@@ -3,7 +3,7 @@
 **Purpose**: Synthesize new resources from reference annotations using correlated context. A human may compose the new resource manually, or an AI agent may generate it — both paths create a new resource and link the reference annotation to it.
 
 **Related Documentation**:
-- [W3C Web Annotation Data Model](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation structure
+- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Reference annotation structure
 - [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
 - [Real-Time Event Architecture](../../../apps/backend/docs/REAL-TIME.md) - SSE streaming and event flow
 - [Mark Flow](./MARK.md) - Annotation detection and creation
@@ -476,7 +476,7 @@ See [REAL-TIME.md](../../../apps/backend/docs/REAL-TIME.md) for the bus gateway 
 ### Documentation
 
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Package overview
-- [W3C Web Annotation Data Model](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
+- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Annotation structure
 - [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
 - [Bus Gateway Architecture](../../../apps/backend/docs/STREAMS.md) - Bus model end-to-end
 - [Real-Time Event Delivery](../../../apps/backend/docs/REAL-TIME.md) - Enrichment + gap detection

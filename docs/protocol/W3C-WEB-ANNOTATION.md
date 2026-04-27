@@ -6,7 +6,7 @@ Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/ann
 - [W3C Selectors](./W3C-SELECTORS.md) - Text and image selector implementation
 - [Backend Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - How annotations flow through backend layers
 - [API Reference](./API.md) - REST API endpoint documentation
-- [OpenAPI Specification](../openapi.json) - Machine-readable API contract
+- [OpenAPI Specification](../../specs/openapi.json) - Machine-readable API contract
 
 ## Table of Contents
 

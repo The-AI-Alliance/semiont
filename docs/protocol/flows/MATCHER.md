@@ -5,7 +5,7 @@
 **Related Documentation**:
 - [Bind Flow](./BIND.md) - Consumer: triggers search, receives scored results, updates annotation body
 - [Gather Flow](./GATHER.md) - Producer: assembles the GatheredContext passed to the Matcher
-- [W3C Web Annotation Data Model](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
+- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
 - [@semiont/make-meaning Architecture](../../../packages/make-meaning/docs/architecture.md) - Matcher actor and KnowledgeBase
 - [Make-Meaning API Reference](../../../packages/make-meaning/docs/api-reference.md) - Matcher methods
 

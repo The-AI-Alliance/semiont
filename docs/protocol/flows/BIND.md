@@ -3,7 +3,7 @@
 **Purpose**: Link reference annotations to existing resources or create new ones. When an annotation with motivation `linking` is created (by a human or AI agent), the Bind flow lets a collaborator review gathered context, then search for an existing resource to link it to, or navigate to the compose page to create a new one manually.
 
 **Related Documentation**:
-- [W3C Web Annotation Data Model](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
+- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
 - [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store and annotation body updates
 - [Mark Flow](./MARK.md) - How reference annotations are created
 - [Gather Flow](./GATHER.md) - Context assembly (used by Bind before search)

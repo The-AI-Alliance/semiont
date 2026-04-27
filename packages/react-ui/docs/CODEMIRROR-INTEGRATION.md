@@ -161,4 +161,4 @@ AnnotateView provides:
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Reference resolution widgets
 - [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView rendering (not CodeMirror)
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms
-- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - W3C annotation model
+- [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation model

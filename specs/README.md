@@ -18,12 +18,10 @@ specs/
 │           ├── Annotation.json
 │           ├── CreateResourceRequest.json
 │           └── ...
-├── openapi.json                # Generated bundle (NOT tracked in git)
-└── docs/                       # API documentation
-    ├── API.md                 # API overview and capabilities
-    ├── W3C-WEB-ANNOTATION.md  # W3C Annotation Model implementation
-    └── W3C-SELECTORS.md       # W3C selector specifications
+└── openapi.json                # Generated bundle (NOT tracked in git)
 ```
+
+The OpenAPI specification source lives in this directory; the human-readable API and W3C compliance documentation lives in [docs/protocol/](../docs/protocol/).
 
 ## Spec-First Architecture
 
@@ -173,11 +171,11 @@ See [src/paths/](src/paths/) for complete list.
 
 ## API Documentation
 
-High-level guides in [docs/](docs/):
+High-level guides in [docs/protocol/](../docs/protocol/):
 
-- **[API.md](docs/API.md)** - API overview, capabilities, and quick reference
-- **[W3C-WEB-ANNOTATION.md](docs/W3C-WEB-ANNOTATION.md)** - W3C Annotation Model details
-- **[W3C-SELECTORS.md](docs/W3C-SELECTORS.md)** - Selector specifications
+- **[API.md](../docs/protocol/API.md)** - API overview, capabilities, and quick reference
+- **[W3C-WEB-ANNOTATION.md](../docs/protocol/W3C-WEB-ANNOTATION.md)** - W3C Annotation Model details
+- **[W3C-SELECTORS.md](../docs/protocol/W3C-SELECTORS.md)** - Selector specifications
 
 For implementation details:
 - [Backend Documentation](../apps/backend/README.md) - Backend architecture
@@ -238,7 +236,7 @@ Generated from `npm run openapi:stats`:
 
 ---
 
-**For API usage**: Start with [docs/API.md](docs/API.md)
+**For API usage**: Start with [docs/protocol/API.md](../docs/protocol/API.md)
 
 **For spec editing**: Edit files in [src/](src/), then run `npm run openapi:bundle`
 

@@ -322,7 +322,7 @@ const permissions = {
 ## Related Documentation
 
 - [Authentication Architecture](./AUTHENTICATION.md) - 401 handling and session management
-- [API Documentation](../../../specs/docs/API.md) - API error handling details
+- [API Documentation](../../../docs/protocol/API.md) - API error handling details
 - [Backend RBAC](/docs/system/administration/SECURITY.md) - Server-side permission system
 
 ## Contributing

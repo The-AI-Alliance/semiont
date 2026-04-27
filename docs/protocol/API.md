@@ -3,7 +3,7 @@
 High-level guide to the Semiont semantic knowledge platform API.
 
 **For Endpoint Details:**
-- **[OpenAPI Specification](../README.md)** - Complete endpoint reference (source in [../src/](../src/))
+- **[OpenAPI Specification](../../specs/README.md)** - Complete endpoint reference (source in [../../specs/src/](../../specs/src/))
 - **Interactive Explorer**: http://localhost:3001/api (local) - Test endpoints interactively
 - **[API Client Package](../../packages/api-client/)** - TypeScript SDK for consuming this API
 
@@ -15,14 +15,14 @@ High-level guide to the Semiont semantic knowledge platform API.
 
 ### OpenAPI Specification (Source of Truth)
 
-All endpoint details, schemas, and request/response formats are defined in the [OpenAPI specification](../src/openapi.json):
+All endpoint details, schemas, and request/response formats are defined in the [OpenAPI specification](../../specs/src/openapi.json):
 
 - **Spec-First Architecture**: Types generated from this specification
 - **Interactive Testing**: Import into Postman, Insomnia, or use the built-in explorer
 - **Client Generation**: Generate SDKs in any language
 - **Type-Safe**: Full TypeScript definitions in [@semiont/api-client](../../packages/api-client/)
 - **Live Endpoint**: `/api/openapi.json` serves the bundled spec with dynamic server URL
-- **Source Files**: Edit files in [../src/](../src/), then run `npm run openapi:bundle`
+- **Source Files**: Edit files in [../../specs/src/](../../specs/src/), then run `npm run openapi:bundle`
 
 **Don't restate the spec** - refer to it for all endpoint-level details.
 
@@ -41,7 +41,7 @@ Create, read, update, and delete markdown resources. Features include:
 
 **Related Endpoints**: `/api/resources`, `/api/resources/{id}`, `/api/resources/search`
 
-See the [OpenAPI specification](../src/) for complete endpoint details.
+See the [OpenAPI specification](../../specs/src/) for complete endpoint details.
 
 ### Annotation Management (W3C Web Annotation Model)
 

@@ -336,4 +336,4 @@ Apache-2.0
 
 - [W3C Web Annotation Model](https://www.w3.org/TR/annotation-model/) - Annotation standard
 - [DID:WEB Specification](https://w3c-ccg.github.io/did-method-web/) - Decentralized identifiers
-- [W3C Selectors](../../specs/docs/W3C-SELECTORS.md) - Selector implementation details
+- [W3C Selectors](../../docs/protocol/W3C-SELECTORS.md) - Selector implementation details

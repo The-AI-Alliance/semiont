@@ -716,7 +716,7 @@ jobs:
 - [Backend README](../README.md) - Backend overview and development setup
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows
 - [Deployment Guide](./DEPLOYMENT.md) - AWS and production deployment
-- [API Reference](../../../specs/docs/API.md) - Complete API documentation
+- [API Reference](../../../docs/protocol/API.md) - Complete API documentation
 - [Architecture](../../../docs/system/ARCHITECTURE.md) - System architecture overview
 
 ## Support

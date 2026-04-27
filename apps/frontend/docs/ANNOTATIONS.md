@@ -4,7 +4,7 @@
 
 The Semiont annotation system enables users to mark up documents with highlights, comments, assessments, and references, creating a rich knowledge graph. Built on the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), annotations are standards-compliant objects with motivations following the W3C specification.
 
-This document describes the frontend UI patterns, component architecture, user workflows, and the annotation registry system. For the complete W3C implementation across all backend components (API, Event Store, and Graph Database), see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
+This document describes the frontend UI patterns, component architecture, user workflows, and the annotation registry system. For the complete W3C implementation across all backend components (API, Event Store, and Graph Database), see [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md).
 
 ## Supported Annotation Types
 
@@ -80,7 +80,7 @@ ResourceViewer (Container)
 7. **Server Sync** → Background API call persisted to Event Store (with materialized views) and Graph Database
 8. **Confirmation** → Animation complete, W3C-compliant annotation persisted across all backend components
 
-For complete architecture details on how annotations flow through the backend data storage components, see [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md).
+For complete architecture details on how annotations flow through the backend data storage components, see [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md).
 
 ## Annotation Registry
 
@@ -645,7 +645,7 @@ The modular architecture ensures maintainability and extensibility, while the pr
 - [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts) - Source code for the Annotation Registry
 
 ### W3C Web Annotation Implementation
-- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all components (UI, API, Event Store, Graph)
+- [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all components (UI, API, Event Store, Graph)
 
 ### Frontend Documentation
 - [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation

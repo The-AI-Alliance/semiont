@@ -544,7 +544,7 @@ Start simple, add features incrementally.
 
 ### System Documentation
 - [System Architecture](../../../docs/system/ARCHITECTURE.md) - Overall platform design
-- [W3C Web Annotation](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation model
+- [W3C Web Annotation](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - Annotation model
 
 ### External Resources
 - [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) - Standard

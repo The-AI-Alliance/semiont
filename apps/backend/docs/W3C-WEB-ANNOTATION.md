@@ -4,8 +4,8 @@ This document describes how W3C Web Annotations flow through Semiont's backend d
 
 **Related Documentation:**
 
-- [W3C Data Model](../../../specs/docs/W3C-WEB-ANNOTATION.md) - JSON-LD structure and W3C semantics
-- [W3C Selectors](../../../specs/docs/W3C-SELECTORS.md) - Selector types and examples
+- [W3C Data Model](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - JSON-LD structure and W3C semantics
+- [W3C Selectors](../../../docs/protocol/W3C-SELECTORS.md) - Selector types and examples
 - [Backend README](../README.md) - Backend overview and quick start
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 

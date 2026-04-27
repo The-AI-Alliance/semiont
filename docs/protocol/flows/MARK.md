@@ -3,8 +3,8 @@
 **Purpose**: Create W3C Web Annotations on resources — manually by selecting text, or via AI-assisted detection that identifies highlights, assessments, comments, tags, and entity references. Both human and AI agents participate as peers in annotation creation.
 
 **Related Documentation**:
-- [W3C Web Annotation Data Model](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
-- [W3C Selectors](../../../specs/docs/W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
+- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
+- [W3C Selectors](../W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
 - [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store, View Storage, Graph Database flow
 - [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
@@ -204,7 +204,7 @@ Every detected annotation uses **both** W3C selector types ([W3C §4.2](https://
 - Text-based anchoring recovers from content edits, line ending changes (CRLF ↔ LF)
 - Prefix/suffix enables finding text even when LLM positions are approximate
 
-See [W3C-SELECTORS.md](../../../specs/docs/W3C-SELECTORS.md) for complete selector documentation.
+See [W3C-SELECTORS.md](../W3C-SELECTORS.md) for complete selector documentation.
 
 ### Fuzzy Anchoring Implementation
 
@@ -740,8 +740,8 @@ After detection completes:
 - [apps/frontend/src/lib/annotation-registry.ts](../../../apps/frontend/src/lib/annotation-registry.ts) - Annotation type metadata
 
 ### Documentation
-- [W3C Web Annotation Data Model](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation
-- [W3C Selectors](../../../specs/docs/W3C-SELECTORS.md) - Dual selector strategy
+- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C implementation
+- [W3C Selectors](../W3C-SELECTORS.md) - Dual selector strategy
 - [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
 - [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and components
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling
