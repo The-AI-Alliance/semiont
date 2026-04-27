@@ -1,200 +1,103 @@
 # Container Images
 
-This document describes the container images published from the Semiont project.
+This document is an inventory of the container images published from
+this repository.
 
 ## Overview
 
-Semiont publishes **2 container images** to GitHub Container Registry (ghcr.io):
+This repo publishes **1 container image** to GitHub Container Registry
+(ghcr.io):
 
-- **semiont-backend** - Backend API server
-- **semiont-frontend** - Next.js frontend application
+- **semiont-frontend** — Vite + React SPA, served as a static container.
 
-Both images support multiple platforms (amd64, arm64) and follow the unified versioning scheme managed through [`version.json`](../../version.json).
-
----
-
-## Container Images
-
-Published to GitHub Container Registry at [ghcr.io](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont).
-
-### 1. semiont-backend
-
-[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-backend)
-
-**Description:** Backend API server with multi-platform support (amd64, arm64)
-
-**Pull image:**
-```bash
-docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
-```
-
-**Run container:**
-```bash
-docker run -d \
-  -p 4000:4000 \
-  -e DATABASE_URL=postgresql://user:pass@host:5432/db \
-  -e JWT_SECRET=your-secret-key-min-32-chars \
-  --name semiont-backend \
-  ghcr.io/the-ai-alliance/semiont-backend:dev
-```
-
-**Required Environment Variables:**
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - Secret for JWT token signing (min 32 characters)
-
-**Optional Environment Variables:**
-- `PORT` - Server port (default: 4000)
-- `NODE_ENV` - Environment mode (default: production)
-- `CORS_ORIGIN` - CORS allowed origins
-
-**Documentation:** [apps/backend/README.md](../../apps/backend/README.md)
-
-**Source:** [apps/backend/](../../apps/backend/)
-
-**Dockerfile:** See [semiont-empty-kb/.semiont/containers/Dockerfile.backend](https://github.com/The-AI-Alliance/semiont-empty-kb/blob/main/.semiont/containers/Dockerfile.backend)
-
-**Workflow:** [.github/workflows/publish-backend.yml](../../.github/workflows/publish-backend.yml)
+The image supports `linux/amd64` and `linux/arm64` and follows the
+unified versioning scheme managed through [`version.json`](../../version.json).
 
 ---
 
-### 2. semiont-frontend
+## semiont-frontend
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
 
-**Description:** Next.js frontend application with multi-platform support (amd64, arm64)
+**Description:** Vite + React single-page app (the Semiont Browser),
+served from a Node static-file server. Multi-platform: `linux/amd64`,
+`linux/arm64`.
 
 **Pull image:**
 ```bash
 docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
 ```
 
-**Run container:**
-```bash
-docker run -d \
-  -p 3000:3000 \
-  -e SERVER_API_URL=http://localhost:4000 \
-  -e NEXTAUTH_URL=http://localhost:3000 \
-  -e NEXTAUTH_SECRET=your-secret-min-32-chars \
-  --name semiont-frontend \
-  ghcr.io/the-ai-alliance/semiont-frontend:dev
-```
+**Required environment variables:**
+- `SERVER_API_URL` — Backend API URL
+- `NEXTAUTH_URL` — Frontend URL for NextAuth callbacks
+- `NEXTAUTH_SECRET` — Secret for NextAuth session encryption (min 32 characters)
 
-**Required Environment Variables:**
-- `SERVER_API_URL` - Backend API URL
-- `NEXTAUTH_URL` - Frontend URL for NextAuth callbacks
-- `NEXTAUTH_SECRET` - Secret for NextAuth session encryption (min 32 characters)
-
-**Optional Environment Variables:**
-- `NEXT_PUBLIC_SITE_NAME` - Site name displayed in UI (default: "Semiont")
-- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed OAuth domains
+**Optional environment variables:**
+- `NEXT_PUBLIC_SITE_NAME` — Site name displayed in UI (default: `Semiont`)
+- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` — Comma-separated list of allowed OAuth domains
 
 **Documentation:** [apps/frontend/README.md](../../apps/frontend/README.md)
 
 **Source:** [apps/frontend/](../../apps/frontend/)
 
-**Dockerfile:** See [semiont-empty-kb/.semiont/containers/Dockerfile.frontend](https://github.com/The-AI-Alliance/semiont-empty-kb/blob/main/.semiont/containers/Dockerfile.frontend)
+**Dockerfile:** [apps/frontend/Dockerfile](../../apps/frontend/Dockerfile)
 
 **Workflow:** [.github/workflows/publish-frontend.yml](../../.github/workflows/publish-frontend.yml)
 
 ---
 
-## Docker Compose Example
+## Backend distribution model
 
-Run both backend and frontend together:
+The backend is **not** published as a container image from this repo.
+It ships as the `@semiont/backend` npm package via
+[`publish-npm-packages.yml`](../../.github/workflows/publish-npm-packages.yml).
+Knowledge-base repositories that need a runtime backend container
+build their own from the npm package — see
+[`semiont-template-kb/.semiont/containers/Dockerfile.backend`](https://github.com/The-AI-Alliance/semiont-template-kb)
+for the canonical example.
 
-```yaml
-version: '3.8'
-services:
-  backend:
-    image: ghcr.io/the-ai-alliance/semiont-backend:dev
-    ports:
-      - "4000:4000"
-    environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/semiont
-      JWT_SECRET: your-secret-key-minimum-32-characters-long
-      CORS_ORIGIN: http://localhost:3000
-    depends_on:
-      - db
-
-  frontend:
-    image: ghcr.io/the-ai-alliance/semiont-frontend:dev
-    ports:
-      - "3000:3000"
-    environment:
-      SERVER_API_URL: http://localhost:4000
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: your-secret-minimum-32-characters-long
-      NEXT_PUBLIC_SITE_NAME: Semiont
-    depends_on:
-      - backend
-
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: semiont
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
-```
+This split keeps the upstream repo's container surface minimal (one
+image, one workflow) while letting each KB repo pin its own backend
+runtime, base image, and configuration.
 
 ---
 
 ## Versioning
 
-Container images follow the unified versioning system managed through [`version.json`](../../version.json).
+The image follows the unified versioning system managed through
+[`version.json`](../../version.json). Every published image gets one
+or more of the following tags:
 
-### Version Tags
-
-**Development builds** (published on every push to main):
-- Format: `{VERSION}-build.{RUN_NUMBER}`
-- Example: `0.2.30-build.123`
-- Tag: `dev` (always points to latest build)
-
-**Stable releases** (manually triggered):
-- Format: `{VERSION}`
-- Example: `0.2.30`
-- Tag: `latest`
-
-**Commit-specific tags:**
-- Format: `sha-{commit}`
-- Examples: `sha-9d532bf`, `sha-8b53d8b`
+- **Version tag** — the `version` input to the workflow, e.g. `0.4.22`
+  for stable releases or `0.4.22-build.42` for dev builds.
+- **Commit tag** — `sha-{COMMIT}`, where `{COMMIT}` is the short SHA
+  of the commit that triggered the workflow.
+- **Latest tag** — `latest`, applied only when the workflow is run
+  with `tag_latest=true`. Operators pinning to `:latest` get whatever
+  the most recent stable promotion was.
 
 ### Publishing Process
 
-Container images are published automatically via GitHub Actions:
+The image is published via the
+[`publish-frontend.yml`](../../.github/workflows/publish-frontend.yml)
+workflow, triggered manually with the desired version. Each run:
 
-**Triggers:**
-- Push to `main` with changes to app source
-- Manual workflow dispatch
+1. Verifies the matching `@semiont/frontend` npm package version exists.
+2. Builds the multi-platform image from `apps/frontend/Dockerfile`.
+3. Trivy-scans the amd64 build for `HIGH`/`CRITICAL` CVEs and fails
+   the run if any unfixed findings are present.
+4. Pushes the image to GHCR with three tags: the version, a
+   `sha-{COMMIT}` tag, and (optionally) `latest`.
+5. Generates an SPDX SBOM and publishes both build-provenance and
+   SBOM attestations as OCI artifacts alongside the image.
 
-**Process:**
-1. Build multi-platform image (amd64, arm64)
-2. Generate version: `{BASE_VERSION}-build.{RUN_NUMBER}`
-3. Tag with:
-   - `dev` (latest development build)
-   - `{VERSION}-build.{RUN_NUMBER}` (specific build)
-   - `sha-{COMMIT}` (git commit)
-4. Push to ghcr.io
-
-### Manual Publishing
-
-Workflows support manual triggering via workflow dispatch:
+### Manual publishing
 
 ```bash
-# Trigger via GitHub CLI
-gh workflow run publish-backend.yml
-gh workflow run publish-frontend.yml
-
-# With dry-run mode
-gh workflow run publish-backend.yml --field dry_run=true
-
-# For stable release
-gh workflow run publish-backend.yml --field stable_release=true
-gh workflow run publish-frontend.yml --field stable_release=true
+gh workflow run publish-frontend.yml --field version=0.4.22
+gh workflow run publish-frontend.yml --field version=0.4.22 --field dry_run=true
+gh workflow run publish-frontend.yml --field version=0.4.22 --field tag_latest=true
 ```
 
 ---
@@ -259,11 +162,6 @@ The downloaded JSON lists every package in the image with version,
 license, and supplier — useful for vulnerability triage when a CVE
 lands and you need to know whether your running image contains the
 affected package.
-
-### What's not yet signed
-
-The `semiont-backend` image isn't yet attested — only `semiont-frontend`
-runs through the provenance + SBOM pipeline. Backend will follow.
 
 ---
 
