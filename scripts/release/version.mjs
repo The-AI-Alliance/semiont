@@ -20,7 +20,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = resolve(__dirname, '..');
+const rootDir = resolve(__dirname, '../..');
 
 const VERSION_FILE = resolve(rootDir, 'version.json');
 
