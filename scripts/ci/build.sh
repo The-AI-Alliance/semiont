@@ -48,13 +48,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Read package manifest. ALL = bare names (basename of each `dir`) in
-# the order version.json lists them, filtered to those with a build
-# script (skips packages that exist only for testing scaffolding).
+# the order version.json lists them, restricted to packages that ship
+# to npm. Non-publishable entries (test-utils, mcp-server, desktop) are
+# out of scope for this script — desktop in particular has a Rust/Tauri
+# build that doesn't run in the CI node container.
 read_manifest() {
   node -e "
     const fs = require('fs');
     const v = JSON.parse(fs.readFileSync('version.json', 'utf-8'));
     for (const [name, pkg] of Object.entries(v.packages)) {
+      if (!pkg.publish) continue;
       const pkgJson = JSON.parse(fs.readFileSync(pkg.dir + '/package.json', 'utf-8'));
       if (pkgJson.scripts && pkgJson.scripts.build) {
         const bare = pkg.dir.split('/').pop();
