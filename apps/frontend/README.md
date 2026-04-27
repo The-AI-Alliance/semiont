@@ -86,7 +86,7 @@ docker run -d \
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
-**Docker Compose Example:** See [docs/administration/IMAGES.md](../../docs/administration/IMAGES.md#docker-compose-example) for complete setup with backend and database.
+**Docker Compose Example:** See [docs/system/administration/IMAGES.md](../../docs/system/administration/IMAGES.md#docker-compose-example) for complete setup with backend and database.
 
 ## Technology Stack
 
@@ -285,7 +285,7 @@ We welcome contributions! Please read:
 ## Quick Links
 
 ### System Documentation
-- [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
+- [System Architecture](../../docs/system/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow across all layers
 - [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
 

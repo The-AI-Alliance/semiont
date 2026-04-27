@@ -16,13 +16,9 @@ Run the published browser container image (substitute `docker` or `podman` for `
 container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
 ```
 
-The browser needs to reach a knowledge base backend running on your machine, so the container runtime must have local network permission. See [Local network access](docs/system/LOCAL-SEMIONT.md#local-network-access) for per-platform notes.
+Then open **http://localhost:3000** in your web browser.
 
-The image is signed with build provenance + SBOM attestations. To verify before running, see [Supply-chain verification](docs/system/administration/IMAGES.md#supply-chain-verification).
-
-Also available as a **[desktop app](https://github.com/The-AI-Alliance/semiont/releases)** (macOS, Linux). See **[Browser setup](apps/frontend/docs/LOCAL.md)** for details.
-
-Point your web browser to the Semiont browser running at **http://localhost:3000**.
+For local-network access notes, supply-chain verification, the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, and frontend dev setup, see **[docs/browser/](docs/browser/README.md)**.
 
 ### Start a knowledge base
 
