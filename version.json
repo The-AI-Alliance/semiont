@@ -1,24 +1,102 @@
 {
   "version": "0.4.22",
   "packages": {
-    "@semiont/core":           { "dir": "packages/core",           "version": "0.4.22", "publish": true },
-    "@semiont/observability":  { "dir": "packages/observability",  "version": "0.4.22", "publish": true },
-    "@semiont/api-client":     { "dir": "packages/api-client",     "version": "0.4.22", "publish": true },
-    "@semiont/sdk":            { "dir": "packages/sdk",            "version": "0.4.22", "publish": true },
-    "@semiont/ontology":       { "dir": "packages/ontology",       "version": "0.4.22", "publish": true },
-    "@semiont/content":        { "dir": "packages/content",        "version": "0.4.22", "publish": true },
-    "@semiont/event-sourcing": { "dir": "packages/event-sourcing", "version": "0.4.22", "publish": true },
-    "@semiont/graph":          { "dir": "packages/graph",          "version": "0.4.22", "publish": true },
-    "@semiont/inference":      { "dir": "packages/inference",      "version": "0.4.22", "publish": true },
-    "@semiont/vectors":        { "dir": "packages/vectors",        "version": "0.4.22", "publish": true },
-    "@semiont/jobs":           { "dir": "packages/jobs",           "version": "0.4.22", "publish": true },
-    "@semiont/make-meaning":   { "dir": "packages/make-meaning",   "version": "0.4.22", "publish": true },
-    "@semiont/react-ui":       { "dir": "packages/react-ui",       "version": "0.4.22", "publish": true },
-    "@semiont/test-utils":     { "dir": "packages/test-utils",     "version": "0.4.22", "publish": false },
-    "@semiont/mcp-server":     { "dir": "packages/mcp-server",     "version": "0.4.22", "publish": false },
-    "@semiont/cli":            { "dir": "apps/cli",                "version": "0.4.22", "publish": true },
-    "semiont-backend":         { "dir": "apps/backend",  "stage": ".npm-stage/backend",  "version": "0.4.22", "publish": true },
-    "semiont-frontend":        { "dir": "apps/frontend", "stage": ".npm-stage/frontend", "version": "0.4.22", "publish": true },
-    "semiont-desktop":         { "dir": "apps/desktop",            "version": "0.4.22", "publish": false }
+    "@semiont/core": {
+      "dir": "packages/core",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/observability": {
+      "dir": "packages/observability",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/api-client": {
+      "dir": "packages/api-client",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/sdk": {
+      "dir": "packages/sdk",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/ontology": {
+      "dir": "packages/ontology",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/content": {
+      "dir": "packages/content",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/event-sourcing": {
+      "dir": "packages/event-sourcing",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/graph": {
+      "dir": "packages/graph",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/inference": {
+      "dir": "packages/inference",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/vectors": {
+      "dir": "packages/vectors",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/jobs": {
+      "dir": "packages/jobs",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/make-meaning": {
+      "dir": "packages/make-meaning",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/react-ui": {
+      "dir": "packages/react-ui",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "@semiont/test-utils": {
+      "dir": "packages/test-utils",
+      "version": "0.4.22",
+      "publish": false
+    },
+    "@semiont/mcp-server": {
+      "dir": "packages/mcp-server",
+      "version": "0.4.22",
+      "publish": false
+    },
+    "@semiont/cli": {
+      "dir": "apps/cli",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "semiont-backend": {
+      "dir": "apps/backend",
+      "stage": ".npm-stage/backend",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "semiont-frontend": {
+      "dir": "apps/frontend",
+      "stage": ".npm-stage/frontend",
+      "version": "0.4.22",
+      "publish": true
+    },
+    "semiont-desktop": {
+      "dir": "apps/desktop",
+      "version": "0.4.22",
+      "publish": false
+    }
   }
 }
