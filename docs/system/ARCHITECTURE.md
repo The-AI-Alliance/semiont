@@ -324,7 +324,7 @@ The actor model makes three things visible that the layered architecture obscure
 
 2. **The knowledge base is inert.** It records; it does not decide. All intelligence lives in the actors. This means the knowledge base can be simple, append-only, and rebuildable — properties that are hard to maintain when "smart" behavior leaks into the data layer.
 
-3. **Flows are composable.** A Marker Agent does mark + browse + beckon. A Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event map](../../packages/core/src/bus-protocol.ts).
+3. **Flows are composable.** A Marker Agent does mark + browse + beckon. A Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event-bus protocol](../protocol/EVENT-BUS.md) (channel naming, `correlationId` / `_userId` conventions, `_trace` carrier, persistence rules; the authoritative TypeScript source is [packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts)).
 
 ## Package Architecture
 
@@ -398,5 +398,6 @@ See [CLI Documentation](../../apps/cli/README.md) and [Configuration Guide](./ad
 - [Authentication](./administration/AUTHENTICATION.md) — OAuth, JWT, MCP token flows
 - [Observability](./administration/OBSERVABILITY.md) — Traces, metrics, log correlation, and `busLog` timeline
 - [API Documentation](../protocol/API.md) — REST API reference
+- [Event-Bus Protocol](../protocol/EVENT-BUS.md) — Channel naming, payload conventions, gateway injection, trace carrier
 - [W3C Web Annotation](../protocol/W3C-WEB-ANNOTATION.md) — Annotation data model
 - [Services Overview](./services/OVERVIEW.md) — Service index and data architecture

@@ -2,7 +2,13 @@
 
 The protocol is the contract between actors and the knowledge base. It defines **seven composable flows** — yield, mark, match, bind, gather, browse, beckon — that are the same verbs whether driven by a human in the browser, a script using the SDK, an agentic coding assistant, or a daemon worker. Anything that conforms to the protocol can act as a peer; the knowledge base does not distinguish between humans and AI agents.
 
-This page covers the design tenets behind the protocol, the value proposition, and the three programmable surfaces (CLI, SDK, Skills) that drive it. For the per-flow specifications, see **[flows/README.md](flows/README.md)**.
+This page covers the design tenets behind the protocol, the value proposition, and the three programmable surfaces (CLI, SDK, Skills) that drive it.
+
+For the deeper specifications, see:
+- **[flows/README.md](flows/README.md)** — per-flow contracts (yield, mark, match, bind, gather, browse, beckon)
+- **[EVENT-BUS.md](EVENT-BUS.md)** — wire-level event protocol: channel naming, `correlationId` / `_userId` conventions, `_trace` carrier, gateway injection, resource scoping
+- **[API.md](API.md)** — REST endpoint reference
+- **[W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md)** + **[W3C-SELECTORS.md](W3C-SELECTORS.md)** — W3C compliance story
 
 ## Why Semiont
 

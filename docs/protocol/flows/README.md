@@ -36,4 +36,4 @@ Actors fall into three categories:
 
 Human and AI actors are peers: they perform the same flows, produce the same events, and create the same W3C annotations. The system does not privilege one over the other.
 
-See [Architecture](../../system/ARCHITECTURE.md) for the full actor topology and knowledge system design.
+See [Architecture](../../system/ARCHITECTURE.md) for the full actor topology and knowledge system design, or [EVENT-BUS.md](../EVENT-BUS.md) for the wire-level channel/payload conventions every flow uses.
