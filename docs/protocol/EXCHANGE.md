@@ -209,4 +209,4 @@ During import, URIs are stripped back to bare IDs. Since new resource IDs are as
 
 ## Full Backup
 
-For lossless backup and restore (complete event history, hash chain verification, exact reconstruction), see [Backup & Restore](./administration/BACKUP.md). Full backup requires the admin role.
+For lossless backup and restore (complete event history, hash chain verification, exact reconstruction), see [Backup & Restore](../system/administration/BACKUP.md). Full backup requires the admin role.
