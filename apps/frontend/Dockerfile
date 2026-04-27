@@ -1,5 +1,5 @@
 # Stage 1: install (npm runs here, then is discarded).
-FROM node:22-alpine AS installer
+FROM node:25-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_FRONTEND_VERSION=latest
 WORKDIR /app
@@ -12,7 +12,7 @@ RUN npm config set registry $NPM_REGISTRY && \
 # `node server.js`, so npm is build-only baggage. Removing it also drops
 # the picomatch / glob / etc. CVE surface that ships inside npm's bundled
 # node_modules.
-FROM node:22-alpine
+FROM node:25-alpine
 RUN apk add --no-cache curl && \
     rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
