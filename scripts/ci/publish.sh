@@ -75,8 +75,10 @@ node -e "
 
   const packages = [
     'packages/api-client',
+    'packages/sdk',
     'packages/ontology',
     'packages/core',
+    'packages/observability',
     'packages/content',
     'packages/event-sourcing',
     'packages/graph',
@@ -146,6 +148,7 @@ publish_pkg() {
 # Library packages and CLI
 for dir in \
   packages/core \
+  packages/observability \
   packages/event-sourcing \
   packages/content \
   packages/graph \
@@ -154,6 +157,7 @@ for dir in \
   packages/jobs \
   packages/make-meaning \
   packages/api-client \
+  packages/sdk \
   packages/ontology \
   packages/react-ui \
   apps/cli
