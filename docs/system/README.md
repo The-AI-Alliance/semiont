@@ -44,4 +44,4 @@ Day-2 concerns — deploying, securing, observing, scaling, troubleshooting:
 - **[../protocol/](../protocol/)** — the seven flows, the event-bus protocol, the OpenAPI reference, the W3C compliance story, agent skills.
 - **[../../packages/README.md](../../packages/README.md)** — alphabetized inventory of all `@semiont/*` workspace packages with one-line descriptions.
 - **[../../CONTRIBUTING.md](../../CONTRIBUTING.md)** — branch/PR workflow, commit conventions.
-- **[../development/MONOREPO.md](../development/MONOREPO.md)** — codebase orientation for new contributors.
+- **[../development/](../development/README.md)** — codebase orientation for new contributors.

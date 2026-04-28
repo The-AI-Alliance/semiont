@@ -54,7 +54,8 @@ All three are organized around **[seven composable flows](docs/protocol/flows/RE
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
 [![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 
-- **[Monorepo orientation](docs/development/MONOREPO.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
+- **[Development docs](docs/development/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
+- **[System architecture](docs/system/README.md)** — actor model, knowledge system, container topology, package architecture.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 
 ## 📜 License
