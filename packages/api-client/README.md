@@ -54,10 +54,10 @@ That's the entire surface. Everything else moved out:
 
 The guarantees every `ITransport` implementation must honor — including
 `HttpTransport` — are documented in
-[`packages/core/docs/TRANSPORT-CONTRACT.md`](../core/docs/TRANSPORT-CONTRACT.md).
+[`docs/protocol/TRANSPORT-CONTRACT.md`](../../docs/protocol/TRANSPORT-CONTRACT.md).
 HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID`
-replay, etc.) live alongside the backend at
-[`apps/backend/docs/TRANSPORT.md`](../../apps/backend/docs/TRANSPORT.md).
+replay, etc.) live in
+[`docs/protocol/TRANSPORT-HTTP.md`](../../docs/protocol/TRANSPORT-HTTP.md).
 
 ## Writing a new transport
 

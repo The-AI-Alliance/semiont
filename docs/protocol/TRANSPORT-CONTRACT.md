@@ -4,7 +4,7 @@ Behavioral guarantees that every `ITransport` implementation must honor.
 Consumers writing portable code against `SemiontClient` rely on this
 contract; consumers that know they're running over HTTP may
 additionally depend on the HTTP-specific extensions documented at
-[apps/backend/docs/TRANSPORT.md](../../../apps/backend/docs/TRANSPORT.md).
+[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md).
 
 If the code deviates from what's written here, the code is wrong — or
 this doc is wrong and needs updating, deliberately. No third option.
@@ -15,9 +15,9 @@ this doc is wrong and needs updating, deliberately. No third option.
 gather, match, yield, beckon, job, auth, admin) consume it. The seam
 hides whether a method goes over the network or runs in-process.
 
-The canonical wire implementation, `HttpTransport`, lives in this
-package and is documented in
-[apps/backend/docs/TRANSPORT.md](../../../apps/backend/docs/TRANSPORT.md).
+The canonical wire implementation, `HttpTransport`, lives in
+`@semiont/api-client` and is documented in
+[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md).
 Other implementations (e.g. in-process variants) live alongside the
 runtime they wrap and are documented there.
 
@@ -160,7 +160,7 @@ same six-state union:
 ```
 
 `HttpTransport` drives all six (see
-[apps/backend/docs/TRANSPORT.md](../../../apps/backend/docs/TRANSPORT.md)
+[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)
 for the state machine). An in-process transport is `'open'` from
 construction and never changes — consumers that show connecting /
 reconnecting UI should treat the open state as terminal.
@@ -184,6 +184,5 @@ kinds. Every transport preserves the categorization:
 - Not an implementation guide. Each transport's source is authoritative
   for how it delivers these guarantees.
 - Not a channel inventory. That lives in
-  [apps/backend/docs/REAL-TIME.md](../../../apps/backend/docs/REAL-TIME.md).
-- Not a bus-scope tutorial. See
-  [apps/backend/docs/EVENT-BRIDGING.md](../../../apps/backend/docs/EVENT-BRIDGING.md).
+  [CHANNELS.md](./CHANNELS.md).
+- Not a bus-scope tutorial. See [EVENT-BUS.md § Resource scoping](./EVENT-BUS.md#resource-scoping).

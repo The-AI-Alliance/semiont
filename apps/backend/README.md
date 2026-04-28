@@ -9,7 +9,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
 - **[API Reference](../../docs/protocol/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
-- **[Real-Time Events](./docs/REAL-TIME.md)** - SSE streaming, Event Store broadcasting, connection management
+- **[Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md)** - SSE streaming, channels, scoping, correlation
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
@@ -459,12 +459,12 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Local Setup](./docs/LOCAL.md) - Run the backend locally (container or npm)
 - [Architecture](./docs/ARCHITECTURE.md) - **Infrastructure management patterns (REQUIRED READING)**
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
-- [API Reference](./docs/API.md) - All API endpoints and examples
+- [API Reference](../../docs/protocol/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
-- [Real-Time Events](./docs/REAL-TIME.md) - SSE streaming, Event Store broadcasting, connection management
+- [Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md) - SSE streaming, channels, scoping, correlation
 - [Database](./docs/DATABASE.md) - PostgreSQL setup for user authentication
 - [Filesystem](./docs/FILESYSTEM.md) - Storage patterns and providers
-- [Data Flow](./docs/DATA-FLOW.md) - Data flow across all storage layers
+- [Knowledge System](../../docs/system/KNOWLEDGE-SYSTEM.md) - Storage architecture across all layers
 - [Logging](./docs/LOGGING.md) - Winston logging, log levels, debugging
 - [Testing](./docs/TESTING.md) - Testing philosophy and patterns
 - [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide

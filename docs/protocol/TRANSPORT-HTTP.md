@@ -8,22 +8,24 @@ wrong and needs updating, deliberately. No third option.
 Transport-agnostic guarantees (at-most-once emit, per-channel ordering,
 `busRequest` semantics, `_userId` injection invariant) live in the
 shared contract at
-[`packages/core/docs/TRANSPORT-CONTRACT.md`](../../../packages/core/docs/TRANSPORT-CONTRACT.md).
+[TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md).
 This doc covers only what's specific to the HTTP + SSE wire.
 
 Neighboring docs:
 
-- [STREAMS.md](./STREAMS.md) — the architecture (what routes exist,
-  what handlers subscribe to what).
-- [REAL-TIME.md](./REAL-TIME.md) — the event inventory (which channels
+- [EVENT-BUS.md](./EVENT-BUS.md) — protocol semantics (channel naming,
+  payload categories, correlation, scoping rules).
+- [CHANNELS.md](./CHANNELS.md) — channel inventory (which channels
   carry what kind of payload, scoped vs. global).
-- [EVENT-BRIDGING.md](./EVENT-BRIDGING.md) — the scope tutorial.
+- [TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md) — wire-agnostic
+  guarantees every `ITransport` honors.
 
 ## Non-goals
 
-- **Not an implementation guide.** `STREAMS.md` does that.
+- **Not the protocol semantics.** Channel naming, payload shape, and
+  scoping rules live in [EVENT-BUS.md](./EVENT-BUS.md).
 - **Not the shared transport contract.** See
-  [`packages/core/docs/TRANSPORT-CONTRACT.md`](../../../packages/core/docs/TRANSPORT-CONTRACT.md)
+  [TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md)
   for guarantees that every `ITransport` honors.
 - **Not a wishlist.** This doc describes what *is*, not what should be.
   Known gaps are called out in a dedicated section so they can't be
@@ -83,7 +85,7 @@ deduplication) applies unchanged. HTTP adds:
   They may reach the handler in either order. Ordering has to be in
   the payload.
 - **Schema validation**. Every inbound payload is validated against
-  `CHANNEL_SCHEMAS` ([packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts));
+  `CHANNEL_SCHEMAS` ([packages/core/src/bus-protocol.ts](../../packages/core/src/bus-protocol.ts));
   this is an HTTP-layer guard because the wire is untyped JSON.
   - Channels with a named schema: payload must match, or 400.
   - Channels with a `null` schema entry: no validation (compound /
@@ -262,7 +264,7 @@ they go global, but they're received by every connected client, not
 filtered.
 
 This table is the single source of scope truth. Any new channel must
-fit in one of the three rows. See [STREAMS.md § "When to scope"](./STREAMS.md).
+fit in one of the three rows. See [EVENT-BUS.md § Resource scoping](./EVENT-BUS.md#resource-scoping).
 
 ## HTTP-specific contract summary
 
@@ -296,7 +298,7 @@ reference them specifically instead of rediscovering them.
 `packages/api-client/src/namespaces/browse.ts` implements
 stale-while-revalidate, in-flight dedup, and event-driven invalidation
 by hand. See
-[`packages/sdk/docs/CACHE-SEMANTICS.md`](../../../packages/sdk/docs/CACHE-SEMANTICS.md).
+[`packages/sdk/docs/CACHE-SEMANTICS.md`](../../packages/sdk/docs/CACHE-SEMANTICS.md).
 The constraint we're honoring is framework-agnosticism — the same
 client is used by React, the CLI, MCP server, and workers.
 
@@ -405,7 +407,7 @@ the contract are visible.
   now formally documents this requirement. Regression-tested.
 - **2026-04-26** — scope narrowed to HTTP-specific. Shared transport
   guarantees moved to
-  [`packages/core/docs/TRANSPORT-CONTRACT.md`](../../../packages/core/docs/TRANSPORT-CONTRACT.md).
+  [TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md).
   This doc now covers only HTTP + SSE wire concerns: schema validation
   at `/bus/emit`, `Last-Event-ID` resumption, the six-state connection
   machine, SSE parser chunking obligations, response-lost on reconnect,

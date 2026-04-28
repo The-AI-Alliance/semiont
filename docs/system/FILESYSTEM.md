@@ -41,7 +41,7 @@ Events are stored as append-only JSONL files — the system of record for all do
 - 65,536 shards via jump consistent hash keyed by resource ID
 - File rotation at 10,000 events per shard
 
-See [@semiont/event-sourcing](../../../packages/event-sourcing/docs/) for implementation details.
+See [@semiont/event-sourcing](../../packages/event-sourcing/docs/) for implementation details.
 
 ## View Storage
 
@@ -71,7 +71,7 @@ pending/ → running/ → complete/
 
 State transitions use file moves for atomicity — no database dependency, no external broker.
 
-See [@semiont/jobs](../../../packages/jobs/docs/API.md) for implementation.
+See [@semiont/jobs](../../packages/jobs/docs/API.md) for implementation.
 
 ## Path Resolution
 
@@ -135,7 +135,7 @@ find ~/.local/state/semiont/my-project/events -name "*.jsonl" | wc -l
 
 ## Related Documentation
 
-- [Event Store Architecture](../../../packages/event-sourcing/docs/ARCHITECTURE.md)
-- [Job Queue Patterns](../../../packages/jobs/docs/API.md)
-- [Database Guide](./DATABASE.md) — User authentication only
-- [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) — XDG path configuration
+- [Event Store Architecture](../../packages/event-sourcing/docs/ARCHITECTURE.md)
+- [Job Queue Patterns](../../packages/jobs/docs/API.md)
+- [Database Guide](./administration/DATABASE.md) — User authentication only
+- [Configuration Guide](./administration/CONFIGURATION.md) — XDG path configuration

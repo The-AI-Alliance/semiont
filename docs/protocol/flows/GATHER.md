@@ -63,7 +63,7 @@ Under the hood: the namespace emits `gather:annotation-request` via
 `/bus/emit` with a correlationId, then filters `gather:complete` and
 `gather:annotation-progress` events coming back through the bus for
 that correlationId. The Gatherer actor on the backend handles the
-command. See [`apps/backend/docs/STREAMS.md`](../../../apps/backend/docs/STREAMS.md).
+command. See [`EVENT-BUS.md`](../EVENT-BUS.md).
 
 ## Events
 

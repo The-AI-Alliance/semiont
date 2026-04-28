@@ -4,7 +4,7 @@
 
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
-- [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store and annotation body updates
+- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store and annotation body updates
 - [Mark Flow](./MARK.md) - How reference annotations are created
 - [Gather Flow](./GATHER.md) - Context assembly (used by Bind before search)
 - [Yield Flow](./YIELD.md) - AI-powered resource generation (alternative to manual resolution)
@@ -104,7 +104,7 @@ useObservable re-renders → ReferenceEntry recomputes isBodyResolved → 🔗
 
 ### How the link icon flip works
 
-The `mark:body-updated` event delivered through the bus gateway carries the post-materialization annotation (attached by the event store enrichment callback). The `BrowseNamespace`'s EventBus subscriber writes it directly into the cached Observable via `updateAnnotationInPlace` — no HTTP refetch needed. This is the single delivery path for all annotation mutations: locally-initiated binds and remote mutations from other participants all arrive the same way. See `apps/backend/docs/STREAMS.md` for the bus-gateway architecture.
+The `mark:body-updated` event delivered through the bus gateway carries the post-materialization annotation (attached by the event store enrichment callback). The `BrowseNamespace`'s EventBus subscriber writes it directly into the cached Observable via `updateAnnotationInPlace` — no HTTP refetch needed. This is the single delivery path for all annotation mutations: locally-initiated binds and remote mutations from other participants all arrive the same way. See [`EVENT-BUS.md`](../EVENT-BUS.md) for the bus protocol.
 
 ### Context-Driven Search
 

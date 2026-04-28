@@ -2,14 +2,14 @@
 
 This guide explains how Semiont manages its PostgreSQL database for **user authentication**, including schema management, migrations, and operational procedures.
 
-**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [Knowledge System](../../../docs/system/KNOWLEDGE-SYSTEM.md).
+**Important**: PostgreSQL is used ONLY for user authentication. Document and annotation metadata is stored in the Event Store (JSONL files) and Projections (sharded JSON files) - see [Knowledge System](../KNOWLEDGE-SYSTEM.md).
 
 ## Overview
 
 Semiont uses PostgreSQL **exclusively for user authentication**, managed through AWS RDS with the following components:
 
 - **Database Engine**: PostgreSQL 15.x on AWS RDS
-- **ORM**: Prisma for schema definition and database access ([see schema](../prisma/schema.prisma))
+- **ORM**: Prisma for schema definition and database access ([see schema](../../../apps/backend/prisma/schema.prisma))
 - **Migration Strategy**: Automatic migrations on backend startup
 - **Connection Management**: Connection pooling via Prisma Client
 - **Scope**: User authentication ONLY - no document/annotation metadata
@@ -18,7 +18,7 @@ Semiont uses PostgreSQL **exclusively for user authentication**, managed through
 - **Event Store**: Immutable event log in JSONL files - source of truth for all changes (see [Event Sourcing Package](../../../packages/event-sourcing/))
 - **ViewStorage**: Materialized current state optimized for fast queries (see [Event Sourcing Package](../../../packages/event-sourcing/))
 
-**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C Web Annotation](../../../docs/protocol/W3C-WEB-ANNOTATION.md) and [Event Sourcing Package](../../../packages/event-sourcing/) for how annotations flow through the system.
+**PostgreSQL does NOT store document or annotation metadata** - it only stores user authentication data (users table). See [W3C Web Annotation](../../protocol/W3C-WEB-ANNOTATION.md) and [Event Sourcing Package](../../../packages/event-sourcing/) for how annotations flow through the system.
 
 ## Database Architecture
 

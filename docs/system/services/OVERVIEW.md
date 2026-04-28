@@ -20,7 +20,7 @@ This document provides a deployment-focused overview of Semiont services. For AP
 | **Event Store** | Filesystem | `@semiont/event-sourcing` | [API](../../../packages/event-sourcing/docs/API.md), [Architecture](../../../packages/event-sourcing/docs/ARCHITECTURE.md) |
 | **Graph Database** | Multiple Providers | `@semiont/graph` | [API](../../../packages/graph/docs/API.md), [Architecture](../../../packages/graph/docs/ARCHITECTURE.md) |
 | **Vector Store** | Qdrant / Memory | `@semiont/vectors` | [Package](../../../packages/vectors/) |
-| **PostgreSQL** | User Auth Only | Backend Implementation | [Database Guide](../../../apps/backend/docs/DATABASE.md) |
+| **PostgreSQL** | User Auth Only | Backend Implementation | [Database Guide](../administration/DATABASE.md) |
 
 ### Compute Layer
 
@@ -214,10 +214,10 @@ semiont rollback --environment production
 
 ## Service-Specific Documentation
 
-### Backend Implementation
-- [Database Management](../../../apps/backend/docs/DATABASE.md) - PostgreSQL setup
-- [Filesystem Patterns](../../../apps/backend/docs/FILESYSTEM.md) - Storage implementation
-- [Data Flow](../../../apps/backend/docs/DATA-FLOW.md) - Event processing
+### System
+- [Database Management](../administration/DATABASE.md) - PostgreSQL setup (user auth)
+- [Filesystem Patterns](../FILESYSTEM.md) - Storage implementation
+- [Knowledge System](../KNOWLEDGE-SYSTEM.md) - Event processing and storage architecture
 
 ### Package APIs
 - [@semiont/event-sourcing](../../../packages/event-sourcing/docs/) - Event store patterns
@@ -274,6 +274,6 @@ The detailed technical documentation has moved to package-specific locations:
 | `docs/services/INFERENCE.md` | `packages/inference/docs/` |
 | `docs/services/JOB-WORKER.md` | `packages/jobs/docs/` |
 | `docs/services/REPRESENTATION-STORE.md` | `packages/content/docs/` |
-| `docs/services/DATABASE.md` | `apps/backend/docs/DATABASE.md` |
+| `docs/services/DATABASE.md` | `docs/system/administration/DATABASE.md` |
 
 This reorganization follows the principle of colocating documentation with code for better maintainability.

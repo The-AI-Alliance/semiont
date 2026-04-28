@@ -75,7 +75,7 @@ Direct imports from `@semiont/api-client` are appropriate when constructing the 
 
 ## Behavioral contract
 
-The guarantees every `ITransport` implementation must honor — including `HttpTransport` — are documented in [`packages/core/docs/TRANSPORT-CONTRACT.md`](../../core/docs/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID` replay window, six-state connection machine) live alongside the backend at [`apps/backend/docs/TRANSPORT.md`](../../../apps/backend/docs/TRANSPORT.md).
+The guarantees every `ITransport` implementation must honor — including `HttpTransport` — are documented in [`docs/protocol/TRANSPORT-CONTRACT.md`](../../../docs/protocol/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID` replay window, six-state connection machine) live in [`docs/protocol/TRANSPORT-HTTP.md`](../../../docs/protocol/TRANSPORT-HTTP.md).
 
 ## Other docs in this package
 

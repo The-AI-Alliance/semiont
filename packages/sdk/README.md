@@ -136,11 +136,11 @@ The verb-by-verb walkthroughs live in [docs/flows](https://github.com/The-AI-All
 
 - [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace tour with concrete examples for Browse, Mark, Bind, Gather, Match, Yield, Beckon, Auth, Admin, Job, plus SSE and error handling.
 - [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's behavioral contract.
-- [`@semiont/core/docs/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/core/docs/TRANSPORT-CONTRACT.md) — the transport interface every `ITransport` must honor.
+- [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — the transport interface every `ITransport` must honor.
 
 ## Behavioral contract
 
-The guarantees every `ITransport` implementation must honor — what `subscribe()` does on disconnect, what `LastEventId` replay must look like, what `puts` must be idempotent — are documented in [packages/core/docs/TRANSPORT-CONTRACT.md](https://github.com/The-AI-Alliance/semiont/blob/main/packages/core/docs/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID` replay window) live alongside the backend at [apps/backend/docs/TRANSPORT.md](https://github.com/The-AI-Alliance/semiont/blob/main/apps/backend/docs/TRANSPORT.md).
+The guarantees every `ITransport` implementation must honor — what `subscribe()` does on disconnect, what `LastEventId` replay must look like, what `puts` must be idempotent — are documented in [docs/protocol/TRANSPORT-CONTRACT.md](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID` replay window) live in [docs/protocol/TRANSPORT-HTTP.md](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md).
 
 When implementing a new transport (gRPC, WebSocket, IPC, …), implement those interfaces from `@semiont/core` directly — there is no inheritance from `HttpTransport`.
 

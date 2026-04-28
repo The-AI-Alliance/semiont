@@ -63,7 +63,7 @@ Full W3C Web Annotation Data Model compliance for marking up resources with:
 **Related Endpoints**: `/api/annotations`, `/api/annotations/{id}`, `/api/resources/{id}/annotations`
 
 For W3C JSON-LD structure and examples, see [W3C Web Annotation](./W3C-WEB-ANNOTATION.md).
-For backend implementation flow, see [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md).
+For how annotations flow through storage, see [Knowledge System](../system/KNOWLEDGE-SYSTEM.md).
 
 ### Entity Type Management
 
@@ -142,7 +142,7 @@ The API is backed by a 4-layer data architecture:
 - **Rebuildable**: Projections and graph can be rebuilt from events
 - **Scalable**: Each layer optimized for its access pattern
 
-For architecture details, see [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md#data-layer-architecture).
+For architecture details, see [Knowledge System](../system/KNOWLEDGE-SYSTEM.md).
 
 ### Route Organization
 
@@ -158,9 +158,9 @@ For architecture details, see [Backend W3C Implementation](../../apps/backend/do
 
 **For implementation details:**
 - [W3C Web Annotation](./W3C-WEB-ANNOTATION.md) - JSON-LD structure and W3C semantics
-- [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - 4-layer architecture flow
+- [Knowledge System](../system/KNOWLEDGE-SYSTEM.md) - Storage architecture (event store, materialized views, graph)
 - [Backend Authentication](../../apps/backend/docs/AUTHENTICATION.md) - Auth implementation
-- [API Client Package](../../packages/api-client/) - TypeScript SDK
+- [@semiont/sdk](../../packages/sdk/README.md) - TypeScript SDK
 
 **For backend development:**
 - [Backend README](../../apps/backend/) - Development setup and overview

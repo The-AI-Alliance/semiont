@@ -153,9 +153,9 @@ SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
 - **Live domain events** — `mark:added`, `yield:create-ok`, etc. flow on resource-scoped channels. `SemiontApiClient.subscribeToResource(id)` adds those channels to the bus actor's subscription when a resource page mounts.
 - **Gap detection** — on reconnect after a disconnect, `BrowseNamespace` invalidates all active caches and refetches. No server-side replay.
 
-See [`apps/backend/docs/STREAMS.md`](../../backend/docs/STREAMS.md) and
-[`apps/backend/docs/REAL-TIME.md`](../../backend/docs/REAL-TIME.md) for
-the backend side; see
+See [`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and
+[`docs/protocol/CHANNELS.md`](../../../docs/protocol/CHANNELS.md) for
+the bus protocol; see
 [`packages/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md)
 for the client side.
 
@@ -303,8 +303,11 @@ like `browse:resources-failed`), raised from the promise returned by
 ### Backend
 
 - [Backend README](../../backend/README.md)
-- [`apps/backend/docs/STREAMS.md`](../../backend/docs/STREAMS.md) — bus gateway
-- [`apps/backend/docs/REAL-TIME.md`](../../backend/docs/REAL-TIME.md) — real-time delivery
+
+### Protocol
+
+- [`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) — bus protocol semantics
+- [`docs/protocol/CHANNELS.md`](../../../docs/protocol/CHANNELS.md) — channel inventory
 
 ### External
 

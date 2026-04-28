@@ -7,6 +7,9 @@ This page covers the design tenets behind the protocol, the value proposition, a
 For the deeper specifications, see:
 - **[flows/README.md](flows/README.md)** — per-flow contracts (yield, mark, match, bind, gather, browse, beckon)
 - **[EVENT-BUS.md](EVENT-BUS.md)** — wire-level event protocol: channel naming, `correlationId` / `_userId` conventions, `_trace` carrier, gateway injection, resource scoping
+- **[CHANNELS.md](CHANNELS.md)** — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
+- **[TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md)** — abstract `ITransport` behavioral guarantees every transport must honor
+- **[TRANSPORT-HTTP.md](TRANSPORT-HTTP.md)** — HTTP+SSE wire format
 - **[API.md](API.md)** — REST endpoint reference
 - **[W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md)** + **[W3C-SELECTORS.md](W3C-SELECTORS.md)** — W3C compliance story
 
@@ -47,7 +50,7 @@ semiont match doc-123 ann-456
 semiont bind doc-123 ann-456 target-789
 ```
 
-**[Semiont SDK](../../packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. `SemiontClient.signIn(...)` is the credentials-first one-line construction for scripts. Long-running scripts that span token expiry use `SemiontSession.signIn(...)` instead — same shape, plus refresh and persistence (see the [SDK README](../../packages/sdk/README.md)).
+**[Semiont SDK](../../packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. `SemiontClient.signIn(...)` is the credentials-first one-line construction for scripts. Long-running scripts that span token expiry use `SemiontSession.signIn(...)` instead — same shape, plus refresh and persistence. The deeper guides live alongside the package: **[Usage.md](../../packages/sdk/docs/Usage.md)** is the per-namespace tour with worked examples, and **[CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md)** is the live-query cache contract.
 
 ```typescript
 import { SemiontClient } from '@semiont/sdk';

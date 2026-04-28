@@ -655,5 +655,5 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ### System Documentation
 - [System Documentation](../../../docs/system/README.md) - Overall system architecture
-- [DATABASE.md](../../backend/docs/DATABASE.md) - PostgreSQL for user accounts and job queue
+- [Database Guide](../../../docs/system/administration/DATABASE.md) - PostgreSQL for user accounts and job queue
 - [Graph Package](../../../packages/graph/) - Graph database implementations (Neo4j, Neptune, JanusGraph)

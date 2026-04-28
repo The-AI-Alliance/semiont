@@ -5,7 +5,7 @@
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
-- [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store, View Storage, Graph Database flow
+- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store, view storage, graph database flow
 - [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Detection API and job workers
@@ -512,14 +512,12 @@ via `/bus/subscribe`; MarkVM surfaces them through an Observable.
 4. BrowseNamespace updates its cached Observable in place — no HTTP
    refetch needed.
 
-See [bus gateway architecture](../../../apps/backend/docs/STREAMS.md) and
-[real-time event delivery](../../../apps/backend/docs/REAL-TIME.md) for
-details on enrichment, gap detection on reconnect, and the single-SSE
-delivery model.
+See [EVENT-BUS.md](../EVENT-BUS.md) and [CHANNELS.md](../CHANNELS.md)
+for the bus protocol and channel inventory.
 
 ### Data Flow Through Backend Layers
 
-**Event Store → View Storage → Graph Database** ([Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md)):
+**Event Store → View Storage → Graph Database** ([Knowledge System](../../system/KNOWLEDGE-SYSTEM.md)):
 
 ```
 Worker emits mark:create on EventBus
@@ -742,6 +740,6 @@ After detection completes:
 ### Documentation
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - Dual selector strategy
-- [Backend W3C Implementation](../../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
+- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store architecture
 - [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and components
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling

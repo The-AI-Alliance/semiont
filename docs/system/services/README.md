@@ -49,13 +49,13 @@ Semiont's architecture consists of multiple services that work together to provi
 ### Infrastructure Services
 
 **Database** - PostgreSQL for users and metadata
-- **Documentation**: [apps/backend/docs/DATABASE.md](../../../apps/backend/docs/DATABASE.md)
+- **Documentation**: [Database Guide](../administration/DATABASE.md)
 - **Implementation**: [apps/backend/prisma/](../../../apps/backend/prisma/)
 - **CLI Service**: [database-service.ts](../../../apps/cli/src/services/database-service.ts)
 - **Storage**: User accounts, OAuth tokens (NOT document metadata)
 
 **Filesystem** - File storage patterns
-- **Documentation**: [apps/backend/docs/FILESYSTEM.md](../../../apps/backend/docs/FILESYSTEM.md)
+- **Documentation**: [Filesystem](../FILESYSTEM.md)
 - **Implementation**: [apps/backend/src/storage/](../../../apps/backend/src/storage/)
 - **CLI Service**: [filesystem-service.ts](../../../apps/cli/src/services/filesystem-service.ts)
 - **Storage**: Local filesystem, AWS S3, AWS EFS
@@ -87,8 +87,8 @@ Semiont's architecture consists of multiple services that work together to provi
 | **Content Store** | Data Storage | [@semiont/content](../../../packages/content/) | Content-addressed storage |
 | **Event Store** | Data Storage | [@semiont/event-sourcing](../../../packages/event-sourcing/) | Event log + views |
 | **Graph Database** | Data Storage | [@semiont/graph](../../../packages/graph/) | Multi-provider graph |
-| **Database** | Infrastructure | [Backend Docs](../../../apps/backend/docs/DATABASE.md) | PostgreSQL (auth only) |
-| **Filesystem** | Infrastructure | [Backend Docs](../../../apps/backend/docs/FILESYSTEM.md) | Storage patterns |
+| **Database** | Infrastructure | [Database Guide](../administration/DATABASE.md) | PostgreSQL (auth only) |
+| **Filesystem** | Infrastructure | [Filesystem](../FILESYSTEM.md) | Storage patterns |
 | **Inference** | Infrastructure | [@semiont/inference](../../../packages/inference/) | LLM integration |
 | **Job Worker** | Infrastructure | [@semiont/jobs](../../../packages/jobs/) | Background processing |
 | **Secrets** | Infrastructure | [SECRETS.md](./SECRETS.md) | Future plans |
@@ -120,8 +120,8 @@ The detailed service documentation has been reorganized to be package-centric:
 - `docs/services/INFERENCE.md` → Moved to `packages/inference/docs/`
 - `docs/services/JOB-WORKER.md` → Moved to `packages/jobs/docs/`
 - `docs/services/REPRESENTATION-STORE.md` → Moved to `packages/content/docs/`
-- `docs/services/FILESYSTEM.md` → Moved to `apps/backend/docs/FILESYSTEM.md`
-- `docs/services/DATABASE.md` → Moved to `apps/backend/docs/DATABASE.md`
+- `docs/services/FILESYSTEM.md` → Moved to `docs/system/FILESYSTEM.md`
+- `docs/services/DATABASE.md` → Moved to `docs/system/administration/DATABASE.md`
 
 ### Current Structure
 - **Package Documentation**: Each package contains its own comprehensive docs in `packages/{name}/docs/`

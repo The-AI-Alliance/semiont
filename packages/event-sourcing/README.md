@@ -18,7 +18,7 @@ appendEvent(event, options?)
 
 options.correlationId threads a command correlation id into event metadata,
 enabling clients to match command-result events back to the POST that
-initiated them. See docs/architecture/STREAMS.md.
+initiated them. See docs/protocol/EVENT-BUS.md.
 ```
 
 The **EventStore** is the single write path. It coordinates three concerns:

@@ -325,8 +325,8 @@ Routing Layer → Browser
 - [Deployment Guide](./DEPLOYMENT.md) - Deployment workflows and strategies
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 - [Envoy Configuration](../../../ENVOY.md) - Envoy proxy setup
-- [Backend Container](../../backend/docs/CONTAINER.md) - Backend container configuration
 - [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
+- [Container Images](../../../docs/system/administration/IMAGES.md) - All published images and the backend npm-distribution model
 
 ## Support
 

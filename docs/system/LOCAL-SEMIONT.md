@@ -75,7 +75,7 @@ As an alternative to the container image, Semiont ships a native desktop app for
 
 ## Detailed Setup
 
-- **[Backend](../../apps/backend/docs/LOCAL.md)** — PostgreSQL, inference, Neo4j, service management
+- **[Backend](./LOCAL-BACKEND.md)** — PostgreSQL, inference, Neo4j, service management
 - **[Browser](../browser/LOCAL.md)** — SPA, desktop app, connecting to a backend
 
 ## Service Ports

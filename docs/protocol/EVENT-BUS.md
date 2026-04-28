@@ -153,6 +153,15 @@ Publishers emit these on a scoped bus (`eventBus.scope(resourceId)`); the HTTP t
 
 Per-caller progress (AI-assist progress, search results) is *not* scoped — it's a correlation-ID-shaped response that publishes globally and the caller filters by `correlationId`. Resource scoping is for genuine multi-participant fan-out: events that *every* viewer of a resource should see.
 
+The rule, by event kind:
+
+| Event kind | Scoped? | Why |
+|---|---|---|
+| Command (one handler) | **No** | No fan-out to narrow. Handler subscribes by channel name; that's sufficient. |
+| Correlation-ID response (e.g. `mark:create-ok`) | **No** | Caller filters by `correlationId`. Scope adds nothing and would require the emitter to know which resource the caller is on. |
+| Resource-bound broadcast (persisted domain events, actor progress meant for all viewers) | **Yes** | Many viewers, only some care. Scope narrows fan-out to viewers of that resource. |
+| System-wide broadcast (`mark:entity-type-added`, `beckon:*`) | **No** | Concerns everyone — not about a specific resource. |
+
 ## Persistence: the system of record
 
 Domain events (past-tense `-ed` channels) are the only events that get appended to the event store. They're typed as `StoredEvent<EventOfType<...>>` in the EventMap rather than as OpenAPI schemas — they carry storage metadata (sequence number, hash chain link, persist timestamp) on top of the domain payload.
@@ -247,9 +256,11 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 
 ## See also
 
+- **[CHANNELS.md](./CHANNELS.md)** — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts, bridged channels.
+- **[TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md)** — abstract `ITransport` behavioral guarantees every transport must honor.
+- **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format; the `/bus/emit` and `/bus/subscribe` contract.
 - **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — the authoritative `EventMap` and `CHANNEL_SCHEMAS`.
 - **[`packages/core/src/event-bus.ts`](../../packages/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
-- **[`packages/core/src/transport.ts`](../../packages/core/src/transport.ts)** — the `ITransport` contract.
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** — the namespace tour with worked examples per verb.
 - **[../system/administration/OBSERVABILITY.md](../system/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
