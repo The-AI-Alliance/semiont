@@ -6,21 +6,16 @@ import { vi } from 'vitest';
 import { MockPlatform } from '../../../platforms/mock/platform.js';
 import { PlatformFactory } from '../../../platforms/index.js';
 
-// Get the singleton MockPlatform instance from PlatformFactory
-// This ensures we're using the same instance that the commands will use
-// Note: getPlatform is async but MockPlatform loads synchronously (no AWS deps)
-let _mockPlatformInstance: MockPlatform;
-export async function getMockPlatform(): Promise<MockPlatform> {
-  if (!_mockPlatformInstance) {
-    _mockPlatformInstance = await PlatformFactory.getPlatform('mock' as any) as MockPlatform;
-  }
-  return _mockPlatformInstance;
-}
+// Tests share a single MockPlatform instance so they can set state via
+// `mockPlatformInstance['mockState']` and have the production code
+// (which resolves the platform via PlatformFactory.getPlatform('mock'))
+// observe that state. We pre-register our instance in the factory cache.
 export const mockPlatformInstance = new MockPlatform();
+(PlatformFactory as any).instances.set('mock', mockPlatformInstance);
 
-// No need to mock PlatformFactory - it already supports 'mock' platform
-// Just ensure we have a shared instance for test state management
-// Note: PlatformFactory.getPlatform('mock') will return the singleton MockPlatform
+export async function getMockPlatform(): Promise<MockPlatform> {
+  return mockPlatformInstance;
+}
 
 // Mock environment-loader for environment config
 vi.mock('@semiont/core', async () => {

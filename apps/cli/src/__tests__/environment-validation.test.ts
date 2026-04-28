@@ -164,9 +164,11 @@ domain = "example.com"
       expect(loaded.site?.domain).toBe('example.com');
     });
 
-    it('should throw when config file is missing', () => {
-      // fakeHome has no .semiontconfig
-      expect(() => loadEnvironmentConfig(testDir, 'missing')).toThrow();
+    it('returns an empty config when ~/.semiontconfig is missing', () => {
+      // fakeHome has no .semiontconfig — missing global config is non-fatal,
+      // matching getAvailableEnvironments() returning [] in the same case.
+      const loaded = loadEnvironmentConfig(testDir, 'missing');
+      expect(loaded.services?.backend).toBeUndefined();
     });
 
     it('should throw for invalid TOML', () => {
