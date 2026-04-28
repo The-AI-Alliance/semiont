@@ -23,7 +23,9 @@
  * import { baseUrl } from '@semiont/core';
  *
  * const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
- * const client = new SemiontClient(transport, new HttpContentTransport(transport));
+ * // HttpTransport implements both ITransport and IBackendOperations;
+ * // passing it as the third arg wires `client.auth` and `client.admin`.
+ * const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
  * ```
  */
 

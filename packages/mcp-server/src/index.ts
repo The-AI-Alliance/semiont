@@ -36,7 +36,7 @@ const transport = new HttpTransport({
   baseUrl: baseUrl(SEMIONT_API_URL),
   token$: new BehaviorSubject<typeof token | null>(token),
 });
-const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
+const semiont = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
 const server = new Server(
   { name: 'semiont-mcp', version: '0.2.0' },
