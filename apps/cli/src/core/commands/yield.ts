@@ -105,7 +105,7 @@ async function runDelegate(
 
   // Step 1: gather context
   const context = await lastValueFrom(
-    semiont.gather.annotation(aId, rId, { contextWindow: options.contextWindow }),
+    semiont.gather.annotation(rId, aId, { contextWindow: options.contextWindow }),
   ) as GatheredContext;
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);

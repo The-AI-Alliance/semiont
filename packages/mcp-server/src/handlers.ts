@@ -76,8 +76,7 @@ export async function markAnnotation(semiont: SemiontClient, args: any): Promise
     type: 'TextualBody' as const, value, purpose: 'tagging' as const,
   }));
 
-  const rId = resourceId(args?.resourceId);
-  const data = await semiont.mark.annotation(rId, {
+  const data = await semiont.mark.annotation({
     motivation: 'highlighting',
     target: {
       source: args?.resourceId,
@@ -136,7 +135,7 @@ export async function gatherAnnotation(semiont: SemiontClient, args: any): Promi
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
 
-  const context = await semiont.gather.annotation(aId, rId, { contextWindow: args?.contextWindow ?? 2000 });
+  const context = await semiont.gather.annotation(rId, aId, { contextWindow: args?.contextWindow ?? 2000 });
 
   return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
 }
@@ -162,7 +161,7 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
   const aId = annotationId(args?.annotationId);
 
   // Step 1: gather context
-  const ctx = (await semiont.gather.annotation(aId, rId, { contextWindow: 2000 })) as GatheredContext;
+  const ctx = (await semiont.gather.annotation(rId, aId, { contextWindow: 2000 })) as GatheredContext;
 
   // Step 2: generate. yield.fromAnnotation streams progress, then ends with
   // a `complete` event carrying the JobCompleteCommand (with `result`).

@@ -6,10 +6,10 @@ import { useObservable } from '../../hooks/useObservable';
 
 /**
  * Modal that surfaces when a 403 forbidden error is reported via
- * `notifyPermissionDenied` (called from QueryCache.onError).
+ * the active session's `signals.notifyPermissionDenied(...)`.
  *
  * Reads `permissionDeniedAt$` and `permissionDeniedMessage$` from the
- * active `FrontendSessionSignals`. The signals instance clears the
+ * active `SessionSignals`. The signals instance clears the
  * flag when the user dismisses the modal. Modal state lives on
  * signals (not the session itself) so headless sessions
  * (workers/CLIs) don't carry dead observables.

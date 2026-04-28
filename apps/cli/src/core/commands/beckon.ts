@@ -51,7 +51,7 @@ export async function runBeckon(options: BeckonOptions): Promise<CommandResults>
   const [participantId] = options.participantArr;
 
   // beckon:focus carries optional annotationId and an optional human-readable
-  // message; the namespace surface (`client.beckon.attention(aid, rid)`) only
+  // message; the namespace surface (`client.beckon.attention(rid, aid)`) only
   // supports the both-required shape, so emit directly for the CLI's broader
   // signal envelope.
   await semiont.transport.emit('beckon:focus', {

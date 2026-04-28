@@ -6,8 +6,8 @@
  * lifecycle, generation progress) and cache reads (Browse live queries).
  *
  * The point: scripts can `await` the call directly without `lastValueFrom` /
- * `firstValueFrom` wrappers; reactive consumers (frontend view-models) keep
- * using `.subscribe(...)` and `.pipe(...)` exactly as before.
+ * `firstValueFrom` wrappers; reactive consumers keep using `.subscribe(...)`
+ * and `.pipe(...)` exactly as before.
  *
  * The asymmetric `.then()` semantics — last-value-on-completion for streams,
  * first-non-undefined-value for caches — is encoded by the subclass name. The
@@ -20,6 +20,7 @@
 
 import { Observable, firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
+import type { ResourceId } from '@semiont/core';
 
 /**
  * Bounded Observable stream — emits zero-or-more progress values, then a
@@ -76,7 +77,7 @@ export class CacheObservable<T> extends Observable<T | undefined> implements Pro
    * Observable per key (its B4 contract), so this preserves that contract
    * through the awaitable wrapping. Without the memo, every public-method
    * call would produce a fresh wrapper and break referential-equality
-   * guarantees that React-side consumers depend on.
+   * guarantees that hook-style reactive consumers depend on.
    *
    * Backed by a `WeakMap`, so wrappers are GC'd when their source is.
    */
@@ -91,3 +92,39 @@ export class CacheObservable<T> extends Observable<T | undefined> implements Pro
 }
 
 const wrapperCache = new WeakMap<Observable<unknown>, CacheObservable<unknown>>();
+
+/**
+ * Discriminated phases of an upload's lifecycle.
+ *
+ * - `started` — emitted immediately on `yield.resource(...)` invocation, before any bytes flow.
+ * - `progress` — emitted as bytes flow. Not yet wired by `HttpContentTransport` (would require an XHR/`Request({ duplex })` rewrite to expose granular byte counts); reserved for that mechanism. `bytesUploaded` and `totalBytes` carry the numbers when emitted.
+ * - `finished` — emitted on backend acknowledgement, carries the assigned `resourceId`.
+ *
+ * Failures surface as `Observable.error(...)` (typically an `APIError` from the transport's `errors$` Subject), not as a `phase: 'failed'` event — `subscribe`'s error callback handles them.
+ */
+export type UploadProgress =
+  | { phase: 'started'; totalBytes: number }
+  | { phase: 'progress'; bytesUploaded: number; totalBytes: number }
+  | { phase: 'finished'; resourceId: ResourceId };
+
+/**
+ * Specialized `StreamObservable` for `yield.resource`. Subscribers see the
+ * full `UploadProgress` event sequence (started → optional progress → finished).
+ * Awaiting resolves specifically to `{ resourceId }` extracted from the
+ * `'finished'` event — preserving the pre-Phase-18 awaited shape so existing
+ * `await client.yield.resource(...)` callers don't need to narrow the union.
+ */
+export class UploadObservable extends Observable<UploadProgress> implements PromiseLike<{ resourceId: ResourceId }> {
+  then<R1 = { resourceId: ResourceId }, R2 = never>(
+    onfulfilled?: ((v: { resourceId: ResourceId }) => R1 | PromiseLike<R1>) | null,
+    onrejected?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
+  ): PromiseLike<R1 | R2> {
+    return lastValueFrom(this).then((v) => {
+      if (v.phase !== 'finished') {
+        throw new Error(`UploadObservable resolved on a non-finished event: ${v.phase}`);
+      }
+      const result = { resourceId: v.resourceId };
+      return onfulfilled ? onfulfilled(result) : (result as unknown as R1);
+    }, onrejected);
+  }
+}

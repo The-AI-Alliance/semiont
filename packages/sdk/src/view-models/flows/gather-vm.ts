@@ -29,8 +29,8 @@ export function createGatherVM(
     annotationId$.next(makeAnnotationId(event.annotationId));
 
     const gatherSub = client.gather.annotation(
-      makeAnnotationId(event.annotationId),
       resourceId,
+      makeAnnotationId(event.annotationId),
       { contextWindow: event.options?.contextWindow ?? 2000 },
     ).pipe(
       timeout(60_000),

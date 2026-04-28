@@ -25,7 +25,7 @@ export * from './client';
 
 // Thenable Observable subclasses — let scripts `await` namespace-method
 // results directly without `lastValueFrom`/`firstValueFrom` wrappers.
-export { StreamObservable, CacheObservable } from './awaitable';
+export { StreamObservable, CacheObservable, UploadObservable, type UploadProgress } from './awaitable';
 
 // Bus-request helper.
 export {
@@ -97,7 +97,7 @@ export { APIError, type APIErrorCode } from '@semiont/api-client';
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
 export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
-export { FrontendSessionSignals } from './session/frontend-session-signals';
+export { SessionSignals } from './session/session-signals';
 export { SemiontSessionError, type SemiontSessionErrorCode } from './session/errors';
 export { getBrowser, type GetBrowserOptions } from './session/registry';
 export {
@@ -117,7 +117,6 @@ export {
   setStoredSession,
   type StoredSession,
 } from './session/storage';
-export { notifySessionExpired, notifyPermissionDenied } from './session/notify';
 
 // View models (MVVM layer)
 export * from './view-models';

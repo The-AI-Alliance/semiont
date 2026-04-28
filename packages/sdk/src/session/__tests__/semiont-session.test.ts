@@ -18,10 +18,15 @@ const mockStateSubject = { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) };
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
+  const { Subject } = await import('rxjs');
   class MockSemiontApiClient {
     dispose = mockDispose;
     state$ = mockStateSubject;
     bus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
+    transport = (() => {
+      const errorsSubject = new Subject();
+      return { errorsSubject, errors$: errorsSubject.asObservable() };
+    })();
   }
   return {
     ...actual,

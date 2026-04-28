@@ -5,11 +5,11 @@ import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 
 /**
- * Modal that surfaces when the active KB's session expires (a 401 from
- * either the session's own JWT validation or from any React Query call
- * via the QueryCache.onError handler).
+ * Modal that surfaces when the active KB's session expires (a 401
+ * surfaced by the session's own JWT validation or by the host's
+ * error-routing path).
  *
- * Reads `sessionExpiredAt$` from the active `FrontendSessionSignals`.
+ * Reads `sessionExpiredAt$` from the active `SessionSignals`.
  * When the user dismisses the modal, the signals instance clears the
  * flag. Modal state lives on signals (not the session itself) so
  * headless sessions (workers/CLIs) don't carry dead observables.

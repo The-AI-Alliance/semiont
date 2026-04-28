@@ -12,11 +12,18 @@ const mockRefreshToken = vi.fn();
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
+  const { Subject } = await import('rxjs');
   class MockSemiontApiClient {
     auth = { me: mockGetMe, refresh: mockRefreshToken };
     dispose = mockDispose;
     actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
     eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
+    // Mirrors the `ITransport` errors$ contract enough for the
+    // SemiontBrowser → signals routing tests to push test errors through.
+    transport = (() => {
+      const errorsSubject = new Subject();
+      return { errorsSubject, errors$: errorsSubject.asObservable() };
+    })();
   }
   return {
     ...actual,
@@ -399,8 +406,8 @@ describe('SemiontBrowser — performValidate (inlined getMe flow)', () => {
   });
 });
 
-describe('SemiontBrowser — activeSignals$ lifecycle (FrontendSessionSignals)', () => {
-  it('emits a non-null FrontendSessionSignals when activeSession$ is non-null', async () => {
+describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
+  it('emits a non-null SessionSignals when activeSession$ is non-null', async () => {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
@@ -499,6 +506,65 @@ describe('SemiontBrowser — activeSignals$ lifecycle (FrontendSessionSignals)',
     await session!.refresh();
     expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
 
+    await browser.dispose();
+  });
+
+  it('routes 401 from transport.errors$ to signals.sessionExpiredAt$', async () => {
+    const { APIError } = await import('@semiont/api-client');
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+
+    // Push directly through the transport's errors Subject — this is the
+    // same path HttpTransport hits in its `beforeError` ky hook.
+    const subj = (session!.client.transport as any).errorsSubject;
+    subj.next(new APIError('token expired', 401, 'Unauthorized'));
+
+    expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.sessionExpiredMessage$.getValue()).toBe('token expired');
+    await browser.dispose();
+  });
+
+  it('routes 403 from transport.errors$ to signals.permissionDeniedAt$', async () => {
+    const { APIError } = await import('@semiont/api-client');
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+
+    const subj = (session!.client.transport as any).errorsSubject;
+    subj.next(new APIError('not allowed', 403, 'Forbidden'));
+
+    expect(signals.permissionDeniedAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.permissionDeniedMessage$.getValue()).toBe('not allowed');
+    await browser.dispose();
+  });
+
+  it('does not fire either signal for non-401/403 transport errors', async () => {
+    const { APIError } = await import('@semiont/api-client');
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = new SemiontBrowser({ storage });
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+    const signals = browser.activeSignals$.getValue()!;
+
+    const subj = (session!.client.transport as any).errorsSubject;
+    subj.next(new APIError('boom', 500, 'Internal Server Error'));
+    subj.next(new APIError('not found', 404, 'Not Found'));
+
+    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
     await browser.dispose();
   });
 

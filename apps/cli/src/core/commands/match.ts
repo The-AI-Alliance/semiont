@@ -56,7 +56,7 @@ export async function runMatch(options: MatchOptions): Promise<CommandResults> {
 
   // Step 1: gather context
   let context = await lastValueFrom(
-    semiont.gather.annotation(annotationId, resourceId, { contextWindow: options.contextWindow }),
+    semiont.gather.annotation(resourceId, annotationId, { contextWindow: options.contextWindow }),
   ) as GatheredContext;
 
   if (options.userHint) {

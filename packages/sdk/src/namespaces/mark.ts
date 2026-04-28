@@ -2,6 +2,7 @@ import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import {
   annotationId as toAnnotationId,
+  resourceId as toResourceId,
 } from '@semiont/core';
 import type {
   ResourceId,
@@ -26,7 +27,11 @@ export class MarkNamespace implements IMarkNamespace {
     private readonly bus: EventBus,
   ) {}
 
-  async annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }> {
+  async annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }> {
+    // The wire schema (`MarkCreateRequest`) carries `resourceId` separately
+    // for routing — we derive it from `input.target.source`, which is the
+    // same value semantically.
+    const resourceId = toResourceId(input.target.source);
     const result = await busRequest<{ annotationId: string }>(
       this.transport,
       'mark:create-request',

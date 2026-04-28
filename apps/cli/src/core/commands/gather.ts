@@ -55,7 +55,7 @@ export async function runGather(options: GatherOptions): Promise<CommandResults>
     const rid = toResourceId(rawResourceId);
     const aid = toAnnotationId(rawAnnotationId);
     result = await lastValueFrom(
-      semiont.gather.annotation(aid, rid, { contextWindow: options.contextWindow }),
+      semiont.gather.annotation(rid, aid, { contextWindow: options.contextWindow }),
     );
   } else {
     throw new Error(`Unknown subcommand: ${subcommand}. Use 'resource' or 'annotation'.`);

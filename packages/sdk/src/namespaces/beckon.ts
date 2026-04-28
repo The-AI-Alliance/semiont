@@ -8,7 +8,7 @@ export class BeckonNamespace implements IBeckonNamespace {
     private readonly bus: EventBus,
   ) {}
 
-  attention(annotationId: AnnotationId, resourceId: ResourceId): void {
+  attention(resourceId: ResourceId, annotationId: AnnotationId): void {
     void this.transport.emit('beckon:focus', { annotationId, resourceId });
   }
 

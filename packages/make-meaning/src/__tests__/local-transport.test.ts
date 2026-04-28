@@ -209,7 +209,7 @@ describe('SemiontClient over LocalTransport', () => {
         // and `eventStore.appendEvent` materializes the view before
         // publishing the typed channel. So the view is current by the
         // time this resolves.
-        const { annotationId } = await h.client.mark.annotation(rId, {
+        const { annotationId } = await h.client.mark.annotation({
           motivation: 'highlighting',
           target: {
             source: rId as unknown as string,
@@ -233,7 +233,7 @@ describe('SemiontClient over LocalTransport', () => {
       try {
         const rId = await h.seedResource({ name: 'doc', content: 'hello world' });
 
-        const { annotationId: aIdStr } = await h.client.mark.annotation(rId, {
+        const { annotationId: aIdStr } = await h.client.mark.annotation({
           motivation: 'highlighting',
           target: {
             source: rId as unknown as string,
@@ -270,7 +270,7 @@ describe('SemiontClient over LocalTransport', () => {
         const sourceId = await h.seedResource({ name: 'src', content: 'see also: target' });
         const targetId = await h.seedResource({ name: 'target', content: 'target body' });
 
-        const { annotationId: aIdStr } = await h.client.mark.annotation(sourceId, {
+        const { annotationId: aIdStr } = await h.client.mark.annotation({
           motivation: 'linking',
           target: {
             source: sourceId as unknown as string,

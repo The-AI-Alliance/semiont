@@ -301,7 +301,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
     body,
   };
 
-  const { annotationId } = await semiont.mark.annotation(resourceId, request);
+  const { annotationId } = await semiont.mark.annotation(request);
 
   if (!options.quiet) printSuccess(`Marked: ${rawResourceId} → ${annotationId}`);
 

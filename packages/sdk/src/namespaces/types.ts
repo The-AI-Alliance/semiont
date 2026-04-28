@@ -27,7 +27,7 @@
  */
 
 import type { Observable } from 'rxjs';
-import type { StreamObservable, CacheObservable } from '../awaitable';
+import type { StreamObservable, CacheObservable, UploadObservable } from '../awaitable';
 import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
@@ -213,8 +213,9 @@ export interface BrowseNamespace {
  * Event prefix: mark:*
  */
 export interface MarkNamespace {
-  // Annotation CRUD
-  annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
+  // Annotation CRUD. `input.target.source` carries the resource id; the
+  // namespace derives it for the bus payload, so callers don't pass it twice.
+  annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
   delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void>;
 
   // Entity types
@@ -281,8 +282,8 @@ export interface BindNamespace {
  */
 export interface GatherNamespace {
   annotation(
-    annotationId: AnnotationId,
     resourceId: ResourceId,
+    annotationId: AnnotationId,
     options?: { contextWindow?: number },
   ): StreamObservable<GatherAnnotationProgress>;
 
@@ -323,8 +324,11 @@ export interface MatchNamespace {
  * Event prefix: yield:*
  */
 export interface YieldNamespace {
-  // File upload (synchronous)
-  resource(data: CreateResourceInput): Promise<{ resourceId: ResourceId }>;
+  // File upload. Returns an `UploadObservable` — subscribers see the full
+  // `UploadProgress` lifecycle (started → finished); awaiting resolves to
+  // `{ resourceId }` directly (the awaited shape is unchanged from before
+  // Phase 18 — `await client.yield.resource(...)` keeps working as-is).
+  resource(data: CreateResourceInput): UploadObservable;
 
   // Generation from annotation (long-running, LLM-based — yields progress, then a final complete event)
   fromAnnotation(
@@ -352,7 +356,7 @@ export interface YieldNamespace {
  * Event prefix: beckon:*
  */
 export interface BeckonNamespace {
-  attention(annotationId: AnnotationId, resourceId: ResourceId): void;
+  attention(resourceId: ResourceId, annotationId: AnnotationId): void;
   hover(annotationId: AnnotationId | null): void;
   sparkle(annotationId: AnnotationId): void;
 }

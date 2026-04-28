@@ -6,7 +6,7 @@
  *
  * Headless by design. Runs in browsers, CLIs, workers, and tests.
  * UI-specific state (session-expired/permission-denied modals) lives
- * in `FrontendSessionSignals`, which wraps a session — the session
+ * in `SessionSignals`, which wraps a session — the session
  * itself has no modal observables, no user-facing notifications.
  *
  * Auth is parameterized via callbacks passed at construction:
@@ -22,9 +22,9 @@
  *     worker omits this (service principals have no user record).
  *
  *   - `onAuthFailed(message)` — optional. Invoked when refresh
- *     terminally fails (expired token, no recovery possible). The
- *     frontend wires this to `FrontendSessionSignals.notifySessionExpired`
- *     so the modal surfaces; headless consumers typically just log.
+ *     terminally fails (expired token, no recovery possible). UI hosts
+ *     typically wire this to `SessionSignals.notifySessionExpired` so a
+ *     modal surfaces; headless consumers typically just log.
  *
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the session never touches `localStorage` or `window`
@@ -40,6 +40,7 @@ import {
 } from '@semiont/core';
 import type { components, EventMap } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
+import type { SemiontError } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 import {
@@ -102,6 +103,18 @@ export class SemiontSession {
   readonly token$: BehaviorSubject<AccessToken | null>;
   readonly user$: BehaviorSubject<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
+  /**
+   * Stream of `SemiontError` instances surfaced by the underlying transport
+   * just before they're thrown to the caller. For `HttpTransport` this is
+   * an `APIError` (status-coded); other transports emit their own subclass.
+   * Surfaced here so a host layer (e.g. `SemiontBrowser`) can route by
+   * `err.code` to global notifications without every call site handling
+   * errors itself. Headless consumers can subscribe for logging.
+   *
+   * Re-published from `client.transport.errors$` per the `ITransport`
+   * contract — the session is purely a passthrough.
+   */
+  readonly errors$: Observable<SemiontError>;
 
   /** Resolves after the initial validation round-trip completes (success or failure). */
   readonly ready: Promise<void>;
@@ -125,6 +138,7 @@ export class SemiontSession {
     this.client = config.client;
     this.token$ = config.token$;
     this.user$ = new BehaviorSubject<UserInfo | null>(null);
+    this.errors$ = this.client.transport.errors$;
 
     // Reconcile stored token: if there's a fresh stored access token
     // and `token$` hasn't been seeded yet, push the stored value so the

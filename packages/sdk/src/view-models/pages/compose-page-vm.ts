@@ -1,11 +1,12 @@
 import { BehaviorSubject, type Observable, map } from 'rxjs';
-import type { GatheredContext, AnnotationId, ContentFormat, AccessToken, ResourceDescriptor } from '@semiont/core';
+import type { GatheredContext, AnnotationId, ContentFormat, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
 import type { SemiontClient } from '../../client';
 import { getPrimaryMediaType, decodeWithCharset } from '@semiont/core';
+import type { UploadProgress } from '../../awaitable';
 
 export type ComposeMode = 'new' | 'clone' | 'reference';
 
@@ -54,6 +55,13 @@ export interface ComposePageVM extends ViewModel {
   referenceData$: Observable<ReferenceData | null>;
   gatheredContext$: Observable<GatheredContext | null>;
   entityTypes$: Observable<string[]>;
+  /**
+   * Live upload-progress for the in-flight `save(...)` call. Emits the
+   * full `UploadProgress` lifecycle (started → finished) while a save is
+   * underway; resets to `null` between saves and after completion. UI
+   * components can subscribe to render an upload-in-progress indicator.
+   */
+  uploadProgress$: Observable<UploadProgress | null>;
   save(params: SaveResourceParams): Promise<string>;
 }
 
@@ -75,6 +83,7 @@ export function createComposePageVM(
   const cloneData$ = new BehaviorSubject<CloneData | null>(null);
   const referenceData$ = new BehaviorSubject<ReferenceData | null>(null);
   const gatheredContext$ = new BehaviorSubject<GatheredContext | null>(null);
+  const uploadProgress$ = new BehaviorSubject<UploadProgress | null>(null);
 
   const entityTypes$: Observable<string[]> = client.browse.entityTypes().pipe(
     map((e) => e ?? []),
@@ -141,17 +150,31 @@ export function createComposePageVM(
 
     const format = saveParams.charset && !saveParams.file ? `${mimeType}; charset=${saveParams.charset}` : mimeType;
 
-    const response = await client.yield.resource({
-      name: saveParams.name,
-      file: fileToUpload,
-      format,
-      entityTypes: saveParams.entityTypes || [],
-      language: saveParams.language,
-      creationMethod: 'ui',
-      storageUri: saveParams.storageUri,
+    // Subscribe to the upload's full progress lifecycle so the UI can
+    // render an upload-in-progress indicator. Resolve the save() promise
+    // on the `finished` event and clear the progress signal on completion
+    // (success or error).
+    const newResourceId = await new Promise<ResourceId>((resolve, reject) => {
+      client.yield.resource({
+        name: saveParams.name,
+        file: fileToUpload,
+        format,
+        entityTypes: saveParams.entityTypes || [],
+        language: saveParams.language,
+        creationMethod: 'ui',
+        storageUri: saveParams.storageUri,
+      }).subscribe({
+        next: (event) => {
+          uploadProgress$.next(event);
+          if (event.phase === 'finished') resolve(event.resourceId);
+        },
+        error: (err) => {
+          uploadProgress$.next(null);
+          reject(err);
+        },
+        complete: () => uploadProgress$.next(null),
+      });
     });
-
-    const newResourceId = response.resourceId;
 
     if (saveParams.mode === 'reference' && saveParams.annotationUri && saveParams.sourceDocumentId) {
       await client.bind.body(
@@ -172,6 +195,7 @@ export function createComposePageVM(
     referenceData$: referenceData$.asObservable(),
     gatheredContext$: gatheredContext$.asObservable(),
     entityTypes$,
+    uploadProgress$: uploadProgress$.asObservable(),
     save,
     dispose: () => {
       mode$.complete();
