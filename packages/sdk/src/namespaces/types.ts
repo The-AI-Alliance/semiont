@@ -32,6 +32,7 @@ import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
+  BackendDownload,
   BodyOperation,
   GraphConnection,
   JobId,
@@ -406,8 +407,8 @@ export interface AdminNamespace {
   oauthConfig(): Promise<OAuthConfigResponse>;
   healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>>;
   status(): Promise<ResponseContent<paths['/api/status']['get']>>;
-  backup(): Promise<Response>;
+  backup(): Promise<BackendDownload>;
   restore(file: File, onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>;
-  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<Response>;
+  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
   importKnowledgeBase(file: File, onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>;
 }

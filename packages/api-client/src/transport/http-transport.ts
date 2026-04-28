@@ -35,6 +35,7 @@ import type { TransportErrorCode } from '@semiont/core';
 import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorVM, type ActorVM } from './actor-vm';
 import type {
+  BackendDownload,
   ConnectionState,
   IBackendOperations,
   ITransport,
@@ -60,6 +61,23 @@ const RESOURCE_SCOPED_CHANNELS = [
   ...PERSISTED_EVENT_TYPES.filter((t) => t !== 'mark:entity-type-added'),
   ...RESOURCE_BROADCAST_TYPES,
 ];
+
+/**
+ * Convert a fetch `Response` to the transport-neutral `BackendDownload`
+ * shape. ky throws on non-OK by default, so callers can rely on the
+ * response being healthy by the time it gets here. `response.body`
+ * is non-null for successful responses with content.
+ */
+function responseToDownload(response: Response): BackendDownload {
+  const contentType = response.headers.get('Content-Type') ?? 'application/octet-stream';
+  const contentDisposition = response.headers.get('Content-Disposition');
+  const filename = contentDisposition?.match(/filename="(.+?)"/)?.[1];
+  return {
+    stream: response.body!,
+    contentType,
+    ...(filename ? { filename } : {}),
+  };
+}
 
 function classifyApiCode(status: number): TransportErrorCode {
   if (status === 400) return 'bad-request';
@@ -459,10 +477,11 @@ export class HttpTransport implements ITransport, IBackendOperations {
 
   // ── Exchange (backup/restore/export/import) ───────────────────────────
 
-  async backupKnowledgeBase(): Promise<Response> {
-    return this.http.post(`${this.baseUrl}/api/admin/exchange/backup`, {
+  async backupKnowledgeBase(): Promise<BackendDownload> {
+    const response = await this.http.post(`${this.baseUrl}/api/admin/exchange/backup`, {
       headers: this.authHeaders(),
     });
+    return responseToDownload(response);
   }
 
   async restoreKnowledgeBase(
@@ -478,12 +497,13 @@ export class HttpTransport implements ITransport, IBackendOperations {
     return this.parseSSEStream(response, onProgress);
   }
 
-  async exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<Response> {
+  async exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload> {
     const searchParams = params?.includeArchived ? new URLSearchParams({ includeArchived: 'true' }) : undefined;
-    return this.http.post(`${this.baseUrl}/api/moderate/exchange/export`, {
+    const response = await this.http.post(`${this.baseUrl}/api/moderate/exchange/export`, {
       headers: this.authHeaders(),
       ...(searchParams ? { searchParams } : {}),
     });
+    return responseToDownload(response);
   }
 
   async importKnowledgeBase(

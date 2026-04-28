@@ -3,7 +3,7 @@
  */
 
 import type { UserDID, components, paths } from '@semiont/core';
-import type { IBackendOperations } from '@semiont/core';
+import type { BackendDownload, IBackendOperations } from '@semiont/core';
 import type { AdminNamespace as IAdminNamespace, User, RequestContent, ResponseContent } from './types';
 
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
@@ -38,7 +38,7 @@ export class AdminNamespace implements IAdminNamespace {
     return this.backend.getStatus();
   }
 
-  async backup(): Promise<Response> {
+  async backup(): Promise<BackendDownload> {
     return this.backend.backupKnowledgeBase();
   }
 
@@ -49,7 +49,7 @@ export class AdminNamespace implements IAdminNamespace {
     return this.backend.restoreKnowledgeBase(file, onProgress);
   }
 
-  async exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<Response> {
+  async exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload> {
     return this.backend.exportKnowledgeBase(params);
   }
 

@@ -203,6 +203,7 @@ export type {
   ITransport,
   IBackendOperations,
   IContentTransport,
+  BackendDownload,
   PutBinaryRequest,
   ConnectionState,
   ProgressEvent,

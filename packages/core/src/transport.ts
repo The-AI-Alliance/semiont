@@ -100,6 +100,22 @@ export type ProgressEvent = {
 };
 export type ProgressCallback = (event: ProgressEvent) => void;
 
+/**
+ * Stream-shaped return type for backend download operations
+ * (`backupKnowledgeBase`, `exportKnowledgeBase`). Transport-neutral —
+ * any implementation can produce a `ReadableStream<Uint8Array>` without
+ * fabricating a fetch `Response`. HTTP wraps `response.body` and
+ * `response.headers`; in-process implementations return their own stream.
+ *
+ * The same shape `IContentTransport.getBinaryStream` already uses for
+ * binary downloads.
+ */
+export interface BackendDownload {
+  stream: ReadableStream<Uint8Array>;
+  contentType: string;
+  filename?: string;
+}
+
 // ── ITransport ──────────────────────────────────────────────────────────
 
 export interface ITransport {
@@ -204,9 +220,9 @@ export interface IBackendOperations {
 
   // ── Exchange ──────────────────────────────────────────────────────────
 
-  backupKnowledgeBase(): Promise<Response>;
+  backupKnowledgeBase(): Promise<BackendDownload>;
   restoreKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
-  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<Response>;
+  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
   importKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
 
   // ── System ────────────────────────────────────────────────────────────
