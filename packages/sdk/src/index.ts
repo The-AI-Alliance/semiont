@@ -25,7 +25,7 @@ export * from './client';
 
 // Thenable Observable subclasses — let scripts `await` namespace-method
 // results directly without `lastValueFrom`/`firstValueFrom` wrappers.
-export { StreamObservable, CacheObservable } from './awaitable';
+export { StreamObservable, CacheObservable, UploadObservable, type UploadProgress } from './awaitable';
 
 // Bus-request helper.
 export {

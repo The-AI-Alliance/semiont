@@ -10,7 +10,7 @@ import { resourceId as toResourceId } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
-import { StreamObservable } from '../awaitable';
+import { StreamObservable, UploadObservable } from '../awaitable';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -29,22 +29,46 @@ export class YieldNamespace implements IYieldNamespace {
     private readonly content: IContentTransport,
   ) {}
 
-  async resource(data: CreateResourceInput): Promise<{ resourceId: ResourceId }> {
-    const result = await this.content.putBinary({
-      name: data.name,
-      file: data.file,
-      format: data.format,
-      storageUri: data.storageUri,
-      ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
-      ...(data.language ? { language: data.language } : {}),
-      ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
-      ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
-      ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
-      ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
-      ...(data.generator ? { generator: data.generator } : {}),
-      ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
+  resource(data: CreateResourceInput): UploadObservable {
+    const totalBytes = data.file instanceof Buffer
+      ? data.file.length
+      : (data.file as File).size;
+    return new UploadObservable((subscriber) => {
+      // `started` fires synchronously so subscribers can render an upload-
+      // in-progress indicator before any I/O begins.
+      subscriber.next({ phase: 'started', totalBytes });
+      let cancelled = false;
+      this.content.putBinary({
+        name: data.name,
+        file: data.file,
+        format: data.format,
+        storageUri: data.storageUri,
+        ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
+        ...(data.language ? { language: data.language } : {}),
+        ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
+        ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
+        ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
+        ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
+        ...(data.generator ? { generator: data.generator } : {}),
+        ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
+      })
+        .then((result) => {
+          if (cancelled) return;
+          // `progress` events between started and finished are not yet
+          // emitted — `IContentTransport.putBinary` doesn't surface a
+          // byte-count hook today (see SDK-DX-3 Phase 18 follow-up). When
+          // that mechanism lands, intermediate `progress` events emit here.
+          subscriber.next({
+            phase: 'finished',
+            resourceId: toResourceId(result.resourceId as string),
+          });
+          subscriber.complete();
+        })
+        .catch((err) => {
+          if (!cancelled) subscriber.error(err);
+        });
+      return () => { cancelled = true; };
     });
-    return { resourceId: toResourceId(result.resourceId as string) };
   }
 
   fromAnnotation(

@@ -27,7 +27,7 @@
  */
 
 import type { Observable } from 'rxjs';
-import type { StreamObservable, CacheObservable } from '../awaitable';
+import type { StreamObservable, CacheObservable, UploadObservable } from '../awaitable';
 import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
@@ -324,8 +324,11 @@ export interface MatchNamespace {
  * Event prefix: yield:*
  */
 export interface YieldNamespace {
-  // File upload (synchronous)
-  resource(data: CreateResourceInput): Promise<{ resourceId: ResourceId }>;
+  // File upload. Returns an `UploadObservable` — subscribers see the full
+  // `UploadProgress` lifecycle (started → finished); awaiting resolves to
+  // `{ resourceId }` directly (the awaited shape is unchanged from before
+  // Phase 18 — `await client.yield.resource(...)` keeps working as-is).
+  resource(data: CreateResourceInput): UploadObservable;
 
   // Generation from annotation (long-running, LLM-based — yields progress, then a final complete event)
   fromAnnotation(

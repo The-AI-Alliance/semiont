@@ -1,9 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontClient } from '../../../client';
 import type { ShellVM } from '../../flows/shell-vm';
 import { createComposePageVM } from '../compose-page-vm';
+
+/** Build an `UploadObservable`-shaped mock that emits started → finished. */
+function mockUpload(resourceId: string) {
+  return vi.fn().mockReturnValue(
+    new Observable((subscriber) => {
+      subscriber.next({ phase: 'started', totalBytes: 100 });
+      subscriber.next({ phase: 'finished', resourceId });
+      subscriber.complete();
+    }),
+  );
+}
 
 function mockBrowse(): ShellVM {
   return { dispose: vi.fn() } as unknown as ShellVM;
@@ -25,7 +36,7 @@ function mockClient(overrides: {
     yield: {
       fromToken: overrides.fromToken ?? vi.fn().mockResolvedValue({ '@id': 'src-1', representations: [{ mediaType: 'text/plain' }] }),
       createFromToken: overrides.createFromToken ?? vi.fn().mockResolvedValue({ resourceId: 'new-1' }),
-      resource: overrides.resource ?? vi.fn().mockResolvedValue({ resourceId: 'new-2' }),
+      resource: overrides.resource ?? mockUpload('new-2'),
     },
     bind: {
       body: overrides.body ?? vi.fn().mockResolvedValue(undefined),
@@ -110,7 +121,7 @@ describe('createComposePageVM', () => {
   });
 
   it('save in new mode calls yield.resource', async () => {
-    const resource = vi.fn().mockResolvedValue({ resourceId: 'new-3' });
+    const resource = mockUpload('new-3');
     const vm = createComposePageVM(mockClient({ resource }), mockBrowse(), {});
 
     const id = await vm.save({
@@ -129,7 +140,7 @@ describe('createComposePageVM', () => {
   });
 
   it('save in reference mode calls yield.resource then bind.body', async () => {
-    const resource = vi.fn().mockResolvedValue({ resourceId: 'new-4' });
+    const resource = mockUpload('new-4');
     const body = vi.fn().mockResolvedValue(undefined);
     const vm = createComposePageVM(mockClient({ resource, body }), mockBrowse(), {
       annotationUri: 'ann-1',
