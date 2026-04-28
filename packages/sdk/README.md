@@ -54,10 +54,8 @@ import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@sem
 const kb: KnowledgeBase = {
   id: 'my-watcher',
   label: 'My Watcher',
-  protocol: 'http',
-  host: 'localhost',
-  port: 4000,
   email: 'me@example.com',
+  endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
 };
 
 const session = await SemiontSession.signInHttp({
@@ -74,6 +72,8 @@ const resources = await session.client.browse.resources({ limit: 10 });
 
 await session.dispose();
 ```
+
+`KnowledgeBase` is uniform regardless of transport kind; the variation lives in the nested `endpoint` (currently `{ kind: 'http', host, port, protocol }` or `{ kind: 'local', kbId }`). Code that doesn't construct transports — your scripts, the verb namespaces, view-models — never inspects `endpoint`.
 
 If you already have an access token (CLI cached-token path, env-var token, embedded auth flow), use `SemiontClient.fromHttp({ baseUrl, token })` or `SemiontSession.fromHttp({ baseUrl, token, storage, kb, refresh, ... })` to skip the auth round-trip.
 
@@ -123,7 +123,9 @@ const resources = await client.browse.resources({ limit: 10 });
 client.browse.resource(resourceId).subscribe(/* ... */);
 
 // Mark / Bind — atomic operations return Promise<T>.
-const { annotationId } = await client.mark.annotation(request);
+// `mark.annotation` takes the W3C-shaped input directly; the resourceId
+// is derived from `input.target.source` and returned as a branded id.
+const { annotationId } = await client.mark.annotation(annotationInput);
 await client.bind.body(rid, aid, [{ op: 'add', item: { /* W3C body */ } }]);
 
 // Gather / Match — bounded streams; await yields the final value, subscribe

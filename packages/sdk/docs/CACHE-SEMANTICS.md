@@ -192,7 +192,7 @@ minimal compared to the correctness benefit of stable observable
 identities.
 
 A future cache primitive may add subscriber ref-counting and GC.
-For now, the full cache lifetime matches a `SemiontApiClient`
+For now, the full cache lifetime matches a `SemiontClient`
 instance, which matches a browser tab or a CLI process — so the
 leak is strictly bounded.
 
@@ -369,7 +369,7 @@ tear-down path. This is correct because the cache's lifetime
 matches the client's (see B11), but it means a bug that causes
 `subscribeToEvents()` to run twice would double every effect.
 The constructor is the only call site; audit that constructor runs
-once per `SemiontApiClient`.
+once per `SemiontClient`.
 
 ## Test-parity
 

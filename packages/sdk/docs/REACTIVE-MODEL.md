@@ -62,12 +62,12 @@ Namespace method return types follow four shapes. The naming convention lets you
 
 | Shape | Naming | Examples |
 |---|---|---|
-| **Atomic backend op** — `Promise<T>` | past-tense or short noun | `mark.annotation`, `bind.body`, `yield.resource`*, `auth.password`, `frame.addEntityType` |
-| **Long-running stream** — `StreamObservable<T>` (or `UploadObservable` for `yield.resource`) | plain verb | `mark.assist`, `match.search`, `gather.annotation`, `yield.fromAnnotation` |
+| **Atomic backend op** — `Promise<T>` | past-tense or short noun | `mark.annotation`, `mark.archive`, `mark.entityType`, `bind.body`, `auth.password`, `admin.users` |
+| **Long-running stream** — `StreamObservable<T>` (or `UploadObservable` for `yield.resource`) | plain verb | `mark.assist`, `match.search`, `gather.annotation`, `yield.fromAnnotation`, `admin.restore`, `admin.importKnowledgeBase` |
 | **Live query** — `CacheObservable<T>` | plain noun | `browse.resource`, `browse.resources`, `browse.annotations`, `browse.entityTypes` |
 | **Collaboration signal** — `void` | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click`, `mark.toggleMode` |
 
-\* `yield.resource` historically returned `Promise<{ resourceId }>`; after Phase 18 it returns `UploadObservable` (still awaitable to `{ resourceId }` so `await` consumers don't change).
+`yield.resource` is the special case: subscribers see the upload-progress lifecycle (`started` → optional `progress` → `finished`), `await` resolves to `{ resourceId }`. Same dual-shape contract as the other streams; the awaited type is the slimmed-down "what consumers care about" projection.
 
 The fourth row — collaboration signals — is the surface most data-processing SDKs don't have. They're the SDK's contribution to multi-participant coordination: a participant calls `client.beckon.hover(annotationId)` and other participants subscribed to `beckon:hover` see it; an agent calls `client.bind.initiate(...)` and the human's UI lights up the binding flow. They look fire-and-forget at the call site; on the bus they fan out across participants. They earn first-class slots on the verb namespaces because they're not browser-app leakage — they're how a multi-participant session stays coherent.
 
@@ -124,6 +124,11 @@ Four idiomatic shapes, all on the same return value. The script-author who's nev
 - `gather.annotation`
 - `match.search`
 - `yield.fromAnnotation`
+- `admin.restore`, `admin.importKnowledgeBase` — SSE-driven progress streams for backup-restore and knowledge-base import.
+
+**`UploadObservable`** (special-case bounded stream for binary upload; `then` resolves to `{ resourceId }`):
+
+- `yield.resource`
 
 **`CacheObservable<T>`** (multicast cache; `then` resolves on first non-undefined emission):
 
@@ -144,13 +149,14 @@ Four idiomatic shapes, all on the same return value. The script-author who's nev
 - `match.requestSearch`
 - `yield.clone`
 - `beckon.hover`, `beckon.attention`, `beckon.sparkle`
+- `job.cancelRequest`
 
 These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. A frontend VM emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
 
 **Plain `Observable<T>` / `BehaviorSubject<T>`** (no thenable wrapper, by design — observed continuously, not awaited):
 
 - `client.transport.state$` — connection-state machine
-- `client.transport.errors$` — transport-level error stream (`APIError` for HTTP, etc.)
+- `client.transport.errors$` — transport-level error stream. Each emission is a `SemiontError` subclass (HTTP emits `APIError`); the `code` field uses the neutral `TransportErrorCode` vocabulary so consumers route on `'unauthorized'` / `'forbidden'` / etc. without knowing the wire kind.
 - `session.token$` — current access token
 - `session.user$` — current authenticated user
 - `session.streamState$` — connection state at session scope
