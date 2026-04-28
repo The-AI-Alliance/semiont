@@ -11,7 +11,7 @@ import {
   useViewModel,
   LinkedDataPage,
 } from '@semiont/react-ui';
-import { createExchangeVM } from '@semiont/sdk';
+import { createExchangeVM } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function LinkedDataClient() {

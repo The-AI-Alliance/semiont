@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/sdk';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-vm';
 import { ExportCard, type ExportCardTranslations } from './ExportCard';
 import { ImportCard, type ImportCardProps, type ImportCardTranslations } from './ImportCard';
 import { ImportProgress, type ImportProgressTranslations } from './ImportProgress';

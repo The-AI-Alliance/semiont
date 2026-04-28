@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/sdk';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-vm';
 import {
   PlusIcon,
   MagnifyingGlassIcon,

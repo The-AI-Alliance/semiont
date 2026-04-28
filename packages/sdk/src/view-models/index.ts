@@ -1,3 +1,16 @@
+// View-models in `@semiont/sdk` are state machines that any UI shape (web,
+// terminal, mobile, headless) can consume:
+//
+//   flows/   — wrap each of the seven flows in a stateful machine
+//              (loading/error/pending observables, awaitable + reactive)
+//   workers/ — worker-side adapters (already used headlessly by `@semiont/jobs`)
+//   lib/     — substrate (ViewModel interface, search pipeline, WorkerBus)
+//
+// Page-shaped state machines (admin tables, page-routing, web shell, etc.)
+// live in `@semiont/react-ui` alongside the components that render them —
+// they're framework-neutral but tied to the Semiont web frontend's page
+// taxonomy and don't apply to a TUI / mobile / daemon consumer.
+
 export { type ViewModel, createDisposer } from './lib/view-model';
 export {
   createSearchPipeline,
@@ -5,6 +18,10 @@ export {
   type SearchPipelineOptions,
   type SearchState,
 } from './lib/search-pipeline';
+export type { WorkerBus } from './lib/worker-bus';
+
+// ── Flow VMs ────────────────────────────────────────────────────────────
+
 export {
   createBeckonVM,
   type BeckonVM,
@@ -12,14 +29,6 @@ export {
   type HoverHandlers,
   HOVER_DELAY_MS,
 } from './flows/beckon-vm';
-export {
-  createShellVM,
-  type ShellVM,
-  type ShellVMOptions,
-  type ToolbarPanelType,
-  COMMON_PANELS,
-  RESOURCE_PANELS,
-} from './flows/shell-vm';
 export {
   createGatherVM,
   type GatherVM,
@@ -39,74 +48,25 @@ export {
   type PendingAnnotation,
 } from './flows/mark-vm';
 
-// Domain VMs — reusable across React, CLI, MCP
-export {
-  createDiscoverVM,
-  type DiscoverVM,
-} from './domain/discover-vm';
-export {
-  createEntityTagsVM,
-  type EntityTagsVM,
-} from './domain/entity-tags-vm';
-export {
-  createExchangeVM,
-  type ExchangeVM,
-  type ImportPreview,
-} from './domain/exchange-vm';
-export {
-  createAdminUsersVM,
-  type AdminUsersVM,
-} from './domain/admin-users-vm';
-export {
-  createAdminSecurityVM,
-  type AdminSecurityVM,
-} from './domain/admin-security-vm';
-export {
-  createWelcomeVM,
-  type WelcomeVM,
-} from './domain/welcome-vm';
-export {
-  createResourceLoaderVM,
-  type ResourceLoaderVM,
-} from './domain/resource-loader-vm';
-export {
-  createSessionVM,
-  type SessionVM,
-} from './domain/session-vm';
-export type { ConnectionState } from '@semiont/core';
+// ── Worker adapters ─────────────────────────────────────────────────────
+
 export {
   createSmelterActorVM,
   type SmelterActorVM,
   type SmelterActorVMOptions,
   type SmelterEvent,
-} from './domain/smelter-actor-vm';
-export type { WorkerBus } from './lib/worker-bus';
+} from './workers/smelter-actor-vm';
 export {
   createJobClaimAdapter,
   type JobClaimAdapter,
   type JobClaimAdapterOptions,
   type JobAssignment,
   type ActiveJob,
-} from './domain/job-claim-adapter';
+} from './workers/job-claim-adapter';
 export {
   createJobQueueVM,
   type JobQueueVM,
   type Job,
-} from './domain/job-queue-vm';
+} from './workers/job-queue-vm';
 
-// Page composites — React UI layout orchestration
-export {
-  createResourceViewerPageVM,
-  type ResourceViewerPageVM,
-  type WizardState,
-  type AnnotationGroups,
-} from './pages/resource-viewer-page-vm';
-export {
-  createComposePageVM,
-  type ComposePageVM,
-  type ComposeParams,
-  type ComposeMode,
-  type CloneData,
-  type ReferenceData,
-  type SaveResourceParams,
-} from './pages/compose-page-vm';
+export type { ConnectionState } from '@semiont/core';

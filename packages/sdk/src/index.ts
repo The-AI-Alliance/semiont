@@ -117,6 +117,7 @@ export {
   type LocalEndpoint,
   type NewKnowledgeBase,
   type KbSessionStatus,
+  httpKb,
 } from './session/knowledge-base';
 export { type OpenResource } from './session/open-resource';
 export {

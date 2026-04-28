@@ -59,8 +59,25 @@ This is *protocol-level* coordination — not browser-app fluff, not bolted-on p
 - **Verb namespaces** — `browse`, `mark`, `bind`, `gather`, `match`, `yield`, `beckon`, `job`, `auth`, `admin`. Typed methods that wrap the bus protocol; consumers never touch raw channel strings.
 - **Collaboration primitives** — fire-and-forget signals on the verb namespaces (`beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click`, ...) coordinate attention and intent across participants. Not afterthoughts, not browser-app fluff: they're how a multi-participant session stays coherent.
 - **Session layer** — `SemiontSession` (per-KB authentication, token refresh, lifecycle), `SemiontBrowser` (multi-KB orchestration), and `SessionStorage` adapters (`InMemorySessionStorage`, plus a browser-backed one in `@semiont/react-ui`).
-- **View-models** — RxJS-based MVVM factories that any view layer can subscribe to. The React bindings live in `@semiont/react-ui`; the VMs themselves are framework-neutral.
-- **Helpers** — `bus-request` (correlation-ID request/reply) and the cache primitive backing live queries.
+- **Flow state machines** — RxJS-based factories (`createMarkVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBeckonVM`) that wrap each long-running flow with `loading$` / `error$` / progress observables. UI-shape-agnostic — any consumer (browser, terminal, mobile, daemon) can subscribe.
+- **Worker adapters** — `createSmelterActorVM`, `createJobClaimAdapter`, `createJobQueueVM` for headless pipelines and ops dashboards. Already used by `packages/jobs/` without React or any UI.
+- **Helpers** — `bus-request` (correlation-ID request/reply), the cache primitive backing live queries, and `createSearchPipeline` (debounced-search RxJS pipeline).
+
+Page-shaped state machines (admin tables, compose page, resource viewer page, etc.) live in [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui), alongside the components that render them. Those are framework-neutral but tied to the Semiont web frontend's specific page taxonomy; they don't apply to non-web consumers.
+
+## For non-web consumers (TUI, mobile, daemon, agent)
+
+`@semiont/sdk` is the only package a non-web Semiont consumer needs. From it you get:
+
+- `SemiontClient` + the seven verb namespaces (`browse`, `mark`, `bind`, `gather`, `match`, `yield`, `beckon`)
+- Three infrastructure namespaces (`auth`, `admin`, `job`) when constructed with backend operations
+- `SemiontSession` for long-running token refresh + persistence
+- `SemiontBrowser` for multi-KB orchestration (transport-agnostic; takes a `SessionFactory`)
+- The five flow state machines and three worker adapters above
+- The transport-neutral `WorkerBus` interface for worker-side adapters
+- Branded ID types, the unified error hierarchy, the `TransportErrorCode` neutral vocabulary
+
+Nothing page-shaped, nothing web-shell-shaped. A TUI, mobile reader, daemon, or AI agent installs `@semiont/sdk` alone (plus a transport package — `@semiont/api-client` for HTTP, `@semiont/make-meaning` for in-process).
 
 ## Installation
 
