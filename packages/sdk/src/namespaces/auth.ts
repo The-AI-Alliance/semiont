@@ -30,7 +30,7 @@ export class AuthNamespace implements IAuthNamespace {
   }
 
   async me(): Promise<User> {
-    return this.transport.getCurrentUser() as unknown as Promise<User>;
+    return this.transport.getCurrentUser();
   }
 
   async acceptTerms(): Promise<void> {

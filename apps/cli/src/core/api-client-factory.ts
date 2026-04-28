@@ -18,11 +18,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { SemiontClient } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
-import { BehaviorSubject } from 'rxjs';
 import {
   accessToken as toAccessToken,
-  baseUrl as toBaseUrl,
   type AccessToken,
 } from '@semiont/core';
 
@@ -95,8 +92,7 @@ export async function acquireToken(
   emailStr: string,
   passwordStr: string,
 ): Promise<void> {
-  const transport = new HttpTransport({ baseUrl: toBaseUrl(rawBusUrl) });
-  const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
+  const semiont = SemiontClient.fromHttp({ baseUrl: rawBusUrl });
   const authResult = await semiont.auth.password(emailStr, passwordStr);
   const cache: TokenCache = {
     bus: rawBusUrl,
@@ -125,9 +121,7 @@ export function loadCachedClient(rawBusUrl: string): AuthenticatedClient {
   }
 
   const token = toAccessToken(cached.token);
-  const token$ = new BehaviorSubject<AccessToken | null>(token);
-  const transport = new HttpTransport({ baseUrl: toBaseUrl(rawBusUrl), token$ });
-  const semiont = new SemiontClient(transport, new HttpContentTransport(transport));
+  const semiont = SemiontClient.fromHttp({ baseUrl: rawBusUrl, token });
   return { semiont, token };
 }
 
