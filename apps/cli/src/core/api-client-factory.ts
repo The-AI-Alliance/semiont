@@ -93,7 +93,7 @@ export async function acquireToken(
   passwordStr: string,
 ): Promise<void> {
   const semiont = SemiontClient.fromHttp({ baseUrl: rawBusUrl });
-  const authResult = await semiont.auth.password(emailStr, passwordStr);
+  const authResult = await semiont.auth!.password(emailStr, passwordStr);
   const cache: TokenCache = {
     bus: rawBusUrl,
     email: emailStr,

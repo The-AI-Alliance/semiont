@@ -367,7 +367,7 @@ export class SemiontSession {
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
     const transport = new HttpTransport({ baseUrl: url, token$ });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content);
+    const client = new SemiontClient(transport, content, transport);
     const config: SemiontSessionConfig = { kb: opts.kb, storage: opts.storage, client, token$ };
     if (opts.refresh) config.refresh = opts.refresh;
     if (opts.validate) config.validate = opts.validate;
@@ -421,11 +421,11 @@ export class SemiontSession {
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const transport = new HttpTransport({ baseUrl: url, token$ });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content);
+    const client = new SemiontClient(transport, content, transport);
 
     let auth: components['schemas']['AuthResponse'];
     try {
-      auth = await client.auth.password(opts.email, opts.password);
+      auth = await client.auth!.password(opts.email, opts.password);
     } catch (err) {
       client.dispose();
       throw err;
@@ -442,7 +442,7 @@ export class SemiontSession {
       const stored = getStoredSession(opts.storage, opts.kb.id);
       if (!stored) return null;
       try {
-        const response = await client.auth.refresh(stored.refresh);
+        const response = await client.auth!.refresh(stored.refresh);
         return response.access_token;
       } catch {
         return null;

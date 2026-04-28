@@ -30,7 +30,7 @@ export function StatusDisplay({
     if (!semiont) { setLoading(false); return; }
 
     const fetchStatus = () => {
-      semiont.admin.status()
+      semiont.admin!.status()
         .then((result) => {
           setData(result as StatusData);
           setError(null);

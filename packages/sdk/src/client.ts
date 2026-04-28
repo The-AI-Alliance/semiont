@@ -26,7 +26,7 @@ import { BeckonNamespace } from './namespaces/beckon';
 import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
-import type { ITransport, IContentTransport } from '@semiont/core';
+import type { IBackendOperations, IContentTransport, ITransport } from '@semiont/core';
 
 // Local imports of the HTTP adapters from @semiont/api-client — needed
 // here so `SemiontClient.fromHttp(...)` can construct them. The same
@@ -69,6 +69,12 @@ export class SemiontClient {
   readonly baseUrl: BaseUrl;
 
   // ── Verb-oriented namespace API ──────────────────────────────────────────
+  //
+  // The first eight namespaces are bus-driven and always present. `auth`
+  // and `admin` are backend-ops namespaces — they're only constructed
+  // when the caller passes an `IBackendOperations` instance to the
+  // constructor. A `SemiontClient` over a transport-only setup (e.g.
+  // `LocalTransport`) has `auth === undefined` / `admin === undefined`.
   public readonly browse: BrowseNamespace;
   public readonly mark: MarkNamespace;
   public readonly bind: BindNamespace;
@@ -77,8 +83,8 @@ export class SemiontClient {
   public readonly yield: YieldNamespace;
   public readonly beckon: BeckonNamespace;
   public readonly job: JobNamespace;
-  public readonly auth: AuthNamespace;
-  public readonly admin: AdminNamespace;
+  public readonly auth: AuthNamespace | undefined;
+  public readonly admin: AdminNamespace | undefined;
 
   /**
    * The client *owns* its bus. The constructor creates a fresh `EventBus`
@@ -92,8 +98,14 @@ export class SemiontClient {
    * Callers do not pass a bus in. If they need to interact with the bus
    * (e.g. for tests or to subscribe to arbitrary channels), they read it
    * back via `client.bus`.
+   *
+   * `backend` is optional. When provided, the `auth` and `admin`
+   * namespaces are constructed against it; when omitted, they're
+   * `undefined`. For HTTP setups this is conventionally the same
+   * `HttpTransport` instance that's also passed as `transport` (HTTP
+   * implements both `ITransport` and `IBackendOperations`).
    */
-  constructor(transport: ITransport, content: IContentTransport) {
+  constructor(transport: ITransport, content: IContentTransport, backend?: IBackendOperations) {
     this.transport = transport;
     this.content = content;
     this.baseUrl = transport.baseUrl;
@@ -109,8 +121,8 @@ export class SemiontClient {
     this.yield  = new YieldNamespace(this.transport, this.bus, this.content);
     this.beckon = new BeckonNamespace(this.transport, this.bus);
     this.job    = new JobNamespace(this.transport, this.bus);
-    this.auth   = new AuthNamespace(this.transport);
-    this.admin  = new AdminNamespace(this.transport);
+    this.auth   = backend ? new AuthNamespace(backend)  : undefined;
+    this.admin  = backend ? new AdminNamespace(backend) : undefined;
   }
 
   /** Transport-level connection state. HTTP reflects SSE health; local is always 'connected'. */
@@ -158,7 +170,9 @@ export class SemiontClient {
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
     const transport = new HttpTransport({ baseUrl: url, token$ });
     const content = new HttpContentTransport(transport);
-    return new SemiontClient(transport, content);
+    // HttpTransport implements both ITransport and IBackendOperations;
+    // pass it twice so `client.auth` / `client.admin` are wired.
+    return new SemiontClient(transport, content, transport);
   }
 
   /**
@@ -195,9 +209,10 @@ export class SemiontClient {
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const transport = new HttpTransport({ baseUrl: url, token$ });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content);
+    const client = new SemiontClient(transport, content, transport);
     try {
-      const auth = await client.auth.password(opts.email, opts.password);
+      // HTTP-only factory: backend is guaranteed present.
+      const auth = await client.auth!.password(opts.email, opts.password);
       token$.next(accessToken(auth.token));
       return client;
     } catch (err) {

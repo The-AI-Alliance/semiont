@@ -131,9 +131,9 @@ function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
 async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; label: string; gitBranch?: string }> {
   const origin = `${protocol}://${host}:${port}`;
   const transport = new HttpTransport({ baseUrl: baseUrl(origin) });
-  const client = new SemiontClient(transport, new HttpContentTransport(transport));
+  const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
-  const authResult = await client.auth.password(emailStr, password);
+  const authResult = await client.auth!.password(emailStr, password);
   const token = (authResult as any).token ?? (authResult as any).accessToken;
   const refreshToken = (authResult as any).refreshToken;
   if (!token) throw new Error('No access token received');
@@ -142,7 +142,7 @@ async function authenticateWithBackend(host: string, port: number, protocol: 'ht
   let label = `${host}:${port}`;
   let gitBranch: string | undefined;
   try {
-    const status = await client.admin.status();
+    const status = await client.admin!.status();
     if ((status as any).projectName) label = (status as any).projectName;
     if ((status as any).gitBranch) gitBranch = (status as any).gitBranch;
   } catch { /* use default label */ }

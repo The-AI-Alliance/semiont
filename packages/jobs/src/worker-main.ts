@@ -216,7 +216,7 @@ async function main() {
     tokenRefresher: () => session.refresh().then((t) => t ?? null),
   });
   const content = new HttpContentTransport(transport);
-  const client = new SemiontClient(transport, content);
+  const client = new SemiontClient(transport, content, transport);
   session = new SemiontSession({
     kb,
     storage,

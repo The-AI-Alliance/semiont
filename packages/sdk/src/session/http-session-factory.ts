@@ -50,9 +50,9 @@ export function createHttpSessionFactory(): SessionFactory {
         const stored = getStoredSession(storage, kb.id);
         if (!stored) return null;
         const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(endpoint)) });
-        const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
+        const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport), throwawayTransport);
         try {
-          const response = await throwaway.auth.refresh(stored.refresh);
+          const response = await throwaway.auth!.refresh(stored.refresh);
           const newAccess = response.access_token;
           if (!newAccess) return null;
           setStoredSession(storage, kb.id, { access: newAccess, refresh: stored.refresh });
@@ -84,9 +84,9 @@ export function createHttpSessionFactory(): SessionFactory {
         baseUrl: baseUrl(kbBackendUrl(endpoint)),
         token$: tokenSubject,
       });
-      const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
+      const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport), throwawayTransport);
       try {
-        const data = await throwaway.auth.me();
+        const data = await throwaway.auth!.me();
         return data as UserInfo;
       } finally {
         throwaway.dispose();
@@ -107,7 +107,7 @@ export function createHttpSessionFactory(): SessionFactory {
       tokenRefresher: () => session.refresh().then((t) => t ?? null),
     });
     const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content);
+    const client = new SemiontClient(transport, content, transport);
     session = new SemiontSession({
       kb,
       storage,

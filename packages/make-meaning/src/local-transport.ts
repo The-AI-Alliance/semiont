@@ -11,9 +11,11 @@
  *     and forwards each onto `clientBus`.
  *   - The bus reference flows client → transport, never the other way.
  *
- * Auth, admin, and exchange methods are not implemented in Phase 2 — local
- * mode runs as a single host-process identity supplied at construction.
- * Calling them throws.
+ * LocalTransport implements `ITransport` only. Auth, admin, and exchange
+ * (`IBackendOperations`) are HTTP-shaped concepts that don't apply
+ * in-process — local mode runs as a single host-process identity supplied
+ * at construction, with no token/credential lifecycle. A `SemiontClient`
+ * built over this transport has no `.auth` / `.admin` namespaces.
  */
 
 import type { Observable, Subscription } from 'rxjs';
@@ -21,37 +23,20 @@ import { BehaviorSubject, Subject } from 'rxjs';
 import type { SemiontError } from '@semiont/core';
 import type {
   BaseUrl,
-  Email,
   EventBus,
   EventMap,
-  GoogleCredential,
-  RefreshToken,
   ResourceId,
   UserDID,
-  components,
 } from '@semiont/core';
 import { baseUrl as makeBaseUrl, busLog } from '@semiont/core';
 import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import {
   BRIDGED_CHANNELS,
   type ConnectionState,
-  type HealthCheckResponse,
   type ITransport,
-  type ListUsersResponse,
-  type ProgressCallback,
-  type ProgressEvent,
-  type StatusResponse,
-  type UpdateUserRequest,
-  type UpdateUserResponse,
-  type UserResponse,
 } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
-
-type AuthResponse = components['schemas']['AuthResponse'];
-type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
-type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
-type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 
 export interface LocalTransportConfig {
   /**
@@ -79,9 +64,6 @@ export interface LocalTransportConfig {
    */
   baseUrl?: BaseUrl;
 }
-
-const NOT_SUPPORTED = (method: string) =>
-  new Error(`LocalTransport does not support ${method}() — local mode runs as a single host-process identity`);
 
 export class LocalTransport implements ITransport {
   readonly baseUrl: BaseUrl;
@@ -183,79 +165,10 @@ export class LocalTransport implements ITransport {
     }
   }
 
-  // ── Auth (not supported) ────────────────────────────────────────────────
-
-  async authenticatePassword(_email: Email, _password: string): Promise<AuthResponse> {
-    throw NOT_SUPPORTED('authenticatePassword');
-  }
-  async authenticateGoogle(_credential: GoogleCredential): Promise<AuthResponse> {
-    throw NOT_SUPPORTED('authenticateGoogle');
-  }
-  async refreshAccessToken(_token: RefreshToken): Promise<TokenRefreshResponse> {
-    throw NOT_SUPPORTED('refreshAccessToken');
-  }
-  async logout(): Promise<void> {
-    // No-op: nothing to invalidate in-process.
-  }
-  async acceptTerms(): Promise<void> {
-    // No-op: terms acceptance is a server-side user record; local mode has none.
-  }
-  async getCurrentUser(): Promise<UserResponse> {
-    // Synthesize a user record from the constructor-supplied identity. Tests
-    // that need richer user state should attach a Users-DB-backed transport.
-    return {
-      did: this.userId as unknown as string,
-      email: '',
-      isAdmin: false,
-      isModerator: false,
-      termsAcceptedAt: null,
-    } as unknown as UserResponse;
-  }
-  async generateMcpToken(): Promise<{ token: string }> {
-    throw NOT_SUPPORTED('generateMcpToken');
-  }
-  async getMediaToken(_resourceId: ResourceId): Promise<{ token: string }> {
-    throw NOT_SUPPORTED('getMediaToken');
-  }
-
-  // ── Admin (not supported) ───────────────────────────────────────────────
-
-  async listUsers(): Promise<ListUsersResponse> {
-    throw NOT_SUPPORTED('listUsers');
-  }
-  async getUserStats(): Promise<AdminUserStatsResponse> {
-    throw NOT_SUPPORTED('getUserStats');
-  }
-  async updateUser(_id: UserDID, _data: UpdateUserRequest): Promise<UpdateUserResponse> {
-    throw NOT_SUPPORTED('updateUser');
-  }
-  async getOAuthConfig(): Promise<OAuthConfigResponse> {
-    throw NOT_SUPPORTED('getOAuthConfig');
-  }
-
-  // ── Exchange (not supported) ────────────────────────────────────────────
-
-  async backupKnowledgeBase(): Promise<Response> {
-    throw NOT_SUPPORTED('backupKnowledgeBase');
-  }
-  async restoreKnowledgeBase(_file: File, _onProgress?: ProgressCallback): Promise<ProgressEvent> {
-    throw NOT_SUPPORTED('restoreKnowledgeBase');
-  }
-  async exportKnowledgeBase(_params?: { includeArchived?: boolean }): Promise<Response> {
-    throw NOT_SUPPORTED('exportKnowledgeBase');
-  }
-  async importKnowledgeBase(_file: File, _onProgress?: ProgressCallback): Promise<ProgressEvent> {
-    throw NOT_SUPPORTED('importKnowledgeBase');
-  }
-
-  // ── System ──────────────────────────────────────────────────────────────
-
-  async healthCheck(): Promise<HealthCheckResponse> {
-    return { status: 'ok' } as unknown as HealthCheckResponse;
-  }
-  async getStatus(): Promise<StatusResponse> {
-    return { status: 'ok' } as unknown as StatusResponse;
-  }
+  // LocalTransport implements `ITransport` only. It does not implement
+  // `IBackendOperations` — a SemiontClient built over LocalTransport has
+  // no `client.auth` / `client.admin` namespaces by design (no
+  // credentials, no admin routes, no exchange machinery in-process).
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
 

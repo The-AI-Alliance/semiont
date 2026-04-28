@@ -126,7 +126,7 @@ export function createResourceViewerPageVM(
   }
 
   if (isBinaryType) {
-    client.auth.mediaToken(resourceId)
+    client.auth!.mediaToken(resourceId)
       .then(({ token }) => mediaToken$.next(token))
       .catch(() => {});
   }

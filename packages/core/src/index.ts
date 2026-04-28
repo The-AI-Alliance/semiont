@@ -201,6 +201,7 @@ export {
 // Transport contract — interfaces every concrete transport must satisfy.
 export type {
   ITransport,
+  IBackendOperations,
   IContentTransport,
   PutBinaryRequest,
   ConnectionState,

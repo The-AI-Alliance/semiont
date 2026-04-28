@@ -5,10 +5,15 @@
  * `@semiont/api-client`, in-process variants in `@semiont/make-meaning`,
  * etc.).
  *
- * Two interfaces:
+ * Three interfaces:
  *
- *   ITransport          — full surface: bus primitives + auth + admin +
- *                         exchange + health/status + connection state.
+ *   ITransport          — bus primitives + lifecycle. Universal: every
+ *                         concrete transport implements this.
+ *   IBackendOperations  — auth, admin, exchange, system endpoints.
+ *                         HTTP-shaped today; an in-process transport may
+ *                         implement none, some, or a different set.
+ *                         Optional on `SemiontClient` — passed only when
+ *                         the host has a backend that supports them.
  *   IContentTransport   — binary I/O (putBinary / getBinary). Narrow by
  *                         design because binary has different backpressure
  *                         and streaming characteristics.
@@ -140,6 +145,45 @@ export interface ITransport {
    */
   bridgeInto(bus: EventBus): void;
 
+  // ── Connection state + lifecycle ──────────────────────────────────────
+
+  /**
+   * Transport-level connection state. For HTTP, reflects the SSE
+   * connection's health; for in-process transports, typically `'open'`
+   * from construction onward (no connection to lose).
+   */
+  readonly state$: Observable<ConnectionState>;
+
+  /**
+   * Stream of transport-level errors surfaced from typed-wire methods or
+   * other transport-mediated round-trips, just before they're thrown to
+   * the caller. Each emission is a `SemiontError` (or subclass — HTTP
+   * emits `APIError`, in-process transports emit whatever subclass is
+   * appropriate). Consumers can subscribe for global error handling
+   * (e.g. surfacing 401/403 as modals, logging) without wrapping every
+   * call site in try/catch. Distinct from bus-level errors, which are
+   * surfaced via the channel-correlation pattern in `busRequest`.
+   */
+  readonly errors$: Observable<SemiontError>;
+
+  dispose(): void;
+}
+
+// ── IBackendOperations ──────────────────────────────────────────────────
+
+/**
+ * Auth, admin, exchange, and system endpoints. HTTP-shaped today —
+ * `HttpTransport` implements both this and `ITransport`; the
+ * `SemiontClient` constructor takes a `IBackendOperations` argument
+ * separately from the bus transport so non-HTTP transports
+ * (`LocalTransport`) can implement just the bus surface and the
+ * SemiontClient cleanly omits `client.auth` / `client.admin`.
+ *
+ * Implementations should map their native error codes to
+ * `TransportErrorCode` (see `errors.ts`) so the routing layer
+ * (`SemiontBrowser`) stays transport-neutral.
+ */
+export interface IBackendOperations {
   // ── Auth ──────────────────────────────────────────────────────────────
 
   authenticatePassword(email: Email, password: string): Promise<AuthResponse>;
@@ -169,29 +213,6 @@ export interface ITransport {
 
   healthCheck(): Promise<HealthCheckResponse>;
   getStatus(): Promise<StatusResponse>;
-
-  // ── Connection state + lifecycle ──────────────────────────────────────
-
-  /**
-   * Transport-level connection state. For HTTP, reflects the SSE
-   * connection's health; for in-process transports, typically `'open'`
-   * from construction onward (no connection to lose).
-   */
-  readonly state$: Observable<ConnectionState>;
-
-  /**
-   * Stream of transport-level errors surfaced from typed-wire methods or
-   * other transport-mediated round-trips, just before they're thrown to
-   * the caller. Each emission is a `SemiontError` (or subclass — HTTP
-   * emits `APIError`, in-process transports emit whatever subclass is
-   * appropriate). Consumers can subscribe for global error handling
-   * (e.g. surfacing 401/403 as modals, logging) without wrapping every
-   * call site in try/catch. Distinct from bus-level errors, which are
-   * surfaced via the channel-correlation pattern in `busRequest`.
-   */
-  readonly errors$: Observable<SemiontError>;
-
-  dispose(): void;
 }
 
 // ── IContentTransport ───────────────────────────────────────────────────

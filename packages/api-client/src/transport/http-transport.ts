@@ -36,6 +36,7 @@ import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorVM, type ActorVM } from './actor-vm';
 import type {
   ConnectionState,
+  IBackendOperations,
   ITransport,
   HealthCheckResponse,
   StatusResponse,
@@ -96,7 +97,7 @@ export interface HttpTransportConfig {
   tokenRefresher?: TokenRefresher;
 }
 
-export class HttpTransport implements ITransport {
+export class HttpTransport implements ITransport, IBackendOperations {
   readonly baseUrl: BaseUrl;
   private readonly http: KyInstance;
   private readonly token$: BehaviorSubject<AccessToken | null>;
