@@ -129,12 +129,7 @@ Browse methods read from materialized views. Live queries return `CacheObservabl
 
 ### Awaitable observables
 
-The streaming and live-query namespace methods on `SemiontClient` return one of two thenable Observable subclasses, both of which implement `PromiseLike<T>`:
-
-- `StreamObservable<T>` — for bounded streams (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`). `await` resolves to the **last** emitted value on completion.
-- `CacheObservable<T>` — for live queries (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`). `await` resolves to the **first non-undefined** value (skipping the loading state).
-
-Either subclass can be `.subscribe(...)`d like a plain Observable. `.pipe(...)` returns a plain `Observable<T>` — once you compose with RxJS operators you've explicitly opted into RxJS land, and `lastValueFrom` from `rxjs` is the right bridge for awaiting the result. The `firstValueFrom`/`lastValueFrom` re-exports from `@semiont/sdk` stay available for that case.
+Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`) return `StreamObservable<T>`; live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`) return `CacheObservable<T>`. Both are `Observable<T>` subclasses that implement `PromiseLike<T>` — `await` works directly, `.subscribe(...)` yields the full sequence, `.pipe(...)` composes with RxJS operators (and loses the thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
 
 ### Live Queries (subscribe)
 

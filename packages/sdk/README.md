@@ -128,13 +128,14 @@ const { resourceId } = await client.yield.resource({
 client.beckon.hover(annotationId);
 ```
 
-The verb-by-verb walkthroughs live in [docs/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/flows).
+The verb-by-verb walkthroughs live in [docs/protocol/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
 
-`.pipe(...)` returns a plain `Observable<T>` — once you compose with RxJS operators you've explicitly entered RxJS land, and `lastValueFrom` from `rxjs` is the right bridge. The `firstValueFrom`/`lastValueFrom` re-exports from `@semiont/sdk` stay available for that case.
+The SDK is RxJS-native, but its return values implement `PromiseLike<T>` — `await` works directly. Reach for `.subscribe(...)` when you want progress events or live updates, and `.pipe(...)` only when you want operator composition (which loses the thenable). See [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) for the design rationale.
 
 ## Documentation
 
 - [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace tour with concrete examples for Browse, Mark, Bind, Gather, Match, Yield, Beckon, Auth, Admin, Job, plus SSE and error handling.
+- [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design: how `await` works on the SDK's return values without learning RxJS, and where RxJS is still visible by design.
 - [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's behavioral contract.
 - [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — the transport interface every `ITransport` must honor.
 
