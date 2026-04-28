@@ -68,7 +68,7 @@ export function createMarkVM(
   // CRUD bridging
   subs.push(client.bus.get('mark:submit').subscribe(async (event) => {
     try {
-      const result = await client.mark.annotation(resourceId, {
+      const result = await client.mark.annotation({
         motivation: event.motivation,
         target: { source: resourceId, selector: event.selector as Selector },
         body: event.body,

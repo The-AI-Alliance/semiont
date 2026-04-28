@@ -213,8 +213,9 @@ export interface BrowseNamespace {
  * Event prefix: mark:*
  */
 export interface MarkNamespace {
-  // Annotation CRUD
-  annotation(resourceId: ResourceId, input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
+  // Annotation CRUD. `input.target.source` carries the resource id; the
+  // namespace derives it for the bus payload, so callers don't pass it twice.
+  annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
   delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void>;
 
   // Entity types

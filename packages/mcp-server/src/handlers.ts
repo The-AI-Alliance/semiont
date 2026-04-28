@@ -76,8 +76,7 @@ export async function markAnnotation(semiont: SemiontClient, args: any): Promise
     type: 'TextualBody' as const, value, purpose: 'tagging' as const,
   }));
 
-  const rId = resourceId(args?.resourceId);
-  const data = await semiont.mark.annotation(rId, {
+  const data = await semiont.mark.annotation({
     motivation: 'highlighting',
     target: {
       source: args?.resourceId,

@@ -21,7 +21,7 @@ export interface AnnotationProviderProps {
  * function useAnnotationManager(client: SemiontClient): AnnotationManager {
  *   return {
  *     markAnnotation: async (params) => {
- *       const result = await client.mark.annotation(params.rUri, {
+ *       const result = await client.mark.annotation({
  *         motivation: params.motivation,
  *         target: { source: params.rUri, selector: params.selector },
  *         body: params.body,

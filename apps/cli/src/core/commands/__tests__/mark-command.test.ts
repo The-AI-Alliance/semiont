@@ -196,32 +196,31 @@ describe('runMark', () => {
   it('calls mark.annotation with motivation in manual mode', async () => {
     await runMark(makeManualOptions({ motivation: 'commenting', bodyText: 'nice' }));
     expect(mockMark.annotation).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({ motivation: 'commenting' }),
     );
   });
 
   it('builds TextQuoteSelector from --quote', async () => {
     await runMark(makeManualOptions({ quote: 'important phrase' }));
-    const [, req] = mockMark.annotation.mock.calls[0];
+    const [req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'TextQuoteSelector', exact: 'important phrase' });
   });
 
   it('builds TextPositionSelector from --start/--end', async () => {
     await runMark(makeManualOptions({ quote: undefined, start: 10, end: 25 }));
-    const [, req] = mockMark.annotation.mock.calls[0];
+    const [req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'TextPositionSelector', start: 10, end: 25 });
   });
 
   it('builds SvgSelector from --svg', async () => {
     await runMark(makeManualOptions({ quote: undefined, svg: '<circle r="5"/>' }));
-    const [, req] = mockMark.annotation.mock.calls[0];
+    const [req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'SvgSelector', value: '<circle r="5"/>' });
   });
 
   it('builds FragmentSelector from --fragment', async () => {
     await runMark(makeManualOptions({ quote: undefined, fragment: 't=10,20' }));
-    const [, req] = mockMark.annotation.mock.calls[0];
+    const [req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'FragmentSelector', value: 't=10,20' });
   });
 
@@ -233,13 +232,13 @@ describe('runMark', () => {
 
   it('includes TextualBody when --body-text provided', async () => {
     await runMark(makeManualOptions({ bodyText: 'my comment' }));
-    const [, req] = mockMark.annotation.mock.calls[0];
+    const [req] = mockMark.annotation.mock.calls[0];
     expect(JSON.stringify(req.body)).toContain('my comment');
   });
 
   it('includes SpecificResource body when --link provided', async () => {
     await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
-    const [, req] = mockMark.annotation.mock.calls[0];
+    const [req] = mockMark.annotation.mock.calls[0];
     const body = Array.isArray(req.body) ? req.body : [req.body];
     expect(body.some((b: any) => b.type === 'SpecificResource')).toBe(true);
   });

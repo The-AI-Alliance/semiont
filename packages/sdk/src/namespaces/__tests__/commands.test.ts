@@ -98,7 +98,7 @@ describe('MarkNamespace', () => {
       'mark:create-request': () => ({ resultChannel: 'mark:create-ok', response: { annotationId: 'ann-new' } }),
     });
     const m = new MarkNamespace(mock.transport, eventBus);
-    const result = await m.annotation(RID, { motivation: 'highlighting', target: { source: RID } } as any);
+    const result = await m.annotation({ motivation: 'highlighting', target: { source: RID } } as any);
     expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }));
     expect(result.annotationId).toBe('ann-new');
   });
