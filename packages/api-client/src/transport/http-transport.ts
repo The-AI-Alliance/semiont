@@ -11,7 +11,7 @@
  */
 
 import ky, { HTTPError, type KyInstance } from 'ky';
-import { BehaviorSubject, Subject, type Observable, type Subscription } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
 import type {
   AccessToken,
   BaseUrl,
@@ -483,9 +483,7 @@ export class HttpTransport implements ITransport, IBackendOperations {
     return responseToDownload(response);
   }
 
-  async restoreKnowledgeBase(
-    file: File,
-  ): Observable<ProgressEvent> {
+  restoreKnowledgeBase(file: File): Observable<ProgressEvent> {
     return this.sseProgressStream(`${this.baseUrl}/api/admin/exchange/restore`, file);
   }
 
