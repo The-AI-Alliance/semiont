@@ -29,6 +29,7 @@ jobs:
           - ontology
           - react-ui
           - sdk
+          - vectors
 
     steps:
       - name: Checkout code
@@ -70,7 +71,7 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
-            ontology)
+            ontology|vectors)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
