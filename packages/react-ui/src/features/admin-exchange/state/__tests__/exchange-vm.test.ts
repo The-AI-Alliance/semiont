@@ -62,12 +62,23 @@ describe('createExchangeVM', () => {
     vm.dispose();
   });
 
+  // jsdom doesn't implement `Blob.prototype.stream()` portably, so build
+  // the stream literal — same shape, no environment dependency.
+  function streamOf(text: string): ReadableStream<Uint8Array> {
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(text));
+        controller.close();
+      },
+    });
+  }
+
   it('doExport calls exportFn and returns blob + filename from BackendDownload', async () => {
     // exportFn now returns a BackendDownload — a transport-neutral
     // { stream, contentType, filename? } object. The VM converts the
     // stream to a Blob and threads filename through.
     const exportFn = vi.fn().mockResolvedValue({
-      stream: new Blob(['data']).stream(),
+      stream: streamOf('data'),
       contentType: 'application/x-tar',
       filename: 'export.tar.gz',
     });
@@ -85,7 +96,7 @@ describe('createExchangeVM', () => {
 
   it('doExport falls back to a synthesized filename when the download omits one', async () => {
     const exportFn = vi.fn().mockResolvedValue({
-      stream: new Blob(['data']).stream(),
+      stream: streamOf('data'),
       contentType: 'application/x-tar',
       // no filename
     });
