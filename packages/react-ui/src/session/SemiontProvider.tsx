@@ -12,7 +12,7 @@
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { SemiontBrowser, getBrowser } from '@semiont/sdk';
+import { SemiontBrowser, createHttpSessionFactory, getBrowser } from '@semiont/sdk';
 import { WebBrowserStorage } from './web-browser-storage';
 
 const SemiontContext = createContext<SemiontBrowser | null>(null);
@@ -27,7 +27,10 @@ export function SemiontProvider({ browser, children }: SemiontProviderProps) {
   // `useMemo` here is a stable read, not a factory: `getBrowser()` returns
   // the module singleton, so re-renders observe the same instance.
   const value = useMemo(
-    () => browser ?? getBrowser({ storage: new WebBrowserStorage() }),
+    () => browser ?? getBrowser({
+      storage: new WebBrowserStorage(),
+      sessionFactory: createHttpSessionFactory(),
+    }),
     [browser],
   );
   return <SemiontContext.Provider value={value}>{children}</SemiontContext.Provider>;

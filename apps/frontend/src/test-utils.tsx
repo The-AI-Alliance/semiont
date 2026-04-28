@@ -12,7 +12,7 @@ import {
   ToastProvider,
   SemiontProvider,
 } from '@semiont/react-ui';
-import { SemiontBrowser, InMemorySessionStorage } from '@semiont/sdk';
+import { SemiontBrowser, InMemorySessionStorage, createHttpSessionFactory } from '@semiont/sdk';
 import {
   defaultMocks,
   TestProvidersOptions,
@@ -38,7 +38,10 @@ export function renderWithProviders(
     ...renderOptions
   } = options || {};
 
-  const effectiveBrowser = browser ?? new SemiontBrowser({ storage: new InMemorySessionStorage() });
+  const effectiveBrowser = browser ?? new SemiontBrowser({
+    storage: new InMemorySessionStorage(),
+    sessionFactory: createHttpSessionFactory(),
+  });
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (

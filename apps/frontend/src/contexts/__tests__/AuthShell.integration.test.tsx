@@ -26,7 +26,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
-import { SemiontBrowser, AuthNamespace } from '@semiont/sdk';
+import { SemiontBrowser, AuthNamespace, createHttpSessionFactory } from '@semiont/sdk';
 import { APIError } from '@semiont/api-client';
 // Spies set up in beforeEach; tests configure `.mockResolvedValue` / `.mockRejectedValue` on them.
 let getMeSpy: ReturnType<typeof vi.spyOn>;
@@ -52,10 +52,8 @@ const KB_ID = 'kb-1';
 const KB = {
   id: KB_ID,
   label: 'Test',
-  host: 'localhost',
-  port: 4000,
-  protocol: 'http' as const,
   email: 'test@example.com',
+  endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 
 import { AuthShell } from '../AuthShell';
@@ -68,7 +66,10 @@ function seedSession(access: string, refresh: string) {
 }
 
 function renderShell(children: React.ReactNode) {
-  const browser = new SemiontBrowser({ storage: new WebBrowserStorage() });
+  const browser = new SemiontBrowser({
+    storage: new WebBrowserStorage(),
+    sessionFactory: createHttpSessionFactory(),
+  });
   return {
     browser,
     ...render(

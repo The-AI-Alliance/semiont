@@ -73,13 +73,6 @@ export {
   createSessionVM,
   type SessionVM,
 } from './domain/session-vm';
-export {
-  createActorVM,
-  type ActorVM,
-  type ActorVMOptions,
-  type BusEvent,
-  DEGRADED_THRESHOLD_MS,
-} from '@semiont/api-client';
 export type { ConnectionState } from '@semiont/core';
 export {
   createSmelterActorVM,
@@ -87,6 +80,7 @@ export {
   type SmelterActorVMOptions,
   type SmelterEvent,
 } from './domain/smelter-actor-vm';
+export type { WorkerBus } from './lib/worker-bus';
 export {
   createJobClaimAdapter,
   type JobClaimAdapter,

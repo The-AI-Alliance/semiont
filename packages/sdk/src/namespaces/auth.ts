@@ -1,47 +1,47 @@
 /**
- * AuthNamespace — authentication. Pure wire, no bus.
+ * AuthNamespace — authentication. Backend ops only; no bus.
  */
 
 import type { ResourceId, components } from '@semiont/core';
 import { email as makeEmail, googleCredential, refreshToken as makeRefreshToken } from '@semiont/core';
-import type { ITransport } from '@semiont/core';
+import type { IBackendOperations } from '@semiont/core';
 import type { AuthNamespace as IAuthNamespace, User } from './types';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 
 export class AuthNamespace implements IAuthNamespace {
-  constructor(private readonly transport: ITransport) {}
+  constructor(private readonly backend: IBackendOperations) {}
 
   async password(emailStr: string, passwordStr: string): Promise<AuthResponse> {
-    return this.transport.authenticatePassword(makeEmail(emailStr), passwordStr);
+    return this.backend.authenticatePassword(makeEmail(emailStr), passwordStr);
   }
 
   async google(credential: string): Promise<AuthResponse> {
-    return this.transport.authenticateGoogle(googleCredential(credential));
+    return this.backend.authenticateGoogle(googleCredential(credential));
   }
 
   async refresh(token: string): Promise<TokenRefreshResponse> {
-    return this.transport.refreshAccessToken(makeRefreshToken(token));
+    return this.backend.refreshAccessToken(makeRefreshToken(token));
   }
 
   async logout(): Promise<void> {
-    await this.transport.logout();
+    await this.backend.logout();
   }
 
   async me(): Promise<User> {
-    return this.transport.getCurrentUser();
+    return this.backend.getCurrentUser();
   }
 
   async acceptTerms(): Promise<void> {
-    await this.transport.acceptTerms();
+    await this.backend.acceptTerms();
   }
 
   async mcpToken(): Promise<{ token: string }> {
-    return this.transport.generateMcpToken();
+    return this.backend.generateMcpToken();
   }
 
   async mediaToken(resourceId: ResourceId): Promise<{ token: string }> {
-    return this.transport.getMediaToken(resourceId);
+    return this.backend.getMediaToken(resourceId);
   }
 }

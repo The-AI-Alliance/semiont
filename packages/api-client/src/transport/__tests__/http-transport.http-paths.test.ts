@@ -217,19 +217,29 @@ describe('HttpTransport — HTTP wire shape', () => {
   });
 
   describe('Exchange', () => {
-    test('backupKnowledgeBase posts to /api/admin/exchange/backup and returns the raw Response', async () => {
-      const response = new Response(new Blob(['backup-data']));
+    test('backupKnowledgeBase posts to /api/admin/exchange/backup and returns a BackendDownload', async () => {
+      const response = new Response(new Blob(['backup-data']), {
+        headers: {
+          'Content-Type': 'application/x-tar',
+          'Content-Disposition': 'attachment; filename="backup.tar.gz"',
+        },
+      });
       vi.mocked(mockKy.post).mockResolvedValue(response as never);
       const result = await transport.backupKnowledgeBase();
-      expect(result).toBe(response);
+      expect(result.stream).toBe(response.body);
+      expect(result.contentType).toBe('application/x-tar');
+      expect(result.filename).toBe('backup.tar.gz');
       expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/exchange/backup`, { headers: {} });
     });
 
     test('exportKnowledgeBase posts to /api/moderate/exchange/export with default params', async () => {
-      const response = new Response(new Blob(['export-data']));
+      const response = new Response(new Blob(['export-data']), {
+        headers: { 'Content-Type': 'application/x-tar' },
+      });
       vi.mocked(mockKy.post).mockResolvedValue(response as never);
       const result = await transport.exportKnowledgeBase();
-      expect(result).toBe(response);
+      expect(result.stream).toBe(response.body);
+      expect(result.contentType).toBe('application/x-tar');
       expect(mockKy.post).toHaveBeenCalledWith(
         `${testBaseUrl}/api/moderate/exchange/export`,
         { headers: {} },

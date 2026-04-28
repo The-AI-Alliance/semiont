@@ -2,6 +2,7 @@ import { BehaviorSubject, type Observable } from 'rxjs';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
+import type { BackendDownload } from '@semiont/core';
 
 export interface ImportPreview {
   format: string;
@@ -27,7 +28,7 @@ export interface ExchangeVM extends ViewModel {
 
 export function createExchangeVM(
   browse: ShellVM,
-  exportFn: (params?: { includeArchived?: boolean }) => Promise<Response>,
+  exportFn: (params?: { includeArchived?: boolean }) => Promise<BackendDownload>,
   importFn: (file: File, options?: { onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void }) => Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>,
 ): ExchangeVM {
   const disposer = createDisposer();
@@ -65,12 +66,11 @@ export function createExchangeVM(
   const doExport = async (): Promise<{ blob: Blob; filename: string }> => {
     isExporting$.next(true);
     try {
-      const response = await exportFn();
-      if (!response.ok) throw new Error(`Export failed: ${response.status} ${response.statusText}`);
-      const blob = await response.blob();
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const filename = contentDisposition?.match(/filename="(.+?)"/)?.[1]
-        ?? `semiont-export-${Date.now()}.tar.gz`;
+      const download = await exportFn();
+      // Wrap the stream in a Response purely as a Blob-collection helper —
+      // BackendDownload itself carries no fetch dependency.
+      const blob = await new Response(download.stream).blob();
+      const filename = download.filename ?? `semiont-export-${Date.now()}.tar.gz`;
       return { blob, filename };
     } finally {
       isExporting$.next(false);

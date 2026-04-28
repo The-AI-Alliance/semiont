@@ -228,6 +228,6 @@ export { createAdminSecurityVM, type AdminSecurityVM } from '@semiont/sdk';
 export { createWelcomeVM, type WelcomeVM } from '@semiont/sdk';
 export { createResourceLoaderVM, type ResourceLoaderVM } from '@semiont/sdk';
 export { createSessionVM, type SessionVM } from '@semiont/sdk';
-export { createJobClaimAdapter, type JobClaimAdapter, type JobClaimAdapterOptions, type JobAssignment, type ActiveJob } from '@semiont/sdk';
+export { createJobClaimAdapter, type JobClaimAdapter, type JobClaimAdapterOptions, type WorkerBus, type JobAssignment, type ActiveJob } from '@semiont/sdk';
 export { createJobQueueVM, type JobQueueVM, type Job } from '@semiont/sdk';
 export * from './hooks/useObservable';

@@ -73,10 +73,10 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
         // Backend service - use API client
         const backendConfig = config as BackendServiceConfig;
         const transport = new HttpTransport({ baseUrl: baseUrl(backendConfig.publicURL) });
-        const client = new SemiontClient(transport, new HttpContentTransport(transport));
+        const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
         try {
-          const healthData = await client.admin.healthCheck();
+          const healthData = await client.admin!.healthCheck();
           health = {
             healthy: dockerHealthStatus !== 'unhealthy',
             details: {

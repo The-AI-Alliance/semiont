@@ -1,23 +1,28 @@
 /**
  * Job Claim Adapter — worker-side job lifecycle glue on top of a
- * shared `ActorVM`.
+ * shared bus.
  *
  * Replaces the old `WorkerVM`, which owned its own actor and
  * duplicated the SSE connection that `SemiontClient` already held.
- * Workers now construct a `SemiontSession` normally (one actor, one
+ * Workers construct a `SemiontSession` normally (one actor, one
  * SSE connection) and use this adapter to attach job-claim behaviour
- * on top of `session.client.actor`.
+ * on top of the session's bus.
  *
- * The adapter is intentionally thin: it subscribes to `job:queued`
- * on the actor, claims jobs via the existing request-response
- * protocol (`job:claim` → `job:claimed` / `job:claim-failed`), and
- * exposes observables for job orchestration. It does **not** own
- * the actor, has no HTTP concerns, and has no modal state.
+ * The adapter is intentionally thin: it subscribes to `job:queued`,
+ * claims jobs via the existing request-response protocol
+ * (`job:claim` → `job:claimed` / `job:claim-failed`), and exposes
+ * observables for job orchestration. It does **not** own the bus,
+ * has no HTTP concerns, and has no modal state.
+ *
+ * The `bus` parameter is typed against the small `JobClaimBus`
+ * interface below so the adapter is transport-neutral. HTTP workers
+ * pass `(session.client.transport as HttpTransport).actor`; an
+ * in-process worker could pass a shim wrapping `client.bus`.
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { firstValueFrom, merge, filter, map, take, timeout } from 'rxjs';
-import type { ActorVM } from '@semiont/api-client';
+import type { WorkerBus } from '../lib/worker-bus';
 
 export interface JobAssignment {
   jobId: string;
@@ -34,8 +39,8 @@ export interface ActiveJob {
 }
 
 export interface JobClaimAdapterOptions {
-  /** Shared actor (typically `session.client.actor`). */
-  actor: ActorVM;
+  /** Shared bus (typically the session's HTTP actor or an in-process bus shim). */
+  bus: WorkerBus;
   /**
    * Job types this worker can process. Jobs of other types that
    * arrive on `job:queued` are ignored. Empty array = accept any.
@@ -69,15 +74,15 @@ export interface JobClaimAdapter {
   /** Signal failure of `activeJob$`. Emits on `errors$`. */
   failJob(jobId: string, error: string): void;
 
-  /** Release observables. Does not dispose the shared actor. */
+  /** Release observables. Does not dispose the shared bus. */
   dispose(): void;
 }
 
 /**
- * Attach job-claim behaviour to a shared `ActorVM`.
+ * Attach job-claim behaviour to a shared bus.
  */
 export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
-  const { actor, jobTypes } = options;
+  const { bus, jobTypes } = options;
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
@@ -91,18 +96,18 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     try {
       const correlationId = crypto.randomUUID();
       const result$ = merge(
-        actor.on$<Record<string, unknown>>('job:claimed').pipe(
+        bus.on$<Record<string, unknown>>('job:claimed').pipe(
           filter((e) => e.correlationId === correlationId),
           map((e) => ({ ok: true as const, response: e.response as Record<string, unknown> })),
         ),
-        actor.on$<Record<string, unknown>>('job:claim-failed').pipe(
+        bus.on$<Record<string, unknown>>('job:claim-failed').pipe(
           filter((e) => e.correlationId === correlationId),
           map(() => ({ ok: false as const })),
         ),
       ).pipe(take(1), timeout(10_000));
 
       const resultPromise = firstValueFrom(result$);
-      await actor.emit('job:claim', { correlationId, jobId: assignment.jobId });
+      await bus.emit('job:claim', { correlationId, jobId: assignment.jobId });
       const result = await resultPromise;
 
       if (!result.ok) return null;
@@ -131,12 +136,13 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     start: () => {
       if (started) return;
       started = true;
-      // `job:queued` is not in BUS_RESULT_CHANNELS (it's a worker-only
-      // broadcast). Add it to the shared actor so this adapter sees
-      // queued jobs. addChannels() is idempotent.
-      actor.addChannels(['job:queued']);
+      // `job:queued` is not in BRIDGED_CHANNELS (it's a worker-only
+      // broadcast). On HTTP, widen the SSE subscription set so this
+      // adapter sees queued jobs; in-process buses receive every
+      // emit and need no widening, hence the optional chain.
+      bus.addChannels?.(['job:queued']);
 
-      jobSubscription = actor
+      jobSubscription = bus
         .on$<{ jobId: string; jobType: string; resourceId: string }>('job:queued')
         .subscribe((event) => {
           const jobType = event.jobType;

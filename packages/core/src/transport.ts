@@ -5,10 +5,15 @@
  * `@semiont/api-client`, in-process variants in `@semiont/make-meaning`,
  * etc.).
  *
- * Two interfaces:
+ * Three interfaces:
  *
- *   ITransport          — full surface: bus primitives + auth + admin +
- *                         exchange + health/status + connection state.
+ *   ITransport          — bus primitives + lifecycle. Universal: every
+ *                         concrete transport implements this.
+ *   IBackendOperations  — auth, admin, exchange, system endpoints.
+ *                         HTTP-shaped today; an in-process transport may
+ *                         implement none, some, or a different set.
+ *                         Optional on `SemiontClient` — passed only when
+ *                         the host has a backend that supports them.
  *   IContentTransport   — binary I/O (putBinary / getBinary). Narrow by
  *                         design because binary has different backpressure
  *                         and streaming characteristics.
@@ -95,6 +100,22 @@ export type ProgressEvent = {
 };
 export type ProgressCallback = (event: ProgressEvent) => void;
 
+/**
+ * Stream-shaped return type for backend download operations
+ * (`backupKnowledgeBase`, `exportKnowledgeBase`). Transport-neutral —
+ * any implementation can produce a `ReadableStream<Uint8Array>` without
+ * fabricating a fetch `Response`. HTTP wraps `response.body` and
+ * `response.headers`; in-process implementations return their own stream.
+ *
+ * The same shape `IContentTransport.getBinaryStream` already uses for
+ * binary downloads.
+ */
+export interface BackendDownload {
+  stream: ReadableStream<Uint8Array>;
+  contentType: string;
+  filename?: string;
+}
+
 // ── ITransport ──────────────────────────────────────────────────────────
 
 export interface ITransport {
@@ -140,36 +161,6 @@ export interface ITransport {
    */
   bridgeInto(bus: EventBus): void;
 
-  // ── Auth ──────────────────────────────────────────────────────────────
-
-  authenticatePassword(email: Email, password: string): Promise<AuthResponse>;
-  authenticateGoogle(credential: GoogleCredential): Promise<AuthResponse>;
-  refreshAccessToken(token: RefreshToken): Promise<TokenRefreshResponse>;
-  logout(): Promise<void>;
-  acceptTerms(): Promise<void>;
-  getCurrentUser(): Promise<UserResponse>;
-  generateMcpToken(): Promise<{ token: string }>;
-  getMediaToken(resourceId: ResourceId): Promise<{ token: string }>;
-
-  // ── Admin ─────────────────────────────────────────────────────────────
-
-  listUsers(): Promise<ListUsersResponse>;
-  getUserStats(): Promise<AdminUserStatsResponse>;
-  updateUser(id: UserDID, data: UpdateUserRequest): Promise<UpdateUserResponse>;
-  getOAuthConfig(): Promise<OAuthConfigResponse>;
-
-  // ── Exchange ──────────────────────────────────────────────────────────
-
-  backupKnowledgeBase(): Promise<Response>;
-  restoreKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
-  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<Response>;
-  importKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
-
-  // ── System ────────────────────────────────────────────────────────────
-
-  healthCheck(): Promise<HealthCheckResponse>;
-  getStatus(): Promise<StatusResponse>;
-
   // ── Connection state + lifecycle ──────────────────────────────────────
 
   /**
@@ -192,6 +183,52 @@ export interface ITransport {
   readonly errors$: Observable<SemiontError>;
 
   dispose(): void;
+}
+
+// ── IBackendOperations ──────────────────────────────────────────────────
+
+/**
+ * Auth, admin, exchange, and system endpoints. HTTP-shaped today —
+ * `HttpTransport` implements both this and `ITransport`; the
+ * `SemiontClient` constructor takes a `IBackendOperations` argument
+ * separately from the bus transport so non-HTTP transports
+ * (`LocalTransport`) can implement just the bus surface and the
+ * SemiontClient cleanly omits `client.auth` / `client.admin`.
+ *
+ * Implementations should map their native error codes to
+ * `TransportErrorCode` (see `errors.ts`) so the routing layer
+ * (`SemiontBrowser`) stays transport-neutral.
+ */
+export interface IBackendOperations {
+  // ── Auth ──────────────────────────────────────────────────────────────
+
+  authenticatePassword(email: Email, password: string): Promise<AuthResponse>;
+  authenticateGoogle(credential: GoogleCredential): Promise<AuthResponse>;
+  refreshAccessToken(token: RefreshToken): Promise<TokenRefreshResponse>;
+  logout(): Promise<void>;
+  acceptTerms(): Promise<void>;
+  getCurrentUser(): Promise<UserResponse>;
+  generateMcpToken(): Promise<{ token: string }>;
+  getMediaToken(resourceId: ResourceId): Promise<{ token: string }>;
+
+  // ── Admin ─────────────────────────────────────────────────────────────
+
+  listUsers(): Promise<ListUsersResponse>;
+  getUserStats(): Promise<AdminUserStatsResponse>;
+  updateUser(id: UserDID, data: UpdateUserRequest): Promise<UpdateUserResponse>;
+  getOAuthConfig(): Promise<OAuthConfigResponse>;
+
+  // ── Exchange ──────────────────────────────────────────────────────────
+
+  backupKnowledgeBase(): Promise<BackendDownload>;
+  restoreKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
+  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
+  importKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
+
+  // ── System ────────────────────────────────────────────────────────────
+
+  healthCheck(): Promise<HealthCheckResponse>;
+  getStatus(): Promise<StatusResponse>;
 }
 
 // ── IContentTransport ───────────────────────────────────────────────────

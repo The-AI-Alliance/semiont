@@ -29,12 +29,12 @@ npm install @semiont/sdk
 
 ## Quick start (HTTP)
 
-For one-shot scripts, `SemiontClient.signIn(...)` is the credentials-first one-line construction:
+For one-shot scripts, `SemiontClient.signInHttp(...)` is the credentials-first one-line construction:
 
 ```ts
 import { SemiontClient } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signIn({
+const semiont = await SemiontClient.signInHttp({
   baseUrl: 'http://localhost:4000',
   email: 'me@example.com',
   password: 'pwd',
@@ -46,7 +46,7 @@ console.log(resources);
 semiont.dispose();
 ```
 
-For long-running scripts that need to survive token expiry, use `SemiontSession.signIn(...)` — same credentials shape, plus proactive refresh, validation, storage-adapter wiring, and disposal. `kb` is required; its `id` is the storage key for this session, so distinct scripts must use distinct ids:
+For long-running scripts that need to survive token expiry, use `SemiontSession.signInHttp(...)` — same credentials shape, plus proactive refresh, validation, storage-adapter wiring, and disposal. `kb` is required; its `id` is the storage key for this session, so distinct scripts must use distinct ids:
 
 ```ts
 import { SemiontSession, InMemorySessionStorage, type KnowledgeBase } from '@semiont/sdk';
@@ -60,7 +60,7 @@ const kb: KnowledgeBase = {
   email: 'me@example.com',
 };
 
-const session = await SemiontSession.signIn({
+const session = await SemiontSession.signInHttp({
   kb,
   storage: new InMemorySessionStorage(),
   baseUrl: 'http://localhost:4000',

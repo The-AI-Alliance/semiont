@@ -114,10 +114,10 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   if (status === 'unhealthy' || status === 'unknown') {
     const localUrl = `http://localhost:${config.port}`;
     const transport = new HttpTransport({ baseUrl: baseUrl(localUrl) });
-    const client = new SemiontClient(transport, new HttpContentTransport(transport));
+    const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
     try {
-      const healthData = await client.admin.healthCheck();
+      const healthData = await client.admin!.healthCheck();
       healthy = true;
       status = 'running';
       details.health = healthData;

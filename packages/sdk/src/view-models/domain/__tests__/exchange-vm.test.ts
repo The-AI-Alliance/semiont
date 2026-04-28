@@ -62,35 +62,51 @@ describe('createExchangeVM', () => {
     vm.dispose();
   });
 
-  it('doExport calls exportFn and returns blob + filename', async () => {
-    const blob = new Blob(['data']);
+  it('doExport calls exportFn and returns blob + filename from BackendDownload', async () => {
+    // exportFn now returns a BackendDownload — a transport-neutral
+    // { stream, contentType, filename? } object. The VM converts the
+    // stream to a Blob and threads filename through.
     const exportFn = vi.fn().mockResolvedValue({
-      ok: true,
-      blob: () => Promise.resolve(blob),
-      headers: new Headers({ 'Content-Disposition': 'attachment; filename="export.tar.gz"' }),
+      stream: new Blob(['data']).stream(),
+      contentType: 'application/x-tar',
+      filename: 'export.tar.gz',
     });
 
     const vm = createExchangeVM(mockBrowse(), exportFn, vi.fn());
 
     const result = await vm.doExport();
     expect(result.filename).toBe('export.tar.gz');
-    expect(result.blob).toBe(blob);
+    expect(await result.blob.text()).toBe('data');
 
     expect(await firstValueFrom(vm.isExporting$)).toBe(false);
 
     vm.dispose();
   });
 
-  it('doExport throws on non-ok response', async () => {
+  it('doExport falls back to a synthesized filename when the download omits one', async () => {
     const exportFn = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      statusText: 'Server Error',
+      stream: new Blob(['data']).stream(),
+      contentType: 'application/x-tar',
+      // no filename
     });
 
     const vm = createExchangeVM(mockBrowse(), exportFn, vi.fn());
 
-    await expect(vm.doExport()).rejects.toThrow('Export failed');
+    const result = await vm.doExport();
+    expect(result.filename).toMatch(/^semiont-export-\d+\.tar\.gz$/);
+
+    vm.dispose();
+  });
+
+  it('doExport propagates errors from exportFn and clears isExporting$', async () => {
+    // The VM no longer inspects HTTP status — non-OK responses are the
+    // transport's concern (ky throws on non-OK by default). The VM just
+    // propagates whatever the exportFn rejects with and resets state.
+    const exportFn = vi.fn().mockRejectedValue(new Error('transport boom'));
+
+    const vm = createExchangeVM(mockBrowse(), exportFn, vi.fn());
+
+    await expect(vm.doExport()).rejects.toThrow('transport boom');
     expect(await firstValueFrom(vm.isExporting$)).toBe(false);
 
     vm.dispose();

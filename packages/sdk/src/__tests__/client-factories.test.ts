@@ -1,12 +1,12 @@
 /**
- * Tests for `SemiontClient.fromHttp(...)` and `SemiontClient.signIn(...)`.
+ * Tests for `SemiontClient.fromHttp(...)` and `SemiontClient.signInHttp(...)`.
  *
  * `fromHttp` is purely structural: it constructs `HttpTransport` +
  * `HttpContentTransport`, threads a fresh `BehaviorSubject<AccessToken>`
  * through, brands string inputs, and returns a wired client. We assert
  * on the wiring it can hand back without going to the wire.
  *
- * `signIn` adds an auth round-trip on top. We spy on
+ * `signInHttp` adds an auth round-trip on top. We spy on
  * `HttpTransport.prototype.authenticatePassword` to keep the test
  * off-network and exercise:
  *   - success: token populated, client returned
@@ -106,14 +106,14 @@ describe('SemiontClient.fromHttp', () => {
   });
 });
 
-describe('SemiontClient.signIn', () => {
+describe('SemiontClient.signInHttp', () => {
   test('calls auth.password against the constructed transport and returns a wired client', async () => {
     // Spy on the transport prototype so the real HTTP layer is never invoked.
     const passwordSpy = vi
       .spyOn(HttpTransport.prototype, 'authenticatePassword')
       .mockResolvedValue({ token: 'jwt-from-server', user: { did: 'did:test:u' } } as never);
 
-    const client = await SemiontClient.signIn({
+    const client = await SemiontClient.signInHttp({
       baseUrl: 'http://test.local',
       email: 'me@example.com',
       password: 'pwd',
@@ -136,7 +136,7 @@ describe('SemiontClient.signIn', () => {
       user: { did: 'did:test:u' },
     } as never);
 
-    const client = await SemiontClient.signIn({
+    const client = await SemiontClient.signInHttp({
       baseUrl: makeBaseUrl('http://branded.local'),
       email: 'a@b.com',
       password: 'p',
@@ -159,7 +159,7 @@ describe('SemiontClient.signIn', () => {
     const before = disposeSpy.mock.calls.length;
 
     await expect(
-      SemiontClient.signIn({
+      SemiontClient.signInHttp({
         baseUrl: 'http://test.local',
         email: 'me@example.com',
         password: 'wrong',

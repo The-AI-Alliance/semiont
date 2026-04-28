@@ -34,7 +34,7 @@ import {
   type components,
   type EnvironmentConfig,
 } from '@semiont/core';
-import { InMemorySessionStorage, SemiontClient, SemiontSession, kbBackendUrl, setStoredSession, type KnowledgeBase } from '@semiont/sdk';
+import { InMemorySessionStorage, SemiontClient, SemiontSession, kbBackendUrl, setStoredSession, type HttpEndpoint, type KnowledgeBase } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
@@ -198,13 +198,12 @@ async function main() {
   // The `refresh` callback re-exchanges the shared secret on expiry.
   const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
   const kbId = `worker-${hostname()}`;
+  const endpoint: HttpEndpoint = { kind: 'http', host, port, protocol };
   const kb: KnowledgeBase = {
     id: kbId,
     label: `Worker pool @ ${host}`,
-    host,
-    port,
-    protocol,
     email: `worker-pool@${host}`,
+    endpoint,
   };
   const storage = new InMemorySessionStorage();
   setStoredSession(storage, kbId, { access: initialToken, refresh: '' });
@@ -212,12 +211,12 @@ async function main() {
   const token$ = new BehaviorSubject<AccessToken | null>(null);
   let session!: SemiontSession;
   const transport = new HttpTransport({
-    baseUrl: baseUrl(kbBackendUrl(kb)),
+    baseUrl: baseUrl(kbBackendUrl(endpoint)),
     token$,
     tokenRefresher: () => session.refresh().then((t) => t ?? null),
   });
   const content = new HttpContentTransport(transport);
-  const client = new SemiontClient(transport, content);
+  const client = new SemiontClient(transport, content, transport);
   session = new SemiontSession({
     kb,
     storage,

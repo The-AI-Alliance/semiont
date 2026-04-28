@@ -17,7 +17,7 @@ export function useMediaToken(id: ResourceId): UseMediaTokenResult {
     if (!semiont || !id) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
-    semiont.auth.mediaToken(id)
+    semiont.auth!.mediaToken(id)
       .then(({ token: t }) => {
         if (cancelled) return;
         setToken(t);
@@ -29,7 +29,7 @@ export function useMediaToken(id: ResourceId): UseMediaTokenResult {
       });
 
     const refreshInterval = setInterval(() => {
-      semiont.auth.mediaToken(id)
+      semiont.auth!.mediaToken(id)
         .then(({ token: t }) => { if (!cancelled) setToken(t); })
         .catch(() => {});
     }, 4 * 60 * 1000);

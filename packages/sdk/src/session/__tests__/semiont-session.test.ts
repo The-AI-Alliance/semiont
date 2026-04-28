@@ -48,10 +48,8 @@ function freshJwt(expSecondsFromNow = 3600): string {
 const KB = {
   id: 'kb-alpha',
   label: 'Alpha',
-  host: 'localhost',
-  port: 4000,
-  protocol: 'http' as const,
   email: 'alice@example.com',
+  endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 
 let storage: TestStorage;

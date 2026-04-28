@@ -32,6 +32,7 @@ vi.mock('../../client', async () => {
 });
 
 import { SemiontBrowser } from '../semiont-browser';
+import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
 import { storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
@@ -40,18 +41,14 @@ import { STORAGE_KEY, ACTIVE_KEY } from '../storage';
 const KB_A = {
   id: 'kb-a',
   label: 'KB A',
-  host: 'localhost',
-  port: 4000,
-  protocol: 'http' as const,
   email: 'a@example.com',
+  endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 const KB_B = {
   id: 'kb-b',
   label: 'KB B',
-  host: 'example.com',
-  port: 443,
-  protocol: 'https' as const,
   email: 'b@example.com',
+  endpoint: { kind: 'http' as const, host: 'example.com', port: 443, protocol: 'https' as const },
 };
 
 function freshJwt(expSecondsFromNow = 3600): string {
@@ -61,6 +58,11 @@ function freshJwt(expSecondsFromNow = 3600): string {
 }
 
 let storage: TestStorage;
+
+// Test-local helper: every test in this file exercises HTTP-backed sessions,
+// so we wire the HTTP `SessionFactory` once and let test bodies stay terse.
+const makeBrowser = (s: TestStorage = storage) =>
+  new SemiontBrowser({ storage: s, sessionFactory: createHttpSessionFactory() });
 
 beforeEach(() => {
   storage = new TestStorage();
@@ -76,22 +78,22 @@ afterEach(async () => {
 
 describe('SemiontBrowser — registry singleton', () => {
   it('getBrowser() returns the same instance across calls', () => {
-    const a = getBrowser({ storage });
-    const b = getBrowser({ storage });
+    const a = getBrowser({ storage, sessionFactory: createHttpSessionFactory() });
+    const b = getBrowser({ storage, sessionFactory: createHttpSessionFactory() });
     expect(a).toBe(b);
   });
 
   it('__resetForTests clears the singleton so a subsequent getBrowser() returns a new instance', async () => {
-    const a = getBrowser({ storage });
+    const a = getBrowser({ storage, sessionFactory: createHttpSessionFactory() });
     await __resetForTests();
-    const b = getBrowser({ storage: new TestStorage() });
+    const b = getBrowser({ storage: new TestStorage(), sessionFactory: createHttpSessionFactory() });
     expect(a).not.toBe(b);
   });
 });
 
 describe('SemiontBrowser — identity token (D1)', () => {
   it('setIdentityToken updates identityToken$', async () => {
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     expect(browser.identityToken$.getValue()).toBeNull();
 
     browser.setIdentityToken('nextauth-token');
@@ -106,9 +108,9 @@ describe('SemiontBrowser — identity token (D1)', () => {
 
 describe('SemiontBrowser — KB list', () => {
   it('addKb persists to storage and activates the new KB', async () => {
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const kb = browser.addKb(
-      { label: KB_A.label, host: KB_A.host, port: KB_A.port, protocol: KB_A.protocol, email: KB_A.email },
+      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint },
       freshJwt(),
       'refresh',
     );
@@ -121,14 +123,14 @@ describe('SemiontBrowser — KB list', () => {
   });
 
   it('removeKb clears the KB and, if active, activates a fallback (or null)', async () => {
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const a = browser.addKb(
-      { label: KB_A.label, host: KB_A.host, port: KB_A.port, protocol: KB_A.protocol, email: KB_A.email },
+      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint },
       freshJwt(),
       'r',
     );
     const b = browser.addKb(
-      { label: KB_B.label, host: KB_B.host, port: KB_B.port, protocol: KB_B.protocol, email: KB_B.email },
+      { label: KB_B.label, email: KB_B.email, endpoint: KB_B.endpoint },
       freshJwt(),
       'r',
     );
@@ -143,9 +145,9 @@ describe('SemiontBrowser — KB list', () => {
   });
 
   it('updateKb edits the record in kbs$', async () => {
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const kb = browser.addKb(
-      { label: KB_A.label, host: KB_A.host, port: KB_A.port, protocol: KB_A.protocol, email: KB_A.email },
+      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint },
       freshJwt(),
       'r',
     );
@@ -163,7 +165,7 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     const emissions: Array<string | null> = [];
@@ -188,7 +190,7 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     const disposeCountBefore = mockDispose.mock.calls.length;
@@ -203,7 +205,7 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     expect(browser.activeSession$.getValue()).not.toBeNull();
 
@@ -216,7 +218,7 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
 
 describe('SemiontBrowser — open resources', () => {
   it('addOpenResource, removeOpenResource, updateName, reorder', async () => {
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
 
     browser.addOpenResource('r1', 'One');
     browser.addOpenResource('r2', 'Two', 'text/markdown', 'file://two.md');
@@ -240,7 +242,7 @@ describe('SemiontBrowser — open resources', () => {
   });
 
   it('reorderOpenResources ignores out-of-range indices', async () => {
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     browser.addOpenResource('r1', 'One');
     const before = browser.openResources$.getValue();
     browser.reorderOpenResources(0, 5);
@@ -255,7 +257,7 @@ describe('SemiontBrowser — signOut', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     await browser.signOut(KB_A.id);
@@ -268,19 +270,19 @@ describe('SemiontBrowser — signOut', () => {
 
 describe('SemiontBrowser — getKbSessionStatus', () => {
   it('returns signed-out when no session is stored', () => {
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     expect(browser.getKbSessionStatus('unknown-kb')).toBe('signed-out');
   });
 
   it('returns authenticated for an unexpired stored JWT', () => {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     expect(browser.getKbSessionStatus(KB_A.id)).toBe('authenticated');
   });
 
   it('returns expired for an expired stored JWT', () => {
     seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'r');
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     expect(browser.getKbSessionStatus(KB_A.id)).toBe('expired');
   });
 });
@@ -303,7 +305,7 @@ describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
     storage.set(ACTIVE_KEY, KB_A.id);
     mockRefreshToken.mockResolvedValueOnce({ access_token: freshJwt(), token_type: 'Bearer' });
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     expect(mockRefreshToken).toHaveBeenCalledTimes(1);
@@ -320,7 +322,7 @@ describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
     const newJwt = freshJwt();
     mockRefreshToken.mockResolvedValueOnce({ access_token: newJwt, token_type: 'Bearer' });
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     const stored = JSON.parse(storage.get(storageKey(KB_A.id))!);
@@ -337,7 +339,7 @@ describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
     storage.set(ACTIVE_KEY, KB_A.id);
     mockRefreshToken.mockRejectedValueOnce(new Error('refresh endpoint down'));
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     // Refresh failure → session-expired path: storage cleared.
@@ -355,7 +357,7 @@ describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     mockRefreshToken.mockClear();
 
@@ -383,7 +385,7 @@ describe('SemiontBrowser — performValidate (inlined getMe flow)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     expect(mockGetMe).toHaveBeenCalled();
@@ -398,7 +400,7 @@ describe('SemiontBrowser — performValidate (inlined getMe flow)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     expect(session?.user$.getValue()).toMatchObject({ name: 'Alice' });
 
@@ -412,7 +414,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     expect(browser.activeSession$.getValue()).not.toBeNull();
@@ -426,7 +428,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     const signals = browser.activeSignals$.getValue()!;
@@ -445,7 +447,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     expect(browser.activeSignals$.getValue()).not.toBeNull();
 
@@ -461,7 +463,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     await browser.signOut(KB_A.id);
@@ -475,7 +477,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const firstSignals = browser.activeSignals$.getValue();
     expect(firstSignals).not.toBeNull();
@@ -497,7 +499,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(ACTIVE_KEY, KB_A.id);
     mockRefreshToken.mockRejectedValue(new Error('down'));
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
     expect(signals.sessionExpiredAt$.getValue()).toBeNull();
@@ -515,7 +517,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
     expect(signals.sessionExpiredAt$.getValue()).toBeNull();
@@ -536,7 +538,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
     expect(signals.permissionDeniedAt$.getValue()).toBeNull();
@@ -555,7 +557,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
 
@@ -573,7 +575,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
-    const browser = new SemiontBrowser({ storage });
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     let completed = false;

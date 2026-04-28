@@ -31,8 +31,19 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const kb1: KnowledgeBase = { id: 'kb-1', label: 'Production', host: 'prod.example.com', port: 4000, protocol: 'https', email: 'admin@prod.com', gitBranch: 'main' };
-const kb2: KnowledgeBase = { id: 'kb-2', label: 'Staging', host: 'staging.example.com', port: 4000, protocol: 'http', email: 'admin@staging.com' };
+const kb1: KnowledgeBase = {
+  id: 'kb-1',
+  label: 'Production',
+  email: 'admin@prod.com',
+  gitBranch: 'main',
+  endpoint: { kind: 'http', host: 'prod.example.com', port: 4000, protocol: 'https' },
+};
+const kb2: KnowledgeBase = {
+  id: 'kb-2',
+  label: 'Staging',
+  email: 'admin@staging.com',
+  endpoint: { kind: 'http', host: 'staging.example.com', port: 4000, protocol: 'http' },
+};
 
 // vi.hoisted: the mock factory below needs these in scope.
 const {
