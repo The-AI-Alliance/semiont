@@ -161,7 +161,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
     test('client.gather.annotation() resolves from a global gather:complete event', async () => {
       const { lastValueFrom } = await import('rxjs');
       const gatherP = lastValueFrom(
-        client.gather.annotation(testAnnotationId, testResourceId, { contextWindow: 500 }),
+        client.gather.annotation(testResourceId, testAnnotationId, { contextWindow: 500 }),
       );
 
       await Promise.resolve();

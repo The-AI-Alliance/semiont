@@ -12,8 +12,8 @@ export class GatherNamespace implements IGatherNamespace {
   ) {}
 
   annotation(
-    annotationId: AnnotationId,
     resourceId: ResourceId,
+    annotationId: AnnotationId,
     options?: { contextWindow?: number },
   ): StreamObservable<GatherAnnotationProgress> {
     return new StreamObservable<GatherAnnotationProgress>((subscriber) => {

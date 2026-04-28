@@ -282,8 +282,8 @@ export interface BindNamespace {
  */
 export interface GatherNamespace {
   annotation(
-    annotationId: AnnotationId,
     resourceId: ResourceId,
+    annotationId: AnnotationId,
     options?: { contextWindow?: number },
   ): StreamObservable<GatherAnnotationProgress>;
 
@@ -353,7 +353,7 @@ export interface YieldNamespace {
  * Event prefix: beckon:*
  */
 export interface BeckonNamespace {
-  attention(annotationId: AnnotationId, resourceId: ResourceId): void;
+  attention(resourceId: ResourceId, annotationId: AnnotationId): void;
   hover(annotationId: AnnotationId | null): void;
   sparkle(annotationId: AnnotationId): void;
 }

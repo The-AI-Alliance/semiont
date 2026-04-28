@@ -249,7 +249,7 @@ describe('GatherNamespace', () => {
   });
 
   it('annotation() emits gather:requested on bus', () => {
-    gather.annotation(AID, RID, { contextWindow: 2000 }).subscribe(() => {});
+    gather.annotation(RID, AID, { contextWindow: 2000 }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('gather:requested', expect.objectContaining({
         annotationId: AID,
@@ -262,7 +262,7 @@ describe('GatherNamespace', () => {
 
   it('annotation() completes on gather:complete', async () => {
     const completed = new Promise<void>((resolve) => {
-      gather.annotation(AID, RID).subscribe({ next: () => {}, complete: () => resolve() });
+      gather.annotation(RID, AID).subscribe({ next: () => {}, complete: () => resolve() });
     });
 
     await new Promise((r) => setTimeout(r, 20));
@@ -274,7 +274,7 @@ describe('GatherNamespace', () => {
 
   it('annotation() errors on gather:failed', async () => {
     const errored = new Promise<Error>((resolve) => {
-      gather.annotation(AID, RID).subscribe({ error: (err) => resolve(err) });
+      gather.annotation(RID, AID).subscribe({ error: (err) => resolve(err) });
     });
 
     await new Promise((r) => setTimeout(r, 20));
