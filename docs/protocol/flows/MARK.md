@@ -500,7 +500,7 @@ Detection events flow through the bus gateway's single SSE connection,
 enabling real-time UI updates for every connected participant:
 
 **Progress Updates**: Workers emit `mark:progress` on the resource-scoped
-EventBus. The frontend's `SemiontApiClient` subscribes to these events
+EventBus. The frontend's `SemiontClient` subscribes to these events
 via `/bus/subscribe`; MarkVM surfaces them through an Observable.
 
 **Annotation Creation**: When a worker emits `mark:create` on the bus:

@@ -88,7 +88,7 @@ the unified bus gateway:
 1. Originator calls `client.beckon.attention(annotationId, resourceId)`, which
    invokes `actor.emit('beckon:focus', ...)` → `POST /bus/emit`.
 2. Backend emits the event on the in-process EventBus.
-3. Every connected `SemiontApiClient` has `beckon:focus` and
+3. Every connected `SemiontClient` has `beckon:focus` and
    `beckon:sparkle` in its bus-subscription channel list; the backend
    broadcasts on these channels via `GET /bus/subscribe` (SSE).
 4. The client bridges the event into the local workspace EventBus —
