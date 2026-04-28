@@ -211,23 +211,33 @@ export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
 export * from './hooks/useHoverEmitter';
+// Flow VMs + worker adapters live in `@semiont/sdk` (UI-shape-agnostic
+// state machines that any consumer — web, terminal, mobile, daemon —
+// can reach for). React-ui re-exports them so consumers of this package
+// don't need a second import line.
 export { createBeckonVM, type BeckonVM, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
 export { createMarkVM, type MarkVM, type PendingAnnotation } from '@semiont/sdk';
-export { createShellVM, type ShellVM, type ShellVMOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from '@semiont/sdk';
-export * from './hooks/useShellVM';
 export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/sdk';
 export { createGatherVM, type GatherVM } from '@semiont/sdk';
 export { createMatchVM, type MatchVM } from '@semiont/sdk';
-export { createDiscoverVM, type DiscoverVM } from '@semiont/sdk';
-export { createResourceViewerPageVM, type ResourceViewerPageVM, type WizardState, type AnnotationGroups } from '@semiont/sdk';
-export { createComposePageVM, type ComposePageVM, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from '@semiont/sdk';
-export { createEntityTagsVM, type EntityTagsVM } from '@semiont/sdk';
-export { createExchangeVM, type ExchangeVM } from '@semiont/sdk';
-export { createAdminUsersVM, type AdminUsersVM } from '@semiont/sdk';
-export { createAdminSecurityVM, type AdminSecurityVM } from '@semiont/sdk';
-export { createWelcomeVM, type WelcomeVM } from '@semiont/sdk';
-export { createResourceLoaderVM, type ResourceLoaderVM } from '@semiont/sdk';
-export { createSessionVM, type SessionVM } from '@semiont/sdk';
 export { createJobClaimAdapter, type JobClaimAdapter, type JobClaimAdapterOptions, type WorkerBus, type JobAssignment, type ActiveJob } from '@semiont/sdk';
 export { createJobQueueVM, type JobQueueVM, type Job } from '@semiont/sdk';
+
+// Page-shaped state machines live here in `@semiont/react-ui` because they
+// model the Semiont web frontend's specific page taxonomy and shell. They
+// are framework-neutral (pure RxJS, no React inside) but not portable to a
+// non-web UI shape.
+export { createShellVM, type ShellVM, type ShellVMOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from './state/shell-vm';
+export { createSessionVM, type SessionVM } from './state/session-vm';
+export { createComposePageVM, type ComposePageVM, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from './features/resource-compose/state/compose-page-vm';
+export { createResourceViewerPageVM, type ResourceViewerPageVM, type WizardState, type AnnotationGroups } from './features/resource-viewer/state/resource-viewer-page-vm';
+export { createResourceLoaderVM, type ResourceLoaderVM } from './features/resource-viewer/state/resource-loader-vm';
+export { createAdminUsersVM, type AdminUsersVM } from './features/admin-users/state/admin-users-vm';
+export { createAdminSecurityVM, type AdminSecurityVM } from './features/admin-security/state/admin-security-vm';
+export { createExchangeVM, type ExchangeVM, type ImportPreview } from './features/admin-exchange/state/exchange-vm';
+export { createWelcomeVM, type WelcomeVM } from './features/auth-welcome/state/welcome-vm';
+export { createDiscoverVM, type DiscoverVM } from './features/resource-discovery/state/discover-vm';
+export { createEntityTagsVM, type EntityTagsVM } from './features/moderate-entity-tags/state/entity-tags-vm';
+
+export * from './hooks/useShellVM';
 export * from './hooks/useObservable';

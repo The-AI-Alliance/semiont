@@ -11,7 +11,7 @@ import {
   ScaleIcon,
   LightBulbIcon
 } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '@semiont/sdk';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-vm';
 import type { TagSchema } from '@semiont/react-ui';
 
 export interface TagSchemasPageProps {
