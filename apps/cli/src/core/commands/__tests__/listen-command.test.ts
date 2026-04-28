@@ -14,12 +14,12 @@ import { ListenOptionsSchema, runListen, type ListenOptions } from '../listen.js
 
 const { mockActor, mockCreateActorVM, mockLoadCachedClient } = vi.hoisted(() => {
   const mockActor: any = {
-    addChannels: vi.fn(),
+    addChannels: vi.fn<(channels: string[], scope?: string) => void>(),
     on$: vi.fn(),
     start: vi.fn(),
     dispose: vi.fn(),
   };
-  const mockCreateActorVM = vi.fn(() => mockActor);
+  const mockCreateActorVM = vi.fn<(opts: { channels: string[]; baseUrl?: string; token?: string }) => any>(() => mockActor);
   const mockLoadCachedClient = vi.fn();
   return { mockActor, mockCreateActorVM, mockLoadCachedClient };
 });
@@ -88,7 +88,7 @@ describe('runListen', () => {
     const result = await runListen(makeOptions());
     expect(result.command).toBe('listen');
     expect(mockCreateActorVM).toHaveBeenCalledOnce();
-    const opts = mockCreateActorVM.mock.calls[0][0] as { channels: string[] };
+    const opts = mockCreateActorVM.mock.calls[0]![0];
     expect(opts.channels.length).toBeGreaterThan(0);
     expect(mockActor.addChannels).not.toHaveBeenCalled();
     expect(mockActor.start).toHaveBeenCalledOnce();
@@ -101,7 +101,7 @@ describe('runListen', () => {
     const result = await runListen(makeOptions({ args: ['resource', 'urn:semiont:resource:doc-1'] }));
     expect(result.command).toBe('listen');
     expect(mockCreateActorVM).toHaveBeenCalledOnce();
-    const opts = mockCreateActorVM.mock.calls[0][0] as { channels: string[] };
+    const opts = mockCreateActorVM.mock.calls[0]![0];
     expect(opts.channels).toEqual([]);
     expect(mockActor.addChannels).toHaveBeenCalledOnce();
     expect(mockActor.addChannels.mock.calls[0][1]).toBe('urn:semiont:resource:doc-1');
