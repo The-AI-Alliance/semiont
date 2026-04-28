@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import type { ShellVM } from '../../flows/shell-vm';
 import { createExchangeVM } from '../exchange-vm';
 
@@ -112,12 +112,16 @@ describe('createExchangeVM', () => {
     vm.dispose();
   });
 
-  it('doImport calls importFn with progress callback', async () => {
-    const importFn = vi.fn().mockImplementation((_file, { onProgress }) => {
-      onProgress({ phase: 'uploading', message: '50%' });
-      onProgress({ phase: 'complete', result: { resources: 10 } });
-      return Promise.resolve({ phase: 'complete' });
-    });
+  it('doImport subscribes to importFn Observable and mirrors each progress event', async () => {
+    // importFn now returns Observable<ProgressEvent>. The VM subscribes,
+    // mirrors each emit into its state subjects, and resolves when the
+    // observable completes.
+    const importFn = vi.fn().mockReturnValue(
+      of(
+        { phase: 'uploading', message: '50%' },
+        { phase: 'complete', result: { resources: 10 } },
+      ),
+    );
 
     const vm = createExchangeVM(mockBrowse(), vi.fn(), importFn);
     vm.selectFile(makeMockFile('import.tar.gz'));
@@ -126,6 +130,19 @@ describe('createExchangeVM', () => {
 
     expect(importFn).toHaveBeenCalledOnce();
     expect(await firstValueFrom(vm.importResult$)).toEqual({ resources: 10 });
+    expect(await firstValueFrom(vm.importPhase$)).toBe('complete');
+    expect(await firstValueFrom(vm.isImporting$)).toBe(false);
+
+    vm.dispose();
+  });
+
+  it('doImport propagates errors from the importFn Observable and clears isImporting$', async () => {
+    const importFn = vi.fn().mockReturnValue(throwError(() => new Error('import boom')));
+
+    const vm = createExchangeVM(mockBrowse(), vi.fn(), importFn);
+    vm.selectFile(makeMockFile('import.tar.gz'));
+
+    await expect(vm.doImport()).rejects.toThrow('import boom');
     expect(await firstValueFrom(vm.isImporting$)).toBe(false);
 
     vm.dispose();

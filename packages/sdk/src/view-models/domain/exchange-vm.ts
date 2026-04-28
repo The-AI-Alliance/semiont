@@ -1,8 +1,9 @@
-import { BehaviorSubject, type Observable } from 'rxjs';
+import { BehaviorSubject, lastValueFrom, type Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { createDisposer } from '../lib/view-model';
 import type { ViewModel } from '../lib/view-model';
 import type { ShellVM } from '../flows/shell-vm';
-import type { BackendDownload } from '@semiont/core';
+import type { BackendDownload, ProgressEvent } from '@semiont/core';
 
 export interface ImportPreview {
   format: string;
@@ -29,7 +30,7 @@ export interface ExchangeVM extends ViewModel {
 export function createExchangeVM(
   browse: ShellVM,
   exportFn: (params?: { includeArchived?: boolean }) => Promise<BackendDownload>,
-  importFn: (file: File, options?: { onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void }) => Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>,
+  importFn: (file: File) => Observable<ProgressEvent>,
 ): ExchangeVM {
   const disposer = createDisposer();
   disposer.add(browse);
@@ -85,13 +86,19 @@ export function createExchangeVM(
     importMessage$.next(undefined);
     importResult$.next(undefined);
     try {
-      await importFn(file, {
-        onProgress: (event) => {
-          importPhase$.next(event.phase);
-          importMessage$.next(event.message);
-          if (event.result) importResult$.next(event.result);
-        },
-      });
+      // The importFn is `Observable<ProgressEvent>` — every emit is a
+      // progress event; the final emit before complete is the outcome.
+      // `tap` mirrors each event into our state subjects; `lastValueFrom`
+      // awaits the last value (so callers can `await vm.doImport()`).
+      await lastValueFrom(
+        importFn(file).pipe(
+          tap((event) => {
+            importPhase$.next(event.phase);
+            importMessage$.next(event.message);
+            if (event.result) importResult$.next(event.result);
+          }),
+        ),
+      );
     } finally {
       isImporting$.next(false);
     }

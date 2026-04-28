@@ -255,37 +255,42 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(sp.get('includeArchived')).toBe('true');
     });
 
-    test('restoreKnowledgeBase posts multipart and parses an SSE completion event', async () => {
+    test('restoreKnowledgeBase posts multipart and emits each SSE event on the Observable', async () => {
       const sseBody = encodeSseStream([
         { phase: 'progress', message: '50%' },
         { phase: 'complete', result: { restored: 3 } },
       ]);
       vi.mocked(mockKy.post).mockResolvedValue(new Response(sseBody) as never);
 
-      const onProgress = vi.fn();
       const file = new File(['x'], 'kb.tgz', { type: 'application/gzip' });
-      const result = await transport.restoreKnowledgeBase(file, onProgress);
+      const obs = transport.restoreKnowledgeBase(file);
+      const { firstValueFrom, toArray } = await import('rxjs');
+      const collected = await firstValueFrom(obs.pipe(toArray()));
 
       expect(mockKy.post).toHaveBeenCalledWith(
         `${testBaseUrl}/api/admin/exchange/restore`,
         expect.objectContaining({ body: expect.any(FormData), headers: {} }),
       );
-      expect(onProgress).toHaveBeenCalledTimes(2);
-      expect(result).toEqual({ phase: 'complete', result: { restored: 3 } });
+      expect(collected).toEqual([
+        { phase: 'progress', message: '50%' },
+        { phase: 'complete', result: { restored: 3 } },
+      ]);
     });
 
-    test('importKnowledgeBase posts multipart and parses SSE completion', async () => {
+    test('importKnowledgeBase posts multipart and completes after the final SSE event', async () => {
       const sseBody = encodeSseStream([{ phase: 'complete', result: { imported: 5 } }]);
       vi.mocked(mockKy.post).mockResolvedValue(new Response(sseBody) as never);
 
       const file = new File(['y'], 'kb.tgz', { type: 'application/gzip' });
-      const result = await transport.importKnowledgeBase(file);
+      const obs = transport.importKnowledgeBase(file);
+      const { lastValueFrom } = await import('rxjs');
+      const last = await lastValueFrom(obs);
 
       expect(mockKy.post).toHaveBeenCalledWith(
         `${testBaseUrl}/api/moderate/exchange/import`,
         expect.objectContaining({ body: expect.any(FormData), headers: {} }),
       );
-      expect(result).toEqual({ phase: 'complete', result: { imported: 5 } });
+      expect(last).toEqual({ phase: 'complete', result: { imported: 5 } });
     });
   });
 

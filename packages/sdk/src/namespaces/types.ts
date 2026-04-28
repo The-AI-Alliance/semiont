@@ -38,6 +38,7 @@ import type {
   JobId,
   Motivation,
   GatheredContext,
+  ProgressEvent,
   UserDID,
 } from '@semiont/core';
 
@@ -408,7 +409,13 @@ export interface AdminNamespace {
   healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>>;
   status(): Promise<ResponseContent<paths['/api/status']['get']>>;
   backup(): Promise<BackendDownload>;
-  restore(file: File, onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>;
+  /**
+   * Restore from a backup archive. Returns a `StreamObservable` that
+   * emits each `ProgressEvent` as the operation runs (`'started'`,
+   * `'parsing'`, `'importing'`, ..., `'complete'`). Subscribers see
+   * every step; awaiters get the final event via the PromiseLike sugar.
+   */
+  restore(file: File): StreamObservable<ProgressEvent>;
   exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
-  importKnowledgeBase(file: File, onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }>;
+  importKnowledgeBase(file: File): StreamObservable<ProgressEvent>;
 }

@@ -23,7 +23,7 @@ export default function AdminExchangeClient() {
   const vm = useViewModel(() => createExchangeVM(
     browseVM,
     () => client!.admin!.backup(),
-    (file, opts) => client!.admin!.restore(file, opts?.onProgress),
+    (file) => client!.admin!.restore(file),
   ));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;

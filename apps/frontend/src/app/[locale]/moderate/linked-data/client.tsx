@@ -23,7 +23,7 @@ export default function LinkedDataClient() {
   const vm = useViewModel(() => createExchangeVM(
     browseVM,
     (params) => client!.admin!.exportKnowledgeBase(params),
-    (file, opts) => client!.admin!.importKnowledgeBase(file, opts?.onProgress),
+    (file) => client!.admin!.importKnowledgeBase(file),
   ));
 
   const activePanel = useObservable(vm.browse.activePanel$) ?? null;

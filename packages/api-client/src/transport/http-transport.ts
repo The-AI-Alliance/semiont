@@ -45,7 +45,6 @@ import type {
   UpdateUserRequest,
   UpdateUserResponse,
   ListUsersResponse,
-  ProgressCallback,
   ProgressEvent,
 } from '@semiont/core';
 import { BRIDGED_CHANNELS } from '@semiont/core';
@@ -486,15 +485,8 @@ export class HttpTransport implements ITransport, IBackendOperations {
 
   async restoreKnowledgeBase(
     file: File,
-    onProgress?: ProgressCallback,
-  ): Promise<ProgressEvent> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await this.http.post(`${this.baseUrl}/api/admin/exchange/restore`, {
-      body: formData,
-      headers: this.authHeaders(),
-    });
-    return this.parseSSEStream(response, onProgress);
+  ): Observable<ProgressEvent> {
+    return this.sseProgressStream(`${this.baseUrl}/api/admin/exchange/restore`, file);
   }
 
   async exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload> {
@@ -506,48 +498,55 @@ export class HttpTransport implements ITransport, IBackendOperations {
     return responseToDownload(response);
   }
 
-  async importKnowledgeBase(
-    file: File,
-    onProgress?: ProgressCallback,
-  ): Promise<ProgressEvent> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await this.http.post(`${this.baseUrl}/api/moderate/exchange/import`, {
-      body: formData,
-      headers: this.authHeaders(),
-    });
-    return this.parseSSEStream(response, onProgress);
+  importKnowledgeBase(file: File): Observable<ProgressEvent> {
+    return this.sseProgressStream(`${this.baseUrl}/api/moderate/exchange/import`, file);
   }
 
-  private async parseSSEStream(
-    response: Response,
-    onProgress?: ProgressCallback,
-  ): Promise<ProgressEvent> {
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult: ProgressEvent = { phase: 'unknown' };
+  /**
+   * POST a file to a server-sent-events endpoint and surface each `data:`
+   * frame as an Observable emission. Completes when the stream closes;
+   * errors if the request itself fails or the SSE stream is aborted.
+   * The returned Observable is cold — the POST happens on subscribe and
+   * is aborted via `AbortController` on unsubscribe.
+   */
+  private sseProgressStream(url: string, file: File): Observable<ProgressEvent> {
+    return new Observable<ProgressEvent>((subscriber) => {
+      const ctrl = new AbortController();
+      const formData = new FormData();
+      formData.append('file', file);
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      (async () => {
+        try {
+          const response = await this.http.post(url, {
+            body: formData,
+            headers: this.authHeaders(),
+            signal: ctrl.signal,
+          });
+          const reader = response.body!.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop()!;
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const event = JSON.parse(line.slice(6));
-          onProgress?.(event);
-          if (event.phase === 'complete' || event.phase === 'error' || event.phase === 'failed') {
-            finalResult = event;
+          while (!subscriber.closed) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop()!;
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const event = JSON.parse(line.slice(6)) as ProgressEvent;
+                subscriber.next(event);
+              }
+            }
           }
+          subscriber.complete();
+        } catch (err) {
+          if (!subscriber.closed) subscriber.error(err);
         }
-      }
-    }
+      })();
 
-    return finalResult;
+      return () => ctrl.abort();
+    });
   }
 
   // ── System status ─────────────────────────────────────────────────────

@@ -221,9 +221,19 @@ export interface IBackendOperations {
   // ── Exchange ──────────────────────────────────────────────────────────
 
   backupKnowledgeBase(): Promise<BackendDownload>;
-  restoreKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
+  /**
+   * Stream of `ProgressEvent`s for a restore/import operation. The
+   * Observable emits each progress event in order and completes when
+   * the operation is done; the final event carries `phase: 'complete'`
+   * (or `'error'` / `'failed'` followed by an Observable error).
+   *
+   * The SDK wraps the contract's `Observable<ProgressEvent>` as a
+   * `StreamObservable<ProgressEvent>` so consumers can `await` for the
+   * final event or `.subscribe(...)` to render every step.
+   */
+  restoreKnowledgeBase(file: File): Observable<ProgressEvent>;
   exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
-  importKnowledgeBase(file: File, onProgress?: ProgressCallback): Promise<ProgressEvent>;
+  importKnowledgeBase(file: File): Observable<ProgressEvent>;
 
   // ── System ────────────────────────────────────────────────────────────
 
