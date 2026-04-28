@@ -58,3 +58,53 @@ export type NewKnowledgeBase = Omit<KnowledgeBase, 'id'>;
  * presence and validity of the JWT in session storage.
  */
 export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out' | 'unreachable';
+
+/**
+ * Construct a `KnowledgeBase` for an HTTP-backed Semiont backend without
+ * spelling out the nested `endpoint` literal. Convenience for tests,
+ * worker bootstraps, and one-off scripts.
+ *
+ * ```ts
+ * const kb = httpKb({
+ *   id: 'my-watcher',
+ *   label: 'My Watcher',
+ *   email: 'me@example.com',
+ *   host: 'localhost',
+ *   port: 4000,
+ *   protocol: 'http',
+ * });
+ * ```
+ *
+ * Equivalent to:
+ *
+ * ```ts
+ * const kb: KnowledgeBase = {
+ *   id, label, email,
+ *   endpoint: { kind: 'http', host, port, protocol },
+ * };
+ * ```
+ *
+ * UI hosts that have a structured form (host / port / protocol pickers)
+ * already construct the literal directly — they don't need this helper.
+ * Local-endpoint KBs construct the literal directly too; the local
+ * endpoint shape (`{ kind: 'local', kbId }`) is one line and doesn't
+ * earn a helper.
+ */
+export function httpKb(opts: {
+  id: string;
+  label: string;
+  email: string;
+  host: string;
+  port: number;
+  protocol: 'http' | 'https';
+  gitBranch?: string;
+}): KnowledgeBase {
+  const { id, label, email, host, port, protocol, gitBranch } = opts;
+  return {
+    id,
+    label,
+    email,
+    ...(gitBranch !== undefined ? { gitBranch } : {}),
+    endpoint: { kind: 'http', host, port, protocol },
+  };
+}
