@@ -22,7 +22,7 @@ If none of those apply, stay on the lighter pattern.
 
 ## Setup
 
-`SemiontSession.signIn(...)` is the credentials-first long-running construction. It calls `auth.password(email, password)`, persists both access and refresh tokens via the storage adapter, wires a default `refresh` callback that exchanges the refresh token via `auth.refresh(...)`, and returns the ready session. You don't write a refresh callback; the session uses the refresh token returned by `signIn`.
+`SemiontSession.signInHttp(...)` is the credentials-first long-running construction. It calls `auth.password(email, password)`, persists both access and refresh tokens via the storage adapter, wires a default `refresh` callback that exchanges the refresh token via `auth.refresh(...)`, and returns the ready session. You don't write a refresh callback; the session uses the refresh token returned by `signIn`.
 
 `kb` is required — the `id` field is the storage key for this session. Distinct scripts sharing the same `SessionStorage` instance must use distinct `id`s to avoid trampling each other's tokens. There is no default; the factory makes you choose.
 
@@ -50,7 +50,7 @@ const kb: KnowledgeBase = {
 // filesystem adapter (skeleton below).
 const storage = new InMemorySessionStorage();
 
-const session = await SemiontSession.signIn({
+const session = await SemiontSession.signInHttp({
   kb,
   storage,
   baseUrl: apiUrl,
@@ -162,7 +162,7 @@ process.on('SIGTERM', shutdown);
 ## Guidance for the AI assistant
 
 - **Reach for `SemiontSession` only when the script runs longer than one token's lifetime.** For one-shot scripts (annotate a doc, run a pipeline once), the lighter `SemiontClient` pattern in the `semiont-highlight` / `semiont-wiki` skills is correct. Don't add the session's complexity if it isn't earning anything.
-- **`SemiontSession.signIn(...)` auto-wires the default refresh.** The factory captures the refresh token returned by `auth.password` and persists it via the storage adapter; the default `refresh` callback reads from storage at refresh time and calls `auth.refresh(...)`. You only write a custom callback when refresh has to come from somewhere else (worker-pool shared secret, OAuth refresh-token grant, interactive re-prompt). For those cases, use `SemiontSession.fromHttp(...)` and supply `refresh`.
+- **`SemiontSession.signInHttp(...)` auto-wires the default refresh.** The factory captures the refresh token returned by `auth.password` and persists it via the storage adapter; the default `refresh` callback reads from storage at refresh time and calls `auth.refresh(...)`. You only write a custom callback when refresh has to come from somewhere else (worker-pool shared secret, OAuth refresh-token grant, interactive re-prompt). For those cases, use `SemiontSession.fromHttp(...)` and supply `refresh`.
 - **`fromHttp` invariants are owned by the factory.** Both `signIn` and `fromHttp` construct the shared `BehaviorSubject<AccessToken>` internally and pass it to both the transport and the session, so the "same-instance" rule is structural. Only matters if you reach below the factory and construct `SemiontSession` directly via the constructor — then you must thread the same `BehaviorSubject` through both `HttpTransport({ token$ })` and `new SemiontSession({ token$, ... })`.
 - **Validate is optional.** Service-principal scripts (workers, scheduled jobs) usually omit it — they have a token but no associated user record. User-attended scripts use `session.client.auth.me()` to populate `user$`.
 - **Storage choice depends on restart behavior.** `InMemorySessionStorage` is fine if the script re-authenticates from env every startup. Persist via filesystem only if you want token state to survive restarts.

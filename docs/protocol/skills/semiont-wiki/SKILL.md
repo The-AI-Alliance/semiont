@@ -20,7 +20,7 @@ Steps 3-5 run per annotation in a loop. The threshold between "bind to existing"
 
 ## Client setup
 
-All steps share one `SemiontClient` constructed via `SemiontClient.signIn(...)`. For long-running scripts that may span token expiry, swap in `SemiontSession.signIn(...)` — it owns refresh, validation, and storage; the lighter pattern here is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
+All steps share one `SemiontClient` constructed via `SemiontClient.signInHttp(...)`. For long-running scripts that may span token expiry, swap in `SemiontSession.signInHttp(...)` — it owns refresh, validation, and storage; the lighter pattern here is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
 
 ```typescript
 import {
@@ -31,7 +31,7 @@ import {
   type GatheredContext,
 } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signIn({
+const semiont = await SemiontClient.signInHttp({
   baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
@@ -133,7 +133,7 @@ const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location')
   .map((t) => entityType(t.trim()));
 
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
-  const semiont = await SemiontClient.signIn({
+  const semiont = await SemiontClient.signInHttp({
     baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
     email: process.env.SEMIONT_USER_EMAIL!,
     password: process.env.SEMIONT_USER_PASSWORD!,

@@ -33,14 +33,14 @@ semiont mark --resource <id> --delegate --motivation assessing \
 
 ## Client setup (shared by all TypeScript examples below)
 
-`SemiontClient.signIn(...)` is the credentials-first one-line construction for one-shot scripts. It calls `auth.password(email, password)` and returns a wired-up client with the access token populated. Construct once at the top of a script and reuse the same client for every verb call.
+`SemiontClient.signInHttp(...)` is the credentials-first one-line construction for one-shot scripts. It calls `auth.password(email, password)` and returns a wired-up client with the access token populated. Construct once at the top of a script and reuse the same client for every verb call.
 
-For long-running scripts that may span token expiry, use `SemiontSession.signIn(...)` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
+For long-running scripts that may span token expiry, use `SemiontSession.signInHttp(...)` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
 
 ```typescript
 import { SemiontClient, resourceId } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signIn({
+const semiont = await SemiontClient.signInHttp({
   baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
