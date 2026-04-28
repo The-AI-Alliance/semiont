@@ -76,12 +76,14 @@ async function emitEvent<K extends keyof EventMap>(
 
 export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter {
   const { session, logger } = config;
-  // Workers are HTTP-bound; the actor is needed for the job-claim
+  // Workers are HTTP-bound today; the actor is needed for the job-claim
   // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
-  // is intentional: `LocalTransport` workers don't exist.
+  // is intentional: `LocalTransport` workers don't exist. The adapter
+  // itself is transport-neutral — see `JobClaimBus` in
+  // packages/sdk/src/view-models/domain/job-claim-adapter.ts.
   const httpTransport = session.client.transport as HttpTransport;
   const adapter = createJobClaimAdapter({
-    actor: httpTransport.actor,
+    bus: httpTransport.actor,
     jobTypes: config.jobTypes,
   });
 

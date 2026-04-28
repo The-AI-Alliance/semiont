@@ -1,8 +1,22 @@
+/**
+ * SmelterActorVM — domain-event fan-in for the Smelter worker.
+ *
+ * Subscribes to the six smelter-relevant channels on a shared bus and
+ * exposes them as a single typed `events$` stream. Transport-neutral —
+ * the caller passes a `WorkerBus` (HTTP `ActorVM` today, an in-process
+ * bus shim if/when one exists). The VM does not own the bus and does
+ * not dispose it.
+ *
+ * `start()` widens the bus's channel-subscription set to include the
+ * smelter channels. On HTTP this extends the SSE subscription URL;
+ * on an in-process bus this is a no-op (the underlying `EventBus`
+ * already delivers every emit).
+ */
+
 import { Observable, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { ViewModel } from '../lib/view-model';
-import type { ConnectionState } from '@semiont/core';
-import { createActorVM, type ActorVM } from '@semiont/api-client';
+import type { WorkerBus } from '../lib/worker-bus';
 
 export interface SmelterEvent {
   type: string;
@@ -11,9 +25,7 @@ export interface SmelterEvent {
 }
 
 export interface SmelterActorVMOptions {
-  baseUrl: string;
-  token: string;
-  reconnectMs?: number;
+  bus: WorkerBus;
 }
 
 const SMELTER_CHANNELS = [
@@ -27,23 +39,17 @@ const SMELTER_CHANNELS = [
 
 export interface SmelterActorVM extends ViewModel {
   events$: Observable<SmelterEvent>;
-  state$: Observable<ConnectionState>;
   emit(channel: string, payload: Record<string, unknown>): Promise<void>;
   start(): void;
-  stop(): void;
 }
 
 export function createSmelterActorVM(options: SmelterActorVMOptions): SmelterActorVM {
-  const actor: ActorVM = createActorVM({
-    baseUrl: options.baseUrl,
-    token: options.token,
-    channels: [...SMELTER_CHANNELS],
-    reconnectMs: options.reconnectMs,
-  });
+  const { bus } = options;
+  let started = false;
 
   const events$ = merge(
     ...SMELTER_CHANNELS.map((channel) =>
-      actor.on$<Record<string, unknown>>(channel).pipe(
+      bus.on$<Record<string, unknown>>(channel).pipe(
         map((payload) => ({
           type: channel,
           resourceId: payload.resourceId as string | undefined,
@@ -55,10 +61,16 @@ export function createSmelterActorVM(options: SmelterActorVMOptions): SmelterAct
 
   return {
     events$,
-    state$: actor.state$,
-    emit: (channel, payload) => actor.emit(channel, payload),
-    start: () => actor.start(),
-    stop: () => actor.stop(),
-    dispose: () => actor.dispose(),
+    emit: (channel, payload) => bus.emit(channel, payload),
+    start: () => {
+      if (started) return;
+      started = true;
+      bus.addChannels?.([...SMELTER_CHANNELS]);
+    },
+    dispose: () => {
+      // The bus is owned by the caller; the VM only releases its own
+      // local state, of which there is none beyond the `started` flag.
+      started = false;
+    },
   };
 }

@@ -8,6 +8,32 @@
  * `code` field to a literal-union for discriminated handling.
  */
 
+/**
+ * Transport-neutral error vocabulary. Every transport that surfaces
+ * errors over `ITransport.errors$` maps its native failure modes to one
+ * of these codes — HTTP `APIError` maps from status code, in-process
+ * transports map from local failure shape, gRPC would map from status
+ * code, etc. Routing layers (e.g. `SemiontBrowser`'s session-expired /
+ * permission-denied modal routing) match on this vocabulary so they
+ * stay transport-agnostic.
+ *
+ *  - `unauthorized` — auth required / token missing or expired (HTTP 401)
+ *  - `forbidden`    — auth ok but lacks permission (HTTP 403)
+ *  - `not-found`    — resource missing (HTTP 404)
+ *  - `conflict`     — concurrent modification, duplicate, etc. (HTTP 409)
+ *  - `bad-request`  — request malformed (HTTP 400)
+ *  - `unavailable`  — backend unreachable, network error, 5xx
+ *  - `error`        — unclassified fallback
+ */
+export type TransportErrorCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'not-found'
+  | 'conflict'
+  | 'bad-request'
+  | 'unavailable'
+  | 'error';
+
 export class SemiontError extends Error {
   constructor(
     message: string,

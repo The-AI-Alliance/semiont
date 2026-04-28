@@ -7,38 +7,39 @@
  * host's lifetime — see `getBrowser()` in `registry.ts` for the canonical
  * accessor.
  *
+ * Transport-agnostic: the browser orchestrates session *lifecycle* but
+ * delegates session *construction* to a `SessionFactory` injected at
+ * construction. HTTP-backed apps pass `createHttpSessionFactory()` from
+ * `@semiont/sdk`; in-process apps pass their own factory.
+ *
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the browser never touches `localStorage` or `window`
  * directly.
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
-import {
-  EventBus,
-  baseUrl,
-  type AccessToken,
-  type EventMap,
-} from '@semiont/core';
-import { SemiontClient } from '../client';
-import { HttpTransport } from '@semiont/api-client';
-import { HttpContentTransport } from '@semiont/api-client';
+import { EventBus, type EventMap } from '@semiont/core';
 import {
   ACTIVE_KEY,
   clearStoredSession,
   generateKbId,
   getStoredSession,
   isJwtExpired,
-  kbBackendUrl,
   loadKnowledgeBases,
   saveKnowledgeBases,
   setStoredSession,
 } from './storage';
-import type { KnowledgeBase, KbSessionStatus, NewKnowledgeBase } from './knowledge-base';
+import type {
+  KnowledgeBase,
+  KbSessionStatus,
+  NewKnowledgeBase,
+} from './knowledge-base';
 import type { OpenResource } from './open-resource';
-import { SemiontSession, type UserInfo } from './semiont-session';
+import { SemiontSession } from './semiont-session';
 import { SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
+import type { SessionFactory } from './session-factory';
 
 const OPEN_RESOURCES_KEY = 'openDocuments';
 
@@ -62,6 +63,14 @@ function loadOpenResources(storage: SessionStorage): OpenResource[] {
 export interface SemiontBrowserConfig {
   /** Persistence adapter. The browser reads/writes all persisted state via this. */
   storage: SessionStorage;
+  /**
+   * Builds a `SemiontSession` for a KB. The browser is transport-
+   * agnostic — every HTTP-vs-local construction concern lives in the
+   * factory. HTTP-backed apps pass `createHttpSessionFactory()` from
+   * `@semiont/sdk`; a future in-process variant from `@semiont/make-meaning`
+   * would expose its own factory.
+   */
+  sessionFactory: SessionFactory;
 }
 
 export class SemiontBrowser {
@@ -91,6 +100,7 @@ export class SemiontBrowser {
   readonly identityToken$: BehaviorSubject<string | null>;
 
   private readonly storage: SessionStorage;
+  private readonly sessionFactory: SessionFactory;
   /**
    * App-scoped EventBus. Hosts UI-shell events that must work regardless
    * of whether a KB session is active: panel toggles, sidebar state,
@@ -102,17 +112,10 @@ export class SemiontBrowser {
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
   private activating: Promise<void> | null = null;
-  /**
-   * Per-KB in-flight refresh dedup. Simultaneous 401s for the same
-   * KB converge on a single `/api/tokens/refresh` network call.
-   * Was previously module-scoped in `refresh.ts`; moved here when
-   * that file was deleted — SemiontBrowser is a singleton so the
-   * scoping is equivalent.
-   */
-  private readonly inFlightRefreshes = new Map<string, Promise<string | null>>();
 
   constructor(config: SemiontBrowserConfig) {
     this.storage = config.storage;
+    this.sessionFactory = config.sessionFactory;
 
     const kbs = loadKnowledgeBases(this.storage);
     const storedActive = this.storage.get(ACTIVE_KEY);
@@ -212,7 +215,13 @@ export class SemiontBrowser {
     }
   }
 
-  updateKb(id: string, updates: Partial<KnowledgeBase>): void {
+  /**
+   * Patch a KB in the list. Restricted to the common, endpoint-agnostic
+   * fields (`label`, `email`, `gitBranch`) — the `endpoint` shape isn't
+   * editable in place; remove and re-add to change the connection
+   * target.
+   */
+  updateKb(id: string, updates: { label?: string; email?: string; gitBranch?: string }): void {
     this.kbs$.next(
       this.kbs$.getValue().map((kb) => (kb.id === id ? { ...kb, ...updates } : kb)),
     );
@@ -291,42 +300,41 @@ export class SemiontBrowser {
       // before the session's ctor does its startup validation.
       const signals = new SessionSignals();
 
-      // Build transport stack: caller (this) owns token$ and threads it
-      // through transport (which reads it on every request) and session
-      // (which writes refreshed values into it). The `tokenRefresher`
-      // closure resolves `session` lazily — `session` is defined right
-      // after, before any 401 could fire.
-      const token$ = new BehaviorSubject<AccessToken | null>(null);
-      let session!: SemiontSession;
-      const transport = new HttpTransport({
-        baseUrl: baseUrl(kbBackendUrl(kb)),
-        token$,
-        tokenRefresher: () => session.refresh().then((t) => t ?? null),
-      });
-      const content = new HttpContentTransport(transport);
-      const client = new SemiontClient(transport, content);
-      session = new SemiontSession({
-        kb,
-        storage: this.storage,
-        client,
-        token$,
-        refresh: () => this.performRefresh(kb),
-        validate: (token) => this.performValidate(kb, token),
-        onAuthFailed: (msg) => signals.notifySessionExpired(msg),
-        onError: (err) => this.error$.next(err),
-      });
+      let session: SemiontSession;
+      try {
+        session = this.sessionFactory({
+          kb,
+          storage: this.storage,
+          signals,
+          onError: (err) => this.error$.next(err),
+        });
+      } catch (err) {
+        this.error$.next(
+          err instanceof SemiontSessionError
+            ? err
+            : new SemiontSessionError(
+                'session.construct-failed',
+                err instanceof Error ? err.message : String(err),
+                id,
+              ),
+        );
+        signals.dispose();
+        return;
+      }
 
       // Route transport-level errors to the modal signals. The session's
       // `errors$` re-publishes `client.transport.errors$` per the
-      // `ITransport` contract; HttpTransport emits `APIError` instances
-      // whose `code` we route on. 401 covers ad-hoc unauthorized requests
-      // (the proactive-refresh `onAuthFailed` path doesn't); 403 has no
-      // recovery — surface it as permission-denied. The subscription
-      // ends naturally when `errors$` completes on transport dispose.
+      // `ITransport` contract; the transport stamps `err.code` from the
+      // `TransportErrorCode` vocabulary so this routing stays
+      // transport-agnostic. `unauthorized` covers ad-hoc unauthorized
+      // requests (the proactive-refresh `onAuthFailed` path doesn't);
+      // `forbidden` has no recovery — surface it as permission-denied.
+      // The subscription ends naturally when `errors$` completes on
+      // transport dispose.
       session.errors$.subscribe((err) => {
-        if (err.code === 'api.unauthorized') {
+        if (err.code === 'unauthorized') {
           signals.notifySessionExpired(err.message);
-        } else if (err.code === 'api.forbidden') {
+        } else if (err.code === 'forbidden') {
           signals.notifyPermissionDenied(err.message);
         }
       });
@@ -467,79 +475,6 @@ export class SemiontBrowser {
     const [moved] = list.splice(oldIndex, 1);
     if (moved) list.splice(newIndex, 0, moved);
     this.openResources$.next(list);
-  }
-
-  // ── Auth callbacks bound per session ──────────────────────────────────
-  //
-  // These closures back the `refresh` and `validate` callbacks passed
-  // to `SemiontSession` in `setActiveKb`. Factored out as methods
-  // (rather than inline in the activation closure) so test-doubles
-  // can override them cleanly, and so the in-flight dedup map
-  // survives across activations of the same KB.
-
-  /**
-   * Refresh the active KB's access token. Returns the new token on
-   * success, null on failure. Concurrent calls for the same KB
-   * dedupe through `inFlightRefreshes`, so simultaneous 401s trigger
-   * only one `/api/tokens/refresh` round trip.
-   *
-   * Uses a throwaway `SemiontClient` with no `tokenRefresher` —
-   * a refresh call returning 401 would otherwise re-enter this
-   * function infinitely.
-   */
-  private async performRefresh(kb: KnowledgeBase): Promise<string | null> {
-    const existing = this.inFlightRefreshes.get(kb.id);
-    if (existing) return existing;
-
-    const promise = (async () => {
-      const stored = getStoredSession(this.storage, kb.id);
-      if (!stored) return null;
-      const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(kb)) });
-      const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
-      try {
-        const response = await throwaway.auth.refresh(stored.refresh);
-        const newAccess = response.access_token;
-        if (!newAccess) return null;
-        setStoredSession(this.storage, kb.id, { access: newAccess, refresh: stored.refresh });
-        return newAccess;
-      } catch {
-        return null;
-      } finally {
-        throwaway.dispose();
-      }
-    })();
-
-    this.inFlightRefreshes.set(kb.id, promise);
-    try {
-      return await promise;
-    } finally {
-      this.inFlightRefreshes.delete(kb.id);
-    }
-  }
-
-  /**
-   * Validate an access token by calling `auth.me` on a throwaway
-   * client. The session uses this once at startup to populate
-   * `user$`; 401 triggers a refresh-then-retry inside the session.
-   *
-   * The throwaway transport is seeded with the specific token to
-   * validate so the request actually carries it (HttpTransport
-   * sources `Authorization` from its `token$`).
-   */
-  private async performValidate(kb: KnowledgeBase, token: AccessToken): Promise<UserInfo | null> {
-    const tokenSubject = new BehaviorSubject<AccessToken | null>(token);
-    const throwawayTransport = new HttpTransport({
-      baseUrl: baseUrl(kbBackendUrl(kb)),
-      token$: tokenSubject,
-    });
-    const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport));
-    try {
-      const data = await throwaway.auth.me();
-      return data as UserInfo;
-    } finally {
-      throwaway.dispose();
-      tokenSubject.complete();
-    }
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────

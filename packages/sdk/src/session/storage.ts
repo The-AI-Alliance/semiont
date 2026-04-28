@@ -13,7 +13,7 @@
  * whatever the passed-in `SessionStorage` does.
  */
 
-import type { KnowledgeBase } from './knowledge-base';
+import type { HttpEndpoint, KnowledgeBase } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
 
 // ---------- Storage keys ----------
@@ -81,37 +81,38 @@ export function isJwtExpired(token: string): boolean {
 
 // ---------- KB list storage ----------
 
-function migrateLegacyEntry(entry: any): KnowledgeBase {
-  if (entry.host !== undefined) return entry as KnowledgeBase;
-  // Legacy format: { id, label, backendUrl }
-  try {
-    const url = new URL(entry.backendUrl);
-    return {
-      id: entry.id,
-      label: entry.label,
-      host: url.hostname,
-      port: parseInt(url.port, 10) || (url.protocol === 'https:' ? 443 : 80),
-      protocol: url.protocol === 'https:' ? 'https' : 'http',
-      email: '',
-    };
-  } catch {
-    return {
-      id: entry.id,
-      label: entry.label || 'Unknown',
-      host: 'localhost',
-      port: 4000,
-      protocol: 'http',
-      email: '',
-    };
+function isKnowledgeBase(entry: unknown): entry is KnowledgeBase {
+  if (!entry || typeof entry !== 'object') return false;
+  const e = entry as Record<string, unknown>;
+  if (typeof e.id !== 'string' || typeof e.label !== 'string' || typeof e.email !== 'string') {
+    return false;
   }
+  const ep = e.endpoint as Record<string, unknown> | undefined;
+  if (!ep || typeof ep !== 'object') return false;
+  if (ep.kind === 'http') {
+    return typeof ep.host === 'string'
+      && typeof ep.port === 'number'
+      && (ep.protocol === 'http' || ep.protocol === 'https');
+  }
+  if (ep.kind === 'local') {
+    return typeof ep.kbId === 'string';
+  }
+  return false;
 }
 
+/**
+ * Load the persisted KB list. Entries that don't conform to the current
+ * `KnowledgeBase` shape are dropped silently — the storage format has no
+ * back-compat layer (the project's stance on storage migrations: change
+ * the shape directly, no legacy fallbacks). Stale entries vanish; the
+ * user re-adds the affected KBs.
+ */
 export function loadKnowledgeBases(storage: SessionStorage): KnowledgeBase[] {
   try {
     const raw = storage.get(STORAGE_KEY);
     if (!raw) return [];
-    const entries = JSON.parse(raw) as any[];
-    return entries.map(migrateLegacyEntry);
+    const entries = JSON.parse(raw) as unknown[];
+    return entries.filter(isKnowledgeBase);
   } catch {
     return [];
   }
@@ -134,17 +135,24 @@ export function isValidHostname(host: string): boolean {
   return HOSTNAME_RE.test(host);
 }
 
-export function kbBackendUrl(kb: KnowledgeBase): string {
-  if (!isValidHostname(kb.host)) {
-    throw new Error(`Invalid KB hostname: "${kb.host}"`);
+/**
+ * Build the wire URL for an HTTP KB endpoint. HTTP-shaped helper —
+ * lives next to the KB list machinery because the frontend Panel needs
+ * it for the auth round-trip when adding a KB. Code that holds a
+ * uniform `KnowledgeBase` should not call this; it should hand the KB
+ * to a transport factory and let the factory inspect `endpoint.kind`.
+ */
+export function kbBackendUrl(endpoint: HttpEndpoint): string {
+  if (!isValidHostname(endpoint.host)) {
+    throw new Error(`Invalid KB hostname: "${endpoint.host}"`);
   }
   // Use URL property assignment so the parser normalises the hostname (e.g. lowercasing)
   // rather than blindly interpolating a user-supplied string.
   const url = new URL('http://x');
-  url.protocol = kb.protocol + ':';
-  url.hostname = kb.host;
-  url.port = String(kb.port);
-  return `${kb.protocol}://${url.hostname}:${kb.port}`;
+  url.protocol = endpoint.protocol + ':';
+  url.hostname = endpoint.host;
+  url.port = String(endpoint.port);
+  return `${endpoint.protocol}://${url.hostname}:${endpoint.port}`;
 }
 
 export function generateKbId(): string {

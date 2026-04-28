@@ -1,104 +1,105 @@
+/**
+ * createSmelterActorVM — unit tests.
+ *
+ * The VM takes a shared bus and attaches smelter-channel fan-in.
+ * We fake the bus with a minimal object that exposes the three
+ * methods the VM uses (`on$`, `emit`, `addChannels`) and drive
+ * events through RxJS subjects. No HTTP or SSE involved.
+ */
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
 import { createSmelterActorVM } from '../smelter-actor-vm';
+import type { WorkerBus } from '../../lib/worker-bus';
 
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+function fakeBus() {
+  const channels = new Set<string>();
+  const streams = new Map<string, Subject<any>>();
+  const emits: Array<{ channel: string; payload: any }> = [];
 
-function sseChunk(event: string, data: string): string {
-  return `event: ${event}\ndata: ${data}\n\n`;
-}
+  const getStream = (channel: string): Subject<any> => {
+    let s = streams.get(channel);
+    if (!s) {
+      s = new Subject();
+      streams.set(channel, s);
+    }
+    return s;
+  };
 
-function createSSEStream() {
-  let controller!: ReadableStreamDefaultController<Uint8Array>;
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(c) { controller = c; },
-  });
+  const bus: WorkerBus = {
+    addChannels: vi.fn((cs: readonly string[]) => {
+      cs.forEach((c) => channels.add(c));
+    }),
+    on$: vi.fn((channel: string) => getStream(channel).asObservable()),
+    emit: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+      emits.push({ channel, payload });
+    }),
+  };
+
   return {
-    stream,
-    push: (text: string) => controller.enqueue(encoder.encode(text)),
-    close: () => controller.close(),
+    bus,
+    channels,
+    pushEvent: (channel: string, payload: any) => getStream(channel).next(payload),
+    emits,
   };
 }
 
-function mockSSEResponse() {
-  const sse = createSSEStream();
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    body: sse.stream,
-  });
-  return sse;
-}
-
 describe('createSmelterActorVM', () => {
+  let h: ReturnType<typeof fakeBus>;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    h = fakeBus();
   });
 
-  it('subscribes to all 6 smelter-relevant event channels', async () => {
-    mockSSEResponse();
-
-    const vm = createSmelterActorVM({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-    });
-
+  it('extends the shared bus with all 6 smelter channels on start', () => {
+    const vm = createSmelterActorVM({ bus: h.bus });
     vm.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain('channel=yield%3Acreated');
-    expect(url).toContain('channel=yield%3Aupdated');
-    expect(url).toContain('channel=yield%3Arepresentation-added');
-    expect(url).toContain('channel=mark%3Aarchived');
-    expect(url).toContain('channel=mark%3Aadded');
-    expect(url).toContain('channel=mark%3Aremoved');
+    expect(h.channels.has('yield:created')).toBe(true);
+    expect(h.channels.has('yield:updated')).toBe(true);
+    expect(h.channels.has('yield:representation-added')).toBe(true);
+    expect(h.channels.has('mark:archived')).toBe(true);
+    expect(h.channels.has('mark:added')).toBe(true);
+    expect(h.channels.has('mark:removed')).toBe(true);
 
     vm.dispose();
   });
 
   it('events$ merges all channels into typed SmelterEvents', async () => {
-    const sse = mockSSEResponse();
-
-    const vm = createSmelterActorVM({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-    });
-
+    const vm = createSmelterActorVM({ bus: h.bus });
     vm.start();
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     const collected = firstValueFrom(vm.events$.pipe(take(2), toArray()));
 
-    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'yield:created', payload: { resourceId: 'r-1', storageUri: '/a/b' } })));
-    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'mark:added', payload: { resourceId: 'r-1', annotation: { id: 'a-1' } } })));
+    h.pushEvent('yield:created', { resourceId: 'r-1', storageUri: '/a/b' });
+    h.pushEvent('mark:added', { resourceId: 'r-1', annotation: { id: 'a-1' } });
 
     const events = await collected;
     expect(events).toHaveLength(2);
-    expect(events[0].type).toBe('yield:created');
-    expect(events[0].resourceId).toBe('r-1');
-    expect(events[1].type).toBe('mark:added');
+    expect(events[0]!.type).toBe('yield:created');
+    expect(events[0]!.resourceId).toBe('r-1');
+    expect(events[1]!.type).toBe('mark:added');
 
     vm.dispose();
   });
 
-  it('emit delegates to ActorVM', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true });
-
-    const vm = createSmelterActorVM({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-    });
-
+  it('emit delegates to the bus', async () => {
+    const vm = createSmelterActorVM({ bus: h.bus });
     await vm.emit('smelter:indexed', { resourceId: 'r-1' });
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4000/bus/emit',
-      expect.objectContaining({ method: 'POST' }),
-    );
+    expect(h.emits).toEqual([
+      { channel: 'smelter:indexed', payload: { resourceId: 'r-1' } },
+    ]);
+
+    vm.dispose();
+  });
+
+  it('start() is idempotent', () => {
+    const vm = createSmelterActorVM({ bus: h.bus });
+    vm.start();
+    vm.start();
+    expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
 
     vm.dispose();
   });

@@ -378,11 +378,11 @@ export class SemiontSession {
 
   /**
    * Async factory for the credentials-first long-running script case.
-   * Builds the transport stack, calls `auth.password(email, password)`
-   * to acquire access + refresh tokens, persists them via the storage
-   * adapter, wires a default `refresh` callback that exchanges the
-   * refresh token via `auth.refresh(...)`, and returns the ready
-   * session.
+   * Builds the HTTP transport stack, calls `auth.password(email,
+   * password)` to acquire access + refresh tokens, persists them via
+   * the storage adapter, wires a default `refresh` callback that
+   * exchanges the refresh token via `auth.refresh(...)`, and returns
+   * the ready session.
    *
    * The consumer-supplied `refresh` callback becomes optional — only
    * needed for non-standard refresh flows (worker-pool shared secret,
@@ -395,10 +395,16 @@ export class SemiontSession {
    * trampling each other's tokens. The factory does not synthesize a
    * default; the consumer makes the choice.
    *
+   * Named `signInHttp` because email+password authentication is
+   * inherently an HTTP-shaped operation in the current backend; an
+   * in-process `LocalTransport` doesn't have a credentials login
+   * path. Non-HTTP transports construct the session directly from
+   * their package's transport instance.
+   *
    * Throws on auth failure with no resources leaked. On success, the
    * returned session's `ready` promise has already resolved.
    */
-  static async signIn(opts: {
+  static async signInHttp(opts: {
     kb: KnowledgeBase;
     storage: SessionStorage;
     baseUrl: BaseUrl | string;

@@ -1,18 +1,18 @@
 /**
  * createJobClaimAdapter — unit tests.
  *
- * The adapter takes a shared ActorVM and attaches job-claim
- * behaviour. We fake the actor with a minimal object that exposes
- * the three methods the adapter uses (`on$`, `emit`, `addChannels`)
- * and drive events through RxJS subjects. No HTTP or SSE involved.
+ * The adapter takes a shared bus and attaches job-claim behaviour.
+ * We fake the bus with a minimal object that exposes the three
+ * methods the adapter uses (`on$`, `emit`, `addChannels`) and drive
+ * events through RxJS subjects. No HTTP or SSE involved.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Subject, firstValueFrom, skip, take } from 'rxjs';
-import type { ActorVM } from '@semiont/api-client';
 import { createJobClaimAdapter } from '../job-claim-adapter';
+import type { WorkerBus } from '../../lib/worker-bus';
 
-function fakeActor() {
+function fakeBus() {
   const channels = new Set<string>();
   const streams = new Map<string, Subject<any>>();
   const emits: Array<{ channel: string; payload: any }> = [];
@@ -26,7 +26,7 @@ function fakeActor() {
     return s;
   };
 
-  const actor: Partial<ActorVM> = {
+  const bus: WorkerBus = {
     addChannels: vi.fn((cs: readonly string[]) => {
       cs.forEach((c) => channels.add(c));
     }),
@@ -37,7 +37,7 @@ function fakeActor() {
   };
 
   return {
-    actor: actor as ActorVM,
+    bus,
     channels,
     pushEvent: (channel: string, payload: any) => getStream(channel).next(payload),
     emits,
@@ -45,14 +45,14 @@ function fakeActor() {
 }
 
 describe('createJobClaimAdapter', () => {
-  let h: ReturnType<typeof fakeActor>;
+  let h: ReturnType<typeof fakeBus>;
 
   beforeEach(() => {
-    h = fakeActor();
+    h = fakeBus();
   });
 
   it('ignores job:queued events of the wrong type', async () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: ['generation'] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
     adapter.start();
 
     h.pushEvent('job:queued', { jobId: 'j1', jobType: 'other', resourceId: 'r1' });
@@ -65,17 +65,17 @@ describe('createJobClaimAdapter', () => {
   });
 
   it('adds job:queued to the shared actor on start()', () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: [] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
     expect(h.channels.has('job:queued')).toBe(true);
-    expect(h.actor.addChannels).toHaveBeenCalledWith(['job:queued']);
+    expect(h.bus.addChannels).toHaveBeenCalledWith(['job:queued']);
 
     adapter.dispose();
   });
 
   it('claims matching jobs and emits job:claim with a correlationId', async () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: ['generation'] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
     adapter.start();
 
     h.pushEvent('job:queued', { jobId: 'j1', jobType: 'generation', resourceId: 'r1' });
@@ -100,7 +100,7 @@ describe('createJobClaimAdapter', () => {
   });
 
   it('returns isProcessing$ to false when claim fails', async () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: [] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
     h.pushEvent('job:queued', { jobId: 'j2', jobType: 'generation', resourceId: 'r1' });
@@ -116,7 +116,7 @@ describe('createJobClaimAdapter', () => {
   });
 
   it('completeJob increments jobsCompleted$ and clears activeJob$', async () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: [] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
     h.pushEvent('job:queued', { jobId: 'j3', jobType: 'generation', resourceId: 'r1' });
@@ -136,7 +136,7 @@ describe('createJobClaimAdapter', () => {
   });
 
   it('failJob emits on errors$ and clears activeJob$', async () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: [] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
     const errorPromise = firstValueFrom(adapter.errors$);
@@ -149,16 +149,16 @@ describe('createJobClaimAdapter', () => {
   });
 
   it('start() is idempotent', () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: [] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
     adapter.start();
-    expect(h.actor.addChannels).toHaveBeenCalledTimes(1);
+    expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
 
     adapter.dispose();
   });
 
   it('dispose completes all observables', () => {
-    const adapter = createJobClaimAdapter({ actor: h.actor, jobTypes: [] });
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
 
     const flags = { active: false, proc: false, done: false, errs: false };
     adapter.activeJob$.subscribe({ complete: () => { flags.active = true; } });

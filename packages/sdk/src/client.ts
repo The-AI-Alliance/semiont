@@ -136,9 +136,10 @@ export class SemiontClient {
    * Use this for one-shot scripts, CLI commands, or any consumer that
    * doesn't need to drive the token from outside (no manual refresh,
    * no cross-tab sync). For long-running scripts that need refresh,
-   * use `SemiontSession.fromHttp(...)` instead — it owns the same
-   * transport/client wiring plus the proactive-refresh + storage
-   * machinery.
+   * use `SemiontSession.fromHttp(...)` (with a token already on hand)
+   * or `SemiontSession.signInHttp(...)` (credentials-first) instead —
+   * either owns the same transport/client wiring plus the
+   * proactive-refresh + storage machinery.
    *
    * Strings are accepted for `baseUrl` and `token`; they are branded
    * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.
@@ -162,9 +163,9 @@ export class SemiontClient {
 
   /**
    * Async factory for the credentials-first script case. Builds a
-   * transient transport, calls `auth.password(email, password)` to
-   * acquire an access token, and returns the wired client with the
-   * token populated.
+   * transient HTTP transport, calls `auth.password(email, password)`
+   * to acquire an access token, and returns the wired client with
+   * the token populated.
    *
    * This is the right entry point for skills, CLI scripts, and any
    * consumer that starts with email + password rather than a JWT
@@ -173,13 +174,19 @@ export class SemiontClient {
    * `fromHttp({ baseUrl, token })` instead.
    *
    * For long-running scripts that need refresh, use
-   * `SemiontSession.signIn(...)` — same credentials shape, plus the
-   * session machinery for proactive refresh and persistence.
+   * `SemiontSession.signInHttp(...)` — same credentials shape, plus
+   * the session machinery for proactive refresh and persistence.
+   *
+   * Named `signInHttp` because email+password authentication is
+   * inherently an HTTP-shaped operation in the current backend; an
+   * in-process `LocalTransport` doesn't have a credentials login
+   * path. Non-HTTP transports construct the client directly from
+   * their package's transport instance.
    *
    * Throws if authentication fails. The transient client is disposed
    * before the throw, so no resources leak on failure.
    */
-  static async signIn(opts: {
+  static async signInHttp(opts: {
     baseUrl: BaseUrl | string;
     email: string;
     password: string;

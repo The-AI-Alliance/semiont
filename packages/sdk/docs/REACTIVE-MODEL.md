@@ -85,7 +85,7 @@ Plain `Observable<T>` does not appear on the public verb-namespace surface. (It 
 ```ts
 import { SemiontClient } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signIn({ baseUrl, email, password });
+const semiont = await SemiontClient.signInHttp({ baseUrl, email, password });
 
 // 1. Just want the value? await.
 const resource = await semiont.browse.resource(rId);

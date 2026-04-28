@@ -16,6 +16,10 @@
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { createSmelterActorVM, type SmelterActorVM } from '@semiont/sdk';
+import { HttpTransport } from '@semiont/api-client';
+import { baseUrl as makeBaseUrl, accessToken as makeAccessToken } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
+import type { AccessToken } from '@semiont/core';
 import { burstBuffer, createTomlConfigLoader } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
@@ -359,9 +363,13 @@ async function main() {
   });
   logger.info('Vector store ready', { host: qdrantHost, port: qdrantPort, dimensions });
 
+  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(authToken));
+  const httpTransport = new HttpTransport({
+    baseUrl: makeBaseUrl(baseUrl),
+    token$: tokenSubject,
+  });
   const actorVM: SmelterActorVM = createSmelterActorVM({
-    baseUrl,
-    token: authToken,
+    bus: httpTransport.actor,
   });
 
   const eventSubject = new Subject<SmelterEvent>();
@@ -411,6 +419,7 @@ async function main() {
   const shutdown = () => {
     logger.info('Shutting down');
     actorVM.dispose();
+    httpTransport.dispose();
     pipelineSubscription.unsubscribe();
     eventSubject.complete();
     health.close();

@@ -5,11 +5,18 @@
  * per-tab session layer, every view-model, and the supporting helpers
  * (`bus-request`, `cache`).
  *
- * Transport-agnostic: `SemiontClient` consumes the `ITransport` contract
- * defined in `@semiont/core`. The HTTP adapters (`HttpTransport`,
- * `HttpContentTransport`) are re-exported from here for convenience —
- * non-HTTP transports (e.g. `LocalTransport` from `@semiont/make-meaning`)
- * are wired by the caller.
+ * Transport-agnostic: `SemiontClient` consumes the `ITransport` /
+ * `IContentTransport` contracts from `@semiont/core`. The HTTP adapters
+ * (`HttpTransport`, `HttpContentTransport`) are re-exported here for
+ * convenience so the common case is a single import; non-HTTP transports
+ * (e.g. `LocalTransport` from `@semiont/make-meaning`) are constructed
+ * by the caller from their own package.
+ *
+ * Transport-specific error classes (`APIError` from `@semiont/api-client`)
+ * are NOT re-exported. Catch on `SemiontError` (exported below) and route
+ * on `err.code`; reach for the transport-specific class only when you're
+ * already in HTTP-aware code and import it from `@semiont/api-client`
+ * directly.
  *
  * ```ts
  * import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
@@ -88,15 +95,12 @@ export {
   SemiontError,
 } from '@semiont/core';
 
-// `APIError` is thrown by the HTTP transport (`@semiont/api-client`).
-// Re-exported here so consumers don't need a third package import to
-// catch on it.
-export { APIError, type APIErrorCode } from '@semiont/api-client';
-
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
 export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
+export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
+export { createHttpSessionFactory } from './session/http-session-factory';
 export { SessionSignals } from './session/session-signals';
 export { SemiontSessionError, type SemiontSessionErrorCode } from './session/errors';
 export { getBrowser, type GetBrowserOptions } from './session/registry';
@@ -106,6 +110,9 @@ export {
 } from './session/session-storage';
 export {
   type KnowledgeBase,
+  type KbEndpoint,
+  type HttpEndpoint,
+  type LocalEndpoint,
   type NewKnowledgeBase,
   type KbSessionStatus,
 } from './session/knowledge-base';

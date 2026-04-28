@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createShellVM } from '../shell-vm';
 import { SemiontBrowser } from '../../../session/semiont-browser';
+import { createHttpSessionFactory } from '../../../session/http-session-factory';
 import { InMemorySessionStorage } from '../../../session/session-storage';
 
 /**
@@ -11,7 +12,12 @@ import { InMemorySessionStorage } from '../../../session/session-storage';
 describe('createShellVM', () => {
   let browser: SemiontBrowser;
 
-  beforeEach(() => { browser = new SemiontBrowser({ storage: new InMemorySessionStorage() }); });
+  beforeEach(() => {
+    browser = new SemiontBrowser({
+      storage: new InMemorySessionStorage(),
+      sessionFactory: createHttpSessionFactory(),
+    });
+  });
   afterEach(async () => { await browser.dispose(); });
 
   it('starts with the given initial panel', () => {

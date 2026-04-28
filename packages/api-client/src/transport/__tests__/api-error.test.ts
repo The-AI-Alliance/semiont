@@ -7,24 +7,24 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { SemiontError } from '@semiont/core';
+import { SemiontError, type TransportErrorCode } from '@semiont/core';
 
-import { APIError, type APIErrorCode } from '../http-transport';
+import { APIError } from '../http-transport';
 
 describe('APIError', () => {
   describe('classifyApiCode (via constructor)', () => {
-    const cases: Array<[number, APIErrorCode]> = [
-      [400, 'api.bad-request'],
-      [401, 'api.unauthorized'],
-      [403, 'api.forbidden'],
-      [404, 'api.not-found'],
-      [409, 'api.conflict'],
-      [500, 'api.server-error'],
-      [502, 'api.server-error'],
-      [503, 'api.server-error'],
-      [504, 'api.server-error'],
-      [418, 'api.error'], // not specifically classified
-      [429, 'api.error'],
+    const cases: Array<[number, TransportErrorCode]> = [
+      [400, 'bad-request'],
+      [401, 'unauthorized'],
+      [403, 'forbidden'],
+      [404, 'not-found'],
+      [409, 'conflict'],
+      [500, 'unavailable'],
+      [502, 'unavailable'],
+      [503, 'unavailable'],
+      [504, 'unavailable'],
+      [418, 'error'], // not specifically classified
+      [429, 'error'],
     ];
 
     it.each(cases)('status %d maps to %s', (status, expectedCode) => {
@@ -83,7 +83,7 @@ describe('APIError', () => {
         throw new APIError('m', 403, 'Forbidden');
       } catch (err) {
         if (!(err instanceof SemiontError)) throw err;
-        expect(err.code).toBe('api.forbidden');
+        expect(err.code).toBe('forbidden');
       }
     });
   });

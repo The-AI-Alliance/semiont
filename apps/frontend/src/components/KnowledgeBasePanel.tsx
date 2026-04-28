@@ -189,7 +189,9 @@ export function KnowledgeBasePanel() {
   const handleAdd = async (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => {
     setAddError(null);
     setAddSubmitting(true);
-    const existing = knowledgeBases.find(kb => kb.host === host && kb.port === port);
+    const existing = knowledgeBases.find(
+      kb => kb.endpoint.kind === 'http' && kb.endpoint.host === host && kb.endpoint.port === port,
+    );
     if (existing) {
       try {
         const { token, refreshToken, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
@@ -205,7 +207,16 @@ export function KnowledgeBasePanel() {
     }
     try {
       const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
-      addKnowledgeBase({ label, host, port, protocol, email, ...(gitBranch ? { gitBranch } : {}) }, token, refreshToken);
+      addKnowledgeBase(
+        {
+          label,
+          email,
+          endpoint: { kind: 'http', host, port, protocol },
+          ...(gitBranch ? { gitBranch } : {}),
+        },
+        token,
+        refreshToken,
+      );
       setShowAddForm(false);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
@@ -219,8 +230,15 @@ export function KnowledgeBasePanel() {
     if (!kb) return;
     setReauthError(null);
     setReauthSubmitting(true);
+    if (kb.endpoint.kind !== 'http') {
+      setReauthError(`Re-auth is HTTP-only; KB endpoint kind "${kb.endpoint.kind}" is not supported here.`);
+      setReauthSubmitting(false);
+      return;
+    }
     try {
-      const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(kb.host, kb.port, kb.protocol, kb.email, password);
+      const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(
+        kb.endpoint.host, kb.endpoint.port, kb.endpoint.protocol, kb.email, password,
+      );
       updateKnowledgeBase(kbId, { label, ...(gitBranch ? { gitBranch } : {}) });
       signIn(kbId, token, refreshToken);
       setReauthKbId(null);
@@ -288,7 +306,10 @@ export function KnowledgeBasePanel() {
                     </button>
                   </div>
                   <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
-                    {kb.host}:{kb.port}{kb.gitBranch ? ` · ${kb.gitBranch}` : ''}
+                    {kb.endpoint.kind === 'http'
+                      ? `${kb.endpoint.host}:${kb.endpoint.port}`
+                      : `local:${kb.endpoint.kbId}`}
+                    {kb.gitBranch ? ` · ${kb.gitBranch}` : ''}
                   </span>
                 </div>
                 {confirmRemoveKbId === kb.id && (

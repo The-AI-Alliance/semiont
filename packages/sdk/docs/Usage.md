@@ -21,14 +21,14 @@
 
 There are four idiomatic construction shapes, by audience:
 
-### One-shot scripts with credentials: `SemiontClient.signIn(...)`
+### One-shot scripts with credentials: `SemiontClient.signInHttp(...)`
 
 The credentials-first one-line construction. Calls `auth.password(email, password)` and returns a wired-up client with the access token populated.
 
 ```typescript
 import { SemiontClient } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signIn({
+const semiont = await SemiontClient.signInHttp({
   baseUrl: 'http://localhost:4000',
   email: 'me@example.com',
   password: 'pwd',
@@ -41,7 +41,7 @@ semiont.dispose();
 
 This is the right entry point for skills, CLI scripts, and any consumer that starts with email + password rather than a JWT already on hand. Throws on auth failure with no resources leaked.
 
-### Long-running scripts with credentials: `SemiontSession.signIn(...)`
+### Long-running scripts with credentials: `SemiontSession.signInHttp(...)`
 
 Same credentials shape, plus the session machinery: proactive refresh (using the refresh token returned by `auth.password`, automatically wired), validation, storage persistence, lifecycle observables.
 
@@ -59,7 +59,7 @@ const kb: KnowledgeBase = {
   email: 'me@example.com',
 };
 
-const session = await SemiontSession.signIn({
+const session = await SemiontSession.signInHttp({
   kb,
   storage: new InMemorySessionStorage(),
   baseUrl: 'http://localhost:4000',

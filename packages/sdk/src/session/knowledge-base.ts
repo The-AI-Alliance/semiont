@@ -1,17 +1,51 @@
 /**
- * KnowledgeBase — a connection to a Semiont backend instance.
+ * KnowledgeBase — a connection to a Semiont knowledge system.
  *
- * Each KB has its own JWT, its own API base URL, and its own session.
- * The user is "authenticated against KB X" — never globally authenticated.
+ * The KB type itself is uniform. The transport-shape variation lives in
+ * the nested `endpoint` field, which is a discriminated union:
+ *
+ *  - `endpoint.kind === 'http'`  — a remote backend reached over HTTP+SSE.
+ *                                  Carries `host`/`port`/`protocol`.
+ *  - `endpoint.kind === 'local'` — an in-process knowledge system reached
+ *                                  via `LocalTransport` from
+ *                                  `@semiont/make-meaning`. Carries an
+ *                                  opaque `kbId` identifying the local
+ *                                  instance to the host process.
+ *
+ * Code that doesn't know how to make a transport (`SemiontSession`,
+ * `SemiontBrowser`, the frontend KB list UI) treats `KnowledgeBase` as
+ * uniform and never inspects `endpoint`. Code that *does* construct
+ * transports (the transport-factory passed to `SemiontBrowser`,
+ * `kbBackendUrl` for HTTP URL construction) inspects `endpoint.kind`
+ * and dispatches.
+ *
+ * Each KB has its own session, its own credentials (where applicable),
+ * and its own JWT (HTTP only). The user is "authenticated against KB X" —
+ * never globally authenticated.
  */
+
+/** Fields shared by every KB regardless of endpoint kind. */
 export interface KnowledgeBase {
   id: string;
   label: string;
+  email: string;
+  gitBranch?: string;
+  endpoint: KbEndpoint;
+}
+
+export type KbEndpoint = HttpEndpoint | LocalEndpoint;
+
+export interface HttpEndpoint {
+  kind: 'http';
   host: string;
   port: number;
   protocol: 'http' | 'https';
-  email: string;
-  gitBranch?: string;
+}
+
+export interface LocalEndpoint {
+  kind: 'local';
+  /** Opaque identifier for the in-process KB instance the host has loaded. */
+  kbId: string;
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Tests for `SemiontSession.fromHttp(...)` and `SemiontSession.signIn(...)`.
+ * Tests for `SemiontSession.fromHttp(...)` and `SemiontSession.signInHttp(...)`.
  *
  * These exercise the factories' wiring — they construct a real
  * `SemiontClient` over a real `HttpTransport`, so we don't share the
@@ -10,7 +10,7 @@
  * `fromHttp` is structural: brand the inputs, build the transport stack,
  * thread the shared `token$`, return a wired session.
  *
- * `signIn` is the credentials-first path: auth round-trip → persist
+ * `signInHttp` is the credentials-first path: auth round-trip → persist
  * tokens → wire a default refresh that reads from storage at refresh
  * time → return the ready session. On auth failure, the transient
  * client is disposed before the error is rethrown.
@@ -37,10 +37,8 @@ function freshJwt(expSecondsFromNow = 3600): string {
 const KB = {
   id: 'kb-factory',
   label: 'Factory KB',
-  host: 'localhost',
-  port: 4000,
-  protocol: 'http' as const,
   email: 'me@example.com',
+  endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 
 let storage: TestStorage;
@@ -109,7 +107,7 @@ describe('SemiontSession.fromHttp', () => {
   });
 });
 
-describe('SemiontSession.signIn', () => {
+describe('SemiontSession.signInHttp', () => {
   test('runs auth.password, persists both tokens, and seeds token$', async () => {
     const accessJwt = freshJwt();
     const passwordSpy = vi
@@ -120,7 +118,7 @@ describe('SemiontSession.signIn', () => {
         user: { did: 'did:test:u' },
       } as never);
 
-    const session = await SemiontSession.signIn({
+    const session = await SemiontSession.signInHttp({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
@@ -160,7 +158,7 @@ describe('SemiontSession.signIn', () => {
       .spyOn(HttpTransport.prototype, 'refreshAccessToken')
       .mockResolvedValue({ access_token: newAccess } as never);
 
-    const session = await SemiontSession.signIn({
+    const session = await SemiontSession.signInHttp({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
@@ -189,7 +187,7 @@ describe('SemiontSession.signIn', () => {
       new Error('refresh down'),
     );
 
-    const session = await SemiontSession.signIn({
+    const session = await SemiontSession.signInHttp({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
@@ -213,7 +211,7 @@ describe('SemiontSession.signIn', () => {
     const before = disposeSpy.mock.calls.length;
 
     await expect(
-      SemiontSession.signIn({
+      SemiontSession.signInHttp({
         kb: KB,
         storage,
         baseUrl: 'http://test.local',
@@ -241,7 +239,7 @@ describe('SemiontSession.signIn', () => {
 
     const onAuthFailed = vi.fn();
     const onError = vi.fn();
-    const session = await SemiontSession.signIn({
+    const session = await SemiontSession.signInHttp({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',

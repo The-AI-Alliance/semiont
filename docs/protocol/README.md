@@ -56,14 +56,14 @@ semiont match doc-123 ann-456
 semiont bind doc-123 ann-456 target-789
 ```
 
-**[Semiont SDK](../../packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. `SemiontClient.signIn(...)` is the credentials-first one-line construction for scripts. Long-running scripts that span token expiry use `SemiontSession.signIn(...)` instead — same shape, plus refresh and persistence.
+**[Semiont SDK](../../packages/sdk/README.md)** — type-safe TypeScript SDK organized by the seven verbs. `SemiontClient.signInHttp(...)` is the credentials-first one-line construction for scripts. Long-running scripts that span token expiry use `SemiontSession.signInHttp(...)` instead — same shape, plus refresh and persistence.
 
 The SDK is RxJS-native — live queries and progress streams are real Observables — but its return values implement `PromiseLike<T>`, so `await semiont.X.Y(...)` works directly without learning RxJS. Reach for `.subscribe(...)` only when you want progress events or live updates, and `.pipe(...)` only when you want operator composition. The deeper guides live alongside the package: **[Usage.md](../../packages/sdk/docs/Usage.md)** is the per-namespace tour, **[REACTIVE-MODEL.md](../../packages/sdk/docs/REACTIVE-MODEL.md)** explains the Promise-shape-over-Observable design, and **[CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md)** is the live-query cache contract.
 
 ```typescript
 import { SemiontClient } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signIn({ baseUrl: 'http://localhost:4000', email, password });
+const semiont = await SemiontClient.signInHttp({ baseUrl: 'http://localhost:4000', email, password });
 
 await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
 const context = await semiont.gather.annotation(annId, resourceId);
