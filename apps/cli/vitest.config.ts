@@ -11,7 +11,9 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['src/**/*.test.ts'],
-    exclude: ['node_modules', 'dist'],
+    // Integration tests (requiring real DB / Prisma client / external services)
+    // are kept out of the default suite. Run them via `npm run test:integration`.
+    exclude: ['node_modules', 'dist', 'src/**/*.integration.test.ts'],
     // No setupFiles - let each test type handle its own setup
     // Unit tests use mocks, integration tests use setup-env.ts
     clearMocks: true,

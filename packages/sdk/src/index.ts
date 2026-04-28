@@ -27,14 +27,13 @@ export * from './client';
 // results directly without `lastValueFrom`/`firstValueFrom` wrappers.
 export { StreamObservable, CacheObservable } from './awaitable';
 
-// Bus-request helper + cache primitive.
+// Bus-request helper.
 export {
   busRequest,
   BusRequestError,
   type BusRequestErrorCode,
   type BusRequestPrimitive,
 } from './bus-request';
-export { createCache, type Cache } from './cache';
 
 // Verb-oriented namespace API.
 export { BrowseNamespace } from './namespaces/browse';

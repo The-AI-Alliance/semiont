@@ -2,31 +2,31 @@
  * Mark Command Tests
  *
  * Tests schema validation (manual/delegate modes) and command result shape.
- * Mocks createAuthenticatedClient to avoid network I/O.
+ * Mocks loadCachedClient to avoid network I/O. The mocked SemiontClient
+ * exposes the namespace API (semiont.mark.annotation, semiont.mark.assist).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { of, throwError } from 'rxjs';
 import { MarkOptionsSchema, runMark, type MarkOptions } from '../mark.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { mockMarkAnnotation, mockSse, mockLoadCachedClient } = vi.hoisted(() => {
-  const mockMarkAnnotation = vi.fn();
-  const mockSse = {
-    markHighlights: vi.fn(),
-    markAssessments: vi.fn(),
-    markComments: vi.fn(),
-    markReferences: vi.fn(),
-    markTags: vi.fn(),
+const { mockMark, mockLoadCachedClient } = vi.hoisted(() => {
+  const mockMark = {
+    annotation: vi.fn(),
+    assist: vi.fn(),
   };
   const mockLoadCachedClient = vi.fn();
-  return { mockMarkAnnotation, mockSse, mockLoadCachedClient };
+  return { mockMark, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
   resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
   loadCachedClient: mockLoadCachedClient,
 }));
+
+const semiontStub = { mark: mockMark };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -181,117 +181,108 @@ describe('MarkOptionsSchema', () => {
 describe('runMark', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockMarkAnnotation.mockResolvedValue({ annotationId: 'urn:semiont:annotation:new-1' });
-    mockLoadCachedClient.mockReturnValue({
-      semiont: { mark: { annotation: mockMarkAnnotation }, sse: mockSse },
-      token: 'mock-token',
-    });
-    // SSE mocks do NOT resolve — delegate tests fire-and-forget then manually emit events
+    mockMark.annotation.mockResolvedValue({ annotationId: 'urn:semiont:annotation:new-1' });
+    mockLoadCachedClient.mockReturnValue({ semiont: semiontStub, token: 'mock-token' });
   });
 
   it('returns CommandResults with command=mark for manual mode', async () => {
-const result = await runMark(makeManualOptions());
+    const result = await runMark(makeManualOptions());
     expect(result.command).toBe('mark');
     expect(result.summary.succeeded).toBe(1);
     expect(result.results[0]?.entity).toBe('urn:semiont:resource:doc-1');
     expect(result.results[0]?.metadata?.annotationId).toBe('urn:semiont:annotation:new-1');
   });
 
-  it('calls markAnnotation with motivation in manual mode', async () => {
-await runMark(makeManualOptions({ motivation: 'commenting', bodyText: 'nice' }));
-    expect(mockMarkAnnotation).toHaveBeenCalledWith(
+  it('calls mark.annotation with motivation in manual mode', async () => {
+    await runMark(makeManualOptions({ motivation: 'commenting', bodyText: 'nice' }));
+    expect(mockMark.annotation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ motivation: 'commenting' }),
     );
   });
 
   it('builds TextQuoteSelector from --quote', async () => {
-await runMark(makeManualOptions({ quote: 'important phrase' }));
-    const [, req] = mockMarkAnnotation.mock.calls[0];
+    await runMark(makeManualOptions({ quote: 'important phrase' }));
+    const [, req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'TextQuoteSelector', exact: 'important phrase' });
   });
 
   it('builds TextPositionSelector from --start/--end', async () => {
-await runMark(makeManualOptions({ quote: undefined, start: 10, end: 25 }));
-    const [, req] = mockMarkAnnotation.mock.calls[0];
+    await runMark(makeManualOptions({ quote: undefined, start: 10, end: 25 }));
+    const [, req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'TextPositionSelector', start: 10, end: 25 });
   });
 
   it('builds SvgSelector from --svg', async () => {
-await runMark(makeManualOptions({ quote: undefined, svg: '<circle r="5"/>' }));
-    const [, req] = mockMarkAnnotation.mock.calls[0];
+    await runMark(makeManualOptions({ quote: undefined, svg: '<circle r="5"/>' }));
+    const [, req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'SvgSelector', value: '<circle r="5"/>' });
   });
 
   it('builds FragmentSelector from --fragment', async () => {
-await runMark(makeManualOptions({ quote: undefined, fragment: 't=10,20' }));
-    const [, req] = mockMarkAnnotation.mock.calls[0];
+    await runMark(makeManualOptions({ quote: undefined, fragment: 't=10,20' }));
+    const [, req] = mockMark.annotation.mock.calls[0];
     expect(req.target.selector).toMatchObject({ type: 'FragmentSelector', value: 't=10,20' });
   });
 
   it('throws when multiple selector types are combined', async () => {
-await expect(
+    await expect(
       runMark(makeManualOptions({ quote: 'text', svg: '<circle/>' }))
     ).rejects.toThrow();
   });
 
   it('includes TextualBody when --body-text provided', async () => {
-await runMark(makeManualOptions({ bodyText: 'my comment' }));
-    const [, req] = mockMarkAnnotation.mock.calls[0];
+    await runMark(makeManualOptions({ bodyText: 'my comment' }));
+    const [, req] = mockMark.annotation.mock.calls[0];
     expect(JSON.stringify(req.body)).toContain('my comment');
   });
 
   it('includes SpecificResource body when --link provided', async () => {
-await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
-    const [, req] = mockMarkAnnotation.mock.calls[0];
+    await runMark(makeManualOptions({ link: ['urn:semiont:resource:other'] }));
+    const [, req] = mockMark.annotation.mock.calls[0];
     const body = Array.isArray(req.body) ? req.body : [req.body];
     expect(body.some((b: any) => b.type === 'SpecificResource')).toBe(true);
   });
 
   describe('delegate mode', () => {
-    it('calls markHighlights for highlighting motivation', async () => {
-      // Intercept markHighlights and emit the finish event on the eventBus
-      mockSse.markHighlights.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
-        queueMicrotask(() => {
-          eventBus.get('job:complete').next({
-            jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'highlight-annotation',
-            result: { highlightsFound: 3, highlightsCreated: 3 },
-          });
-        });
-      });
+    it('calls mark.assist with highlighting motivation', async () => {
+      mockMark.assist.mockReturnValueOnce(of({
+        kind: 'complete',
+        data: {
+          jobId: 'j1',
+          resourceId: 'res-1',
+          jobType: 'highlight-annotation',
+          result: { highlightsFound: 3, highlightsCreated: 3 },
+        },
+      }));
 
-    const result = await runMark(makeDelegateOptions({ motivation: 'highlighting' }));
-      expect(mockSse.markHighlights).toHaveBeenCalledOnce();
+      const result = await runMark(makeDelegateOptions({ motivation: 'highlighting' }));
+      expect(mockMark.assist).toHaveBeenCalledOnce();
+      expect(mockMark.assist.mock.calls[0][1]).toBe('highlighting');
       expect(result.command).toBe('mark');
       expect(result.results[0]?.metadata?.motivation).toBe('highlighting');
     });
 
-    it('calls markReferences for linking motivation', async () => {
-      mockSse.markReferences.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
-        queueMicrotask(() => {
-          eventBus.get('job:complete').next({
-            jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
-            result: { totalFound: 5, totalEmitted: 5, errors: 0 },
-          });
-        });
-      });
+    it('calls mark.assist with linking motivation', async () => {
+      mockMark.assist.mockReturnValueOnce(of({
+        kind: 'complete',
+        data: {
+          jobId: 'j1',
+          resourceId: 'res-1',
+          jobType: 'reference-annotation',
+          result: { totalFound: 5, totalEmitted: 5, errors: 0 },
+        },
+      }));
 
-    const result = await runMark(makeDelegateOptions({ motivation: 'linking', entityType: ['Person'] }));
-      expect(mockSse.markReferences).toHaveBeenCalledOnce();
+      const result = await runMark(makeDelegateOptions({ motivation: 'linking', entityType: ['Person'] }));
+      expect(mockMark.assist).toHaveBeenCalledOnce();
+      expect(mockMark.assist.mock.calls[0][1]).toBe('linking');
       expect(result.results[0]?.metadata?.motivation).toBe('linking');
     });
 
-    it('rejects when job:fail fires', async () => {
-      mockSse.markHighlights.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
-        queueMicrotask(() => {
-          eventBus.get('job:fail').next({
-            jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'highlight-annotation',
-            error: 'AI service down',
-          });
-        });
-      });
-
-    await expect(runMark(makeDelegateOptions({ motivation: 'highlighting' }))).rejects.toThrow('AI service down');
+    it('rejects when mark.assist errors', async () => {
+      mockMark.assist.mockReturnValueOnce(throwError(() => new Error('AI service down')));
+      await expect(runMark(makeDelegateOptions({ motivation: 'highlighting' }))).rejects.toThrow('AI service down');
     });
   });
 });

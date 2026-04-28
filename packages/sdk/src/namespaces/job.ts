@@ -67,12 +67,10 @@ export class JobNamespace implements IJobNamespace {
     }
   }
 
-  async cancel(_jobId: JobId, type: string): Promise<void> {
-    // Schema only carries jobType (cancels all pending jobs of that type).
-    // The legacy per-job cancel was never wired on the backend.
-    await this.transport.emit('job:cancel-requested', {
-      jobType: (type === 'generation' ? 'generation' : 'annotation') as 'annotation' | 'generation',
-    });
+  async cancelByType(jobType: 'annotation' | 'generation'): Promise<void> {
+    // The backend only supports cancel-by-type (cancels all pending jobs
+    // of that type). A per-job cancel was never wired.
+    await this.transport.emit('job:cancel-requested', { jobType });
   }
 
   cancelRequest(jobType: 'annotation' | 'generation'): void {

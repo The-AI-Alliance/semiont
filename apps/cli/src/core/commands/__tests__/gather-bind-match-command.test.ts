@@ -2,32 +2,44 @@
  * Gather, Bind, and Match Command Tests
  *
  * Tests schema validation and command result shapes.
- * Mocks createAuthenticatedClient to avoid network I/O.
- * SSE-based commands use queueMicrotask to simulate EventBus responses.
+ * Mocks loadCachedClient to avoid network I/O. The mocked SemiontClient
+ * exposes the namespace API (semiont.gather.*, semiont.bind.*, semiont.match.*)
+ * the production code consumes.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { of, throwError } from 'rxjs';
 import { GatherOptionsSchema, runGather, type GatherOptions } from '../gather.js';
 import { BindOptionsSchema, runBind, type BindOptions } from '../bind.js';
 import { MatchOptionsSchema, runMatch, type MatchOptions } from '../match.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { mockSse, mockLoadCachedClient } = vi.hoisted(() => {
-  const mockSse = {
-    gatherResource: vi.fn(),
-    gatherAnnotation: vi.fn(),
-    bindAnnotation: vi.fn(),
-    bindSearch: vi.fn(),
+const { mockGather, mockBind, mockMatch, mockLoadCachedClient } = vi.hoisted(() => {
+  const mockGather = {
+    resource: vi.fn(),
+    annotation: vi.fn(),
+  };
+  const mockBind = {
+    body: vi.fn(),
+  };
+  const mockMatch = {
+    search: vi.fn(),
   };
   const mockLoadCachedClient = vi.fn();
-  return { mockSse, mockLoadCachedClient };
+  return { mockGather, mockBind, mockMatch, mockLoadCachedClient };
 });
 
 vi.mock('../../api-client-factory.js', () => ({
   resolveBusUrl: vi.fn(() => 'http://localhost:4000'),
   loadCachedClient: mockLoadCachedClient,
 }));
+
+const semiontStub = {
+  gather: mockGather,
+  bind: mockBind,
+  match: mockMatch,
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,38 +143,32 @@ describe('runGather', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ semiont: { sse: mockSse }, token: 'mock-token' });
-    mockSse.gatherResource.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => eventBus.get('gather:finished').next({ context: mockContext }));
-    });
-    mockSse.gatherAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => eventBus.get('gather:annotation-finished').next({ annotationId: _aid, response: { context: mockAnnotationContext } }));
-    });
+    mockLoadCachedClient.mockReturnValue({ semiont: semiontStub, token: 'mock-token' });
+    mockGather.resource.mockResolvedValue(mockContext);
+    mockGather.annotation.mockReturnValue(of(mockAnnotationContext));
   });
 
   it('returns CommandResults with command=gather for resource subcommand', async () => {
-const result = await runGather(makeGatherOptions());
+    const result = await runGather(makeGatherOptions());
     expect(result.command).toBe('gather');
     expect(result.summary.succeeded).toBe(1);
-    expect(mockSse.gatherResource).toHaveBeenCalledOnce();
+    expect(mockGather.resource).toHaveBeenCalledOnce();
   });
 
   it('returns CommandResults with command=gather for annotation subcommand', async () => {
-const result = await runGather(makeGatherOptions({ args: ['annotation', 'urn:semiont:resource:doc-1', 'urn:semiont:annotation:ann-1'] }));
+    const result = await runGather(makeGatherOptions({ args: ['annotation', 'urn:semiont:resource:doc-1', 'urn:semiont:annotation:ann-1'] }));
     expect(result.command).toBe('gather');
-    expect(mockSse.gatherAnnotation).toHaveBeenCalledOnce();
+    expect(mockGather.annotation).toHaveBeenCalledOnce();
   });
 
   it('throws for unknown subcommand', async () => {
-await expect(runGather(makeGatherOptions({ args: ['thing', 'doc-1'] }))).rejects.toThrow('Unknown subcommand');
+    await expect(runGather(makeGatherOptions({ args: ['thing', 'doc-1'] }))).rejects.toThrow('Unknown subcommand');
   });
 
   it('rejects when gather:failed fires', async () => {
-    mockSse.gatherResource.mockReset();
-    mockSse.gatherResource.mockImplementationOnce((_id: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => eventBus.get('gather:failed').next({ message: 'Gather timed out' }));
-    });
-await expect(runGather(makeGatherOptions())).rejects.toThrow('Gather timed out');
+    mockGather.resource.mockReset();
+    mockGather.resource.mockRejectedValueOnce(new Error('Gather timed out'));
+    await expect(runGather(makeGatherOptions())).rejects.toThrow('Gather timed out');
   });
 });
 
@@ -196,36 +202,32 @@ describe('BindOptionsSchema', () => {
 describe('runBind', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ semiont: { sse: mockSse }, token: 'mock-token' });
-    mockSse.bindAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => eventBus.get('bind:finished').next({}));
-    });
+    mockLoadCachedClient.mockReturnValue({ semiont: semiontStub, token: 'mock-token' });
+    mockBind.body.mockResolvedValue(undefined);
   });
 
   it('returns CommandResults with command=bind', async () => {
-const result = await runBind(makeBindOptions());
+    const result = await runBind(makeBindOptions());
     expect(result.command).toBe('bind');
     expect(result.summary.succeeded).toBe(1);
-    expect(mockSse.bindAnnotation).toHaveBeenCalledOnce();
+    expect(mockBind.body).toHaveBeenCalledOnce();
   });
 
-  it('passes a SpecificResource operation to bindAnnotation', async () => {
-await runBind(makeBindOptions());
-    const [, , req] = mockSse.bindAnnotation.mock.calls[0];
-    expect(req.operations[0]).toMatchObject({ op: 'add', item: { type: 'SpecificResource', purpose: 'linking' } });
+  it('passes a SpecificResource operation to bind.body', async () => {
+    await runBind(makeBindOptions());
+    const [, , ops] = mockBind.body.mock.calls[0];
+    expect(ops[0]).toMatchObject({ op: 'add', item: { type: 'SpecificResource', purpose: 'linking' } });
   });
 
   it('records targetResourceId in result metadata', async () => {
-const result = await runBind(makeBindOptions());
+    const result = await runBind(makeBindOptions());
     expect(result.results[0]?.metadata?.targetResourceId).toBe('urn:semiont:resource:target');
   });
 
-  it('rejects when bind:failed fires', async () => {
-    mockSse.bindAnnotation.mockReset();
-    mockSse.bindAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => eventBus.get('bind:failed').next({ error: 'Target not found' }));
-    });
-await expect(runBind(makeBindOptions())).rejects.toThrow('Target not found');
+  it('rejects when bind.body fails', async () => {
+    mockBind.body.mockReset();
+    mockBind.body.mockRejectedValueOnce(new Error('Target not found'));
+    await expect(runBind(makeBindOptions())).rejects.toThrow('Target not found');
   });
 });
 
@@ -269,63 +271,41 @@ describe('runMatch', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCachedClient.mockReturnValue({ semiont: { sse: mockSse }, token: 'mock-token' });
-    // gatherAnnotation resolves with context
-    mockSse.gatherAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => {
-        eventBus.get('gather:annotation-finished').next({
-          annotationId: _aid,
-          response: {
-            context: {
-              annotation: {},
-              sourceResource: {},
-              sourceContext: { before: '', selected: 'Paris', after: '' },
-            },
-          },
-        });
-      });
-    });
-    // bindSearch resolves with results
-    mockSse.bindSearch.mockImplementationOnce((_rid: any, req: any, { eventBus }: any) => {
-      queueMicrotask(() => {
-        eventBus.get('match:search-results').next({
-          referenceId: req.referenceId,
-          results: mockResults,
-        });
-      });
-    });
+    mockLoadCachedClient.mockReturnValue({ semiont: semiontStub, token: 'mock-token' });
+    mockGather.annotation.mockReturnValue(of({
+      annotation: {},
+      sourceResource: {},
+      sourceContext: { before: '', selected: 'Paris', after: '' },
+    }));
+    mockMatch.search.mockReturnValue(of({ response: mockResults }));
   });
 
   it('returns CommandResults with command=match', async () => {
-const result = await runMatch(makeMatchOptions());
+    const result = await runMatch(makeMatchOptions());
     expect(result.command).toBe('match');
     expect(result.summary.succeeded).toBe(1);
   });
 
-  it('calls gatherAnnotation then bindSearch in sequence', async () => {
-await runMatch(makeMatchOptions());
-    expect(mockSse.gatherAnnotation).toHaveBeenCalledOnce();
-    expect(mockSse.bindSearch).toHaveBeenCalledOnce();
+  it('calls gather.annotation then match.search in sequence', async () => {
+    await runMatch(makeMatchOptions());
+    expect(mockGather.annotation).toHaveBeenCalledOnce();
+    expect(mockMatch.search).toHaveBeenCalledOnce();
   });
 
   it('records resultCount in result metadata', async () => {
-const result = await runMatch(makeMatchOptions());
+    const result = await runMatch(makeMatchOptions());
     expect(result.results[0]?.metadata?.resultCount).toBe(1);
   });
 
   it('applies userHint to the gathered context', async () => {
-await runMatch(makeMatchOptions({ userHint: 'look for Paris papers' }));
-    const [, req] = mockSse.bindSearch.mock.calls[0];
-    expect((req.context as any).userHint).toBe('look for Paris papers');
+    await runMatch(makeMatchOptions({ userHint: 'look for Paris papers' }));
+    const [, , ctx] = mockMatch.search.mock.calls[0];
+    expect((ctx as any).userHint).toBe('look for Paris papers');
   });
 
-  it('rejects when gather:failed fires', async () => {
-    mockSse.gatherAnnotation.mockReset();
-    mockSse.gatherAnnotation.mockImplementationOnce((_rid: any, _aid: any, _req: any, { eventBus }: any) => {
-      queueMicrotask(() => {
-        eventBus.get('gather:failed').next({ annotationId: _aid, message: 'Context unavailable' });
-      });
-    });
-await expect(runMatch(makeMatchOptions())).rejects.toThrow('Context unavailable');
+  it('rejects when gather.annotation errors', async () => {
+    mockGather.annotation.mockReset();
+    mockGather.annotation.mockReturnValueOnce(throwError(() => new Error('Context unavailable')));
+    await expect(runMatch(makeMatchOptions())).rejects.toThrow('Context unavailable');
   });
 });

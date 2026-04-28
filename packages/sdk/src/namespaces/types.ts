@@ -324,7 +324,7 @@ export interface MatchNamespace {
  */
 export interface YieldNamespace {
   // File upload (synchronous)
-  resource(data: CreateResourceInput): Promise<{ resourceId: string }>;
+  resource(data: CreateResourceInput): Promise<{ resourceId: ResourceId }>;
 
   // Generation from annotation (long-running, LLM-based — yields progress, then a final complete event)
   fromAnnotation(
@@ -336,7 +336,7 @@ export interface YieldNamespace {
   // Clone
   cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }>;
   fromToken(token: string): Promise<ResourceDescriptor>;
-  createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: string }>;
+  createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }>;
 
   /** UI signal: user invoked the clone action from the resource-info panel. */
   clone(): void;
@@ -372,7 +372,7 @@ export interface JobNamespace {
 
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
-  cancel(jobId: JobId, type: string): Promise<void>;
+  cancelByType(jobType: 'annotation' | 'generation'): Promise<void>;
 
   /** UI signal: cancel all active jobs of a given type (e.g. "annotation"). */
   cancelRequest(jobType: 'annotation' | 'generation'): void;

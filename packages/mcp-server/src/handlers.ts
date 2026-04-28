@@ -5,20 +5,18 @@
  * Returns MCP-shaped { content: [{ type: 'text', text }] }.
  */
 
-import { firstValueFrom, lastValueFrom } from 'rxjs';
-import { filter, tap } from 'rxjs/operators';
+import { lastValueFrom } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { getExactText, getBodySource } from '@semiont/core';
 import { SemiontClient } from '@semiont/sdk';
 import { resourceId, annotationId, type GatheredContext } from '@semiont/core';
 
 type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
-const defined = <T>(v: T | undefined): v is T => v !== undefined;
-
 // ── Browse ──────────────────────────────────────────────────────────────────
 
 export async function browseResource(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const data = await firstValueFrom(semiont.browse.resource(resourceId(args?.id)).pipe(filter(defined)));
+  const data = await semiont.browse.resource(resourceId(args?.id));
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
@@ -26,7 +24,7 @@ export async function browseResources(semiont: SemiontClient, args: any): Promis
   const filters: { limit?: number; archived?: boolean } = {};
   if (args?.limit !== undefined) filters.limit = args.limit;
   filters.archived = args?.archived ?? false;
-  const resources = await firstValueFrom(semiont.browse.resources(filters).pipe(filter(defined)));
+  const resources = await semiont.browse.resources(filters);
   return {
     content: [{
       type: 'text',
@@ -36,7 +34,7 @@ export async function browseResources(semiont: SemiontClient, args: any): Promis
 }
 
 export async function browseHighlights(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const annotations = await firstValueFrom(semiont.browse.annotations(resourceId(args?.resourceId)).pipe(filter(defined)));
+  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId));
   const highlights = annotations.filter(a => a.motivation === 'highlighting');
   return {
     content: [{
@@ -53,7 +51,7 @@ export async function browseHighlights(semiont: SemiontClient, args: any): Promi
 }
 
 export async function browseReferences(semiont: SemiontClient, args: any): Promise<McpResult> {
-  const annotations = await firstValueFrom(semiont.browse.annotations(resourceId(args?.resourceId)).pipe(filter(defined)));
+  const annotations = await semiont.browse.annotations(resourceId(args?.resourceId));
   const references = annotations.filter(a => a.motivation === 'linking');
   return {
     content: [{
@@ -138,9 +136,7 @@ export async function gatherAnnotation(semiont: SemiontClient, args: any): Promi
   const rId = resourceId(args?.resourceId);
   const aId = annotationId(args?.annotationId);
 
-  const context = await lastValueFrom(
-    semiont.gather.annotation(aId, rId, { contextWindow: args?.contextWindow ?? 2000 }),
-  );
+  const context = await semiont.gather.annotation(aId, rId, { contextWindow: args?.contextWindow ?? 2000 });
 
   return { content: [{ type: 'text', text: JSON.stringify(context, null, 2) }] };
 }
@@ -166,9 +162,7 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
   const aId = annotationId(args?.annotationId);
 
   // Step 1: gather context
-  const ctx = await lastValueFrom(
-    semiont.gather.annotation(aId, rId, { contextWindow: 2000 }),
-  ) as GatheredContext;
+  const ctx = (await semiont.gather.annotation(aId, rId, { contextWindow: 2000 })) as GatheredContext;
 
   // Step 2: generate. yield.fromAnnotation streams progress, then ends with
   // a `complete` event carrying the JobCompleteCommand (with `result`).

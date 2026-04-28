@@ -14,7 +14,7 @@ export class AdminNamespace implements IAdminNamespace {
 
   async users(): Promise<User[]> {
     const result = await this.transport.listUsers();
-    return (result as unknown as { users: User[] }).users;
+    return result.users;
   }
 
   async userStats(): Promise<AdminUserStatsResponse> {
@@ -22,8 +22,8 @@ export class AdminNamespace implements IAdminNamespace {
   }
 
   async updateUser(userId: UserDID, data: RequestContent<paths['/api/admin/users/{id}']['patch']>): Promise<User> {
-    const result = await this.transport.updateUser(userId, data as never);
-    return (result as unknown as { user: User }).user;
+    const result = await this.transport.updateUser(userId, data);
+    return result.user;
   }
 
   async oauthConfig(): Promise<OAuthConfigResponse> {
@@ -31,11 +31,11 @@ export class AdminNamespace implements IAdminNamespace {
   }
 
   async healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>> {
-    return this.transport.healthCheck() as unknown as Promise<ResponseContent<paths['/api/health']['get']>>;
+    return this.transport.healthCheck();
   }
 
   async status(): Promise<ResponseContent<paths['/api/status']['get']>> {
-    return this.transport.getStatus() as unknown as Promise<ResponseContent<paths['/api/status']['get']>>;
+    return this.transport.getStatus();
   }
 
   async backup(): Promise<Response> {

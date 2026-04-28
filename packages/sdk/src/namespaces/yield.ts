@@ -6,6 +6,7 @@ import type {
   EventBus,
   components,
 } from '@semiont/core';
+import { resourceId as toResourceId } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '../bus-request';
@@ -28,7 +29,7 @@ export class YieldNamespace implements IYieldNamespace {
     private readonly content: IContentTransport,
   ) {}
 
-  async resource(data: CreateResourceInput): Promise<{ resourceId: string }> {
+  async resource(data: CreateResourceInput): Promise<{ resourceId: ResourceId }> {
     const result = await this.content.putBinary({
       name: data.name,
       file: data.file,
@@ -43,7 +44,7 @@ export class YieldNamespace implements IYieldNamespace {
       ...(data.generator ? { generator: data.generator } : {}),
       ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
     });
-    return { resourceId: result.resourceId as string };
+    return { resourceId: toResourceId(result.resourceId as string) };
   }
 
   fromAnnotation(
@@ -190,14 +191,15 @@ export class YieldNamespace implements IYieldNamespace {
     return result.sourceResource as ResourceDescriptor;
   }
 
-  async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: string }> {
-    return busRequest<{ resourceId: string }>(
+  async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }> {
+    const result = await busRequest<{ resourceId: string }>(
       this.transport,
       'yield:clone-create',
       options,
       'yield:clone-created',
       'yield:clone-create-failed',
     );
+    return { resourceId: toResourceId(result.resourceId) };
   }
 
   clone(): void {
