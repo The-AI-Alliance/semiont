@@ -131,7 +131,7 @@ const resources = await session.client.browse.resources({ limit: 10 });
 await session.dispose();
 ```
 
-`KnowledgeBase` is uniform regardless of transport kind; the variation lives in the nested `endpoint` (currently `{ kind: 'http', host, port, protocol }` or `{ kind: 'local', kbId }`). Code that doesn't construct transports — your scripts, the verb namespaces, view-models — never inspects `endpoint`.
+`KnowledgeBase` is uniform regardless of transport kind; the variation lives in the nested `endpoint` (currently `{ kind: 'http', host, port, protocol }` or `{ kind: 'local', kbId }`). Code that doesn't construct transports — your scripts, the verb namespaces, the flow state machines — never inspects `endpoint`.
 
 If you already have an access token (CLI cached-token path, env-var token, embedded auth flow), use `SemiontClient.fromHttp({ baseUrl, token })` or `SemiontSession.fromHttp({ baseUrl, token, storage, kb, refresh, ... })` to skip the auth round-trip.
 
