@@ -1,6 +1,6 @@
-# Local Frontend Setup
+# Local Browser Setup
 
-Run the Semiont frontend locally. The frontend is a static SPA that connects to a running backend.
+Run the Semiont Browser locally. The browser is a static SPA that connects to a running backend. For the broader browser-persona docs (running it as an end user, accessibility, shortcuts, features), see **[README.md](README.md)**.
 
 ## Container (no npm required)
 
@@ -14,7 +14,7 @@ cd gutenberg-kb
 
 The script builds and runs the frontend in a container. The backend must be running first (see [backend LOCAL.md](../../apps/backend/docs/LOCAL.md)).
 
-The authoritative Dockerfile and script live in the [semiont-empty-kb](https://github.com/The-AI-Alliance/semiont-empty-kb) template repository under `.semiont/`.
+The authoritative Dockerfile and script live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`.
 
 ## npm
 

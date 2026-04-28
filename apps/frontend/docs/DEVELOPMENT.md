@@ -640,7 +640,8 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 ### Features
 - [Annotations](./ANNOTATIONS.md) - W3C annotation system
 - [Style Guide](./style-guide.md) - UI/UX patterns
-- [Keyboard Navigation](../../../docs/browser/KEYBOARD-NAV.md) - WCAG accessibility
+- [Keyboard Navigation](./KEYBOARD-NAV.md) - Keyboard navigation implementation
+- [Accessibility](./ACCESSIBILITY.md) - WCAG 2.1 AA implementation patterns
 
 ### System Documentation
 - [System Documentation](../../../docs/system/README.md) - Overall platform

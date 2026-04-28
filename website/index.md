@@ -53,7 +53,7 @@ Humans and AI agents work as peers through seven composable workflows:
 Clone the empty template and start the backend — no npm or Node.js required:
 
 ```bash
-git clone https://github.com/The-AI-Alliance/semiont-empty-kb.git my-kb
+git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
 cd my-kb
 export ANTHROPIC_API_KEY=<your-api-key>
 .semiont/scripts/local_backend.sh --email admin@example.com --password password

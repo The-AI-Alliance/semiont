@@ -1,165 +1,37 @@
-# Frontend Accessibility Documentation
+# Accessibility
 
-The Semiont frontend implements [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/) accessibility standards.
+The Semiont Browser meets [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/). Every interactive element is reachable from the keyboard alone, every dynamic update is announced to screen readers, and every UI surface has been tested with assistive technology.
 
-## Table of Contents
+## What you get
 
-1. [Next.js Implementation](#nextjs-implementation)
-2. [Keyboard Navigation](#keyboard-navigation)
-3. [Testing](#testing)
-4. [Guidelines](#guidelines)
+- **Full keyboard navigation.** Every button, link, form field, modal, and annotation is reachable and operable from the keyboard. No mouse required. See **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** for the complete shortcut reference.
+- **Screen-reader support.** Tested with **NVDA** (Windows), **VoiceOver** (macOS), **JAWS** (Windows), and **Orca** (Linux). ARIA roles and labels apply throughout; live regions announce dynamic changes (search-result counts, annotation creation, validation errors, async progress).
+- **Visible focus indicators.** Every interactive element shows a clear focus ring when reached via keyboard.
+- **Skip links.** Tab once on page load to jump past navigation directly to main content.
+- **Reduced motion.** The browser respects the OS-level `prefers-reduced-motion` setting; transitions and animations are disabled when you've asked the system to reduce them.
+- **High contrast.** Light, dark, and high-contrast color schemes; WCAG AA contrast ratios (4.5:1 text, 3:1 UI) verified across all schemes.
+- **Zoom to 200%.** No content cut off, no horizontal scroll, no functional loss at 200% browser zoom.
+- **Form errors that work for everyone.** Validation messages are announced via `aria-live` and visually associated with their inputs.
 
-## Next.js Implementation
+## Browser support
 
-### HTML Language Attribute
+Chrome 90+, Firefox 88+, Safari 14+, Edge 90+ — all with full WCAG 2.1 AA support and screen-reader pass-through.
 
-Set per [WCAG 3.1.1](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html):
+## Verifying it yourself
 
-```tsx
-// app/[locale]/layout.tsx
-export default function RootLayout({
-  params: { locale }
-}: {
-  params: { locale: string }
-}) {
-  return (
-    <html lang={locale}>
-      <body>
-        <SkipLinks />
-        {children}
-      </body>
-    </html>
-  );
-}
-```
+If you want to confirm any of these claims independently:
 
-### Focus Management
+- **Keyboard test:** disconnect your mouse and complete an annotation flow (open a resource, select text, create a highlight, save it). Every step should be reachable.
+- **Screen reader:** turn on VoiceOver / NVDA / Orca and navigate the same flow. The screen reader should announce each interactive element with its role, label, and state.
+- **Zoom test:** set browser zoom to 200%. The interface should remain usable.
+- **Reduced motion:** enable "Reduce motion" in your OS settings. Transitions should disappear.
+- **High contrast:** enable your OS's high-contrast mode (or pick the high-contrast theme in Semiont's settings panel). Text and UI elements should remain readable with WCAG AA contrast ratios.
 
-Route changes restore focus to main content:
+## Reporting an accessibility issue
 
-```tsx
-useEffect(() => {
-  const main = document.getElementById('main-content');
-  main?.focus();
-}, [pathname]);
-```
+Found something that doesn't work? File an issue and tag it `accessibility`. Include the assistive technology, browser, and the specific step that failed.
 
-### Forms
+## See also
 
-Implement [WCAG 3.3 Input Assistance](https://www.w3.org/WAI/WCAG21/Understanding/input-assistance):
-
-```tsx
-<input
-  aria-required="true"
-  aria-invalid={!!errors.email}
-  aria-describedby={errors.email ? 'email-error' : undefined}
-/>
-{errors.email && (
-  <span id="email-error" role="alert">
-    {errors.email}
-  </span>
-)}
-```
-
-## Keyboard Navigation
-
-### Global Shortcuts
-
-| Shortcut | Action | Context |
-|----------|--------|---------|
-| `Cmd/Ctrl + K` | Open search | Global |
-| `Cmd/Ctrl + N` | New document | Authenticated |
-| `/` | Focus search | Not in input |
-| `?` | Show help | Global |
-| `Esc` | Close modal | Modal open |
-| `Esc Esc` | Close all | Global |
-
-### Implementation
-
-Using `@semiont/react-ui` hooks:
-
-```tsx
-import { useKeyboardShortcuts } from '@semiont/react-ui';
-
-useKeyboardShortcuts([
-  {
-    key: 'k',
-    ctrlOrCmd: true,
-    handler: () => openSearch(),
-    description: 'Open search'
-  }
-]);
-```
-
-## Testing
-
-### Automated Tests
-
-Using [jest-axe](https://github.com/nickcolley/jest-axe):
-
-```tsx
-import { axe, toHaveNoViolations } from 'jest-axe';
-
-expect.extend(toHaveNoViolations);
-
-it('has no WCAG violations', async () => {
-  const { container } = render(<Page />);
-  const results = await axe(container);
-  expect(results).toHaveNoViolations();
-});
-```
-
-### CI/CD Pipeline
-
-```yaml
-# .github/workflows/accessibility-tests.yml
-jobs:
-  test-frontend-accessibility:
-    steps:
-      - name: Run accessibility tests
-        run: npm test -- --grep "accessibility"
-
-```
-
-### Manual Testing
-
-1. **Keyboard**: Tab through all elements, test shortcuts
-2. **Screen Readers**: NVDA (Windows), VoiceOver (macOS)
-3. **Visual**: 200% zoom, high contrast mode
-
-## Guidelines
-
-### Component Requirements
-
-- Semantic HTML elements
-- ARIA labels for icons/buttons
-- Keyboard navigation support
-- Focus indicators (ring-2 ring-cyan-500)
-- Live region announcements
-- Loading/error states
-
-### Tailwind Utilities
-
-```css
-/* Screen reader only */
-.sr-only
-
-/* Visible on focus */
-.sr-only.focus:not-sr-only
-
-/* Focus states */
-.focus:ring-2 .focus:ring-cyan-500
-
-/* High contrast */
-.contrast-more:border-2
-
-/* Reduced motion */
-.motion-reduce:transition-none
-```
-
-## References
-
-- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
-- [Next.js Accessibility](https://nextjs.org/docs/architecture/accessibility)
-- [Headless UI](https://headlessui.com/)
-- [Testing Library](https://testing-library.com/docs/queries/byrole)
+- **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard shortcut reference.
+- **[apps/frontend/docs/ACCESSIBILITY.md](../../apps/frontend/docs/ACCESSIBILITY.md)** — implementation guide for contributors (ARIA patterns, focus management, automated testing).

@@ -804,7 +804,7 @@ Annotation overlays and panel entries synchronize via hover events for all media
 - [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
-- [KEYBOARD-NAV.md](../../../docs/browser/KEYBOARD-NAV.md) - Keyboard shortcuts
+- [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard navigation implementation
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization
 
 ## Migration Notes

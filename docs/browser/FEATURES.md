@@ -1,8 +1,6 @@
-# Frontend Features
+# Browser Features
 
-**Last Updated**: 2025-10-25
-
-User-facing features of the Semiont frontend, including document management, annotations, and knowledge graph building.
+A tour of what the Semiont Browser does, from a user's perspective: document management, annotations, search, and AI-assisted detection.
 
 ## Table of Contents
 
@@ -13,11 +11,12 @@ User-facing features of the Semiont frontend, including document management, ann
 - [Format-Specific Features](#format-specific-features)
 - [User Interface Components](#user-interface-components)
 - [Asynchronous AI Features](#asynchronous-ai-features)
+- [Roadmap](#roadmap)
 - [Related Documentation](#related-documentation)
 
 ## Overview
 
-The Semiont frontend provides a rich document management and annotation experience built on W3C Web Annotation standards. Users can:
+The Semiont Browser provides a rich document management and annotation experience built on W3C Web Annotation standards. Users can:
 
 - Create and manage documents in multiple formats (text, markdown, images, PDFs)
 - Annotate content with highlights, references, and entity tags
@@ -86,7 +85,6 @@ Semiont supports multiple document formats, each with format-appropriate annotat
 - Archive documents without deletion
 - Clone documents with or without annotations
 - Restore archived documents
-- Version history (future)
 
 See [ARCHIVE-CLONE.md](../../apps/frontend/docs/ARCHIVE-CLONE.md) for complete archiving and cloning documentation.
 
@@ -128,7 +126,6 @@ Link selected text to other documents in the system.
 - Create new documents on the fly
 - Referenced documents accessible via sidebar
 - Backlinks show incoming references
-- Resolve stub references (future)
 
 **Use Cases**:
 - Build knowledge graph through document linking
@@ -207,10 +204,6 @@ Full markdown rendering with extended features:
 #### Interactive Elements
 - External links open in new tabs
 - Wiki links navigate internally
-- Table of contents auto-generation (future)
-- Collapsible sections (future)
-
-See [ANNOTATION-OVERLAY.md](../../ANNOTATION-OVERLAY.md) for markdown rendering details.
 
 ### Images (PNG/JPEG)
 
@@ -228,8 +221,6 @@ Image viewing with spatial annotation support:
 - **Visual indicators**: Highlighted regions with hover states
 - **Multiple annotations**: Support for overlapping regions
 
-**Future Work**: AI-powered annotation detection for images (object recognition, OCR for text in images)
-
 ### PDF Documents
 
 PDF viewing and annotation with page-by-page navigation:
@@ -246,8 +237,6 @@ PDF viewing and annotation with page-by-page navigation:
 - **Page-specific annotations**: Annotations tied to specific PDF pages
 - **Visual indicators**: Highlighted regions with hover states
 - **Coordinate transformation**: Automatic conversion between PDF and canvas coordinates
-
-**Future Work**: AI-powered annotation detection for PDFs (text extraction, entity recognition, layout analysis)
 
 ## User Interface Components
 
@@ -286,9 +275,6 @@ Split-view layout for reading and annotating documents.
 
 **Features**:
 - Real-time annotation updates
-- Undo/redo for annotations (future)
-- Collaborative editing (future)
-- Version history (future)
 
 ### Selection Popup
 
@@ -323,18 +309,6 @@ Global search for documents.
 - Filter by entity type, author, date
 - Sort by relevance, date, title
 - Pagination for large result sets
-- Export search results (future)
-
-### Entity Browser (Future)
-
-Browse and explore entities across all documents.
-
-**Planned Features**:
-- Entity list with counts
-- Entity detail pages
-- Entity relationship graph visualization
-- Entity co-occurrence matrix
-- Entity timeline
 
 ## Asynchronous AI Features
 
@@ -374,9 +348,23 @@ Generate new documents from annotations using AI.
 - Real-time progress via SSE
 - Shows generation stages (fetching, generating, creating, linking)
 - Percentage complete
-- Preview of generated content (future)
 
 **See**: [API Integration Guide](../../apps/frontend/docs/API-INTEGRATION.md#document-generation-with-sse) for implementation details.
+
+## Roadmap
+
+These are tracked but not yet implemented:
+
+- Version history for documents
+- Undo/redo for annotations
+- Collaborative editing
+- Resolve stub references
+- Entity Browser — list, detail pages, relationship-graph visualization, co-occurrence matrix
+- Markdown table-of-contents auto-generation and collapsible sections
+- Search-result export
+- Preview pane while generating documents
+- AI-powered annotation detection for images (object recognition, OCR)
+- AI-powered annotation detection for PDFs (text extraction, entity recognition, layout analysis)
 
 ## Related Documentation
 
@@ -402,5 +390,4 @@ Generate new documents from annotations using AI.
 
 ---
 
-**Last Updated**: 2025-10-25
-**For Feature Requests**: File an issue or see [Contributing Guide](../../CONTRIBUTING.md)
+**For feature requests**: file an issue, or see [CONTRIBUTING.md](../../CONTRIBUTING.md).

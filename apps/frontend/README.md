@@ -209,8 +209,8 @@ Some operations run asynchronously via background job workers:
 
 ### Performance & Accessibility
 - **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, monitoring
-- **[Accessibility](../../docs/browser/ACCESSIBILITY.md)** - WCAG 2.1 Level AA compliance, screen reader support, testing
-- **[Keyboard Navigation](../../docs/browser/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
+- **[Accessibility](./docs/ACCESSIBILITY.md)** - Implementation patterns, ARIA, focus management, automated testing (user-facing claim: [docs/browser/ACCESSIBILITY.md](../../docs/browser/ACCESSIBILITY.md))
+- **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - Implementation: hooks, focus traps, roving tabindex (user-facing reference: [docs/browser/KEYBOARD-NAV.md](../../docs/browser/KEYBOARD-NAV.md))
 
 ### Specialized Topics
 - **[CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
