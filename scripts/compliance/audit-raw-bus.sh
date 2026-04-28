@@ -23,12 +23,21 @@ set -euo pipefail
 # component lifetimes.
 #
 # Allowlist:
-#   - packages/sdk/src/**               — SemiontClient, namespaces, VMs, session
+#   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
+#                                          worker adapters, session
 #   - packages/api-client/src/**        — HTTP adapters
 #   - packages/make-meaning/src/local-transport.ts
 #                                       — LocalTransport implements ITransport
 #                                          on top of EventBus (bus.get is the
 #                                          natural backing primitive there)
+#   - packages/react-ui/src/state/**    — cross-feature page VMs (shell, session)
+#                                          that subscribe to bus events for
+#                                          UI workflow coordination
+#   - packages/react-ui/src/features/*/state/**
+#                                       — per-feature page VMs (compose,
+#                                          resource-viewer, admin, etc.) that
+#                                          subscribe to bus events for the
+#                                          same reason
 #   - **/__tests__/**                   — tests may assert on bus behavior
 #   - **/test-utils.tsx                 — test helpers
 #   - packages/react-ui/src/contexts/useEventSubscription.ts — generic hook
@@ -47,6 +56,8 @@ filter_allowlist() {
     | grep -v "^packages/sdk/src/" \
     | grep -v "^packages/api-client/src/" \
     | grep -v "^packages/make-meaning/src/local-transport\.ts:" \
+    | grep -v "^packages/react-ui/src/state/" \
+    | grep -v "^packages/react-ui/src/features/[^/]*/state/" \
     | grep -v "^packages/react-ui/src/contexts/useEventSubscription\.ts:"
 }
 
