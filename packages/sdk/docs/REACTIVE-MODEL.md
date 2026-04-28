@@ -245,6 +245,7 @@ The integrator writing a simple script doesn't know `@semiont/sdk` uses RxJS unt
 ## See also
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples
+- [STATE-UNITS.md](./STATE-UNITS.md) — the foundational stateful-unit pattern (factory closure, RxJS-shaped surface, dispose lifecycle); the substrate behind every flow state machine, worker adapter, and view-shaped state machine in the codebase
 - [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive's behavioral contract behind `CacheObservable`
 - [`packages/sdk/src/awaitable.ts`](../src/awaitable.ts) — the awaitable Observable subclasses' implementation
 - [docs/protocol/EVENT-BUS.md](../../../docs/protocol/EVENT-BUS.md) — channel naming, scoping, correlation; the protocol layer the SDK wraps
