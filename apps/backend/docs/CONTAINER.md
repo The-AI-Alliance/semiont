@@ -717,7 +717,7 @@ jobs:
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows
 - [Deployment Guide](./DEPLOYMENT.md) - AWS and production deployment
 - [API Reference](../../../docs/protocol/API.md) - Complete API documentation
-- [Architecture](../../../docs/system/ARCHITECTURE.md) - System architecture overview
+- [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
 
 ## Support
 

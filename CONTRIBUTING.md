@@ -227,7 +227,7 @@ When submitting a new platform:
 - [ ] Unit tests for platform implementation (>80% coverage)
 - [ ] Integration tests for deployment workflow
 - [ ] Documentation in `docs/system/platforms/PLATFORM.md`
-- [ ] Updated main [ARCHITECTURE.md](docs/system/ARCHITECTURE.md) with platform option
+- [ ] Updated [docs/system/CONTAINER-TOPOLOGY.md](docs/system/CONTAINER-TOPOLOGY.md) with the new platform option
 - [ ] Example environment configuration
 - [ ] Cost estimation guidance
 - [ ] Migration guide from existing platforms

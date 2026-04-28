@@ -285,7 +285,7 @@ We welcome contributions! Please read:
 ## Quick Links
 
 ### System Documentation
-- [System Architecture](../../docs/system/ARCHITECTURE.md) - Overall platform architecture
+- [System Documentation](../../docs/system/README.md) - Overall platform architecture
 - [W3C Web Annotation](../../docs/protocol/W3C-WEB-ANNOTATION.md) - Annotation data flow across all layers
 - [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
 

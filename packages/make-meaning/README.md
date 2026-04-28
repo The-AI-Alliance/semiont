@@ -8,7 +8,7 @@
 
 **Making meaning from resources through actors, context assembly, and relationship reasoning.**
 
-This package implements the actor model from [ARCHITECTURE.md](../../docs/system/ARCHITECTURE.md). It owns the **Knowledge Base** and the actors that interface with it:
+This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the actors that interface with it:
 
 - **Stower** (write) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events
 - **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type listing, and directory browse (merging filesystem listings with KB metadata)

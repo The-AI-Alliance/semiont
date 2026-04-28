@@ -229,7 +229,7 @@ Generated from `npm run openapi:stats`:
 ## Related Documentation
 
 - [Root README](../README.md) - Project overview
-- [Architecture Documentation](../docs/system/ARCHITECTURE.md) - System architecture
+- [System Documentation](../docs/system/README.md) - System architecture index
 - [Backend README](../apps/backend/README.md) - Backend implementation
 - [API Client README](../packages/api-client/README.md) - TypeScript SDK
 - [OpenAPI Split Plan](../OPENAPI-SPLIT-PLAN.md) - Migration details (historical)

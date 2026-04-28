@@ -68,7 +68,7 @@ The layered architecture, dependency graph, and per-package summaries live in **
 ## Where to read next
 
 - **[CONTRIBUTING.md](../../CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
-- **[ARCHITECTURE.md](../system/ARCHITECTURE.md)** — system design, event sourcing, layered package boundaries.
+- **[System Documentation](../system/README.md)** — index for all system-architecture docs (actor model, knowledge system, container topology, package architecture).
 - **[LOCAL-DEVELOPMENT.md](LOCAL-DEVELOPMENT.md)** — running locally; Path B for contributors building from source.
 - **[TESTING.md](TESTING.md)** — testing conventions and infrastructure.
 - **[RELEASE.md](RELEASE.md)** — versioning and release process.

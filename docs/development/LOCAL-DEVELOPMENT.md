@@ -181,7 +181,7 @@ semiont provision --service backend   # Updates backend configuration
 - **[CONFIGURATION.md](../system/administration/CONFIGURATION.md)** - Environment variables, service configuration
 - **[TESTING.md](./TESTING.md)** - Running tests, test commands
 - **[TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)** - Common issues, port conflicts, database problems
-- **[ARCHITECTURE.md](../system/ARCHITECTURE.md)** - System architecture, component overview
+- **[System Documentation](../system/README.md)** - System architecture, component overview
 - **[DEPLOYMENT.md](../system/administration/DEPLOYMENT.md)** - Production deployment
 
 ## Getting Help
