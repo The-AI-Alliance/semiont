@@ -1,8 +1,10 @@
 # Semiont Protocol
 
-The protocol is the contract between actors and the knowledge base. It defines **seven composable flows** — yield, mark, match, bind, gather, browse, beckon — that are the same verbs whether driven by a human in the browser, a script using the SDK, an agentic coding assistant, or a daemon worker. Anything that conforms to the protocol can act as a peer; the knowledge base does not distinguish between humans and AI agents.
+Semiont is infrastructure for **collaborative knowledge work** — humans and AI agents working as peers on a shared corpus, possibly across rooms or cities, possibly across time. The protocol is the contract that makes that collaboration possible: a uniform set of **seven composable flows** — yield, mark, match, bind, gather, browse, beckon — that every participant speaks, regardless of whether they're a person reading a document in a browser, an AI agent proposing references, a script ingesting new sources, or a daemon worker doing background analysis. Anything that conforms to the protocol can act as a peer; the knowledge base does not distinguish between humans and AI agents.
 
-This page covers the design tenets behind the protocol, the value proposition, and the three programmable surfaces (CLI, SDK, Skills) that drive it.
+Knowledge work isn't only data processing. It's interpretation, attention, debate, framing, citation — actions that depend on knowing what your collaborators are doing and why. Semiont's protocol is shaped accordingly: alongside the CRUD-shaped flows there are first-class **collaboration primitives** (`beckon:hover`, `mark:shape-changed`, `bind:initiate`, ...) that let participants observe each other's intent and attention as it happens. Multi-participant coordination isn't bolted on top of a data-processing API — it's woven into the protocol from the bottom.
+
+This page covers the design tenets, the value proposition, and the three programmable surfaces (CLI, SDK, Skills) every participant uses.
 
 For the deeper specifications, see:
 - **[flows/README.md](flows/README.md)** — per-flow contracts (yield, mark, match, bind, gather, browse, beckon)
@@ -21,11 +23,15 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 
 **Calibrate the Human–AI Mix** — Because humans and AI agents share identical interfaces, organizations can dial the mix to fit their constraints. A domain with abundant expert availability and a high accuracy bar can run human-primary workflows with AI suggestions; a domain rich in GPU capacity but short on specialists can run agent-primary pipelines with human spot-checks. Supervision depth, automation ratio, and quality gates are deployment decisions — not architectural rewrites.
 
+**Coordinate Across Participants** — A room of analysts working with three AI agents on a multimodal corpus needs more than synchronized state. They need to see who's currently looking at what, who's proposing a binding, what an agent is sparkling as a candidate match. Semiont treats those signals as protocol-level events on the shared bus, not local UI state — so a participant in another city, a worker across an SSE connection, or an agent running in-process all see them and can react.
+
 ## Core Tenets
 
-**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively.
+**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation — read, write, **and coordination signal** — flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively, in any mix and at any scale.
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
+
+**Coordination is First-Class** — `beckon:hover`, `mark:shape-changed`, `bind:initiate`, `browse:click` and the rest of the collaboration signals fan out to every connected participant. They aren't browser-app UI noise — they're how multi-participant work stays coherent. A human's hover can drive an agent's relevance scoring; an agent's sparkle can direct a human's attention. The protocol exposes them at the same level as data operations.
 
 **[Seven Collaborative Flows](flows/README.md)** — humans and AI agents work as peers through seven composable workflows:
 

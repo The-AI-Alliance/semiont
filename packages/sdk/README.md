@@ -6,17 +6,20 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/sdk.svg)](https://www.npmjs.com/package/@semiont/sdk)
 [![License](https://img.shields.io/npm/l/@semiont/sdk.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The developer-facing SDK for [Semiont](https://github.com/The-AI-Alliance/semiont). This package owns the high-level surface every Semiont consumer reaches for: a verb-oriented `SemiontClient`, per-KB sessions, RxJS view-models, and the helpers that wire them all together.
+The TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) — a programmable surface for **collaborative knowledge work**. Whether you're building a browser app where humans annotate documents and propose links, an AI agent that gathers context and matches candidate references, a daemon that ingests new sources, or a one-shot script that queries an established knowledge base, you reach the same verb namespaces, the same collaboration primitives, the same lifecycle observables.
 
-The SDK is **transport-agnostic** — it consumes the `ITransport` and `IContentTransport` contracts from [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core). For HTTP, the canonical wire adapter is re-exported here for convenience. For in-process operation, use `LocalTransport` from [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning).
+The seven flows — *yield, mark, match, bind, gather, browse, beckon* — describe what participants *do* when they work with a shared corpus. The SDK exposes them uniformly across surfaces. A human in a browser hovers an annotation; an AI agent at the other end of the bus sees the hover and reacts; a daemon ingests new text and every connected participant sees the corpus grow live. Humans and AI agents are peers — the SDK does not distinguish.
+
+The SDK is **transport-agnostic**: it consumes the `ITransport` and `IContentTransport` contracts from [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core). For HTTP backends, the canonical wire adapter is re-exported here for convenience. For in-process operation (CLI, agentic worker, embedded use), use `LocalTransport` from [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning).
 
 ## What's in the box
 
 - **`SemiontClient`** — the verb-oriented coordinator over a wire transport.
 - **Verb namespaces** — `browse`, `mark`, `bind`, `gather`, `match`, `yield`, `beckon`, `job`, `auth`, `admin`. Typed methods that wrap the bus protocol; consumers never touch raw channel strings.
-- **Session layer** — `SemiontSession` (per-KB authentication, token refresh, lifecycle), `SemiontBrowser` (tab-singleton coordinator), and `SessionStorage` adapters (`InMemorySessionStorage`, plus a web one in `@semiont/react-ui`).
-- **View-models** — RxJS-based MVVM factories the React layer mounts via `useViewModel`.
-- **Helpers** — `bus-request` (correlation-ID request/reply) and `cache` (per-key SWR cache).
+- **Collaboration primitives** — fire-and-forget signals on the verb namespaces (`beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click`, ...) coordinate attention and intent across participants. Not afterthoughts, not browser-app fluff: they're how a multi-participant session stays coherent.
+- **Session layer** — `SemiontSession` (per-KB authentication, token refresh, lifecycle), `SemiontBrowser` (multi-KB orchestration), and `SessionStorage` adapters (`InMemorySessionStorage`, plus a browser-backed one in `@semiont/react-ui`).
+- **View-models** — RxJS-based MVVM factories that any view layer can subscribe to. The React bindings live in `@semiont/react-ui`; the VMs themselves are framework-neutral.
+- **Helpers** — `bus-request` (correlation-ID request/reply) and the cache primitive backing live queries.
 
 ## Installation
 
@@ -102,7 +105,16 @@ Same `SemiontClient`, same verb namespaces — no network involved. There is no 
 
 ## Verb namespaces
 
-All ten namespaces hang off `SemiontClient`. Methods that return data return either a `Promise<T>` (atomic ops like `mark.archive`) or an awaitable Observable subclass — `StreamObservable<T>` for streams (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`) and `CacheObservable<T>` for live queries (`browse.*`). Both subclasses implement `PromiseLike<T>`, so consumers can `await` them directly. Reactive consumers can `.subscribe(...)` exactly as with a plain Observable. The bus is invisible to callers — channel strings, correlation IDs, and reconnection are internal.
+All ten namespaces hang off `SemiontClient`. Method return types follow four shapes — predictable from the method name once you know the convention:
+
+| Shape | Convention | Examples |
+|---|---|---|
+| **Atomic backend op** — `Promise<T>` | past-tense or short noun | `mark.annotation`, `bind.body`, `auth.password` |
+| **Long-running stream** — `StreamObservable<T>` | plain verb | `mark.assist`, `match.search`, `gather.annotation`, `yield.fromAnnotation` |
+| **Live query** — `CacheObservable<T>` | plain noun | `browse.resource`, `browse.annotations`, `browse.entityTypes` |
+| **Collaboration signal** — `void` | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click` |
+
+Both Observable subclasses implement `PromiseLike<T>`, so consumers can `await` them directly. Reactive consumers `.subscribe(...)` exactly as with a plain Observable. The bus is invisible to callers — channel strings, correlation IDs, and reconnection are internal.
 
 ```ts
 // Browse — live queries; await yields the loaded value, subscribe yields
@@ -111,26 +123,30 @@ const resources = await client.browse.resources({ limit: 10 });
 client.browse.resource(resourceId).subscribe(/* ... */);
 
 // Mark / Bind — atomic operations return Promise<T>.
-const { annotationId } = await client.mark.annotation(rid, request);
+const { annotationId } = await client.mark.annotation(request);
 await client.bind.body(rid, aid, [{ op: 'add', item: { /* W3C body */ } }]);
 
 // Gather / Match — bounded streams; await yields the final value, subscribe
 // yields every progress emission.
-const ctx = await client.gather.annotation(aid, rid);
+const ctx = await client.gather.annotation(rid, aid);
 client.match.search(rid, refId, ctx, { limit: 10 }).subscribe(/* ... */);
 
-// Yield — author new resources.
+// Yield — author new resources. Returns an UploadObservable; await yields
+// { resourceId }, subscribe yields the upload-progress lifecycle.
 const { resourceId } = await client.yield.resource({
   name, file, format, storageUri,
 });
 
-// Beckon — UI signals (hover, focus, selection).
+// Beckon, Bind, Browse, Mark — collaboration signals (void). Fire-and-
+// forget; fan out to other participants over the bus.
 client.beckon.hover(annotationId);
+client.bind.initiate({ annotationId });
+client.browse.click(annotationId, 'linking');
 ```
 
 The verb-by-verb walkthroughs live in [docs/protocol/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
 
-The SDK is RxJS-native, but its return values implement `PromiseLike<T>` — `await` works directly. Reach for `.subscribe(...)` when you want progress events or live updates, and `.pipe(...)` only when you want operator composition (which loses the thenable). See [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) for the design rationale.
+The SDK is RxJS-native, but its return values implement `PromiseLike<T>` — `await` works directly. Reach for `.subscribe(...)` when you want progress events, live updates, or to observe a collaboration signal another participant emitted; `.pipe(...)` only when you want operator composition (which loses the thenable). See [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) for the four return-shape categories, the naming convention, the three legitimate paths to the bus, and the design rationale.
 
 ## Documentation
 

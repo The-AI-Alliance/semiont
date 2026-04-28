@@ -225,12 +225,13 @@ The SDK doesn't *replace* the bus — it wraps the channel-call patterns so cons
 
 **3. Verb namespaces** (`semiont.mark.*`, `semiont.match.*`, `semiont.browse.*`, etc.) — the typed entry points. Each method picks the right channels for its operation, brands ID inputs, and returns the right shape (`Promise`, `StreamObservable`, `CacheObservable`). The channel choice is hidden behind the method name — `semiont.match.search(...)` knows it emits `match:search-requested` and resolves on `match:search-results` / `match:search-failed`.
 
-Direct bus access is reserved for two cases:
+Three legitimate paths to the bus, each suited to a distinct case:
 
-- **Subscribing to arbitrary channels** — `session.subscribe(channel, handler)` is the sanctioned escape hatch when the channel name is dynamic (e.g. `useEventSubscription` in React, or a daemon watching `mark:added` to react to new annotations).
-- **Workers and actors** — `make-meaning`'s Stower, Gatherer, Matcher, Browser, Smelter all subscribe directly via `eventBus.get(channel).subscribe(handler)` because they *are* the handlers; namespaces wrap callers, not handlers.
+- **Typed namespace method** (preferred) — `client.mark.annotation(...)`, `client.beckon.hover(...)`. Types catch mistakes; channel names and correlation IDs are internal. The right path whenever a namespace covers the operation.
+- **`session.subscribe(channel, handler)`** — channel-by-name observation. The sanctioned escape hatch when the channel name is dynamic (`useEventSubscription` in React, an agent watching `mark:added` for collaborator activity) or no namespace exposes a typed listener for the channel you care about.
+- **Direct `client.bus.get(channel)` / `client.transport.emit(channel, ...)`** — the lowest-level path, for workers and actors that *are* the handlers (Stower, Gatherer, Matcher, Smelter inside `@semiont/make-meaning` use this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace.
 
-Everything else flows through namespace methods. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
+The three paths are documented end-to-end (with code shapes and call-site examples) in [`packages/sdk/docs/REACTIVE-MODEL.md`](../../packages/sdk/docs/REACTIVE-MODEL.md#three-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
 
 ## Adding a new channel
 
