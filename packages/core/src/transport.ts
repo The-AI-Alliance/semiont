@@ -33,6 +33,7 @@ import type { CreationMethod } from './creation-methods';
 import type { AnnotationId, ResourceId } from './identifiers';
 import type { EventMap } from './bus-protocol';
 import type { EventBus } from './event-bus';
+import type { SemiontError } from './errors';
 
 type Agent = components['schemas']['Agent'];
 
@@ -177,6 +178,18 @@ export interface ITransport {
    * from construction onward (no connection to lose).
    */
   readonly state$: Observable<ConnectionState>;
+
+  /**
+   * Stream of transport-level errors surfaced from typed-wire methods or
+   * other transport-mediated round-trips, just before they're thrown to
+   * the caller. Each emission is a `SemiontError` (or subclass — HTTP
+   * emits `APIError`, in-process transports emit whatever subclass is
+   * appropriate). Consumers can subscribe for global error handling
+   * (e.g. surfacing 401/403 as modals, logging) without wrapping every
+   * call site in try/catch. Distinct from bus-level errors, which are
+   * surfaced via the channel-correlation pattern in `busRequest`.
+   */
+  readonly errors$: Observable<SemiontError>;
 
   dispose(): void;
 }

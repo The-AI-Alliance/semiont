@@ -6,8 +6,8 @@
  * lifecycle, generation progress) and cache reads (Browse live queries).
  *
  * The point: scripts can `await` the call directly without `lastValueFrom` /
- * `firstValueFrom` wrappers; reactive consumers (frontend view-models) keep
- * using `.subscribe(...)` and `.pipe(...)` exactly as before.
+ * `firstValueFrom` wrappers; reactive consumers keep using `.subscribe(...)`
+ * and `.pipe(...)` exactly as before.
  *
  * The asymmetric `.then()` semantics — last-value-on-completion for streams,
  * first-non-undefined-value for caches — is encoded by the subclass name. The
@@ -76,7 +76,7 @@ export class CacheObservable<T> extends Observable<T | undefined> implements Pro
    * Observable per key (its B4 contract), so this preserves that contract
    * through the awaitable wrapping. Without the memo, every public-method
    * call would produce a fresh wrapper and break referential-equality
-   * guarantees that React-side consumers depend on.
+   * guarantees that hook-style reactive consumers depend on.
    *
    * Backed by a `WeakMap`, so wrappers are GC'd when their source is.
    */

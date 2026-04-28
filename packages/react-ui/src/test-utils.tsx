@@ -45,7 +45,7 @@ function createFakeBrowserForTests(
   };
   // Modal-state mock sits on its own BehaviorSubject so tests that
   // exercise the session-expired / permission-denied paths can poke
-  // it directly. Mirrors the `FrontendSessionSignals` shape.
+  // it directly. Mirrors the `SessionSignals` shape.
   const fakeSignals = {
     sessionExpiredAt$: new BehaviorSubject<number | null>(null),
     sessionExpiredMessage$: new BehaviorSubject<string | null>(null),
@@ -243,7 +243,7 @@ export function createMockTranslationManager(
 }
 
 /**
- * Build a fake SemiontBrowser with the active FrontendSessionSignals
+ * Build a fake SemiontBrowser with the active SessionSignals
  * observables pre-populated. Used by SessionExpiredModal and
  * PermissionDeniedModal tests that need to control the modal flags
  * without driving a real session through its state machine.

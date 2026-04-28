@@ -11,7 +11,7 @@
  */
 
 import ky, { HTTPError, type KyInstance } from 'ky';
-import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import { BehaviorSubject, Subject, type Observable, type Subscription } from 'rxjs';
 import type {
   AccessToken,
   BaseUrl,
@@ -109,6 +109,13 @@ export class HttpTransport implements ITransport {
   private readonly http: KyInstance;
   private readonly token$: BehaviorSubject<AccessToken | null>;
   private readonly logger?: Logger;
+  private readonly errorsSubject: Subject<SemiontError> = new Subject<SemiontError>();
+  /**
+   * Stream of `APIError` instances surfaced from any HTTP request just
+   * before the transport throws to the caller. Satisfies the `ITransport`
+   * `errors$` contract — see `@semiont/core/transport.ts`.
+   */
+  readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
 
   private _actor: ActorVM | null = null;
   private _actorStarted = false;
@@ -204,12 +211,14 @@ export class HttpTransport implements ITransport {
                   error: body.message || `HTTP ${response.status}: ${response.statusText}`,
                 });
               }
-              throw new APIError(
+              const apiError = new APIError(
                 body.message || `HTTP ${response.status}: ${response.statusText}`,
                 response.status,
                 response.statusText,
                 body,
               );
+              this.errorsSubject.next(apiError);
+              throw apiError;
             }
             return error;
           },
@@ -366,6 +375,7 @@ export class HttpTransport implements ITransport {
       this._actor.dispose();
       this._actor = null;
     }
+    this.errorsSubject.complete();
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────

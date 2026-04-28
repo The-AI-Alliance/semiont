@@ -1,7 +1,9 @@
 /**
- * Module-scoped singleton for SemiontBrowser. Constructed lazily on first
- * `getBrowser()` call, survives every React re-render, remount, and route
- * change.
+ * Process-wide accessor for `SemiontBrowser`. Constructed lazily on the
+ * first `getBrowser()` call and held for the host's lifetime — a single
+ * instance owns the KB list, identity token, and active-session state,
+ * so callers throughout the host get the same view of "which KB am I
+ * talking to right now" regardless of where they pick it up.
  *
  * The caller provides a `SessionStorage` implementation — there is no
  * default here because storage-backend selection is environment-specific

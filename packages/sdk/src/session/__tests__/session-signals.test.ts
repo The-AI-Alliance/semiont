@@ -1,19 +1,19 @@
 /**
- * FrontendSessionSignals — unit tests for the modal-state observables
+ * SessionSignals — unit tests for the notification-state observables
  * previously embedded in SemiontSession. The class has no external
  * dependencies; these tests exercise the state transitions directly.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { FrontendSessionSignals } from '../frontend-session-signals';
+import { SessionSignals } from '../session-signals';
 
-let signals: FrontendSessionSignals;
+let signals: SessionSignals;
 
 beforeEach(() => {
-  signals = new FrontendSessionSignals();
+  signals = new SessionSignals();
 });
 
-describe('FrontendSessionSignals — session expired', () => {
+describe('SessionSignals — session expired', () => {
   it('starts with null modal state', () => {
     expect(signals.sessionExpiredAt$.getValue()).toBeNull();
     expect(signals.sessionExpiredMessage$.getValue()).toBeNull();
@@ -38,7 +38,7 @@ describe('FrontendSessionSignals — session expired', () => {
   });
 });
 
-describe('FrontendSessionSignals — permission denied', () => {
+describe('SessionSignals — permission denied', () => {
   it('starts with null modal state', () => {
     expect(signals.permissionDeniedAt$.getValue()).toBeNull();
     expect(signals.permissionDeniedMessage$.getValue()).toBeNull();
@@ -63,7 +63,7 @@ describe('FrontendSessionSignals — permission denied', () => {
   });
 });
 
-describe('FrontendSessionSignals — dispose', () => {
+describe('SessionSignals — dispose', () => {
   it('completes all four observables', () => {
     const flags = { se: false, sem: false, pd: false, pdm: false };
     signals.sessionExpiredAt$.subscribe({ complete: () => { flags.se = true; } });

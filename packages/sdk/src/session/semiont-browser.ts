@@ -3,9 +3,9 @@
  *
  * Holds the list of configured KBs, the active KB selection, the active
  * SemiontSession, the identity token, the open-resources list, and a
- * session-level error stream. Module-scoped singleton — survives every
- * React re-render, remount, and route change. `SemiontProvider` hands
- * the singleton to the React tree; `useSemiont()` returns it.
+ * session-level error stream. Held as a process-wide instance for the
+ * host's lifetime — see `getBrowser()` in `registry.ts` for the canonical
+ * accessor.
  *
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the browser never touches `localStorage` or `window`
@@ -33,11 +33,10 @@ import {
   saveKnowledgeBases,
   setStoredSession,
 } from './storage';
-import { registerAuthNotifyHandlers } from './notify';
 import type { KnowledgeBase, KbSessionStatus, NewKnowledgeBase } from './knowledge-base';
 import type { OpenResource } from './open-resource';
 import { SemiontSession, type UserInfo } from './semiont-session';
-import { FrontendSessionSignals } from './frontend-session-signals';
+import { SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 
@@ -75,9 +74,9 @@ export class SemiontBrowser {
    * non-null when `activeSession$` is non-null, always null when it
    * is. Extracted from the session itself so headless sessions
    * (workers, CLIs, tests) don't carry dead modal observables.
-   * See [FrontendSessionSignals](./frontend-session-signals.ts).
+   * See [SessionSignals](./session-signals.ts).
    */
-  readonly activeSignals$: BehaviorSubject<FrontendSessionSignals | null>;
+  readonly activeSignals$: BehaviorSubject<SessionSignals | null>;
   /**
    * True while a session is actively being constructed (setActiveKb /
    * signIn in flight, awaiting `session.ready`). Distinguishes the
@@ -100,7 +99,6 @@ export class SemiontBrowser {
    * (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*, browse:click).
    */
   private readonly eventBus: EventBus = new EventBus();
-  private unregisterNotify: (() => void) | null = null;
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
   private activating: Promise<void> | null = null;
@@ -126,7 +124,7 @@ export class SemiontBrowser {
     this.kbs$ = new BehaviorSubject<KnowledgeBase[]>(kbs);
     this.activeKbId$ = new BehaviorSubject<string | null>(initialActive);
     this.activeSession$ = new BehaviorSubject<SemiontSession | null>(null);
-    this.activeSignals$ = new BehaviorSubject<FrontendSessionSignals | null>(null);
+    this.activeSignals$ = new BehaviorSubject<SessionSignals | null>(null);
     this.sessionActivating$ = new BehaviorSubject<boolean>(false);
     this.openResources$ = new BehaviorSubject<OpenResource[]>(loadOpenResources(this.storage));
     this.error$ = new Subject<SemiontSessionError>();
@@ -153,18 +151,6 @@ export class SemiontBrowser {
         // Ignore parse errors
       }
     }) ?? null;
-
-    // Route notify-module calls (from outside-React code paths like the
-    // React Query QueryCache.onError handler) into the active session's
-    // modal signals.
-    this.unregisterNotify = registerAuthNotifyHandlers({
-      onSessionExpired: (message) => {
-        this.activeSignals$.getValue()?.notifySessionExpired(message ?? null);
-      },
-      onPermissionDenied: (message) => {
-        this.activeSignals$.getValue()?.notifyPermissionDenied(message ?? null);
-      },
-    });
 
     // Construct the initial active session, if any. Fire-and-forget.
     if (initialActive) {
@@ -197,9 +183,10 @@ export class SemiontBrowser {
   // ── Identity token (NextAuth bridge; D1) ──────────────────────────────
 
   /**
-   * Set the app-level identity token (from NextAuth's useSession).
-   * Called at the root layout via a single `useEffect`. No other site
-   * in the codebase should call this.
+   * Set the app-level identity token. Sourced from whatever the host
+   * environment uses for OAuth sessions (e.g. NextAuth in a browser app).
+   * Should be called once from the host's startup-and-on-change site;
+   * no other code should write to this slot.
    */
   setIdentityToken(token: string | null): void {
     if (this.disposed) return;
@@ -302,7 +289,7 @@ export class SemiontBrowser {
       // Construct the modal signals up front; the session's
       // onAuthFailed callback writes into them, so they must exist
       // before the session's ctor does its startup validation.
-      const signals = new FrontendSessionSignals();
+      const signals = new SessionSignals();
 
       // Build transport stack: caller (this) owns token$ and threads it
       // through transport (which reads it on every request) and session
@@ -327,6 +314,21 @@ export class SemiontBrowser {
         validate: (token) => this.performValidate(kb, token),
         onAuthFailed: (msg) => signals.notifySessionExpired(msg),
         onError: (err) => this.error$.next(err),
+      });
+
+      // Route transport-level errors to the modal signals. The session's
+      // `errors$` re-publishes `client.transport.errors$` per the
+      // `ITransport` contract; HttpTransport emits `APIError` instances
+      // whose `code` we route on. 401 covers ad-hoc unauthorized requests
+      // (the proactive-refresh `onAuthFailed` path doesn't); 403 has no
+      // recovery — surface it as permission-denied. The subscription
+      // ends naturally when `errors$` completes on transport dispose.
+      session.errors$.subscribe((err) => {
+        if (err.code === 'api.unauthorized') {
+          signals.notifySessionExpired(err.message);
+        } else if (err.code === 'api.forbidden') {
+          signals.notifyPermissionDenied(err.message);
+        }
       });
 
       try {
@@ -545,9 +547,6 @@ export class SemiontBrowser {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-
-    this.unregisterNotify?.();
-    this.unregisterNotify = null;
 
     if (this.unsubscribeStorage) {
       this.unsubscribeStorage();

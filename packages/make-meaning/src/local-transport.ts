@@ -17,7 +17,8 @@
  */
 
 import type { Observable, Subscription } from 'rxjs';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
+import type { SemiontError } from '@semiont/core';
 import type {
   BaseUrl,
   Email,
@@ -85,6 +86,18 @@ const NOT_SUPPORTED = (method: string) =>
 export class LocalTransport implements ITransport {
   readonly baseUrl: BaseUrl;
   readonly state$: BehaviorSubject<ConnectionState>;
+  private readonly errorsSubject: Subject<SemiontError> = new Subject<SemiontError>();
+  /**
+   * Stream of `SemiontError` instances surfaced from transport-mediated
+   * round-trips (typed-wire methods on this transport that fail). The
+   * in-process implementation does not currently surface errors through
+   * this stream — most failures here originate inside the make-meaning
+   * actors and surface through bus channels (correlation-ID failures via
+   * `busRequest`). The Subject exists to satisfy the `ITransport`
+   * contract; future expansion (e.g. transport-level guard failures)
+   * can publish into it.
+   */
+  readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
 
   private readonly bus: EventBus;
   private readonly userId: UserDID;
@@ -254,5 +267,6 @@ export class LocalTransport implements ITransport {
     this.bridges.length = 0;
     this.state$.next('closed');
     this.state$.complete();
+    this.errorsSubject.complete();
   }
 }

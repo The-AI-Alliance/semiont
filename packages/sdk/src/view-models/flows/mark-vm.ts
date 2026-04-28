@@ -45,8 +45,8 @@ export function createMarkVM(
 
   // The view layer is responsible for opening the annotations panel in
   // response to `pendingAnnotation$` becoming non-null. The VM stays pure:
-  // it updates state; UI side-effects (opening panels on the browser-scoped
-  // bus) live where the React tree has access to `useSemiont().emit(...)`.
+  // it updates state; UI side-effects (opening panels on the app-scoped
+  // bus) belong in the view layer, where the host's bus emit is accessible.
   const handleAnnotationRequested = (pending: PendingAnnotation) => {
     pendingAnnotation$.next(pending);
   };

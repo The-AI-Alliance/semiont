@@ -1,36 +1,33 @@
 /**
- * FrontendSessionSignals — modal state that belongs to the UI, not
- * the session itself.
+ * SessionSignals — UI-facing notification state that belongs to the host
+ * surface, not to the session itself.
  *
  * `SemiontSession` is a headless per-backend client + token + user
  * holder. It can run in any process: browser, worker, CLI, test. But
- * the session-expired / permission-denied *modals* only make sense
- * in a UI context. Keeping those observables on `SemiontSession`
- * meant workers and CLIs carried four dead BehaviorSubjects that
- * nothing would ever fire.
+ * the session-expired / permission-denied *notifications* are inherently
+ * a UI-host concern. Keeping those observables on `SemiontSession` meant
+ * workers and CLIs carried four dead BehaviorSubjects that nothing would
+ * ever fire.
  *
- * `FrontendSessionSignals` owns the modal state and has no hard
- * reference to a session. `SemiontBrowser` constructs one alongside
- * every frontend session and wires:
+ * `SessionSignals` owns the notification state and has no hard reference
+ * to a session. A UI host (e.g. `SemiontBrowser`) constructs one alongside
+ * every active session and wires:
  *
  *   - `session.onAuthFailed` → `signals.notifySessionExpired` so
- *     proactive-refresh failures surface as modals
- *   - `notify` module handlers → the active signals' methods so
- *     external callers (e.g. React Query's QueryCache.onError) can
- *     trigger the modals without touching the session
+ *     proactive-refresh failures surface as a notification
  *
- * React consumers that need modal state subscribe here; consumers
- * that need bus/HTTP access continue to subscribe to the session.
+ * UI consumers that need to render modal/banner state subscribe here;
+ * consumers that need bus/HTTP access continue to subscribe to the session.
  *
  * Session auth-state cleanup (clearing token, clearing storage) is
  * the session's own responsibility inside `refresh()` — by the time
  * `notifySessionExpired` runs, the session has already torn down.
- * Signals only surfaces the modal.
+ * Signals only surfaces the notification.
  */
 
 import { BehaviorSubject } from 'rxjs';
 
-export class FrontendSessionSignals {
+export class SessionSignals {
   readonly sessionExpiredAt$: BehaviorSubject<number | null>;
   readonly sessionExpiredMessage$: BehaviorSubject<string | null>;
   readonly permissionDeniedAt$: BehaviorSubject<number | null>;

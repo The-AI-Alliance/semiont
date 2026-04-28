@@ -19,8 +19,6 @@ vi.mock('@semiont/react-ui', async () => {
     ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
     useTheme: () => ({ theme: 'light', setTheme: vi.fn(), resolvedTheme: 'light' }),
-    notifySessionExpired: vi.fn(),
-    notifyPermissionDenied: vi.fn(),
   };
 });
 

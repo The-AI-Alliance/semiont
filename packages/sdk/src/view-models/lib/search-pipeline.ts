@@ -4,10 +4,9 @@
  * A debounced-search RxJS pipeline factory. Combines an input Subject with a
  * downstream fetch function and emits typed `{ results, isSearching }` state.
  *
- * Designed to be created once per component instance via React's
- * `useState(() => createSearchPipeline(...))` lazy initializer, then consumed
- * via `useObservable(pipeline.state$)`. The pipeline holds no React state and
- * has no React imports — it's pure RxJS, unit-testable without a renderer.
+ * Designed to be created once per consumer instance and held for its lifetime
+ * (e.g. by a view layer's lazy initializer), then observed via `state$`. The
+ * pipeline is pure RxJS — unit-testable without any view-layer dependency.
  *
  * The fetch function is expected to return `Observable<T[] | undefined>`,
  * matching the cache-miss-then-data shape of `BrowseNamespace` Observables:
@@ -24,13 +23,13 @@ export interface SearchState<T> {
 }
 
 export interface SearchPipeline<T> {
-  /** Latest query string. Bind to a controlled input via `useObservable`. */
+  /** Latest query string. Bind to a controlled input. */
   query$: Observable<string>;
   /** Latest search state — results plus a loading flag. */
   state$: Observable<SearchState<T>>;
   /** Push a new query value. Triggers the debounced fetch. */
   setQuery(value: string): void;
-  /** Tear down the input Subject. Call from `useEffect` cleanup. */
+  /** Tear down the input Subject. Call from the consumer's cleanup hook. */
   dispose(): void;
 }
 
