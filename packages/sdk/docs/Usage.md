@@ -2,6 +2,7 @@
 
 ## Table of Contents
 
+- [Orientation](#orientation)
 - [Setup](#setup)
 - [Browse — Reading Resources and Annotations](#browse)
 - [Mark — Annotation CRUD and AI Assist](#mark)
@@ -16,6 +17,25 @@
 - [SSE Streams](#sse-streams)
 - [Error Handling](#error-handling)
 - [Logging](#logging)
+
+## Orientation
+
+Three framings hold the SDK's surface together. Skim them once and the per-namespace details below become predictable.
+
+**Seven verbs.** Every operation belongs to one of seven flows — *yield, mark, match, bind, gather, browse, beckon* — that describe what a participant *does* with a shared corpus. Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../../../docs/protocol/flows); the per-namespace examples in this guide track the same vocabulary.
+
+**Four return shapes.** Method return types follow a predictable convention:
+
+| Shape | Naming | When to reach for it |
+|---|---|---|
+| `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.password`) | atomic backend ops — one round-trip, one value |
+| `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
+| `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `await` for the loaded value, `.subscribe(...)` for loading-then-loaded re-emits |
+| `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
+
+Both Observable subclasses implement `PromiseLike<T>`, so `await` works without learning RxJS. Reach for `.subscribe(...)` when you want progress events or live updates. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
+
+**Collaboration primitives.** The fourth row above — `void`-returning collaboration signals (`beckon.hover`, `mark.changeShape`, `bind.initiate`, `browse.click`) — is the SDK's distinctive contribution to multi-participant coordination. They look fire-and-forget at the call site; on the bus they fan out across every participant. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.get(channel)` — see [`REACTIVE-MODEL.md` § Three paths to the bus](./REACTIVE-MODEL.md#three-paths-to-the-bus).
 
 ## Setup
 

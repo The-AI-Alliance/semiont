@@ -12,6 +12,47 @@ The seven flows — *yield, mark, match, bind, gather, browse, beckon* — descr
 
 The SDK is **transport-agnostic**: it consumes the `ITransport` and `IContentTransport` contracts from [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core). For HTTP backends, the canonical wire adapter is re-exported here for convenience. For in-process operation (CLI, agentic worker, embedded use), use `LocalTransport` from [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning).
 
+## Three ideas that hold the surface together
+
+The SDK is wider than a typical client library because the domain is — collaborative knowledge work over a shared corpus, with humans and AI agents as peers. Three framings make the API tractable; once you've seen them, the rest is predictable.
+
+### 1. Seven verbs
+
+Every operation in the SDK belongs to one of seven *flows* — verbs that describe what a participant *does* with a shared corpus. The flows are the entire vocabulary of the protocol; learn them once and the surface stays small.
+
+| Verb | What it does | Example methods |
+|---|---|---|
+| **yield** | Introduce new resources into the system | `yield.resource`, `yield.fromAnnotation`, `yield.cloneToken` |
+| **mark** | Add structured metadata to resources | `mark.annotation`, `mark.assist`, `mark.archive` |
+| **match** | Search the corpus for candidate resources | `match.search` |
+| **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
+| **gather** | Assemble related context around an annotation | `gather.annotation` |
+| **browse** | Navigate, read, and observe | `browse.resource`, `browse.annotations`, `browse.click` |
+| **beckon** | Coordinate attention across participants | `beckon.hover`, `beckon.attention`, `beckon.sparkle` |
+
+Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`, `client.gather.X(...)`, ...). The verb is the unit of mental model — a method call belongs to a flow, not to a noun. Per-flow contracts live in [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
+
+### 2. Four return shapes
+
+Method return types follow four predictable shapes. The naming convention lets you predict the shape from the method name:
+
+| Shape | Naming | Examples |
+|---|---|---|
+| **Atomic backend op** — `Promise<T>` | past-tense or short noun | `mark.annotation`, `bind.body`, `auth.password` |
+| **Long-running stream** — `StreamObservable<T>` | plain verb | `mark.assist`, `match.search`, `gather.annotation` |
+| **Live query** — `CacheObservable<T>` | plain noun | `browse.resource`, `browse.annotations`, `browse.entityTypes` |
+| **Collaboration signal** — `void` | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape` |
+
+Both Observable subclasses implement `PromiseLike<T>`, so consumers can `await` them directly without learning RxJS. Reach for `.subscribe(...)` when you want progress events, live updates, or to observe a collaboration signal another participant emitted. See [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) for the full design and method-by-method assignment.
+
+### 3. Collaboration primitives
+
+The fourth row above — the `void`-returning collaboration signals — is the SDK's distinctive contribution to multi-participant coordination. They look fire-and-forget at the call site; on the bus they fan out across every participant.
+
+A human in a browser hovers an annotation (`beckon.hover(annotationId)`); an AI agent at the other end of the bus sees `beckon:hover` and reacts. An agent emits a sparkle (`beckon.sparkle(annotationId)`); the human's UI lights up the indicated annotation. A frontend VM emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
+
+This is *protocol-level* coordination — not browser-app fluff, not bolted-on presence — and it sits on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. Three legitimate paths to the bus are documented in [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md#three-paths-to-the-bus).
+
 ## What's in the box
 
 - **`SemiontClient`** — the verb-oriented coordinator over a wire transport.
@@ -103,18 +144,9 @@ const client = new SemiontClient(
 
 Same `SemiontClient`, same verb namespaces — no network involved. There is no `fromLocal` factory because the in-process transport's dependencies (knowledgeSystem, eventBus, userId) are not boilerplate the SDK can hide.
 
-## Verb namespaces
+## Worked examples
 
-All ten namespaces hang off `SemiontClient`. Method return types follow four shapes — predictable from the method name once you know the convention:
-
-| Shape | Convention | Examples |
-|---|---|---|
-| **Atomic backend op** — `Promise<T>` | past-tense or short noun | `mark.annotation`, `bind.body`, `auth.password` |
-| **Long-running stream** — `StreamObservable<T>` | plain verb | `mark.assist`, `match.search`, `gather.annotation`, `yield.fromAnnotation` |
-| **Live query** — `CacheObservable<T>` | plain noun | `browse.resource`, `browse.annotations`, `browse.entityTypes` |
-| **Collaboration signal** — `void` | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click` |
-
-Both Observable subclasses implement `PromiseLike<T>`, so consumers can `await` them directly. Reactive consumers `.subscribe(...)` exactly as with a plain Observable. The bus is invisible to callers — channel strings, correlation IDs, and reconnection are internal.
+The seven verb namespaces hang off `SemiontClient`, plus three infrastructure namespaces (`auth`, `admin`, `job`) when the client was constructed with backend operations. Each example below uses one of the four return shapes from the table above; pick whichever matches what your call site needs.
 
 ```ts
 // Browse — live queries; await yields the loaded value, subscribe yields
@@ -146,9 +178,7 @@ client.bind.initiate({ annotationId });
 client.browse.click(annotationId, 'linking');
 ```
 
-The verb-by-verb walkthroughs live in [docs/protocol/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
-
-The SDK is RxJS-native, but its return values implement `PromiseLike<T>` — `await` works directly. Reach for `.subscribe(...)` when you want progress events, live updates, or to observe a collaboration signal another participant emitted; `.pipe(...)` only when you want operator composition (which loses the thenable). See [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) for the four return-shape categories, the naming convention, the three legitimate paths to the bus, and the design rationale.
+The verb-by-verb walkthroughs live in [docs/protocol/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows). The per-namespace API reference with concrete examples for each method lives in [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md).
 
 ## Documentation
 

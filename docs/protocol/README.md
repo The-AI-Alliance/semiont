@@ -43,6 +43,8 @@ Semiont transforms unstructured content into interconnected semantic networks, s
 - **[Browse](flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
 - **[Beckon](flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
+The seven flows are also the seven verb namespaces on the SDK's `SemiontClient` (`client.yield.X(...)`, `client.mark.X(...)`, `client.match.X(...)`, ...). The protocol's vocabulary and the typed namespace surface are 1:1 — learn the flows once, read the SDK with no further translation. The collaboration signals from "Coordination is First-Class" appear on the same namespaces as `void`-returning methods (`beckon.hover`, `mark.changeShape`, `bind.initiate`, `browse.click`); see [`packages/sdk/README.md`](../../packages/sdk/README.md#three-ideas-that-hold-the-surface-together) for the SDK-side framing.
+
 ## Automate
 
 Every operation in the GUI is available programmatically. The same seven flows work identically whether driven by a human, a script, or an AI agent.
