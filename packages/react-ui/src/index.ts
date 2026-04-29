@@ -220,9 +220,9 @@ export { createMarkVM, type MarkVM, type PendingAnnotation } from '@semiont/sdk'
 export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/sdk';
 export { createGatherVM, type GatherVM } from '@semiont/sdk';
 export { createMatchVM, type MatchVM } from '@semiont/sdk';
-export type { WorkerBus } from '@semiont/sdk';
 // Job-domain worker adapters (`createJobClaimAdapter`, `createJobQueueVM`)
-// live in `@semiont/jobs` — import them from there directly if needed.
+// and the `WorkerBus` interface live in `@semiont/jobs` and `@semiont/sdk`
+// respectively — import them from there directly if needed.
 
 // Page-shaped state machines live here in `@semiont/react-ui` because they
 // model the Semiont web frontend's specific page taxonomy and shell. They
