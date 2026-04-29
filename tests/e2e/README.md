@@ -42,6 +42,10 @@ container run --rm \
 - [Jaeger evidence](docs/jaeger.md) — the `jaeger` fixture that pulls
   matching distributed traces on test teardown and attaches them to
   the Playwright report.
+- [Page errors](docs/page-errors.md) — the `pageErrors` fixture that
+  surfaces uncaught browser-side errors (exceptions, unhandled
+  rejections, `console.error`) — invisible to bus/jaeger captures.
+  Soft by default; flip `PAGE_ERRORS_FAIL=1` once clean.
 - [Live monitoring](docs/live-monitoring.md) — sibling workflow for
   bug-hunting on the running stack (no Playwright). Streaming
   per-container error tails + on-demand snapshot of the last N

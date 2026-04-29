@@ -16,6 +16,7 @@ material you collect feeds directly into closing the coverage gap.
 | You're poking around a new feature pre-CI, want to see what fires | Live monitoring |
 | A user reported "I clicked X and got Y" and you can repro | Live monitoring (snapshot) → write an e2e spec when fixed |
 | A failing e2e spec attached its `jaeger-*.json` artifacts | The auto-attached evidence — see [`jaeger.md`](jaeger.md) |
+| A failing e2e spec attached `page-errors.json` | An uncaught browser error fired during the test — see [`page-errors.md`](page-errors.md) |
 | A failing e2e spec needs the per-test container log slice | Run [`scripts/slice-container-logs.py`](../scripts/slice-container-logs.py) post-hoc |
 
 The relationship is: **live monitoring catches what the e2e suite
