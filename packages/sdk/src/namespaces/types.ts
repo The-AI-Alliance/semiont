@@ -98,7 +98,10 @@ export interface GenerationOptions {
   storageUri: string;
   context: GatheredContext;
   prompt?: string;
+  /** Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). */
   language?: string;
+  /** Source-resource locale — language of the resource the annotation lives on, used in the prompt so the LLM understands embedded source-context snippets. BCP-47. */
+  sourceLanguage?: string;
   temperature?: number;
   maxTokens?: number;
 }
@@ -110,7 +113,10 @@ export interface MarkAssistOptions {
   instructions?: string;
   density?: number;
   tone?: string;
+  /** Annotation body locale — language the LLM should write generated body text in (comment text, assessment text, tag/reference body language stamp). BCP-47. */
   language?: string;
+  /** Source-resource locale — language of the content being analyzed, used in the prompt so the LLM analyzes non-English source correctly. BCP-47. */
+  sourceLanguage?: string;
   schemaId?: string;
   categories?: string[];
 }

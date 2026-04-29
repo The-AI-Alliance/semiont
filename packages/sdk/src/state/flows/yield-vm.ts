@@ -11,7 +11,10 @@ export interface GenerateDocumentOptions {
   title: string;
   storageUri: string;
   prompt?: string;
+  /** Body locale — language the generated resource is written in. Falls back to the VM's UI locale when unset. */
   language?: string;
+  /** Source-resource locale — language of the resource the annotation lives on. Forwarded to the prompt for context-snippet awareness. BCP-47. */
+  sourceLanguage?: string;
   temperature?: number;
   maxTokens?: number;
   context: GatheredContext;

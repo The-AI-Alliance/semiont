@@ -197,11 +197,15 @@ export function ResourceViewerPage({
       storageUri: config.storagePath,
       prompt: config.prompt,
       language: config.language,
+      // The source resource is the one the user is viewing — fed into the
+      // prompt so the LLM understands the embedded context (selected
+      // passage, surrounding text) regardless of UI/target language.
+      sourceLanguage: getLanguage(resource),
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       context: config.context,
     });
-  }, [vm, clearNewAnnotationId]);
+  }, [vm, clearNewAnnotationId, resource]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
     if (!semiont) return;
@@ -521,6 +525,7 @@ export function ResourceViewerPage({
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri}
                 locale={locale}
+                sourceLanguage={getLanguage(resource)}
                 scrollToAnnotationId={scrollToAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onScrollCompleted={onScrollCompleted}

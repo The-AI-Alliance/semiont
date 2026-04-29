@@ -187,6 +187,7 @@ export class YieldNamespace implements IYieldNamespace {
             title: options.title,
             prompt: options.prompt,
             language: options.language,
+            sourceLanguage: options.sourceLanguage,
             temperature: options.temperature,
             maxTokens: options.maxTokens,
             storageUri: options.storageUri,

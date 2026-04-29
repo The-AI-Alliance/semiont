@@ -42,57 +42,81 @@ export class AnnotationDetection {
   }
 
   /**
-   * Detect comments in content
+   * Detect comments in content.
+   *
+   * `language` is the locale the LLM should write comment text in (annotation
+   * body locale). `sourceLanguage` is the locale of the content being analyzed
+   * (source-resource locale). See `types.ts` "Locale conventions" for the
+   * full discussion.
    */
   static async detectComments(
     content: string,
     client: InferenceClient,
     instructions?: string,
     tone?: string,
-    density?: number
+    density?: number,
+    language?: string,
+    sourceLanguage?: string
   ): Promise<CommentMatch[]> {
-    const prompt = MotivationPrompts.buildCommentPrompt(content, instructions, tone, density);
+    const prompt = MotivationPrompts.buildCommentPrompt(content, instructions, tone, density, language, sourceLanguage);
     const response = await client.generateText(prompt, 3000, 0.4);
     return MotivationParsers.parseComments(response, content);
   }
 
   /**
-   * Detect highlights in content
+   * Detect highlights in content.
+   *
+   * Highlights have no body — only `sourceLanguage` (source-resource locale)
+   * applies, used in the prompt so the LLM analyzes non-English source
+   * correctly.
    */
   static async detectHighlights(
     content: string,
     client: InferenceClient,
     instructions?: string,
-    density?: number
+    density?: number,
+    sourceLanguage?: string
   ): Promise<HighlightMatch[]> {
-    const prompt = MotivationPrompts.buildHighlightPrompt(content, instructions, density);
+    const prompt = MotivationPrompts.buildHighlightPrompt(content, instructions, density, sourceLanguage);
     const response = await client.generateText(prompt, 2000, 0.3);
     return MotivationParsers.parseHighlights(response, content);
   }
 
   /**
-   * Detect assessments in content
+   * Detect assessments in content.
+   *
+   * `language` is the locale the LLM should write assessment text in
+   * (annotation body locale). `sourceLanguage` is the locale of the content
+   * being analyzed (source-resource locale).
    */
   static async detectAssessments(
     content: string,
     client: InferenceClient,
     instructions?: string,
     tone?: string,
-    density?: number
+    density?: number,
+    language?: string,
+    sourceLanguage?: string
   ): Promise<AssessmentMatch[]> {
-    const prompt = MotivationPrompts.buildAssessmentPrompt(content, instructions, tone, density);
+    const prompt = MotivationPrompts.buildAssessmentPrompt(content, instructions, tone, density, language, sourceLanguage);
     const response = await client.generateText(prompt, 3000, 0.3);
     return MotivationParsers.parseAssessments(response, content);
   }
 
   /**
-   * Detect tags in content for a specific category
+   * Detect tags in content for a specific category.
+   *
+   * `sourceLanguage` is the locale of the content being analyzed. Body-locale
+   * (`language`) doesn't influence the tag prompt — categories are schema
+   * identifiers, not LLM-generated text — so it's consumed at the body-stamp
+   * site, not here.
    */
   static async detectTags(
     content: string,
     client: InferenceClient,
     schemaId: string,
-    category: string
+    category: string,
+    sourceLanguage?: string
   ): Promise<TagMatch[]> {
     const schema = getTagSchema(schemaId);
     if (!schema) {
@@ -111,7 +135,8 @@ export class AnnotationDetection {
       schema.description,
       schema.domain,
       categoryInfo.description,
-      categoryInfo.examples
+      categoryInfo.examples,
+      sourceLanguage
     );
 
     const response = await client.generateText(prompt, 4000, 0.2);

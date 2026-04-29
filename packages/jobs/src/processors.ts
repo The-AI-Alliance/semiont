@@ -105,7 +105,7 @@ export async function processHighlightJob(
   onProgress(30, 'Analyzing text...', 'analyzing');
 
   const highlights = await AnnotationDetection.detectHighlights(
-    content, inferenceClient, params.instructions, params.density,
+    content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
   );
 
   onProgress(60, `Creating ${highlights.length} annotations...`, 'creating');
@@ -137,16 +137,21 @@ export async function processCommentJob(
 
   const comments = await AnnotationDetection.detectComments(
     content, inferenceClient, params.instructions, params.tone, params.density,
+    params.language, params.sourceLanguage,
   );
 
   onProgress(60, `Creating ${comments.length} annotations...`, 'creating');
 
+  // The body's `language` reflects the locale the LLM was asked to write in
+  // (`params.language` — the user's UI locale). Defaults to 'en' when the
+  // caller didn't specify, matching what the LLM produces by default.
+  const bodyLanguage = params.language ?? 'en';
   const annotations = comments.map((c) =>
     // Match the pre-#651 CommentAnnotationWorker: include format and
     // language on the body TextualBody. Optional in the schema, but
     // consumers that do language-aware rendering rely on them.
     buildTextAnnotation(params.resourceId, userId, generator, 'commenting', c, [
-      { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain', language: 'en' },
+      { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain', language: bodyLanguage },
     ]),
   );
 
@@ -171,10 +176,12 @@ export async function processAssessmentJob(
 
   const assessments = await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
+    params.language, params.sourceLanguage,
   );
 
   onProgress(60, `Creating ${assessments.length} annotations...`, 'creating');
 
+  const bodyLanguage = params.language ?? 'en';
   const annotations = assessments.map((a) =>
     // Single-object body with purpose aligned to motivation, matching the
     // pre-#651 AssessmentAnnotationWorker's shape and the majority of
@@ -183,7 +190,7 @@ export async function processAssessmentJob(
     // a description" signal and breaks existing readers that access
     // `body.value` directly on the object.
     buildTextAnnotation(params.resourceId, userId, generator, 'assessing', a, {
-      type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain', language: 'en',
+      type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain', language: bodyLanguage,
     }),
   );
 
@@ -214,6 +221,8 @@ export async function processReferenceJob(
 
   onProgress(10, 'Loading resource...', 'analyzing', { requestParams });
 
+  const bodyLanguage = params.language ?? 'en';
+
   for (let i = 0; i < entityTypeNames.length; i++) {
     const entityTypeName = entityTypeNames[i];
     if (!entityTypeName) continue;
@@ -230,16 +239,20 @@ export async function processReferenceJob(
 
     const extractedEntities = await extractEntities(
       content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
+      params.sourceLanguage,
     );
 
     totalFound += extractedEntities.length;
     completedEntityTypes.push({ entityType: entityTypeName, foundCount: extractedEntities.length });
 
-    // Unresolved reference body: the entity type as a tagging TextualBody.
+    // Unresolved reference body: the entity type as a tagging TextualBody,
+    // stamped with the body locale to match the comment/assess/tag pattern.
     // The bind flow later appends a SpecificResource (purpose: 'linking')
     // via mark:body-updated to produce the resolved shape. Emitting an
     // empty body would break the append contract.
-    const unresolvedBody = [{ type: 'TextualBody', value: entityTypeName, purpose: 'tagging' }];
+    const unresolvedBody = [
+      { type: 'TextualBody', value: entityTypeName, purpose: 'tagging', format: 'text/plain', language: bodyLanguage },
+    ];
 
     for (const entity of extractedEntities) {
       try {
@@ -277,7 +290,7 @@ export async function processTagJob(
   const allTags = [];
   for (const category of params.categories) {
     const categoryTags = await AnnotationDetection.detectTags(
-      content, inferenceClient, params.schemaId, category,
+      content, inferenceClient, params.schemaId, category, params.sourceLanguage,
     );
     allTags.push(...categoryTags);
   }
@@ -285,6 +298,7 @@ export async function processTagJob(
 
   onProgress(60, `Creating ${tags.length} tag annotations...`, 'creating');
 
+  const bodyLanguage = params.language ?? 'en';
   const byCategory: Record<string, number> = {};
   const annotations = tags.map((t) => {
     const category = t.category ?? 'unknown';
@@ -295,7 +309,7 @@ export async function processTagJob(
     // classifying body is the only trace of schema provenance in the
     // event log — do not drop it.
     return buildTextAnnotation(params.resourceId, userId, generator, 'tagging', t, [
-      { type: 'TextualBody', value: category,        purpose: 'tagging',     format: 'text/plain', language: 'en' },
+      { type: 'TextualBody', value: category,        purpose: 'tagging',     format: 'text/plain', language: bodyLanguage },
       { type: 'TextualBody', value: params.schemaId, purpose: 'classifying', format: 'text/plain' },
     ]);
   });
@@ -329,6 +343,8 @@ export async function processGenerationJob(
     params.context,
     params.temperature,
     params.maxTokens,
+    undefined, // logger
+    params.sourceLanguage,
   );
 
   onProgress(85, 'Creating resource...', 'creating');

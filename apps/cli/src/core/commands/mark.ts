@@ -76,6 +76,19 @@ export const MarkOptionsSchema = ApiOptionsSchema.extend({
   instructions: z.string().optional(),
   density: z.coerce.number().int().optional(),
   tone: z.enum(['scholarly', 'explanatory', 'conversational', 'technical', 'analytical', 'critical', 'balanced', 'constructive']).optional(),
+  /**
+   * BCP-47 tag for the annotation body language. Tells the LLM what language
+   * to write generated body text in (comment/assessment) and stamps the
+   * `language` field on every TextualBody the worker produces. Independent
+   * from --source-language; this one is about the *output*.
+   */
+  language: z.string().optional(),
+  /**
+   * BCP-47 tag for the source-resource language. Goes into the prompt so the
+   * LLM analyzes non-English source correctly. Independent from --language;
+   * this one is about the *input*.
+   */
+  sourceLanguage: z.string().optional(),
 
   // ── Delegate mode: linking ─────────────────────────────────────────────
   entityType: z.array(z.string()).default([]),
@@ -228,7 +241,7 @@ async function runDelegate(
 ): Promise<{ motivation: string; resourceId: string; createdCount: number }> {
   const rawResourceId = options.resourceIdArr[0];
   const rId = toResourceId(rawResourceId);
-  const { motivation, instructions, density, tone, entityType, includeDescriptive, schemaId, category } = options;
+  const { motivation, instructions, density, tone, entityType, includeDescriptive, schemaId, category, language, sourceLanguage } = options;
 
   if (!options.quiet) process.stderr.write(`Annotating ${motivation} on ${rawResourceId}...\n`);
 
@@ -241,6 +254,8 @@ async function runDelegate(
       includeDescriptiveReferences: includeDescriptive,
       schemaId: schemaId as string | undefined,
       categories: category as string[] | undefined,
+      language,
+      sourceLanguage,
     }),
   );
 

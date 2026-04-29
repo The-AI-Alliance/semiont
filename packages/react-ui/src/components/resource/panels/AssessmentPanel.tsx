@@ -45,6 +45,8 @@ interface AssessmentPanelProps {
   isAssisting?: boolean;
   progress?: JobProgress | null;
   locale?: string;
+  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call. */
+  sourceLanguage?: string;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -64,6 +66,7 @@ export function AssessmentPanel({
   isAssisting = false,
   progress,
   locale,
+  sourceLanguage,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -243,6 +246,7 @@ export function AssessmentPanel({
             annotationType="assessment"
             isAssisting={isAssisting}
             locale={locale}
+            sourceLanguage={sourceLanguage}
             progress={progress}
           />
         )}

@@ -12,7 +12,10 @@ type JobProgress = components['schemas']['JobProgress'];
 interface AssistSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';
   isAssisting: boolean;
+  /** User UI locale — written into the annotation body's `language` field for comment/assessment. */
   locale?: string;
+  /** BCP-47 tag of the resource being analyzed. Forwarded to the prompt so the LLM analyzes non-English source correctly. */
+  sourceLanguage?: string;
   progress?: JobProgress | null | undefined;
 }
 
@@ -34,6 +37,7 @@ export function AssistSection({
   annotationType,
   isAssisting,
   locale,
+  sourceLanguage,
   progress,
 }: AssistSectionProps) {
 
@@ -74,13 +78,18 @@ export function AssistSection({
       instructions: instructions.trim() || undefined,
       tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
       density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
+      // Body locale only applies where the LLM writes natural-language text:
+      // comment/assessment have a body, highlight does not.
       language: (annotationType === 'comment' || annotationType === 'assessment') ? locale : undefined,
+      // Source locale applies to all three — affects analysis quality on
+      // non-English source, regardless of whether a body is produced.
+      sourceLanguage,
     });
 
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across assists
-  }, [annotationType, instructions, tone, useDensity, density, locale, session]);
+  }, [annotationType, instructions, tone, useDensity, density, locale, sourceLanguage, session]);
 
   const handleDismissProgress = useCallback(() => {
     session?.client.mark.dismissProgress();

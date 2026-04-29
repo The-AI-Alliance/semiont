@@ -229,4 +229,40 @@ describe('extractEntities', () => {
 
     expect(result).toEqual([]);
   });
+
+  describe('source language', () => {
+    // Entity references' bodies are entity-type identifiers, not LLM-generated
+    // text — so only `sourceLanguage` is meaningful. It's wired into the
+    // prompt so the LLM analyzes non-English source correctly.
+
+    it('injects source-language guidance into the prompt when provided', async () => {
+      mockInferenceClient.setResponses(['[]']);
+      mockInferenceClient.reset();
+      await extractEntities(
+        'Marie Curie a découvert le radium.', ['Person'], mockInferenceClient,
+        false, undefined, 'fr',
+      );
+      const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
+      expect(sentPrompt).toContain('Source text language: French');
+    });
+
+    it('omits source-language guidance when not provided', async () => {
+      mockInferenceClient.setResponses(['[]']);
+      mockInferenceClient.reset();
+      await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient);
+      const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
+      expect(sentPrompt).not.toContain('Source text language:');
+    });
+
+    it('falls back to the raw tag when the BCP-47 code is unknown', async () => {
+      mockInferenceClient.setResponses(['[]']);
+      mockInferenceClient.reset();
+      await extractEntities(
+        'Some text', ['Person'], mockInferenceClient,
+        false, undefined, 'xx',
+      );
+      const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
+      expect(sentPrompt).toContain('Source text language: xx');
+    });
+  });
 });
