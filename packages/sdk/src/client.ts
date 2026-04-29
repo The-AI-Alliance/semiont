@@ -23,6 +23,7 @@ import { GatherNamespace } from './namespaces/gather';
 import { MatchNamespace } from './namespaces/match';
 import { YieldNamespace } from './namespaces/yield';
 import { BeckonNamespace } from './namespaces/beckon';
+import { FrameNamespace } from './namespaces/frame';
 import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
@@ -70,11 +71,14 @@ export class SemiontClient {
 
   // ── Verb-oriented namespace API ──────────────────────────────────────────
   //
-  // The first eight namespaces are bus-driven and always present. `auth`
-  // and `admin` are backend-ops namespaces — they're only constructed
-  // when the caller passes an `IBackendOperations` instance to the
-  // constructor. A `SemiontClient` over a transport-only setup (e.g.
-  // `LocalTransport`) has `auth === undefined` / `admin === undefined`.
+  // The first nine namespaces are bus-driven and always present. `frame`
+  // is the schema-layer flow's surface (eighth flow); the other eight are
+  // content-layer flows plus `job`. `auth` and `admin` are backend-ops
+  // namespaces — they're only constructed when the caller passes an
+  // `IBackendOperations` instance to the constructor. A `SemiontClient`
+  // over a transport-only setup (e.g. `LocalTransport`) has
+  // `auth === undefined` / `admin === undefined`.
+  public readonly frame: FrameNamespace;
   public readonly browse: BrowseNamespace;
   public readonly mark: MarkNamespace;
   public readonly bind: BindNamespace;
@@ -113,6 +117,7 @@ export class SemiontClient {
     this.bus = new EventBus();
     this.transport.bridgeInto(this.bus);
 
+    this.frame  = new FrameNamespace(this.transport);
     this.browse = new BrowseNamespace(this.transport, this.bus, this.content);
     this.mark   = new MarkNamespace(this.transport, this.bus);
     this.bind   = new BindNamespace(this.transport, this.bus);

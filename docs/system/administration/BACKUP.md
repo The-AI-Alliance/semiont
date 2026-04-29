@@ -92,7 +92,7 @@ Each stream summary records the first and last event checksums, enabling hash ch
 
 Each file is a JSONL stream of `StoredEvent` objects. Events are stored in their original order.
 
-- `__system__.jsonl` — System-level events (e.g., `mark:entity-type-added`)
+- `__system__.jsonl` — System-level events (e.g., `frame:entity-type-added`)
 - `{resourceId}.jsonl` — Per-resource events (e.g., `yield:created`, `mark:added`, `mark:body-updated`, `mark:archived`)
 
 ### Content Blobs (root level)
@@ -134,7 +134,7 @@ The replay handles these event types:
 
 | Event | Replay Action |
 |-------|---------------|
-| `mark:entity-type-added` | `mark:add-entity-type` → await `mark:entity-type-added` |
+| `frame:entity-type-added` | `frame:add-entity-type` → await `frame:entity-type-added` |
 | `yield:created` | Resolve content blob, `yield:create` → await `yield:created` |
 | `mark:added` | `mark:create` → await `mark:created` |
 | `mark:body-updated` | `mark:update-body` → await `mark:body-updated` |

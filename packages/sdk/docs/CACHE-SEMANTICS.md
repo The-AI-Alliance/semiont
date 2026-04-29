@@ -294,7 +294,7 @@ code.
 | `yield:update-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `mark:archived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `mark:unarchived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
-| `mark:entity-type-added` | invalidate `entityTypes` |
+| `frame:entity-type-added` | invalidate `entityTypes` |
 
 Observations from this table:
 

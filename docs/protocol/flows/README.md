@@ -1,9 +1,12 @@
 # Flows
 
-The seven flows are verbs that actors perform. Each flow is a conversation between one or more intelligent actors and the knowledge base, mediated by the event bus. Flows are composable: a Marker Agent does mark + browse + beckon; a Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event map](../../../packages/core/src/bus-protocol.ts).
+The eight flows are verbs that actors perform. Each flow is a conversation between one or more intelligent actors and the knowledge base, mediated by the event bus. Flows are composable: a Marker Agent does mark + browse + beckon; a Generator Agent does yield + gather; a Curator does frame + browse to evolve and inspect the schema. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event map](../../../packages/core/src/bus-protocol.ts).
+
+Frame is the schema-layer flow — it operates on the conceptual vocabulary the other seven flows are expressed in (entity types today, eventually tag schemas, relation/predicate types, ontology imports). The other seven flows operate on content; Frame operates on the schema layer that content is expressed in.
 
 | Flow | Who does it | What happens |
 |------|-------------|-------------|
+| **[Frame](FRAME.md)** | Curator, Schema Agent, Admin | Define and evolve the KB's schema vocabulary |
 | **[Mark](MARK.md)** | Analyst, Author, Marker Agent | Create W3C annotations on resources |
 | **[Browse](BROWSE.md)** | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
 | **[Beckon](BECKON.md)** | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
@@ -16,7 +19,8 @@ The seven flows are verbs that actors perform. Each flow is a conversation betwe
 
 ```mermaid
 graph LR
-    YIELD["Yield"] -->|creates resources| MARK["Mark"]
+    FRAME["Frame"] -->|defines vocabulary| MARK["Mark"]
+    YIELD["Yield"] -->|creates resources| MARK
     MARK -->|creates references| MATCH["Match"]
     MATCH -->|finds candidates| BIND["Bind"]
     BIND -->|resolves references| GATHER["Gather"]
@@ -24,7 +28,7 @@ graph LR
     BROWSE["Browse"] -->|navigates to| BECKON["Beckon"]
 ```
 
-**Yield** introduces content. **Mark** annotates it — highlights, assessments, comments, tags, entity references. **Match** searches for candidate resources when a reference is ambiguous. **Bind** resolves the reference to a concrete target. **Gather** assembles context around a focal annotation. That context feeds back into **Yield** to generate new resources, closing the loop. **Browse** and **Beckon** handle navigation and attention — directing the user (or agent) to the right place.
+**Frame** defines the conceptual vocabulary — what kinds of things exist (entity types, future tag schemas, relation types). **Yield** introduces content. **Mark** annotates it — highlights, assessments, comments, tags, entity references — drawing on the vocabulary Frame manages. **Match** searches for candidate resources when a reference is ambiguous. **Bind** resolves the reference to a concrete target. **Gather** assembles context around a focal annotation. That context feeds back into **Yield** to generate new resources, closing the loop. **Browse** and **Beckon** handle navigation and attention — directing the user (or agent) to the right place.
 
 ## Actor Roles
 

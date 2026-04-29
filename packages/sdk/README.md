@@ -8,22 +8,23 @@
 
 The TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) — a programmable surface for **collaborative knowledge work**. Whether you're building a browser app where humans annotate documents and propose links, an AI agent that gathers context and matches candidate references, a daemon that ingests new sources, or a one-shot script that queries an established knowledge base, you reach the same verb namespaces, the same collaboration primitives, the same lifecycle observables.
 
-The seven flows — *yield, mark, match, bind, gather, browse, beckon* — describe what participants *do* when they work with a shared corpus. The SDK exposes them uniformly across surfaces. A human in a browser hovers an annotation; an AI agent at the other end of the bus sees the hover and reacts; a daemon ingests new text and every connected participant sees the corpus grow live. Humans and AI agents are peers — the SDK does not distinguish.
+The eight flows — *frame, yield, mark, match, bind, gather, browse, beckon* — describe what participants *do* when they work with a shared corpus. The first seven act on content; Frame acts on the schema layer (the conceptual vocabulary the others operate within). The SDK exposes them uniformly across surfaces. A human in a browser hovers an annotation; an AI agent at the other end of the bus sees the hover and reacts; a daemon ingests new text and every connected participant sees the corpus grow live. Humans and AI agents are peers — the SDK does not distinguish.
 
 The SDK is **transport-agnostic**: it consumes the `ITransport` and `IContentTransport` contracts from [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core). For HTTP backends, the canonical wire adapter is re-exported here for convenience. For in-process operation (CLI, agentic worker, embedded use), use `LocalTransport` from [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning).
 
-> **Where this doc fits.** This README is the *typed-surface reference* — what's in `@semiont/sdk`, how the namespaces are organized, what return shapes to expect. For the *protocol-level architectural framing* (the seven flows, the three programmable surfaces — CLI, SDK, Skills — the core tenets, the per-flow contracts), start with [`docs/protocol/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md). Daemon authors stitching multiple packages together also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills) — `semiont-session` for watcher daemons, `semiont-worker` for job-claim daemons, `semiont-wiki` for the end-to-end annotation pipeline.
+> **Where this doc fits.** This README is the *typed-surface reference* — what's in `@semiont/sdk`, how the namespaces are organized, what return shapes to expect. For the *protocol-level architectural framing* (the eight flows, the three programmable surfaces — CLI, SDK, Skills — the core tenets, the per-flow contracts), start with [`docs/protocol/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md). Daemon authors stitching multiple packages together also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills) — `semiont-session` for watcher daemons, `semiont-worker` for job-claim daemons, `semiont-wiki` for the end-to-end annotation pipeline.
 
 ## Three ideas that hold the surface together
 
 The SDK is wider than a typical client library because the domain is — collaborative knowledge work over a shared corpus, with humans and AI agents as peers. Three framings make the API tractable; once you've seen them, the rest is predictable.
 
-### 1. Seven verbs
+### 1. Eight verbs
 
-Every operation in the SDK belongs to one of seven *flows* — verbs that describe what a participant *does* with a shared corpus. The flows are the entire vocabulary of the protocol; learn them once and the surface stays small.
+Every operation in the SDK belongs to one of eight *flows* — verbs that describe what a participant *does* with a shared corpus. The flows are the entire vocabulary of the protocol; learn them once and the surface stays small.
 
 | Verb | What it does | Example methods |
 |---|---|---|
+| **frame** | Define and evolve the schema vocabulary (entity types, future tag schemas, relation types) | `frame.addEntityType`, `frame.addEntityTypes` |
 | **yield** | Introduce new resources into the system | `yield.resource`, `yield.fromAnnotation`, `yield.cloneToken` |
 | **mark** | Add structured metadata to resources | `mark.annotation`, `mark.assist`, `mark.archive` |
 | **match** | Search the corpus for candidate resources | `match.search` |
@@ -32,7 +33,7 @@ Every operation in the SDK belongs to one of seven *flows* — verbs that descri
 | **browse** | Navigate, read, and observe | `browse.resource`, `browse.annotations`, `browse.click` |
 | **beckon** | Coordinate attention across participants | `beckon.hover`, `beckon.attention`, `beckon.sparkle` |
 
-Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`, `client.gather.X(...)`, ...). The verb is the unit of mental model — a method call belongs to a flow, not to a noun. Per-flow contracts live in [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
+Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`, `client.gather.X(...)`, ...). The verb is the unit of mental model — a method call belongs to a flow, not to a noun. Frame is the schema-layer flow — content flows operate within the vocabulary Frame manages. Per-flow contracts live in [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
 
 ### 2. Four return shapes — guess from the name
 
@@ -71,7 +72,7 @@ Page-shaped state machines (admin tables, compose page, resource viewer page, et
 
 `@semiont/sdk` is the only package a non-web Semiont consumer needs. From it you get:
 
-- `SemiontClient` + the seven verb namespaces (`browse`, `mark`, `bind`, `gather`, `match`, `yield`, `beckon`)
+- `SemiontClient` + the eight verb namespaces (`frame`, `browse`, `mark`, `bind`, `gather`, `match`, `yield`, `beckon`)
 - Three infrastructure namespaces (`auth`, `admin`, `job`) when constructed with backend operations
 - `SemiontSession` for long-running token refresh + persistence
 - `SemiontBrowser` for multi-KB orchestration (transport-agnostic; takes a `SessionFactory`)
@@ -165,7 +166,7 @@ Same `SemiontClient`, same verb namespaces — no network involved. There is no 
 
 ## Worked examples
 
-The seven verb namespaces hang off `SemiontClient`, plus three infrastructure namespaces (`auth`, `admin`, `job`) when the client was constructed with backend operations. Each example below uses one of the four return shapes from the table above; pick whichever matches what your call site needs.
+The eight verb namespaces hang off `SemiontClient`, plus three infrastructure namespaces (`auth`, `admin`, `job`) when the client was constructed with backend operations. Each example below uses one of the four return shapes from the table above; pick whichever matches what your call site needs.
 
 ```ts
 // Browse — live queries; await yields the loaded value, subscribe yields

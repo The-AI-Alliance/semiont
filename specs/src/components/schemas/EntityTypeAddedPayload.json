@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Payload for mark:entity-type-added domain event",
+  "description": "Payload for frame:entity-type-added domain event (system-level, no resourceId — fan-out is global)",
   "properties": {
     "entityType": { "type": "string" }
   },

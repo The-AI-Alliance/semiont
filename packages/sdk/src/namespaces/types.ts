@@ -205,7 +205,35 @@ export interface BrowseNamespace {
 }
 
 /**
- * Mark — annotation CRUD, entity types, AI assist
+ * Frame — schema-layer flow (the eighth flow).
+ *
+ * Frame operates on the KB's conceptual vocabulary — what *kinds* of
+ * things exist (entity types) and, in the future, what taxonomies are
+ * recognized (tag schemas), what relations are typed (predicate types),
+ * and how schemas are imported (ontology I/O). The other seven flows
+ * (yield, mark, match, bind, gather, browse, beckon) operate on
+ * content; Frame operates on the schema layer that content is expressed
+ * in.
+ *
+ * MVP scope is small: entity-type vocabulary writes only. Live reads of
+ * the entity-type vocabulary stay on Browse (`browse.entityTypes()` is
+ * a `CacheObservable<string[]>` consumed by 8+ call sites). Frame owns
+ * writes; Browse owns reads — the same asymmetry that already holds for
+ * resources and annotations.
+ *
+ * Backend actor: Stower
+ * Event prefix: frame:*
+ */
+export interface FrameNamespace {
+  /** Add a single entity type to the KB's vocabulary. Idempotent — adding an existing type is a no-op. */
+  addEntityType(type: string): Promise<void>;
+
+  /** Add multiple entity types in one call. Convenience over a loop of `addEntityType`. */
+  addEntityTypes(types: string[]): Promise<void>;
+}
+
+/**
+ * Mark — annotation CRUD, AI assist, resource lifecycle
  *
  * Commands return Promises that resolve on HTTP acceptance (202).
  * Results appear on browse Observables via bus gateway.
@@ -219,10 +247,6 @@ export interface MarkNamespace {
   // namespace derives it for the bus payload, so callers don't pass it twice.
   annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
   delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void>;
-
-  // Entity types
-  entityType(type: string): Promise<void>;
-  entityTypes(types: string[]): Promise<void>;
 
   // Resource metadata
   archive(resourceId: ResourceId): Promise<void>;

@@ -108,11 +108,6 @@ describe('MarkNamespace', () => {
     expect(emitSpy).toHaveBeenCalledWith('mark:delete', { annotationId: AID, resourceId: RID });
   });
 
-  it('entityType() emits mark:add-entity-type on bus', async () => {
-    await mark.entityType('Person');
-    expect(emitSpy).toHaveBeenCalledWith('mark:add-entity-type', { tag: 'Person' });
-  });
-
   it('archive() emits mark:archive on bus', async () => {
     await mark.archive(RID);
     expect(emitSpy).toHaveBeenCalledWith('mark:archive', { resourceId: RID });

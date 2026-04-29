@@ -11,15 +11,15 @@ function mockBrowse(): ShellVM {
 
 function mockClient(overrides: {
   entityTypes$?: BehaviorSubject<string[] | undefined>;
-  entityType?: ReturnType<typeof vi.fn>;
+  addEntityType?: ReturnType<typeof vi.fn>;
 } = {}): SemiontClient {
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person', 'Place']);
   return {
     browse: {
       entityTypes: () => entityTypes$.asObservable(),
     },
-    mark: {
-      entityType: overrides.entityType ?? vi.fn().mockResolvedValue(undefined),
+    frame: {
+      addEntityType: overrides.addEntityType ?? vi.fn().mockResolvedValue(undefined),
     },
   } as unknown as SemiontClient;
 }
@@ -59,13 +59,13 @@ describe('createEntityTagsVM', () => {
   });
 
   it('addTag calls client and clears newTag$', async () => {
-    const entityType = vi.fn().mockResolvedValue(undefined);
-    const vm = createEntityTagsVM(mockClient({ entityType }), mockBrowse());
+    const addEntityType = vi.fn().mockResolvedValue(undefined);
+    const vm = createEntityTagsVM(mockClient({ addEntityType }), mockBrowse());
 
     vm.setNewTag('Event');
     await vm.addTag();
 
-    expect(entityType).toHaveBeenCalledWith('Event');
+    expect(addEntityType).toHaveBeenCalledWith('Event');
     const tag = await firstValueFrom(vm.newTag$);
     expect(tag).toBe('');
 
@@ -73,20 +73,20 @@ describe('createEntityTagsVM', () => {
   });
 
   it('addTag ignores empty/whitespace input', async () => {
-    const entityType = vi.fn();
-    const vm = createEntityTagsVM(mockClient({ entityType }), mockBrowse());
+    const addEntityType = vi.fn();
+    const vm = createEntityTagsVM(mockClient({ addEntityType }), mockBrowse());
 
     vm.setNewTag('   ');
     await vm.addTag();
 
-    expect(entityType).not.toHaveBeenCalled();
+    expect(addEntityType).not.toHaveBeenCalled();
 
     vm.dispose();
   });
 
   it('addTag sets error on failure', async () => {
-    const entityType = vi.fn().mockRejectedValue(new Error('duplicate'));
-    const vm = createEntityTagsVM(mockClient({ entityType }), mockBrowse());
+    const addEntityType = vi.fn().mockRejectedValue(new Error('duplicate'));
+    const vm = createEntityTagsVM(mockClient({ addEntityType }), mockBrowse());
 
     vm.setNewTag('Person');
     await vm.addTag();

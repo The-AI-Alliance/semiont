@@ -240,7 +240,7 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
   });
 
   it('entityTypes() invalidation keeps the value visible during SWR refetch', async () => {
-    // If something (mark:entity-type-added, bus:resume-gap) calls
+    // If something (frame:entity-type-added, bus:resume-gap) calls
     // invalidateEntityTypes(), the observable must NOT emit undefined
     // during the refetch window.
     const { browse } = createHarness();

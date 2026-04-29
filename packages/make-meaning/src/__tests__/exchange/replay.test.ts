@@ -57,7 +57,7 @@ function makeStoredEvent(event: Record<string, unknown>): string {
 
 function entityTypeEvent(entityType: string): string {
   return makeStoredEvent({
-    type: 'mark:entity-type-added',
+    type: 'frame:entity-type-added',
     payload: { entityType },
     userId: TEST_USER,
   });
@@ -122,9 +122,9 @@ describe('replay', () => {
 
   describe('replayEventStream', () => {
     it('replays an entitytype.added event', async () => {
-      eventBus.get('mark:add-entity-type').subscribe((msg) => {
+      eventBus.get('frame:add-entity-type').subscribe((msg) => {
         expect(msg.tag).toBe('Person');
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' } as any));
+        defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
       });
 
       const jsonl = entityTypeEvent('Person');
@@ -338,8 +338,8 @@ describe('replay', () => {
     });
 
     it('replays multiple events and accumulates stats', async () => {
-      eventBus.get('mark:add-entity-type').subscribe(() => {
-        defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' } as any));
+      eventBus.get('frame:add-entity-type').subscribe(() => {
+        defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
       });
 
       const contentBlob = Buffer.from('test content');

@@ -42,7 +42,7 @@ type PersistedEventCatalog = {
   'mark:unarchived': components['schemas']['ResourceUnarchivedPayload'];
   'mark:entity-tag-added': components['schemas']['EntityTagChangedPayload'];
   'mark:entity-tag-removed': components['schemas']['EntityTagChangedPayload'];
-  'mark:entity-type-added': components['schemas']['EntityTypeAddedPayload'];
+  'frame:entity-type-added': components['schemas']['EntityTypeAddedPayload'];
   'job:started': components['schemas']['JobStartedPayload'];
   'job:progress': components['schemas']['JobProgressPayload'];
   'job:completed': components['schemas']['JobCompletedPayload'];
@@ -52,7 +52,7 @@ type PersistedEventCatalog = {
 // ── Derived types ────────────────────────────────────────────────────────────
 
 /** System event types — persisted events that have no resourceId. */
-type SystemEventType = 'mark:entity-type-added';
+type SystemEventType = 'frame:entity-type-added';
 
 /** Extract the concrete persisted event type for a given type string. */
 export type EventOfType<K extends keyof PersistedEventCatalog> =
@@ -91,7 +91,7 @@ export const PERSISTED_EVENT_TYPES = [
   'mark:unarchived',
   'mark:entity-tag-added',
   'mark:entity-tag-removed',
-  'mark:entity-type-added',
+  'frame:entity-type-added',
   'job:started',
   'job:progress',
   'job:completed',

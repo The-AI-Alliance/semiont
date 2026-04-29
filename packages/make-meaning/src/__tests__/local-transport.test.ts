@@ -314,14 +314,14 @@ describe('SemiontClient over LocalTransport', () => {
       const h = await bootHarness();
       try {
         const tag = makeEntityType('Person');
-        await h.client.mark.entityType(tag);
+        await h.client.frame.addEntityType(tag);
 
-        // `mark:entity-type-added` carries a `StoredEvent` whose
+        // `frame:entity-type-added` carries a `StoredEvent` whose
         // `payload.entityType` echoes the tag; wait for it to
         // confirm Stower has appended + materialized the system view
         // before listing.
         await waitForEvent(
-          h.client.bus.get('mark:entity-type-added') as unknown as Observable<{ payload?: { entityType?: string } }>,
+          h.client.bus.get('frame:entity-type-added') as unknown as Observable<{ payload?: { entityType?: string } }>,
           (e) => e.payload?.entityType === (tag as unknown as string),
         );
 

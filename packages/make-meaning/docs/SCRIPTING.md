@@ -213,7 +213,7 @@ Use the context modules directly (`ResourceContext`, `AnnotationContext`, `Graph
 | **Events** | Observable return types | EventBus subscriptions |
 | **Error handling** | HTTP status codes / Observable errors | Exceptions |
 | **Deployment** | Backend server required | Standalone script |
-| **API surface** | Full (all 7 verbs + auth, admin) | Low-level KB access |
+| **API surface** | Full (all 8 verbs + auth, admin) | Low-level KB access |
 
 ## Troubleshooting
 

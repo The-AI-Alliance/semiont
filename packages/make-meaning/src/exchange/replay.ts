@@ -82,7 +82,7 @@ async function replayEvent(
   logger?: Logger,
 ): Promise<void> {
   switch (event.type) {
-    case 'mark:entity-type-added':
+    case 'frame:entity-type-added':
       await replayEntityTypeAdded(event, eventBus, logger);
       stats.entityTypesAdded++;
       break;
@@ -140,17 +140,17 @@ async function replayEvent(
 // ── Individual event replay handlers ──
 
 async function replayEntityTypeAdded(
-  event: PersistedEvent & { type: 'mark:entity-type-added' },
+  event: PersistedEvent & { type: 'frame:entity-type-added' },
   eventBus: EventBus,
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
-    eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
+    eventBus.get('frame:entity-type-added').pipe(map(() => 'ok' as const)),
+    eventBus.get('frame:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for frame:entity-type-added'); })),
   );
 
-  eventBus.get('mark:add-entity-type').next({
+  eventBus.get('frame:add-entity-type').next({
     tag: event.payload.entityType,
     _userId: event.userId,
   });

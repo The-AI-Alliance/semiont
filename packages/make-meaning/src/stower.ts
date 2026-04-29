@@ -22,7 +22,7 @@
  * - mark:update-body   → annotation.body.updated              → (no result event yet)
  * - mark:archive       → resource.archived (+ file removal)   (resource-scoped, no result event)
  * - mark:unarchive     → resource.unarchived                  (resource-scoped, no result event)
- * - mark:add-entity-type → entitytype.added                   → mark:entity-type-added / mark:entity-type-add-failed
+ * - frame:add-entity-type → entitytype.added                   → frame:entity-type-added / frame:entity-type-add-failed
  * - mark:update-entity-types → entitytag.added / entitytag.removed
  * - job:start          → job.started
  * - job:complete       → job.completed
@@ -79,7 +79,7 @@ export class Stower {
       pipe('mark:create', (e) => this.handleMarkCreate(e)),
       pipe('mark:delete', (e) => this.handleMarkDelete(e)),
       pipe('mark:update-body', (e) => this.handleMarkUpdateBody(e)),
-      pipe('mark:add-entity-type', (e) => this.handleAddEntityType(e)),
+      pipe('frame:add-entity-type', (e) => this.handleAddEntityType(e)),
       pipe('mark:archive', (e) => this.handleMarkArchive(e)),
       pipe('mark:unarchive', (e) => this.handleMarkUnarchive(e)),
       pipe('mark:update-entity-types', (e) => this.handleUpdateEntityTypes(e)),
@@ -387,13 +387,13 @@ export class Stower {
     });
   }
 
-  private async handleAddEntityType(event: EventMap['mark:add-entity-type']): Promise<void> {
+  private async handleAddEntityType(event: EventMap['frame:add-entity-type']): Promise<void> {
     if (!event._userId) {
-      throw new Error('mark:add-entity-type missing _userId (gateway injection)');
+      throw new Error('frame:add-entity-type missing _userId (gateway injection)');
     }
     try {
       await this.kb.eventStore.appendEvent({
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         userId: makeUserId(event._userId),
         version: 1,
         payload: { entityType: event.tag },
@@ -401,7 +401,7 @@ export class Stower {
       // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
       this.logger.error('Failed to add entity type', { error: errField(error) });
-      this.eventBus.get('mark:entity-type-add-failed').next({
+      this.eventBus.get('frame:entity-type-add-failed').next({
         message: error instanceof Error ? error.message : String(error),
       });
     }

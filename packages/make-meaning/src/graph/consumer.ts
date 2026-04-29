@@ -43,7 +43,7 @@ export class GraphDBConsumer {
   private static readonly GRAPH_RELEVANT_EVENTS: Set<PersistedEvent['type']> = new Set([
     'yield:created', 'mark:archived', 'mark:unarchived',
     'mark:added', 'mark:removed', 'mark:body-updated',
-    'mark:entity-tag-added', 'mark:entity-tag-removed', 'mark:entity-type-added',
+    'mark:entity-tag-added', 'mark:entity-tag-removed', 'frame:entity-type-added',
   ]);
 
   // Burst buffer thresholds — see class doc and BATCH-GRAPH-CONSUMER-RX.md
@@ -402,7 +402,7 @@ export class GraphDBConsumer {
         }
         break;
 
-      case 'mark:entity-type-added':
+      case 'frame:entity-type-added':
         await graphDb.addEntityType(event.payload.entityType);
         break;
 

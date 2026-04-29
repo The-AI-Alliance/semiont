@@ -3,8 +3,12 @@
 // The directory is named "state" rather than "view-models" because none
 // of the contents presume a UI:
 //
-//   flows/   — wrap each of the seven flows in a stateful machine
-//              (loading/error/pending observables, awaitable + reactive)
+//   flows/   — wrap the long-running content flows in stateful machines
+//              (loading/error/pending observables, awaitable + reactive).
+//              Currently five VMs (mark, gather, match, yield, beckon).
+//              The eighth flow, Frame, has no state-unit VM — its MVP
+//              methods are atomic `Promise<void>` writes with no progress
+//              observables; a Frame VM lands when the surface earns one.
 //   lib/     — substrate (`ViewModel` disposable interface, search pipeline,
 //              `WorkerBus` channel-IO interface)
 //

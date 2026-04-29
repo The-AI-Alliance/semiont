@@ -46,16 +46,6 @@ export class MarkNamespace implements IMarkNamespace {
     await this.transport.emit('mark:delete', { annotationId, resourceId });
   }
 
-  async entityType(type: string): Promise<void> {
-    await this.transport.emit('mark:add-entity-type', { tag: type });
-  }
-
-  async entityTypes(types: string[]): Promise<void> {
-    for (const tag of types) {
-      await this.transport.emit('mark:add-entity-type', { tag });
-    }
-  }
-
   async archive(resourceId: ResourceId): Promise<void> {
     await this.transport.emit('mark:archive', { resourceId });
   }

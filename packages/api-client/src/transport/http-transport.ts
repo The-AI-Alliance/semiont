@@ -57,7 +57,7 @@ type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 // ── Channel constants (mirror client.ts) ────────────────────────────────
 
 const RESOURCE_SCOPED_CHANNELS = [
-  ...PERSISTED_EVENT_TYPES.filter((t) => t !== 'mark:entity-type-added'),
+  ...PERSISTED_EVENT_TYPES.filter((t) => t !== 'frame:entity-type-added'),
   ...RESOURCE_BROADCAST_TYPES,
 ];
 

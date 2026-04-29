@@ -115,14 +115,14 @@ graph TB
         CTM -->|query| KB
     end
 
-    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>mark:add-entity-type, mark:archive, mark:unarchive<br/>mark:update-entity-types, job:start, job:*"| STOWER
+    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>frame:add-entity-type, mark:archive, mark:unarchive<br/>mark:update-entity-types, job:start, job:*"| STOWER
     BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:directory-requested"| BROWSER
     BUS -->|"gather:requested<br/>gather:resource-requested"| GATHERER
     BUS -->|"match:search-requested"| MATCHER
     BUS -->|"yield:created, mark:created,<br/>mark:body-updated"| SMELTER
     BUS -->|"yield:clone-token-requested<br/>yield:clone-resource-requested<br/>yield:clone-create"| CTM
 
-    STOWER -->|"yield:created, yield:updated, yield:moved<br/>mark:created, mark:deleted, mark:body-updated<br/>mark:entity-type-added, ..."| BUS
+    STOWER -->|"yield:created, yield:updated, yield:moved<br/>mark:created, mark:deleted, mark:body-updated<br/>frame:entity-type-added, ..."| BUS
     BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:directory-result"| BUS
     GATHERER -->|"gather:complete, gather:failed<br/>gather:resource-complete, gather:resource-failed"| BUS
     MATCHER -->|"match:search-results, match:search-failed"| BUS

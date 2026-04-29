@@ -428,7 +428,7 @@
       "JobStatusRequest": { "$ref": "components/schemas/JobStatusRequest.json" },
       "JobStatusResult": { "$ref": "components/schemas/JobStatusResult.json" },
       "JobTagAnnotationResult": { "$ref": "components/schemas/JobTagAnnotationResult.json" },
-      "MarkAddEntityTypeCommand": { "$ref": "components/schemas/MarkAddEntityTypeCommand.json" },
+      "FrameAddEntityTypeCommand": { "$ref": "components/schemas/FrameAddEntityTypeCommand.json" },
       "MarkArchiveCommand": { "$ref": "components/schemas/MarkArchiveCommand.json" },
       "MarkAssistRequestEvent": { "$ref": "components/schemas/MarkAssistRequestEvent.json" },
       "MarkClickChangedEvent": { "$ref": "components/schemas/MarkClickChangedEvent.json" },

@@ -295,7 +295,7 @@ describe('EventStorage', () => {
   describe('System Events', () => {
     it('should store __system__ events in dedicated directory', async () => {
       await storage.appendEvent({
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
@@ -308,14 +308,14 @@ describe('EventStorage', () => {
 
     it('should track sequence for __system__ events', async () => {
       const e1 = await storage.appendEvent({
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
       }, resourceId('__system__'));
 
       const e2 = await storage.appendEvent({
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Organization' },
@@ -327,14 +327,14 @@ describe('EventStorage', () => {
 
     it('should retrieve all __system__ events', async () => {
       await storage.appendEvent({
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Person' },
       }, resourceId('__system__'));
 
       await storage.appendEvent({
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'Organization' },
@@ -342,7 +342,7 @@ describe('EventStorage', () => {
 
       const events = await storage.getAllEvents(resourceId('__system__'));
       expect(events).toHaveLength(2);
-      expect(events[0]?.type).toBe('mark:entity-type-added');
+      expect(events[0]?.type).toBe('frame:entity-type-added');
     });
   });
 

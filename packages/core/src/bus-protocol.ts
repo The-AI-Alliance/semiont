@@ -100,7 +100,7 @@ export type EventMap = {
   'yield:clone-create-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   // ========================================================================
-  // MARK FLOW — annotation CRUD, entity types, AI assist
+  // MARK FLOW — annotation CRUD, AI assist, resource lifecycle
   // ========================================================================
 
   // Domain events (branded — system of record)
@@ -109,7 +109,6 @@ export type EventMap = {
   'mark:body-updated': StoredEvent<EventOfType<'mark:body-updated'>>;
   'mark:entity-tag-added': StoredEvent<EventOfType<'mark:entity-tag-added'>>;
   'mark:entity-tag-removed': StoredEvent<EventOfType<'mark:entity-tag-removed'>>;
-  'mark:entity-type-added': StoredEvent<EventOfType<'mark:entity-type-added'>>;
   'mark:archived': StoredEvent<EventOfType<'mark:archived'>>;
   'mark:unarchived': StoredEvent<EventOfType<'mark:unarchived'>>;
 
@@ -127,7 +126,6 @@ export type EventMap = {
   'mark:archive': components['schemas']['MarkArchiveCommand'];
   'mark:unarchive': components['schemas']['MarkUnarchiveCommand'];
   'mark:update-entity-types': components['schemas']['MarkUpdateEntityTypesCommand'];
-  'mark:add-entity-type': components['schemas']['MarkAddEntityTypeCommand'];
 
   // Command results
   'mark:create-ok': components['schemas']['MarkCreateOk'];
@@ -135,7 +133,6 @@ export type EventMap = {
   'mark:delete-ok': components['schemas']['MarkDeleteOk'];
   'mark:delete-failed': components['schemas']['CommandError'];
   'mark:body-update-failed': components['schemas']['CommandError'];
-  'mark:entity-type-add-failed': components['schemas']['CommandError'];
 
   // UI events
   'mark:select-comment': components['schemas']['SelectionData'];
@@ -152,6 +149,20 @@ export type EventMap = {
   'mark:selection-changed': components['schemas']['MarkSelectionChangedEvent'];
   'mark:click-changed': components['schemas']['MarkClickChangedEvent'];
   'mark:shape-changed': components['schemas']['MarkShapeChangedEvent'];
+
+  // ========================================================================
+  // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,
+  // relation/predicate types, ontology import). The eighth flow.
+  // ========================================================================
+
+  // Domain events (branded — system of record). System-level: no resourceId.
+  'frame:entity-type-added': StoredEvent<EventOfType<'frame:entity-type-added'>>;
+
+  // Commands
+  'frame:add-entity-type': components['schemas']['FrameAddEntityTypeCommand'];
+
+  // Command results
+  'frame:entity-type-add-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // BIND FLOW — reference linking
@@ -423,7 +434,7 @@ export const CHANNEL_SCHEMAS = {
   'mark:body-updated':                null,
   'mark:entity-tag-added':            null,
   'mark:entity-tag-removed':          null,
-  'mark:entity-type-added':           null,
+  'frame:entity-type-added':           null,
   'mark:archived':                    null,
   'mark:unarchived':                  null,
   'mark:create-request':              'MarkCreateRequest',
@@ -433,13 +444,13 @@ export const CHANNEL_SCHEMAS = {
   'mark:archive':                     'MarkArchiveCommand',
   'mark:unarchive':                   'MarkUnarchiveCommand',
   'mark:update-entity-types':         'MarkUpdateEntityTypesCommand',
-  'mark:add-entity-type':             'MarkAddEntityTypeCommand',
+  'frame:add-entity-type':             'FrameAddEntityTypeCommand',
   'mark:create-ok':                   'MarkCreateOk',
   'mark:create-failed':               'CommandError',
   'mark:delete-ok':                   'MarkDeleteOk',
   'mark:delete-failed':               'CommandError',
   'mark:body-update-failed':          'CommandError',
-  'mark:entity-type-add-failed':      'CommandError',
+  'frame:entity-type-add-failed':      'CommandError',
   'mark:select-comment':              'SelectionData',
   'mark:select-tag':                  'SelectionData',
   'mark:select-assessment':           'SelectionData',

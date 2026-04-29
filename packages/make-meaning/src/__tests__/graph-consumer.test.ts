@@ -468,7 +468,7 @@ describe('GraphDBConsumer', () => {
 
     it('should handle entitytype.added (system event, no resourceId)', async () => {
       await eventStore.appendEvent({
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         userId: userId('user1'),
         version: 1,
         payload: { entityType: 'organization' },

@@ -47,7 +47,7 @@ const ALL_EVENT_TYPES: PersistedEventType[] = [
   'mark:added', 'mark:removed', 'mark:body-updated',
   'mark:archived', 'mark:unarchived',
   'mark:entity-tag-added', 'mark:entity-tag-removed',
-  'mark:entity-type-added',
+  'frame:entity-type-added',
   'job:started', 'job:progress', 'job:completed', 'job:failed',
 ];
 

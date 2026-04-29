@@ -17,7 +17,7 @@ Self-hosted, so your data stays on your infrastructure. Inference runs on **[Ant
 
 ### Why Semiont?
 
-**Eliminate Cold Starts** — Import a set of documents and the seven flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
+**Eliminate Cold Starts** — Import a set of documents and the eight flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
 
 **Calibrate the Human–AI Mix** — Because humans and AI agents share identical interfaces, organizations can dial the mix to fit their constraints. A domain with abundant expert availability and a high accuracy bar can run human-primary workflows with AI suggestions; a domain rich in GPU capacity but short on specialists can run agent-primary pipelines with human spot-checks. Supervision depth, automation ratio, and quality gates are deployment decisions — not architectural rewrites.
 
@@ -27,10 +27,11 @@ Self-hosted, so your data stays on your infrastructure. Inference runs on **[Ant
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
-### Seven Collaborative Flows
+### Eight Collaborative Flows
 
-Humans and AI agents work as peers through seven composable workflows:
+Humans and AI agents work as peers through eight composable workflows:
 
+- **[Frame](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/FRAME.md)** — Define and evolve the KB's schema vocabulary — what *kinds* of things exist (entity types, future tag schemas, relation types). The schema layer the other seven flows operate within
 - **[Yield](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
 - **[Mark](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
 - **[Match](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/MATCHER.md)** — Search the knowledge base for candidate resources using multi-source retrieval and composite scoring — structural signals plus optional LLM re-ranking

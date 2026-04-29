@@ -137,7 +137,7 @@ router.get('/resources', async (c) => {
 **Fire-and-forget mutations** (already event-driven):
 - Annotation create/delete/update → `mark:*` events (Stower handles)
 - Resource create → `yield:create` (Stower handles)
-- Entity type addition → `mark:add-entity-type` (Stower handles)
+- Entity type addition → `frame:add-entity-type` (Stower handles)
 
 **HTTP-only routes** (excluded from EventBus by design):
 - Auth (password, Google, refresh, MCP, terms, logout) — PostgreSQL/Prisma dependent

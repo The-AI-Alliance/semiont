@@ -2,7 +2,7 @@
  * Entity Types Bootstrap Tests
  *
  * Tests the entity types bootstrap service:
- * - Initial bootstrap (emits mark:add-entity-type for all defaults)
+ * - Initial bootstrap (emits frame:add-entity-type for all defaults)
  * - Idempotency (reads __system__ event log, skips existing types)
  * - Partial bootstrap (adds only missing types)
  * - System user ID usage
@@ -53,11 +53,11 @@ describe('Entity Types Bootstrap', () => {
   });
 
   describe('initial bootstrap', () => {
-    it('should emit mark:entity-type-added for all DEFAULT_ENTITY_TYPES on fresh KB', async () => {
+    it('should emit frame:entity-type-added for all DEFAULT_ENTITY_TYPES on fresh KB', async () => {
       await bootstrapEntityTypes(eventBus, eventStore);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
-      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
 
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
@@ -66,7 +66,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, eventStore);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
-      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
 
       const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
       addedEvents.forEach(event => {
@@ -78,10 +78,10 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, eventStore);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
-      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
 
       const emittedTypes = addedEvents.map(e =>
-        e.type === 'mark:entity-type-added' ? e.payload.entityType : ''
+        e.type === 'frame:entity-type-added' ? e.payload.entityType : ''
       );
       expect(emittedTypes).toEqual(DEFAULT_ENTITY_TYPES);
     });
@@ -93,7 +93,7 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventBus, eventStore);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
-      const addedEvents = systemEvents.filter(e => e.type === 'mark:entity-type-added');
+      const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
 
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
@@ -102,18 +102,18 @@ describe('Entity Types Bootstrap', () => {
       // Manually add a few entity types
       const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
       for (const tag of ['Person', 'Organization']) {
-        eventBus.get('mark:add-entity-type').next({ tag, _userId: SYSTEM_USER_ID });
+        eventBus.get('frame:add-entity-type').next({ tag, _userId: SYSTEM_USER_ID });
         await new Promise(r => setTimeout(r, 50));
       }
 
       const eventsBefore = await eventStore.log.getEvents(resourceId('__system__'));
-      const beforeCount = eventsBefore.filter(e => e.type === 'mark:entity-type-added').length;
+      const beforeCount = eventsBefore.filter(e => e.type === 'frame:entity-type-added').length;
       expect(beforeCount).toBe(2);
 
       await bootstrapEntityTypes(eventBus, eventStore);
 
       const eventsAfter = await eventStore.log.getEvents(resourceId('__system__'));
-      const afterCount = eventsAfter.filter(e => e.type === 'mark:entity-type-added').length;
+      const afterCount = eventsAfter.filter(e => e.type === 'frame:entity-type-added').length;
 
       expect(afterCount).toBe(DEFAULT_ENTITY_TYPES.length);
       // Only the missing ones were added

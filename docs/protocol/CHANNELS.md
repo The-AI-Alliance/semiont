@@ -21,7 +21,7 @@ The authoritative list is `PERSISTED_EVENT_TYPES` in [`packages/core/src/persist
 
 Persisted but not resource-scoped — concern every connected client.
 
-- `mark:entity-type-added`
+- `frame:entity-type-added`
 
 ## Ephemeral cross-participant signals
 

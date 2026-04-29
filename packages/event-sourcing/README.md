@@ -125,7 +125,7 @@ The materializer processes events through a large switch statement that builds u
 
 **Live append path** — every `EventStore.appendEvent()` call materializes the event incrementally:
 - Resource events → `views.materializeResource(rid, event, getAllEvents)` → updates the resource view file and the storage-uri index.
-- System events (currently `mark:entity-type-added`) → `views.materializeSystem(eventType, payload)` → updates `entitytypes.json`.
+- System events (currently `frame:entity-type-added`) → `views.materializeSystem(eventType, payload)` → updates `entitytypes.json`.
 
 **Startup rebuild path** — `views.rebuildAll(eventLog)` walks the entire event log once at process start and writes every view from scratch. Idempotent: existing view files are overwritten. This is the recovery mechanism for the materialized layer.
 
@@ -187,7 +187,7 @@ All persisted events use flow verb names (see `ResourceEvent` in `@semiont/core`
 | `mark:unarchived` | Mark | Resource unarchived |
 | `mark:entity-tag-added` | Mark | Entity type tag added to resource |
 | `mark:entity-tag-removed` | Mark | Entity type tag removed from resource |
-| `mark:entity-type-added` | Mark | New entity type added (system-level) |
+| `frame:entity-type-added` | Mark | New entity type added (system-level) |
 | `job:started` | Job | Background job started |
 | `job:progress` | Job | Background job progress update |
 | `job:completed` | Job | Background job completed |

@@ -37,7 +37,7 @@ The event log: an append-only record of everything that has happened to every re
 Two kinds of streams live under `events/`:
 
 - **Per-resource streams**, at `events/{ab}/{cd}/{resourceId}/events-NNNNNN.jsonl`. The two 2-character shard directories come from a Jump Consistent Hash of the resource id, keeping any single shard directory from exceeding a few thousand entries at scale.
-- **The `events/__system__/` stream**, for events that have no resource — currently `mark:entity-type-added` (registering a new global entity type) and similar project-wide facts.
+- **The `events/__system__/` stream**, for events that have no resource — currently `frame:entity-type-added` (registering a new global entity type) and similar project-wide facts.
 
 ### `.semiont/scripts/`, `.semiont/compose/`, `.semiont/containers/` (optional)
 

@@ -13,12 +13,13 @@ The authoritative TypeScript definition is **[`packages/core/src/bus-protocol.ts
 
 ## Channel naming
 
-Every channel is `verb:action` or `verb:action-state`. The verb is one of the seven flows ([flows/README.md](flows/README.md)) plus a small set of cross-cutting domains:
+Every channel is `verb:action` or `verb:action-state`. The verb is one of the eight flows ([flows/README.md](flows/README.md)) plus a small set of cross-cutting domains.
 
 | Prefix | Examples | Purpose |
 |---|---|---|
+| `frame:` | `frame:add-entity-type`, `frame:entity-type-added` | Schema-layer vocabulary (entity types; future tag schemas, relation types) |
 | `yield:` | `yield:create`, `yield:created`, `yield:create-ok` | Resource creation, update, move, clone |
-| `mark:` | `mark:create`, `mark:added`, `mark:create-ok` | Annotation CRUD, entity types, AI assist |
+| `mark:` | `mark:create`, `mark:added`, `mark:create-ok` | Annotation CRUD, AI assist |
 | `bind:` | `bind:initiate`, `bind:body-updated` | Reference resolution |
 | `match:` | `match:search-requested`, `match:search-results` | Multi-source candidate retrieval |
 | `gather:` | `gather:requested`, `gather:complete` | Context assembly |
@@ -160,7 +161,7 @@ The rule, by event kind:
 | Command (one handler) | **No** | No fan-out to narrow. Handler subscribes by channel name; that's sufficient. |
 | Correlation-ID response (e.g. `mark:create-ok`) | **No** | Caller filters by `correlationId`. Scope adds nothing and would require the emitter to know which resource the caller is on. |
 | Resource-bound broadcast (persisted domain events, actor progress meant for all viewers) | **Yes** | Many viewers, only some care. Scope narrows fan-out to viewers of that resource. |
-| System-wide broadcast (`mark:entity-type-added`, `beckon:*`) | **No** | Concerns everyone — not about a specific resource. |
+| System-wide broadcast (`frame:entity-type-added`, `beckon:*`) | **No** | Concerns everyone — not about a specific resource. |
 
 ## Persistence: the system of record
 
@@ -265,4 +266,4 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** — the namespace tour with worked examples per verb.
 - **[../system/administration/OBSERVABILITY.md](../system/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
-- **[flows/README.md](flows/README.md)** — the seven flows that organize the channel namespace.
+- **[flows/README.md](flows/README.md)** — the eight flows that organize the channel namespace.

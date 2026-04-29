@@ -44,7 +44,7 @@ Every operation in the GUI is available programmatically through three surfaces:
 - **[Semiont CLI](apps/cli/README.md)** — drive Semiont from the terminal.
 - **[Agent Skills](docs/protocol/skills/)** — ready-made skill definitions for agentic coding assistants like Claude Code.
 
-All three are organized around **[seven composable flows](docs/protocol/flows/README.md)** — yield, mark, match, bind, gather, browse, beckon — the same verbs whether driven by a human, a script, or an AI agent. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
+All three are organized around **[eight composable flows](docs/protocol/flows/README.md)** — frame, yield, mark, match, bind, gather, browse, beckon — the same verbs whether driven by a human, a script, or an AI agent. See **[docs/protocol/](docs/protocol/README.md)** for the protocol overview, design tenets, and value proposition.
 
 ## Contributing
 

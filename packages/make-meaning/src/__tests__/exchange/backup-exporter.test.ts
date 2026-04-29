@@ -118,7 +118,7 @@ describe('backup-exporter', () => {
 
   it('exports system events and resource events', async () => {
     const systemEvents = [
-      makeStoredEvent('mark:entity-type-added', { entityType: 'Person' }),
+      makeStoredEvent('frame:entity-type-added', { entityType: 'Person' }),
     ];
     const resourceId = 'res-abc' as ResourceId;
     const resourceEvents = new Map<string, StoredEvent[]>();
@@ -182,7 +182,7 @@ describe('backup-exporter', () => {
     const systemData = entryDataMap.get('.semiont/events/__system__.jsonl')!.toString('utf8');
     const parsedSysEvents = systemData.trim().split('\n').map((l) => JSON.parse(l));
     expect(parsedSysEvents).toHaveLength(1);
-    expect(parsedSysEvents[0].type).toBe('mark:entity-type-added');
+    expect(parsedSysEvents[0].type).toBe('frame:entity-type-added');
 
     // Verify content blob
     const contentData = entryDataMap.get('sha-content.md')!;
