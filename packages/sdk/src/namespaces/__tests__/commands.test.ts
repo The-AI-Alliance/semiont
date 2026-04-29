@@ -366,6 +366,88 @@ describe('YieldNamespace', () => {
     expect(result.resourceId).toBe('res-new');
   });
 
+  it('resource() emits started → progress* → finished as the upload runs', async () => {
+    // Capture the onProgress hook so we can drive byte progress from
+    // outside the namespace, simulating what HttpContentTransport's XHR
+    // path would feed in.
+    let captured: { onProgress?: (e: { bytesUploaded: number; totalBytes: number }) => void } = {};
+    let resolveUpload!: (value: { resourceId: string }) => void;
+    const uploadPromise = new Promise<{ resourceId: string }>((r) => { resolveUpload = r; });
+    (content.putBinary as ReturnType<typeof vi.fn>).mockImplementation((_req: unknown, opts: typeof captured) => {
+      captured = opts ?? {};
+      return uploadPromise;
+    });
+
+    const events: any[] = [];
+    const file = Buffer.from(new Uint8Array(1024)); // 1 KB pre-flight size
+    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' } as any).subscribe({
+      next: (e) => events.push(e),
+    });
+
+    // `started` fires synchronously on subscribe.
+    expect(events).toEqual([{ phase: 'started', totalBytes: 1024 }]);
+
+    // Drive a couple of progress events through the captured hook.
+    captured.onProgress?.({ bytesUploaded: 512, totalBytes: 1024 });
+    captured.onProgress?.({ bytesUploaded: 1024, totalBytes: 1024 });
+
+    expect(events).toEqual([
+      { phase: 'started', totalBytes: 1024 },
+      { phase: 'progress', bytesUploaded: 512, totalBytes: 1024 },
+      { phase: 'progress', bytesUploaded: 1024, totalBytes: 1024 },
+    ]);
+
+    // Resolve the upload; `finished` fires.
+    resolveUpload({ resourceId: 'res-new' });
+    await uploadPromise;
+    // Allow the .then() callback to run.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(events.at(-1)).toMatchObject({ phase: 'finished' });
+    expect(events.filter((e) => e.phase === 'progress')).toHaveLength(2);
+  });
+
+  it('resource() falls back to pre-flight totalBytes when the transport reports total=0', async () => {
+    let captured: { onProgress?: (e: { bytesUploaded: number; totalBytes: number }) => void } = {};
+    (content.putBinary as ReturnType<typeof vi.fn>).mockImplementation((_req: unknown, opts: typeof captured) => {
+      captured = opts ?? {};
+      return new Promise(() => { /* never resolves; we only assert progress shape here */ });
+    });
+
+    const events: any[] = [];
+    yld.resource({
+      name: 'doc',
+      file: Buffer.from(new Uint8Array(2048)),
+      format: 'text/plain',
+      storageUri: 'file://x',
+    } as any).subscribe({ next: (e) => events.push(e) });
+
+    captured.onProgress?.({ bytesUploaded: 256, totalBytes: 0 });
+
+    expect(events.at(-1)).toEqual({ phase: 'progress', bytesUploaded: 256, totalBytes: 2048 });
+  });
+
+  it('resource() aborts the in-flight upload when the subscriber unsubscribes', () => {
+    let capturedSignal: AbortSignal | undefined;
+    (content.putBinary as ReturnType<typeof vi.fn>).mockImplementation(
+      (_req: unknown, opts: { signal?: AbortSignal }) => {
+        capturedSignal = opts?.signal;
+        return new Promise(() => { /* never resolves */ });
+      },
+    );
+
+    const sub = yld.resource({
+      name: 'doc',
+      file: Buffer.from('xx'),
+      format: 'text/plain',
+      storageUri: 'file://x',
+    } as any).subscribe({ next: () => {} });
+
+    expect(capturedSignal?.aborted).toBe(false);
+    sub.unsubscribe();
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
   it('fromAnnotation() emits job:create on bus', () => {
     yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {

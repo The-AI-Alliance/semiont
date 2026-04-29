@@ -38,26 +38,39 @@ export class YieldNamespace implements IYieldNamespace {
       // in-progress indicator before any I/O begins.
       subscriber.next({ phase: 'started', totalBytes });
       let cancelled = false;
-      this.content.putBinary({
-        name: data.name,
-        file: data.file,
-        format: data.format,
-        storageUri: data.storageUri,
-        ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
-        ...(data.language ? { language: data.language } : {}),
-        ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
-        ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
-        ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
-        ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
-        ...(data.generator ? { generator: data.generator } : {}),
-        ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
-      })
+      const abortController = new AbortController();
+      this.content.putBinary(
+        {
+          name: data.name,
+          file: data.file,
+          format: data.format,
+          storageUri: data.storageUri,
+          ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
+          ...(data.language ? { language: data.language } : {}),
+          ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
+          ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
+          ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
+          ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
+          ...(data.generator ? { generator: data.generator } : {}),
+          ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
+        },
+        {
+          // Byte-progress hook. Honored by `HttpContentTransport`'s XHR
+          // path; ignored by ky-path uploads (no `onProgress` consumer)
+          // and by `LocalContentTransport` (no wire to observe).
+          onProgress: ({ bytesUploaded, totalBytes: txTotal }) => {
+            if (cancelled) return;
+            // Prefer the transport's reported total; fall back to the
+            // pre-flight size if the transport reports 0 (chunked encoding
+            // or indeterminate length).
+            const total = txTotal > 0 ? txTotal : totalBytes;
+            subscriber.next({ phase: 'progress', bytesUploaded, totalBytes: total });
+          },
+          signal: abortController.signal,
+        },
+      )
         .then((result) => {
           if (cancelled) return;
-          // `progress` events between started and finished are not yet
-          // emitted — `IContentTransport.putBinary` doesn't surface a
-          // byte-count hook today (see SDK-DX-3 Phase 18 follow-up). When
-          // that mechanism lands, intermediate `progress` events emit here.
           subscriber.next({
             phase: 'finished',
             resourceId: toResourceId(result.resourceId as string),
@@ -67,7 +80,14 @@ export class YieldNamespace implements IYieldNamespace {
         .catch((err) => {
           if (!cancelled) subscriber.error(err);
         });
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+        // Abort the in-flight HTTP request when the subscriber unsubscribes.
+        // Honored by `HttpContentTransport`'s XHR path (calls `xhr.abort()`);
+        // ky-path uploads complete in the background after abort and the
+        // `cancelled` flag suppresses the `then`/`catch` callbacks.
+        abortController.abort();
+      };
     });
   }
 

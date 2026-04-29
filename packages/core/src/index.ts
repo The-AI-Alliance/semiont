@@ -205,6 +205,8 @@ export type {
   IContentTransport,
   BackendDownload,
   PutBinaryRequest,
+  PutBinaryOptions,
+  PutBinaryProgress,
   ConnectionState,
   ProgressEvent,
   ProgressCallback,
