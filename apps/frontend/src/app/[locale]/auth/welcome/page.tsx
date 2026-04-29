@@ -11,8 +11,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
 import { PageLayout, useToast, useSemiont, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
-import { createWelcomeVM } from '@semiont/react-ui';
-import { useViewModel } from '@semiont/react-ui';
+import { createWelcomeStateUnit } from '@semiont/react-ui';
+import { useStateUnit } from '@semiont/react-ui';
 
 export default function Welcome() {
   const { t: _t } = useTranslation();
@@ -31,10 +31,10 @@ export default function Welcome() {
   const toast = useToast();
 
   const client = session?.client;
-  const vm = useViewModel(() => createWelcomeVM(client!));
+  const stateUnit = useStateUnit(() => createWelcomeStateUnit(client!));
 
-  const userData = useObservable(vm.userData$);
-  const isProcessing = useObservable(vm.isProcessing$) ?? false;
+  const userData = useObservable(stateUnit.userData$);
+  const isProcessing = useObservable(stateUnit.isProcessing$) ?? false;
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function Welcome() {
     }
 
     try {
-      await vm.acceptTerms();
+      await stateUnit.acceptTerms();
       setTermsAccepted(true);
 
       setTimeout(() => {

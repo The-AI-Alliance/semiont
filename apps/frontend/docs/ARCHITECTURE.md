@@ -466,11 +466,11 @@ User action (e.g., click save)
 ### Real-Time Updates (Bus Gateway)
 
 ```
-SemiontApiClient creates one ActorVM (single SSE to /bus/subscribe)
+SemiontApiClient creates one ActorStateUnit (single SSE to /bus/subscribe)
     └── ResourceViewerPage mounts
         └── client.subscribeToResource(id) adds scoped channels
             └── Backend emits domain events on scoped bus
-                └── ActorVM bridges events into local EventBus
+                └── ActorStateUnit bridges events into local EventBus
                     └── BrowseNamespace invalidates caches
                         └── Live query Observables re-emit
                             └── UI updates automatically

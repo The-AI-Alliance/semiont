@@ -2,21 +2,21 @@ import { test, expect } from '../fixtures/auth';
 
 /**
  * Smoke test: hovering an annotation fires `beckon:hover` on the bus
- * and BeckonVM reacts by firing `beckon:sparkle`.
+ * and BeckonStateUnit reacts by firing `beckon:sparkle`.
  *
- * Regression target (VMs-from-Session Stage D): `createBeckonVM` was
+ * Regression target (VMs-from-Session Stage D): `createBeckonStateUnit` was
  * migrated from `(eventBus)` to `(client)` and internally rewired from
  * `eventBus.get('beckon:hover').subscribe(...)` to
  * `client.stream('beckon:hover').subscribe(...)` and from
  * `eventBus.get(...).next(...)` to `client.emit(...)`. If the factory's
  * internal bus wiring regressed, the hover would still fire `beckon:hover`
  * (because the component uses `session.client.emit` directly) but the
- * VM would never see it and the `beckon:sparkle` reaction would be
+ * state unit would never see it and the `beckon:sparkle` reaction would be
  * silent. Observing both events on the bus confirms the factory is
  * subscribing on the same bus the component is emitting to.
  */
 test.describe('hover → beckon', () => {
-  test('hovering an annotation fires beckon:hover and BeckonVM fires beckon:sparkle', async ({ signedInPage: page, bus }) => {
+  test('hovering an annotation fires beckon:hover and BeckonStateUnit fires beckon:sparkle', async ({ signedInPage: page, bus }) => {
     // Find a resource that actually has annotations to hover. Successive
     // runs of spec 09 (generate-from-reference) push freshly-generated
     // (annotation-free) resources to the top of Discover, so the prior
@@ -63,7 +63,7 @@ test.describe('hover → beckon', () => {
     // that kicks off the 150ms delay. Then we wait for the emission.
     await firstAnn.hover();
 
-    // BeckonVM chain: `beckon:hover` emitted → VM subscribes via
+    // BeckonStateUnit chain: `beckon:hover` emitted → state unit subscribes via
     // `client.stream('beckon:hover')` → on non-null annotationId, emits
     // `beckon:sparkle`. Both should appear on the bus.
     await bus.waitForEmit('beckon:hover', { timeout: 5_000 });

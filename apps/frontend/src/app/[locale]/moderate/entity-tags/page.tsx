@@ -3,15 +3,15 @@ import { useTranslation } from 'react-i18next';
 import {
   Toolbar,
   useTheme,
-  useShellVM,
+  useShellStateUnit,
   useObservable,
   useLineNumbers,
   useEventSubscriptions,
   useSemiont,
-  useViewModel,
+  useStateUnit,
   EntityTagsPage,
 } from '@semiont/react-ui';
-import { createEntityTagsVM } from '@semiont/react-ui';
+import { createEntityTagsStateUnit } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function EntityTagsPageWrapper() {
@@ -19,15 +19,15 @@ export default function EntityTagsPageWrapper() {
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateEntityTags.${k}`, p as any) as string;
   const client = useObservable(useSemiont().activeSession$)?.client;
 
-  const browseVM = useShellVM();
-  const vm = useViewModel(() => createEntityTagsVM(client!, browseVM));
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createEntityTagsStateUnit(client!, browseStateUnit));
 
-  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
-  const entityTypes = useObservable(vm.entityTypes$) ?? [];
-  const isLoading = useObservable(vm.isLoading$) ?? true;
-  const newTag = useObservable(vm.newTag$) ?? '';
-  const error = useObservable(vm.error$) ?? '';
-  const isAddingTag = useObservable(vm.isAdding$) ?? false;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const entityTypes = useObservable(stateUnit.entityTypes$) ?? [];
+  const isLoading = useObservable(stateUnit.isLoading$) ?? true;
+  const newTag = useObservable(stateUnit.newTag$) ?? '';
+  const error = useObservable(stateUnit.error$) ?? '';
+  const isAddingTag = useObservable(stateUnit.isAdding$) ?? false;
 
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -51,8 +51,8 @@ export default function EntityTagsPageWrapper() {
       isLoading={isLoading}
       error={error}
       newTag={newTag}
-      onNewTagChange={vm.setNewTag}
-      onAddTag={vm.addTag}
+      onNewTagChange={stateUnit.setNewTag}
+      onAddTag={stateUnit.addTag}
       isAddingTag={isAddingTag}
       theme={theme}
       showLineNumbers={showLineNumbers}

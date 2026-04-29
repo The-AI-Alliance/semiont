@@ -18,7 +18,7 @@ export class BindNamespace implements IBindNamespace {
   }
 
   initiate(input: EventMap['bind:initiate']): void {
-    // Local emit: resource-viewer-page-vm subscribes via the local bus.
+    // Local emit: resource-viewer-page-state-unit subscribes via the local bus.
     this.bus.get('bind:initiate').next(input);
   }
 }

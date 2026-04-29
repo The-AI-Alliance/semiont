@@ -1,5 +1,5 @@
 /**
- * Triangulation test for the VM → useObservable → prop → chip render chain.
+ * Triangulation test for the state unit → useObservable → prop → chip render chain.
  *
  * Written after an e2e failure (test 05) where `ReferencesPanel` rendered
  * "No entity types available" even though the client provably received a
@@ -90,7 +90,7 @@ const renderWithBus = (ui: React.ReactElement) => {
   return render(<SemiontWrapper>{ui}</SemiontWrapper>);
 };
 
-describe('Layer 5-6 — VM observable → useObservable → ReferencesPanel chips', () => {
+describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPanel chips', () => {
   it('an observable seeded with [9 strings] renders 9 pending-reference chips', async () => {
     const source$ = new BehaviorSubject<string[]>(NINE_TYPES);
     renderWithBus(<ObservableHarness source$={source$} />);

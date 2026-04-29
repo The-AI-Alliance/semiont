@@ -98,7 +98,7 @@ Prefixes encode scope + direction:
 |---|---|---|---|
 | `browse:` | session | KB reads (resources, annotations, entity types) | `*-requested` / `*-result` / `*-failed` request-response pairs, correlated by `correlationId` |
 | `mark:` | session | Annotation lifecycle commands + broadcasts | `*-request` (intent), `*-ok`/`*-failed` (response), persisted events (`mark:added` etc.) |
-| `beckon:` | session | Hover-driven focus / sparkle animations | Fire-and-forget on `beckon:hover`, VM reacts with `beckon:sparkle` |
+| `beckon:` | session | Hover-driven focus / sparkle animations | Fire-and-forget on `beckon:hover`, state unit reacts with `beckon:sparkle` |
 | `gather:` | session | Context assembly (embedding + graph neighborhood) | Long-running; progress events + `*-complete` / `*-failed` |
 | `match:` | session | Search / matching flows | Request + paginated results |
 | `bind:` | session | Reference resolution wizard | Initiate, search, update-body |
@@ -176,7 +176,7 @@ detectable in seconds rather than hours, had it existed).
 
 ### State machines driven by events
 
-Most VMs in `packages/api-client/src/view-models/flows/` follow the
+Most VMs in `packages/api-client/src/state/flows/` follow the
 same shape: listen for `*-requested`/`*-ok`/`*-failed` triples on
 the session client, project the state machine into BehaviorSubjects,
 and expose them as `vm.state$`. Components read via
@@ -216,10 +216,10 @@ to include scoped channels for the open resource.
   longer fires. Prefer `useEventSubscription` — it re-subscribes
   on session swap.
 - **Large SSE payloads can span multiple reader chunks.** The
-  parser in `ActorVM` holds event-assembly state across
+  parser in `ActorStateUnit` holds event-assembly state across
   `reader.read()` calls. Any replacement parser must do the same,
   or events larger than the first TCP segment silently disappear.
-  Regression test: `actor-vm.test.ts` → "reassembles an event whose
+  Regression test: `actor-state-unit.test.ts` → "reassembles an event whose
   bytes span multiple reader.read() chunks".
 - **URL-match assertions pass immediately if the URL already
   matches.** In e2e, `toHaveURL(/know/)` doesn't wait for sign-in

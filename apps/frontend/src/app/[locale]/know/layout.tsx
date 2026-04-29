@@ -7,7 +7,7 @@ import {
   ResourceAnnotationsProvider,
   Toolbar,
   useSemiont,
-  useShellVM,
+  useShellStateUnit,
   useObservable,
   useTheme,
   useLineNumbers,
@@ -69,8 +69,8 @@ function DiscoverEmptyState() {
 }
 
 function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: string, params?: Record<string, unknown>) => string; keyboardContext: { openKeyboardHelp?: () => void } | null }) {
-  const browseVM = useShellVM();
-  const activePanel = useObservable(browseVM.activePanel$) ?? null;
+  const browseStateUnit = useShellStateUnit();
+  const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
   const { showLineNumbers } = useLineNumbers();
 

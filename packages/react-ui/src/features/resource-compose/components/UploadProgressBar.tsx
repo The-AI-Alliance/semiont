@@ -7,7 +7,7 @@
  * `composeVM.uploadProgress$`. Renders nothing when null; renders an
  * indeterminate state on `started`; renders a labeled bar with byte
  * counts on `progress`; renders a brief "Uploaded" success state on
- * `finished` (cleared by the VM's `null` push on complete).
+ * `finished` (cleared by the state unit's `null` push on complete).
  *
  * Designed to live below the Save button in the compose form so the
  * visual association with the action that triggered the upload is

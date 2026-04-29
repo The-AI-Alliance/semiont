@@ -298,7 +298,7 @@ export function createMockKnowledgeBaseSession(overrides: {
     updateOpenResourceName: vi.fn(),
     reorderOpenResources: vi.fn(),
     dispose: vi.fn(async () => {}),
-    // App-scoped bus stubs (post-shell-vm refactor). Minimal so
+    // App-scoped bus stubs (post-shell-state-unit refactor). Minimal so
     // useEventSubscription(s) can register without exploding.
     emit: vi.fn(),
     on: vi.fn(() => () => {}),

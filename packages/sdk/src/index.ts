@@ -130,10 +130,9 @@ export {
   type StoredSession,
 } from './session/storage';
 
-// Stateful units — flow state machines, worker adapters, RxJS substrate.
-// "State" rather than "view-models" because none of these presume a UI:
-// they're consumed by browser apps, terminals, daemons, and AI agents
-// alike.
+// State units — flow state machines, worker adapters, RxJS substrate.
+// None presume a UI: they're consumed by browser apps, terminals,
+// daemons, and AI agents alike. See packages/sdk/docs/STATE-UNITS.md.
 export * from './state';
 
 // RxJS bridges — re-exported so consumers can unwrap our Observables to

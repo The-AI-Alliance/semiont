@@ -1,8 +1,8 @@
 # State Units
 
-`@semiont/sdk` is built on top of a single foundational pattern — a *state unit*. The flow state machines in `@semiont/sdk` (`createMarkVM`, `createGatherVM`, `createMatchVM`, …), the domain worker adapters (`createJobClaimAdapter` and `createJobQueueVM` in `@semiont/jobs`; `createSmelterActorVM` in `@semiont/make-meaning`), the search pipeline, and the per-feature page state machines in `@semiont/react-ui` are all instances of it.
+`@semiont/sdk` is built on top of a single foundational pattern — a *state unit*. The flow state machines in `@semiont/sdk` (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, …), the domain worker adapters (`createJobClaimAdapter` and `createJobQueueStateUnit` in `@semiont/jobs`; `createSmelterActorStateUnit` in `@semiont/make-meaning`), the search pipeline, and the per-feature page state machines in `@semiont/react-ui` are all instances of it.
 
-This document defines the pattern. It's worth reading before writing a new flow VM, a new worker adapter, or a new page state machine — and it's worth keeping in mind when reviewing one.
+This document defines the pattern. It's worth reading before writing a new flow state unit, a new worker adapter, or a new page state machine — and it's worth keeping in mind when reviewing one.
 
 ## What a state unit is
 
@@ -11,24 +11,24 @@ A state unit is a stateful, lifecycled object with an RxJS-shaped public surface
 The minimal interface every state unit implements:
 
 ```ts
-interface ViewModel {
+interface StateUnit {
   dispose(): void;
 }
 ```
 
-(The interface is named `ViewModel` historically; the name is fine for the contract — consumers and tests rely on it. The directory housing them in `@semiont/sdk` is `state/`, not `view-models/`, because none of the contents presume a UI. See "Why 'state unit' and not 'view-model'" below.)
+That single method is the only structural commitment. The rest of the pattern — closure-based identity, Observable public surface, internal Subjects exposed as `.asObservable()` views, no leaked subscriptions, composition by parameter rather than ownership — is convention enforced by review, not by the type system.
 
 A canonical state unit factory looks like this:
 
 ```ts
-export interface FooVM extends ViewModel {
+export interface FooStateUnit extends StateUnit {
   loading$: Observable<boolean>;
   error$: Observable<Error | null>;
   result$: Observable<Result | null>;
   trigger(input: Input): void;
 }
 
-export function createFooVM(client: SemiontClient): FooVM {
+export function createFooStateUnit(client: SemiontClient): FooStateUnit {
   const loading$ = new BehaviorSubject<boolean>(false);
   const error$ = new BehaviorSubject<Error | null>(null);
   const result$ = new BehaviorSubject<Result | null>(null);
@@ -72,7 +72,7 @@ These are organized as **must-holds** (the contract), **non-axioms** (deliberate
 
 #### A1 — Closure-based identity
 
-A state unit is a *factory function* (`createMarkVM`, `createJobClaimAdapter`) that returns a plain object conforming to a TypeScript interface. The "instance" is the closure capturing private state in lexically-scoped variables.
+A state unit is a *factory function* (`createMarkStateUnit`, `createJobClaimAdapter`) that returns a plain object conforming to a TypeScript interface. The "instance" is the closure capturing private state in lexically-scoped variables.
 
 - No `class`. No `this`. No `extends`. No `implements` for inheritance reasons.
 - The factory's body *is* the constructor; there is no separate one.
@@ -127,7 +127,7 @@ The factory captures the contract; consumer code can't slip past it.
 
 #### A5 — `dispose(): void` is idempotent and total
 
-Every state unit implements `ViewModel.dispose()`. Dispose:
+Every state unit implements `StateUnit.dispose()`. Dispose:
 
 1. Completes every Subject the unit owns (subscribers see `complete` notifications).
 2. Unsubscribes every subscription the unit holds on upstream Observables.
@@ -170,24 +170,24 @@ Or use the `createDisposer()` helper from `@semiont/sdk` for a slightly cleaner 
 When a state unit takes another unit as input, the passed-in unit is *not* owned by the outer one. Disposal does not propagate down.
 
 ```ts
-// ✅ axiom-compliant — browseVM is owned externally; we just consume it
-export function createComposePageVM(
+// ✅ axiom-compliant — browseStateUnit is owned externally; we just consume it
+export function createComposePageStateUnit(
   client: SemiontClient,
-  browseVM: ShellVM,
+  browseStateUnit: ShellStateUnit,
   params: ComposeParams,
-): ComposePageVM {
+): ComposePageStateUnit {
   // ...
   return {
     // ...
     dispose: () => {
-      // tear down our own state; do NOT call browseVM.dispose()
+      // tear down our own state; do NOT call browseStateUnit.dispose()
       ourSubs.forEach((s) => s.unsubscribe());
     },
   };
 }
 ```
 
-Whoever constructs a `ShellVM` is responsible for its disposal. State units don't form ownership trees through composition; they form *reference* trees through composition. (Exception: a unit that constructs a child internally — e.g. `createResourceViewerPageVM` constructs its own `MarkVM` / `GatherVM` / `MatchVM` — *does* own those and disposes them.)
+Whoever constructs a `ShellStateUnit` is responsible for its disposal. State units don't form ownership trees through composition; they form *reference* trees through composition. (Exception: a unit that constructs a child internally — e.g. `createResourceViewerPageStateUnit` constructs its own `MarkStateUnit` / `GatherStateUnit` / `MatchStateUnit` — *does* own those and disposes them.)
 
 ### Non-axioms (deliberate degrees of freedom)
 
@@ -198,7 +198,7 @@ These are the legitimate decision points each unit makes for itself.
 Some units start work as soon as the factory returns:
 
 ```ts
-// MarkVM subscribes to bus channels immediately on construction.
+// MarkStateUnit subscribes to bus channels immediately on construction.
 subs.push(client.bus.get('mark:requested').subscribe(/* … */));
 ```
 
@@ -220,7 +220,7 @@ The contract is silent on which is right. The unit decides based on whether eage
 
 Most public Observables are hot (BehaviorSubject- or Subject-backed) so multiple subscribers share state. Some are cold (`new Observable((subscriber) => ...)`) when each subscriber should get fresh execution.
 
-`yield.resource` is cold per-call: each upload is a separate operation, so each subscriber to the returned `UploadObservable` triggers its own POST. `MarkVM.pendingAnnotation$` is hot: the current pending state is shared.
+`yield.resource` is cold per-call: each upload is a separate operation, so each subscriber to the returned `UploadObservable` triggers its own POST. `MarkStateUnit.pendingAnnotation$` is hot: the current pending state is shared.
 
 The unit picks honestly per slot.
 
@@ -300,23 +300,11 @@ The honest type documents the semantics. (This applies to namespace methods more
 
 #### X6 — No mixing the bus and direct method calls for the same state
 
-If a flow's progress is observable both via `client.bus.get('mark:assist-progress').subscribe(...)` and via `markVM.progress$`, consumers shouldn't have to choose between the two for the same data. The unit picks one path and exposes it consistently. Two paths to the same value invites consumers to subscribe to both, which then needs synchronization, which then needs invariants, which then breaks.
+If a flow's progress is observable both via `client.bus.get('mark:assist-progress').subscribe(...)` and via `markStateUnit.progress$`, consumers shouldn't have to choose between the two for the same data. The unit picks one path and exposes it consistently. Two paths to the same value invites consumers to subscribe to both, which then needs synchronization, which then needs invariants, which then breaks.
 
 ## Why "state unit" and not "view-model"
 
-The "view-model" name comes from MVVM (Model-View-ViewModel), an architecture where the ViewModel adapts a Model into a UI-friendly shape *for a View to render*. The name presumes a View.
-
-In `@semiont/sdk`, none of the contents presume a UI:
-
-- **Flow state machines** model the state of a flow over time. A web app subscribes; so does a TUI; so does a daemon running a marking pipeline; so could an AI agent observing what a human is currently marking. None of those is a "View" in the MVVM sense.
-- **Worker adapters** are headless event multiplexers. The consumers today are all worker processes (`packages/jobs/`).
-- **Substrate** (`createSearchPipeline`, the `WorkerBus` interface) is RxJS plumbing.
-
-What unifies them is being *stateful, lifecycled, RxJS-shaped units*. "State" captures that without claiming UI specificity.
-
-Page-shaped state machines that *do* presume a View — `createComposePageVM`, `createResourceViewerPageVM`, the admin VMs — live in `@semiont/react-ui` next to the components that render them. There, calling them view-models would be honest; the SDK keeps the broader, neutral framing.
-
-The `ViewModel` interface itself stays named — it's a one-method contract (`{ dispose(): void }`) implemented by both view-shaped and view-shape-neutral units. The interface name is a historical convention; renaming every `extends ViewModel` for terminology purity isn't worth the churn. The directory was the load-bearing distinction.
+The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted into a UI-friendly shape *for a View to render*. State units don't presume a UI: a flow state unit is consumed by a web app, a TUI, a daemon running a marking pipeline, or an AI agent watching what a human is doing. Worker adapters are headless. The substrate is RxJS plumbing. "State unit" captures the unifying property — *stateful, lifecycled, RxJS-shaped* — without the UI claim.
 
 ## Writing a new state unit — checklist
 

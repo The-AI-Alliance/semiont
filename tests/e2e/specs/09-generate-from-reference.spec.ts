@@ -11,7 +11,7 @@ import { test, expect } from '../fixtures/auth';
  *     → click ❓ on an unresolved reference
  *     → ReferenceEntry: `client.bind.initiate({...})`
  *     → bus `bind:initiate`
- *     → resource-viewer page VM opens the wizard
+ *     → resource-viewer page state unit opens the wizard
  *     → user clicks "Generate" (gather step)
  *     → wizard transitions to `configure-generation`
  *     → user submits
@@ -82,7 +82,7 @@ test.describe('generate from unresolved reference', () => {
       await expect(page.locator('.cm-content').first()).toBeVisible({ timeout: 15_000 });
 
       // Switch right sidebar to Annotations → References.
-      // The shell VM persists the active panel across navigations, so
+      // The shell state unit persists the active panel across navigations, so
       // the Annotations button may already be pressed from a previous
       // iteration. Toggling it unconditionally would close the panel
       // and hide the 🔵 References tab. Only click if not pressed.

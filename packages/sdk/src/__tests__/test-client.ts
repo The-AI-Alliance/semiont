@@ -1,5 +1,5 @@
 /**
- * makeTestClient — structurally-typed `SemiontClient` stand-in for VM
+ * makeTestClient — structurally-typed `SemiontClient` stand-in for state unit
  * factory tests. Exposes a real `EventBus` as `client.bus` (the same
  * shape production code reads), plus whatever HTTP namespaces the caller
  * supplies via `overrides`.
@@ -7,20 +7,20 @@
  * Usage:
  *
  * ```ts
- * // bus-only VM
+ * // bus-only state unit
  * const { bus, client } = makeTestClient();
- * const vm = createShellVM(client);
+ * const stateUnit = createShellStateUnit(client);
  * client.bus.get('panel:toggle').next({ panel: 'annotations' });
  * bus.destroy(); // in afterEach
  *
- * // VM that also calls HTTP namespaces
+ * // state unit that also calls HTTP namespaces
  * const { client } = makeTestClient({
  *   mark: {
  *     annotation: vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
  *     delete: vi.fn().mockResolvedValue(undefined),
  *   },
  * });
- * const vm = createMarkVM(client, resourceId);
+ * const stateUnit = createMarkStateUnit(client, resourceId);
  * ```
  *
  * The `client` is cast `as unknown as SemiontClient`, matching the

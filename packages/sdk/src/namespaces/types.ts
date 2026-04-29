@@ -267,7 +267,7 @@ export interface MarkNamespace {
     motivation: Motivation,
   ): void;
 
-  /** Fire-and-forget variant of `assist` — mark-vm orchestrates the call and its progress Observable. */
+  /** Fire-and-forget variant of `assist` — mark-state-unit orchestrates the call and its progress Observable. */
   requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void;
 
   /** Submit the currently pending annotation with its selector and optional body. */
@@ -342,7 +342,7 @@ export interface MatchNamespace {
     options?: { limit?: number; useSemanticScoring?: boolean },
   ): StreamObservable<MatchSearchProgress>;
 
-  /** Fire-and-forget variant: match-vm orchestrates the call and its result Observable. */
+  /** Fire-and-forget variant: match-state-unit orchestrates the call and its result Observable. */
   requestSearch(input: components['schemas']['MatchSearchRequest']): void;
 }
 

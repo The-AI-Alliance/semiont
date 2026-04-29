@@ -7,7 +7,7 @@
  * No EventBus, no JobQueue, no side effects except calling inference.
  * Two callers:
  *   1. In-process JobWorker subclasses (existing path)
- *   2. Remote WorkerVM via worker-process.ts (new path)
+ *   2. Remote WorkerStateUnit via worker-process.ts (new path)
  */
 
 import { AnnotationDetection } from './workers/annotation-detection';

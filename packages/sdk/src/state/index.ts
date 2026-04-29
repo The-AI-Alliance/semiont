@@ -1,28 +1,27 @@
-// Stateful units in `@semiont/sdk` — RxJS-shaped state machines that any
+// State units in `@semiont/sdk` — RxJS-shaped state machines that any
 // consumer (web, terminal, mobile, daemon, AI agent) can subscribe to.
-// The directory is named "state" rather than "view-models" because none
-// of the contents presume a UI:
+// None presume a UI. See packages/sdk/docs/STATE-UNITS.md for the pattern.
 //
 //   flows/   — wrap the long-running content flows in stateful machines
 //              (loading/error/pending observables, awaitable + reactive).
-//              Currently five VMs (mark, gather, match, yield, beckon).
-//              The eighth flow, Frame, has no state-unit VM — its MVP
-//              methods are atomic `Promise<void>` writes with no progress
-//              observables; a Frame VM lands when the surface earns one.
-//   lib/     — substrate (`ViewModel` disposable interface, search pipeline,
+//              Currently five state units (mark, gather, match, yield, beckon).
+//              The eighth flow, Frame, has no state unit — its MVP methods
+//              are atomic `Promise<void>` writes with no progress
+//              observables; a Frame state unit lands when the surface earns one.
+//   lib/     — substrate (`StateUnit` disposable interface, search pipeline,
 //              `WorkerBus` channel-IO interface)
 //
 // Domain-specific worker adapters live with their domain, not here.
-// `@semiont/jobs` houses `createJobClaimAdapter` and `createJobQueueVM`
+// `@semiont/jobs` houses `createJobClaimAdapter` and `createJobQueueStateUnit`
 // (the job-claim protocol runtime + the jobs-list state observer).
-// `@semiont/make-meaning` houses `createSmelterActorVM` (the
+// `@semiont/make-meaning` houses `createSmelterActorStateUnit` (the
 // domain-event fan-in for the Smelter worker, co-located with the
 // Smelter actor and its `smelter-main` entry point).
 //
 // Page-shaped state (admin tables, page routing, web shell) lives in
 // `@semiont/react-ui` next to the components that render it.
 
-export { type ViewModel, createDisposer } from './lib/view-model';
+export { type StateUnit, createDisposer } from './lib/state-unit';
 export {
   createSearchPipeline,
   type SearchPipeline,
@@ -31,32 +30,32 @@ export {
 } from './lib/search-pipeline';
 export type { WorkerBus } from './lib/worker-bus';
 
-// ── Flow VMs ────────────────────────────────────────────────────────────
+// ── Flow state units ────────────────────────────────────────────────────
 
 export {
-  createBeckonVM,
-  type BeckonVM,
+  createBeckonStateUnit,
+  type BeckonStateUnit,
   createHoverHandlers,
   type HoverHandlers,
   HOVER_DELAY_MS,
-} from './flows/beckon-vm';
+} from './flows/beckon-state-unit';
 export {
-  createGatherVM,
-  type GatherVM,
-} from './flows/gather-vm';
+  createGatherStateUnit,
+  type GatherStateUnit,
+} from './flows/gather-state-unit';
 export {
-  createMatchVM,
-  type MatchVM,
-} from './flows/match-vm';
+  createMatchStateUnit,
+  type MatchStateUnit,
+} from './flows/match-state-unit';
 export {
-  createYieldVM,
-  type YieldVM,
+  createYieldStateUnit,
+  type YieldStateUnit,
   type GenerateDocumentOptions,
-} from './flows/yield-vm';
+} from './flows/yield-state-unit';
 export {
-  createMarkVM,
-  type MarkVM,
+  createMarkStateUnit,
+  type MarkStateUnit,
   type PendingAnnotation,
-} from './flows/mark-vm';
+} from './flows/mark-state-unit';
 
 export type { ConnectionState } from '@semiont/core';

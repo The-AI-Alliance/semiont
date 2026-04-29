@@ -3,16 +3,16 @@
  *
  * Previously, clicking between open-resource tabs in the left nav
  * changed the URL but didn't update the page content. Root cause:
- * `useViewModel` runs its factory exactly once at mount and React
+ * `useStateUnit` runs its factory exactly once at mount and React
  * Router keeps `KnowledgeResourcePage` mounted across `:id` param
- * changes, so the `ResourceLoaderVM` stayed bound to the first rId
+ * changes, so the `ResourceLoaderStateUnit` stayed bound to the first rId
  * forever.
  *
  * Fix: split into a thin outer wrapper that reads the `:id` param and
  * an inner component keyed on `rId` so a different id forces a remount.
  *
  * This test locks the fix in: when the URL param the page reads
- * changes, the VM factory must be re-invoked with the new value.
+ * changes, the state unit factory must be re-invoked with the new value.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -60,7 +60,7 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSemiont: () => stableMockBrowser,
-    createResourceLoaderVM: (_client: any, rId: string) => {
+    createResourceLoaderStateUnit: (_client: any, rId: string) => {
       vmFactoryCalls.push(rId);
       return {
         resource$: {
@@ -94,7 +94,7 @@ describe('KnowledgeResourcePage navigation', () => {
     vmFactoryCalls.length = 0;
   });
 
-  it('creates a fresh ResourceLoaderVM when the :id param changes', () => {
+  it('creates a fresh ResourceLoaderStateUnit when the :id param changes', () => {
     mockedParamsId = 'A';
     const { rerender } = render(<KnowledgeResourcePage />);
 
@@ -112,7 +112,7 @@ describe('KnowledgeResourcePage navigation', () => {
     expect(vmFactoryCalls).toEqual(['A', 'B']);
   });
 
-  it('rebuilds the VM on each distinct :id transition, not just the first', () => {
+  it('rebuilds the state unit on each distinct :id transition, not just the first', () => {
     mockedParamsId = 'X';
     const { rerender } = render(<KnowledgeResourcePage />);
 
@@ -129,7 +129,7 @@ describe('KnowledgeResourcePage navigation', () => {
     expect(screen.getByTestId('resource-rid').textContent).toBe('X');
   });
 
-  it('re-render with the same :id does NOT rebuild the VM (React Router same-param re-renders are common)', () => {
+  it('re-render with the same :id does NOT rebuild the state unit (React Router same-param re-renders are common)', () => {
     mockedParamsId = 'A';
     const { rerender } = render(<KnowledgeResourcePage />);
 

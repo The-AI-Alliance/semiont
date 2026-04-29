@@ -31,9 +31,9 @@ import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useSemiont } from '../../../session/SemiontProvider';
-import { createResourceViewerPageVM } from '../state/resource-viewer-page-vm';
-import { useViewModel } from '../../../hooks/useViewModel';
-import { useShellVM } from '../../../hooks/useShellVM';
+import { createResourceViewerPageStateUnit } from '../state/resource-viewer-page-state-unit';
+import { useStateUnit } from '../../../hooks/useStateUnit';
+import { useShellStateUnit } from '../../../hooks/useShellStateUnit';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
@@ -157,29 +157,29 @@ export function ResourceViewerPage({
   const content = isBinary ? binaryContent : textContent;
   const contentLoading = isBinary ? mediaTokenLoading : textLoading;
 
-  // Composite VM — owns all flow VMs, wizard state, annotations, entity types
-  const browseVM = useShellVM();
-  const vm = useViewModel(() => createResourceViewerPageVM(semiont!, rUri, locale, browseVM));
+  // Composite state unit — owns all flow VMs, wizard state, annotations, entity types
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
 
-  const annotations = useObservable(vm.annotations$) ?? [];
-  const groups = useObservable(vm.annotationGroups$);
-  const allEntityTypes = useObservable(vm.entityTypes$) ?? [];
-  const referencedByRaw = useObservable(vm.referencedBy$);
+  const annotations = useObservable(stateUnit.annotations$) ?? [];
+  const groups = useObservable(stateUnit.annotationGroups$);
+  const allEntityTypes = useObservable(stateUnit.entityTypes$) ?? [];
+  const referencedByRaw = useObservable(stateUnit.referencedBy$);
   const referencedBy = referencedByRaw ?? [];
   const referencedByLoading = referencedByRaw === undefined;
-  const hoveredAnnotationId = useObservable(vm.beckon.hoveredAnnotationId$) ?? null;
-  const pendingAnnotation = useObservable(vm.mark.pendingAnnotation$) ?? null;
-  const assistingMotivation = useObservable(vm.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(vm.mark.progress$) ?? null;
-  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
-  const scrollToAnnotationId = useObservable(vm.browse.scrollToAnnotationId$) ?? null;
-  const panelInitialTab = useObservable(vm.browse.panelInitialTab$) ?? null;
-  const onScrollCompleted = vm.browse.onScrollCompleted;
-  const generationProgress = useObservable(vm.yield.progress$) ?? null;
-  const gatherContext = useObservable(vm.gather.context$) ?? null;
-  const gatherLoading = useObservable(vm.gather.loading$) ?? false;
-  const gatherError = useObservable(vm.gather.error$) ?? null;
-  const wizardState = useObservable(vm.wizard$);
+  const hoveredAnnotationId = useObservable(stateUnit.beckon.hoveredAnnotationId$) ?? null;
+  const pendingAnnotation = useObservable(stateUnit.mark.pendingAnnotation$) ?? null;
+  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const scrollToAnnotationId = useObservable(stateUnit.browse.scrollToAnnotationId$) ?? null;
+  const panelInitialTab = useObservable(stateUnit.browse.panelInitialTab$) ?? null;
+  const onScrollCompleted = stateUnit.browse.onScrollCompleted;
+  const generationProgress = useObservable(stateUnit.yield.progress$) ?? null;
+  const gatherContext = useObservable(stateUnit.gather.context$) ?? null;
+  const gatherLoading = useObservable(stateUnit.gather.loading$) ?? false;
+  const gatherError = useObservable(stateUnit.gather.error$) ?? null;
+  const wizardState = useObservable(stateUnit.wizard$);
   const wizardOpen = wizardState?.open ?? false;
   const wizardAnnotationId = wizardState?.annotationId ?? null;
   const wizardResourceId = wizardState?.resourceId ?? null;
@@ -187,12 +187,12 @@ export function ResourceViewerPage({
   const wizardEntityTypes = wizardState?.entityTypes ?? [];
 
   const handleWizardClose = useCallback(() => {
-    vm.closeWizard();
-  }, [vm]);
+    stateUnit.closeWizard();
+  }, [stateUnit]);
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
     clearNewAnnotationId(annotationId(referenceId));
-    vm.yield.generate(referenceId, {
+    stateUnit.yield.generate(referenceId, {
       title: config.title,
       storageUri: config.storagePath,
       prompt: config.prompt,
@@ -205,7 +205,7 @@ export function ResourceViewerPage({
       maxTokens: config.maxTokens,
       context: config.context,
     });
-  }, [vm, clearNewAnnotationId, resource]);
+  }, [stateUnit, clearNewAnnotationId, resource]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
     if (!semiont) return;
@@ -253,8 +253,8 @@ export function ResourceViewerPage({
     }
   }, [resource, rUri, browser]);
 
-  // Bridge: when the mark VM produces a pending annotation, open the
-  // annotations panel. The mark VM (session-scoped) can't emit `panel:open`
+  // Bridge: when the mark state unit produces a pending annotation, open the
+  // annotations panel. The mark state unit (session-scoped) can't emit `panel:open`
   // (app-scoped) directly — the React tree is the natural seam between
   // the two buses.
   useEffect(() => {
@@ -263,9 +263,9 @@ export function ResourceViewerPage({
     }
   }, [pendingAnnotation, browser]);
 
-  // Domain events flow through the bus gateway (ActorVM → local EventBus).
+  // Domain events flow through the bus gateway (ActorStateUnit → local EventBus).
   // BrowseNamespace cache invalidation handles annotation/resource updates.
-  // The resource-viewer-page-vm calls client.subscribeToResource(resourceId)
+  // The resource-viewer-page-state-unit calls client.subscribeToResource(resourceId)
   // which bridges scoped domain events into the local EventBus.
 
   const handleResourceArchive = useCallback(async () => {

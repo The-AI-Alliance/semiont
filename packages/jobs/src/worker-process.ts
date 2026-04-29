@@ -9,7 +9,7 @@
  *
  * Workers are inherently bound to HTTP transport (they connect to a
  * remote backend over the wire). The cast to `HttpTransport` to reach
- * the underlying `ActorVM` for `JobClaimAdapter` reflects that — local
+ * the underlying `ActorStateUnit` for `JobClaimAdapter` reflects that — local
  * workers don't make sense.
  *
  * Usage:
@@ -61,7 +61,7 @@ export interface WorkerProcessConfig {
 /**
  * Route `transport.emit` calls — choosing resource-scoped vs global based
  * on whether the event is a cross-subscriber broadcast. Extracted
- * from the deleted `WorkerVM.emitEvent`; kept here as a module-level
+ * from the deleted `WorkerStateUnit.emitEvent`; kept here as a module-level
  * helper because `handleJob` uses it a dozen times.
  */
 async function emitEvent<K extends keyof EventMap>(
@@ -81,7 +81,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
   // is intentional: `LocalTransport` workers don't exist. The adapter
   // itself is transport-neutral — see `JobClaimBus` in
-  // packages/sdk/src/view-models/domain/job-claim-adapter.ts.
+  // packages/sdk/src/state/domain/job-claim-adapter.ts.
   const httpTransport = session.client.transport as HttpTransport;
   const adapter = createJobClaimAdapter({
     bus: httpTransport.actor,

@@ -2,7 +2,7 @@
  * @semiont/api-client
  *
  * HTTP-specific transport adapters for the Semiont SDK. The dev-facing
- * surface (`SemiontClient`, namespaces, session, view-models, helpers)
+ * surface (`SemiontClient`, namespaces, session, state units, helpers)
  * lives in `@semiont/sdk`. The shared transport contract
  * (`ITransport`, `IContentTransport`, `BRIDGED_CHANNELS`,
  * `ConnectionState`, response types) lives in `@semiont/core`.
@@ -27,15 +27,15 @@ export {
 
 export { HttpContentTransport } from './transport/http-content-transport';
 
-// `actor-vm` is HttpTransport's SSE machinery. Exposed for domain-side
+// `actor-state-unit` is HttpTransport's SSE machinery. Exposed for domain-side
 // worker adapters (`createJobClaimAdapter` in `@semiont/jobs`,
-// `createSmelterActorVM` in `@semiont/make-meaning`) that build
+// `createSmelterActorStateUnit` in `@semiont/make-meaning`) that build
 // worker-flavored variants on top of it. Application code should not
 // import these directly.
 export {
-  createActorVM,
-  type ActorVM,
+  createActorStateUnit,
+  type ActorStateUnit,
   type BusEvent,
-  type ActorVMOptions,
+  type ActorStateUnitOptions,
   DEGRADED_THRESHOLD_MS,
-} from './transport/actor-vm';
+} from './transport/actor-state-unit';

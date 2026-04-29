@@ -10,7 +10,7 @@
 import { useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLocale } from '@/i18n/routing';
-import { useSemiont, useObservable, useViewModel, createResourceLoaderVM } from '@semiont/react-ui';
+import { useSemiont, useObservable, useStateUnit, createResourceLoaderStateUnit } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 
@@ -24,7 +24,7 @@ import type { SemiontResource } from '@semiont/react-ui';
  *
  * The inner component is keyed on `rId` so that navigation between
  * resources (URL-param change without component unmount) forces a full
- * remount. Without this, `useViewModel`'s factory closes over the
+ * remount. Without this, `useStateUnit`'s factory closes over the
  * initial `rId` and never re-runs, and the URL changes but the content
  * stays on the first-loaded resource.
  */
@@ -42,7 +42,7 @@ function KnowledgeResourcePageInner({ rId }: { rId: ReturnType<typeof resourceId
   const activeKnowledgeBase = session?.kb ?? null;
 
   const semiont = session?.client;
-  const loader = useViewModel(() => createResourceLoaderVM(semiont!, rId));
+  const loader = useStateUnit(() => createResourceLoaderStateUnit(semiont!, rId));
   const resourceData = useObservable(loader.resource$);
   const isLoading = useObservable(loader.isLoading$) ?? true;
 

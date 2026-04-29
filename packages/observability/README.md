@@ -107,7 +107,7 @@ await withSpan(
 );
 
 // Actor handler wrapper — used by the bus dispatcher to standardize
-// span names across StowerVM, BrowserVM, GathererVM, MatcherVM, SmelterVM.
+// span names across state units (StowerStateUnit, BrowserStateUnit, GathererStateUnit, MatcherStateUnit, SmelterStateUnit).
 await withActorSpan('stower', 'mark:create', () => handler(payload));
 ```
 

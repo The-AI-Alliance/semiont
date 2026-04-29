@@ -356,7 +356,7 @@ export type EventName = keyof EventMap;
  *
  * The frontend's `subscribeToResource(id)` wires these channels via
  * `scope=id&scoped=<channel>` so the SSE route delivers them to that
- * participant. WorkerVM uses this list to decide which emitted events to
+ * participant. WorkerStateUnit uses this list to decide which emitted events to
  * scope to their resource.
  */
 /**

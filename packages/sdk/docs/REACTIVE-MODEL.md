@@ -151,7 +151,7 @@ Four idiomatic shapes, all on the same return value. The script-author who's nev
 - `beckon.hover`, `beckon.attention`, `beckon.sparkle`
 - `job.cancelRequest`
 
-These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. A frontend VM emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
+These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. A frontend state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
 
 **Plain `Observable<T>` / `BehaviorSubject<T>`** (no thenable wrapper, by design — observed continuously, not awaited):
 

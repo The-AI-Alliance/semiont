@@ -26,16 +26,16 @@ This architecture leverages RxJS EventBus for event routing, eliminates callback
 - ✅ Handles reconnection and gap detection
 - ❌ NO React state (`useState`, `useEffect` for state)
 - ❌ NO JSX rendering
-- ❌ NO manual event forwarding (the ActorVM bridge is EventBus-native)
+- ❌ NO manual event forwarding (the ActorStateUnit bridge is EventBus-native)
 
 **Implementation**: `SemiontApiClient.subscribeToResource(resourceId)`
 
-Called from the page view model (`resource-viewer-page-vm`), not from
-a React hook. Returns a cleanup function that the VM's disposer runs
+Called from the page state unit (`resource-viewer-page-state-unit`), not from
+a React hook. Returns a cleanup function that the state unit's disposer runs
 on unmount.
 
 ```typescript
-// packages/api-client/src/view-models/pages/resource-viewer-page-vm.ts
+// packages/api-client/src/state/pages/resource-viewer-page-state-unit.ts
 const unsubscribeResource = client.subscribeToResource(resourceId);
 disposer.add(unsubscribeResource);
 ```
@@ -46,7 +46,7 @@ bridge that forwards each bus event onto the same channel in the local
 EventBus.
 
 **Key Architecture Points**:
-- One ActorVM per client — one SSE connection to `/bus/subscribe`
+- One ActorStateUnit per client — one SSE connection to `/bus/subscribe`
 - Resource-scoped channels added/removed as pages mount/unmount
 - Events auto-bridge to the local EventBus for layer 2 consumption
 - No callbacks; pure pub/sub
@@ -149,7 +149,7 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
   const { detectingMotivation, detectionProgress } = useDetectionFlow(rId);
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
 
-  // Layer 1: bus subscription happens inside the page view model
+  // Layer 1: bus subscription happens inside the page state unit
   // (client.subscribeToResource(rId)) — no per-component hook needed
 
   // Event emission (user interaction)
@@ -218,7 +218,7 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 1: Service (client.subscribeToResource)               │
 │                                                              │
-│  - Adds scoped bus channels to the ActorVM                  │
+│  - Adds scoped bus channels to the ActorStateUnit                  │
 │  - Passes eventBus to stream                                │
 │  - Stream auto-emits to EventBus                            │
 └─────────────────────────────────────────────────────────────┘
@@ -233,7 +233,7 @@ export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPagePro
 ```typescript
 // In ResourceViewerPage.tsx
 export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
-  // Layer 1: the page view model calls client.subscribeToResource(rId)
+  // Layer 1: the page state unit calls client.subscribeToResource(rId)
   // internally — no per-component hook needed.
 
   // ... rest of component
@@ -348,7 +348,7 @@ function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
   const { generationModalOpen } = useGenerationFlow(locale, rId, ...);
 
-  // Layer 1: bus subscription happens inside the page view model
+  // Layer 1: bus subscription happens inside the page state unit
   // (client.subscribeToResource(rId)) — no per-component hook needed
 
   // Layer 3: Render UI directly
@@ -475,7 +475,7 @@ These violations will cause the compliance audit to fail:
    - Detection: AST analysis finds `eventBus.off()` calls in component files
 
 3. **Components creating `new EventSource()`**
-   - Should use: `client.subscribeToResource(id)` via the page view model
+   - Should use: `client.subscribeToResource(id)` via the page state unit
    - Detection: AST analysis finds `new EventSource()` in component files
 
 4. **Hooks returning JSX**
@@ -660,7 +660,7 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 
 - **Components**: Call hooks, emit events, render JSX
 - **Hooks**: Use `useEventSubscriptions`, manage state with `useState`, return data objects
-- **Service**: Bus connection managed by `SemiontApiClient` (one ActorVM per client; resource-scoped channels added via `client.subscribeToResource(id)`)
+- **Service**: Bus connection managed by `SemiontApiClient` (one ActorStateUnit per client; resource-scoped channels added via `client.subscribeToResource(id)`)
 
 ### ❌ DON'T
 
@@ -672,9 +672,9 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 
 - `useEventBus()` - Access event bus (for emitting events)
 - `useEventSubscriptions()` - Subscribe to events (for receiving events)
-- `client.subscribeToResource(id)` - Adds resource-scoped bus channels (called by page view model)
+- `client.subscribeToResource(id)` - Adds resource-scoped bus channels (called by page state unit)
 - `useDetectionFlow()` - Detection state management (bus events, progress, annotation operations)
 - `useResolutionFlow()` - Annotation body update and reference linking
 - `useGenerationFlow()` - Generation state management (SSE, modal, progress)
-- `createGatherVM()` - Context correlation for generation (in `@semiont/api-client`)
+- `createGatherStateUnit()` - Context correlation for generation (in `@semiont/api-client`)
 - `usePanelNavigation()` - Panel state management

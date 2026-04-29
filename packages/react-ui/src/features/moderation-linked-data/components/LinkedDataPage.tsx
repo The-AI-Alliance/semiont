@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-vm';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 import { ExportCard, type ExportCardTranslations } from '../../admin-exchange/components/ExportCard';
 import { ImportCard, type ImportCardProps, type ImportCardTranslations } from '../../admin-exchange/components/ImportCard';
 import { ImportProgress, type ImportProgressTranslations } from '../../admin-exchange/components/ImportProgress';

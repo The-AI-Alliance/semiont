@@ -205,14 +205,14 @@ See [docs/SESSION.md](docs/SESSION.md) for details.
 
 `@semiont/react-ui` houses the framework-neutral state machinery for the Semiont web frontend's specific pages and shell. These are RxJS-based factories (no React inside; pure observables and async functions) but they're shaped around the web frontend's page taxonomy, so they belong with the components that render them rather than in `@semiont/sdk`:
 
-- **Shell** — `createShellVM` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy), `createSessionVM` (session-scoped logout)
-- **Pages** — `createComposePageVM`, `createResourceViewerPageVM`, `createResourceLoaderVM`
-- **Admin** — `createAdminUsersVM`, `createAdminSecurityVM`, `createExchangeVM` (backup/restore + import/export)
-- **Auth + discovery + moderation** — `createWelcomeVM`, `createDiscoverVM`, `createEntityTagsVM`
+- **Shell** — `createShellStateUnit` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy), `createSessionStateUnit` (session-scoped logout)
+- **Pages** — `createComposePageStateUnit`, `createResourceViewerPageStateUnit`, `createResourceLoaderStateUnit`
+- **Admin** — `createAdminUsersStateUnit`, `createAdminSecurityStateUnit`, `createExchangeStateUnit` (backup/restore + import/export)
+- **Auth + discovery + moderation** — `createWelcomeStateUnit`, `createDiscoverStateUnit`, `createEntityTagsStateUnit`
 
-Each lives in `src/features/<feature>/state/` (or `src/state/` for cross-feature ones) next to the components that consume it. The `useViewModel` hook wires them into React lifecycles.
+Each lives in `src/features/<feature>/state/` (or `src/state/` for cross-feature ones) next to the components that consume it. The `useStateUnit` hook wires them into React lifecycles.
 
-Use them via `import { createComposePageVM } from '@semiont/react-ui'`. UI-shape-neutral state machines (flow VMs, worker adapters, search pipeline) continue to live in `@semiont/sdk` and are re-exported from here for convenience.
+Use them via `import { createComposePageStateUnit } from '@semiont/react-ui'`. UI-shape-neutral state machines (flow VMs, worker adapters, search pipeline) continue to live in `@semiont/sdk` and are re-exported from here for convenience.
 
 ### API Integration
 

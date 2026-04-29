@@ -3,15 +3,15 @@ import { useTranslation } from 'react-i18next';
 import {
   Toolbar,
   useTheme,
-  useShellVM,
+  useShellStateUnit,
   useObservable,
   useLineNumbers,
   useEventSubscriptions,
   useSemiont,
-  useViewModel,
+  useStateUnit,
   AdminExchangePage,
 } from '@semiont/react-ui';
-import { createExchangeVM } from '@semiont/react-ui';
+import { createExchangeStateUnit } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 export default function AdminExchangeClient() {
@@ -19,21 +19,21 @@ export default function AdminExchangeClient() {
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminExchange.${k}`, p as any) as string;
   const client = useObservable(useSemiont().activeSession$)?.client;
 
-  const browseVM = useShellVM();
-  const vm = useViewModel(() => createExchangeVM(
-    browseVM,
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createExchangeStateUnit(
+    browseStateUnit,
     () => client!.admin!.backup(),
     (file) => client!.admin!.restore(file),
   ));
 
-  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
-  const selectedFile = useObservable(vm.selectedFile$) ?? null;
-  const preview = useObservable(vm.preview$) ?? null;
-  const isExporting = useObservable(vm.isExporting$) ?? false;
-  const isImporting = useObservable(vm.isImporting$) ?? false;
-  const importPhase = useObservable(vm.importPhase$) ?? null;
-  const importMessage = useObservable(vm.importMessage$);
-  const importResult = useObservable(vm.importResult$);
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const selectedFile = useObservable(stateUnit.selectedFile$) ?? null;
+  const preview = useObservable(stateUnit.preview$) ?? null;
+  const isExporting = useObservable(stateUnit.isExporting$) ?? false;
+  const isImporting = useObservable(stateUnit.isImporting$) ?? false;
+  const importPhase = useObservable(stateUnit.importPhase$) ?? null;
+  const importMessage = useObservable(stateUnit.importMessage$);
+  const importResult = useObservable(stateUnit.importResult$);
 
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -44,26 +44,26 @@ export default function AdminExchangeClient() {
   });
 
   const handleExport = useCallback(async () => {
-    const { blob, filename } = await vm.doExport();
+    const { blob, filename } = await stateUnit.doExport();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  }, [vm]);
+  }, [stateUnit]);
 
   const handleImport = useCallback(async () => {
-    await vm.doImport();
-  }, [vm]);
+    await stateUnit.doImport();
+  }, [stateUnit]);
 
   return (
     <AdminExchangePage
       onExport={handleExport}
       isExporting={isExporting}
-      onFileSelected={vm.selectFile}
+      onFileSelected={stateUnit.selectFile}
       onImport={handleImport}
-      onCancelImport={vm.cancelImport}
+      onCancelImport={stateUnit.cancelImport}
       selectedFile={selectedFile}
       preview={preview}
       isImporting={isImporting}

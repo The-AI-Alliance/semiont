@@ -35,10 +35,10 @@ import {
   type TokenRefresher,
   APIError,
   // SSE-actor machinery used by SDK adapters; not application code:
-  createActorVM,
-  type ActorVM,
+  createActorStateUnit,
+  type ActorStateUnit,
   type BusEvent,
-  type ActorVMOptions,
+  type ActorStateUnitOptions,
   DEGRADED_THRESHOLD_MS,
 } from '@semiont/api-client';
 ```
@@ -48,7 +48,7 @@ That's the entire surface. Everything else moved out:
 - **`ITransport`, `IContentTransport`, `BRIDGED_CHANNELS`, `ConnectionState`,
   response/progress types** live in [`@semiont/core`](../core/).
 - **`SemiontClient`, namespaces, `SemiontSession`, `SemiontBrowser`,
-  view-models, `bus-request`, `cache`** live in [`@semiont/sdk`](../sdk/).
+  state units, `bus-request`, `cache`** live in [`@semiont/sdk`](../sdk/).
 
 ## Behavioral contract
 

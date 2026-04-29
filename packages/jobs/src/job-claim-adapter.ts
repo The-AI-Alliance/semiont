@@ -2,7 +2,7 @@
  * Job Claim Adapter — worker-side job lifecycle glue on top of a
  * shared bus.
  *
- * Replaces the old `WorkerVM`, which owned its own actor and
+ * Replaces the old `WorkerStateUnit`, which owned its own actor and
  * duplicated the SSE connection that `SemiontClient` already held.
  * Workers construct a `SemiontSession` normally (one actor, one
  * SSE connection) and use this adapter to attach job-claim behaviour

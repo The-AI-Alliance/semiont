@@ -126,14 +126,14 @@ export function useResources() {
 
 **Three-Layer Pattern:**
 
-1. **Service Layer**: Bus subscription (`SemiontApiClient.subscribeToResource`, called by page view model)
+1. **Service Layer**: Bus subscription (`SemiontApiClient.subscribeToResource`, called by page state unit)
 2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
 3. **Component Layer**: Pure React (hooks + JSX)
 
 **Example - Three Layers in Action:**
 
 ```tsx
-// Layer 1 (Service): bus subscription happens in the page view model
+// Layer 1 (Service): bus subscription happens in the page state unit
 // via client.subscribeToResource(rId) — no component-level hook needed.
 function ResourceViewerPage({ rId }) {
   // ...

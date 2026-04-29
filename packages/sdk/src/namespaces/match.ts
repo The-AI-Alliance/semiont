@@ -11,7 +11,7 @@ export class MatchNamespace implements IMatchNamespace {
   ) {}
 
   requestSearch(input: components['schemas']['MatchSearchRequest']): void {
-    // Local emit: match-vm subscribes via the local bus.
+    // Local emit: match-state-unit subscribes via the local bus.
     this.bus.get('match:search-requested').next(input);
   }
 

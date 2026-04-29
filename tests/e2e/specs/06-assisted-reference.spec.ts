@@ -9,7 +9,7 @@ import { test, expect } from '../fixtures/auth';
  *   ReferencesPanel assist widget
  *     → click "Annotate" (✨)
  *     → eventBus `mark:assist-request` (local)
- *     → mark-vm catches it, calls `client.mark.assist(...)`
+ *     → mark-state-unit catches it, calls `client.mark.assist(...)`
  *     → namespaces/mark.ts `dispatchAssist`
  *     → bus `job:create` (with jobType="reference-annotation" +
  *       `params.entityTypes`)
@@ -24,7 +24,7 @@ import { test, expect } from '../fixtures/auth';
  *
  * Regression target: the UI's selected entity types failing to reach
  * the wire — e.g. the chip-selection state not being threaded into
- * `mark:assist-request` payload, or the VM not forwarding to the
+ * `mark:assist-request` payload, or the state unit not forwarding to the
  * api-client. Protocol-level assertion on `job:create` catches
  * either break.
  *
