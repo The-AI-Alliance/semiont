@@ -42,7 +42,7 @@ semiont/
 ├── packages/                   # Shared workspace packages (see packages/README.md)
 │   ├── core/                   # OpenAPI types, branded IDs, event protocol
 │   ├── api-client/             # HTTP transport adapter (HttpTransport, HttpContentTransport)
-│   ├── sdk/                    # SemiontClient, namespaces, session, view-models
+│   ├── sdk/                    # SemiontClient, namespaces, session, flow state machines, worker adapters
 │   ├── ontology/               # Entity types and tag schemas
 │   ├── content/                # Content-addressed storage
 │   ├── event-sourcing/         # Event store and materialized views

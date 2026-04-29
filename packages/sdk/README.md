@@ -131,7 +131,7 @@ const resources = await session.client.browse.resources({ limit: 10 });
 await session.dispose();
 ```
 
-`KnowledgeBase` is uniform regardless of transport kind; the variation lives in the nested `endpoint` (currently `{ kind: 'http', host, port, protocol }` or `{ kind: 'local', kbId }`). Code that doesn't construct transports — your scripts, the verb namespaces, view-models — never inspects `endpoint`.
+`KnowledgeBase` is uniform regardless of transport kind; the variation lives in the nested `endpoint` (currently `{ kind: 'http', host, port, protocol }` or `{ kind: 'local', kbId }`). Code that doesn't construct transports — your scripts, the verb namespaces, the flow state machines — never inspects `endpoint`.
 
 If you already have an access token (CLI cached-token path, env-var token, embedded auth flow), use `SemiontClient.fromHttp({ baseUrl, token })` or `SemiontSession.fromHttp({ baseUrl, token, storage, kb, refresh, ... })` to skip the auth round-trip.
 
@@ -201,6 +201,7 @@ The verb-by-verb walkthroughs live in [docs/protocol/flows](https://github.com/T
 
 - [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace tour with concrete examples for Browse, Mark, Bind, Gather, Match, Yield, Beckon, Auth, Admin, Job, plus SSE and error handling.
 - [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design: how `await` works on the SDK's return values without learning RxJS, and where RxJS is still visible by design.
+- [`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/STATE-UNITS.md) — the foundational pattern behind the flow state machines, worker adapters, and search pipeline: closure-based factories, RxJS-shaped surface, dispose lifecycle, and the axioms every new state unit honors.
 - [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's behavioral contract.
 - [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — the transport interface every `ITransport` must honor.
 

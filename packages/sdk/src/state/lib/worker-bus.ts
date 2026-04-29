@@ -1,5 +1,5 @@
 /**
- * WorkerBus — minimal channel-bus surface that worker-side view-models
+ * WorkerBus — minimal channel-bus surface that worker-side adapters
  * (SmelterActorVM, JobClaimAdapter) need.
  *
  * Transport-neutral by design. HTTP `ActorVM` (from `@semiont/api-client`)

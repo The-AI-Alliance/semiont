@@ -1,15 +1,18 @@
-// View-models in `@semiont/sdk` are state machines that any UI shape (web,
-// terminal, mobile, headless) can consume:
+// Stateful units in `@semiont/sdk` — RxJS-shaped state machines and
+// worker adapters that any consumer (web, terminal, mobile, daemon, AI
+// agent) can subscribe to. The directory is named "state" rather than
+// "view-models" because none of the contents presume a UI:
 //
 //   flows/   — wrap each of the seven flows in a stateful machine
 //              (loading/error/pending observables, awaitable + reactive)
 //   workers/ — worker-side adapters (already used headlessly by `@semiont/jobs`)
-//   lib/     — substrate (ViewModel interface, search pipeline, WorkerBus)
+//   lib/     — substrate (`ViewModel` disposable interface, search pipeline,
+//              `WorkerBus` channel-IO interface)
 //
-// Page-shaped state machines (admin tables, page-routing, web shell, etc.)
-// live in `@semiont/react-ui` alongside the components that render them —
-// they're framework-neutral but tied to the Semiont web frontend's page
-// taxonomy and don't apply to a TUI / mobile / daemon consumer.
+// Page-shaped state (admin tables, page routing, web shell) lives in
+// `@semiont/react-ui` next to the components that render it — those are
+// framework-neutral but tied to the Semiont web frontend's page taxonomy
+// and don't apply to a TUI / mobile / daemon consumer.
 
 export { type ViewModel, createDisposer } from './lib/view-model';
 export {

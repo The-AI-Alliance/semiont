@@ -2,8 +2,8 @@
  * @semiont/sdk
  *
  * The Semiont SDK — `SemiontClient`, the verb-oriented namespaces, the
- * per-tab session layer, every view-model, and the supporting helpers
- * (`bus-request`, `cache`).
+ * per-tab session layer, the flow state machines and worker adapters,
+ * and the supporting helpers (`bus-request`, `cache`).
  *
  * Transport-agnostic: `SemiontClient` consumes the `ITransport` /
  * `IContentTransport` contracts from `@semiont/core`. The HTTP adapters
@@ -128,8 +128,11 @@ export {
   type StoredSession,
 } from './session/storage';
 
-// View models (MVVM layer)
-export * from './view-models';
+// Stateful units — flow state machines, worker adapters, RxJS substrate.
+// "State" rather than "view-models" because none of these presume a UI:
+// they're consumed by browser apps, terminals, daemons, and AI agents
+// alike.
+export * from './state';
 
 // RxJS bridges — re-exported so consumers can unwrap our Observables to
 // Promises without a separate `import { firstValueFrom } from 'rxjs'`.
