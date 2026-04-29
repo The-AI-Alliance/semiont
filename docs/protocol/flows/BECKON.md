@@ -100,6 +100,31 @@ the unified bus gateway:
 If a participant is not connected, the signal is dropped. No queue, no
 retry — same ephemeral semantics as all other beckon events.
 
+## Presence Aggregation Is Consumer Territory
+
+The Beckon flow is a *substrate*, not a presence system. It delivers
+ephemeral signals — hover, focus, sparkle, click, panel-open — and
+that is the entire contract. There is no aggregation layer ("who is
+currently hovering this annotation"), no debounce beyond the 150ms
+dwell, no synthesis of cursor positions or per-user state, and no
+last-seen retention.
+
+A consumer that wants Liveblocks-style live-cursor-with-username, a
+"3 collaborators here" indicator, or any presence-as-a-feature view
+builds it on top of the beckon signals plus its own state aggregator —
+typically a small reducer that listens to `beckon:hover` events
+(carrying `_userId` from the gateway) and maintains a map of
+`userId → { annotationId, lastSeenAt }`. The protocol delivers the raw
+signals; the consumer decides the aggregation policy, retention
+window, and rendering.
+
+This split is deliberate. Presence semantics are domain-specific —
+"who is hovering" matters in a code review tool, "who has read this"
+matters in a knowledge base, "where is the cursor" matters in a live
+editor — and a one-size-fits-all aggregation layer in the protocol
+would push policy decisions onto every consumer regardless of fit. The
+ephemeral, fan-out-only contract is the substrate every presence
+system can be built on.
 
 ## Implementation
 

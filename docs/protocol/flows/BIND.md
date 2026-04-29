@@ -147,6 +147,18 @@ mark:body-updated event links the reference
 
 Resolution is reversible. A user can remove a link via `client.bind.body()` with an `op: 'remove'` operation, returning the reference to its unresolved state.
 
+### Concurrent Binds
+
+Two participants binding the same annotation at nearly the same instant produce two `mark:update-body` events that arrive at `EventStore.appendEvent` ([packages/event-sourcing/src/event-store.ts](../../../packages/event-sourcing/src/event-store.ts)) in some order. Each is persisted to the event log; view materialization replays them through `applyBodyOperations` ([packages/core/src/annotation-assembly.ts](../../../packages/core/src/annotation-assembly.ts)) in arrival order, and each operation runs against the body produced by the previous event — not against the body the originator saw when they issued the command. Both writes succeed; there is no version field, no `If-Match` precondition, no rejection of stale writes.
+
+The semantics this produces, by operation type:
+
+- **`add`** is keyed by deep-equal: adding the same `SpecificResource` twice is idempotent; adding two different `SpecificResource` items leaves both attached. Two participants binding to *different* targets concurrently produces an annotation linked to both, not last-write-wins.
+- **`remove`** drops the first deep-equal match if present; concurrent removes of the same item simply both succeed (the second is a no-op). Concurrent remove + add can produce either ordering depending on event-log arrival order.
+- **`replace`** is keyed by `oldItem`. Two concurrent replaces of the same `oldItem` resolve as: the first applies; the second's `oldItem` no longer matches (the first one already replaced it) and the second is silently a no-op.
+
+For unresolved-reference workflows, this is usually the intended behavior — concurrent binds adding `SpecificResource` items don't trample each other. For workflows that require single-writer semantics (e.g. only one resolved target per annotation), enforce it at the application layer via a coordination signal (`bind:initiate` is the natural choice) rather than expecting the protocol to reject the second writer.
+
 ## Annotation Body Structure
 
 **Unresolved** (entity type tags only):

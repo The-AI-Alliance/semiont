@@ -91,6 +91,16 @@ All types create annotations with:
 - **Generator**: W3C SoftwareAgent identifying the worker and inference model that produced it (present when a worker did the work, absent when an agent annotated directly)
 - **Created**: ISO 8601 timestamp
 
+### Concurrent Marks
+
+Mark events split into two shapes for the purpose of concurrent-write semantics:
+
+- **Immutable appends** — `mark:create` (a new annotation) and `mark:archived` (annotation removed) carry their own annotation identity and never collide. Two participants creating annotations on the same passage concurrently produce two distinct annotations; nothing is rejected, nothing merges. Two participants archiving the same annotation concurrently each produce a `mark:archived` event; the projection sees the annotation archived (idempotent).
+
+- **Body updates** — `mark:update-body` events arrive at `EventStore.appendEvent` ([packages/event-sourcing/src/event-store.ts](../../../packages/event-sourcing/src/event-store.ts)) in some order, are persisted to the event log, and replayed through `applyBodyOperations` ([packages/core/src/annotation-assembly.ts](../../../packages/core/src/annotation-assembly.ts)) in arrival order. Each operation runs against the body produced by the previous event — not the body the originator saw when they issued the command. There is no version field, no `If-Match`, no rejection of stale writes. Both writes succeed; the resulting body reflects sequential application of both operation sets.
+
+The Bind flow's `bind:update-body` forwards to `mark:update-body`; see [BIND.md § Concurrent Binds](./BIND.md#concurrent-binds) for the per-operation semantics (`add` is idempotent on equal items, `remove` drops first match, `replace` keys on `oldItem`). Workflows that need single-writer semantics enforce it at the application layer (typically via a coordination signal like `bind:initiate`) rather than expecting the protocol to reject concurrent writers.
+
 ---
 
 ## 1. W3C Web Annotation Basis

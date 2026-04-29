@@ -6,7 +6,9 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user build a long-running Semiont script — a watcher, a daemon, a queue worker, anything that runs longer than a single token's 24-hour lifetime. The lighter `SemiontClient` setup the other skills use is fine for one-shot scripts; for anything that needs to keep working after a token expires, `SemiontSession` from `@semiont/sdk` owns the refresh, validation, and storage machinery for you.
+You are helping a user build a long-running Semiont script — a watcher, a daemon, anything that runs longer than a single token's 24-hour lifetime. The lighter `SemiontClient` setup the other skills use is fine for one-shot scripts; for anything that needs to keep working after a token expires, `SemiontSession` from `@semiont/sdk` owns the refresh, validation, and storage machinery for you.
+
+This skill covers the *watcher* shape — daemon listens to bus events via `session.subscribe(channel, handler)` and reacts. If your daemon needs to *claim queued jobs* of a given type and emit lifecycle events as it processes them, use [`semiont-worker`](../semiont-worker/SKILL.md) instead — it covers the `createJobClaimAdapter` machinery and the four-event `job:*` lifecycle protocol.
 
 ## Why SemiontSession over bare SemiontClient
 

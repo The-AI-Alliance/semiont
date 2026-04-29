@@ -12,6 +12,8 @@ The seven flows — *yield, mark, match, bind, gather, browse, beckon* — descr
 
 The SDK is **transport-agnostic**: it consumes the `ITransport` and `IContentTransport` contracts from [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core). For HTTP backends, the canonical wire adapter is re-exported here for convenience. For in-process operation (CLI, agentic worker, embedded use), use `LocalTransport` from [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning).
 
+> **Where this doc fits.** This README is the *typed-surface reference* — what's in `@semiont/sdk`, how the namespaces are organized, what return shapes to expect. For the *protocol-level architectural framing* (the seven flows, the three programmable surfaces — CLI, SDK, Skills — the core tenets, the per-flow contracts), start with [`docs/protocol/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md). Daemon authors stitching multiple packages together also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills) — `semiont-session` for watcher daemons, `semiont-worker` for job-claim daemons, `semiont-wiki` for the end-to-end annotation pipeline.
+
 ## Three ideas that hold the surface together
 
 The SDK is wider than a typical client library because the domain is — collaborative knowledge work over a shared corpus, with humans and AI agents as peers. Three framings make the API tractable; once you've seen them, the rest is predictable.
@@ -32,16 +34,16 @@ Every operation in the SDK belongs to one of seven *flows* — verbs that descri
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`, `client.gather.X(...)`, ...). The verb is the unit of mental model — a method call belongs to a flow, not to a noun. Per-flow contracts live in [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
 
-### 2. Four return shapes
+### 2. Four return shapes — guess from the name
 
-Method return types follow four predictable shapes. The naming convention lets you predict the shape from the method name:
+Every method on every namespace returns one of exactly four shapes, and the method name tells you which. Internalize the convention once and you stop having to read return types:
 
-| Shape | Naming | Examples |
+| Shape | Naming convention | Examples |
 |---|---|---|
-| **Atomic backend op** — `Promise<T>` | past-tense or short noun | `mark.annotation`, `bind.body`, `auth.password` |
-| **Long-running stream** — `StreamObservable<T>` | plain verb | `mark.assist`, `match.search`, `gather.annotation` |
-| **Live query** — `CacheObservable<T>` | plain noun | `browse.resource`, `browse.annotations`, `browse.entityTypes` |
-| **Collaboration signal** — `void` | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape` |
+| **`Promise<T>`** — atomic backend op | past-tense or short noun | `mark.annotation`, `bind.body`, `auth.password` |
+| **`StreamObservable<T>`** — long-running stream | plain verb | `mark.assist`, `match.search`, `gather.annotation` |
+| **`CacheObservable<T>`** — live query | plain noun | `browse.resource`, `browse.annotations`, `browse.entityTypes` |
+| **`void`** — collaboration signal | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape` |
 
 Both Observable subclasses implement `PromiseLike<T>`, so consumers can `await` them directly without learning RxJS. Reach for `.subscribe(...)` when you want progress events, live updates, or to observe a collaboration signal another participant emitted. See [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) for the full design and method-by-method assignment.
 

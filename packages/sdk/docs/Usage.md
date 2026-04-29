@@ -422,6 +422,46 @@ adapter.start();
 
 The cast names the seam: today only HTTP workers exist. The adapter itself is transport-neutral — when an in-process worker emerges, it builds its own `WorkerBus` shim and the cast goes away.
 
+## Debugging the bus
+
+When something on the bus is silently not happening — a job-claim worker that isn't claiming, an SSE connection that dropped, a `mark:create` emit that didn't reach the backend — there are two complementary tools.
+
+**Wire-level event logging (Tier 1 of the observability stack).** Every event that crosses a transport boundary is logged as a single grep-friendly line on stdout / `console.debug`:
+
+```
+[bus EMIT] mark:create [scope=res-abc] [cid=a89a670a] {annotation: ..., userId: ...}
+[bus RECV] mark:added  [scope=res-abc] [cid=a89a670a] {annotation: ..., ...}
+```
+
+Toggle:
+
+```bash
+SEMIONT_BUS_LOG=1 <command>          # Node (backend, workers, smelter, CLI, MCP, scripts)
+window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
+```
+
+Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: backend `EMIT` missing → request never reached the server; backend `SSE` missing → handler emitted no result; frontend `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../../tests/e2e/docs/bus-logging.md).
+
+When OpenTelemetry is initialized (Tier 2), every bus-log line gets a `trace=<8hex>` suffix that correlates the grep timeline with the trace UI.
+
+**Runtime SSE health.** For a long-running worker or daemon, subscribe to the transport's connection-state observable to surface health in your status endpoint:
+
+```typescript
+import { HttpTransport } from '@semiont/api-client';
+import type { ConnectionState } from '@semiont/core';
+
+const httpTransport = session.client.transport as HttpTransport;
+
+httpTransport.state$.subscribe((state: ConnectionState) => {
+  // 'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'closed'
+  logger.info('transport state', { state });
+});
+```
+
+`degraded` is the threshold to escalate — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a brief mount-churn cycle. `closed` is terminal (`stop()` / `dispose()` was called).
+
+**Worker-specific gotcha.** A job-claim adapter widens the SSE channel set on `start()` to include `job:queued` and the other channels it needs. If your worker is silently doing nothing, the most common cause is `adapter.start()` not being called — `SEMIONT_BUS_LOG=1` makes this immediately visible (no `RECV job:queued` lines).
+
 ## Error Handling
 
 Every error thrown through the SDK extends `SemiontError`, the unified base from `@semiont/core` (re-exported from `@semiont/sdk`). It carries a discriminated `code` field plus `details`. Each error class tightens `code` to a specific literal union.
