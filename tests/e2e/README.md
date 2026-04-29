@@ -39,6 +39,14 @@ container run --rm \
   speculate.
 - [Bus logging](docs/bus-logging.md) — the `__SEMIONT_BUS_LOG__` wire
   logger, the `bus` capture fixture, assertion helpers.
+- [Jaeger evidence](docs/jaeger.md) — the `jaeger` fixture that pulls
+  matching distributed traces on test teardown and attaches them to
+  the Playwright report.
+- [Live monitoring](docs/live-monitoring.md) — sibling workflow for
+  bug-hunting on the running stack (no Playwright). Streaming
+  per-container error tails + on-demand snapshot of the last N
+  seconds across logs and Jaeger spans. How "live monitoring caught
+  X" turns into "e2e spec Y".
 - [Known gotchas](docs/gotchas.md) — sharp edges that took real
   debugging the first time: `crypto.randomUUID`, form-field ordering,
   stale tabs, fixture ordering, etc.

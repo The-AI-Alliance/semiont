@@ -17,22 +17,45 @@ import { test, expect } from '../fixtures/auth';
  */
 test.describe('hover → beckon', () => {
   test('hovering an annotation fires beckon:hover and BeckonVM fires beckon:sparkle', async ({ signedInPage: page, bus }) => {
-    // Open any resource that has annotations. Discover lists fixtures;
-    // the first one should have enough to work with.
+    // Find a resource that actually has annotations to hover. Successive
+    // runs of spec 09 (generate-from-reference) push freshly-generated
+    // (annotation-free) resources to the top of Discover, so the prior
+    // `firstCard` heuristic was data-coupled. Iterate up to 8 cards and
+    // pick the first one whose BrowseView surface has a
+    // `[data-annotation-id]` element rendered.
+    //
+    // Scope the locator to `.semiont-browse-view` (BrowseView's container)
+    // — `[data-annotation-id]` also appears in the references panel,
+    // and only BrowseView's container has the mouseover handler bound
+    // that fires `beckon:hover`.
     await page.goto('/en/know/discover');
-    const firstCard = page.getByRole('button', { name: /^open resource:/i }).first();
-    await expect(firstCard).toBeVisible({ timeout: 15_000 });
-    await firstCard.click();
-    await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+    const cards = page.getByRole('button', { name: /^open resource:/i });
+    await expect(cards.first()).toBeVisible({ timeout: 15_000 });
+    const cardCount = Math.min(8, await cards.count());
 
-    // Stay in browse mode (default). BrowseView renders annotations as
-    // `[data-annotation-id]` elements with hover handlers that call
-    // `session.client.emit('beckon:hover', ...)` after a 150ms delay.
-    // If there are no annotations on the fixture, this test is vacuous
-    // — skip gracefully.
-    const firstAnn = page.locator('[data-annotation-id]').first();
-    const annCount = await firstAnn.count();
-    test.skip(annCount === 0, 'fixture resource has no annotations to hover');
+    let anyAnnotationFound = false;
+    let firstAnn = page.locator('.semiont-browse-view [data-annotation-id]').first();
+    for (let i = 0; i < cardCount; i++) {
+      await cards.nth(i).click();
+      await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+
+      // Stay in browse mode (default). BrowseView renders annotations as
+      // `[data-annotation-id]` elements with hover handlers that call
+      // `session.client.beckon.hover(...)` after a 150ms delay.
+      const candidate = page.locator('.semiont-browse-view [data-annotation-id]').first();
+      try {
+        await expect(candidate).toBeVisible({ timeout: 3_000 });
+        anyAnnotationFound = true;
+        firstAnn = candidate;
+        break;
+      } catch {
+        // No annotations in this resource's BrowseView. Back to Discover.
+        await page.goto('/en/know/discover');
+        await expect(cards.first()).toBeVisible({ timeout: 10_000 });
+      }
+    }
+
+    expect(anyAnnotationFound, `seeded KB must have ≥1 resource with annotations in BrowseView (checked ${cardCount} cards)`).toBe(true);
 
     bus.clear();
 

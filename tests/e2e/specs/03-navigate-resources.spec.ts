@@ -24,15 +24,34 @@ test.describe('navigate between resources', () => {
     const cards = page.getByRole('button', { name: /^open resource:/i });
     await expect.poll(() => cards.count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
 
+    // Find the first two cards with *distinct* names. Successive runs
+    // of spec 09 (generate-from-reference) accumulate generated
+    // resources at the top of Discover, sometimes with colliding
+    // titles when the LLM derives the same name from the same prompt.
+    // The "useViewModel-captures-initial-rId" regression we're guarding
+    // here is about navigating between two *different* resources, so
+    // we just need any two distinct ones.
+    const total = await cards.count();
+    let firstIdx = 0;
+    let secondIdx = -1;
     const firstName = ((await cards.nth(0).getAttribute('aria-label')) ?? '')
       .replace(/^open resource:\s*/i, '').trim();
-    const secondName = ((await cards.nth(1).getAttribute('aria-label')) ?? '')
-      .replace(/^open resource:\s*/i, '').trim();
-    expect(firstName).not.toBe(secondName);
+    let secondName = '';
+    for (let i = 1; i < total; i++) {
+      const candidate = ((await cards.nth(i).getAttribute('aria-label')) ?? '')
+        .replace(/^open resource:\s*/i, '').trim();
+      if (candidate && candidate !== firstName) {
+        secondIdx = i;
+        secondName = candidate;
+        break;
+      }
+    }
+    expect(secondIdx, `Discover must have at least two distinctly-named resources (had ${total} cards)`)
+      .toBeGreaterThan(0);
 
     // Open first resource.
     bus.clear();
-    await cards.nth(0).click();
+    await cards.nth(firstIdx).click();
     await expect(page).toHaveURL(/\/know\/resource\//);
     await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
     const firstUrl = page.url();
@@ -63,7 +82,7 @@ test.describe('navigate between resources', () => {
     // component were reused (which would be the case if the user
     // navigated via a resource-tab click while already viewing another
     // resource).
-    await cards.nth(1).click();
+    await cards.nth(secondIdx).click();
     await expect(page).toHaveURL(/\/know\/resource\//);
     await expect(page.url()).not.toBe(firstUrl);
     await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
