@@ -15,8 +15,7 @@
 
 import { Observable, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
-import type { ViewModel } from '../lib/view-model';
-import type { WorkerBus } from '../lib/worker-bus';
+import type { ViewModel, WorkerBus } from '@semiont/sdk';
 
 export interface SmelterEvent {
   type: string;

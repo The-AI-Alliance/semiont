@@ -404,11 +404,11 @@ For HTTP, the underlying connection auto-reconnects with exponential backoff. On
 
 ### Worker / actor adapters
 
-Worker-side adapters like `createSmelterActorVM` and `createJobClaimAdapter` (in `@semiont/sdk`'s `state/workers/`) take a `WorkerBus` — a small transport-neutral interface (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorVM` from `@semiont/api-client` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Workers today reach for the HTTP actor like this:
+Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` and `createJobQueueVM` are in `@semiont/jobs`; `createSmelterActorVM` is in `@semiont/make-meaning`. `WorkerBus` is a small contract (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorVM` from `@semiont/api-client` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Workers today reach for the HTTP actor like this:
 
 ```typescript
 import type { HttpTransport } from '@semiont/api-client';
-import { createJobClaimAdapter } from '@semiont/sdk';
+import { createJobClaimAdapter } from '@semiont/jobs';
 
 // session.client.transport is the bus-shaped ITransport. For HTTP-backed
 // workers, narrow to HttpTransport to access the underlying ActorVM.

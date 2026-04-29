@@ -1,11 +1,25 @@
+/**
+ * Process-level structured logger for Node entry points.
+ *
+ * Used by long-lived Node processes (backend, workers, smelter) that
+ * want JSON-structured stdout with active-span trace correlation. The
+ * `trace_id` / `span_id` fields are populated from the current OTel
+ * span context via `getLogTraceContext` — this is the same Tier 3
+ * correlation that lets a grep through stdout line up with the trace
+ * UI without manual stitching.
+ *
+ * Reads `LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`json` default,
+ * `simple` for human-friendly dev output).
+ *
+ * Co-located with `getLogTraceContext` deliberately: this is the
+ * only reasonably-shaped consumer of that helper, and putting them in
+ * the same package keeps the trace-id wiring in one place.
+ */
+
 import winston from 'winston';
 import type { Logger } from '@semiont/core';
-import { getLogTraceContext } from '@semiont/observability';
+import { getLogTraceContext } from './index.js';
 
-/**
- * Tier 3 trace correlation — tag every log line with the active span's
- * trace_id/span_id when one exists. Cheap no-op otherwise.
- */
 const traceContextFormat = winston.format((info) => {
   const trace = getLogTraceContext();
   if (trace) {

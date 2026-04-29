@@ -15,7 +15,7 @@
 
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import { createSmelterActorVM, type SmelterActorVM } from '@semiont/sdk';
+import { createSmelterActorVM, type SmelterActorVM } from './smelter-actor-vm';
 import { HttpTransport } from '@semiont/api-client';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
@@ -86,7 +86,7 @@ const BURST_WINDOW_MS = 50;
 const MAX_BATCH_SIZE = 100;
 const IDLE_TIMEOUT_MS = 200;
 
-import { createProcessLogger } from './logger';
+import { createProcessLogger } from '@semiont/observability/process-logger';
 const logger = createProcessLogger('smelter');
 
 // ── Auth ─────────────────────────────────────────────────────────────

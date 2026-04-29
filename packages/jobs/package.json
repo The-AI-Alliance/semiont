@@ -13,10 +13,6 @@
     "./worker-main": {
       "types": "./dist/worker-main.d.ts",
       "import": "./dist/worker-main.js"
-    },
-    "./smelter-main": {
-      "types": "./dist/smelter-main.d.ts",
-      "import": "./dist/smelter-main.js"
     }
   },
   "files": [
@@ -36,9 +32,7 @@
     "@semiont/event-sourcing": "*",
     "@semiont/inference": "*",
     "@semiont/observability": "*",
-    "@semiont/sdk": "*",
-    "@semiont/vectors": "*",
-    "winston": "^3.17.0"
+    "@semiont/sdk": "*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",

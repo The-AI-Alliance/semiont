@@ -1,6 +1,6 @@
 # State Units
 
-`@semiont/sdk` is built on top of a single foundational pattern — a *state unit*. The flow state machines (`createMarkVM`, `createGatherVM`, `createMatchVM`, …), the worker adapters (`createSmelterActorVM`, `createJobClaimAdapter`, …), the search pipeline, and the per-feature page state machines in `@semiont/react-ui` are all instances of it.
+`@semiont/sdk` is built on top of a single foundational pattern — a *state unit*. The flow state machines in `@semiont/sdk` (`createMarkVM`, `createGatherVM`, `createMatchVM`, …), the domain worker adapters (`createJobClaimAdapter` and `createJobQueueVM` in `@semiont/jobs`; `createSmelterActorVM` in `@semiont/make-meaning`), the search pipeline, and the per-feature page state machines in `@semiont/react-ui` are all instances of it.
 
 This document defines the pattern. It's worth reading before writing a new flow VM, a new worker adapter, or a new page state machine — and it's worth keeping in mind when reviewing one.
 
