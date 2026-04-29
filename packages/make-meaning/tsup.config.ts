@@ -8,4 +8,6 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   outDir: 'dist',
+  splitting: false,
+  treeshake: true,
 });
