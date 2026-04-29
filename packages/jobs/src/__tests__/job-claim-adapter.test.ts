@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Subject, firstValueFrom, skip, take } from 'rxjs';
 import { createJobClaimAdapter } from '../job-claim-adapter';
-import type { WorkerBus } from '../../lib/worker-bus';
+import type { WorkerBus } from '@semiont/sdk';
 
 function fakeBus() {
   const channels = new Set<string>();

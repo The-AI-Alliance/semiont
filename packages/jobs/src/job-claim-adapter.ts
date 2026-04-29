@@ -22,7 +22,7 @@
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { firstValueFrom, merge, filter, map, take, timeout } from 'rxjs';
-import type { WorkerBus } from '../lib/worker-bus';
+import type { WorkerBus } from '@semiont/sdk';
 
 export interface JobAssignment {
   jobId: string;

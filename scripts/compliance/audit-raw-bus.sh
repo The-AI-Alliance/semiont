@@ -24,8 +24,11 @@ set -euo pipefail
 #
 # Allowlist:
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
-#                                          worker adapters, session
+#                                          session
 #   - packages/api-client/src/**        — HTTP adapters
+#   - packages/jobs/src/**              — job-claim adapter and job-queue VM
+#                                          (domain-owned worker adapters that
+#                                          subscribe to job:* bus events)
 #   - packages/make-meaning/src/local-transport.ts
 #                                       — LocalTransport implements ITransport
 #                                          on top of EventBus (bus.get is the
@@ -55,6 +58,7 @@ filter_allowlist() {
     | grep -v "/test-utils\." \
     | grep -v "^packages/sdk/src/" \
     | grep -v "^packages/api-client/src/" \
+    | grep -v "^packages/jobs/src/" \
     | grep -v "^packages/make-meaning/src/local-transport\.ts:" \
     | grep -v "^packages/react-ui/src/state/" \
     | grep -v "^packages/react-ui/src/features/[^/]*/state/" \

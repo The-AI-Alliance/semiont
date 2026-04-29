@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { createJobQueueVM } from '../job-queue-vm';
-import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
+import { makeTestClient, type TestClient } from './test-client';
 
 describe('createJobQueueVM', () => {
   let tc: TestClient;
