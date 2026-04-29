@@ -6,19 +6,30 @@
  * payloads. Uses the HttpTransport's underlying ky instance + token, so
  * retries, logging, and auth behave identically to the rest of the wire.
  *
- * Two `putBinary` paths live side by side:
- *   - **No `onProgress`** — the original `ky.post(...)` path. Keeps
- *     retry-with-refresh, beforeError → APIError, observability spans
- *     intact. Workers and the CLI hit this; they don't need byte
- *     progress.
- *   - **With `onProgress`** — an XHR path, hand-rolled because `ky`
- *     wraps `fetch` which can't observe upload byte-progress today
- *     (`Request({ duplex: 'half' })` is the long-term direction; not yet
- *     widely available across the webviews this codepath needs to run
- *     in). The XHR path threads auth + traceparent headers, emits
- *     `onProgress` from `xhr.upload.onprogress`, supports cancellation
- *     via the `signal` option, and routes failures onto the same
- *     `transport.errors$` stream the ky path uses.
+ * Two `putBinary` paths live side by side, selected by runtime
+ * environment + caller intent:
+ *   - **ky path (default + Node)** — the original `ky.post(...)` path.
+ *     Keeps retry-with-refresh, beforeError → APIError, observability
+ *     spans intact. Hits when no `onProgress`/`signal` is passed, OR
+ *     when `XMLHttpRequest` isn't available in the runtime (Node
+ *     workers, the CLI). On Node-side `signal`-aborts: the in-flight
+ *     `fetch` continues in the background and the `cancelled` flag in
+ *     `yield.resource` suppresses the resolve/reject callbacks.
+ *   - **XHR path (browsers with `onProgress` or `signal`)** — hand-rolled
+ *     because `ky` wraps `fetch` which can't observe upload byte-
+ *     progress today (`Request({ duplex: 'half' })` is the long-term
+ *     direction; not yet widely available across the webviews this
+ *     codepath needs to run in). Threads auth + traceparent headers,
+ *     emits `onProgress` from `xhr.upload.onprogress`, supports
+ *     cancellation via the `signal` option (calling `xhr.abort()`),
+ *     and routes failures onto the same `transport.errors$` stream
+ *     the ky path uses.
+ *
+ * The runtime check on `XMLHttpRequest` is the load-bearing seam: a
+ * Node worker calling `client.yield.resource(...)` (which always passes
+ * a `signal` for unsubscribe-aborts) must NOT take the XHR path —
+ * `XMLHttpRequest` is undefined and the upload throws synchronously.
+ * Browsers always have it; Node does not.
  *
  * v1 limitation: the XHR path does NOT auto-refresh on 401. Mitigation:
  * the session's proactive refresh fires before token expiry, so an
@@ -56,10 +67,15 @@ export class HttpContentTransport implements IContentTransport {
         const formData = buildFormData(request);
         const headers = this.requestHeaders(options?.auth);
 
-        // Branch on `onProgress` presence. The ky path is the well-trodden
-        // default; the XHR path lights up when a caller wants byte progress
-        // or cancellation via `signal`.
-        if (options?.onProgress || options?.signal) {
+        // Branch on caller intent AND runtime support. The ky path is
+        // the well-trodden default; the XHR path lights up only when a
+        // caller wants byte progress or cancellation AND the runtime
+        // has `XMLHttpRequest` (browsers do; Node does not). Without
+        // the runtime guard, every Node-side `yield.resource(...)`
+        // call (which always passes `signal`) would throw
+        // `XMLHttpRequest is not defined`.
+        const xhrAvailable = typeof XMLHttpRequest !== 'undefined';
+        if (xhrAvailable && (options?.onProgress || options?.signal)) {
           return uploadViaXhr({
             url: `${this.transport.baseUrl}/resources`,
             formData,

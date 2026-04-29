@@ -308,3 +308,78 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(result).toEqual({ resourceId: resourceId('ky-path-result') });
   });
 });
+
+/**
+ * Regression guard for the worker-pool generation bug introduced by the
+ * upload-progress work: every `yield.resource(...)` call passes a
+ * `signal` (for unsubscribe-aborts), which previously lit up the XHR
+ * branch unconditionally. In Node (worker, CLI, MCP), `XMLHttpRequest`
+ * is undefined and the upload threw `XMLHttpRequest is not defined`
+ * synchronously, killing every generation job.
+ *
+ * The fix gates the XHR branch on a runtime check
+ * (`typeof XMLHttpRequest !== 'undefined'`); these tests pin that
+ * behavior. The XHR-stubbing block above runs in `beforeEach`/`afterEach`
+ * — this describe block deliberately lives outside it so the stub is
+ * never installed, mirroring a real Node runtime.
+ */
+describe('HttpContentTransport.putBinary — runtime fallback when XMLHttpRequest is unavailable', () => {
+  let savedXHR: typeof globalThis.XMLHttpRequest | undefined;
+
+  beforeEach(() => {
+    // Some test environments (jsdom, prior tests' afterEach race) might
+    // leave XMLHttpRequest defined. Force-undefine it for these tests
+    // to model a real Node worker process.
+    savedXHR = globalThis.XMLHttpRequest;
+    delete (globalThis as unknown as { XMLHttpRequest?: unknown }).XMLHttpRequest;
+  });
+
+  afterEach(() => {
+    if (savedXHR !== undefined) {
+      (globalThis as unknown as { XMLHttpRequest: typeof globalThis.XMLHttpRequest }).XMLHttpRequest = savedXHR;
+    }
+    vi.clearAllMocks();
+  });
+
+  test('falls through to ky path when only `signal` is set (worker-pool case)', async () => {
+    const { content, mockKy } = makeTransportAndContent();
+    vi.mocked(mockKy.post!).mockReturnValue({
+      json: vi.fn().mockResolvedValue({ resourceId: 'node-ky-result' }),
+    } as never);
+
+    const controller = new AbortController();
+    const result = await content.putBinary(
+      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
+      { signal: controller.signal },
+    );
+
+    // Pre-fix this would throw `XMLHttpRequest is not defined`. The
+    // runtime check sends Node consumers down the ky path even when
+    // they pass `signal`.
+    expect(mockKy.post).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ resourceId: resourceId('node-ky-result') });
+  });
+
+  test('falls through to ky path when both `onProgress` and `signal` are set (yield.resource case)', async () => {
+    const { content, mockKy } = makeTransportAndContent();
+    vi.mocked(mockKy.post!).mockReturnValue({
+      json: vi.fn().mockResolvedValue({ resourceId: 'node-ky-result-2' }),
+    } as never);
+
+    const onProgress = vi.fn();
+    const controller = new AbortController();
+    const result = await content.putBinary(
+      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
+      { onProgress, signal: controller.signal },
+    );
+
+    // The shape passed mirrors what `yield.resource()` always passes —
+    // both `onProgress` and `signal`. Without the runtime check, Node
+    // would attempt XHR and throw. With it, ky runs and `onProgress`
+    // is silently dropped (no progress events fire on Node, which is
+    // the documented degraded behavior).
+    expect(mockKy.post).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ resourceId: resourceId('node-ky-result-2') });
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+});
