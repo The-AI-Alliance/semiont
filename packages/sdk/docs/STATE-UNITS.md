@@ -1,14 +1,35 @@
-# State Units
+# State units
 
-`@semiont/sdk` is built on top of a single foundational pattern — a *state unit*. The flow state machines in `@semiont/sdk` (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, …), the domain worker adapters (`createJobClaimAdapter` and `createJobQueueStateUnit` in `@semiont/jobs`; `createSmelterActorStateUnit` in `@semiont/make-meaning`), the search pipeline, and the per-feature page state machines in `@semiont/react-ui` are all instances of it.
+`@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the domain worker adapters in `@semiont/jobs` and `@semiont/make-meaning`, and the per-feature page state units in `@semiont/react-ui` are all instances of it.
 
-This document defines the pattern. It's worth reading before writing a new flow state unit, a new worker adapter, or a new page state machine — and it's worth keeping in mind when reviewing one.
+This doc covers what state units do, why they help, how they're shaped, and the conventions that keep them composable.
 
-## What a state unit is
+## What state units do
 
-A state unit is a stateful, lifecycled object with an RxJS-shaped public surface, constructed by a factory function, with internal state held in a closure. It models *some bounded chunk of state and behavior over time* — a long-running flow, a worker's claim/process loop, a search input's debounce-and-fetch dance — and it exposes that state to consumers as Observables.
+A state unit packages **state that changes over time** behind a **typed, RxJS-shaped surface** with **deterministic teardown**. You construct one with a factory function, subscribe to its Observables, and dispose it when you're done. That's the whole shape.
 
-The minimal interface every state unit implements:
+A state unit might wrap:
+- a long-running flow (mark assist with progress + final result)
+- a worker's claim / process loop
+- a search input's debounce-and-fetch behavior
+- a page's coordinated state (open resource + annotations + selected tool)
+
+Whatever the underlying logic, the consumer's view is the same: Observable fields for state, methods for inputs, `dispose()` for cleanup.
+
+## Why use them
+
+State units exist so the same logic runs in many environments without rewriting:
+
+- **Browser apps** consume them via React hooks (`useStateUnit`, `useObservable`).
+- **CLIs and MCP servers** await on the awaitable subclasses (`StreamObservable`, `CacheObservable`).
+- **Workers and daemons** subscribe directly with RxJS operators.
+- **AI agents** observing what a human is doing connect to the same buses and the same units.
+
+None of these consumers know about React. None know about HTTP. None know about your test setup. The state unit is the seam where flow logic stops caring who's consuming it.
+
+The pattern also makes lifecycle predictable. Every state unit owns a bounded set of subscriptions and Subjects, and `dispose()` cleans them up. A tree of state units becomes a tree of `dispose()` calls. Memory leaks and orphaned subscriptions become unusual rather than the default.
+
+## The interface
 
 ```ts
 interface StateUnit {
@@ -16,25 +37,30 @@ interface StateUnit {
 }
 ```
 
-That single method is the only structural commitment. The rest of the pattern — closure-based identity, Observable public surface, internal Subjects exposed as `.asObservable()` views, no leaked subscriptions, composition by parameter rather than ownership — is convention enforced by review, not by the type system.
+That's the entire structural commitment the type system catches. Implementing this interface is a claim that you're following the pattern; the rest of what makes a state unit a state unit is convention. A reader who sees `extends StateUnit` should expect everything below.
 
-A canonical state unit factory looks like this:
+## Anatomy
+
+A canonical factory:
 
 ```ts
 export interface FooStateUnit extends StateUnit {
-  loading$: Observable<boolean>;
-  error$: Observable<Error | null>;
-  result$: Observable<Result | null>;
+  readonly loading$: Observable<boolean>;
+  readonly error$: Observable<Error | null>;
+  readonly result$: Observable<Result | null>;
   trigger(input: Input): void;
 }
 
 export function createFooStateUnit(client: SemiontClient): FooStateUnit {
+  // Internal state — Subjects held in the closure.
   const loading$ = new BehaviorSubject<boolean>(false);
   const error$ = new BehaviorSubject<Error | null>(null);
   const result$ = new BehaviorSubject<Result | null>(null);
 
+  // Subscriptions to upstream sources, tracked for cleanup.
   const subs: Subscription[] = [];
 
+  // Inputs come through methods.
   const trigger = (input: Input): void => {
     loading$.next(true);
     error$.next(null);
@@ -48,6 +74,7 @@ export function createFooStateUnit(client: SemiontClient): FooStateUnit {
   };
 
   return {
+    // Public surface — read-only Observable views.
     loading$: loading$.asObservable(),
     error$: error$.asObservable(),
     result$: result$.asObservable(),
@@ -62,267 +89,140 @@ export function createFooStateUnit(client: SemiontClient): FooStateUnit {
 }
 ```
 
-The shape is consistent across every state unit in the codebase. Once you've seen one, you can read any of them.
+Six things in this code recur in every state unit:
 
-## The axioms
+1. **Factory function, not class.** The "instance" is a closure capturing private state.
+2. **Internal state in Subjects.** `BehaviorSubject<T>` for current-value semantics; `Subject<T>` for event streams.
+3. **Public surface is `.asObservable()` views.** Consumers can subscribe but can't push values.
+4. **Inputs go through methods.** No direct property assignment; fields are `readonly`.
+5. **Subscriptions tracked.** Anything subscribed gets unsubscribed in `dispose()`.
+6. **`dispose()` is idempotent.** Safe to call twice; the second call is a no-op.
 
-These are organized as **must-holds** (the contract), **non-axioms** (deliberate degrees of freedom), and **anti-axioms** (prohibitions). A new state unit should satisfy every must-hold; should consciously decide each non-axiom; and should never violate an anti-axiom.
+Once you've seen one state unit, you can read any of them.
 
-### Must-holds (A1–A7)
+## Lifecycle
 
-#### A1 — Closure-based identity
+`dispose()`:
 
-A state unit is a *factory function* (`createMarkStateUnit`, `createJobClaimAdapter`) that returns a plain object conforming to a TypeScript interface. The "instance" is the closure capturing private state in lexically-scoped variables.
+1. Completes every Subject the unit owns. Subscribers see `complete`.
+2. Unsubscribes every internal subscription on upstream Observables.
+3. Releases timers, abort controllers, network handles.
+4. Is a no-op on subsequent calls.
 
-- No `class`. No `this`. No `extends`. No `implements` for inheritance reasons.
-- The factory's body *is* the constructor; there is no separate one.
-- Every `let` / `const` declared inside the factory and referenced by the returned object is part of the unit's private state.
+After dispose, the unit is dead: methods become no-ops or throw, no more emissions reach subscribers. Code consuming a state unit can rely on this — once you've called `dispose()`, no stray emit will arrive later.
 
-This rules out subclass hierarchies and constructor games. It also makes the unit easier to read — there's exactly one place where state is declared and one place where it's exposed.
+**Activation timing is the unit's call.** Most state units start work when the factory returns (subscribe to bus channels, wire up internal logic). Some have explicit `start()` / `stop()` for cases where eager work is wasteful — the job-claim adapter waits to be told to start claiming, for example. Either way, `dispose()` works the same.
 
-#### A2 — Public surface is reactive
+**Hot vs. cold is per-surface.** Most public Observables are hot (BehaviorSubject- or Subject-backed) so multiple subscribers share state. Some are cold — `yield.resource` returns an `UploadObservable` that triggers a fresh upload per subscriber. The unit picks honestly per slot.
 
-Every piece of state a consumer cares about is exposed as `Observable<T>` (or one of the awaitable subclasses: `StreamObservable<T>`, `CacheObservable<T>`, `UploadObservable`). Not as a getter, not as a snapshot method, not as a callback.
+## Composition
 
-```ts
-// ✅ axiom-compliant
-loading$: Observable<boolean>;
+State units compose by **parameter**, not **ownership**.
 
-// ❌ violates A2 — synchronous getter for state-over-time
-get loading(): boolean { return loading$.value; }
-
-// ❌ violates A2 — callback-shape for progress
-onProgress(callback: (e: ProgressEvent) => void): void;
-```
-
-Consumers subscribe; they don't poll. This is what makes them "RxJS-shaped."
-
-#### A3 — Internal state lives in `Subject` / `BehaviorSubject`; public Observables are read-only views
-
-The Observable on the public surface is a *view* (`subject$.asObservable()`) over a private Subject held in the closure. The unit's logic is the only writer.
+When an outer state unit takes an inner state unit as a constructor argument, the outer **does not own** the inner. Disposing the outer must NOT dispose the inner. The caller who constructed both is responsible for both.
 
 ```ts
-const loading$ = new BehaviorSubject<boolean>(false);   // private — closure-scoped
-return {
-  loading$: loading$.asObservable(),                    // public — read-only view
-  // ...
-};
-```
-
-This is capability discipline applied to RxJS: the Subject is the authority; the Observable view is the attenuation. Consumers receive *exactly* the capability they need (subscribe), not the full power (`next`, `error`, `complete`).
-
-#### A4 — Inputs come through methods or upstream subscriptions, never direct property assignment
-
-State changes happen *through the unit's logic*. A consumer either calls a method (`vm.cancelImport()`) or pushes onto an input subject the unit observes (`searchPipeline.setQuery('foo')`).
-
-```ts
-// ✅ axiom-compliant — input goes through the unit's logic
-vm.trigger(input);
-
-// ❌ violates A4 — direct property assignment
-vm.input = input;
-```
-
-The factory captures the contract; consumer code can't slip past it.
-
-#### A5 — `dispose(): void` is idempotent and total
-
-Every state unit implements `StateUnit.dispose()`. Dispose:
-
-1. Completes every Subject the unit owns (subscribers see `complete` notifications).
-2. Unsubscribes every subscription the unit holds on upstream Observables.
-3. Releases any timers, abort controllers, network handles, or other side-effect resources.
-
-After `dispose()`, the unit is dead. Subsequent emissions don't happen, subsequent method calls are no-ops or rejected. Calling `dispose()` twice is safe — the second call is a no-op.
-
-```ts
-let disposed = false;
-return {
-  // ...
-  dispose: () => {
-    if (disposed) return;
-    disposed = true;
-    subs.forEach((s) => s.unsubscribe());
-    loading$.complete();
-    error$.complete();
-    result$.complete();
-  },
-};
-```
-
-#### A6 — No leaked subscriptions
-
-Any subscription the unit creates internally — to `client.bus.get(channel)`, to a flow Observable, to a timer — is tracked (in a disposer, a `Subscription[]`, or a closure variable) and released on `dispose()`. The unit's resource cost ends with its lifetime.
-
-A common pattern:
-
-```ts
-const subs: Subscription[] = [];
-subs.push(client.bus.get('mark:added').subscribe((event) => { /* react */ }));
-subs.push(someUpstream$.subscribe((v) => internal$.next(v)));
-// dispose: subs.forEach((s) => s.unsubscribe());
-```
-
-Or use the `createDisposer()` helper from `@semiont/sdk` for a slightly cleaner pattern.
-
-#### A7 — Composition is by parameter, not ownership
-
-When a state unit takes another unit as input, the passed-in unit is *not* owned by the outer one. Disposal does not propagate down.
-
-```ts
-// ✅ axiom-compliant — browseStateUnit is owned externally; we just consume it
+// ✅ outer takes inner as a parameter — does not own it
 export function createComposePageStateUnit(
   client: SemiontClient,
-  browseStateUnit: ShellStateUnit,
+  shellStateUnit: ShellStateUnit,  // owned by caller
   params: ComposeParams,
 ): ComposePageStateUnit {
   // ...
   return {
     // ...
     dispose: () => {
-      // tear down our own state; do NOT call browseStateUnit.dispose()
+      // tear down own state; do NOT call shellStateUnit.dispose()
       ourSubs.forEach((s) => s.unsubscribe());
     },
   };
 }
 ```
 
-Whoever constructs a `ShellStateUnit` is responsible for its disposal. State units don't form ownership trees through composition; they form *reference* trees through composition. (Exception: a unit that constructs a child internally — e.g. `createResourceViewerPageStateUnit` constructs its own `MarkStateUnit` / `GatherStateUnit` / `MatchStateUnit` — *does* own those and disposes them.)
+The exception: a state unit that **constructs its own children internally** does own them. Page state units like `createResourceViewerPageStateUnit` build their own `MarkStateUnit` / `GatherStateUnit` / `MatchStateUnit` and dispose those children explicitly when the page itself disposes.
 
-### Non-axioms (deliberate degrees of freedom)
+Rule of thumb: passed in → not yours to dispose. Constructed inside → yours to dispose.
 
-These are the legitimate decision points each unit makes for itself.
+## Conventions
 
-#### N1 — Activation timing is the unit's call
+The rules below describe how state units are written. They're organized by topic.
 
-Some units start work as soon as the factory returns:
+### Closure-based identity
 
-```ts
-// MarkStateUnit subscribes to bus channels immediately on construction.
-subs.push(client.bus.get('mark:requested').subscribe(/* … */));
-```
+A state unit is a factory function returning a plain object — not a class. No `class`. No `this`. No `extends`. The factory body is the constructor; the closure is the instance. This rules out subclass hierarchies and constructor games and makes each unit easy to read: there's exactly one place where state is declared and one place where it's exposed.
 
-Others have an explicit `start()` and don't do anything until called:
+All state lives in the closure. **No module-scoped mutable state** — no module-level `let cache = new Map()` shared across instances, no singletons (other than constants). Two factory calls produce two fully independent units.
 
-```ts
-// JobClaimAdapter waits for `start()` before claiming jobs.
-return {
-  start: () => { /* subscribe to job:queued */ },
-  stop:  () => { /* unsubscribe but don't dispose */ },
-  dispose: () => { /* full teardown */ },
-  // …
-};
-```
+### Reactive surface
 
-The contract is silent on which is right. The unit decides based on whether eager work is wasteful when nobody's subscribed yet. Either way, `dispose()` must work.
-
-#### N2 — Hot vs. cold is per-surface
-
-Most public Observables are hot (BehaviorSubject- or Subject-backed) so multiple subscribers share state. Some are cold (`new Observable((subscriber) => ...)`) when each subscriber should get fresh execution.
-
-`yield.resource` is cold per-call: each upload is a separate operation, so each subscriber to the returned `UploadObservable` triggers its own POST. `MarkStateUnit.pendingAnnotation$` is hot: the current pending state is shared.
-
-The unit picks honestly per slot.
-
-#### N3 — Synchronous snapshots are allowed *via the BehaviorSubject*
-
-A consumer that needs the current value without subscribing can read `.value` on a `BehaviorSubject` *that the unit chooses to hold in scope they have access to*. The pattern is mostly internal:
+Every piece of state a consumer cares about is exposed as `Observable<T>` — not as a getter, not as a snapshot method, not as a callback. Consumers subscribe; they don't poll.
 
 ```ts
-// Inside the closure — fine.
-if (loading$.value) return;
-
-// Outside the closure — A2 still applies; the public `loading$` is
-// `Observable<boolean>`, not `BehaviorSubject<boolean>`, so the consumer
-// can't `.value`-poke. They subscribe.
-```
-
-Tests sometimes exercise the inside view (constructing the unit and reading `.value` on the underlying Subject). This is a legitimate one-way capability split between the closure interior and the public surface — the inside view sees full reflection, the outside view sees only events.
-
-#### N4 — Imperative methods are allowed for explicit side-effect entry points
-
-`setQuery` on a search pipeline, `notifySessionExpired` on session signals, `claim` on a job adapter. These aren't "observable mutators" — they're entry points for consumer code that knows what side-effect it wants to trigger. The axiom isn't "purely declarative"; it's "side effects go *through* the unit's logic" (A4). Methods are how that logic is invoked.
-
-### Anti-axioms (prohibitions)
-
-#### X1 — No raw `Subject` on the public surface
-
-Exposing `loading$: BehaviorSubject<boolean>` would let consumers `next()` arbitrary values, bypassing the unit's logic and breaking A4.
-
-```ts
-// ❌
-return {
-  loading$: loading$,   // raw Subject — anyone can next()
-  // …
-};
-
 // ✅
-return {
-  loading$: loading$.asObservable(),
-  // …
-};
+loading$: Observable<boolean>;
+
+// ❌ — synchronous getter for state-over-time
+get loading(): boolean { return loading$.value; }
+
+// ❌ — callback-shape for progress
+onProgress(callback: (e: ProgressEvent) => void): void;
 ```
 
-#### X2 — No Promise-shaped methods on long-running operations
+Public Observables are **read-only views** (`subject$.asObservable()`) over private Subjects held in the closure. The Subject is the authority; the Observable view is the attenuation. Consumers receive exactly the capability they need (subscribe), not the full power (`next`, `error`, `complete`).
 
-If the operation has progress events, a final value, *and* a "loading" intermediate state, it's `StreamObservable<T>` / `CacheObservable<T>` / `UploadObservable`, not `Promise<T>`. Mixing Promise and Observable on the same conceptual operation breaks the four-shape return-type discipline (see [REACTIVE-MODEL.md](./REACTIVE-MODEL.md)).
+**No raw `Subject` on the public surface.** Exposing `BehaviorSubject<T>` would let consumers `next()` arbitrary values, bypassing the unit's logic.
 
-The PromiseLike sugar lets one-shot consumers `await`; the underlying surface stays reactive.
+### Inputs
 
-#### X3 — No module-scoped mutable state
+State changes happen through methods or input Subjects, never direct property assignment. A consumer either calls a method (`stateUnit.trigger(input)`) or pushes onto an input Subject the unit observes (`searchPipeline.setQuery('foo')`). Imperative methods are fine — `setQuery`, `notifySessionExpired`, `claim` aren't "observable mutators," they're explicit side-effect entry points. The discipline isn't "purely declarative"; it's "side effects go through the unit's logic."
 
-All state lives in the closure. No module-level `let inFlightMap = new Map()` shared across all instances. No singletons (other than constants). No registries.
+### Lifecycle
 
-This is enforceable by inspection: open the file, look at top-level declarations. Constants and types are fine. Anything mutable is a bug.
+`dispose()` is idempotent and total: completes every owned Subject, unsubscribes every internal subscription, releases all resources. Calling it twice is safe.
 
-```ts
-// ❌ at module scope
-const inFlightRefreshes = new Map<string, Promise<string>>();
+Subscribers attached before `dispose()` see a `complete` notification when it fires. After dispose, the unit is inert — methods no-op or throw, no further emissions arrive.
 
-// ✅ inside the factory closure
-export function createSomeFactory() {
-  const inFlightRefreshes = new Map<string, Promise<string>>();
-  return (opts) => { /* … uses inFlightRefreshes … */ };
-}
-```
+If the factory subscribes to something, `dispose()` must unsubscribe. If it starts a timer, `dispose()` must clear it. If it acquires a resource (file handle, abort controller, remote subscription), `dispose()` must release it. Anything the unit allocates during its lifetime ends with its lifetime.
 
-#### X4 — No constructor side effects that can't be undone by `dispose()`
+### Synchronous snapshots
 
-If the factory subscribes to something, `dispose()` must unsubscribe. If it starts a timer, `dispose()` must clear it. If it acquires a resource (file handle, DB connection, remote subscription), `dispose()` must release it.
+A consumer that needs the current value without subscribing can read `.value` on a `BehaviorSubject` *that the unit chooses to hold in scope they have access to*. The pattern is mostly internal — the public Observable type is `Observable<T>`, not `BehaviorSubject<T>`, so consumer code can't `.value`-poke. Tests sometimes exercise the inside view (constructing the unit and reading `.value` on the underlying Subject) — that's a legitimate one-way capability split between the closure interior and the public surface.
 
-The lifecycle is bounded. A state unit that leaks anything across `dispose()` is broken.
+## Anti-patterns
 
-#### X5 — No `Promise<void>` for fire-and-forget signals
+A few specific shapes are wrong and worth calling out:
 
-When a method's only purpose is to emit on the bus and return — `beckon.hover`, `mark.changeShape`, `bind.initiate` — the return type is `void`, not `Promise<void>`. `Promise<void>` implies an ack ("the operation completed"); collaboration signals don't have an ack; they fan out on the bus and the caller doesn't wait.
+**No `Promise<T>` on long-running operations.** If the operation has progress events plus a final value plus a "loading" state, return a `StreamObservable<T>`, `CacheObservable<T>`, or `UploadObservable` — not `Promise<T>`. Promise plus Observable on the same conceptual operation breaks the four-shape return-type discipline. (See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).)
 
-The honest type documents the semantics. (This applies to namespace methods more than state unit factories, but the same discipline shows up in both places.)
+**No `Promise<void>` for fire-and-forget signals.** When a method's only purpose is to emit on the bus and return — `beckon.hover`, `mark.changeShape`, `bind.initiate` — the return type is `void`, not `Promise<void>`. `Promise<void>` implies an ack ("the operation completed"); collaboration signals don't have one; they fan out and the caller doesn't wait. The honest type documents the semantics.
 
-#### X6 — No mixing the bus and direct method calls for the same state
+**Don't expose the same state both via the bus and via a state-unit field.** If `markStateUnit.progress$` exists, consumers shouldn't also reach for `client.bus.get('mark:assist-progress')`. Two paths to the same value invites consumers to subscribe to both, then needs synchronization, then needs invariants, then breaks.
 
-If a flow's progress is observable both via `client.bus.get('mark:assist-progress').subscribe(...)` and via `markStateUnit.progress$`, consumers shouldn't have to choose between the two for the same data. The unit picks one path and exposes it consistently. Two paths to the same value invites consumers to subscribe to both, which then needs synchronization, which then needs invariants, which then breaks.
+## How these rules are enforced
 
-## Why "state unit" and not "view-model"
+Today, the rules above are enforced by the TypeScript structural check (`dispose()` exists), a small handful of runtime tests in individual state-unit test files, and code review.
 
-The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted into a UI-friendly shape *for a View to render*. State units don't presume a UI: a flow state unit is consumed by a web app, a TUI, a daemon running a marking pipeline, or an AI agent watching what a human is doing. Worker adapters are headless. The substrate is RxJS plumbing. "State unit" captures the unifying property — *stateful, lifecycled, RxJS-shaped* — without the UI claim.
+Work is in progress to convert the testable subset of these rules into automated enforcement: fast-check property tests for the lifecycle and isolation properties (idempotent dispose, subscriber completion, post-dispose inertness, instance-state isolation) and CI grep scripts for the static structural rules (no `class` declarations in state-unit files, no module-scoped mutable state, no `Promise<void>` on bus-emit methods). Some rules — anything depending on judgment about "long-running" or on cross-namespace consistency — will stay convention-only.
+
+The doc will be updated with explicit per-rule enforcement labels as that work lands.
 
 ## Writing a new state unit — checklist
 
 1. **Decide the surface.** What state does the consumer need to observe? Each piece becomes an `Observable<T>` field. What inputs does the consumer push? Each becomes a method or an input Subject the unit observes.
-2. **Hold the state in private Subjects.** `BehaviorSubject<T>` for current-value semantics; `Subject<T>` for event-stream semantics.
+2. **Hold internal state in private Subjects.** `BehaviorSubject<T>` for current-value semantics; `Subject<T>` for event-stream semantics.
 3. **Expose `.asObservable()` on the public surface.** Never expose the raw Subject.
-4. **Decide activation timing (N1).** Does the factory return ready-to-subscribe, or does it need an explicit `start()`? Either is fine; `dispose()` must work either way.
+4. **Decide activation timing.** Does the factory return ready-to-subscribe, or does it need an explicit `start()`? Either is fine; `dispose()` must work either way.
 5. **Track every internal subscription.** Use a `Subscription[]` or `createDisposer()`. On `dispose()`, unsubscribe all of them and complete every Subject you own.
 6. **Compose by parameter, not by ownership.** Take collaborators as arguments. Don't dispose passed-in collaborators.
 7. **No module-scoped state.** Everything mutable lives in the closure.
 8. **Test the lifecycle.** Construct, subscribe, dispose. Verify subscribers see `complete`. Verify subsequent emissions don't happen. Verify `dispose()` is idempotent.
 
-## Lineage
+## Why "state unit" and not "view-model"
 
-The pattern isn't original. Variants recur in reactive frameworks under various names — Flutter's BLoC is the closest match (stream-typed inputs and outputs, dispose lifecycle, no UI presumption); Apollo's `ObservableQuery` is the cache-shaped variant. Worth knowing the shape isn't unique to Semiont; the axioms above are what you actually need.
+The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted into a UI-friendly shape *for a View to render*. State units don't presume a UI: a flow state unit is consumed by a web app, a TUI, a daemon running a marking pipeline, or an AI agent watching what a human is doing. Worker adapters are headless. The substrate is RxJS plumbing. "State unit" captures the unifying property — *stateful, lifecycled, RxJS-shaped* — without the UI claim.
 
 ## See also
 
 - [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) — the four return-shape categories (Promise / StreamObservable / CacheObservable / void) and the naming convention. State unit method returns follow the same convention.
-- [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, which is itself a state unit specialized for keyed multicast caches.
-- [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state unit observables or trigger state unit reactions internally.
+- [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
+- [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state-unit Observables or trigger state-unit reactions internally.
