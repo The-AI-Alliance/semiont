@@ -89,7 +89,7 @@ function makeTransportAndContent() {
     get: vi.fn(),
     extend: vi.fn(() => mockKy as KyInstance),
   };
-  vi.mocked(ky).create.mockReturnValue(mockKy as KyInstance);
+  vi.mocked(ky.create).mockReturnValue(mockKy as KyInstance);
 
   const token$ = new BehaviorSubject<string | null>('test-token-abc');
   const transport = new HttpTransport({
@@ -227,7 +227,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
 
     FakeXHR.instances[0]!.fireFailure(503, 'Service Unavailable', { message: 'down' });
 
-    const err = await promise.catch((e) => e as APIError);
+    const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(503);
     expect(err.code).toBe('unavailable');
@@ -246,7 +246,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
 
     FakeXHR.instances[0]!.fireNetworkError();
 
-    const err = await promise.catch((e) => e as APIError);
+    const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(0);
     expect(errors).toHaveLength(1);
@@ -267,7 +267,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     controller.abort();
 
     expect(xhr.abortCalled).toBe(1);
-    const err = await promise.catch((e) => e as APIError);
+    const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(0);
   });
@@ -286,7 +286,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(FakeXHR.instances).toHaveLength(1);
     expect(FakeXHR.instances[0]!.sendCalls).toHaveLength(0);
 
-    const err = await promise.catch((e) => e as APIError);
+    const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
   });
 
