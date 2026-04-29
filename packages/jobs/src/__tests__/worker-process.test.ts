@@ -27,7 +27,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ActiveJob, JobClaimAdapter, SemiontSession } from '@semiont/sdk';
+import type { SemiontSession } from '@semiont/sdk';
+import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
 import {
   processHighlightJob,

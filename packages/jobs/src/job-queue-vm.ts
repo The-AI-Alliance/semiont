@@ -1,6 +1,5 @@
 import { BehaviorSubject, Subject, type Observable, map } from 'rxjs';
-import type { SemiontClient } from '../../client';
-import type { ViewModel } from '../lib/view-model';
+import type { SemiontClient, ViewModel } from '@semiont/sdk';
 
 export interface Job {
   jobId: string;

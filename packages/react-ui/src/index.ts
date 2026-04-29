@@ -211,17 +211,18 @@ export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
 export * from './hooks/useHoverEmitter';
-// Flow VMs + worker adapters live in `@semiont/sdk` (UI-shape-agnostic
-// state machines that any consumer — web, terminal, mobile, daemon —
-// can reach for). React-ui re-exports them so consumers of this package
-// don't need a second import line.
+// Flow VMs live in `@semiont/sdk` (UI-shape-agnostic state machines that
+// any consumer — web, terminal, mobile, daemon — can reach for).
+// React-ui re-exports them so consumers of this package don't need a
+// second import line.
 export { createBeckonVM, type BeckonVM, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
 export { createMarkVM, type MarkVM, type PendingAnnotation } from '@semiont/sdk';
 export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/sdk';
 export { createGatherVM, type GatherVM } from '@semiont/sdk';
 export { createMatchVM, type MatchVM } from '@semiont/sdk';
-export { createJobClaimAdapter, type JobClaimAdapter, type JobClaimAdapterOptions, type WorkerBus, type JobAssignment, type ActiveJob } from '@semiont/sdk';
-export { createJobQueueVM, type JobQueueVM, type Job } from '@semiont/sdk';
+export type { WorkerBus } from '@semiont/sdk';
+// Job-domain worker adapters (`createJobClaimAdapter`, `createJobQueueVM`)
+// live in `@semiont/jobs` — import them from there directly if needed.
 
 // Page-shaped state machines live here in `@semiont/react-ui` because they
 // model the Semiont web frontend's specific page taxonomy and shell. They

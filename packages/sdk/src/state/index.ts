@@ -1,18 +1,19 @@
-// Stateful units in `@semiont/sdk` — RxJS-shaped state machines and
-// worker adapters that any consumer (web, terminal, mobile, daemon, AI
-// agent) can subscribe to. The directory is named "state" rather than
-// "view-models" because none of the contents presume a UI:
+// Stateful units in `@semiont/sdk` — RxJS-shaped state machines that any
+// consumer (web, terminal, mobile, daemon, AI agent) can subscribe to.
+// The directory is named "state" rather than "view-models" because none
+// of the contents presume a UI:
 //
 //   flows/   — wrap each of the seven flows in a stateful machine
 //              (loading/error/pending observables, awaitable + reactive)
-//   workers/ — worker-side adapters (already used headlessly by `@semiont/jobs`)
 //   lib/     — substrate (`ViewModel` disposable interface, search pipeline,
 //              `WorkerBus` channel-IO interface)
 //
 // Page-shaped state (admin tables, page routing, web shell) lives in
-// `@semiont/react-ui` next to the components that render it — those are
-// framework-neutral but tied to the Semiont web frontend's page taxonomy
-// and don't apply to a TUI / mobile / daemon consumer.
+// `@semiont/react-ui` next to the components that render it. Job-domain
+// worker code (`createJobClaimAdapter`, `createJobQueueVM`) lives in
+// `@semiont/jobs` next to the job-queue contract and worker entry points.
+// Smelter-specific worker code lives next to the Smelter actor in its
+// host package.
 
 export { type ViewModel, createDisposer } from './lib/view-model';
 export {
@@ -52,6 +53,10 @@ export {
 } from './flows/mark-vm';
 
 // ── Worker adapters ─────────────────────────────────────────────────────
+//
+// Domain-specific worker adapters live with their domain, not in the SDK.
+// `@semiont/jobs` houses `createJobClaimAdapter` and `createJobQueueVM`
+// (the job-claim protocol runtime + the jobs-list state observer).
 
 export {
   createSmelterActorVM,
@@ -59,17 +64,5 @@ export {
   type SmelterActorVMOptions,
   type SmelterEvent,
 } from './workers/smelter-actor-vm';
-export {
-  createJobClaimAdapter,
-  type JobClaimAdapter,
-  type JobClaimAdapterOptions,
-  type JobAssignment,
-  type ActiveJob,
-} from './workers/job-claim-adapter';
-export {
-  createJobQueueVM,
-  type JobQueueVM,
-  type Job,
-} from './workers/job-queue-vm';
 
 export type { ConnectionState } from '@semiont/core';
