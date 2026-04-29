@@ -13,7 +13,7 @@ The authoritative TypeScript definition is **[`packages/core/src/bus-protocol.ts
 
 ## Channel naming
 
-Every channel is `verb:action` or `verb:action-state`. The verb is one of the seven flows ([flows/README.md](flows/README.md)) plus a small set of cross-cutting domains:
+Every channel is `verb:action` or `verb:action-state`. The verb is one of the eight flows ([flows/README.md](flows/README.md)) plus a small set of cross-cutting domains. Note that Frame's MVP events are carried on the `mark:*` channel prefix (`mark:add-entity-type`, `mark:entity-type-added`) for backend stability — the SDK's verb namespace is `frame` but the wire-level channel name predates the flow promotion. See [flows/FRAME.md](flows/FRAME.md#channel-naming) for the asymmetry rationale.
 
 | Prefix | Examples | Purpose |
 |---|---|---|
@@ -265,4 +265,4 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** — the namespace tour with worked examples per verb.
 - **[../system/administration/OBSERVABILITY.md](../system/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
-- **[flows/README.md](flows/README.md)** — the seven flows that organize the channel namespace.
+- **[flows/README.md](flows/README.md)** — the eight flows that organize the channel namespace.

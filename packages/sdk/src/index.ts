@@ -44,7 +44,9 @@ export {
   type BusRequestPrimitive,
 } from './bus-request';
 
-// Verb-oriented namespace API.
+// Verb-oriented namespace API. Frame is the schema-layer flow's surface;
+// the others are content-layer flows + job/auth/admin.
+export { FrameNamespace } from './namespaces/frame';
 export { BrowseNamespace } from './namespaces/browse';
 export { MarkNamespace } from './namespaces/mark';
 export { BindNamespace } from './namespaces/bind';

@@ -36,7 +36,7 @@ export function createEntityTagsVM(
     error$.next('');
     isAdding$.next(true);
     try {
-      await client.mark.entityType(tag);
+      await client.frame.addEntityType(tag);
       newTag$.next('');
     } catch (err) {
       error$.next(err instanceof Error ? err.message : 'Failed to add entity type');

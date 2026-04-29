@@ -45,7 +45,7 @@ For end-user-facing browser docs (running it locally, accessibility, keyboard sh
 
 The SPA is internally a literal Model–View–ViewModel split:
 
-- **Model** — `@semiont/sdk` namespaces (browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
+- **Model** — `@semiont/sdk` namespaces (frame, browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
 - **ViewModel** — one factory per verb (`createBrowseVM`, `createMarkVM`, `createBindVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBeckonVM`) plus page-level composite VMs; pure RxJS, framework-agnostic, unit-testable without a renderer.
 - **View** — React components in `@semiont/react-ui` and `apps/frontend`, reduced to two adapters (`useViewModel`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 

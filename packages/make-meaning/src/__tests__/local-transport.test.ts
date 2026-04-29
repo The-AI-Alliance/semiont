@@ -314,7 +314,7 @@ describe('SemiontClient over LocalTransport', () => {
       const h = await bootHarness();
       try {
         const tag = makeEntityType('Person');
-        await h.client.mark.entityType(tag);
+        await h.client.frame.addEntityType(tag);
 
         // `mark:entity-type-added` carries a `StoredEvent` whose
         // `payload.entityType` echoes the tag; wait for it to

@@ -5,6 +5,7 @@
 - [Orientation](#orientation)
 - [Setup](#setup)
 - [Browse — Reading Resources and Annotations](#browse)
+- [Frame — Schema Vocabulary](#frame)
 - [Mark — Annotation CRUD and AI Assist](#mark)
 - [Bind — Reference Linking](#bind)
 - [Gather — LLM Context Assembly](#gather)
@@ -22,7 +23,7 @@
 
 Three framings hold the SDK's surface together. Skim them once and the per-namespace details below become predictable.
 
-**Seven verbs.** Every operation belongs to one of seven flows — *yield, mark, match, bind, gather, browse, beckon* — that describe what a participant *does* with a shared corpus. Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../../../docs/protocol/flows); the per-namespace examples in this guide track the same vocabulary.
+**Eight verbs.** Every operation belongs to one of eight flows — *frame, yield, mark, match, bind, gather, browse, beckon* — that describe what a participant *does* with a shared corpus. The first seven act on content (resources, annotations, references, attention); Frame acts on the schema layer (the conceptual vocabulary the others operate within). Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../../../docs/protocol/flows); the per-namespace examples in this guide track the same vocabulary.
 
 **Four return shapes.** Method return types follow a predictable convention:
 
@@ -203,9 +204,30 @@ const history = await semiont.browse.annotationHistory(resourceId, annotationId)
 const files = await semiont.browse.files('/docs', 'mtime');
 ```
 
+## Frame
+
+The schema-layer flow. Frame operates on the KB's conceptual vocabulary — what *kinds* of things exist (entity types today, eventually tag schemas, relation/predicate types). Where the other seven flows act on content, Frame acts on the schema layer the content is expressed in. The MVP owns entity-type vocabulary writes; live reads of the vocabulary stay on Browse (`browse.entityTypes()`).
+
+```typescript
+// Add a single entity type
+await semiont.frame.addEntityType('Person');
+
+// Add multiple in one call
+await semiont.frame.addEntityTypes(['Location', 'Organization', 'Event']);
+
+// Live-read the current vocabulary (lives on Browse, not Frame)
+semiont.browse.entityTypes().subscribe((types) => {
+  console.log('Current vocabulary:', types);
+});
+```
+
+Adding the same entity type twice is idempotent — the backend dedupes; the second `mark:add-entity-type` for an existing tag is a no-op. The wire-level channel keeps the `mark:` prefix for backend stability; the SDK's verb namespace is `frame` regardless. See [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md) for the per-flow contract and the channel-naming rationale.
+
 ## Mark
 
 Commands return Promises that resolve on backend acceptance. Results appear on browse Observables via the bus gateway. `mark.annotation` takes the W3C-shaped annotation directly — `target.source` is the resource the annotation is anchored on, and the resulting `annotationId` is already branded so you can pass it to other namespace methods (`bind.body`, `gather.annotation`, etc.) without a manual cast.
+
+For entity-type vocabulary writes, see [Frame](#frame) — those moved off Mark when Frame was promoted to flow status.
 
 ```typescript
 // Create an annotation. The wire layer derives `resourceId` from
@@ -225,10 +247,6 @@ const { annotationId } = await semiont.mark.annotation({
 
 // Delete an annotation
 await semiont.mark.delete(resourceId, annotationId);
-
-// Add entity types
-await semiont.mark.entityType('Person');
-await semiont.mark.entityTypes(['Location', 'Organization']);
 
 // Archive / unarchive
 await semiont.mark.archive(resourceId);

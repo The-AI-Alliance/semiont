@@ -41,7 +41,7 @@ Day-2 concerns — deploying, securing, observing, scaling, troubleshooting:
 
 ## Cross-references
 
-- **[../protocol/](../protocol/)** — the seven flows, the event-bus protocol, the OpenAPI reference, the W3C compliance story, agent skills.
+- **[../protocol/](../protocol/)** — the eight flows, the event-bus protocol, the OpenAPI reference, the W3C compliance story, agent skills.
 - **[../../packages/README.md](../../packages/README.md)** — alphabetized inventory of all `@semiont/*` workspace packages with one-line descriptions.
 - **[../../CONTRIBUTING.md](../../CONTRIBUTING.md)** — branch/PR workflow, commit conventions.
 - **[../development/](../development/README.md)** — codebase orientation for new contributors.
