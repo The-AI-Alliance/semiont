@@ -394,23 +394,22 @@ describe('startWorkerProcess', () => {
     const failJob = vi.fn();
     const adapterStart = vi.fn();
 
-    vi.doMock('@semiont/sdk', async () => {
-      const actual = await vi.importActual<typeof import('@semiont/sdk')>('@semiont/sdk');
-      return {
-        ...actual,
-        createJobClaimAdapter: vi.fn(() => ({
-          activeJob$: activeJob$.asObservable(),
-          isProcessing$: { subscribe: vi.fn() },
-          jobsCompleted$: { subscribe: vi.fn() },
-          errors$: { subscribe: vi.fn() },
-          start: adapterStart,
-          stop: vi.fn(),
-          completeJob,
-          failJob,
-          dispose: vi.fn(),
-        })),
-      };
-    });
+    // After the audit move, `createJobClaimAdapter` lives in
+    // `./job-claim-adapter` (sibling of worker-process.ts), not in
+    // `@semiont/sdk`. Mock the sibling so worker-process picks up the fake.
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: activeJob$.asObservable(),
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: adapterStart,
+        stop: vi.fn(),
+        completeJob,
+        failJob,
+        dispose: vi.fn(),
+      })),
+    }));
     vi.resetModules();
 
     const startWorkerProcess = await loadStartWorkerProcess();
@@ -435,7 +434,7 @@ describe('startWorkerProcess', () => {
     expect(h.busEmits.map((e) => e.channel)).toContain('job:start');
     expect(h.busEmits.map((e) => e.channel)).toContain('job:complete');
 
-    vi.doUnmock('@semiont/sdk');
+    vi.doUnmock('../job-claim-adapter');
     vi.resetModules();
   });
 
@@ -446,23 +445,19 @@ describe('startWorkerProcess', () => {
     const failJob = vi.fn();
     const adapterStart = vi.fn();
 
-    vi.doMock('@semiont/sdk', async () => {
-      const actual = await vi.importActual<typeof import('@semiont/sdk')>('@semiont/sdk');
-      return {
-        ...actual,
-        createJobClaimAdapter: vi.fn(() => ({
-          activeJob$: activeJob$.asObservable(),
-          isProcessing$: { subscribe: vi.fn() },
-          jobsCompleted$: { subscribe: vi.fn() },
-          errors$: { subscribe: vi.fn() },
-          start: adapterStart,
-          stop: vi.fn(),
-          completeJob,
-          failJob,
-          dispose: vi.fn(),
-        })),
-      };
-    });
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: activeJob$.asObservable(),
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: adapterStart,
+        stop: vi.fn(),
+        completeJob,
+        failJob,
+        dispose: vi.fn(),
+      })),
+    }));
     vi.resetModules();
 
     const startWorkerProcess = await loadStartWorkerProcess();
@@ -487,7 +482,7 @@ describe('startWorkerProcess', () => {
     expect(failEmit!.scope).toBe(RID);
     expect(failJob).toHaveBeenCalledWith(JID, 'inference blew up');
 
-    vi.doUnmock('@semiont/sdk');
+    vi.doUnmock('../job-claim-adapter');
     vi.resetModules();
   });
 });
