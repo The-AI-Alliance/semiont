@@ -62,6 +62,20 @@ Configuration is via the standard `OTEL_*` env vars:
 | `OTEL_CONSOLE_EXPORTER=true` | Dev-only: emit spans + metrics to stderr |
 | `OTEL_SDK_DISABLED=true` | Skip initialization entirely |
 
+## Process logger (Node)
+
+For long-lived Node entry points (backend, workers, smelter), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
+
+```ts
+// worker-main.ts (or smelter-main.ts, etc.)
+import { createProcessLogger } from '@semiont/observability/process-logger';
+
+const logger = createProcessLogger('worker');
+logger.info('Started', { config });
+```
+
+Reads `LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`json` default, `simple` for dev). When an OTel SDK is initialized and a span is active at log time, every emitted line gets `trace_id` / `span_id` fields — Tier 3 correlation between grep-the-stdout and the trace UI. Lives on its own subpath so consumers that don't want winston in their bundle can ignore it.
+
 ## Quick start (Web)
 
 ```ts

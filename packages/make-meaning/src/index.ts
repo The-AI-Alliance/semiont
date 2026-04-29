@@ -41,6 +41,16 @@ export type { CreateResourceResult } from './stower';
 export { Browser } from './browser';
 export { CloneTokenManager } from './clone-token-manager';
 
+// Smelter — domain-event fan-in VM (consumed by `smelter-main`'s standalone
+// container entry point; also importable directly for callers that want to
+// wire their own smelter pipeline on top of an existing `WorkerBus`).
+export {
+  createSmelterActorVM,
+  type SmelterActorVM,
+  type SmelterActorVMOptions,
+  type SmelterEvent,
+} from './smelter-actor-vm';
+
 // Exchange (import/export)
 export * from './exchange';
 

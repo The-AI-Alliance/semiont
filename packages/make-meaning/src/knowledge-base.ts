@@ -12,8 +12,8 @@
  * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
  * The Smelter (event-to-vector projection) runs as an external actor
- * via @semiont/jobs/smelter-main. It subscribes to domain events via
- * the EventBus gateway, embeds content, and writes to Qdrant directly.
+ * via @semiont/make-meaning/smelter-main. It subscribes to domain events
+ * via the EventBus gateway, embeds content, and writes to Qdrant directly.
  */
 
 import type { EventStore } from '@semiont/event-sourcing';

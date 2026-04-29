@@ -103,7 +103,7 @@ const backendBaseUrl: string = backendPublicURL;
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 const healthPort = 9090;
 
-import { createProcessLogger } from './logger';
+import { createProcessLogger } from '@semiont/observability/process-logger';
 
 const logger = createProcessLogger('worker');
 

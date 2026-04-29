@@ -27,8 +27,9 @@ export {
 
 export { HttpContentTransport } from './transport/http-content-transport';
 
-// `actor-vm` is HttpTransport's SSE machinery. Exposed for SDK-side
-// adapters (`createSmelterActorVM`, `createJobClaimAdapter`) that build
+// `actor-vm` is HttpTransport's SSE machinery. Exposed for domain-side
+// worker adapters (`createJobClaimAdapter` in `@semiont/jobs`,
+// `createSmelterActorVM` in `@semiont/make-meaning`) that build
 // worker-flavored variants on top of it. Application code should not
 // import these directly.
 export {

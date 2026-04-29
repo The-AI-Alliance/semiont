@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./smelter-main": {
+      "types": "./dist/smelter-main.d.ts",
+      "import": "./dist/smelter-main.js"
     }
   },
   "files": [
@@ -24,6 +28,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@semiont/api-client": "*",
     "@semiont/content": "*",
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",
@@ -32,10 +37,10 @@
     "@semiont/jobs": "*",
     "@semiont/observability": "*",
     "@semiont/ontology": "*",
+    "@semiont/sdk": "*",
     "@semiont/vectors": "*"
   },
   "devDependencies": {
-    "@semiont/sdk": "*",
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3"

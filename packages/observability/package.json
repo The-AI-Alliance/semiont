@@ -20,6 +20,11 @@
       "types": "./dist/web.d.ts",
       "import": "./dist/web.js",
       "default": "./dist/web.js"
+    },
+    "./process-logger": {
+      "types": "./dist/process-logger.d.ts",
+      "import": "./dist/process-logger.js",
+      "default": "./dist/process-logger.js"
     }
   },
   "engines": {
@@ -65,6 +70,7 @@
     "@opentelemetry/sdk-metrics": "^2.7.0",
     "@opentelemetry/sdk-trace-base": "^2.7.0",
     "@opentelemetry/sdk-trace-web": "^2.7.0",
-    "@opentelemetry/semantic-conventions": "^1.40.0"
+    "@opentelemetry/semantic-conventions": "^1.40.0",
+    "winston": "^3.17.0"
   }
 }

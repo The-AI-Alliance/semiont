@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Subject, firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
 import { createSmelterActorVM } from '../smelter-actor-vm';
-import type { WorkerBus } from '../../lib/worker-bus';
+import type { WorkerBus } from '@semiont/sdk';
 
 function fakeBus() {
   const channels = new Set<string>();

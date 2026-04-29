@@ -60,7 +60,7 @@ This is *protocol-level* coordination — not browser-app fluff, not bolted-on p
 - **Collaboration primitives** — fire-and-forget signals on the verb namespaces (`beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click`, ...) coordinate attention and intent across participants. Not afterthoughts, not browser-app fluff: they're how a multi-participant session stays coherent.
 - **Session layer** — `SemiontSession` (per-KB authentication, token refresh, lifecycle), `SemiontBrowser` (multi-KB orchestration), and `SessionStorage` adapters (`InMemorySessionStorage`, plus a browser-backed one in `@semiont/react-ui`).
 - **Flow state machines** — RxJS-based factories (`createMarkVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBeckonVM`) that wrap each long-running flow with `loading$` / `error$` / progress observables. UI-shape-agnostic — any consumer (browser, terminal, mobile, daemon) can subscribe.
-- **Worker adapters** — `createSmelterActorVM`, `createJobClaimAdapter`, `createJobQueueVM` for headless pipelines and ops dashboards. Already used by `packages/jobs/` without React or any UI.
+- **`WorkerBus`** — the transport-neutral channel-bus interface that worker-side adapters consume. Domain-specific worker adapters live with their domain — `createJobClaimAdapter` and `createJobQueueVM` in [`@semiont/jobs`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/jobs); `createSmelterActorVM` in [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — and consume `WorkerBus` from here.
 - **Helpers** — `bus-request` (correlation-ID request/reply), the cache primitive backing live queries, and `createSearchPipeline` (debounced-search RxJS pipeline).
 
 Page-shaped state machines (admin tables, compose page, resource viewer page, etc.) live in [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui), alongside the components that render them. Those are framework-neutral but tied to the Semiont web frontend's specific page taxonomy; they don't apply to non-web consumers.
@@ -73,8 +73,8 @@ Page-shaped state machines (admin tables, compose page, resource viewer page, et
 - Three infrastructure namespaces (`auth`, `admin`, `job`) when constructed with backend operations
 - `SemiontSession` for long-running token refresh + persistence
 - `SemiontBrowser` for multi-KB orchestration (transport-agnostic; takes a `SessionFactory`)
-- The five flow state machines and three worker adapters above
-- The transport-neutral `WorkerBus` interface for worker-side adapters
+- The five flow state machines above
+- The transport-neutral `WorkerBus` interface (worker adapters live in their domain packages — `@semiont/jobs`, `@semiont/make-meaning`)
 - Branded ID types, the unified error hierarchy, the `TransportErrorCode` neutral vocabulary
 
 Nothing page-shaped, nothing web-shell-shaped. A TUI, mobile reader, daemon, or AI agent installs `@semiont/sdk` alone (plus a transport package — `@semiont/api-client` for HTTP, `@semiont/make-meaning` for in-process).
