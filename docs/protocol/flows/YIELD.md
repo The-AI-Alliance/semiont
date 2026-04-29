@@ -380,7 +380,7 @@ subscription.unsubscribe();  // cleanup
 
 Progress events (`yield:progress`, `yield:finished`) and domain events
 (`mark:body-updated`) all flow through the same `/bus/subscribe` SSE
-connection. The frontend's `YieldVM` filters progress events by
+connection. The frontend's `YieldStateUnit` filters progress events by
 correlationId for the modal UI, while `BrowseNamespace` handles the
 domain event for cache invalidation.
 
@@ -389,7 +389,7 @@ domain event for cache invalidation.
 The `mark:body-updated` event flow:
 1. Worker emits `mark:update-body` → EventBus → Stower persists →
    EventStore publishes enriched `mark:body-updated` on scoped bus
-2. Frontend ActorVM receives event, bridges to local EventBus
+2. Frontend ActorStateUnit receives event, bridges to local EventBus
 3. `BrowseNamespace.updateAnnotationInPlace` writes the enriched
    annotation into the cached Observable
 4. UI re-renders with resolved reference (❓ → 🔗)
@@ -470,8 +470,8 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 ### Frontend
 
 - [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
-- [packages/api-client/src/view-models/flows/yield-vm.ts](../../../packages/api-client/src/view-models/flows/yield-vm.ts) - Generation flow view model (bus commands + progress)
-- [packages/api-client/src/view-models/domain/actor-vm.ts](../../../packages/api-client/src/view-models/domain/actor-vm.ts) - Bus actor primitive
+- [packages/api-client/src/state units/flows/yield-state-unit.ts](../../../packages/api-client/src/state units/flows/yield-state-unit.ts) - Generation flow state unit (bus commands + progress)
+- [packages/api-client/src/state units/domain/actor-state-unit.ts](../../../packages/api-client/src/state units/domain/actor-state-unit.ts) - Bus actor primitive
 
 ### Documentation
 

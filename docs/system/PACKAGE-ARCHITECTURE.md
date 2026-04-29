@@ -23,7 +23,7 @@ graph BT
     jobs["@semiont/jobs<br/><i>Job queue + worker entry points</i>"]
 
     %% Layer 2: SDK + Domain Storage
-    sdk["@semiont/sdk<br/><i>SemiontClient + namespaces + session<br/>view-models, bus-request, cache</i>"]
+    sdk["@semiont/sdk<br/><i>SemiontClient + namespaces + session<br/>state units, bus-request, cache</i>"]
     graph_pkg["@semiont/graph<br/><i>Graph DB abstraction</i>"]
     event["@semiont/event-sourcing<br/><i>Event store & materialized views</i>"]
 

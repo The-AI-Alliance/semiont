@@ -189,7 +189,7 @@ resumption"), not by consumers interpreting state edges.
 
 ### Reconnect discipline (client side)
 
-The client-side `ActorVM` handles three reconnect triggers:
+The client-side `ActorStateUnit` handles three reconnect triggers:
 
 1. **Server/network disconnect.** The SSE read loop exits; state
    transitions to `reconnecting`; `connect()` is retried after
@@ -235,7 +235,7 @@ one line, followed by one terminating blank line.
 boundaries.** A single SSE event can exceed the first TCP segment (a
 full `browse:resource-result` carries the resource plus annotations,
 easily past the first-chunk size). The reference parser in
-`packages/api-client/src/view-models/domain/actor-vm.ts` keeps
+`packages/api-client/src/state units/domain/actor-state-unit.ts` keeps
 `currentEvent` / `currentData` / `currentId` outside its read loop;
 any replacement must do the same, or any event that chunks across
 reads is silently dropped — the `data:` header lands in one chunk and
@@ -243,7 +243,7 @@ the blank-line terminator in the next, and resetting state per-chunk
 breaks dispatch.
 
 This constraint is tested by
-`packages/api-client/src/view-models/domain/__tests__/actor-vm.test.ts`
+`packages/api-client/src/state units/domain/__tests__/actor-state-unit.test.ts`
 → "reassembles an event whose bytes span multiple reader.read()
 chunks". If you swap the parser, port the test.
 
@@ -332,18 +332,18 @@ Genuine limitation for any multi-tenant deployment.
 
 React Strict Mode double-invokes effects (mount → cleanup → mount) to
 shake out cleanup bugs. Any code that interacts with the bus — calling
-`subscribeToResource`, registering an event handler, wiring a ViewModel
+`subscribeToResource`, registering an event handler, wiring a StateUnit
 — must survive this. Concretely:
 
 - `subscribeToResource(X)` called twice in a row with the same `X` must
   be a no-op on the second call (ref-counted today; first call adds,
   second increments a count, both unsubscribes required before the
   scope is actually removed).
-- A ViewModel whose factory captures props must be keyed on those
+- A StateUnit whose factory captures props must be keyed on those
   props (`<Inner key={rId} />`) so the factory reruns when they change.
-  `useViewModel`'s factory does NOT re-run across renders by design —
+  `useStateUnit`'s factory does NOT re-run across renders by design —
   see the tests in
-  `packages/react-ui/src/hooks/__tests__/useViewModel.test.tsx` for
+  `packages/react-ui/src/hooks/__tests__/useStateUnit.test.tsx` for
   the locked-in semantic.
 
 ### Request-response callers must handle response-lost
@@ -372,7 +372,7 @@ above is the decision tree.
   `EmittableChannel`, `RESOURCE_BROADCAST_TYPES`.
 - `packages/api-client/src/transport/http-transport.ts` — the HTTP
   implementation of `ITransport`.
-- `packages/api-client/src/view-models/domain/actor-vm.ts` — the
+- `packages/api-client/src/state units/domain/actor-state-unit.ts` — the
   client-side SSE reader, reconnect logic, channel-set management.
 - `packages/api-client/src/bus-request.ts` — correlation-ID matcher.
 - `packages/event-sourcing/src/event-store.ts` — persisted-event
@@ -390,7 +390,7 @@ the contract are visible.
   `Last-Event-ID` trigger event-store replay. `bus:resume-gap` is the
   server's signal that it couldn't cover the gap. Consumer contract
   changes: bare reconnects no longer require cache invalidation. Also:
-  actor-vm now tracks all in-flight fetch controllers and aborts every
+  actor-state-unit now tracks all in-flight fetch controllers and aborts every
   previous one on new connect, closing an orphan-stream leak.
 - **2026-04-19** — connection-state machine landed.
   `actor.connected$: Observable<boolean>` replaced with

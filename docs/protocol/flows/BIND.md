@@ -95,7 +95,7 @@ client.bind.body(...) → bind:initiate emitted via /bus/emit → 202
 backend Stower persists mark:body-updated event, materializes view
     |
 EventStore enrichment attaches post-materialization annotation,
-publishes on scoped EventBus → /bus/subscribe → frontend ActorVM
+publishes on scoped EventBus → /bus/subscribe → frontend ActorStateUnit
     |
 BrowseNamespace.updateAnnotationInPlace writes the annotation into the cached Observable
     |
@@ -182,7 +182,7 @@ For unresolved-reference workflows, this is usually the intended behavior — co
 
 ## Implementation
 
-- **ViewModel**: [packages/api-client/src/view-models/flows/bind-vm.ts](../../../packages/api-client/src/view-models/flows/bind-vm.ts) — write side (annotation body updates)
+- **StateUnit**: [packages/api-client/src/state units/flows/bind-state-unit.ts](../../../packages/api-client/src/state units/flows/bind-state-unit.ts) — write side (annotation body updates)
 - **Wizard**: [packages/react-ui/src/components/modals/ReferenceWizardModal.tsx](../../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — multi-step wizard for Bind/Generate/Compose
 - **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../../packages/make-meaning/src/matcher.ts) — context-driven search + inference scoring
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `BIND FLOW` section

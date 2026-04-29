@@ -26,18 +26,18 @@ set -euo pipefail
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
 #                                          session
 #   - packages/api-client/src/**        — HTTP adapters
-#   - packages/jobs/src/**              — job-claim adapter and job-queue VM
+#   - packages/jobs/src/**              — job-claim adapter and job-queue state unit
 #                                          (domain-owned worker adapters that
 #                                          subscribe to job:* bus events)
 #   - packages/make-meaning/src/local-transport.ts
 #                                       — LocalTransport implements ITransport
 #                                          on top of EventBus (bus.get is the
 #                                          natural backing primitive there)
-#   - packages/react-ui/src/state/**    — cross-feature page VMs (shell, session)
+#   - packages/react-ui/src/state/**    — cross-feature page state units (shell, session)
 #                                          that subscribe to bus events for
 #                                          UI workflow coordination
 #   - packages/react-ui/src/features/*/state/**
-#                                       — per-feature page VMs (compose,
+#                                       — per-feature page state units (compose,
 #                                          resource-viewer, admin, etc.) that
 #                                          subscribe to bus events for the
 #                                          same reason

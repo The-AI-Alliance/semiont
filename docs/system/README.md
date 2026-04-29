@@ -21,7 +21,7 @@ The deeper story splits across the docs below — each focused on one diagram an
 | Doc | What it covers |
 |---|---|
 | **[ACTOR-MODEL.md](ACTOR-MODEL.md)** | The actor topology, six actor categories (Reader, Analyst, Author, Marker, Generator, Linker), Feeder + content streams, and why human ↔ AI peer collaboration falls out of the design. *Diagram: actor topology.* |
-| **[HUMAN-UI.md](HUMAN-UI.md)** | The Semiont Browser SPA — Vite + React, MVVM split, RxJS API client, multi-KB session model. How human actors connect to the bus. *Diagram: SPA architecture.* |
+| **[HUMAN-UI.md](HUMAN-UI.md)** | The Semiont Browser SPA — Vite + React, state-unit split, RxJS API client, multi-KB session model. How human actors connect to the bus. *Diagram: SPA architecture.* |
 | **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** | The five reactive KB actors (Stower, Gatherer, Matcher, Browser, Smelter) that mediate every read and write to the knowledge base, plus the storage layout (event log, materialized views, content store, graph, vectors). *Diagram: knowledge system.* |
 | **[CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)** | Multi-container deployment: how the four Semiont-code containers (frontend, backend, worker, smelter) and four infrastructure containers (postgres, neo4j, qdrant, ollama) fit together; the unified bus contract and `SemiontSession`; deployment platforms (POSIX / Container / AWS). *Diagram: container topology.* |
 | **[PACKAGE-ARCHITECTURE.md](PACKAGE-ARCHITECTURE.md)** | The workspace packages organized by layer (foundation → wire → SDK → AI → application logic), the actual `package.json` dependency graph, and the five architectural principles that govern dependency direction. *Diagram: layered package dependencies.* |

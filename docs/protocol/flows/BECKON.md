@@ -59,7 +59,7 @@ Hover events synchronize the annotation panel and the document view:
 
 1. Mouse enters annotation element (panel entry or document overlay)
 2. After a **150ms dwell** (debounced to suppress transient mouse movements), `beckon:hover` fires
-3. `createBeckonVM` sets `hoveredAnnotationId` → both panel and document highlight the annotation
+3. `createBeckonStateUnit` sets `hoveredAnnotationId` → both panel and document highlight the annotation
 4. `beckon:sparkle` fires → document overlay shows a brief sparkle animation
 5. On mouse leave, `beckon:hover` fires with `null` → highlights clear immediately (no delay)
 
@@ -75,7 +75,7 @@ Click events relay through `beckon:focus` to scroll the document view:
 
 1. User clicks an annotation entry in the panel
 2. `browse:click` fires with `annotationId` and `motivation`
-3. `createBeckonVM` relays as `beckon:focus`
+3. `createBeckonStateUnit` relays as `beckon:focus`
 4. BrowseView subscribes to `beckon:focus` and scrolls the document to the annotation's position
 
 ## Cross-Participant Beckoning
@@ -128,7 +128,7 @@ system can be built on.
 
 ## Implementation
 
-- **ViewModel**: [packages/api-client/src/view-models/flows/beckon-vm.ts](../../../packages/api-client/src/view-models/flows/beckon-vm.ts)
+- **StateUnit**: [packages/api-client/src/state units/flows/beckon-state-unit.ts](../../../packages/api-client/src/state units/flows/beckon-state-unit.ts)
 - **Namespace**: [packages/api-client/src/namespaces/beckon.ts](../../../packages/api-client/src/namespaces/beckon.ts)
 - **Event definitions**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `BECKON FLOW` section
 - **Bus bridge (client)**: [packages/api-client/src/client.ts](../../../packages/api-client/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`

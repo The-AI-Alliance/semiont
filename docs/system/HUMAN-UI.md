@@ -1,6 +1,6 @@
 # Human UI
 
-How human actors connect to the event bus. This page covers the Semiont Browser SPA, the MVVM split that organizes its code, and the multi-KB session model.
+How human actors connect to the event bus. This page covers the Semiont Browser SPA, the state-unit split that organizes its code, and the multi-KB session model.
 
 For the actor categories that drive the UI (Reader, Analyst, Author), see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the cross-process bus contract that the SPA uses (and that workers + smelter share), see [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md). For the reactive KB actors the SPA's events drive, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
 
@@ -41,15 +41,15 @@ Human actors interact through the **Semiont Browser** — the `apps/frontend` si
 
 For end-user-facing browser docs (running it locally, accessibility, keyboard shortcuts), see **[../browser/](../browser/)**.
 
-## MVVM split
+## State-unit split
 
-The SPA is internally a literal Model–View–ViewModel split:
+The SPA is internally a literal Model–View–StateUnit split:
 
 - **Model** — `@semiont/sdk` namespaces (frame, browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
-- **ViewModel** — one factory per verb (`createBrowseVM`, `createMarkVM`, `createBindVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBeckonVM`) plus page-level composite VMs; pure RxJS, framework-agnostic, unit-testable without a renderer.
-- **View** — React components in `@semiont/react-ui` and `apps/frontend`, reduced to two adapters (`useViewModel`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
+- **StateUnit** — one factory per verb (`createBrowseStateUnit`, `createMarkStateUnit`, `createBindStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
+- **View** — React components in `@semiont/react-ui` and `apps/frontend`, reduced to two adapters (`useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 
-The view-model layer is what makes the same SDK that drives the browser also drive the CLI, MCP server, and worker pool — none of those have a renderer, but they all consume the same Model + ViewModel layer. See **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** for the SDK surface.
+The state unit layer is what makes the same SDK that drives the browser also drive the CLI, MCP server, and worker pool — none of those have a renderer, but they all consume the same Model + StateUnit layer. See **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** for the SDK surface.
 
 ## Multi-KB sessions
 

@@ -202,7 +202,7 @@ When `__SEMIONT_BUS_LOG__ = true` (browser) or `SEMIONT_BUS_LOG=1` (Node), every
 [bus GET]  content                        [cid=a89a670a] [trace=8f3ca4ed] {size: 14823, ...}
 ```
 
-Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorVM` SSE machinery — those ride on the transport):
+Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport):
 
 | Op | Site |
 |---|---|
