@@ -1,6 +1,8 @@
 # Media Tokens
 
-Binary resources (images, PDFs, and any other non-text content) cannot be fetched with an `Authorization` header by browser-native elements (`<img src>`, PDF.js URL loading). Media tokens solve this without buffering entire files into the JS heap.
+Binary resources (images, PDFs, and any other non-text content) cannot be fetched with an `Authorization` header by browser-native elements (`<img src>`, PDF.js URL loading). Media tokens solve this without buffering entire files into the JS heap — the alternative would be `IContentTransport.getBinary` plus an `objectURL`, which forfeits progressive rendering, HTTP cache participation, and pays a main-thread decode cost on every load.
+
+**Media tokens preserve authentication; they don't bypass it.** Getting one requires a valid session (the `POST /api/tokens/media` call itself is authenticated). The resulting token is a *narrowed* credential — bound to one resource, time-bounded to 5 minutes — that the browser can carry on a URL where it can't carry an `Authorization` header. The split is *display vs programmatic*, not *text vs binary*: non-browser consumers (CLI, daemon, MCP server) reach binary content through `IContentTransport.getBinary` with normal `Authorization` headers, and uploads of any content type flow through `client.yield.resource(...)` / `IContentTransport.putBinary` with normal auth. Media tokens are read-path-only, browser-only.
 
 ## What is a media token
 
@@ -16,6 +18,10 @@ A media token is a short-lived JWT with:
 Signed with the same `JWT_SECRET` as session tokens. No backend state — validation is pure crypto.
 
 The token is appended as a query parameter: `?token=<media-token>`. The backend validates it on resource endpoints and accepts it in place of a session cookie or Bearer token.
+
+### Threat model
+
+Query-string credentials end up in proxy logs, browser history, and `Referer` headers — putting a full-session access token there would be dangerous (a leak grants the attacker the entire session for hours). A media token is acceptable in those places because its blast radius is tiny: 5 minutes × one specific resource. The `sub: resourceId` claim is the load-bearing safety property — a leaked token is cryptographically useless against any other resource, even one the same user could access with their session token.
 
 ## Client API
 
@@ -37,7 +43,7 @@ import { useMediaToken } from '@semiont/react-ui';
 const { token, loading } = useMediaToken(resourceId);
 ```
 
-- `staleTime`: 4 minutes — ensures the token is refreshed before the 5-minute expiry
+- `staleTime`: 4 minutes — ensures the token is refreshed before the 5-minute expiry. The 1-minute margin absorbs clock skew and request latency so a fetch in flight when the token rolls over still completes against a valid token.
 - The hook is per-resource; each resource has its own React Query cache entry
 - `token` is `undefined` while loading
 
