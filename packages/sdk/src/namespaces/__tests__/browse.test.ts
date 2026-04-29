@@ -352,10 +352,10 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('mark:entity-type-added → invalidates entity types', async () => {
+    it('frame:entity-type-added → invalidates entity types', async () => {
       await firstDefined(browse.entityTypes());
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.get('mark:entity-type-added').next(stored({}) as any);
+      eventBus.get('frame:entity-type-added').next(stored({}) as any);
       await firstDefined(browse.entityTypes());
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });

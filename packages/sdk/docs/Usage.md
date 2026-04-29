@@ -174,7 +174,7 @@ semiont.browse.annotations(resourceId).subscribe((annotations) => {
   console.log('Annotations:', annotations?.length);
 });
 
-// Subscribe to entity types — re-emits on mark:entity-type-added (global stream)
+// Subscribe to entity types — re-emits on frame:entity-type-added (global stream)
 semiont.browse.entityTypes().subscribe((types) => {
   console.log('Entity types:', types);
 });
@@ -221,7 +221,7 @@ semiont.browse.entityTypes().subscribe((types) => {
 });
 ```
 
-Adding the same entity type twice is idempotent — the backend dedupes; the second `mark:add-entity-type` for an existing tag is a no-op. The wire-level channel keeps the `mark:` prefix for backend stability; the SDK's verb namespace is `frame` regardless. See [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md) for the per-flow contract and the channel-naming rationale.
+Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op. See [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md) for the per-flow contract.
 
 ## Mark
 

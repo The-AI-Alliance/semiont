@@ -307,7 +307,7 @@ export class ViewMaterializer {
         break;
 
       // System events don't affect resource metadata
-      case 'mark:entity-type-added':
+      case 'frame:entity-type-added':
         break;
     }
   }
@@ -386,7 +386,7 @@ export class ViewMaterializer {
         break;
 
       // System events don't affect annotations
-      case 'mark:entity-type-added':
+      case 'frame:entity-type-added':
         break;
     }
   }
@@ -410,7 +410,7 @@ export class ViewMaterializer {
     const systemEvents = await eventLog.getEvents(SYSTEM_ID);
     this.logger?.info('[ViewMaterializer] Replaying system events', { count: systemEvents.length });
     for (const event of systemEvents) {
-      if (event.type === 'mark:entity-type-added') {
+      if (event.type === 'frame:entity-type-added') {
         await this.materializeEntityTypes((event.payload as { entityType: string }).entityType);
       }
     }

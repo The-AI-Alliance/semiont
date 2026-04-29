@@ -235,7 +235,7 @@ High-churn entity data and browser-persistent application state are managed as o
 |---|---|---|
 | Browse | `semiont.browse.resource(id)` | Resource descriptors, lazily fetched, invalidated by EventBus domain events |
 | Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
-| Browse | `semiont.browse.entityTypes()` | Entity types, updated via `mark:entity-type-added` bus channel |
+| Browse | `semiont.browse.entityTypes()` | Entity types, updated via `frame:entity-type-added` bus channel |
 
 These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual `invalidateQueries` calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/api-client` README](../../../packages/api-client/README.md) for the full verb namespace API.
 

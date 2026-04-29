@@ -12,7 +12,7 @@ graph TB
     Workers["Job Workers"] -->|commands| BUS
     EBC["SemiontApiClient"] -->|commands| BUS
 
-    BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>mark:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
+    BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
     BUS -->|"browse:*,<br/>mark:entity-types-*"| BROWSER["Browser"]
     BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| MATCHER["Matcher"]
@@ -89,7 +89,7 @@ The single write path to the Knowledge Base. No other code calls `eventStore.app
 | `mark:update-body` | `mark:body-updated` | `mark:body-updated` |
 | `mark:archive` | `mark:archived` | — |
 | `mark:unarchive` | `mark:unarchived` | — |
-| `mark:add-entity-type` | `mark:entity-type-added` | `mark:entity-type-added` |
+| `frame:add-entity-type` | `frame:entity-type-added` | `frame:entity-type-added` |
 | `mark:update-entity-types` | `mark:entity-tag-added` / `mark:entity-tag-removed` | — |
 | `job:start` | `job:started` | — |
 | `job:report-progress` | `job:progress` | — |

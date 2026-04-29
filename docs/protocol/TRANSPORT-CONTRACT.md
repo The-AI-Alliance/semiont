@@ -126,7 +126,7 @@ payload. Clients do not set it; handlers cannot trust a client-supplied
   payload.
 
 Channels with this convention: `mark:archive`, `mark:unarchive`,
-`mark:update-entity-types`, `mark:add-entity-type`, `bind:update-body`,
+`mark:update-entity-types`, `frame:add-entity-type`, `bind:update-body`,
 `job:create`, `mark:create-request`. The gateway's OpenAPI spec marks
 `_userId` as *"Authenticated user's DID, injected by the /bus/emit
 gateway. Clients do not set this."*

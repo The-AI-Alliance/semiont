@@ -131,7 +131,7 @@ function buildBlobResolver(entries: Map<string, Buffer>): (checksum: string) => 
  *   1. Stream and decompress tar.gz entries
  *   2. Parse .semiont/manifest.jsonld → validate format
  *   3. Build blob resolver over root-level content entries
- *   4. Add entity types from manifest via mark:add-entity-type
+ *   4. Add entity types from manifest via frame:add-entity-type
  *   5. For each .semiont/resources/{id}.jsonld:
  *      a. Parse JSON-LD document
  *      b. Resolve content blob by checksum from representations
@@ -220,12 +220,12 @@ async function addEntityType(
   logger?: Logger,
 ): Promise<void> {
   const result$ = race(
-    eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
-    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
-    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
+    eventBus.get('frame:entity-type-added').pipe(map(() => 'ok' as const)),
+    eventBus.get('frame:entity-type-add-failed').pipe(map((e) => { throw new Error(e.message); })),
+    timer(IMPORT_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for frame:entity-type-added'); })),
   );
 
-  eventBus.get('mark:add-entity-type').next({
+  eventBus.get('frame:add-entity-type').next({
     tag: entityType,
     _userId: userId,
   });

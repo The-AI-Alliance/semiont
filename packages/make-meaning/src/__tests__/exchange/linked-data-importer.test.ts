@@ -142,9 +142,9 @@ describe('linked-data-importer', () => {
 
   it('imports entity types from manifest', async () => {
     const addedTypes: string[] = [];
-    eventBus.get('mark:add-entity-type').subscribe((msg) => {
+    eventBus.get('frame:add-entity-type').subscribe((msg) => {
       addedTypes.push(msg.tag);
-      defer(() => eventBus.get('mark:entity-type-added').next({ tag: msg.tag } as any));
+      defer(() => eventBus.get('frame:entity-type-added').next({ tag: msg.tag } as any));
     });
 
     const archive = await buildArchive([
@@ -164,8 +164,8 @@ describe('linked-data-importer', () => {
   });
 
   it('imports a resource with content blob', async () => {
-    eventBus.get('mark:add-entity-type').subscribe((msg) => {
-      defer(() => eventBus.get('mark:entity-type-added').next({ tag: msg.tag } as any));
+    eventBus.get('frame:add-entity-type').subscribe((msg) => {
+      defer(() => eventBus.get('frame:entity-type-added').next({ tag: msg.tag } as any));
     });
 
     let receivedChecksum: string | undefined;
@@ -357,9 +357,9 @@ describe('linked-data-importer', () => {
   it('uses the provided userId for all events', async () => {
     const customUser = 'did:web:example.com:users:bob' as UserId;
 
-    eventBus.get('mark:add-entity-type').subscribe((msg) => {
+    eventBus.get('frame:add-entity-type').subscribe((msg) => {
       expect(msg._userId).toBe(customUser);
-      defer(() => eventBus.get('mark:entity-type-added').next({ tag: msg.tag } as any));
+      defer(() => eventBus.get('frame:entity-type-added').next({ tag: msg.tag } as any));
     });
 
     eventBus.get('yield:create').subscribe((msg) => {

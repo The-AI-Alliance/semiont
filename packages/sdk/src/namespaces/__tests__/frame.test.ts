@@ -2,10 +2,8 @@
  * FrameNamespace — schema-layer flow tests.
  *
  * Frame is the eighth flow's surface. MVP scope is small: entity-type
- * vocabulary writes via a single bus channel. These tests pin the wire
- * shape (the channel name `mark:add-entity-type` is preserved for
- * backend stability even though the SDK verb is `frame`) and the
- * batch-emit behavior of `addEntityTypes`.
+ * vocabulary writes on the `frame:add-entity-type` channel. These tests
+ * pin the wire shape and the batch-emit behavior of `addEntityTypes`.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -37,18 +35,18 @@ describe('FrameNamespace', () => {
     frame = new FrameNamespace(mock.transport);
   });
 
-  it('addEntityType() emits mark:add-entity-type with the tag', async () => {
+  it('addEntityType() emits frame:add-entity-type with the tag', async () => {
     await frame.addEntityType('Person');
     expect(emitSpy).toHaveBeenCalledTimes(1);
-    expect(emitSpy).toHaveBeenCalledWith('mark:add-entity-type', { tag: 'Person' });
+    expect(emitSpy).toHaveBeenCalledWith('frame:add-entity-type', { tag: 'Person' });
   });
 
   it('addEntityTypes() emits one event per type, preserving order', async () => {
     await frame.addEntityTypes(['Person', 'Organization', 'Location']);
     expect(emitSpy).toHaveBeenCalledTimes(3);
-    expect(emitSpy).toHaveBeenNthCalledWith(1, 'mark:add-entity-type', { tag: 'Person' });
-    expect(emitSpy).toHaveBeenNthCalledWith(2, 'mark:add-entity-type', { tag: 'Organization' });
-    expect(emitSpy).toHaveBeenNthCalledWith(3, 'mark:add-entity-type', { tag: 'Location' });
+    expect(emitSpy).toHaveBeenNthCalledWith(1, 'frame:add-entity-type', { tag: 'Person' });
+    expect(emitSpy).toHaveBeenNthCalledWith(2, 'frame:add-entity-type', { tag: 'Organization' });
+    expect(emitSpy).toHaveBeenNthCalledWith(3, 'frame:add-entity-type', { tag: 'Location' });
   });
 
   it('addEntityTypes([]) is a no-op', async () => {

@@ -467,6 +467,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.on('mark:archived', this.onArchiveToggled);
     this.on('mark:unarchived', this.onArchiveToggled);
 
-    this.on('mark:entity-type-added', () => this.invalidateEntityTypes());
+    this.on('frame:entity-type-added', () => this.invalidateEntityTypes());
   }
 }

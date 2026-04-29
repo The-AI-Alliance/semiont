@@ -1012,7 +1012,7 @@ describe('ViewMaterializer', () => {
     function entityTypeAddedEvent(entityType: string, seq: number) {
       return {
         id: `sys-evt-${seq}`,
-        type: 'mark:entity-type-added',
+        type: 'frame:entity-type-added',
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         version: 1,

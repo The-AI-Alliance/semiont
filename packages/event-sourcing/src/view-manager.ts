@@ -99,7 +99,7 @@ export class ViewManager {
    */
   async materializeSystem(eventType: string, payload: any): Promise<void> {
     await serializePerKey(ViewManager.SYSTEM_KEY, this.systemChains, async () => {
-      if (eventType === 'mark:entity-type-added') {
+      if (eventType === 'frame:entity-type-added') {
         await this.materializer.materializeEntityTypes(payload.entityType);
       }
       // Future system views can be added here

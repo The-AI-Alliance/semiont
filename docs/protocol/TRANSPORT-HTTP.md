@@ -258,7 +258,7 @@ determines scoping semantics and delivery path.
 | Correlation-ID response | None | The caller, filtering by correlationId. |
 | Resource-bound broadcast | `resourceId` | Every SSE connection subscribed to that scope. |
 
-System-wide broadcasts (`beckon:focus`, `mark:entity-type-added`, etc.)
+System-wide broadcasts (`beckon:focus`, `frame:entity-type-added`, etc.)
 are a special case of correlation-ID responses in terms of scoping:
 they go global, but they're received by every connected client, not
 filtered.

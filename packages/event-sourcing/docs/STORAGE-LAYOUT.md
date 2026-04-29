@@ -52,7 +52,7 @@ Resource JSONL files are distributed across shards using jump-consistent hashing
 
 ### System events
 
-Events without a `resourceId` (e.g., `mark:entity-type-added`) are stored in `__system__.jsonl` at the events root.
+Events without a `resourceId` (e.g., `frame:entity-type-added`) are stored in `__system__.jsonl` at the events root.
 
 ## Resource Views (`<stateDir>/resources/`)
 

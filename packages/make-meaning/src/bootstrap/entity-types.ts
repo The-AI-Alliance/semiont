@@ -2,7 +2,7 @@
  * Entity Types Bootstrap
  *
  * On startup, seeds the KB with DEFAULT_ENTITY_TYPES by emitting
- * mark:add-entity-type for each missing type. Reads the __system__ event
+ * frame:add-entity-type for each missing type. Reads the __system__ event
  * stream (the durable source of truth in .semiont/events/) to determine
  * which types already exist.
  *
@@ -24,7 +24,7 @@ import { map, take } from 'rxjs/operators';
 
 /**
  * Bootstrap entity types if any are missing from the event log.
- * Reads the __system__ stream to find existing mark:entity-type-added events,
+ * Reads the __system__ stream to find existing frame:entity-type-added events,
  * then emits only the missing ones.
  */
 export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: EventStore, logger?: Logger): Promise<void> {
@@ -32,7 +32,7 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
   const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
   const existingTypes = new Set(
     systemEvents
-      .filter(e => e.type === 'mark:entity-type-added')
+      .filter(e => e.type === 'frame:entity-type-added')
       .map(e => (e.payload as { entityType: string }).entityType)
   );
 
@@ -51,12 +51,12 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
     logger?.debug('Adding entity type via EventBus', { entityType });
 
     const result$ = race(
-      eventBus.get('mark:entity-type-added').pipe(take(1), map(() => ({ ok: true as const }))),
-      eventBus.get('mark:entity-type-add-failed').pipe(take(1), map((f) => ({ ok: false as const, error: new Error(f.message) }))),
+      eventBus.get('frame:entity-type-added').pipe(take(1), map(() => ({ ok: true as const }))),
+      eventBus.get('frame:entity-type-add-failed').pipe(take(1), map((f) => ({ ok: false as const, error: new Error(f.message) }))),
       timer(10_000).pipe(map(() => ({ ok: false as const, error: new Error(`Timeout adding entity type: ${entityType}`) }))),
     );
 
-    eventBus.get('mark:add-entity-type').next({ tag: entityType, _userId: SYSTEM_USER_ID });
+    eventBus.get('frame:add-entity-type').next({ tag: entityType, _userId: SYSTEM_USER_ID });
 
     const outcome = await firstValueFrom(result$);
     if (!outcome.ok) {

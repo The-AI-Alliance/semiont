@@ -5,7 +5,7 @@
 **Related Documentation**:
 - [Mark Flow](./MARK.md) - Annotation CRUD operates within the entity-type vocabulary Frame defines
 - [Browse Flow](./BROWSE.md) - `browse.entityTypes()` is the live read of the vocabulary Frame writes to
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store and the `mark:add-entity-type` channel
+- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store and the `frame:add-entity-type` channel
 
 ## Overview
 
@@ -23,7 +23,7 @@ The split between writes (Frame) and live reads (Browse) is intentional. Browse 
 
 ## Using the API Client
 
-Add an entity type to the KB's vocabulary. The `frame` namespace emits `mark:add-entity-type` on the bus gateway — the backend Stower handler persists the addition and the change becomes visible to other participants through `browse.entityTypes()`.
+Add an entity type to the KB's vocabulary. The `frame` namespace emits `frame:add-entity-type` on the bus gateway — the backend Stower handler persists the addition and the change becomes visible to other participants through `browse.entityTypes()`.
 
 ```typescript
 // Add a single entity type
@@ -38,20 +38,18 @@ client.browse.entityTypes().subscribe((types) => {
 });
 ```
 
-Adding the same entity type twice is idempotent — the backend dedupes; the second `mark:add-entity-type` for an existing tag is a no-op. No SDK-level coordination is needed for concurrent adds across participants.
+Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op. No SDK-level coordination is needed for concurrent adds across participants.
 
 ## Events
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `mark:add-entity-type` | `{ tag: string }` | Add an entity type to the KB's vocabulary. Channel name preserved for backend stability — see [Channel naming](#channel-naming) below. |
-| `mark:entity-type-added` | `{ payload: { entityType: string }, ... }` (StoredEvent) | Emitted by Stower after persistence. The entity-type-projection materializer updates the system view; subscribers to `browse.entityTypes()` see the new tag on their next emit. |
+| `frame:add-entity-type` | `{ tag: string }` | Add an entity type to the KB's vocabulary. Frame's command channel; the verb namespace and the wire-level channel agree on the prefix. |
+| `frame:entity-type-added` | `{ payload: { entityType: string }, ... }` (StoredEvent) | Emitted by Stower after persistence. The entity-type-projection materializer updates the system view; subscribers to `browse.entityTypes()` see the new tag on their next emit. System-level event (no `resourceId`) — fan-out is global. |
 
-## Channel naming
+## Migrating from earlier channel names
 
-The bus channel is named `mark:add-entity-type`, not `frame:add-entity-type`. The naming predates Frame's promotion to flow status; renaming the channel is a backend-and-protocol change with broader implications (event-store reads, downstream consumers) and is deferred. The SDK presents a clean `frame.X` surface without forcing the backend channel-name churn — the verb namespace and the wire-level channel are independent vocabularies, and the asymmetry is documented here so a reader of this doc isn't surprised by the `mark:` prefix in the events table.
-
-If channel-rename becomes worthwhile (e.g. when more `frame:*` events accrete and the `mark:` prefix becomes obviously wrong), it's a separate plan with event-log migration concerns — not something to bundle into a flow definition.
+Frame's wire channels were renamed from `mark:*` to `frame:*` when Frame was promoted to flow status. KBs created before the rename have event logs containing `"type": "mark:entity-type-added"` records under `__system__.jsonl`; the migration script at [`scripts/migrate-event-types.ts`](../../../scripts/migrate-event-types.ts) rewrites these in place to the new names. The SDK and backend reject the old channel names — there is no fallback shim — so any pre-rename event log must be migrated before the runtime can read it.
 
 ## Future scope
 
@@ -69,6 +67,6 @@ None of this is MVP. The design point is: Frame's namespace home gives these fea
 - **Namespace**: [packages/sdk/src/namespaces/frame.ts](../../../packages/sdk/src/namespaces/frame.ts)
 - **Interface**: [packages/sdk/src/namespaces/types.ts](../../../packages/sdk/src/namespaces/types.ts) — `FrameNamespace`
 - **Tests**: [packages/sdk/src/namespaces/__tests__/frame.test.ts](../../../packages/sdk/src/namespaces/__tests__/frame.test.ts)
-- **Event channel**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `mark:add-entity-type`, `mark:entity-type-added`
-- **Backend handler**: [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts) — handles `mark:add-entity-type`, appends `mark:entity-type-added` to the event log
+- **Event channel**: [packages/core/src/bus-protocol.ts](../../../packages/core/src/bus-protocol.ts) — `frame:add-entity-type`, `frame:entity-type-added`
+- **Backend handler**: [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts) — handles `frame:add-entity-type`, appends `frame:entity-type-added` to the event log
 - **Static defaults**: [packages/ontology/src/entity-types.ts](../../../packages/ontology/src/entity-types.ts) — `DEFAULT_ENTITY_TYPES` (the seed values used to bootstrap a fresh KB; per-KB additions come through Frame)

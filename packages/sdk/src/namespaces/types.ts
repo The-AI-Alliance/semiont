@@ -222,9 +222,7 @@ export interface BrowseNamespace {
  * resources and annotations.
  *
  * Backend actor: Stower
- * Event prefix: mark:* (the channel name `mark:add-entity-type` is
- *   preserved for backend stability; the SDK's verb is `frame` even
- *   though the wire-level channel hasn't been renamed)
+ * Event prefix: frame:*
  */
 export interface FrameNamespace {
   /** Add a single entity type to the KB's vocabulary. Idempotent — adding an existing type is a no-op. */
