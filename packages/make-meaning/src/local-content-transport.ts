@@ -16,7 +16,7 @@
 import type { AccessToken, ContentFormat, ResourceId, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
-import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
+import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
 
@@ -34,8 +34,12 @@ export class LocalContentTransport implements IContentTransport {
 
   async putBinary(
     _request: PutBinaryRequest,
-    _options?: { auth?: AccessToken },
+    _options?: PutBinaryOptions,
   ): Promise<{ resourceId: ResourceId }> {
+    // `onProgress` and `signal` from `_options` are accepted for interface
+    // conformance and ignored — local mode has no wire over which bytes
+    // flow, so progress events would be synthetic and offer no signal,
+    // and the upload is synchronous-ish so cancellation has no window.
     throw new Error(
       'LocalContentTransport does not support putBinary() — create resources via bus emits (mark/yield namespaces) in local mode',
     );

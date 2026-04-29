@@ -9,11 +9,13 @@
 import React, { useState, useEffect } from 'react';
 import type { GatheredContext } from '@semiont/core';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/core';
+import type { UploadProgress } from '@semiont/sdk';
 import { type CloneData, type ReferenceData } from '../state/compose-page-vm';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-vm';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';
+import { UploadProgressBar } from './UploadProgressBar';
 
 export interface ResourceComposePageProps {
   mode: 'new' | 'clone' | 'reference';
@@ -36,6 +38,14 @@ export interface ResourceComposePageProps {
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
   onCancel: () => void;
+
+  /**
+   * Live upload-progress for the in-flight save. Resolved by the route
+   * shell from `composeVM.uploadProgress$`. `null` between saves and
+   * after completion. When non-null, the form disables Save and the
+   * inline `<UploadProgressBar />` below the action buttons renders.
+   */
+  uploadProgress?: UploadProgress | null;
 
   // Translations
   translations: {
@@ -105,6 +115,7 @@ export function ResourceComposePage({
   activePanel,
   onSaveResource,
   onCancel,
+  uploadProgress = null,
   translations: t,
   ToolbarPanels,
   Toolbar,
@@ -655,14 +666,14 @@ export function ResourceComposePage({
             <button
               type="button"
               onClick={onCancel}
-              disabled={isCreating}
+              disabled={isCreating || uploadProgress !== null}
               className={buttonStyles.tertiary.base}
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              disabled={isCreating || !newResourceName.trim()}
+              disabled={isCreating || uploadProgress !== null || !newResourceName.trim()}
               className={buttonStyles.primary.base}
             >
               {isCreating
@@ -670,6 +681,10 @@ export function ResourceComposePage({
                 : (isClone ? t.saveClonedResource : isReferenceCompletion ? t.createAndLinkResource : t.createResource)}
             </button>
           </div>
+
+          {/* Inline upload progress — renders below the action buttons while
+              an upload is in flight. `null` between saves and after completion. */}
+          <UploadProgressBar progress={uploadProgress} />
         </form>
       </div>
       </div>

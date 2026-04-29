@@ -207,6 +207,7 @@ export * from './features/moderate-tag-schemas/components/TagSchemasPage';
 
 // Features - Resources
 export * from './features/resource-compose/components/ResourceComposePage';
+export * from './features/resource-compose/components/UploadProgressBar';
 export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';

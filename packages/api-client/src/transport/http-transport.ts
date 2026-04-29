@@ -388,6 +388,17 @@ export class HttpTransport implements ITransport, IBackendOperations {
     this.errorsSubject.complete();
   }
 
+  /**
+   * Route a transport-level error onto `errors$`. Used by sibling adapters
+   * (e.g. `HttpContentTransport`'s XHR upload path) that don't go through
+   * the `ky` `beforeError` hook and need to surface failures on the same
+   * stream the rest of the transport publishes to.
+   */
+  pushError(error: SemiontError): void {
+    if (this.disposed) return;
+    this.errorsSubject.next(error);
+  }
+
   // ── Auth ──────────────────────────────────────────────────────────────
 
   private authHeaders(): Record<string, string> {

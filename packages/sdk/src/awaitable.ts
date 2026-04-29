@@ -97,10 +97,10 @@ const wrapperCache = new WeakMap<Observable<unknown>, CacheObservable<unknown>>(
  * Discriminated phases of an upload's lifecycle.
  *
  * - `started` — emitted immediately on `yield.resource(...)` invocation, before any bytes flow.
- * - `progress` — emitted as bytes flow. Not yet wired by `HttpContentTransport` (would require an XHR/`Request({ duplex })` rewrite to expose granular byte counts); reserved for that mechanism. `bytesUploaded` and `totalBytes` carry the numbers when emitted.
+ * - `progress` — emitted as bytes flow over the wire. Wired by `HttpContentTransport`'s XHR path when a caller passes `onProgress` (or, transitively, when `yield.resource` is the caller — it always wires the hook so subscribers see byte counts). `bytesUploaded` and `totalBytes` carry the running counts; `totalBytes` may be 0 when the transport can't determine the total (rare, e.g. chunked encoding) — UI consumers should render an indeterminate state in that case.
  * - `finished` — emitted on backend acknowledgement, carries the assigned `resourceId`.
  *
- * Failures surface as `Observable.error(...)` (typically an `APIError` from the transport's `errors$` Subject), not as a `phase: 'failed'` event — `subscribe`'s error callback handles them.
+ * Failures surface as `Observable.error(...)` (typically an `APIError` from the transport's `errors$` Subject), not as a `phase: 'failed'` event — `subscribe`'s error callback handles them. Cancellation is honored: unsubscribing before `finished` aborts the in-flight HTTP request on the XHR path.
  */
 export type UploadProgress =
   | { phase: 'started'; totalBytes: number }

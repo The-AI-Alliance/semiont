@@ -258,10 +258,37 @@ export interface PutBinaryRequest {
   isDraft?: boolean;
 }
 
+/**
+ * Optional byte-progress hook for `putBinary`. Receives raw byte counts;
+ * derived shapes (percentage, ETA) are the caller's responsibility.
+ *
+ * `totalBytes` may be 0 when the underlying transport can't determine it
+ * (chunked encoding, indeterminate streams). Consumers should render an
+ * indeterminate state in that case.
+ */
+export type PutBinaryProgress = (event: { bytesUploaded: number; totalBytes: number }) => void;
+
+export interface PutBinaryOptions {
+  auth?: AccessToken;
+  /**
+   * Called as bytes flow over the wire. Honored by transports that can
+   * observe upload progress (HTTP via XHR). Transports that can't
+   * (in-process LocalContentTransport, current `ky`-based fetch path
+   * with no `onProgress`) simply ignore it.
+   */
+  onProgress?: PutBinaryProgress;
+  /**
+   * Signal that aborts the in-flight request. The XHR-based HTTP path
+   * calls `xhr.abort()` when the signal fires; in-process and
+   * non-XHR HTTP paths complete in the background after abort.
+   */
+  signal?: AbortSignal;
+}
+
 export interface IContentTransport {
   putBinary(
     request: PutBinaryRequest,
-    options?: { auth?: AccessToken },
+    options?: PutBinaryOptions,
   ): Promise<{ resourceId: ResourceId }>;
 
   getBinary(

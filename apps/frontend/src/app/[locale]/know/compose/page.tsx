@@ -75,6 +75,7 @@ function ComposeResourceContent() {
   const referenceData = useObservable(vm.referenceData$) ?? null;
   const gatheredContext = useObservable(vm.gatheredContext$) ?? null;
   const availableEntityTypes = useObservable(vm.entityTypes$) ?? [];
+  const uploadProgress = useObservable(vm.uploadProgress$) ?? null;
 
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -119,6 +120,7 @@ function ComposeResourceContent() {
       activePanel={activePanel}
       onSaveResource={handleSaveResource}
       onCancel={() => router.push('/know/discover')}
+      uploadProgress={uploadProgress}
       translations={{
         title: t('title'),
         titleEditClone: t('titleEditClone'),
