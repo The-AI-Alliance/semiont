@@ -1,6 +1,6 @@
 {
   "name": "semiont-desktop",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "scripts": {
     "dev": "cargo tauri dev",
