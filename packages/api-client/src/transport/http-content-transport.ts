@@ -180,7 +180,10 @@ function buildFormData(request: PutBinaryRequest): FormData {
 
   if (request.file instanceof File) {
     formData.append('file', request.file);
-  } else if (Buffer.isBuffer(request.file)) {
+  } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(request.file)) {
+    // `Buffer` is a Node global; referencing it bare in the browser throws
+    // ReferenceError before the isBuffer call. Browser uploads always hit
+    // the File branch above; this branch is for Node-side workers.
     const blob = new Blob([new Uint8Array(request.file)], { type: request.format });
     formData.append('file', blob, request.name);
   } else {

@@ -383,3 +383,71 @@ describe('HttpContentTransport.putBinary — runtime fallback when XMLHttpReques
     expect(onProgress).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Regression guard for the browser-upload bug surfaced at /know/compose:
+ * `buildFormData()` referenced the Node global `Buffer` directly via
+ * `Buffer.isBuffer(...)`, which throws `ReferenceError: Buffer is not
+ * defined` synchronously in browsers (Buffer is not a browser global).
+ *
+ * The fix gates the Buffer branch on a runtime check
+ * (`typeof Buffer !== 'undefined'`); these tests pin that behavior by
+ * deleting `globalThis.Buffer` and verifying putBinary still works for
+ * `File` inputs (the only shape browsers ever send).
+ */
+describe('HttpContentTransport.putBinary — runtime fallback when Buffer is unavailable', () => {
+  let savedBuffer: typeof globalThis.Buffer | undefined;
+
+  beforeEach(() => {
+    savedBuffer = globalThis.Buffer;
+    delete (globalThis as unknown as { Buffer?: unknown }).Buffer;
+  });
+
+  afterEach(() => {
+    if (savedBuffer !== undefined) {
+      (globalThis as unknown as { Buffer: typeof globalThis.Buffer }).Buffer = savedBuffer;
+    }
+    vi.clearAllMocks();
+  });
+
+  test('putBinary with a File works when Buffer is undefined (browser case)', async () => {
+    const { content, mockKy } = makeTransportAndContent();
+    vi.mocked(mockKy.post!).mockReturnValue({
+      json: vi.fn().mockResolvedValue({ resourceId: 'browser-result' }),
+    } as never);
+
+    // Construct a real File. Browser uploads always hit this branch in
+    // buildFormData; the Buffer branch (which referenced the bare global)
+    // is only for Node-side workers and must be skipped without throwing.
+    const file = new File(['hello'], 'doc.md', { type: 'text/markdown' });
+
+    // Pre-fix this would throw `Buffer is not defined` synchronously
+    // because buildFormData() did `Buffer.isBuffer(...)` unguarded.
+    const result = await content.putBinary({
+      name: 'doc.md',
+      file,
+      format: 'text/markdown',
+      storageUri: 'file://docs/doc.md',
+    });
+
+    expect(result).toEqual({ resourceId: resourceId('browser-result') });
+    expect(mockKy.post).toHaveBeenCalledTimes(1);
+  });
+
+  test('putBinary with a non-File, non-Buffer input throws the documented error (not ReferenceError)', async () => {
+    const { content } = makeTransportAndContent();
+
+    // Pre-fix this would throw `Buffer is not defined` (a ReferenceError
+    // from the bare global). With the typeof guard, both branches fall
+    // through to the explicit `throw new Error('file must be a File or
+    // Buffer')` — the documented, intentional failure.
+    await expect(
+      content.putBinary({
+        name: 'a',
+        file: 'not a file' as unknown as File,
+        format: 'text/plain',
+        storageUri: 'file://a',
+      }),
+    ).rejects.toThrow(/file must be a File or Buffer/);
+  });
+});
