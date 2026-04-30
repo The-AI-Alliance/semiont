@@ -7,7 +7,7 @@ import './CollaborationPanel.css';
 interface Props {
   /**
    * Connection state from `client.actor.state$`. See
-   * `packages/api-client/src/view-models/domain/actor-vm.ts`.
+   * `packages/api-client/src/state/domain/actor-state-unit.ts`.
    *
    * UI mapping:
    *   `open` | `reconnecting` | `initial` | `connecting`

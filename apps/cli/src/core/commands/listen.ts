@@ -12,7 +12,7 @@
 
 import { z } from 'zod';
 import { resourceId as toResourceId, type PersistedEventType } from '@semiont/core';
-import { createActorVM } from '@semiont/api-client';
+import { createActorStateUnit } from '@semiont/api-client';
 import type { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -68,7 +68,7 @@ export async function runListen(options: ListenOptions): Promise<CommandResults>
 
   if (!options.quiet) process.stderr.write(label + ' (Ctrl-C to stop)\n');
 
-  const actor = createActorVM({
+  const actor = createActorStateUnit({
     baseUrl: rawBusUrl,
     token,
     channels: isResourceScoped ? [] : [...ALL_EVENT_TYPES],

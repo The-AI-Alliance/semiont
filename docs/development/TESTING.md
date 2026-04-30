@@ -695,7 +695,7 @@ tests/e2e/
 │   ├── 05-manual-reference.spec.ts   # select → motivation=linking + entity type, persists
 │   ├── 06-assisted-reference.spec.ts # assist widget dispatches across the wire
 │   ├── 07-sign-out-sign-in.spec.ts   # session rebuilds; bus round-trips on fresh client
-│   ├── 08-hover-beckon.spec.ts       # hover annotation → BeckonVM focus signal flows
+│   ├── 08-hover-beckon.spec.ts       # hover annotation → BeckonStateUnit focus signal flows
 │   └── 99-diagnose-entity-types.spec.ts  # singleton-ness diagnostic (not a guard)
 ├── fixtures/
 │   ├── auth.ts                       # signedInPage fixture; depends on bus

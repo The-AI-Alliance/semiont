@@ -97,7 +97,7 @@ function fakeBusResumeGap(scope: string | undefined, reason: string): EventMap['
 }
 
 /**
- * Test harness: a mock ActorVM whose responses are parameterized so
+ * Test harness: a mock ActorStateUnit whose responses are parameterized so
  * individual tests can control timing, delay, and error behavior.
  */
 interface HarnessOptions {

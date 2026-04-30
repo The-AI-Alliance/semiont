@@ -2,7 +2,7 @@
  * Listen Command Tests
  *
  * Tests schema validation and stream setup.
- * Mocks createActorVM to verify channel registration and disposal.
+ * Mocks createActorStateUnit to verify channel registration and disposal.
  * Simulates signal delivery via SIGINT to verify cleanup.
  */
 
@@ -25,7 +25,7 @@ const { mockActor, mockCreateActorVM, mockLoadCachedClient } = vi.hoisted(() => 
 });
 
 vi.mock('@semiont/api-client', () => ({
-  createActorVM: mockCreateActorVM,
+  createActorStateUnit: mockCreateActorVM,
 }));
 
 vi.mock('../../api-client-factory.js', () => ({

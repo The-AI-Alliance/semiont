@@ -7,6 +7,7 @@ import {
   useEventSubscriptions,
   useSemiont,
   useObservable,
+  useHoverDelay,
 } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
@@ -21,8 +22,6 @@ interface ToolbarPanelsProps {
   theme: 'light' | 'dark' | 'system';
   /** Line numbers setting */
   showLineNumbers: boolean;
-  /** Hover delay setting */
-  hoverDelayMs: number;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
 }
@@ -59,9 +58,15 @@ export function ToolbarPanels({
   activePanel,
   theme,
   showLineNumbers,
-  hoverDelayMs,
   children
 }: ToolbarPanelsProps) {
+  // Source hover-delay from the shared hook so every page that mounts
+  // ToolbarPanels gets the live value without prop-drilling. Previously
+  // each page passed `hoverDelayMs` through as a prop; pages that forgot
+  // (Discover, Admin, Moderation) rendered the Settings panel with
+  // `undefined`, which surfaced as `{undefined}ms delay` after the
+  // translation interpolation ran.
+  const { hoverDelayMs } = useHoverDelay();
   const { t: _t } = useTranslation();
   const session = useObservable(useSemiont().activeSession$);
   const user = useObservable(session?.user$);

@@ -69,7 +69,7 @@ semiont.mark.assist(rId, 'highlighting', { density: 5 }).subscribe({
 });
 ```
 
-The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally. No separate VM construction or bus-emit is needed.
+The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally. No separate state-unit construction or bus-emit is needed.
 
 ## TypeScript — manual
 

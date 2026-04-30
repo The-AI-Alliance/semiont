@@ -30,7 +30,10 @@ export class YieldNamespace implements IYieldNamespace {
   ) {}
 
   resource(data: CreateResourceInput): UploadObservable {
-    const totalBytes = data.file instanceof Buffer
+    // `Buffer` is a Node global; referencing it bare in the browser throws
+    // ReferenceError. Guard with a typeof check so this code runs in both
+    // environments (browser uploads File, Node workers upload Buffer).
+    const totalBytes = (typeof Buffer !== 'undefined' && data.file instanceof Buffer)
       ? data.file.length
       : (data.file as File).size;
     return new UploadObservable((subscriber) => {
@@ -187,6 +190,7 @@ export class YieldNamespace implements IYieldNamespace {
             title: options.title,
             prompt: options.prompt,
             language: options.language,
+            sourceLanguage: options.sourceLanguage,
             temperature: options.temperature,
             maxTokens: options.maxTokens,
             storageUri: options.storageUri,

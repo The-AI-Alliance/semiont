@@ -9,27 +9,27 @@ import {
   useEventSubscriptions,
   useObservable,
   useSemiont,
-  useViewModel,
+  useStateUnit,
   ResourceDiscoveryPage,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useShellVM } from '@semiont/react-ui';
-import { createDiscoverVM } from '@semiont/react-ui';
+import { useShellStateUnit } from '@semiont/react-ui';
+import { createDiscoverStateUnit } from '@semiont/react-ui';
 export default function DiscoverPage() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`Discover.${k}`, p as any) as string;
   const router = useRouter();
   const semiont = useObservable(useSemiont().activeSession$)?.client;
 
-  const browseVM = useShellVM();
-  const vm = useViewModel(() => createDiscoverVM(semiont!, browseVM));
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createDiscoverStateUnit(semiont!, browseStateUnit));
 
-  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
-  const recentDocuments = useObservable(vm.recentResources$) ?? [];
-  const entityTypes = useObservable(vm.entityTypes$) ?? [];
-  const isLoadingRecent = useObservable(vm.isLoadingRecent$) ?? true;
-  const searchQuery = useObservable(vm.search.query$) ?? '';
-  const searchState = useObservable(vm.search.state$);
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const recentDocuments = useObservable(stateUnit.recentResources$) ?? [];
+  const entityTypes = useObservable(stateUnit.entityTypes$) ?? [];
+  const isLoadingRecent = useObservable(stateUnit.isLoadingRecent$) ?? true;
+  const searchQuery = useObservable(stateUnit.search.query$) ?? '';
+  const searchState = useObservable(stateUnit.search.state$);
   const searchDocuments = searchState?.results ?? [];
   const isSearching = searchState?.isSearching ?? false;
 
@@ -49,7 +49,7 @@ export default function DiscoverPage() {
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
       searchQuery={searchQuery}
-      onSearchQueryChange={vm.search.setQuery}
+      onSearchQueryChange={stateUnit.search.setQuery}
       theme={resolvedTheme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}

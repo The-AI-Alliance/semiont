@@ -9,7 +9,7 @@ satisfy and that tests must verify.
 
 The cache is implemented by hand because `api-client` is
 framework-agnostic (React, CLI, MCP, worker all consume it), and no
-off-the-shelf library fits the RxJS + ViewModel idiom without
+off-the-shelf library fits the RxJS + StateUnit idiom without
 wrapping. Every bug in the hand-rolled cache so far has been a race
 the published libraries already document how to handle. Writing the
 expected behavior down so we can test against it — and so future

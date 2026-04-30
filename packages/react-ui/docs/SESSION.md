@@ -3,7 +3,7 @@
 The session layer is the per-KB authentication, token-refresh, event-bus,
 and HTTP client glue that sits between the React tree and the backend.
 This document describes the current shape after the UNREACT and
-VMs-from-Session refactors.
+state-units-from-session refactors.
 
 ## Package layout
 
@@ -21,7 +21,7 @@ VMs-from-Session refactors.
 │   ├── errors.ts             ← SemiontError + codes
 │   ├── knowledge-base.ts     ← KnowledgeBase, KbSessionStatus types
 │   └── open-resource.ts      ← OpenResource type
-└── view-models/              ← MVVM factories; take `client`, not a bus
+└── state/              ← state-unit factories; take `client`, not a bus
     ├── flows/                ← beckon, browse, gather, mark, match, yield
     ├── domain/                ← actor, job-queue, welcome, admin-*, …
     └── pages/                 ← compose-page, resource-viewer-page
@@ -51,7 +51,7 @@ client.on<K>(channel: K, handler: (p: EventMap[K]) => void): () => void
 client.stream<K>(channel: K): Observable<EventMap[K]>
 ```
 
-`client.eventBus` is **private** — no public accessor. ViewModel factories
+`client.eventBus` is **private** — no public accessor. StateUnit factories
 take `client` and route through `client.stream(...)` / `client.emit(...)`.
 
 ### `SemiontSession`
@@ -224,35 +224,35 @@ know which bus carries the channel. Exactly one of the two subscriptions
 receives payloads; the other stays silent. If the active session swaps
 (KB switch, sign-out/sign-in) the hook rewires automatically.
 
-### ViewModel hooks
+### StateUnit hooks
 
-Every VM factory takes exactly one bus-owner, matching the bus its
+Every state-unit factory takes exactly one bus-owner, matching the bus its
 channels live on:
 
-- **Session-scoped VMs** (mark, beckon, gather, match, bind, yield,
+- **Session-scoped state units** (mark, beckon, gather, match, bind, yield,
   browse) take `client: SemiontApiClient` and route through
   `client.emit` / `client.stream`. Their lifetime is tied to the
   session.
-- **Shell-scoped VMs** (`ShellVM` — toolbar panel state, sidebar
+- **Shell-scoped state units** (`ShellStateUnit` — toolbar panel state, sidebar
   collapse) take `browser: SemiontBrowser` and route through
   `browser.emit` / `browser.stream`. Their lifetime is tied to the app.
 
-Why the split matters: `ShellVM` must function on unauth pages
+Why the split matters: `ShellStateUnit` must function on unauth pages
 (sign-in form visible, no active session). If it were wired to the
 client bus, toolbar panel state and sidebar collapse would fail
 whenever no session existed.
 
 ```tsx
-export function useShellVM(): ShellVM {
+export function useShellStateUnit(): ShellStateUnit {
   const semiont = useSemiont();
-  return useViewModel(() => createShellVM(semiont, {
+  return useStateUnit(() => createShellStateUnit(semiont, {
     initialPanel: readPanel(),
     onPanelChange: persistPanel,
   }));
 }
 ```
 
-VM factories import only from `@semiont/api-client` and call
+state-unit factories import only from `@semiont/api-client` and call
 `.stream(channel).subscribe(...)` / `.emit(channel, payload)`. No
 factory touches a raw `EventBus`.
 
@@ -265,8 +265,8 @@ factory touches a raw `EventBus`.
 3. **Both `eventBus` fields are private.** All bus access is via
    `.emit` / `.on` / `.stream` on the owning object (client or
    browser). Enforced by TypeScript.
-4. **VM factories import only from `@semiont/api-client`.** No
-   `import { EventBus } from '@semiont/core'` in view-model files.
+4. **state-unit factories import only from `@semiont/api-client`.** No
+   `import { EventBus } from '@semiont/core'` in state unit files.
 5. **Every channel belongs to exactly one bus.** `EventMap` in
    `@semiont/core/bus-protocol.ts` is the source of truth. Don't
    split a channel across buses; don't emit to both.
@@ -302,7 +302,7 @@ without depending on jsdom's `localStorage`. See
 `packages/api-client/src/session/__tests__/test-storage-helpers.ts` for
 the test harness pattern.
 
-ViewModel factory tests use `makeTestClient()` from
+StateUnit factory tests use `makeTestClient()` from
 `packages/api-client/src/__tests__/test-client.ts`:
 
 ```ts
@@ -311,7 +311,7 @@ import { makeTestClient } from '../../../__tests__/test-client';
 const { client, bus } = makeTestClient({
   mark: { annotation: vi.fn().mockResolvedValue({ annotationId: 'x' }) },
 });
-const vm = createMarkVM(client, resourceId);
+const vm = createMarkStateUnit(client, resourceId);
 client.emit('mark:submit', { ... });
 // ... assert ...
 bus.destroy(); // in afterEach

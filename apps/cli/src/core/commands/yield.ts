@@ -64,7 +64,14 @@ export const YieldOptionsSchema = ApiOptionsSchema.extend({
   // Delegate mode optional
   title: z.string().optional(),
   prompt: z.string().optional(),
+  /** BCP-47 tag — language the *generated resource* is written in. */
   language: z.string().optional(),
+  /**
+   * BCP-47 tag — language of the *source resource* the annotation lives on.
+   * Goes into the prompt so the LLM understands embedded source-context
+   * snippets correctly when source ≠ target language.
+   */
+  sourceLanguage: z.string().optional(),
   temperature: z.coerce.number().min(0).max(1).optional(),
   maxTokens: z.coerce.number().int().min(100).max(4000).optional(),
   contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
@@ -113,6 +120,12 @@ async function runDelegate(
   // Step 2: generate — yield.fromAnnotation Observable yields progress
   // events, then a final `complete` event carrying the JobCompleteCommand
   // (with `result.resourceId` / `result.resourceName`).
+  // The gathered context's metadata.language is populated by the backend's
+  // gather flow from the source resource's primary representation. Use it as
+  // a default for --source-language so callers don't have to specify it
+  // unless they want to override.
+  const ctxSourceLanguage = (context as { metadata?: { language?: string } } | undefined)?.metadata?.language;
+
   const final = await lastValueFrom(
     semiont.yield.fromAnnotation(rId, aId, {
       title: options.title ?? rawAnnotationId,
@@ -120,6 +133,7 @@ async function runDelegate(
       context,
       prompt: options.prompt,
       language: options.language,
+      sourceLanguage: options.sourceLanguage ?? ctxSourceLanguage,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
     }),

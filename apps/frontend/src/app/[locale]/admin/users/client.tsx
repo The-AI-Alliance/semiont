@@ -9,25 +9,25 @@ import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buttonStyles, Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
-import { createAdminUsersVM } from '@semiont/react-ui';
-import { useViewModel } from '@semiont/react-ui';
+import { createAdminUsersStateUnit } from '@semiont/react-ui';
+import { useStateUnit } from '@semiont/react-ui';
 
 export default function AdminUsers() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminUsers.${k}`, p as any) as string;
 
   const semiont = useObservable(useSemiont().activeSession$)?.client;
-  const browseVM = useShellVM();
-  const vm = useViewModel(() => createAdminUsersVM(semiont!, browseVM));
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createAdminUsersStateUnit(semiont!, browseStateUnit));
 
-  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
-  const users = useObservable(vm.users$) ?? [];
-  const userStats = useObservable(vm.stats$) ?? null;
-  const usersLoading = useObservable(vm.usersLoading$) ?? true;
-  const statsLoading = useObservable(vm.statsLoading$) ?? true;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const users = useObservable(stateUnit.users$) ?? [];
+  const userStats = useObservable(stateUnit.stats$) ?? null;
+  const usersLoading = useObservable(stateUnit.usersLoading$) ?? true;
+  const statsLoading = useObservable(stateUnit.statsLoading$) ?? true;
 
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -47,11 +47,11 @@ export default function AdminUsers() {
 
   const handleUpdateUser = useCallback(async (id: string, data: { isAdmin?: boolean; isActive?: boolean }) => {
     try {
-      await vm.updateUser(id, data);
+      await stateUnit.updateUser(id, data);
     } catch (error) {
       console.error('Failed to update user:', error);
     }
-  }, [vm]);
+  }, [stateUnit]);
 
   const handleDeleteUser = useCallback(async (id: string) => {
     console.warn('Delete user not implemented:', id);

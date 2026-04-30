@@ -233,4 +233,118 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain(schemaDomain);
     });
   });
+
+  describe('locale handling', () => {
+    // Two independent locales flow through detection prompts:
+    //   - `language` — annotation body locale (where the LLM should write)
+    //   - `sourceLanguage` — source-resource locale (what the LLM is reading)
+    // These tests pin the contract: each is wired to its own field, and they
+    // don't bleed into each other.
+
+    describe('source language (always wired)', () => {
+      it('builds comment prompt with source-language guidance when set', () => {
+        const prompt = MotivationPrompts.buildCommentPrompt(
+          testContent, undefined, undefined, undefined, undefined, 'fr',
+        );
+        expect(prompt).toContain('Source text language: French');
+      });
+
+      it('builds highlight prompt with source-language guidance when set', () => {
+        const prompt = MotivationPrompts.buildHighlightPrompt(
+          testContent, undefined, undefined, 'es',
+        );
+        expect(prompt).toContain('Source text language: Spanish');
+      });
+
+      it('builds assessment prompt with source-language guidance when set', () => {
+        const prompt = MotivationPrompts.buildAssessmentPrompt(
+          testContent, undefined, undefined, undefined, undefined, 'de',
+        );
+        expect(prompt).toContain('Source text language: German');
+      });
+
+      it('builds tag prompt with source-language guidance when set', () => {
+        const prompt = MotivationPrompts.buildTagPrompt(
+          testContent, 'Category', 'Schema', 'Description', 'Domain',
+          'Category description', ['Example'], 'ja',
+        );
+        expect(prompt).toContain('Source text language: Japanese');
+      });
+
+      it('omits source-language guidance when unset', () => {
+        const prompt = MotivationPrompts.buildCommentPrompt(testContent);
+        expect(prompt).not.toContain('Source text language:');
+      });
+
+      it('falls back to the raw tag when the BCP-47 code is unknown', () => {
+        const prompt = MotivationPrompts.buildHighlightPrompt(
+          testContent, undefined, undefined, 'xx',
+        );
+        expect(prompt).toContain('Source text language: xx');
+      });
+    });
+
+    describe('body language (comments and assessments only)', () => {
+      it('builds comment prompt with body-language guidance when set to non-en', () => {
+        const prompt = MotivationPrompts.buildCommentPrompt(
+          testContent, undefined, undefined, undefined, 'fr',
+        );
+        expect(prompt).toContain('Write your comments in French');
+      });
+
+      it('builds assessment prompt with body-language guidance when set to non-en', () => {
+        const prompt = MotivationPrompts.buildAssessmentPrompt(
+          testContent, undefined, undefined, undefined, 'es',
+        );
+        expect(prompt).toContain('Write your assessments in Spanish');
+      });
+
+      it('omits body-language guidance when language is en', () => {
+        // English is the LLM's default; an explicit "Write in English" line
+        // is noise that crowds out other instructions.
+        const prompt = MotivationPrompts.buildCommentPrompt(
+          testContent, undefined, undefined, undefined, 'en',
+        );
+        expect(prompt).not.toContain('Write your comments in');
+      });
+
+      it('omits body-language guidance when language is unset', () => {
+        const prompt = MotivationPrompts.buildAssessmentPrompt(testContent);
+        expect(prompt).not.toContain('Write your assessments in');
+      });
+
+      it('honors body-language guidance in the instruction-driven branch too', () => {
+        // The non-instruction and instruction branches build different
+        // prompts — both must wire body-language guidance.
+        const prompt = MotivationPrompts.buildCommentPrompt(
+          testContent, 'Be brief', undefined, undefined, 'de',
+        );
+        expect(prompt).toContain('Write your comments in German');
+        expect(prompt).toContain('Be brief');
+      });
+    });
+
+    describe('tags do not get body-language guidance', () => {
+      // Tag categories are schema-defined identifiers, not LLM-generated
+      // text. Body locale for tags is consumed at the body-stamp site, not
+      // here — the tag prompt builder doesn't even take a `language` arg.
+      it('does not contain body-language guidance regardless of source-language', () => {
+        const prompt = MotivationPrompts.buildTagPrompt(
+          testContent, 'Issue', 'IRAC', 'Legal reasoning', 'Law',
+          'The legal question', ['What is the issue?'], 'fr',
+        );
+        expect(prompt).not.toContain('Write your');
+      });
+    });
+
+    describe('locales are independent', () => {
+      it('different body and source locales coexist without bleeding', () => {
+        const prompt = MotivationPrompts.buildCommentPrompt(
+          testContent, undefined, undefined, undefined, 'de', 'fr',
+        );
+        expect(prompt).toContain('Source text language: French');
+        expect(prompt).toContain('Write your comments in German');
+      });
+    });
+  });
 });

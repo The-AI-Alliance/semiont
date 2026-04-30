@@ -33,7 +33,7 @@ import {
 } from '@semiont/core';
 import type { TransportErrorCode } from '@semiont/core';
 import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
-import { createActorVM, type ActorVM } from './actor-vm';
+import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
 import type {
   BackendDownload,
   ConnectionState,
@@ -127,7 +127,7 @@ export class HttpTransport implements ITransport, IBackendOperations {
    */
   readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
 
-  private _actor: ActorVM | null = null;
+  private _actor: ActorStateUnit | null = null;
   private _actorStarted = false;
   private disposed = false;
 
@@ -248,13 +248,13 @@ export class HttpTransport implements ITransport, IBackendOperations {
   // ── Lazy actor construction + per-channel fan-in to bridges ───────────
   //
   // `actor` is exposed so the legacy `SemiontClient` can keep `.actor`
-  // pointing at the same ActorVM during the transport-abstraction
+  // pointing at the same ActorStateUnit during the transport-abstraction
   // migration. Once SemiontClient is removed, this should be made
   // private again — external callers should use emit/on/stream/state$.
 
-  get actor(): ActorVM {
+  get actor(): ActorStateUnit {
     if (!this._actor) {
-      this._actor = createActorVM({
+      this._actor = createActorStateUnit({
         baseUrl: this.baseUrl,
         token: () => this.token$.getValue() ?? '',
         channels: [...BRIDGED_CHANNELS],

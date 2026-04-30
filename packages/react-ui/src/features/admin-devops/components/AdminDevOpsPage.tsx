@@ -9,7 +9,7 @@ import React from 'react';
 import {
   CommandLineIcon
 } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-vm';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 export interface DevOpsFeature {
   title: string;
   description: string;

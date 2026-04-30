@@ -29,7 +29,7 @@ composes the library.
 │  (Framework-agnostic library)       │
 │                                     │
 │  • UI components                    │
-│  • Flow view models (RxJS)          │
+│  • Flow state units (RxJS)          │
 │  • Providers and hooks              │
 │  • API integration                  │
 │  • Semantic CSS (BEM)               │
@@ -49,7 +49,7 @@ composes the library.
 - **Branding** — SemiontBranding
 
 #### Hooks and utilities
-- `useObservable`, `useShellVM`, `useResourceContent`, `useMediaToken`, `useLineNumbers`, `useHoverDelay`, `useKeyboardShortcuts`, `useToast`, `useSessionExpiry`, `useTheme`
+- `useObservable`, `useShellStateUnit`, `useResourceContent`, `useMediaToken`, `useLineNumbers`, `useHoverDelay`, `useKeyboardShortcuts`, `useToast`, `useSessionExpiry`, `useTheme`
 - `useEventBus`, `useEventSubscriptions`, `useApiClient`, `useAuthToken`, `useAuthToken$`, `useKnowledgeBaseSession`
 
 #### Providers and contexts
@@ -60,9 +60,9 @@ composes the library.
 - `TranslationProvider` — pluggable i18n manager
 - `OpenResourcesProvider`, `ResourceAnnotationsProvider` — workspace state
 
-#### Flow view models (from `@semiont/api-client`, re-exported)
-- `createMarkVM`, `createGatherVM`, `createMatchVM`, `createYieldVM`, `createBindVM`, `createBeckonVM`, `createShellVM`
-- Resource-page composition: `createResourceViewerPageVM`
+#### Flow state units (from `@semiont/api-client`, re-exported)
+- `createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBindStateUnit`, `createBeckonStateUnit`, `createShellStateUnit`
+- Resource-page composition: `createResourceViewerPageStateUnit`
 
 ### What Stays in `apps/frontend`
 

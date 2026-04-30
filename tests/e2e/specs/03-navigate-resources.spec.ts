@@ -4,16 +4,16 @@ import { test, expect } from '../fixtures/auth';
  * Smoke test: navigating to a second resource from within the app
  * actually updates the viewer (not just the URL).
  *
- * Regression target: the useViewModel-captures-initial-rId bug.
+ * Regression target: the useStateUnit-captures-initial-rId bug.
  * Fixed by splitting KnowledgeResourcePage into outer-reads-params +
  * inner-keyed-on-rId; without that, the component stayed mounted
- * across :id changes and the VM never rebuilt.
+ * across :id changes and the state unit never rebuilt.
  *
  * Strategy: open resource A, go back to Discover via the sidebar
  * (client-side nav, keeps the knowledge layout mounted), then click
  * resource B. If the second navigation still lands in the same
  * ResourceViewerPage component instance (which is the condition the
- * bug needs), the key-based remount must refresh the VM.
+ * bug needs), the key-based remount must refresh the state unit.
  *
  * Requires the seeded KB to have at least two resources.
  */
@@ -24,15 +24,34 @@ test.describe('navigate between resources', () => {
     const cards = page.getByRole('button', { name: /^open resource:/i });
     await expect.poll(() => cards.count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
 
+    // Find the first two cards with *distinct* names. Successive runs
+    // of spec 09 (generate-from-reference) accumulate generated
+    // resources at the top of Discover, sometimes with colliding
+    // titles when the LLM derives the same name from the same prompt.
+    // The "useStateUnit-captures-initial-rId" regression we're guarding
+    // here is about navigating between two *different* resources, so
+    // we just need any two distinct ones.
+    const total = await cards.count();
+    let firstIdx = 0;
+    let secondIdx = -1;
     const firstName = ((await cards.nth(0).getAttribute('aria-label')) ?? '')
       .replace(/^open resource:\s*/i, '').trim();
-    const secondName = ((await cards.nth(1).getAttribute('aria-label')) ?? '')
-      .replace(/^open resource:\s*/i, '').trim();
-    expect(firstName).not.toBe(secondName);
+    let secondName = '';
+    for (let i = 1; i < total; i++) {
+      const candidate = ((await cards.nth(i).getAttribute('aria-label')) ?? '')
+        .replace(/^open resource:\s*/i, '').trim();
+      if (candidate && candidate !== firstName) {
+        secondIdx = i;
+        secondName = candidate;
+        break;
+      }
+    }
+    expect(secondIdx, `Discover must have at least two distinctly-named resources (had ${total} cards)`)
+      .toBeGreaterThan(0);
 
     // Open first resource.
     bus.clear();
-    await cards.nth(0).click();
+    await cards.nth(firstIdx).click();
     await expect(page).toHaveURL(/\/know\/resource\//);
     await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
     const firstUrl = page.url();
@@ -59,11 +78,11 @@ test.describe('navigate between resources', () => {
 
     // Click the second resource card. This is a client-side navigation
     // from Discover into the resource viewer — the exact transition
-    // where the useViewModel-stale-factory bug would manifest, if the
+    // where the useStateUnit-stale-factory bug would manifest, if the
     // component were reused (which would be the case if the user
     // navigated via a resource-tab click while already viewing another
     // resource).
-    await cards.nth(1).click();
+    await cards.nth(secondIdx).click();
     await expect(page).toHaveURL(/\/know\/resource\//);
     await expect(page.url()).not.toBe(firstUrl);
     await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
@@ -73,8 +92,8 @@ test.describe('navigate between resources', () => {
 
     // Protocol proof: a *second* browse:resource-requested fired with a
     // fresh correlationId, and its matching response arrived. This is
-    // the concrete regression signal for the useViewModel-stale-factory
-    // bug — if the VM stayed bound to rId A, there'd be no second emit
+    // the concrete regression signal for the useStateUnit-stale-factory
+    // bug — if the state unit stayed bound to rId A, there'd be no second emit
     // at all.
     const secondCid = (await bus.expectRequestResponse(
       'browse:resource-requested',

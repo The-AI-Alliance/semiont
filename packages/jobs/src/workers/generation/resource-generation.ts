@@ -14,7 +14,15 @@ function getLanguageName(locale: string): string {
 }
 
 /**
- * Generate resource content using inference
+ * Generate resource content using inference.
+ *
+ * Locale parameters: `locale` is the *body* locale — the language the
+ * generated resource should be written in (sourced from the user's UI
+ * locale). `sourceLanguage` is the *source* locale — the language of the
+ * referenced resource whose context (selected passage, surrounding text)
+ * is embedded into the prompt. They're independent: a German user can
+ * generate German content from an English source resource. See
+ * `types.ts` "Locale conventions" for the full discussion.
  */
 export async function generateResourceFromTopic(
   topic: string,
@@ -25,13 +33,15 @@ export async function generateResourceFromTopic(
   context?: GatheredContext,
   temperature?: number,
   maxTokens?: number,
-  logger?: Logger
+  logger?: Logger,
+  sourceLanguage?: string
 ): Promise<{ title: string; content: string }> {
   logger?.debug('Generating resource from topic', {
     topicPreview: topic.substring(0, 100),
     entityTypes,
     hasUserPrompt: !!userPrompt,
     locale,
+    sourceLanguage,
     hasContext: !!context,
     temperature,
     maxTokens
@@ -44,9 +54,14 @@ export async function generateResourceFromTopic(
   const finalTemperature = temperature ?? 0.7;
   const finalMaxTokens = maxTokens ?? 500;
 
-  // Determine language instruction
+  // Determine language instructions. Body locale ("write the resource in X")
+  // and source locale ("the embedded source text is in Y") are independent —
+  // a German user can ask for a German write-up of an English source.
   const languageInstruction = locale && locale !== 'en'
     ? `\n\nIMPORTANT: Write the entire resource in ${getLanguageName(locale)}.`
+    : '';
+  const sourceLanguageInstruction = sourceLanguage
+    ? `\n\nThe source resource and embedded context are in ${getLanguageName(sourceLanguage)}.`
     : '';
 
   // Build annotation context section if available
@@ -120,7 +135,7 @@ ${after ? `${after}...` : ''}
   // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${graphContextSection}${languageInstruction}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${graphContextSection}${sourceLanguageInstruction}${languageInstruction}
 
 Requirements:
 - Start with a clear heading (# Title)

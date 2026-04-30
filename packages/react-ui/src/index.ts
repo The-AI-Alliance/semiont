@@ -24,7 +24,7 @@ export * from './lib/tag-schemas';
 export * from './lib/validation';
 
 // Hooks
-export * from './hooks/useViewModel';
+export * from './hooks/useStateUnit';
 export * from './hooks/useDebounce';
 export * from './lib/formatTime';
 export * from './hooks/useKeyboardShortcuts';
@@ -216,12 +216,12 @@ export * from './hooks/useHoverEmitter';
 // any consumer — web, terminal, mobile, daemon — can reach for).
 // React-ui re-exports them so consumers of this package don't need a
 // second import line.
-export { createBeckonVM, type BeckonVM, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
-export { createMarkVM, type MarkVM, type PendingAnnotation } from '@semiont/sdk';
-export { createYieldVM, type YieldVM, type GenerateDocumentOptions } from '@semiont/sdk';
-export { createGatherVM, type GatherVM } from '@semiont/sdk';
-export { createMatchVM, type MatchVM } from '@semiont/sdk';
-// Job-domain worker adapters (`createJobClaimAdapter`, `createJobQueueVM`)
+export { createBeckonStateUnit, type BeckonStateUnit, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
+export { createMarkStateUnit, type MarkStateUnit, type PendingAnnotation } from '@semiont/sdk';
+export { createYieldStateUnit, type YieldStateUnit, type GenerateDocumentOptions } from '@semiont/sdk';
+export { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
+export { createMatchStateUnit, type MatchStateUnit } from '@semiont/sdk';
+// Job-domain worker adapters (`createJobClaimAdapter`, `createJobQueueStateUnit`)
 // and the `WorkerBus` interface live in `@semiont/jobs` and `@semiont/sdk`
 // respectively — import them from there directly if needed.
 
@@ -229,17 +229,17 @@ export { createMatchVM, type MatchVM } from '@semiont/sdk';
 // model the Semiont web frontend's specific page taxonomy and shell. They
 // are framework-neutral (pure RxJS, no React inside) but not portable to a
 // non-web UI shape.
-export { createShellVM, type ShellVM, type ShellVMOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from './state/shell-vm';
-export { createSessionVM, type SessionVM } from './state/session-vm';
-export { createComposePageVM, type ComposePageVM, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from './features/resource-compose/state/compose-page-vm';
-export { createResourceViewerPageVM, type ResourceViewerPageVM, type WizardState, type AnnotationGroups } from './features/resource-viewer/state/resource-viewer-page-vm';
-export { createResourceLoaderVM, type ResourceLoaderVM } from './features/resource-viewer/state/resource-loader-vm';
-export { createAdminUsersVM, type AdminUsersVM } from './features/admin-users/state/admin-users-vm';
-export { createAdminSecurityVM, type AdminSecurityVM } from './features/admin-security/state/admin-security-vm';
-export { createExchangeVM, type ExchangeVM, type ImportPreview } from './features/admin-exchange/state/exchange-vm';
-export { createWelcomeVM, type WelcomeVM } from './features/auth-welcome/state/welcome-vm';
-export { createDiscoverVM, type DiscoverVM } from './features/resource-discovery/state/discover-vm';
-export { createEntityTagsVM, type EntityTagsVM } from './features/moderate-entity-tags/state/entity-tags-vm';
+export { createShellStateUnit, type ShellStateUnit, type ShellStateUnitOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from './state/shell-state-unit';
+export { createSessionStateUnit, type SessionStateUnit } from './state/session-state-unit';
+export { createComposePageStateUnit, type ComposePageStateUnit, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from './features/resource-compose/state/compose-page-state-unit';
+export { createResourceViewerPageStateUnit, type ResourceViewerPageStateUnit, type WizardState, type AnnotationGroups } from './features/resource-viewer/state/resource-viewer-page-state-unit';
+export { createResourceLoaderStateUnit, type ResourceLoaderStateUnit } from './features/resource-viewer/state/resource-loader-state-unit';
+export { createAdminUsersStateUnit, type AdminUsersStateUnit } from './features/admin-users/state/admin-users-state-unit';
+export { createAdminSecurityStateUnit, type AdminSecurityStateUnit } from './features/admin-security/state/admin-security-state-unit';
+export { createExchangeStateUnit, type ExchangeStateUnit, type ImportPreview } from './features/admin-exchange/state/exchange-state-unit';
+export { createWelcomeStateUnit, type WelcomeStateUnit } from './features/auth-welcome/state/welcome-state-unit';
+export { createDiscoverStateUnit, type DiscoverStateUnit } from './features/resource-discovery/state/discover-state-unit';
+export { createEntityTagsStateUnit, type EntityTagsStateUnit } from './features/moderate-entity-tags/state/entity-tags-state-unit';
 
-export * from './hooks/useShellVM';
+export * from './hooks/useShellStateUnit';
 export * from './hooks/useObservable';

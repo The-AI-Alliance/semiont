@@ -10,7 +10,7 @@
  *   - Binary content (`HttpContentTransport.getBinary` + stream)
  *   - Multipart upload (`HttpContentTransport.putBinary`)
  *   - `HttpTransport.subscribeToResource` ref-counting (mocks the
- *     local `actor-vm` module to assert add/removeChannels)
+ *     local `actor-state-unit` module to assert add/removeChannels)
  *   - `token$` lifecycle
  */
 
@@ -24,7 +24,7 @@ vi.mock('ky', () => ({
   },
 }));
 
-// Mock the local actor-vm so subscribeToResource ref-counting can be
+// Mock the local actor-state-unit so subscribeToResource ref-counting can be
 // asserted via spies without spinning up a real SSE connection.
 const actorHarness = {
   addChannels: vi.fn(),
@@ -34,13 +34,13 @@ const actorHarness = {
   dispose: vi.fn(),
 };
 
-vi.mock('../actor-vm', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../actor-vm')>();
+vi.mock('../actor-state-unit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../actor-state-unit')>();
   const { BehaviorSubject, Subject } = await import('rxjs');
   const { filter, map } = await import('rxjs/operators');
   return {
     ...actual,
-    createActorVM: () => {
+    createActorStateUnit: () => {
       const events$ = new Subject<{ channel: string; payload: Record<string, unknown> }>();
       return {
         on$: <T,>(channel: string) =>

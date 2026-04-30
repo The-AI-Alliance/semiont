@@ -174,9 +174,9 @@ else { /* bar */ }
 ### Long-lived bus subscriptions (listen-style)
 
 ```typescript
-import { createActorVM } from '@semiont/api-client';
+import { createActorStateUnit } from '@semiont/api-client';
 
-const actor = createActorVM({
+const actor = createActorStateUnit({
   baseUrl: rawBusUrl,
   token,
   channels: ['mark:added', 'mark:removed', 'job:completed'],

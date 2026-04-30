@@ -118,7 +118,7 @@ test.describe('manual highlight', () => {
 
     // Protocol-level proof: the create chain round-tripped successfully.
     // HighlightPanel auto-submits when `pendingAnnotation.motivation ===
-    // 'highlighting'` → mark-vm calls client.mark.annotation() → actor
+    // 'highlighting'` → mark-state-unit calls client.mark.annotation() → actor
     // emits `mark:create-request` → backend assembly+stower → mark:create-ok
     // with matching cid. This is the chain that the earlier scope bug
     // (emit routed to dead subject) and the optimistic-ack bug (mark:

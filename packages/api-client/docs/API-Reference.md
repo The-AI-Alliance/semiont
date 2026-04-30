@@ -1,6 +1,6 @@
 # `@semiont/api-client` Reference
 
-`@semiont/api-client` ships the HTTP-specific implementations of the transport contracts in `@semiont/core`. The developer-facing surface (`SemiontClient`, the verb namespaces, sessions, view-models) lives in `@semiont/sdk`. This doc covers the HTTP adapters only.
+`@semiont/api-client` ships the HTTP-specific implementations of the transport contracts in `@semiont/core`. The developer-facing surface (`SemiontClient`, the verb namespaces, sessions, state units) lives in `@semiont/sdk`. This doc covers the HTTP adapters only.
 
 For the namespace-level API tour, see [`@semiont/sdk/docs/Usage.md`](../../sdk/docs/Usage.md).
 

@@ -37,7 +37,7 @@ vi.mock('../../../hooks/useResourceContent', () => ({
 
 // Stub SemiontBrowser whose activeSession$ emits a session carrying a real
 // SemiontClient (wired to a dummy baseUrl). The real client surface lets
-// createResourceViewerPageVM run against the full namespace API without us
+// createResourceViewerPageStateUnit run against the full namespace API without us
 // hand-stubbing every method it touches.
 const { stubBrowser } = vi.hoisted(() => {
   const { BehaviorSubject } = require('rxjs');

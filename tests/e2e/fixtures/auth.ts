@@ -1,6 +1,8 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { attachBusLog, type BusLogCapture } from './bus-log';
+import { JaegerCapture, attachJaegerEvidence } from './jaeger';
+import { attachPageErrors, attachPageErrorsArtifact, type PageErrorsCapture } from './page-errors';
 
 /**
  * Polyfill crypto.randomUUID for non-secure-context test environments.
@@ -120,14 +122,39 @@ async function isAlreadySignedIn(page: Page): Promise<boolean> {
  *     // already at /en/know/discover with a valid session
  *   });
  */
-export const test = base.extend<{ signedInPage: Page; bus: BusLogCapture }>({
+export const test = base.extend<{
+  signedInPage: Page;
+  bus: BusLogCapture;
+  jaeger: JaegerCapture;
+  pageErrors: PageErrorsCapture;
+}>({
   bus: async ({ page }, use) => {
     const capture = await attachBusLog(page);
     await use(capture);
   },
-  signedInPage: async ({ page, bus: _bus }, use) => {
-    // Depend on `bus` so the init script runs before signIn. `_bus`
-    // isn't referenced here; it just forces fixture ordering.
+  pageErrors: async ({ page }, use, testInfo) => {
+    // Captures uncaught browser errors during the test. Soft by default
+    // (attaches a `page-errors.json` artifact when entries exist);
+    // set `PAGE_ERRORS_FAIL=1` to fail tests with errors. See
+    // `fixtures/page-errors.ts` for the wiring rationale.
+    const capture = await attachPageErrors(page);
+    await use(capture);
+    await attachPageErrorsArtifact(testInfo, capture);
+  },
+  jaeger: async ({ bus }, use, testInfo) => {
+    // Records the start time so the teardown query has a tight window.
+    // Depends on `bus` so prefix capture is wired before any test code
+    // runs. After `use`, fetches matching Jaeger traces and attaches
+    // them to the Playwright report (failure-only by default; configurable
+    // via `JAEGER_ATTACH=always|failure|off`).
+    const capture = new JaegerCapture();
+    await use(capture);
+    await attachJaegerEvidence(testInfo, bus, capture);
+  },
+  signedInPage: async ({ page, bus: _bus, jaeger: _jaeger, pageErrors: _pageErrors }, use) => {
+    // Depend on `bus` and `jaeger` so the init scripts run before signIn
+    // and the Jaeger teardown sees the full test window. The unused
+    // parameters force fixture ordering.
     await signIn(page);
     await use(page);
   },
@@ -135,3 +162,5 @@ export const test = base.extend<{ signedInPage: Page; bus: BusLogCapture }>({
 
 export { expect };
 export type { BusLogCapture } from './bus-log';
+export type { JaegerCapture } from './jaeger';
+export type { PageErrorsCapture } from './page-errors';

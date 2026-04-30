@@ -511,7 +511,7 @@ enabling real-time UI updates for every connected participant:
 
 **Progress Updates**: Workers emit `mark:progress` on the resource-scoped
 EventBus. The frontend's `SemiontClient` subscribes to these events
-via `/bus/subscribe`; MarkVM surfaces them through an Observable.
+via `/bus/subscribe`; MarkStateUnit surfaces them through an Observable.
 
 **Annotation Creation**: When a worker emits `mark:create` on the bus:
 1. Stower persists to the Event Store.

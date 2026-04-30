@@ -16,7 +16,7 @@
  * `SemiontSession`. Tests use a fake session whose `client.actor.emit`
  * captures bus emits, `client.browse.resourceContent` returns test
  * content, and `client.yield.resource` captures the multipart upload
- * for generation. No raw `fetch` or `WorkerVM` involved.
+ * for generation. No raw `fetch` or `WorkerStateUnit` involved.
  *
  * On failure the outer wrapper (startWorkerProcess) emits `job:fail`
  * and calls adapter.failJob(); we exercise that by letting a processor
@@ -70,7 +70,7 @@ function makeFakeSessionAndAdapter() {
       transport: {
         emit: transportEmit,
         // `startWorkerProcess` reads `transport.actor` to attach the job-claim
-        // adapter; test needs a minimal ActorVM-shaped stand-in.
+        // adapter; test needs a minimal ActorStateUnit-shaped stand-in.
         actor: {
           on$: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
           emit: transportEmit,

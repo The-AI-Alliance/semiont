@@ -263,7 +263,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
    *
    * - **Commands** (frontend → backend handler) and **correlation-ID
    *   responses** arrive un-scoped. Handlers subscribe on the global bus.
-   * - **Resource-bound broadcasts** (WorkerVM-emitted progress for
+   * - **Resource-bound broadcasts** (WorkerStateUnit-emitted progress for
    *   resource generation — the `RESOURCE_BROADCAST_TYPES` set) arrive
    *   with `scope: resourceId`. These are published on
    *   `eventBus.scope(resourceId)` so the per-resource SSE subscription

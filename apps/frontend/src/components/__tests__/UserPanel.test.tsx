@@ -26,7 +26,7 @@ const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL,
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { BehaviorSubject } = require('rxjs');
   const mockLogout = vi.fn().mockResolvedValue(undefined);
-  // sessionVM.logout() calls client.auth.logout() — namespace shape, not flat.
+  // sessionStateUnit.logout() calls client.auth.logout() — namespace shape, not flat.
   const mockClient = { auth: { logout: mockLogout } };
   const user$ = new BehaviorSubject(null);
   const token$ = new BehaviorSubject(null);

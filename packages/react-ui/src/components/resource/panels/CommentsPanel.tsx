@@ -46,6 +46,8 @@ interface CommentsPanelProps {
   isAssisting?: boolean;
   progress?: JobProgress | null;
   locale?: string;
+  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call. */
+  sourceLanguage?: string;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
@@ -65,6 +67,7 @@ export function CommentsPanel({
   isAssisting = false,
   progress,
   locale,
+  sourceLanguage,
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
@@ -253,6 +256,7 @@ export function CommentsPanel({
             annotationType="comment"
             isAssisting={isAssisting}
             locale={locale}
+            sourceLanguage={sourceLanguage}
             progress={progress}
           />
         )}

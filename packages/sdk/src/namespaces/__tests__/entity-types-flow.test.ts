@@ -264,20 +264,20 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
 });
 
 /**
- * Layer-3 test: real BrowseNamespace + real VM pipe.
+ * Layer-3 test: real BrowseNamespace + real state-unit pipe.
  *
- * The existing resource-viewer-page-vm tests stub `client.browse` with
- * a BehaviorSubject, so they never exercise the Cache → VM pipe under
+ * The existing resource-viewer-page-state-unit tests stub `client.browse` with
+ * a BehaviorSubject, so they never exercise the Cache → state-unit pipe under
  * realistic bus conditions. This test uses the real BrowseNamespace
  * with a mock actor — closer to production wiring.
  */
-describe('entity types — Layer 3 (VM pipe over real cache)', () => {
+describe('entity types — Layer 3 (state-unit pipe over real cache)', () => {
   const RID = makeResourceId('res-1');
 
   it('vm.entityTypes$ emits [9 strings] via the real cache', async () => {
     const { browse, emit: _emit } = createHarness();
 
-    // Mimic the VM's transform: `client.browse.entityTypes().pipe(map(e => e ?? []))`
+    // Mimic the state unit's transform: `client.browse.entityTypes().pipe(map(e => e ?? []))`
     const vmEntityTypes$ = browse.entityTypes().pipe(map((e) => e ?? []));
 
     const val = await firstValueFrom(vmEntityTypes$.pipe(filter((v) => v.length > 0)));
@@ -296,22 +296,22 @@ describe('entity types — Layer 3 (VM pipe over real cache)', () => {
     expect(browse.entityTypes()).toBe(obs1);
   });
 
-  // The real-world failure mode: the VM is created AFTER the cache has
+  // The real-world failure mode: the state unit is created AFTER the cache has
   // already been populated (e.g. another mounted component subscribed
-  // first). The VM's late pipe must still see the populated value.
-  it('VM pipe subscribing AFTER cache is populated still emits [9 strings]', async () => {
+  // first). The state unit's late pipe must still see the populated value.
+  it('state-unit pipe subscribing AFTER cache is populated still emits [9 strings]', async () => {
     const { browse } = createHarness();
     // Populate the cache via an unrelated subscriber.
     await firstDefined(browse.entityTypes());
 
-    // Now compose a new VM pipe — simulates a later ResourceViewerPage mount.
+    // Now compose a new state-unit pipe — simulates a later ResourceViewerPage mount.
     const lateVmPipe$ = browse.entityTypes().pipe(map((e) => e ?? []));
     const val = await firstValueFrom(lateVmPipe$);
     expect(val).toEqual(NINE_TYPES);
   });
 
   it(
-    'VM pipe subscribing AFTER cache is populated AND after a bus-event burst still emits [9 strings]',
+    'state-unit pipe subscribing AFTER cache is populated AND after a bus-event burst still emits [9 strings]',
     async () => {
       // This is the most production-like scenario: cache warmed, bus
       // churn, THEN a new component mounts and reads entityTypes.

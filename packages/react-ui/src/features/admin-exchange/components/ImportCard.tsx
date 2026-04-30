@@ -5,7 +5,7 @@
  */
 
 import React, { useRef, useState, useCallback } from 'react';
-import type { ImportPreview } from '../state/exchange-vm';
+import type { ImportPreview } from '../state/exchange-state-unit';
 export type { ImportPreview };
 
 export interface ImportCardTranslations {

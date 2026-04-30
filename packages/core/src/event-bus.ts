@@ -7,6 +7,7 @@
  */
 
 import { Subject } from 'rxjs';
+import { busLog, busLogEnabled } from './bus-log';
 import type { EventMap } from './bus-protocol';
 import type { StoredEvent } from './event-base';
 import type { PersistedEventType } from './persisted-events';
@@ -78,7 +79,27 @@ export class EventBus {
     }
 
     if (!this.subjects.has(eventName)) {
-      this.subjects.set(eventName, new Subject<EventMap[K]>());
+      const subject = new Subject<EventMap[K]>();
+      // When bus-log is enabled (`SEMIONT_BUS_LOG=1` or
+      // `window.__SEMIONT_BUS_LOG__ = true`), wrap `.next()` so every
+      // local emit on this channel produces a `[bus EMIT] <channel> ...`
+      // line on `console.debug` — same shape as cross-wire emits from
+      // HttpTransport. This is what makes local-only fan-out signals
+      // (`beckon.hover`, `beckon.sparkle`, `mark.changeShape`, etc.)
+      // visible to the e2e bus capture and to a developer's DevTools.
+      // The `busLogEnabled()` check is at first-`get` time per channel;
+      // setting the flag after channels are constructed won't
+      // retroactively wrap them. The bus capture fixture uses
+      // `addInitScript` so the flag is set before any namespace
+      // construction, which is when `get()` is first called.
+      if (busLogEnabled()) {
+        const originalNext = subject.next.bind(subject);
+        subject.next = (value: EventMap[K]): void => {
+          busLog('EMIT', String(eventName), value as object);
+          originalNext(value);
+        };
+      }
+      this.subjects.set(eventName, subject);
     }
     return this.subjects.get(eventName)!;
   }

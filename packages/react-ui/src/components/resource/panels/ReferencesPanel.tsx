@@ -60,6 +60,11 @@ interface Props {
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
+
+  /** User UI locale — stamped on the unresolved-reference body's `language` field. */
+  locale?: string;
+  /** BCP-47 tag of the resource being analyzed — fed into the prompt for source-aware analysis. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -85,6 +90,8 @@ export function ReferencesPanel({
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
+  locale,
+  sourceLanguage,
 }: Props) {
   const t = useTranslations('ReferencesPanel');
   const session = useObservable(useSemiont().activeSession$);
@@ -206,6 +213,10 @@ export function ReferencesPanel({
     session?.client.mark.requestAssist('linking', {
       entityTypes: selectedEntityTypes,
       includeDescriptiveReferences,
+      // Body locale stamps the unresolved-reference body's `language`;
+      // sourceLanguage tunes the prompt for non-English source content.
+      language: locale,
+      sourceLanguage,
     });
   };
 

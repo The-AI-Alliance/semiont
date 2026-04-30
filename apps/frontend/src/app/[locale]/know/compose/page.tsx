@@ -9,18 +9,18 @@ import {
   useSemiont,
   useToast,
   useTheme,
-  useShellVM,
+  useShellStateUnit,
   useObservable,
   useLineNumbers,
   useHoverDelay,
   useEventSubscriptions,
-  useViewModel,
+  useStateUnit,
   Toolbar,
   ComposeLoadingState,
   ResourceComposePage,
 } from '@semiont/react-ui';
 import type { SaveResourceParams as UISaveResourceParams } from '@semiont/react-ui';
-import { createComposePageVM } from '@semiont/react-ui';
+import { createComposePageStateUnit } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 
 function ComposeResourceContent() {
@@ -46,7 +46,7 @@ function ComposeResourceContent() {
     if (!isAuthenticated) router.push('/');
   }, [authLoading, isAuthenticated, router]);
 
-  const browseVM = useShellVM();
+  const browseStateUnit = useShellStateUnit();
 
   const contextKey = searchParams?.get('annotationUri')
     ? `gather-context:${searchParams.get('annotationUri')}`
@@ -58,7 +58,7 @@ function ComposeResourceContent() {
     sessionStorage.removeItem(contextKey);
   }
 
-  const vm = useViewModel(() => createComposePageVM(client!, browseVM, {
+  const stateUnit = useStateUnit(() => createComposePageStateUnit(client!, browseStateUnit, {
     mode: searchParams?.get('mode') ?? undefined,
     token: searchParams?.get('token') ?? undefined,
     annotationUri: searchParams?.get('annotationUri') ?? undefined,
@@ -68,14 +68,14 @@ function ComposeResourceContent() {
     storedContext,
   }, authToken ?? undefined));
 
-  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
-  const pageMode = useObservable(vm.mode$) ?? 'new';
-  const isLoading = useObservable(vm.loading$) ?? true;
-  const cloneData = useObservable(vm.cloneData$) ?? null;
-  const referenceData = useObservable(vm.referenceData$) ?? null;
-  const gatheredContext = useObservable(vm.gatheredContext$) ?? null;
-  const availableEntityTypes = useObservable(vm.entityTypes$) ?? [];
-  const uploadProgress = useObservable(vm.uploadProgress$) ?? null;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const pageMode = useObservable(stateUnit.mode$) ?? 'new';
+  const isLoading = useObservable(stateUnit.loading$) ?? true;
+  const cloneData = useObservable(stateUnit.cloneData$) ?? null;
+  const referenceData = useObservable(stateUnit.referenceData$) ?? null;
+  const gatheredContext = useObservable(stateUnit.gatheredContext$) ?? null;
+  const availableEntityTypes = useObservable(stateUnit.entityTypes$) ?? [];
+  const uploadProgress = useObservable(stateUnit.uploadProgress$) ?? null;
 
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
@@ -88,7 +88,7 @@ function ComposeResourceContent() {
 
   const handleSaveResource = async (params: UISaveResourceParams) => {
     try {
-      const newResourceId = await vm.save(params);
+      const newResourceId = await stateUnit.save(params);
       if (params.mode === 'reference' && params.annotationUri) {
         showSuccess('Reference successfully linked to the new resource');
       }

@@ -36,7 +36,7 @@ over HTTP+SSE or stay in-process.
 |--------|--------------------------------------------------------------|
 | `EMIT` | `HttpTransport.emit()` (api-client)                          |
 | `EMIT` | `LocalTransport.emit()` (make-meaning)                       |
-| `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-vm) |
+| `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-state-unit) |
 | `RECV` | `LocalTransport.bridgeInto` subscriber callback              |
 | `EMIT` | Backend `/bus/emit` HTTP route                               |
 | `SSE`  | Backend `writeBusEvent()` in `apps/backend/src/routes/bus.ts`|
@@ -44,7 +44,7 @@ over HTTP+SSE or stay in-process.
 | `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching backend route |
 | `GET`  | `LocalContentTransport.getBinary()` / `getBinaryStream()` (in-process)            |
 
-`ActorVM` and namespace methods (`client.mark.assist`, etc.) are
+`ActorStateUnit` and namespace methods (`client.mark.assist`, etc.) are
 **not** choke points. Namespace methods ride on top of the transport;
 their traffic shows up as the transport calls they make.
 

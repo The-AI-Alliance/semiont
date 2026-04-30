@@ -177,11 +177,12 @@ describe('processReferenceJob', () => {
     expect(result.annotations).toHaveLength(2);
     expect((result.annotations[0] as any).motivation).toBe('linking');
     // Canonical unresolved-linking body — single-item array with the
-    // entity type as a tagging TextualBody. The bind flow later appends
-    // a SpecificResource to resolve. Do not emit `[]` — that breaks the
+    // entity type as a tagging TextualBody, stamped with format and the
+    // body locale (defaults to 'en'). The bind flow later appends a
+    // SpecificResource to resolve. Do not emit `[]` — that breaks the
     // append contract and trips the Annotation.body oneOf.
     expect((result.annotations[0] as any).body).toEqual([
-      { type: 'TextualBody', value: 'Location', purpose: 'tagging' },
+      { type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain', language: 'en' },
     ]);
     expect(result.result).toEqual({ totalFound: 2, totalEmitted: 2, errors: 0 });
   });
@@ -321,5 +322,245 @@ describe('processGenerationJob', () => {
 
     expect(result.title).toBe('Fallback Title');
     expect(result.result.resourceName).toBe('Fallback Title');
+  });
+});
+
+// ============================================================================
+// Locale threading
+// ============================================================================
+//
+// Two independent locales travel through the params:
+//   - `language`       → annotation body locale (TextualBody.language stamp,
+//                        and "write your <kind> in <X>" guidance for
+//                        comments/assessments)
+//   - `sourceLanguage` → source-resource locale (passed to the prompt
+//                        builder for all five detection workers)
+//
+// These tests pin: (a) `language` reaches the right body-stamp slot and
+// detection function; (b) `sourceLanguage` reaches every detection function;
+// (c) defaults stay sensible when callers omit them.
+
+describe('locale threading', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  describe('annotation body locale', () => {
+    it('stamps params.language on the comment TextualBody', async () => {
+      vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+        { exact: 'passage', start: 0, end: 7, comment: 'commentaire' },
+      ]);
+
+      const result = await processCommentJob(
+        'passage here',
+        makeInferenceClient(),
+        { resourceId: RID, language: 'fr' },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      );
+
+      expect((result.annotations[0] as any).body).toEqual([
+        { type: 'TextualBody', value: 'commentaire', purpose: 'commenting', format: 'text/plain', language: 'fr' },
+      ]);
+    });
+
+    it('stamps params.language on the assessment TextualBody', async () => {
+      vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+        { exact: 'claim', start: 0, end: 5, assessment: 'évaluation' },
+      ]);
+
+      const result = await processAssessmentJob(
+        'claim made',
+        makeInferenceClient(),
+        { resourceId: RID, language: 'fr' },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      );
+
+      expect((result.annotations[0] as any).body).toEqual({
+        type: 'TextualBody', value: 'évaluation', purpose: 'assessing', format: 'text/plain', language: 'fr',
+      });
+    });
+
+    it('stamps params.language on the unresolved-reference TextualBody', async () => {
+      vi.mocked(extractEntities).mockResolvedValue([
+        { exact: 'Paris', startOffset: 0, endOffset: 5, entityType: 'Location' } as any,
+      ]);
+
+      const result = await processReferenceJob(
+        'Paris',
+        makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Location')], language: 'fr' },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      );
+
+      expect((result.annotations[0] as any).body).toEqual([
+        { type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain', language: 'fr' },
+      ]);
+    });
+
+    it('stamps params.language on the tagging TextualBody (not the classifying one)', async () => {
+      vi.mocked(AnnotationDetection.detectTags).mockResolvedValueOnce([
+        { exact: 'foo', start: 0, end: 3, category: 'Issue' } as any,
+      ]);
+
+      const result = await processTagJob(
+        'foo bar',
+        makeInferenceClient(),
+        { resourceId: RID, schemaId: 'schema-1', categories: ['Issue'], language: 'de' },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      );
+
+      // Only the tagging body carries `language` — the classifying body is
+      // a schema-id reference and has no natural-language interpretation.
+      expect((result.annotations[0] as any).body).toEqual([
+        { type: 'TextualBody', value: 'Issue',    purpose: 'tagging',     format: 'text/plain', language: 'de' },
+        { type: 'TextualBody', value: 'schema-1', purpose: 'classifying', format: 'text/plain' },
+      ]);
+    });
+
+    it('defaults to "en" when params.language is omitted (comment)', async () => {
+      vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+        { exact: 'passage', start: 0, end: 7, comment: 'note' },
+      ]);
+
+      const result = await processCommentJob(
+        'passage here',
+        makeInferenceClient(),
+        { resourceId: RID },
+        USER_DID,
+        GENERATOR,
+        vi.fn(),
+      );
+
+      expect((result.annotations[0] as any).body[0].language).toBe('en');
+    });
+  });
+
+  describe('source-resource locale', () => {
+    // sourceLanguage flows from params through to the detection function as
+    // a positional argument. We assert each detection mock saw it.
+
+    it('forwards sourceLanguage to detectHighlights', async () => {
+      vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([]);
+      const client = makeInferenceClient();
+
+      await processHighlightJob(
+        'content', client,
+        { resourceId: RID, sourceLanguage: 'fr' },
+        USER_DID, GENERATOR, vi.fn(),
+      );
+
+      expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
+        'content', client, undefined, undefined, 'fr',
+      );
+    });
+
+    it('forwards sourceLanguage and language to detectComments', async () => {
+      vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([]);
+      const client = makeInferenceClient();
+
+      await processCommentJob(
+        'content', client,
+        { resourceId: RID, language: 'de', sourceLanguage: 'fr' },
+        USER_DID, GENERATOR, vi.fn(),
+      );
+
+      expect(AnnotationDetection.detectComments).toHaveBeenCalledWith(
+        'content', client, undefined, undefined, undefined, 'de', 'fr',
+      );
+    });
+
+    it('forwards sourceLanguage and language to detectAssessments', async () => {
+      vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([]);
+      const client = makeInferenceClient();
+
+      await processAssessmentJob(
+        'content', client,
+        { resourceId: RID, language: 'es', sourceLanguage: 'pt' },
+        USER_DID, GENERATOR, vi.fn(),
+      );
+
+      expect(AnnotationDetection.detectAssessments).toHaveBeenCalledWith(
+        'content', client, undefined, undefined, undefined, 'es', 'pt',
+      );
+    });
+
+    it('forwards sourceLanguage to extractEntities for reference detection', async () => {
+      vi.mocked(extractEntities).mockResolvedValue([]);
+      const client = makeInferenceClient();
+
+      await processReferenceJob(
+        'content', client,
+        { resourceId: RID, entityTypes: [entityType('Location')], sourceLanguage: 'fr' },
+        USER_DID, GENERATOR, vi.fn(),
+      );
+
+      expect(extractEntities).toHaveBeenCalledWith(
+        'content', ['Location'], client, false, undefined, 'fr',
+      );
+    });
+
+    it('forwards sourceLanguage to detectTags', async () => {
+      vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([]);
+      const client = makeInferenceClient();
+
+      await processTagJob(
+        'content', client,
+        { resourceId: RID, schemaId: 'schema-1', categories: ['Issue'], sourceLanguage: 'fr' },
+        USER_DID, GENERATOR, vi.fn(),
+      );
+
+      expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
+        'content', client, 'schema-1', 'Issue', 'fr',
+      );
+    });
+
+    it('passes undefined sourceLanguage when caller omits it', async () => {
+      vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([]);
+      const client = makeInferenceClient();
+
+      await processHighlightJob(
+        'content', client, { resourceId: RID }, USER_DID, GENERATOR, vi.fn(),
+      );
+
+      expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
+        'content', client, undefined, undefined, undefined,
+      );
+    });
+
+    it('forwards sourceLanguage and language to generateResourceFromTopic', async () => {
+      vi.mocked(generateResourceFromTopic).mockResolvedValue({
+        content: 'text', title: 'T',
+      } as any);
+      const client = makeInferenceClient();
+
+      await processGenerationJob(
+        client,
+        {
+          referenceId: annotationId('ann-1'),
+          sourceResourceId: RID,
+          sourceResourceName: 'src',
+          title: 'Topic',
+          entityTypes: [],
+          context: {} as any,
+          annotation: {} as any,
+          language: 'de',
+          sourceLanguage: 'fr',
+        },
+        vi.fn(),
+      );
+
+      // Positional signature: topic, entityTypes, client, prompt, locale,
+      // context, temperature, maxTokens, logger, sourceLanguage.
+      expect(generateResourceFromTopic).toHaveBeenCalledWith(
+        'Topic', [], client, undefined, 'de', expect.any(Object),
+        undefined, undefined, undefined, 'fr',
+      );
+    });
   });
 });

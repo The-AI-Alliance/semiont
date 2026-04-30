@@ -27,7 +27,7 @@ that maintains framework independence:
 │                                     │
 │  • ApiClientProvider                │
 │  • AuthTokenProvider                │
-│  • Flow view models (RxJS)          │
+│  • Flow state units (RxJS)          │
 │  • UI components & hooks            │
 └─────────────┬───────────────────────┘
               │ uses

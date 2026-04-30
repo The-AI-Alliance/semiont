@@ -39,6 +39,18 @@ container run --rm \
   speculate.
 - [Bus logging](docs/bus-logging.md) — the `__SEMIONT_BUS_LOG__` wire
   logger, the `bus` capture fixture, assertion helpers.
+- [Jaeger evidence](docs/jaeger.md) — the `jaeger` fixture that pulls
+  matching distributed traces on test teardown and attaches them to
+  the Playwright report.
+- [Page errors](docs/page-errors.md) — the `pageErrors` fixture that
+  surfaces uncaught browser-side errors (exceptions, unhandled
+  rejections, `console.error`) — invisible to bus/jaeger captures.
+  Soft by default; flip `PAGE_ERRORS_FAIL=1` once clean.
+- [Live monitoring](docs/live-monitoring.md) — sibling workflow for
+  bug-hunting on the running stack (no Playwright). Streaming
+  per-container error tails + on-demand snapshot of the last N
+  seconds across logs and Jaeger spans. How "live monitoring caught
+  X" turns into "e2e spec Y".
 - [Known gotchas](docs/gotchas.md) — sharp edges that took real
   debugging the first time: `crypto.randomUUID`, form-field ordering,
   stale tabs, fixture ordering, etc.
@@ -66,11 +78,11 @@ fails the corresponding test.
    session state rebuilds and bus round-trips still work on the fresh
    client.
 8. `08-hover-beckon.spec.ts` — hover over an annotation, confirm the
-   BeckonVM focus/sparkle signal flows. Auto-skips if the fixture
+   BeckonStateUnit focus/sparkle signal flows. Auto-skips if the fixture
    resource has no annotations (the template KB starts empty;
    tests 04 and 05 create annotations when they run).
 9. `99-diagnose-entity-types.spec.ts` — instance-tracking diagnostic
-   for the entity-types flow (ActorVM / BrowseNamespace construction
+   for the entity-types flow (ActorStateUnit / BrowseNamespace construction
    counts + cache delivery). Not a regression guard — a running
    dashboard for the singleton-ness invariants the SSE reconnect
    logic depends on.

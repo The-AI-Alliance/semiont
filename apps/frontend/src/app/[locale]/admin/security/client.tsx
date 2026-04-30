@@ -9,24 +9,24 @@ import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellVM, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
-import { createAdminSecurityVM } from '@semiont/react-ui';
-import { useViewModel } from '@semiont/react-ui';
+import { createAdminSecurityStateUnit } from '@semiont/react-ui';
+import { useStateUnit } from '@semiont/react-ui';
 
 export default function AdminSecurity() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminSecurity.${k}`, p as any) as string;
 
   const semiont = useObservable(useSemiont().activeSession$)?.client;
-  const browseVM = useShellVM();
-  const vm = useViewModel(() => createAdminSecurityVM(semiont!, browseVM));
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createAdminSecurityStateUnit(semiont!, browseStateUnit));
 
-  const activePanel = useObservable(vm.browse.activePanel$) ?? null;
-  const providers = useObservable(vm.providers$) ?? [];
-  const allowedDomains = useObservable(vm.allowedDomains$) ?? [];
-  const isLoading = useObservable(vm.isLoading$) ?? true;
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const providers = useObservable(stateUnit.providers$) ?? [];
+  const allowedDomains = useObservable(stateUnit.allowedDomains$) ?? [];
+  const isLoading = useObservable(stateUnit.isLoading$) ?? true;
 
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();

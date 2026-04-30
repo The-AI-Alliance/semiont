@@ -3,7 +3,31 @@
  *
  * Provides static methods to build AI prompts for each Web Annotation motivation type.
  * Extracted from worker implementations to centralize prompt logic.
+ *
+ * Locale handling: builders take two optional BCP-47 tags. `language` is the
+ * locale the *generated body text* should be written in (sourced from the user's
+ * UI locale); `sourceLanguage` is the locale of the *text being analyzed*
+ * (sourced from `ResourceDescriptor` / its primary representation). They are
+ * independent — see `types.ts` "Locale conventions" for the full discussion.
  */
+
+import { getLocaleEnglishName } from '@semiont/core';
+
+function languageName(tag: string): string {
+  return getLocaleEnglishName(tag) || tag;
+}
+
+/** Returns "Source text language: <Name>." or empty string. */
+function sourceLanguageGuidance(sourceLanguage?: string): string {
+  if (!sourceLanguage) return '';
+  return `\n\nSource text language: ${languageName(sourceLanguage)}.`;
+}
+
+/** Returns "Write your <kind> in <Name>." or empty string. */
+function bodyLanguageGuidance(language: string | undefined, kind: string): string {
+  if (!language || language === 'en') return '';
+  return `\n\nIMPORTANT: Write your ${kind} in ${languageName(language)}.`;
+}
 
 export class MotivationPrompts {
   /**
@@ -19,9 +43,13 @@ export class MotivationPrompts {
     content: string,
     instructions?: string,
     tone?: string,
-    density?: number
+    density?: number,
+    language?: string,
+    sourceLanguage?: string
   ): string {
     let prompt: string;
+    const sourceLang = sourceLanguageGuidance(sourceLanguage);
+    const bodyLang = bodyLanguageGuidance(language, 'comments');
 
     if (instructions) {
       // User provided specific instructions - minimal prompt, let instructions drive behavior
@@ -32,7 +60,7 @@ export class MotivationPrompts {
 
       prompt = `Add comments to passages in this text following these instructions:
 
-${instructions}${toneGuidance}${densityGuidance}
+${instructions}${toneGuidance}${densityGuidance}${sourceLang}${bodyLang}
 
 Text to analyze:
 ---
@@ -70,7 +98,7 @@ Guidelines:
 - Provide comments that ADD VALUE beyond restating the text
 - Focus on explanation, background, or connections to other ideas
 - Avoid obvious or trivial comments
-- Keep comments concise (1-3 sentences typically)${densityGuidance}
+- Keep comments concise (1-3 sentences typically)${densityGuidance}${sourceLang}${bodyLang}
 
 Text to analyze:
 ---
@@ -107,9 +135,11 @@ Example format:
   static buildHighlightPrompt(
     content: string,
     instructions?: string,
-    density?: number
+    density?: number,
+    sourceLanguage?: string
   ): string {
     let prompt: string;
+    const sourceLang = sourceLanguageGuidance(sourceLanguage);
 
     if (instructions) {
       // User provided specific instructions - minimal prompt, let instructions drive behavior
@@ -119,7 +149,7 @@ Example format:
 
       prompt = `Identify passages in this text to highlight following these instructions:
 
-${instructions}${densityGuidance}
+${instructions}${densityGuidance}${sourceLang}
 
 Text to analyze:
 ---
@@ -154,7 +184,7 @@ Guidelines:
 - Highlight notable quotes or particularly striking statements
 - Highlight critical decisions, action items, or turning points
 - Select passages that are SIGNIFICANT, not just interesting
-- Avoid trivial or obvious content${densityGuidance}
+- Avoid trivial or obvious content${densityGuidance}${sourceLang}
 
 Text to analyze:
 ---
@@ -192,9 +222,13 @@ Example format:
     content: string,
     instructions?: string,
     tone?: string,
-    density?: number
+    density?: number,
+    language?: string,
+    sourceLanguage?: string
   ): string {
     let prompt: string;
+    const sourceLang = sourceLanguageGuidance(sourceLanguage);
+    const bodyLang = bodyLanguageGuidance(language, 'assessments');
 
     if (instructions) {
       // User provided specific instructions - minimal prompt, let instructions drive behavior
@@ -205,7 +239,7 @@ Example format:
 
       prompt = `Assess passages in this text following these instructions:
 
-${instructions}${toneGuidance}${densityGuidance}
+${instructions}${toneGuidance}${densityGuidance}${sourceLang}${bodyLang}
 
 Text to analyze:
 ---
@@ -243,7 +277,7 @@ Guidelines:
 - Assess evidence quality, logical soundness, or practical implications
 - Provide assessments that ADD INSIGHT beyond restating the text
 - Focus on passages where evaluation would help readers form judgments
-- Keep assessments concise yet substantive (1-3 sentences typically)${densityGuidance}
+- Keep assessments concise yet substantive (1-3 sentences typically)${densityGuidance}${sourceLang}${bodyLang}
 
 Text to analyze:
 ---
@@ -288,9 +322,15 @@ Example format:
     schemaDescription: string,
     schemaDomain: string,
     categoryDescription: string,
-    categoryExamples: string[]
+    categoryExamples: string[],
+    sourceLanguage?: string
   ): string {
-    // Build prompt with schema context and category-specific guidance
+    // Tags are schema-defined identifiers ("Issue", "Rule") — the LLM doesn't
+    // generate the category label, so there's no body-language guidance here.
+    // Only `sourceLanguage` is wired into the prompt; `language` (body locale)
+    // is consumed at the body-stamp site in `processors.ts`.
+    const sourceLang = sourceLanguageGuidance(sourceLanguage);
+
     const prompt = `You are analyzing a text using the ${schemaName} framework.
 
 Schema: ${schemaDescription}
@@ -309,7 +349,7 @@ Guidelines:
 - Look for passages that explicitly fulfill this role
 - Passages can be sentences, paragraphs, or sections
 - Aim for precision - only tag passages that clearly serve this structural role
-- Typical documents have 1-5 instances of each category (some may have 0)
+- Typical documents have 1-5 instances of each category (some may have 0)${sourceLang}
 
 Text to analyze:
 ---

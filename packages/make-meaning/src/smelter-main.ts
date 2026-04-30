@@ -15,7 +15,7 @@
 
 import { Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import { createSmelterActorVM, type SmelterActorVM } from './smelter-actor-vm';
+import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { HttpTransport } from '@semiont/api-client';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken } from '@semiont/core';
 import { BehaviorSubject } from 'rxjs';
@@ -368,7 +368,7 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
   });
-  const actorVM: SmelterActorVM = createSmelterActorVM({
+  const actorStateUnit: SmelterActorStateUnit = createSmelterActorStateUnit({
     bus: httpTransport.actor,
   });
 
@@ -395,12 +395,12 @@ async function main() {
     error: (err) => logger.error('Pipeline error', { error: err instanceof Error ? err.message : String(err) }),
   });
 
-  actorVM.events$.subscribe((event) => {
+  actorStateUnit.events$.subscribe((event) => {
     logger.debug('Bus event received', { type: event.type, resourceId: event.resourceId });
     eventSubject.next(event);
   });
 
-  actorVM.start();
+  actorStateUnit.start();
   logger.info('Subscribed to domain events');
 
   const health = createServer((req, res) => {
@@ -418,7 +418,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
-    actorVM.dispose();
+    actorStateUnit.dispose();
     httpTransport.dispose();
     pipelineSubscription.unsubscribe();
     eventSubject.complete();

@@ -1,9 +1,9 @@
 /**
  * WorkerBus — minimal channel-bus surface that worker-side adapters
- * (e.g. `JobClaimAdapter` in `@semiont/jobs`, `SmelterActorVM` in
+ * (e.g. `JobClaimAdapter` in `@semiont/jobs`, `SmelterActorStateUnit` in
  * `@semiont/make-meaning`) need.
  *
- * Transport-neutral by design. HTTP `ActorVM` (from `@semiont/api-client`)
+ * Transport-neutral by design. HTTP `ActorStateUnit` (from `@semiont/api-client`)
  * satisfies it directly; an in-process worker can pass a small shim around
  * an `EventBus` with a `() => Promise<void>` `emit` that calls into the
  * actor system.

@@ -62,7 +62,7 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
    - AssessmentDetectionWorker
    - CommentDetectionWorker
    - TagDetectionWorker
-   - Workers connect to the KS over HTTP/SSE via WorkerVM (from @semiont/api-client), not via the in-process EventBus
+   - Workers connect to the KS over HTTP/SSE via WorkerStateUnit (from @semiont/api-client), not via the in-process EventBus
 
 7. **GraphDBConsumer** - Event-to-graph synchronization
    - Subscribes to event store
@@ -259,7 +259,7 @@ The backend runs as two processes:
 
 1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, the HTTP API, and the job queue.
 
-2. **Worker Pool** -- a separate process external. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerVM` from `@semiont/api-client` to connect to the KS over HTTP and SSE -- the same transport the frontend uses.
+2. **Worker Pool** -- a separate process external. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerStateUnit` from `@semiont/api-client` to connect to the KS over HTTP and SSE -- the same transport the frontend uses.
 
 ### Worker Endpoints
 

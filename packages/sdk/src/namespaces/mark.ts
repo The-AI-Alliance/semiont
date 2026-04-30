@@ -159,7 +159,7 @@ export class MarkNamespace implements IMarkNamespace {
     selector: components['schemas']['MarkRequestedEvent']['selector'],
     motivation: Motivation,
   ): void {
-    // Local emit: mark-vm subscribes via the local bus.
+    // Local emit: mark-state-unit subscribes via the local bus.
     this.bus.get('mark:requested').next({ selector, motivation });
   }
 
@@ -227,6 +227,7 @@ export class MarkNamespace implements IMarkNamespace {
     if (options.density !== undefined) params.density = options.density;
     if (options.tone !== undefined) params.tone = options.tone;
     if (options.language !== undefined) params.language = options.language;
+    if (options.sourceLanguage !== undefined) params.sourceLanguage = options.sourceLanguage;
     if (options.schemaId !== undefined) params.schemaId = options.schemaId;
     if (options.categories !== undefined) params.categories = options.categories;
 

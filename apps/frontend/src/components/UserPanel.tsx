@@ -6,8 +6,8 @@ import {
   formatTime,
   useSemiont,
   useObservable,
-  createSessionVM,
-  useViewModel,
+  createSessionStateUnit,
+  useStateUnit,
 } from '@semiont/react-ui';
 import { useRouter } from '@/i18n/routing';
 
@@ -27,7 +27,7 @@ export function UserPanel() {
   const isAdmin = user?.isAdmin ?? false;
   const isModerator = user?.isModerator ?? false;
   const apiClient = session?.client;
-  const sessionVM = useViewModel(() => createSessionVM(apiClient!));
+  const sessionStateUnit = useStateUnit(() => createSessionStateUnit(apiClient!));
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
@@ -49,7 +49,7 @@ export function UserPanel() {
   })();
 
   const handleSignOut = async () => {
-    await sessionVM.logout();
+    await sessionStateUnit.logout();
     if (activeKnowledgeBase) {
       await semiont.signOut(activeKnowledgeBase.id);
     }

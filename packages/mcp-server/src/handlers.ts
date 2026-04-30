@@ -100,6 +100,11 @@ export async function markAssist(semiont: SemiontClient, args: any): Promise<Mcp
       semiont.mark.assist(rId, 'linking', {
         entityTypes: args?.entityTypes || [],
         includeDescriptiveReferences: false,
+        // Annotation body locale (stamped on the unresolved-reference
+        // body's `language` field) and source-resource locale (fed into
+        // the prompt). Both optional — caller specifies BCP-47 tags.
+        language: args?.language,
+        sourceLanguage: args?.sourceLanguage,
       }).pipe(
         tap((e) => {
           if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage ?? 0}%`);
@@ -167,6 +172,11 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
   // a `complete` event carrying the JobCompleteCommand (with `result`).
   const progressMessages: string[] = [];
   try {
+    // Default sourceLanguage from the gathered context's metadata, which the
+    // backend populates from the primary representation. Caller can still
+    // override via args.sourceLanguage.
+    const ctxSourceLanguage = (ctx as { metadata?: { language?: string } } | undefined)?.metadata?.language;
+
     await lastValueFrom(
       semiont.yield.fromAnnotation(rId, aId, {
         title: args?.title ?? 'Generated',
@@ -174,6 +184,7 @@ export async function yieldFromAnnotation(semiont: SemiontClient, args: any): Pr
         context: ctx,
         prompt: args?.prompt,
         language: args?.language,
+        sourceLanguage: args?.sourceLanguage ?? ctxSourceLanguage,
       }).pipe(
         tap((e) => {
           if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage}%`);

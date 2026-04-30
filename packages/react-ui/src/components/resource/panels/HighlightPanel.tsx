@@ -31,6 +31,8 @@ interface HighlightPanelProps {
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
+  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call so the LLM analyzes non-English source correctly. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -48,6 +50,7 @@ export function HighlightPanel({
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
+  sourceLanguage,
 }: HighlightPanelProps) {
 
   const t = useTranslations('HighlightPanel');
@@ -151,6 +154,7 @@ export function HighlightPanel({
             annotationType="highlight"
             isAssisting={isAssisting}
             progress={progress}
+            sourceLanguage={sourceLanguage}
           />
         )}
 

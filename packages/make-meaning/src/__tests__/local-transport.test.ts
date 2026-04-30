@@ -3,7 +3,7 @@
  *
  * Exercises the namespace surface and bus bridge against a real
  * `KnowledgeSystem` booted in-process via `startMakeMeaning`. No HTTP
- * mock, no actor-vm mock — the bus events flow through the same actors
+ * mock, no actor-state-unit mock — the bus events flow through the same actors
  * production uses, just bridged into the client via `LocalTransport`.
  */
 

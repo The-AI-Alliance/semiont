@@ -74,7 +74,7 @@ export class JobNamespace implements IJobNamespace {
   }
 
   cancelRequest(jobType: 'annotation' | 'generation'): void {
-    // Local emit: the batch-cancel widget fires this; a VM subscribes and
+    // Local emit: the batch-cancel widget fires this; a state unit subscribes and
     // translates into individual cancels.
     this.bus.get('job:cancel-requested').next({ jobType });
   }

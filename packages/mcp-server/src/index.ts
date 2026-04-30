@@ -95,6 +95,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           resourceId: { type: 'string', description: 'Resource ID' },
           entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types to detect (for linking motivation)' },
+          language: { type: 'string', description: 'BCP-47 tag for the annotation body language (what the LLM writes). Stamped on TextualBody.language.' },
+          sourceLanguage: { type: 'string', description: 'BCP-47 tag for the source-resource language. Fed into the prompt for source-aware analysis.' },
         },
         required: ['resourceId'],
       },
@@ -154,7 +156,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           title: { type: 'string' },
           storageUri: { type: 'string' },
           prompt: { type: 'string', description: 'AI generation prompt' },
-          language: { type: 'string' },
+          language: { type: 'string', description: 'BCP-47 tag — language the generated resource is written in.' },
+          sourceLanguage: { type: 'string', description: 'BCP-47 tag — language of the source resource the annotation lives on. Defaults to the gathered context metadata.' },
         },
         required: ['resourceId', 'annotationId', 'storageUri'],
       },

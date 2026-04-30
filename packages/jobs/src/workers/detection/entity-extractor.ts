@@ -1,5 +1,5 @@
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger } from '@semiont/core';
+import { getLocaleEnglishName, type Logger } from '@semiont/core';
 
 /**
  * Entity reference extracted from text
@@ -14,13 +14,19 @@ export interface ExtractedEntity {
 }
 
 /**
- * Extract entity references from text using AI
+ * Extract entity references from text using AI.
+ *
+ * Locale: entity references' bodies are entity-type identifiers (not
+ * LLM-generated natural-language text), so only `sourceLanguage` (source-
+ * resource locale) is meaningful here — it's used in the prompt so the LLM
+ * analyzes non-English source correctly. There's no body-locale parameter.
  *
  * @param text - The text to analyze
  * @param entityTypes - Array of entity types to detect (optionally with examples)
  * @param client - Inference client for AI operations
  * @param includeDescriptiveReferences - Include anaphoric/cataphoric references (default: false)
  * @param logger - Optional logger for debugging entity extraction
+ * @param sourceLanguage - BCP-47 tag for the source content's language
  * @returns Array of extracted entities with their character offsets
  */
 export async function extractEntities(
@@ -28,7 +34,8 @@ export async function extractEntities(
   entityTypes: string[] | { type: string; examples?: string[] }[],
   client: InferenceClient,
   includeDescriptiveReferences: boolean = false,
-  logger?: Logger
+  logger?: Logger,
+  sourceLanguage?: string
 ): Promise<ExtractedEntity[]> {
 
   // Format entity types for the prompt
@@ -70,8 +77,12 @@ Examples:
 Find direct mentions only (names, proper nouns). Do not include pronouns or descriptive references.
 `;
 
+  const sourceLangGuidance = sourceLanguage
+    ? `\nSource text language: ${getLocaleEnglishName(sourceLanguage) || sourceLanguage}.\n`
+    : '';
+
   const prompt = `Identify entity references in the following text. Look for mentions of: ${entityTypesDescription}.
-${descriptiveReferenceGuidance}
+${descriptiveReferenceGuidance}${sourceLangGuidance}
 Text to analyze:
 """
 ${exact}
