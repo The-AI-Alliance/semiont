@@ -41,6 +41,11 @@ export default defineConfig({
   workers: 1,
   retries: 0,            // Flakes should be diagnosed, not retried away.
   reporter: [['list'], ['html', { open: 'never' }]],
+  // Seed the KB with the minimum fixtures the suite assumes (≥2
+  // resources). Idempotent — re-runs against an already-seeded KB
+  // skip cleanly. Goes through `@semiont/sdk` like every other
+  // production caller. See `scripts/seed.ts`.
+  globalSetup: require.resolve('./scripts/seed.ts'),
   use: {
     baseURL: FRONTEND_URL,
     trace: 'retain-on-failure',
