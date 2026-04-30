@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
@@ -531,5 +531,74 @@ describe('YieldNamespace', () => {
 
     bus.destroy();
     vi.useRealTimers();
+  });
+});
+
+/**
+ * Regression guard for the browser-upload bug surfaced at /know/compose:
+ * `yield.resource()` referenced the Node global `Buffer` directly via
+ * `data.file instanceof Buffer`, which throws `ReferenceError: Buffer
+ * is not defined` synchronously in browsers (Buffer is not a browser
+ * global).
+ *
+ * The fix gates the Buffer branch on a runtime check
+ * (`typeof Buffer !== 'undefined'`); these tests pin that behavior
+ * by deleting `globalThis.Buffer` and verifying the upload path
+ * still works for File-shaped inputs.
+ */
+describe('YieldNamespace.resource — runtime fallback when Buffer is unavailable', () => {
+  let savedBuffer: typeof globalThis.Buffer | undefined;
+  let eventBus: EventBus;
+  let content: IContentTransport;
+  let yld: YieldNamespace;
+
+  beforeEach(() => {
+    eventBus = new EventBus();
+    content = makeMockContent();
+    const mock = createMockTransport();
+    yld = new YieldNamespace(mock.transport, eventBus, content);
+
+    // Force-undefine `Buffer` to model a browser runtime. Saved so we
+    // can restore it for sibling tests that depend on `Buffer.from(...)`.
+    savedBuffer = globalThis.Buffer;
+    delete (globalThis as unknown as { Buffer?: unknown }).Buffer;
+  });
+
+  afterEach(() => {
+    if (savedBuffer !== undefined) {
+      (globalThis as unknown as { Buffer: typeof globalThis.Buffer }).Buffer = savedBuffer;
+    }
+  });
+
+  it('emits started → finished with a File-shaped input when Buffer is undefined', async () => {
+    // Browser shape: an object with `.size`, no Buffer involvement.
+    const file = { size: 4096 } as File;
+
+    const events: any[] = [];
+    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' } as any).subscribe({
+      next: (e) => events.push(e),
+      error: (e) => events.push({ kind: 'error', error: e }),
+    });
+
+    // Pre-fix this would throw `Buffer is not defined` synchronously
+    // before `started` ever fires. With the typeof guard, the Buffer
+    // branch is short-circuited and the size is read from `.size`.
+    expect(events[0]).toEqual({ phase: 'started', totalBytes: 4096 });
+    expect(events.some((e) => e.kind === 'error')).toBe(false);
+
+    // Let the mocked putBinary resolve and `finished` to fire.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events.at(-1)).toMatchObject({ phase: 'finished' });
+  });
+
+  it('passes the File through to content.putBinary unchanged', async () => {
+    const file = { size: 1024 } as File;
+    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' } as any).subscribe();
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(content.putBinary).toHaveBeenCalledWith(
+      expect.objectContaining({ file, name: 'doc' }),
+      expect.objectContaining({ onProgress: expect.any(Function), signal: expect.any(AbortSignal) }),
+    );
   });
 });
