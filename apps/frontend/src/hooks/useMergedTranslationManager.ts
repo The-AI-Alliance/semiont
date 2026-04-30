@@ -29,8 +29,13 @@ export function useMergedTranslationManager(): TranslationManager {
 
         if (params && typeof translation === 'string') {
           let result = translation;
+          // Translations use double-brace placeholders (`{{paramKey}}`) for
+          // parameter interpolation — same convention as the reference
+          // TranslationContext engine in @semiont/react-ui. A single-brace
+          // pattern silently mis-matches by stripping only the inside pair,
+          // leaving artifacts like `{Light}` in the rendered output.
           Object.entries(params).forEach(([paramKey, paramValue]) => {
-            result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+            result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
           });
           return result;
         }
