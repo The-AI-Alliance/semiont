@@ -31,57 +31,59 @@ import { SemiontClient } from '@semiont/sdk';
 interface SeedSpec {
   name: string;
   storageUri: string;
-  format: 'text/markdown';
+  format: 'text/plain';
   language: string;
   content: string;
 }
 
-// Two short markdown documents. Each has multiple paragraphs so the
-// manual-highlight / manual-reference / comment specs have text to
-// select. Names + storageUris are stable so a re-run sees the same KB
-// shape.
+// Two short documents in `text/plain` (NOT `text/markdown`). The
+// markdown MIME type triggers ReactMarkdown rendering in BrowseView,
+// which strips header syntax (`#`, `**`, etc.) from the rendered DOM.
+// Annotations placed on those source-only characters can't be resolved
+// to rendered positions, and the in-content overlay silently skips
+// them — meaning the annotation persists but never renders an
+// `[data-annotation-id]` span. Plain text has a 1:1 source↔rendered
+// offset mapping, so any selection round-trips and renders.
+//
+// Each document has multiple paragraphs so the manual-highlight /
+// manual-reference / comment / hover-beckon specs have text to select.
+// Names + storageUris are stable so a re-run sees the same KB shape.
 const SEED_RESOURCES: readonly SeedSpec[] = [
   {
     name: 'Quantum Computing Primer',
-    storageUri: 'file://e2e/seed-1.md',
-    format: 'text/markdown',
+    storageUri: 'file://e2e/seed-1.txt',
+    format: 'text/plain',
     language: 'en',
     content:
-      '# Quantum Computing Primer\n\n' +
-      'Quantum computing is a model of computation that uses quantum-mechanical\n' +
-      'phenomena, such as superposition and entanglement, to perform operations\n' +
-      'on data. Where a classical bit is either 0 or 1, a qubit can be a\n' +
+      'Quantum computing is a model of computation that uses quantum-mechanical ' +
+      'phenomena, such as superposition and entanglement, to perform operations on ' +
+      'data. Where a classical bit is either zero or one, a qubit can be a ' +
       'superposition of both states until measured.\n\n' +
-      '## Qubits and superposition\n\n' +
-      'A qubit is the quantum analogue of a bit. Its state is described by a\n' +
-      'two-dimensional complex vector. Measurement collapses the qubit to one of\n' +
-      'the two basis states with probabilities determined by the squared\n' +
-      'magnitudes of the amplitudes.\n\n' +
-      '## Entanglement\n\n' +
-      'When two or more qubits become entangled, their joint state cannot be\n' +
-      'expressed as a product of individual qubit states. Operations on one\n' +
+      'A qubit is the quantum analogue of a bit. Its state is described by a ' +
+      'two-dimensional complex vector. Measurement collapses the qubit to one of ' +
+      'the two basis states with probabilities determined by the squared magnitudes ' +
+      'of the amplitudes.\n\n' +
+      'When two or more qubits become entangled, their joint state cannot be ' +
+      'expressed as a product of individual qubit states. Operations on one ' +
       'entangled qubit instantaneously affect the others, regardless of distance.\n',
   },
   {
     name: 'Photosynthesis Overview',
-    storageUri: 'file://e2e/seed-2.md',
-    format: 'text/markdown',
+    storageUri: 'file://e2e/seed-2.txt',
+    format: 'text/plain',
     language: 'en',
     content:
-      '# Photosynthesis Overview\n\n' +
-      'Photosynthesis is the process by which plants, algae, and certain bacteria\n' +
-      'convert light energy into chemical energy stored in glucose. The overall\n' +
-      'reaction transforms carbon dioxide and water into sugar and oxygen, using\n' +
+      'Photosynthesis is the process by which plants, algae, and certain bacteria ' +
+      'convert light energy into chemical energy stored in glucose. The overall ' +
+      'reaction transforms carbon dioxide and water into sugar and oxygen, using ' +
       'sunlight as the energy input.\n\n' +
-      '## Light reactions\n\n' +
-      'The light-dependent reactions occur in the thylakoid membranes of\n' +
-      'chloroplasts. Chlorophyll absorbs photons and transfers electrons through\n' +
-      'a chain of carriers, generating ATP and NADPH while splitting water\n' +
-      'molecules and releasing oxygen as a byproduct.\n\n' +
-      '## Calvin cycle\n\n' +
-      'The light-independent reactions, known as the Calvin cycle, take place in\n' +
-      'the chloroplast stroma. The enzyme RuBisCO fixes carbon dioxide onto a\n' +
-      'five-carbon sugar, and a series of reductions powered by ATP and NADPH\n' +
+      'The light-dependent reactions occur in the thylakoid membranes of ' +
+      'chloroplasts. Chlorophyll absorbs photons and transfers electrons through a ' +
+      'chain of carriers, generating ATP and NADPH while splitting water molecules ' +
+      'and releasing oxygen as a byproduct.\n\n' +
+      'The light-independent reactions, known as the Calvin cycle, take place in ' +
+      'the chloroplast stroma. The enzyme RuBisCO fixes carbon dioxide onto a ' +
+      'five-carbon sugar, and a series of reductions powered by ATP and NADPH ' +
       'produce glucose and other organic molecules.\n',
   },
 ];
