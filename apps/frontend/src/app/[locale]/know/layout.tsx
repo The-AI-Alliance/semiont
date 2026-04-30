@@ -86,7 +86,6 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
           activePanel={activePanel}
           showLineNumbers={showLineNumbers}
           theme={theme}
-          hoverDelayMs={150}
         />
         <Toolbar activePanel={activePanel} context="simple" />
       </div>
