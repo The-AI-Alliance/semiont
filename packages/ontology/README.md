@@ -6,14 +6,15 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/ontology.svg)](https://www.npmjs.com/package/@semiont/ontology)
 [![License](https://img.shields.io/npm/l/@semiont/ontology.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Entity types, tag schemas, and tag extraction utilities for the Semiont annotation system.
+Entity types and annotation-body extraction utilities for the Semiont annotation system.
 
 ## Overview
 
-This package consolidates ontology-related code that was previously scattered across the codebase:
-- **Entity types**: Semantic categories for tagging resources and annotations (Person, Organization, Location, etc.)
-- **Tag schemas**: Structural analysis frameworks (IRAC for legal, IMRAD for scientific, Toulmin for argumentation)
-- **Tag extraction**: Utilities for extracting tag information from W3C annotations
+This package owns:
+- **Entity types**: Semantic categories for tagging resources and annotations (Person, Organization, Location, etc.) — `DEFAULT_ENTITY_TYPES` plus the extraction helper `getEntityTypes`.
+- **Tag extraction helpers**: Pure body-readers (`getTagCategory`, `getTagSchemaId`) that pull schema provenance off an annotation's body. They don't depend on the schema registry.
+
+**Tag schemas are not stored in this package.** Schemas are runtime-registered per knowledge base via `frame.addTagSchema(...)` from the SDK; the `TagSchema` and `TagCategory` *types* are exported from `@semiont/core`. The schema *data* lives with the KB that owns it (typically a `src/tag-schemas.ts` module in the KB repo).
 
 ## Installation
 
@@ -37,34 +38,20 @@ console.log(DEFAULT_ENTITY_TYPES);
 
 ### Tag Schemas
 
-Three built-in tag schemas for structural document analysis:
+Tag schemas are runtime-registered per KB (see [`docs/protocol/skills/semiont-tag/SKILL.md`](../../docs/protocol/skills/semiont-tag/SKILL.md) and [`.plans/TAG-SCHEMAS-GAP.md`](../../.plans/TAG-SCHEMAS-GAP.md)). The `TagSchema` and `TagCategory` *types* live in `@semiont/core`; schema *data* lives with the KB that owns it. Use `frame.addTagSchema(schema)` to register and `browse.tagSchemas()` to enumerate registered schemas.
 
 ```typescript
-import {
-  TAG_SCHEMAS,
-  getTagSchema,
-  getAllTagSchemas,
-  getTagSchemasByDomain
-} from '@semiont/ontology';
+import { SemiontClient, type TagSchema } from '@semiont/sdk';
 
-// Get a specific schema
-const iracSchema = getTagSchema('legal-irac');
-// Returns: { id: 'legal-irac', name: 'Legal Analysis (IRAC)',
-//           domain: 'legal', tags: [...] }
+const semiont = await SemiontClient.signInHttp({ /* ... */ });
 
-// Get all schemas
-const allSchemas = getAllTagSchemas();
-// Returns array of all 3 schemas
+// Register a schema (idempotent — same content re-registered is silent)
+const SCHEMA: TagSchema = { id: 'my-schema', name: '...', /* ... */ };
+await semiont.frame.addTagSchema(SCHEMA);
 
-// Get schemas by domain
-const legalSchemas = getTagSchemasByDomain('legal');
-// Returns schemas where domain === 'legal'
+// Enumerate registered schemas
+const all = await semiont.browse.tagSchemas();
 ```
-
-Available schemas (from [src/tag-schemas.ts](src/tag-schemas.ts)):
-- `legal-irac`: Legal Analysis (IRAC) - Issue, Rule, Application, Conclusion
-- `scientific-imrad`: Scientific Paper (IMRAD) - Introduction, Methods, Results, Discussion
-- `argument-toulmin`: Argument Structure (Toulmin) - Claim, Evidence, Warrant, Counterargument, Rebuttal
 
 ### Entity Extraction
 
@@ -117,30 +104,6 @@ const schemaId = getTagSchemaId(tagAnnotation);
 
 From [src/tag-extraction.ts](src/tag-extraction.ts): Tag annotations use dual-body structure with `purpose: 'tagging'` for category and `purpose: 'classifying'` for schema ID.
 
-### Tag Schema Helpers
-
-```typescript
-import { isValidCategory, getSchemaCategory } from '@semiont/ontology';
-
-// Check if a category exists in a schema
-const isValid = isValidCategory('legal-irac', 'Issue');
-// Returns: true
-
-const invalid = isValidCategory('legal-irac', 'Conclusion');
-// Returns: true (all 4 IRAC categories are valid)
-
-const notValid = isValidCategory('legal-irac', 'Introduction');
-// Returns: false (Introduction is IMRAD, not IRAC)
-
-// Get category details
-const category = getSchemaCategory('legal-irac', 'Rule');
-// Returns: {
-//   name: 'Rule',
-//   description: 'The relevant law, statute, or legal principle',
-//   examples: ['What law applies?', 'What is the legal standard?', ...]
-// }
-```
-
 ## Tag Collections
 
 Type definitions for graph database tag collection operations:
@@ -181,10 +144,8 @@ packages/ontology/
 │   ├── index.ts                # Public API exports
 │   ├── entity-types.ts         # DEFAULT_ENTITY_TYPES
 │   ├── tag-collections.ts      # TagCollection interfaces
-│   ├── tag-schemas.ts          # TAG_SCHEMAS registry
 │   ├── entity-extraction.ts    # getEntityTypes utility
-│   ├── tag-extraction.ts       # getTagCategory, getTagSchemaId
-│   └── bootstrap.ts            # Re-export note (actual bootstrap in backend)
+│   └── tag-extraction.ts       # getTagCategory, getTagSchemaId
 ├── package.json
 ├── tsconfig.json
 ├── tsup.config.ts

@@ -328,69 +328,20 @@ Image annotations must be stored using **native image coordinates**, not display
 
 ## Tag Schemas
 
-Structural analysis frameworks for document classification. Tag schemas define categories that passages can be classified into based on their structural role.
+Structural-analysis frameworks for document classification. A `TagSchema` defines categories that passages can be classified into based on their structural role (e.g. IRAC for legal reasoning, IMRAD for scientific papers, Toulmin for argumentation).
 
-### Available Schemas
+Tag schemas are **runtime-registered per knowledge base** via `frame.addTagSchema(...)` from the SDK. The `TagSchema` and `TagCategory` *types* are exported from `@semiont/core`; the schema *data* lives with the KB that uses it (typically a `src/tag-schemas.ts` module in the KB repo). See [`docs/protocol/skills/semiont-tag/SKILL.md`](../../../docs/protocol/skills/semiont-tag/SKILL.md) for the full protocol-level story.
 
-```typescript
-import {
-  getAllTagSchemas,
-  getTagSchema,
-  getTagSchemasByDomain,
-  getSchemaCategory,
-  isValidCategory
-} from '@semiont/api-client';
-
-// Get all available schemas
-const schemas = getAllTagSchemas();
-// Returns: [{ id: 'legal-irac', name: 'Legal Analysis (IRAC)', ... }, ...]
-
-// Get schemas by domain
-const legalSchemas = getTagSchemasByDomain('legal');
-const scientificSchemas = getTagSchemasByDomain('scientific');
-const generalSchemas = getTagSchemasByDomain('general');
-```
-
-### Built-in Schemas
-
-**Legal Domain:**
-- **IRAC** (`legal-irac`) - Issue, Rule, Application, Conclusion
-
-**Scientific Domain:**
-- **IMRAD** (`scientific-imrad`) - Introduction, Methods, Results, Discussion
-
-**General Domain:**
-- **Toulmin** (`argument-toulmin`) - Claim, Evidence, Warrant, Counterargument, Rebuttal
-
-### Working with Schemas
+### Type Shape
 
 ```typescript
-import { getTagSchema, getSchemaCategory, isValidCategory } from '@semiont/api-client';
+import type { TagSchema, TagCategory } from '@semiont/core';
 
-// Get a specific schema
-const schema = getTagSchema('legal-irac');
-console.log(schema?.name); // "Legal Analysis (IRAC)"
-console.log(schema?.tags); // [{ name: 'Issue', description: '...', examples: [...] }, ...]
-
-// Get a specific category from a schema
-const category = getSchemaCategory('legal-irac', 'Rule');
-console.log(category?.description); // "The relevant law, statute, or legal principle"
-console.log(category?.examples); // ["What law applies?", "What is the legal standard?", ...]
-
-// Validate category name
-if (isValidCategory('legal-irac', 'Rule')) {
-  console.log('Valid category!');
-}
-```
-
-### Tag Schema Structure
-
-```typescript
 interface TagSchema {
   id: string;
   name: string;
   description: string;
-  domain: 'legal' | 'scientific' | 'general';
+  domain: string;        // free-form hint ('legal', 'scientific', 'general', or whatever the KB uses)
   tags: TagCategory[];
 }
 
@@ -401,7 +352,22 @@ interface TagCategory {
 }
 ```
 
-**Use Case:** Tag schemas enable AI-powered structural analysis of documents. For example, detecting which passages in a legal brief serve as "Issue", "Rule", "Application", or "Conclusion" sections.
+### Registering and enumerating
+
+```typescript
+import { SemiontClient, type TagSchema } from '@semiont/sdk';
+
+const semiont = await SemiontClient.signInHttp({ /* ... */ });
+
+// Register at runtime — idempotent (same content re-registered is silent)
+const SCHEMA: TagSchema = { id: 'my-schema', name: '...', /* ... */ };
+await semiont.frame.addTagSchema(SCHEMA);
+
+// Enumerate registered schemas (cached, refreshes on frame:tag-schema-added)
+const all = await semiont.browse.tagSchemas();
+```
+
+**Use Case:** Tag schemas enable AI-powered structural analysis of documents — `mark.assist(rid, 'tagging', { schemaId, categories })` detects which passages serve as Issue / Rule / Application / Conclusion in a legal brief, or Introduction / Methods / Results / Discussion in a research paper.
 
 ## Annotation Utilities
 
