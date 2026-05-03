@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "태그",
     "noTags": "아직 태그가 없습니다. AI 주석을 사용하여 구조적 역할을 식별하세요.",
+    "noSchemas": "이 지식 베이스에 등록된 태그 스키마가 없습니다. 태그를 사용하기 전에 KB 관리자가 최소한 하나의 구조 분석 스키마를 등록해야 합니다(예: `register-tag-schemas` 스킬을 통해).",
     "annotateTags": "태그 주석",
     "selectSchema": "프레임워크 선택",
     "schemaLegal": "법률 분석 (IRAC)",

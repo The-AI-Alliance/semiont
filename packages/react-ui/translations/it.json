@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Etichette",
     "noTags": "Nessuna etichetta ancora. Usa l'annotazione IA per identificare i ruoli strutturali.",
+    "noSchemas": "Nessuno schema di tag registrato per questa knowledge base. Un amministratore della KB deve registrare almeno uno schema di analisi strutturale (ad es. tramite l'abilità `register-tag-schemas`) prima che il tagging possa essere utilizzato.",
     "annotateTags": "Annota Etichette",
     "selectSchema": "Seleziona Framework",
     "schemaLegal": "Analisi Giuridica (IRAC)",

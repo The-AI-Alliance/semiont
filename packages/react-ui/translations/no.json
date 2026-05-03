@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Merker",
     "noTags": "Ingen merker ennå. Bruk AI-annotering for å identifisere strukturelle roller.",
+    "noSchemas": "Ingen tag-skjemaer registrert for denne kunnskapsbasen. En KB-administrator må registrere minst ett strukturanalyse-skjema (f.eks. via `register-tag-schemas`-ferdigheten) før tagging kan brukes.",
     "annotateTags": "Annotér merker",
     "selectSchema": "Velg rammeverk",
     "schemaLegal": "Juridisk analyse (IRAC)",

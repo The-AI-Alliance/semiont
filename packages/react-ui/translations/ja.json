@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "タグ",
     "noTags": "まだタグはありません。AIアノテーションを使用して構造的役割を識別してください。",
+    "noSchemas": "このナレッジベースには登録されたタグスキーマがありません。タグ付けを使用するには、KB管理者が少なくとも1つの構造分析スキーマを登録する必要があります（例: `register-tag-schemas` スキル経由）。",
     "annotateTags": "タグをアノテーション",
     "selectSchema": "フレームワークを選択",
     "schemaLegal": "法律分析（IRAC）",

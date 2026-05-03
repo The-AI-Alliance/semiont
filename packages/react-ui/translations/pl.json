@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Tagi",
     "noTags": "Brak tagów. Użyj adnotacji AI, aby zidentyfikować role strukturalne.",
+    "noSchemas": "Brak zarejestrowanych schematów tagów dla tej bazy wiedzy. Administrator KB musi zarejestrować co najmniej jeden schemat analizy strukturalnej (np. za pomocą umiejętności `register-tag-schemas`), zanim będzie można używać tagowania.",
     "annotateTags": "Adnotuj tagi",
     "selectSchema": "Wybierz framework",
     "schemaLegal": "Analiza prawna (IRAC)",

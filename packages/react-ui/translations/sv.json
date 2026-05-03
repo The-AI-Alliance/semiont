@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Taggar",
     "noTags": "Inga taggar ännu. Använd AI-anteckning för att identifiera strukturella roller.",
+    "noSchemas": "Inga tag-scheman registrerade för denna kunskapsbas. En KB-administratör måste registrera minst ett strukturanalys-schema (t.ex. via `register-tag-schemas`-färdigheten) innan tagging kan användas.",
     "annotateTags": "Anteckna taggar",
     "selectSchema": "Välj ramverk",
     "schemaLegal": "Juridisk analys (IRAC)",

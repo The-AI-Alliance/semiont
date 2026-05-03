@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Tag",
     "noTags": "Tiada tag lagi. Gunakan anotasi AI untuk mengenal pasti peranan struktur.",
+    "noSchemas": "Tiada skema tag didaftarkan untuk pangkalan pengetahuan ini. Pentadbir KB mesti mendaftarkan sekurang-kurangnya satu skema analisis struktur (cth. melalui kemahiran `register-tag-schemas`) sebelum penandaan boleh digunakan.",
     "annotateTags": "Anotasi Tag",
     "selectSchema": "Pilih Rangka Kerja",
     "schemaLegal": "Analisis Undang-undang (IRAC)",
