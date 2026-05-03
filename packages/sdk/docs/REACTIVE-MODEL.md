@@ -4,7 +4,7 @@
 
 The SDK uses RxJS as its substrate (because the collaboration model needs reactive primitives) but exposes a Promise-shaped surface for the cases that don't need the reactive view (because the consumer who just wants a value shouldn't have to learn RxJS first). This doc explains how that works, why it works, and where RxJS is still visible by design.
 
-If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding between `await` and `.subscribe(...)` for a given call site, looking for the naming convention to predict a method's return type, or trying to figure out which path to the bus is right for your use case.
+If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding between `await` and `.subscribe(...)` for a given call site, picking a return shape for a new namespace method, or trying to figure out which path to the bus is right for your use case.
 
 ## The shape of values over time
 
@@ -56,29 +56,27 @@ The subclass name documents which semantics apply. `.subscribe(...)` works on bo
 
 A third subclass — `UploadObservable` — is shaped specifically for `yield.resource`. Subscribers see the full upload-progress lifecycle (`started` → optional `progress` → `finished`); awaiting resolves to `{ resourceId }` extracted from the `'finished'` event, preserving the awaited shape from before progress events existed.
 
-## Method naming convention — predict the shape from the name
+## Return-shape discipline
 
-Namespace method return types follow four shapes. The naming convention lets you predict the shape from the method name:
+Namespace methods return one of exactly four shapes:
 
-| Shape | Naming | Examples |
-|---|---|---|
-| **Atomic backend op** — `Promise<T>` | past-tense or short noun | `mark.annotation`, `mark.archive`, `mark.entityType`, `bind.body`, `auth.password`, `admin.users` |
-| **Long-running stream** — `StreamObservable<T>` (or `UploadObservable` for `yield.resource`) | plain verb | `mark.assist`, `match.search`, `gather.annotation`, `yield.fromAnnotation`, `admin.restore`, `admin.importKnowledgeBase` |
-| **Live query** — `CacheObservable<T>` | plain noun | `browse.resource`, `browse.resources`, `browse.annotations`, `browse.entityTypes` |
-| **Collaboration signal** — `void` | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape`, `browse.click`, `mark.toggleMode` |
+- **`Promise<T>`** — atomic backend ops (CRUD, auth, admin reads).
+- **`StreamObservable<T>`** (or **`UploadObservable`** for `yield.resource`) — long-running operations with progress events plus a final value.
+- **`CacheObservable<T>`** — live queries with stale-while-revalidate semantics.
+- **`void`** — collaboration signals; observation happens on the bus.
 
-`yield.resource` is the special case: subscribers see the upload-progress lifecycle (`started` → optional `progress` → `finished`), `await` resolves to `{ resourceId }`. Same dual-shape contract as the other streams; the awaited type is the slimmed-down "what consumers care about" projection.
+`yield.resource` is the special case for the second row: subscribers see the upload-progress lifecycle (`started` → optional `progress` → `finished`); `await` resolves to `{ resourceId }`. Same dual-shape contract as the other streams.
 
 The fourth row — collaboration signals — is the surface most data-processing SDKs don't have. They're the SDK's contribution to multi-participant coordination: a participant calls `client.beckon.hover(annotationId)` and other participants subscribed to `beckon:hover` see it; an agent calls `client.bind.initiate(...)` and the human's UI lights up the binding flow. They look fire-and-forget at the call site; on the bus they fan out across participants. They earn first-class slots on the verb namespaces because they're not browser-app leakage — they're how a multi-participant session stays coherent.
 
-The convention is enforceable. A namespace method's return type should be one of:
+The discipline is enforceable. A namespace method's return type must be one of:
 
 - `Promise<T>`
 - `StreamObservable<T>` (or `UploadObservable` / future bounded-stream subclasses)
 - `CacheObservable<T>`
 - `void`
 
-Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on the lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.get(channel)` — see "Plain Observables" below.) A future CI lint can enforce the rule at build time; the discipline already holds in the current code.
+Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.get(channel)` — see "Plain Observables" below.) A future CI lint can enforce the rule at build time; the discipline already holds in the current code.
 
 ## What this looks like at the call site
 

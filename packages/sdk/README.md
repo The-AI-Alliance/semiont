@@ -14,9 +14,9 @@ The SDK is **transport-agnostic**: it consumes the `ITransport` and `IContentTra
 
 > **Where this doc fits.** This README is the *typed-surface reference* — what's in `@semiont/sdk`, how the namespaces are organized, what return shapes to expect. For the *protocol-level architectural framing* (the eight flows, the three programmable surfaces — CLI, SDK, Skills — the core tenets, the per-flow contracts), start with [`docs/protocol/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md). Daemon authors stitching multiple packages together also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills) — `semiont-session` for watcher daemons, `semiont-worker` for job-claim daemons, `semiont-wiki` for the end-to-end annotation pipeline.
 
-## Three ideas that hold the surface together
+## Four ideas that hold the surface together
 
-The SDK is wider than a typical client library because the domain is — collaborative knowledge work over a shared corpus, with humans and AI agents as peers. Three framings make the API tractable; once you've seen them, the rest is predictable.
+The SDK is wider than a typical client library because the domain is — collaborative knowledge work over a shared corpus, with humans and AI agents as peers. Four framings make the API tractable; once you've seen them, the rest is predictable.
 
 ### 1. Eight verbs
 
@@ -35,26 +35,50 @@ Every operation in the SDK belongs to one of eight *flows* — verbs that descri
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`, `client.gather.X(...)`, ...). The verb is the unit of mental model — a method call belongs to a flow, not to a noun. Frame is the schema-layer flow — content flows operate within the vocabulary Frame manages. Per-flow contracts live in [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
 
-### 2. Four return shapes — guess from the name
+### 2. One call, two ways to consume
 
-Every method on every namespace returns one of exactly four shapes, and the method name tells you which. Internalize the convention once and you stop having to read return types:
+Most data-fetching libraries make you choose between Promise-shaped and Observable-shaped at the import line. The SDK doesn't. Every long-lived value comes back as an `Observable` that *also* implements `PromiseLike<T>` — `await` it for the final value, `.subscribe(...)` it for progress events or live updates, from the same call.
 
-| Shape | Naming convention | Examples |
-|---|---|---|
-| **`Promise<T>`** — atomic backend op | past-tense or short noun | `mark.annotation`, `bind.body`, `auth.password` |
-| **`StreamObservable<T>`** — long-running stream | plain verb | `mark.assist`, `match.search`, `gather.annotation` |
-| **`CacheObservable<T>`** — live query | plain noun | `browse.resource`, `browse.annotations`, `browse.entityTypes` |
-| **`void`** — collaboration signal | imperative or progressive verb | `beckon.hover`, `bind.initiate`, `mark.changeShape` |
+```ts
+// One-shot consumer — never imports rxjs
+const resource = await client.browse.resource(rId);
+const result   = await client.match.search(rId, refId, ctx);
 
-Both Observable subclasses implement `PromiseLike<T>`, so consumers can `await` them directly without learning RxJS. Reach for `.subscribe(...)` when you want progress events, live updates, or to observe a collaboration signal another participant emitted. See [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) for the full design and method-by-method assignment.
+// Reactive consumer — same call, .subscribe instead of await
+client.browse.resource(rId).subscribe((r) => {
+  if (r === undefined) showSkeleton();
+  else render(r);
+});
+client.match.search(rId, refId, ctx).subscribe((event) => {
+  if (event.kind === 'progress') updateProgress(event.data);
+});
+```
+
+A script that just wants the final value never imports anything from `rxjs`. A browser app rendering loading state subscribes to the same shape. The reactive substrate is preserved as a load-bearing architectural choice; the user-facing surface looks Promise-shaped when that's all the caller needs.
+
+Methods return one of: `Promise<T>` (atomic backend ops), an awaitable `Observable<T>` subclass (`StreamObservable<T>` for bounded progress streams, `CacheObservable<T>` for live queries with stale-while-revalidate), or `void` (collaboration signals — see #3). Per-method assignments and the typing discipline are in [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md).
 
 ### 3. Collaboration primitives
 
-The fourth row above — the `void`-returning collaboration signals — is the SDK's distinctive contribution to multi-participant coordination. They look fire-and-forget at the call site; on the bus they fan out across every participant.
+The `void`-returning third category — collaboration signals — is the SDK's distinctive contribution to multi-participant coordination. They look fire-and-forget at the call site; on the bus they fan out across every participant.
 
 A human in a browser hovers an annotation (`beckon.hover(annotationId)`); an AI agent at the other end of the bus sees `beckon:hover` and reacts. An agent emits a sparkle (`beckon.sparkle(annotationId)`); the human's UI lights up the indicated annotation. A frontend state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
 
 This is *protocol-level* coordination — not browser-app fluff, not bolted-on presence — and it sits on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. Three legitimate paths to the bus are documented in [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md#three-paths-to-the-bus).
+
+### 4. Transport agnosticism
+
+`SemiontClient` is constructed against the `ITransport` and `IContentTransport` interfaces from `@semiont/core` — not against any particular wire. The same SDK surface runs over HTTP, in-process, or any future transport that satisfies the interface. None of the eight verb namespaces or the flow state machines reach for transport-specific features.
+
+```ts
+// HTTP — connect to a remote backend
+const client = await SemiontClient.signInHttp({ baseUrl, email, password });
+
+// In-process — same surface, no network
+const client = new SemiontClient(localTransport, localContentTransport);
+```
+
+`KnowledgeBase` carries a uniform shape regardless of transport (only the nested `endpoint` varies — `{ kind: 'http', host, port, protocol }` or `{ kind: 'local', kbId }`). Code that doesn't *construct* transports — your scripts, the verb namespaces, the flow state machines — never inspects which kind it has. Tests can run against an in-process transport for speed; daemons can embed the backend; the same domain code drives both.
 
 ## What's in the box
 
@@ -166,7 +190,7 @@ Same `SemiontClient`, same verb namespaces — no network involved. There is no 
 
 ## Worked examples
 
-The eight verb namespaces hang off `SemiontClient`, plus three infrastructure namespaces (`auth`, `admin`, `job`) when the client was constructed with backend operations. Each example below uses one of the four return shapes from the table above; pick whichever matches what your call site needs.
+The eight verb namespaces hang off `SemiontClient`, plus three infrastructure namespaces (`auth`, `admin`, `job`) when the client was constructed with backend operations. Each example below uses one of the return shapes mentioned above; the per-method assignment table is in [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md#method-by-method-assignment).
 
 ```ts
 // Browse — live queries; await yields the loaded value, subscribe yields
