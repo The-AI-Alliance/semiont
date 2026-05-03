@@ -3,7 +3,7 @@
  * Tests for complex view materialization logic
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ViewMaterializer } from '../../views/view-materializer';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
@@ -747,6 +747,110 @@ describe('ViewMaterializer', () => {
 
       // Should only have one copy
       expect(view.entityTypes).toHaveLength(1);
+    });
+  });
+
+  describe('materializeTagSchemas() - System views', () => {
+    // The schema registry is more structured than entity types (which
+    // are just opaque strings). The materializer needs to:
+    //  - create the file on first registration
+    //  - replace by id on re-registration with differing content (with a warning)
+    //  - silently no-op on re-registration with identical content
+    //  - keep the file sorted by id for stable output
+    //
+    // These tests pin each of those — the conflict semantics are the
+    // load-bearing decision from .plans/TAG-SCHEMAS-GAP.md (Q2).
+    const schemaA = (override: Record<string, unknown> = {}) => ({
+      id: 'schema-a',
+      name: 'Schema A',
+      description: 'A test schema',
+      domain: 'test',
+      tags: [
+        { name: 'X', description: 'cat X', examples: [] },
+        { name: 'Y', description: 'cat Y', examples: [] },
+      ],
+      ...override,
+    });
+
+    const schemaB = () => ({
+      id: 'schema-b',
+      name: 'Schema B',
+      description: 'Another test schema',
+      domain: 'test',
+      tags: [{ name: 'Z', description: 'cat Z', examples: [] }],
+    });
+
+    async function readProjection(): Promise<{ tagSchemas: any[] }> {
+      const path = join(testDir, 'projections', '__system__', 'tagschemas.json');
+      const content = await fs.readFile(path, 'utf-8');
+      return JSON.parse(content);
+    }
+
+    it('creates the projection on first registration', async () => {
+      await materializer.materializeTagSchemas(schemaA() as any);
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(1);
+      expect(view.tagSchemas[0].id).toBe('schema-a');
+    });
+
+    it('appends a second schema with a different id', async () => {
+      await materializer.materializeTagSchemas(schemaA() as any);
+      await materializer.materializeTagSchemas(schemaB() as any);
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(2);
+      expect(view.tagSchemas.map((s) => s.id).sort()).toEqual(['schema-a', 'schema-b']);
+    });
+
+    it('sorts the projection by schema id for stable output', async () => {
+      // Register out of alphabetical order; the file must come back sorted.
+      await materializer.materializeTagSchemas(schemaB() as any);
+      await materializer.materializeTagSchemas(schemaA() as any);
+      const view = await readProjection();
+      expect(view.tagSchemas.map((s) => s.id)).toEqual(['schema-a', 'schema-b']);
+    });
+
+    it('is silently idempotent when re-registering with identical content', async () => {
+      // The "deep-equal idempotence" path. No warning should be logged.
+      const warn = vi.fn();
+      const loggingMaterializer = new ViewMaterializer(
+        viewStorage,
+        { basePath: testDir },
+        { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() })) } as any,
+      );
+
+      await loggingMaterializer.materializeTagSchemas(schemaA() as any);
+      await loggingMaterializer.materializeTagSchemas(schemaA() as any);
+
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(1);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('replaces by id and logs a warning when re-registering with differing content', async () => {
+      // Most-recent-wins. The plan's Q2 decision: log a warning so
+      // operators see the overwrite.
+      const warn = vi.fn();
+      const loggingMaterializer = new ViewMaterializer(
+        viewStorage,
+        { basePath: testDir },
+        { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() })) } as any,
+      );
+
+      await loggingMaterializer.materializeTagSchemas(schemaA() as any);
+      await loggingMaterializer.materializeTagSchemas(
+        schemaA({ description: 'CHANGED description' }) as any,
+      );
+
+      const view = await readProjection();
+      expect(view.tagSchemas).toHaveLength(1);
+      expect(view.tagSchemas[0].description).toBe('CHANGED description');
+      expect(warn).toHaveBeenCalledTimes(1);
+      // Warning carries the schema id so operators can see which schema
+      // changed without scrolling through dumps.
+      const warnArgs = warn.mock.calls[0];
+      const meta = warnArgs[1] as { schemaId?: string; message?: string };
+      expect(meta.schemaId).toBe('schema-a');
+      expect(meta.message).toMatch(/overwritten/);
     });
   });
 

@@ -333,6 +333,47 @@ describe('SemiontClient over LocalTransport', () => {
       }
     });
 
+    it('addTagSchema + browse.tagSchemas() round-trips', async () => {
+      // Mirrors the entity-type round-trip above for the tag-schema
+      // surface. Exercises Stower.handleAddTagSchema → event store →
+      // ViewMaterializer.materializeTagSchemas → tag-schemas-reader →
+      // BrowseNamespace cache invalidation on `frame:tag-schema-added`.
+      // If this passes, the in-process plumbing for runtime tag-schema
+      // registration works end-to-end.
+      const h = await bootHarness();
+      try {
+        const schema = {
+          id: 'local-transport-test-schema',
+          name: 'Local Transport Test Schema',
+          description: 'Round-trip schema for local-transport.test.ts',
+          domain: 'test',
+          tags: [
+            { name: 'X', description: 'cat X', examples: [] },
+            { name: 'Y', description: 'cat Y', examples: [] },
+          ],
+        } as const;
+
+        await h.client.frame.addTagSchema(schema as never);
+
+        // Wait for the bridged broadcast — proves Stower appended the
+        // event and the materializer wrote the projection.
+        await waitForEvent(
+          h.client.bus.get('frame:tag-schema-added') as unknown as Observable<{
+            payload?: { schema?: { id?: string } };
+          }>,
+          (e) => e.payload?.schema?.id === schema.id,
+        );
+
+        h.client.browse.invalidateTagSchemas();
+        const result = await firstValueFrom(h.client.browse.tagSchemas().pipe(filter(defined)));
+        const found = result.find((s) => s.id === schema.id);
+        expect(found, 'registered schema should appear in browse.tagSchemas()').toBeDefined();
+        expect(found!.tags.map((t) => t.name)).toEqual(['X', 'Y']);
+      } finally {
+        await h.dispose();
+      }
+    });
+
     it('client.dispose() does not throw and tears down the transport', async () => {
       const h = await bootHarness();
       try {
