@@ -1,8 +1,13 @@
 /**
  * @semiont/ontology
  *
- * Entity types, tag schemas, and tag extraction utilities.
- * Consolidates ontology-related code that was previously scattered across packages.
+ * Entity-type vocabulary + annotation-body extraction utilities.
+ *
+ * Note: tag-schema *data* lives with the KB that owns it (registered at
+ * runtime via `frame.addTagSchema(...)`). The `TagSchema` and `TagCategory`
+ * *types* are exported from `@semiont/core`. This package owns only the
+ * extraction helpers (`getTagCategory`, `getTagSchemaId`) that read schema
+ * provenance off an annotation's body.
  */
 
 // Entity types
@@ -10,17 +15,6 @@ export { DEFAULT_ENTITY_TYPES } from './entity-types';
 
 // Tag collections
 export type { TagCollection, TagCollectionOperations } from './tag-collections';
-
-// Tag schemas
-export {
-  TAG_SCHEMAS,
-  getTagSchema,
-  getAllTagSchemas,
-  getTagSchemasByDomain,
-  isValidCategory,
-  getSchemaCategory
-} from './tag-schemas';
-export type { TagSchema, TagCategory } from './tag-schemas';
 
 // Entity extraction
 export { getEntityTypes } from './entity-extraction';
