@@ -249,6 +249,9 @@
       "EntityTypeAddedPayload": {
         "$ref": "components/schemas/EntityTypeAddedPayload.json"
       },
+      "TagSchemaAddedPayload": {
+        "$ref": "components/schemas/TagSchemaAddedPayload.json"
+      },
       "EntityTagChangedPayload": {
         "$ref": "components/schemas/EntityTagChangedPayload.json"
       },
@@ -296,6 +299,9 @@
       },
       "GetResourceResponse": {
         "$ref": "components/schemas/GetResourceResponse.json"
+      },
+      "GetTagSchemasResponse": {
+        "$ref": "components/schemas/GetTagSchemasResponse.json"
       },
       "GoogleAuthRequest": {
         "$ref": "components/schemas/GoogleAuthRequest.json"
@@ -402,6 +408,8 @@
       "BrowseResourcesRequest": { "$ref": "components/schemas/BrowseResourcesRequest.json" },
       "BrowseResourcesResult": { "$ref": "components/schemas/BrowseResourcesResult.json" },
       "BrowseRouterPushEvent": { "$ref": "components/schemas/BrowseRouterPushEvent.json" },
+      "BrowseTagSchemasRequest": { "$ref": "components/schemas/BrowseTagSchemasRequest.json" },
+      "BrowseTagSchemasResult": { "$ref": "components/schemas/BrowseTagSchemasResult.json" },
       "FragmentSelector": { "$ref": "components/schemas/FragmentSelector.json" },
       "GatherAnnotationComplete": { "$ref": "components/schemas/GatherAnnotationComplete.json" },
       "GatherAnnotationRequest": { "$ref": "components/schemas/GatherAnnotationRequest.json" },
@@ -429,6 +437,7 @@
       "JobStatusResult": { "$ref": "components/schemas/JobStatusResult.json" },
       "JobTagAnnotationResult": { "$ref": "components/schemas/JobTagAnnotationResult.json" },
       "FrameAddEntityTypeCommand": { "$ref": "components/schemas/FrameAddEntityTypeCommand.json" },
+      "FrameAddTagSchemaCommand": { "$ref": "components/schemas/FrameAddTagSchemaCommand.json" },
       "MarkArchiveCommand": { "$ref": "components/schemas/MarkArchiveCommand.json" },
       "MarkAssistRequestEvent": { "$ref": "components/schemas/MarkAssistRequestEvent.json" },
       "MarkClickChangedEvent": { "$ref": "components/schemas/MarkClickChangedEvent.json" },
@@ -451,6 +460,8 @@
       "SettingsLocaleChangedEvent": { "$ref": "components/schemas/SettingsLocaleChangedEvent.json" },
       "SettingsThemeChangedEvent": { "$ref": "components/schemas/SettingsThemeChangedEvent.json" },
       "SvgSelector": { "$ref": "components/schemas/SvgSelector.json" },
+      "TagCategory": { "$ref": "components/schemas/TagCategory.json" },
+      "TagSchema": { "$ref": "components/schemas/TagSchema.json" },
       "YieldCloneCreateCommand": { "$ref": "components/schemas/YieldCloneCreateCommand.json" },
       "YieldCloneCreated": { "$ref": "components/schemas/YieldCloneCreated.json" },
       "YieldCloneResourceRequest": { "$ref": "components/schemas/YieldCloneResourceRequest.json" },

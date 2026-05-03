@@ -94,13 +94,15 @@ export class ViewManager {
   }
 
   /**
-   * Update system-level view (currently only entity types).
+   * Update system-level view (entity types + tag schemas today).
    * Serialized through a shared chain — see class doc.
    */
   async materializeSystem(eventType: string, payload: any): Promise<void> {
     await serializePerKey(ViewManager.SYSTEM_KEY, this.systemChains, async () => {
       if (eventType === 'frame:entity-type-added') {
         await this.materializer.materializeEntityTypes(payload.entityType);
+      } else if (eventType === 'frame:tag-schema-added') {
+        await this.materializer.materializeTagSchemas(payload.schema);
       }
       // Future system views can be added here
     });

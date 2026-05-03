@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "Bus command to register a tag schema with the KB's runtime registry. Carried on the `frame:add-tag-schema` channel — Frame is the schema-layer flow that owns vocabulary writes. Most-recent registration of a given `schema.id` wins; the projection reflects the latest content. Identical re-registrations are silent; differing content overwrites and logs a warning.",
+  "properties": {
+    "schema": { "$ref": "./TagSchema.json" },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    }
+  },
+  "required": ["schema"]
+}
