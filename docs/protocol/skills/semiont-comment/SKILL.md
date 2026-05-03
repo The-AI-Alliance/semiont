@@ -8,30 +8,15 @@ allowed-tools: Bash, Read, Write, Glob, Grep
 
 You are helping a user add commenting annotations to a Semiont resource. Comments are conversational annotations attached to specific passages — editorial suggestions, questions for the author, clarifications for readers, or observations that don't fit assessment or highlighting.
 
+This skill builds **Layer #2 (Annotations)** of the layered data model — `commenting`-motivation annotations are first-class queryable spans whose body is the comment text.
+
 ## Two modes
 
-**Delegate (AI-assisted)** — the API generates comments autonomously from the document content. Use this for systematic editorial review.
+**Delegate (AI-assisted)** — `mark.assist` with motivation `commenting` runs the editorial pass autonomously across the document. Use this for systematic editorial review.
 
-**Manual** — the user writes a specific comment on a specific passage. Use this for targeted feedback.
+**Manual** — explicit `mark.annotation` with a `commenting` body item. Use this for a specific comment on a specific passage.
 
-## CLI — delegate
-
-```bash
-semiont mark --resource <id> --delegate --motivation commenting \
-  [--tone scholarly|explanatory|conversational|technical] \
-  [--instructions "<what kind of comments to add>"] \
-  [--density <2-12>]
-```
-
-- `--tone` shapes the voice and audience of comments (default: `conversational`):
-  - `scholarly` — formal academic register, citations, precision
-  - `explanatory` — clarifies for readers unfamiliar with the domain
-  - `conversational` — informal, direct, editorial
-  - `technical` — precise, targeted at practitioners
-- `--instructions` guides the type of comments, e.g. `"suggest edits to align with the executive summary"` or `"ask questions a first-time reader would have"` or `"point out where more supporting evidence is needed"`
-- Find the resource ID: `semiont browse resources --search "<name>"`
-
-## Client setup (shared by all TypeScript examples below)
+## Client setup
 
 `SemiontClient.signInHttp(...)` is the credentials-first one-line construction for one-shot scripts. It calls `auth.password(email, password)` and returns a wired-up client with the access token populated. Construct once at the top of a script and reuse the same client for every verb call.
 
@@ -47,7 +32,7 @@ const semiont = await SemiontClient.signInHttp({
 });
 ```
 
-## TypeScript — delegate
+## Delegate (AI-assisted)
 
 `semiont.mark.assist(...)` returns a `StreamObservable<MarkAssistProgress>` — an Observable that's also awaitable. `await` resolves with the final progress payload once the job completes.
 
@@ -67,11 +52,20 @@ semiont.dispose();
 
 The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally.
 
-## TypeScript — manual
+To observe intermediate progress (e.g. for a progress bar), subscribe directly instead of awaiting:
 
 ```typescript
-await semiont.mark.annotation(rId, {
-  motivation: 'commenting',
+semiont.mark.assist(rId, 'commenting', { density: 5 }).subscribe({
+  next: (p) => console.log(`progress ${p.progress?.percentage ?? 0}%`),
+  complete: () => console.log('done'),
+  error: (e) => console.error(e),
+});
+```
+
+## Manual
+
+```typescript
+await semiont.mark.annotation({
   target: {
     source: rId,
     selector: {
@@ -81,6 +75,7 @@ await semiont.mark.annotation(rId, {
       suffix: ' words after',
     },
   },
+  motivation: 'commenting',
   body: [{
     type: 'TextualBody',
     value: 'Consider reordering this paragraph — the conclusion appears before the supporting evidence.',
@@ -89,17 +84,53 @@ await semiont.mark.annotation(rId, {
 });
 ```
 
+## Complete script skeleton
+
+```typescript
+import { SemiontClient, resourceId } from '@semiont/sdk';
+
+async function comment(resourceIdStr: string): Promise<void> {
+  const semiont = await SemiontClient.signInHttp({
+    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+    email: process.env.SEMIONT_USER_EMAIL!,
+    password: process.env.SEMIONT_USER_PASSWORD!,
+  });
+  const rId = resourceId(resourceIdStr);
+
+  const progress = await semiont.mark.assist(rId, 'commenting', {
+    tone: process.env.COMMENT_TONE ?? 'conversational',
+    instructions: process.env.COMMENT_INSTRUCTIONS ??
+      'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
+    density: Number(process.env.COMMENT_DENSITY ?? 5),
+  });
+
+  console.log(`Created ${progress.progress?.createdCount ?? 0} comments`);
+  semiont.dispose();
+}
+
+const target = process.argv[2];
+if (!target) {
+  console.error('Usage: tsx comment.ts <resourceId>');
+  process.exit(1);
+}
+comment(target).catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+```
+
 ## Guidance for the AI assistant
 
-- **Ask who the comments are for.** Comments can be addressed to the author ("you should clarify..."), to readers ("note that..."), or to collaborators ("this contradicts section 3"). The `--instructions` flag sets the audience and purpose.
-- **Tone selection by use case:**
+- **Ask who the comments are for.** Comments can be addressed to the author ("you should clarify..."), to readers ("note that..."), or to collaborators ("this contradicts section 3"). The `instructions` parameter sets the audience and purpose.
+- **Tone selection by use case** (default: `conversational`):
   - `scholarly` — peer review, academic manuscripts, formal reports
   - `explanatory` — onboarding docs, user-facing content, tutorials
   - `conversational` — collaborative drafts, editorial passes, general documents
   - `technical` — API docs, specs, engineering documents
 - **Density for comments** (2-12). Start at 4-6 for a moderate editorial pass. High density (8-12) is appropriate for detailed line editing of short documents.
-- **Only `text/plain` and `text/markdown` resources are supported.** PDFs and images are not yet supported.
-- **Distinguish from assessments.** Comments are for dialogue and editorial improvement. Assessments are for flagging objective risks or errors. Use `commenting` when the goal is to help the author revise or help readers understand; use `assessing` when the goal is to flag a problem.
+- **Only `text/plain` and `text/markdown` resources are supported** for `mark.assist`. PDFs and images are not yet supported.
+- **Distinguish from assessments and tags.** Comments are for dialogue and editorial improvement. Assessments flag objective risks or errors. Tags classify against a controlled vocabulary. Use `commenting` when the goal is to help the author revise or help readers understand; use `assessing` when the goal is to flag a problem; use `tagging` when the goal is to apply a controlled-vocabulary classification.
 - **Manual mode is for specific targeted feedback.** When the user knows exactly what they want to say about a specific passage, manual mode is faster and more precise than running delegate.
 - **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'commenting'`.
+- **CLI shortcut.** A thin CLI wrapper exists for one-off invocations — see [CLI cheatsheet](../CLI-CHEATSHEET.md). The SDK is primary; the CLI is a convenience for ad-hoc work.
 - **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout`). See [Error Handling in Usage.md](../../../../packages/sdk/docs/Usage.md#error-handling).

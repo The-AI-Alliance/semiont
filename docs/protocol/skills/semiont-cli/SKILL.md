@@ -46,7 +46,7 @@ semiont yield --delegate --resource "$RESOURCE_ID" --annotation "$ANN_ID" \
   --storage-uri file://generated/output.md
 ```
 
-The `semiont-wiki` skill runs this pipeline end-to-end as a shell script.
+The [`semiont-wiki`](../semiont-wiki/SKILL.md) skill runs this pipeline end-to-end as a TypeScript script using `@semiont/sdk` — the canonical implementation of the *Canonicalize mentions* archetype. The SDK loop composes `browse → gather → match → bind / yield.fromAnnotation` cleanly; the CLI commands above are useful for ad-hoc testing of individual steps.
 
 ---
 
@@ -157,6 +157,8 @@ semiont yield --delegate \
   --storage-uri file://generated/output.md
 ```
 
+For corpus-wide ingest — declaring the KB's entity-type vocabulary via `frame.addEntityTypes` and then yielding many files in one run — use the SDK-based [`semiont-ingest`](../semiont-ingest/SKILL.md) skill instead. The CLI's per-file `yield` is right for one-off uploads; for systematic corpus loading the SDK version is canonical.
+
 ---
 
 ## beckon — Direct another participant's attention
@@ -177,5 +179,5 @@ semiont beckon <resourceId> <annotationId>
 - **Compose with jq.** All commands emit JSON to stdout. Suggest jq pipelines for filtering, extracting IDs, or chaining commands.
 - **`browse files` vs `browse resources`.** `browse files` shows what is *on disk* (tracked or not); `browse resources` shows only what is *in the KB*. Use `browse files` when the user wants to see their project directory or find untracked files.
 - **Delegate before manual for `mark`.** Suggest `--delegate` when the user wants to annotate a whole document. Manual mode is for targeted corrections.
-- **The gather → match → bind pipeline** is the standard pattern for resolving unresolved reference annotations. Walk the user through the three steps in order, or point them to the `semiont-wiki` skill for full automation.
+- **The gather → match → bind pipeline** is the standard pattern for resolving unresolved reference annotations — the *Canonicalize mentions* archetype, building Layer #3 of the layered data model. Walk the user through the three steps in order, or point them to the SDK-based [`semiont-wiki`](../semiont-wiki/SKILL.md) skill for full automation. For repeated / automated use, the SDK version is canonical; the CLI is for ad-hoc testing.
 - **`beckon` coordinates attention between participants**, not navigation within the app. It is useful for directing a human reviewer's attention to a specific annotation from a script or agent.

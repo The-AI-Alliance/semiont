@@ -8,6 +8,8 @@ allowed-tools: Bash, Read, Write, Glob, Grep
 
 You are helping implement the Semiont knowledge enrichment pipeline using `@semiont/sdk`. This pipeline transforms a document into a connected wiki: it detects entity mentions, links them to existing resources in the knowledge base, and generates new stub resources for anything that isn't there yet.
 
+This skill is the canonical implementation of the **Canonicalize mentions** archetype — it builds **Layer #3 (Canonical Nodes)** of the layered data model. Scattered mentions of the same entity (every "Prometheus" reference, every "U.S.C. § 552" citation, every "the property owner" descriptive reference) get clustered, matched against existing canonical resources, and either bound to the existing one or used to synthesize a new canonical resource. The output is a node in the KB's graph: a resource whose purpose is to *be referred to*. (For aggregate resources whose purpose is to *be read* — Investigations, PlotArcs, DoctrinalTraces — see [`semiont-aggregate`](../semiont-aggregate/SKILL.md) instead.)
+
 The pipeline has five steps:
 
 1. **Mark** — detect entity references (`semiont.mark.assist`)
@@ -17,6 +19,16 @@ The pipeline has five steps:
 5. **Yield** — if no confident match exists, generate a new resource and bind to it (`semiont.yield.fromAnnotation`)
 
 Steps 3-5 run per annotation in a loop. The threshold between "bind to existing" and "generate new" is configurable.
+
+## Prerequisite: declare the entity-type vocabulary
+
+The `entityTypes` parameter you pass to `mark.assist` (Step 1) and the entity types stamped on resources synthesized in Step 5 must already be in the KB's **published entity-type vocabulary** — declared via `semiont.frame.addEntityTypes([...])`. This is normally done once, at corpus ingest, by the [`semiont-ingest`](../semiont-ingest/SKILL.md) skill. Skipping the declaration "works" in the lenient sense (entity-type strings still get stamped on annotations and resources), but `browse.entityTypes()` will then return an accumulated drift instead of a coherent published set, and a stricter backend would reject unknown types. Declare the vocabulary upfront.
+
+If you are running this pipeline on a corpus that wasn't ingested via `semiont-ingest`, declare the vocabulary explicitly before the first `mark.assist` call:
+
+```typescript
+await semiont.frame.addEntityTypes(['Location', 'Person', 'Organization', 'Concept']);
+```
 
 ## Client setup
 
