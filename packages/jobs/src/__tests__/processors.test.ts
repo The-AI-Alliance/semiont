@@ -1,9 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resourceId, annotationId, entityType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import type { components } from '@semiont/core';
+import type { components, TagSchema } from '@semiont/core';
 
 type Agent = components['schemas']['Agent'];
+
+// Test schema — the dispatcher resolves schemaId → TagSchema before the
+// processor sees the job, so processTagJob receives the full schema in
+// params.schema.
+const SCHEMA_1: TagSchema = {
+  id: 'schema-1',
+  name: 'Test Schema',
+  description: 'Test',
+  domain: 'test',
+  tags: [
+    { name: 'catA',  description: 'A',     examples: [] },
+    { name: 'catB',  description: 'B',     examples: [] },
+    { name: 'Issue', description: 'Issue', examples: [] },
+  ],
+};
 
 vi.mock('../workers/annotation-detection', () => ({
   AnnotationDetection: {
@@ -242,7 +257,7 @@ describe('processTagJob', () => {
     const result = await processTagJob(
       'foo bar baz',
       makeInferenceClient(),
-      { resourceId: RID, schemaId: 'schema-1', categories: ['catA', 'catB'] },
+      { resourceId: RID, schema: SCHEMA_1, categories: ['catA', 'catB'] },
       USER_DID,
       GENERATOR,
       vi.fn(),
@@ -409,7 +424,7 @@ describe('locale threading', () => {
       const result = await processTagJob(
         'foo bar',
         makeInferenceClient(),
-        { resourceId: RID, schemaId: 'schema-1', categories: ['Issue'], language: 'de' },
+        { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], language: 'de' },
         USER_DID,
         GENERATOR,
         vi.fn(),
@@ -511,12 +526,14 @@ describe('locale threading', () => {
 
       await processTagJob(
         'content', client,
-        { resourceId: RID, schemaId: 'schema-1', categories: ['Issue'], sourceLanguage: 'fr' },
+        { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], sourceLanguage: 'fr' },
         USER_DID, GENERATOR, vi.fn(),
       );
 
+      // Worker now receives the full schema (resolved by the dispatcher),
+      // not a schemaId.
       expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
-        'content', client, 'schema-1', 'Issue', 'fr',
+        'content', client, SCHEMA_1, 'Issue', 'fr',
       );
     });
 

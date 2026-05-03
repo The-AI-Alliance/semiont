@@ -1,9 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
-import { getAllTagSchemas } from '@semiont/ontology';
+import { useTheme, useShellStateUnit, useObservable, useLineNumbers, useEventSubscriptions, useSemiont } from '@semiont/react-ui';
 import { TagSchemasPage } from '@semiont/react-ui';
 
 // Authentication is handled by middleware (proxy.ts)
@@ -32,12 +31,23 @@ export default function TagSchemasPageWrapper() {
     'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
-  const schemas = getAllTagSchemas();
+  // Subscribe to the per-KB tag-schema registry. Schemas are runtime-
+  // registered by the KB at session start (frame.addTagSchema). The
+  // observable yields `undefined` during the initial fetch — surfaced as
+  // `isLoading` to the page component.
+  const session = useObservable(useSemiont().activeSession$);
+  const tagSchemas$ = useMemo(
+    () => session?.client.browse.tagSchemas() ?? null,
+    [session],
+  );
+  const schemasObserved = useObservable(tagSchemas$);
+  const schemas = schemasObserved ?? [];
+  const isLoading = schemasObserved === undefined;
 
   return (
     <TagSchemasPage
       schemas={schemas}
-      isLoading={false}
+      isLoading={isLoading}
       theme={theme}
       showLineNumbers={showLineNumbers}
       activePanel={activePanel}

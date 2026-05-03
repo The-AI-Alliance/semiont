@@ -186,7 +186,7 @@ export async function startMakeMeaning(
   // browse:annotation-context-requested, gather:summary-requested) into
   // the underlying make-meaning pipeline. Lives here so every transport
   // (HTTP gateway, LocalTransport, future ones) gets the same contract.
-  registerBusHandlers(eventBus, knowledgeSystem, jobQueue, logger);
+  registerBusHandlers(eventBus, knowledgeSystem, jobQueue, project, logger);
 
   return {
     knowledgeSystem,

@@ -1,10 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import type { Ref } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
-import { getTagSchema } from '../../../lib/tag-schemas';
 import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
@@ -28,7 +28,18 @@ export function TagEntry({
   const selectedText = getAnnotationExactText(tag);
   const category = getTagCategory(tag);
   const schemaId = getTagSchemaId(tag);
-  const schema = schemaId ? getTagSchema(schemaId) : null;
+
+  // Resolve the schema's display name from the per-KB tag-schema registry.
+  // The registry is runtime-populated (frame.addTagSchema); during the
+  // initial fetch the observable yields `undefined`, which we treat as
+  // "no schema name available yet" — render the category badge alone
+  // until the registry resolves.
+  const tagSchemas$ = useMemo(
+    () => session?.client.browse.tagSchemas() ?? null,
+    [session],
+  );
+  const schemas = useObservable(tagSchemas$);
+  const schema = schemaId && schemas ? schemas.find((s) => s.id === schemaId) ?? null : null;
 
   return (
     <div

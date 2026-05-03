@@ -1,11 +1,13 @@
 /**
- * Tag Schema Registry
+ * Tag Schema Registry (deprecated — drained in Stage 2 of TAG-SCHEMAS-GAP).
  *
- * Defines structural analysis frameworks for automatic tagging detection.
- * Each schema provides categories that passages can be classified into
- * based on their structural role (not their semantic content).
+ * Tag schemas are now runtime-registered per KB via `frame.addTagSchema(...)`
+ * — see [TAG-SCHEMAS-GAP.md](../../../.plans/TAG-SCHEMAS-GAP.md). The `TagSchema`
+ * and `TagCategory` types live in `@semiont/core`; this module's `TAG_SCHEMAS`
+ * constant is intentionally empty and the helper functions return null/[].
  *
- * Examples: IRAC (legal), IMRAD (scientific), Toulmin (argumentation)
+ * This module + its helpers will be deleted in Stage 3 once all consumers
+ * (worker, frontend, tests) have been verified migrated.
  */
 
 export interface TagCategory {
@@ -22,151 +24,7 @@ export interface TagSchema {
   tags: TagCategory[];
 }
 
-export const TAG_SCHEMAS: Record<string, TagSchema> = {
-  'legal-irac': {
-    id: 'legal-irac',
-    name: 'Legal Analysis (IRAC)',
-    description: 'Issue, Rule, Application, Conclusion framework for legal reasoning',
-    domain: 'legal',
-    tags: [
-      {
-        name: 'Issue',
-        description: 'The legal question or problem to be resolved',
-        examples: [
-          'What is the central legal question?',
-          'What must the court decide?',
-          'What is the dispute about?'
-        ]
-      },
-      {
-        name: 'Rule',
-        description: 'The relevant law, statute, or legal principle',
-        examples: [
-          'What law applies?',
-          'What is the legal standard?',
-          'What statute governs this case?'
-        ]
-      },
-      {
-        name: 'Application',
-        description: 'How the rule applies to the specific facts',
-        examples: [
-          'How does the law apply to these facts?',
-          'Analysis of the case',
-          'How do the facts satisfy the legal standard?'
-        ]
-      },
-      {
-        name: 'Conclusion',
-        description: 'The resolution or outcome based on the analysis',
-        examples: [
-          'What is the court\'s decision?',
-          'What is the final judgment?',
-          'What is the holding?'
-        ]
-      }
-    ]
-  },
-
-  'scientific-imrad': {
-    id: 'scientific-imrad',
-    name: 'Scientific Paper (IMRAD)',
-    description: 'Introduction, Methods, Results, Discussion structure for research papers',
-    domain: 'scientific',
-    tags: [
-      {
-        name: 'Introduction',
-        description: 'Background, context, and research question',
-        examples: [
-          'What is the research question?',
-          'Why is this important?',
-          'What is the hypothesis?'
-        ]
-      },
-      {
-        name: 'Methods',
-        description: 'Experimental design and procedures',
-        examples: [
-          'How was the study conducted?',
-          'What methods were used?',
-          'What was the experimental design?'
-        ]
-      },
-      {
-        name: 'Results',
-        description: 'Findings and observations',
-        examples: [
-          'What did the study find?',
-          'What are the data?',
-          'What were the observations?'
-        ]
-      },
-      {
-        name: 'Discussion',
-        description: 'Interpretation and implications of results',
-        examples: [
-          'What do the results mean?',
-          'What are the implications?',
-          'How do these findings relate to prior work?'
-        ]
-      }
-    ]
-  },
-
-  'argument-toulmin': {
-    id: 'argument-toulmin',
-    name: 'Argument Structure (Toulmin)',
-    description: 'Claim, Evidence, Warrant, Counterargument, Rebuttal framework for argumentation',
-    domain: 'general',
-    tags: [
-      {
-        name: 'Claim',
-        description: 'The main assertion or thesis',
-        examples: [
-          'What is being argued?',
-          'What is the main point?',
-          'What position is being taken?'
-        ]
-      },
-      {
-        name: 'Evidence',
-        description: 'Data or facts supporting the claim',
-        examples: [
-          'What supports this claim?',
-          'What are the facts?',
-          'What data is provided?'
-        ]
-      },
-      {
-        name: 'Warrant',
-        description: 'Reasoning connecting evidence to claim',
-        examples: [
-          'Why does this evidence support the claim?',
-          'What is the logic?',
-          'How does this reasoning work?'
-        ]
-      },
-      {
-        name: 'Counterargument',
-        description: 'Opposing viewpoints or objections',
-        examples: [
-          'What are the objections?',
-          'What do critics say?',
-          'What are alternative views?'
-        ]
-      },
-      {
-        name: 'Rebuttal',
-        description: 'Response to counterarguments',
-        examples: [
-          'How is the objection addressed?',
-          'Why is the counterargument wrong?',
-          'How is the criticism answered?'
-        ]
-      }
-    ]
-  }
-};
+export const TAG_SCHEMAS: Record<string, TagSchema> = {};
 
 /**
  * Get a tag schema by ID
