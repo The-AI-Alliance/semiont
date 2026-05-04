@@ -189,6 +189,7 @@ export class YieldNamespace implements IYieldNamespace {
             referenceId: annotationId,
             title: options.title,
             prompt: options.prompt,
+            entityTypes: options.entityTypes,
             language: options.language,
             sourceLanguage: options.sourceLanguage,
             temperature: options.temperature,

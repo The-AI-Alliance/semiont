@@ -278,6 +278,51 @@ describe('handleJob orchestration', () => {
         handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1' }))
       ).rejects.toThrow(/Upload failed: 500/);
     });
+
+    it('forwards entityTypes from job params to the resource upload', async () => {
+      // Regression — see .plans/ENTITY-TYPES-GAP.md. The worker is the
+      // last stop in the entityTypes pipeline; without this forwarding
+      // step `browse.resources({ entityType: 'Character' })` would never
+      // surface synthesized resources.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: 'body',
+        title: 'T',
+        format: 'text/markdown',
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(
+        h.adapter,
+        makeConfig(h.session),
+        makeJob('generation', {
+          referenceId: 'ref-1',
+          entityTypes: ['Character', 'Hero'],
+        }),
+      );
+
+      expect(h.yieldResourceCalls).toHaveLength(1);
+      expect(h.yieldResourceCalls[0]!.entityTypes).toEqual(['Character', 'Hero']);
+    });
+
+    it('omits entityTypes from the upload when params do not include it (no empty-array stamp)', async () => {
+      // Tests the spread-guard at the worker. Without it, generation
+      // jobs that don't supply entityTypes would stamp `[]` on the
+      // resource — distinct from "field absent", and confusing for
+      // downstream queries.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: 'body',
+        title: 'T',
+        format: 'text/markdown',
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1' }));
+
+      expect(h.yieldResourceCalls).toHaveLength(1);
+      expect(h.yieldResourceCalls[0]!.entityTypes).toBeUndefined();
+    });
   });
 
   describe('unknown job type', () => {

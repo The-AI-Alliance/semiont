@@ -454,6 +454,28 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
+  it('fromAnnotation({ entityTypes }) carries entityTypes through into job:create params', () => {
+    // Regression — see .plans/ENTITY-TYPES-GAP.md. Before the fix the
+    // SDK silently dropped entityTypes between the GenerationOptions
+    // boundary and the bus payload, leaving synthesized resources
+    // un-stamped at schema-layer queries.
+    yld.fromAnnotation(RID, AID, {
+      title: 'T',
+      storageUri: 'file://x',
+      context: {} as any,
+      entityTypes: ['Character', 'Hero'],
+    }).subscribe(() => {});
+    return new Promise<void>((resolve) => setTimeout(() => {
+      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
+        jobType: 'generation',
+        params: expect.objectContaining({
+          entityTypes: ['Character', 'Hero'],
+        }),
+      }));
+      resolve();
+    }, 20));
+  });
+
   it('fromAnnotation() emits progress and completes on job:complete', async () => {
     const progress: any[] = [];
     const completed = new Promise<void>((resolve) => {
