@@ -99,6 +99,8 @@ export interface GenerationOptions {
   storageUri: string;
   context: GatheredContext;
   prompt?: string;
+  /** Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource (so `browse.resources({ entityType: ... })` queries can find it). */
+  entityTypes?: string[];
   /** Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). */
   language?: string;
   /** Source-resource locale — language of the resource the annotation lives on, used in the prompt so the LLM understands embedded source-context snippets. BCP-47. */

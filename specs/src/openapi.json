@@ -470,7 +470,6 @@
       "YieldCreateOk": { "$ref": "components/schemas/YieldCreateOk.json" },
       "YieldMoveOk": { "$ref": "components/schemas/YieldMoveOk.json" },
       "YieldMvCommand": { "$ref": "components/schemas/YieldMvCommand.json" },
-      "YieldRequestCommand": { "$ref": "components/schemas/YieldRequestCommand.json" },
       "YieldUpdateCommand": { "$ref": "components/schemas/YieldUpdateCommand.json" },
       "YieldUpdateOk": { "$ref": "components/schemas/YieldUpdateOk.json" }
     }

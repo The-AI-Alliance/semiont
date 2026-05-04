@@ -277,6 +277,7 @@ async function handleJobInner(
       referenceId?: string;
       prompt?: string;
       language?: string;
+      entityTypes?: string[];
     };
     const storageUri = deriveStorageUri(genResult.title, genResult.format);
 
@@ -290,6 +291,7 @@ async function handleJobInner(
       ...(genParams.referenceId ? { sourceAnnotationId: genParams.referenceId } : {}),
       ...(genParams.prompt ? { generationPrompt: genParams.prompt } : {}),
       ...(genParams.language ? { language: genParams.language } : {}),
+      ...(genParams.entityTypes && genParams.entityTypes.length > 0 ? { entityTypes: genParams.entityTypes } : {}),
       generator,
     });
 

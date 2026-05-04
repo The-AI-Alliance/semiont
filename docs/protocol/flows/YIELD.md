@@ -42,12 +42,16 @@ const gather = await lastValueFrom(
 );
 const context = (gather as { context: GatheredContext }).context;
 
-// Generate a new resource from the reference annotation
+// Generate a new resource from the reference annotation. Optional
+// `entityTypes` are stamped on the synthesized resource (so
+// `browse.resources({ entityType: 'Deity' })` can find it) and also
+// fed into the LLM prompt as a topical bias.
 client.yield.fromAnnotation(resourceId, annotationId, {
   title: 'Ouranos',
   language: 'en',
   storageUri: 'file://...',
   context,
+  entityTypes: ['Person', 'Deity'],
 }).subscribe({
   next: (event) => console.log('progress:', event),
   complete: () => console.log('done'),
@@ -163,6 +167,13 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
   length?: 'brief' | 'moderate' | 'detailed';
   maxTokens?: number;       // Max LLM response tokens
+  entityTypes?: string[];   // Stamped on the synthesized resource AND
+                            // injected into the LLM prompt as a topical
+                            // bias. The dispatcher passes them through to
+                            // the worker; the worker forwards them to
+                            // `client.yield.resource(...)` so the
+                            // synthesized resource lands with the same
+                            // entity-type set the caller intended.
 }
 ```
 

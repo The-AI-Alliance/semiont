@@ -65,20 +65,36 @@ const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<
   return render(component, { wrapper: Wrapper });
 };
 
-// Mock TranslationContext
+// Variant for the empty-registry case: the cache resolves to `[]`
+// (post-bootstrap, no schemas registered). Distinct from the still-
+// loading case where the observable yields `undefined`.
+const renderWithEmptyRegistry = (component: React.ReactElement) => {
+  const { SemiontWrapper, client } = createTestSemiontWrapper();
+  vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
+    CacheObservable.from(of([]))
+  );
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
+  );
+  return render(component, { wrapper: Wrapper });
+};
+
+// Mock TranslationContext. The component now uses `schema.name` /
+// `category.name` directly off the registered TagSchema objects (Stage 2.B
+// of TAG-SCHEMAS-GAP), so the per-schema/per-category translation keys
+// the older mock carried (`schemaLegal`, `categoryIssue`, etc.) are no
+// longer referenced — kept the mock minimal.
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {
       title: 'Tags',
       noTags: 'No tags yet. Select text to add a tag.',
+      noSchemas: 'No tag schemas registered for this knowledge base.',
       createTagForSelection: 'Create tag for selection',
       selectSchema: 'Select schema',
       selectCategory: 'Select category',
       selectCategories: 'Select categories',
       chooseCategory: 'Choose a category',
-      schemaLegal: 'Legal (IRAC)',
-      schemaScientific: 'Scientific (IMRAD)',
-      schemaArgument: 'Argument',
       annotateTags: 'Annotate Tags',
       annotate: 'Annotate',
       cancel: 'Cancel',
@@ -86,10 +102,6 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       selectAll: 'Select All',
       deselectAll: 'Deselect All',
       categoriesSelected: '{count} categories selected',
-      categoryIssue: 'Issue',
-      categoryRule: 'Rule',
-      categoryApplication: 'Application',
-      categoryConclusion: 'Conclusion',
     };
     let result = translations[key] || key;
     if (params?.count !== undefined) {
@@ -607,6 +619,68 @@ describe('TaggingPanel Component', () => {
 
       expect(await screen.findByLabelText(/Issue/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Rule/)).toBeInTheDocument();
+    });
+  });
+
+  describe('Empty registry (no tag schemas registered)', () => {
+    // The empty path: `browse.tagSchemas()` resolves to `[]` (KB has
+    // not run `register-tag-schemas` yet, no skill has registered a
+    // schema either). The panel should surface a clear message in
+    // both contexts where the schema picker would otherwise render —
+    // not just leave the dropdown empty.
+
+    it('shows the noSchemas message in the assist section instead of the picker', async () => {
+      renderWithEmptyRegistry(
+        <TaggingPanel {...defaultProps} annotateMode={true} />
+      );
+
+      // The empty-state message renders…
+      expect(
+        await screen.findByText(/No tag schemas registered for this knowledge base/i),
+      ).toBeInTheDocument();
+
+      // …and the picker UI does NOT (the form-field label `Select schema`
+      // is gated on `!noSchemasRegistered`).
+      expect(screen.queryByLabelText(/Select schema/i)).not.toBeInTheDocument();
+    });
+
+    it('shows the noSchemas message in the pending tag-creation form instead of the picker', async () => {
+      const pendingAnnotation = createPendingAnnotation('Selected text');
+
+      renderWithEmptyRegistry(
+        <TaggingPanel
+          {...defaultProps}
+          pendingAnnotation={pendingAnnotation}
+          annotateMode={false}
+        />
+      );
+
+      // The pending form opens. With annotateMode={false} the assist
+      // section is skipped so we get exactly one empty-state message —
+      // the one inside the pending form. (Default annotateMode=true
+      // renders the message in both places, which is the right product
+      // behavior; a separate test covers the assist-section path.)
+      expect(screen.getByText(/Create tag for selection/)).toBeInTheDocument();
+      expect(
+        await screen.findByText(/No tag schemas registered for this knowledge base/i),
+      ).toBeInTheDocument();
+      // No "Select category" label — the second dropdown renders only
+      // when `selectedSchema` exists, which requires a schema to be
+      // registered first.
+      expect(screen.queryByText(/Select category/i)).not.toBeInTheDocument();
+    });
+
+    it('keeps the panel rendering tags in the list section even with an empty registry', () => {
+      // The existing tag annotations on the resource still render —
+      // schema-registration is a write-side concern; reading existing
+      // tags doesn't depend on the registry being populated.
+      renderWithEmptyRegistry(
+        <TaggingPanel {...defaultProps} annotations={mockTags.multiple} />
+      );
+
+      expect(screen.getByTestId('tag-1')).toBeInTheDocument();
+      expect(screen.getByTestId('tag-2')).toBeInTheDocument();
+      expect(screen.getByTestId('tag-3')).toBeInTheDocument();
     });
   });
 });

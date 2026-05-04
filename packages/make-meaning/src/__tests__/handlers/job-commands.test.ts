@@ -66,6 +66,12 @@ async function writeTagSchemasProjection(project: SemiontProject, schemas: TagSc
   await fs.writeFile(join(dir, 'tagschemas.json'), JSON.stringify({ tagSchemas: schemas }));
 }
 
+async function writeEntityTypesProjection(project: SemiontProject, entityTypes: string[]): Promise<void> {
+  const dir = join(project.stateDir, 'projections', '__system__');
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(join(dir, 'entitytypes.json'), JSON.stringify({ entityTypes }));
+}
+
 interface JobCreatedEvent {
   correlationId: string;
   response: { jobId: string };
@@ -222,5 +228,182 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     const queuedJob = jobQueue.createJob.mock.calls[0][0] as { params: Record<string, unknown> };
     expect(queuedJob.params.schema, 'generation jobs must not get a TagSchema injected').toBeUndefined();
     expect(queuedJob.params.schemaId).toBeUndefined();
+  });
+});
+
+describe('registerJobCommandHandlers — entity-type validation', () => {
+  // Symmetric to the tag-schema dispatcher rejection: when a caller
+  // supplies `entityTypes` that aren't in the per-KB entity-type
+  // projection, the dispatcher rejects synchronously rather than
+  // letting the worker stamp an annotation (or synthesized resource)
+  // with a tag that isn't part of the KB's declared vocabulary.
+  //
+  // Validation applies to the two jobTypes that surface entityTypes
+  // in their params:
+  //  - `reference-annotation` (mark.assist linking)
+  //  - `generation` (yield.fromAnnotation, post-Stage-2 of TAG-SCHEMAS-GAP)
+  //
+  // Other jobTypes don't carry entityTypes through params; the check
+  // is a no-op for them.
+
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
+  let eventBus: EventBus;
+  let jobQueue: MockJobQueue;
+
+  beforeEach(async () => {
+    ({ project, teardown } = await createTestProject('job-commands-entity-validation'));
+    eventBus = new EventBus();
+    jobQueue = makeJobQueue();
+    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+  });
+
+  afterEach(async () => {
+    eventBus.destroy();
+    await teardown();
+  });
+
+  it('reference-annotation: accepts entityTypes that are all registered', async () => {
+    await writeEntityTypesProjection(project, ['Person', 'Organization', 'Location']);
+
+    const created$ = (
+      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+    ).pipe(
+      filter((e) => e.correlationId === 'cid-ref-ok'),
+      take(1),
+    );
+
+    eventBus.get('job:create').next({
+      correlationId: 'cid-ref-ok',
+      jobType: 'reference-annotation',
+      resourceId: 'rid-test',
+      params: { entityTypes: ['Person', 'Organization'] },
+      _userId: TEST_USER_DID,
+    } as never);
+
+    const result = await firstValueFrom(race(created$, timer(2_000)));
+    expect(result, 'job:created should fire').toBeDefined();
+    expect(jobQueue.createJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('reference-annotation: rejects when any entityType is unregistered, listing the missing ones', async () => {
+    await writeEntityTypesProjection(project, ['Person', 'Organization']);
+
+    const failedEvents: JobCreateFailedEvent[] = [];
+    const sub = (eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>)
+      .subscribe((e) => {
+        if (e.correlationId === 'cid-ref-bad') failedEvents.push(e);
+      });
+
+    eventBus.get('job:create').next({
+      correlationId: 'cid-ref-bad',
+      jobType: 'reference-annotation',
+      resourceId: 'rid-test',
+      params: { entityTypes: ['Person', 'NotRegistered', 'AlsoMissing'] },
+      _userId: TEST_USER_DID,
+    } as never);
+
+    await new Promise((r) => setTimeout(r, 50));
+    sub.unsubscribe();
+
+    expect(failedEvents).toHaveLength(1);
+    expect(failedEvents[0]!.message).toMatch(/Entity type not registered/);
+    // Both unknown tags should appear in the message — operators need
+    // to see the full set, not just the first one.
+    expect(failedEvents[0]!.message).toMatch(/NotRegistered/);
+    expect(failedEvents[0]!.message).toMatch(/AlsoMissing/);
+    expect(jobQueue.createJob).not.toHaveBeenCalled();
+  });
+
+  it('generation: accepts entityTypes that are all registered', async () => {
+    await writeEntityTypesProjection(project, ['Character', 'Hero']);
+
+    const created$ = (
+      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+    ).pipe(
+      filter((e) => e.correlationId === 'cid-gen-ok'),
+      take(1),
+    );
+
+    eventBus.get('job:create').next({
+      correlationId: 'cid-gen-ok',
+      jobType: 'generation',
+      resourceId: 'rid-test',
+      params: { title: 'X', entityTypes: ['Character', 'Hero'] },
+      _userId: TEST_USER_DID,
+    } as never);
+
+    const result = await firstValueFrom(race(created$, timer(2_000)));
+    expect(result).toBeDefined();
+    expect(jobQueue.createJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('generation: rejects when entityTypes contain an unregistered tag', async () => {
+    await writeEntityTypesProjection(project, ['Character']);
+
+    const failedEvents: JobCreateFailedEvent[] = [];
+    const sub = (eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>)
+      .subscribe((e) => {
+        if (e.correlationId === 'cid-gen-bad') failedEvents.push(e);
+      });
+
+    eventBus.get('job:create').next({
+      correlationId: 'cid-gen-bad',
+      jobType: 'generation',
+      resourceId: 'rid-test',
+      params: { title: 'X', entityTypes: ['Character', 'UnknownThing'] },
+      _userId: TEST_USER_DID,
+    } as never);
+
+    await new Promise((r) => setTimeout(r, 50));
+    sub.unsubscribe();
+
+    expect(failedEvents).toHaveLength(1);
+    expect(failedEvents[0]!.message).toMatch(/Entity type not registered: UnknownThing/);
+    expect(jobQueue.createJob).not.toHaveBeenCalled();
+  });
+
+  it('reference-annotation: omitting entityTypes skips the check (no projection read required)', async () => {
+    // No entitytypes.json projection written — validation should be
+    // a no-op when the caller doesn't supply entityTypes at all.
+    const created$ = (
+      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+    ).pipe(
+      filter((e) => e.correlationId === 'cid-ref-noet'),
+      take(1),
+    );
+
+    eventBus.get('job:create').next({
+      correlationId: 'cid-ref-noet',
+      jobType: 'reference-annotation',
+      resourceId: 'rid-test',
+      params: {},
+      _userId: TEST_USER_DID,
+    } as never);
+
+    const result = await firstValueFrom(race(created$, timer(2_000)));
+    expect(result, 'job:created should fire').toBeDefined();
+    expect(jobQueue.createJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('reference-annotation: empty entityTypes array skips the check', async () => {
+    const created$ = (
+      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+    ).pipe(
+      filter((e) => e.correlationId === 'cid-ref-empty'),
+      take(1),
+    );
+
+    eventBus.get('job:create').next({
+      correlationId: 'cid-ref-empty',
+      jobType: 'reference-annotation',
+      resourceId: 'rid-test',
+      params: { entityTypes: [] },
+      _userId: TEST_USER_DID,
+    } as never);
+
+    const result = await firstValueFrom(race(created$, timer(2_000)));
+    expect(result).toBeDefined();
+    expect(jobQueue.createJob).toHaveBeenCalledTimes(1);
   });
 });

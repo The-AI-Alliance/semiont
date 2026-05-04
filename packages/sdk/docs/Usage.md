@@ -362,11 +362,15 @@ const { resourceId } = await semiont.yield.resource({
 });
 
 // AI generation from annotation — StreamObservable<YieldGenerationEvent>:
-// subscribe for progress, await for the final event.
+// subscribe for progress, await for the final event. The optional
+// `entityTypes` are stamped on the synthesized resource (so
+// `browse.resources({ entityType: 'Character' })` finds it) and also
+// fed into the LLM prompt as a topical bias.
 semiont.yield.fromAnnotation(resourceId, annotationId, {
   title: 'Generated Summary',
   storageUri: 'file://generated/summary.md',
   context: gatheredContext,
+  entityTypes: ['Character', 'Hero'],
 }).subscribe({
   next: (event) => console.log(event.type, event),
   complete: () => console.log('Resource generated'),
