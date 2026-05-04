@@ -3,6 +3,7 @@ import type { EventBus, Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 import { readTagSchemasProjection } from '../views/tag-schemas-reader.js';
+import { readEntityTypesProjection } from '../views/entity-types-reader.js';
 
 function parseDidUser(did: string): { userId: string; email: string; domain: string } {
   const parts = did.split(':');
@@ -50,6 +51,30 @@ export function registerJobCommandHandlers(
       };
 
       const jobParams = job.params as Record<string, unknown>;
+
+      // Validate caller-supplied entity types against the per-KB
+      // entity-type projection. Mirrors the tag-schema validation
+      // below — unknown tags reject synchronously rather than letting
+      // the worker stamp a resource (or annotation body) with a tag
+      // that isn't part of the KB's declared vocabulary. Applies to
+      // every jobType that surfaces `entityTypes` in `params`:
+      //  - `reference-annotation` (mark.assist linking)
+      //  - `generation` (yield.fromAnnotation)
+      // Other jobTypes don't carry entityTypes through params and the
+      // check is a no-op for them.
+      if (
+        (jobType === 'reference-annotation' || jobType === 'generation') &&
+        Array.isArray(jobParams.entityTypes) &&
+        jobParams.entityTypes.length > 0
+      ) {
+        const supplied = jobParams.entityTypes as string[];
+        const registered = new Set(await readEntityTypesProjection(project));
+        const unknown = supplied.filter((t) => !registered.has(t));
+        if (unknown.length > 0) {
+          throw new Error(`Entity type not registered: ${unknown.join(', ')}`);
+        }
+      }
+
       if (jobType === 'reference-annotation' && jobParams.entityTypes) {
         jobParams.entityTypes = (jobParams.entityTypes as string[]).map(et => entityType(et));
       }

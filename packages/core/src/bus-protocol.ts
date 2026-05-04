@@ -76,7 +76,6 @@ export type EventMap = {
   // channels were removed on the lifecycle-unification.
 
   // Commands
-  'yield:request': components['schemas']['YieldRequestCommand'];
   'yield:create': components['schemas']['YieldCreateCommand'];
   'yield:update': components['schemas']['YieldUpdateCommand'];
   'yield:mv': components['schemas']['YieldMvCommand'];
@@ -414,7 +413,6 @@ export const CHANNEL_SCHEMAS = {
   'yield:moved':                      null,
   'yield:representation-added':       null,
   'yield:representation-removed':     null,
-  'yield:request':                    'YieldRequestCommand',
   'yield:create':                     'YieldCreateCommand',
   'yield:update':                     'YieldUpdateCommand',
   'yield:mv':                         'YieldMvCommand',
