@@ -19,6 +19,12 @@
  * evolution work in `.plans/EVOLVE-TAG-SCHEMA.md` — migration
  * commands (rename/remove a category, version-bump a schema id) are
  * additional pure functions on the same view shapes.
+ *
+ * Load-bearing properties (sortedness, uniqueness, idempotence,
+ * most-recent-wins, no-mutation) are pinned by axiom-style fast-check
+ * tests in `__tests__/views/projection-reducers.test.ts`. See
+ * `docs/system/PROJECTION-PATTERN.md` for the full axiom catalog and
+ * the architectural narrative.
  */
 
 import type { TagSchema } from '@semiont/core';
@@ -27,8 +33,14 @@ import type { TagSchema } from '@semiont/core';
 
 /**
  * Apply a `frame:entity-type-added` event to the entity-types
- * projection. Idempotent — the existing materializer ensures dedup via
- * a `Set` and stable ordering via a sort; this preserves both.
+ * projection. Idempotent — dedup via a `Set` + locale-aware sort.
+ *
+ * Sort uses `localeCompare` to match {@link applyTagSchemaAdded}'s
+ * id-sort and to give a sensible ordering across mixed-case + symbol
+ * tags. (The pre-refactor materializer used `Array.sort()` with no
+ * comparator, which is codepoint order — `_x` would sort *after* `A`
+ * because `_` (0x5F) > `A` (0x41). Surfaced by an axiom test in
+ * `projection-reducers.test.ts`.)
  */
 export function applyEntityTypeAdded(
   current: readonly string[],
@@ -36,7 +48,7 @@ export function applyEntityTypeAdded(
 ): string[] {
   const set = new Set(current);
   set.add(add);
-  return Array.from(set).sort();
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
 // ── Tag schemas ───────────────────────────────────────────────────────

@@ -11,6 +11,12 @@
  * reducers handle the write side of projections; validators handle
  * the read side. Both are I/O-free so the test for "unknown schemaId
  * rejects" doesn't need a filesystem or a Stower.
+ *
+ * Load-bearing properties (mutual exclusion, soundness, completeness,
+ * order preservation, no-mutation) are pinned by axiom-style
+ * fast-check tests in `__tests__/views/projection-validators.test.ts`.
+ * See `docs/system/PROJECTION-PATTERN.md` for the full axiom catalog
+ * and the architectural narrative.
  */
 
 import type { TagSchema } from '@semiont/core';
