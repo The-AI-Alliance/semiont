@@ -25,7 +25,6 @@
  * protocol to drift out of sync.
  */
 
-import { lastValueFrom } from 'rxjs';
 import { SemiontClient } from '@semiont/sdk';
 
 interface SeedSpec {
@@ -126,16 +125,19 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
       // status + code. We treat duplicate-storageUri rejections as a
       // no-op so re-runs are safe.
       try {
-        const result = await lastValueFrom(
-          client.yield.resource({
-            name: spec.name,
-            storageUri: spec.storageUri,
-            file: Buffer.from(spec.content, 'utf-8'),
-            format: spec.format,
-            language: spec.language,
-            creationMethod: 'api',
-          }),
-        );
+        // Awaiting the UploadObservable yields the awaitable shape
+        // (`{ resourceId }`) directly — same as every other production
+        // caller. The Observable surface (subscribe → progress events)
+        // is for callers that want to render an upload progress bar;
+        // the seed script doesn't.
+        const result = await client.yield.resource({
+          name: spec.name,
+          storageUri: spec.storageUri,
+          file: Buffer.from(spec.content, 'utf-8'),
+          format: spec.format,
+          language: spec.language,
+          creationMethod: 'api',
+        });
         log(`[seed] ✓ created  ${spec.storageUri}  → ${result.resourceId}`);
         created++;
       } catch (err) {
