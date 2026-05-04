@@ -284,6 +284,9 @@ export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 // Annotation types
 export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from './annotation-types';
 
+// Tag-schema type aliases (the schemas themselves are runtime-registered per KB)
+export type { TagSchema, TagCategory } from './tag-schemas';
+
 // Auth types
 export type { GoogleAuthRequest } from './auth-types';
 

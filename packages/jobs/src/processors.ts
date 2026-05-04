@@ -290,7 +290,7 @@ export async function processTagJob(
   const allTags = [];
   for (const category of params.categories) {
     const categoryTags = await AnnotationDetection.detectTags(
-      content, inferenceClient, params.schemaId, category, params.sourceLanguage,
+      content, inferenceClient, params.schema, category, params.sourceLanguage,
     );
     allTags.push(...categoryTags);
   }
@@ -309,8 +309,8 @@ export async function processTagJob(
     // classifying body is the only trace of schema provenance in the
     // event log — do not drop it.
     return buildTextAnnotation(params.resourceId, userId, generator, 'tagging', t, [
-      { type: 'TextualBody', value: category,        purpose: 'tagging',     format: 'text/plain', language: bodyLanguage },
-      { type: 'TextualBody', value: params.schemaId, purpose: 'classifying', format: 'text/plain' },
+      { type: 'TextualBody', value: category,         purpose: 'tagging',     format: 'text/plain', language: bodyLanguage },
+      { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' },
     ]);
   });
 

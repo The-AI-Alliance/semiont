@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Thẻ",
     "noTags": "Chưa có thẻ nào. Sử dụng chú thích AI để xác định vai trò cấu trúc.",
+    "noSchemas": "Chưa có lược đồ thẻ nào được đăng ký cho cơ sở tri thức này. Quản trị viên KB phải đăng ký ít nhất một lược đồ phân tích cấu trúc (ví dụ qua kỹ năng `register-tag-schemas`) trước khi có thể sử dụng gắn thẻ.",
     "annotateTags": "Chú thích thẻ",
     "selectSchema": "Chọn khung phân tích",
     "schemaLegal": "Phân tích pháp lý (IRAC)",

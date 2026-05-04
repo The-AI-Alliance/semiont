@@ -39,6 +39,7 @@ import type {
   Motivation,
   GatheredContext,
   ProgressEvent,
+  TagSchema,
   UserDID,
 } from '@semiont/core';
 
@@ -191,6 +192,7 @@ export interface BrowseNamespace {
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
   entityTypes(): CacheObservable<string[]>;
+  tagSchemas(): CacheObservable<TagSchema[]>;
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
   events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]>;
 
@@ -236,6 +238,17 @@ export interface FrameNamespace {
 
   /** Add multiple entity types in one call. Convenience over a loop of `addEntityType`. */
   addEntityTypes(types: string[]): Promise<void>;
+
+  /**
+   * Register a tag schema with the KB's runtime registry.
+   *
+   * Most-recent registration of a given `schema.id` wins; identical
+   * re-registrations are silent, differing content overwrites the
+   * existing entry and logs a warning. KBs typically call this at
+   * session/skill startup so the schema is available for `mark.assist`
+   * with motivation `tagging` and surfaces in `browse.tagSchemas()`.
+   */
+  addTagSchema(schema: TagSchema): Promise<void>;
 }
 
 /**

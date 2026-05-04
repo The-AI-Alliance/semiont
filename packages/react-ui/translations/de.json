@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Tags",
     "noTags": "Noch keine Tags. Verwenden Sie die KI-Annotation, um strukturelle Rollen zu identifizieren.",
+    "noSchemas": "Für diese Wissensbasis sind keine Tag-Schemata registriert. Ein KB-Administrator muss mindestens ein Strukturanalyse-Schema registrieren (z. B. über den `register-tag-schemas`-Skill), bevor Tagging verwendet werden kann.",
     "annotateTags": "Tags annotieren",
     "selectSchema": "Framework auswählen",
     "schemaLegal": "Juristische Analyse (IRAC)",

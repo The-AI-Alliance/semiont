@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
-import { screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { renderWithProviders } from '../../../../test-utils';
+import { of } from 'rxjs';
+import { CacheObservable } from '@semiont/sdk';
+import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
-import type { components } from '@semiont/core';
+import type { components, TagSchema } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 
@@ -23,21 +25,15 @@ vi.mock('@semiont/ontology', () => ({
   getTagSchemaId: vi.fn(),
 }));
 
-// Mock tag-schemas
-vi.mock('../../../../lib/tag-schemas', () => ({
-  getTagSchema: vi.fn(),
-}));
-
 import { getAnnotationExactText } from '@semiont/core';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
-import { getTagSchema } from '../../../../lib/tag-schemas';
 import type { MockedFunction } from 'vitest';
 import { TagEntry } from '../TagEntry';
 
 const mockGetAnnotationExactText = getAnnotationExactText as MockedFunction<typeof getAnnotationExactText>;
 const mockGetTagCategory = getTagCategory as MockedFunction<typeof getTagCategory>;
 const mockGetTagSchemaId = getTagSchemaId as MockedFunction<typeof getTagSchemaId>;
-const mockGetTagSchema = getTagSchema as MockedFunction<typeof getTagSchema>;
+
 
 const createMockTag = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -76,7 +72,6 @@ describe('TagEntry', () => {
     mockGetAnnotationExactText.mockReturnValue('Tagged text content');
     mockGetTagCategory.mockReturnValue('Entity');
     mockGetTagSchemaId.mockReturnValue(null);
-    mockGetTagSchema.mockReturnValue(null);
   });
 
   describe('Rendering', () => {
@@ -115,24 +110,36 @@ describe('TagEntry', () => {
 
     it('should render schema name when available', () => {
       mockGetTagSchemaId.mockReturnValue('schema-ner-v1');
-      mockGetTagSchema.mockReturnValue({
+      const NER_SCHEMA: TagSchema = {
         id: 'schema-ner-v1',
         name: 'Named Entity Recognition',
+        description: 'NER',
         domain: 'nlp',
-        version: '1.0',
-        categories: [],
-      });
+        tags: [],
+      };
 
-      renderWithProviders(<TagEntry {...defaultProps} />);
+      // Stub the cache to resolve immediately with the test schema —
+      // exercises the rendering path without round-tripping through the
+      // transport's HTTP plumbing.
+      const { SemiontWrapper, client } = createTestSemiontWrapper();
+      vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
+        CacheObservable.from(of([NER_SCHEMA]))
+      );
+      render(<TagEntry {...defaultProps} />, { wrapper: SemiontWrapper });
 
       expect(screen.getByText('Named Entity Recognition')).toBeInTheDocument();
     });
 
     it('should not render schema name when schema is not found', () => {
       mockGetTagSchemaId.mockReturnValue('unknown-schema');
-      mockGetTagSchema.mockReturnValue(null);
 
-      const { container } = renderWithProviders(<TagEntry {...defaultProps} />);
+      // Stub the cache to resolve to an empty list — the schema lookup
+      // misses, the schema-name `<span>` is not rendered.
+      const { SemiontWrapper, client } = createTestSemiontWrapper();
+      vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
+        CacheObservable.from(of([]))
+      );
+      const { container } = render(<TagEntry {...defaultProps} />, { wrapper: SemiontWrapper });
 
       expect(container.querySelector('.semiont-annotation-entry__meta')).not.toBeInTheDocument();
     });

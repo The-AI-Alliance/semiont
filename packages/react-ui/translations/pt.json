@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Tags",
     "noTags": "Nenhuma tag ainda. Use a anotacao por IA para identificar funcoes estruturais.",
+    "noSchemas": "Nenhum esquema de tags registrado para esta base de conhecimento. Um administrador da KB deve registrar pelo menos um esquema de análise estrutural (por exemplo, via a habilidade `register-tag-schemas`) antes que a marcação possa ser usada.",
     "annotateTags": "Anotar Tags",
     "selectSchema": "Selecionar Framework",
     "schemaLegal": "Analise Juridica (IRAC)",

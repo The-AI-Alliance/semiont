@@ -12,7 +12,7 @@
  */
 
 import type { Readable } from 'stream';
-import type { Annotation, JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext } from '@semiont/core';
+import type { Annotation, JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, TagSchema } from '@semiont/core';
 
 /**
  * Content fetcher - turns a ResourceId into a readable stream.
@@ -143,11 +143,16 @@ export interface CommentDetectionParams {
 }
 
 /**
- * Tag detection job parameters
+ * Tag detection job parameters.
+ *
+ * Carries the *full* `TagSchema` (not just an id). The dispatcher resolves
+ * the caller-supplied `schemaId` against the per-KB tag-schema projection
+ * at job-creation time and embeds the resolved schema here, keeping the
+ * worker independent of the registry.
  */
 export interface TagDetectionParams {
   resourceId: ResourceId;
-  schemaId: string;
+  schema: TagSchema;
   categories: string[];
   /** Annotation body locale — see locale conventions above. */
   language?: string;

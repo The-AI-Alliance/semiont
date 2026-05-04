@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Etiquetas",
     "noTags": "Aún no hay etiquetas. Usa anotación por IA para identificar roles estructurales.",
+    "noSchemas": "No hay esquemas de etiquetas registrados para esta base de conocimiento. Un administrador de la KB debe registrar al menos un esquema de análisis estructural (p. ej. mediante la habilidad `register-tag-schemas`) antes de poder usar el etiquetado.",
     "annotateTags": "Anotar Etiquetas",
     "selectSchema": "Seleccionar Marco",
     "schemaLegal": "Análisis Legal (IRAC)",

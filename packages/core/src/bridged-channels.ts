@@ -41,6 +41,7 @@ export const BRIDGED_CHANNELS = [
   'yield:clone-resource-result', 'yield:clone-resource-failed',
   'yield:clone-created', 'yield:clone-create-failed',
   'frame:entity-type-added',
+  'frame:tag-schema-added',
   'beckon:focus', 'beckon:sparkle',
   'bus:resume-gap',
 ] as const;

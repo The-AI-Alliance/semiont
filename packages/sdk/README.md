@@ -24,13 +24,13 @@ Every operation in the SDK belongs to one of eight *flows* — verbs that descri
 
 | Verb | What it does | Example methods |
 |---|---|---|
-| **frame** | Define and evolve the schema vocabulary (entity types, future tag schemas, relation types) | `frame.addEntityType`, `frame.addEntityTypes` |
+| **frame** | Define and evolve the schema vocabulary (entity types, tag schemas, future relation types) | `frame.addEntityType`, `frame.addEntityTypes`, `frame.addTagSchema` |
 | **yield** | Introduce new resources into the system | `yield.resource`, `yield.fromAnnotation`, `yield.cloneToken` |
 | **mark** | Add structured metadata to resources | `mark.annotation`, `mark.assist`, `mark.archive` |
 | **match** | Search the corpus for candidate resources | `match.search` |
 | **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
 | **gather** | Assemble related context around an annotation | `gather.annotation` |
-| **browse** | Navigate, read, and observe | `browse.resource`, `browse.annotations`, `browse.click` |
+| **browse** | Navigate, read, and observe | `browse.resource`, `browse.annotations`, `browse.entityTypes`, `browse.tagSchemas`, `browse.click` |
 | **beckon** | Coordinate attention across participants | `beckon.hover`, `beckon.attention`, `beckon.sparkle` |
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`, `client.gather.X(...)`, ...). The verb is the unit of mental model — a method call belongs to a flow, not to a noun. Frame is the schema-layer flow — content flows operate within the vocabulary Frame manages. Per-flow contracts live in [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).

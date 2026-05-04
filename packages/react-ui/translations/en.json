@@ -149,6 +149,7 @@
   "TaggingPanel": {
     "title": "Tags",
     "noTags": "No tags yet. Use AI annotation to identify structural roles.",
+    "noSchemas": "No tag schemas registered for this knowledge base. A KB administrator must register at least one structural-analysis schema (e.g. via the `register-tag-schemas` skill) before tagging can be used.",
     "annotateTags": "Annotate Tags",
     "selectSchema": "Select Framework",
     "schemaLegal": "Legal Analysis (IRAC)",

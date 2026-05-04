@@ -23,6 +23,7 @@
  * - mark:archive       → resource.archived (+ file removal)   (resource-scoped, no result event)
  * - mark:unarchive     → resource.unarchived                  (resource-scoped, no result event)
  * - frame:add-entity-type → entitytype.added                   → frame:entity-type-added / frame:entity-type-add-failed
+ * - frame:add-tag-schema  → tagschema.added                    → frame:tag-schema-added / frame:tag-schema-add-failed
  * - mark:update-entity-types → entitytag.added / entitytag.removed
  * - job:start          → job.started
  * - job:complete       → job.completed
@@ -80,6 +81,7 @@ export class Stower {
       pipe('mark:delete', (e) => this.handleMarkDelete(e)),
       pipe('mark:update-body', (e) => this.handleMarkUpdateBody(e)),
       pipe('frame:add-entity-type', (e) => this.handleAddEntityType(e)),
+      pipe('frame:add-tag-schema', (e) => this.handleAddTagSchema(e)),
       pipe('mark:archive', (e) => this.handleMarkArchive(e)),
       pipe('mark:unarchive', (e) => this.handleMarkUnarchive(e)),
       pipe('mark:update-entity-types', (e) => this.handleUpdateEntityTypes(e)),
@@ -402,6 +404,26 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to add entity type', { error: errField(error) });
       this.eventBus.get('frame:entity-type-add-failed').next({
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleAddTagSchema(event: EventMap['frame:add-tag-schema']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('frame:add-tag-schema missing _userId (gateway injection)');
+    }
+    try {
+      await this.kb.eventStore.appendEvent({
+        type: 'frame:tag-schema-added',
+        userId: makeUserId(event._userId),
+        version: 1,
+        payload: { schema: event.schema },
+      });
+      // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
+    } catch (error) {
+      this.logger.error('Failed to add tag schema', { schemaId: event.schema?.id, error: errField(error) });
+      this.eventBus.get('frame:tag-schema-add-failed').next({
         message: error instanceof Error ? error.message : String(error),
       });
     }

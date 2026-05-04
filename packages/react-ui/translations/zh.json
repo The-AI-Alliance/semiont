@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "标签",
     "noTags": "暂无标签。使用 AI 注释识别结构角色。",
+    "noSchemas": "此知识库尚未注册任何标签模式。KB 管理员必须先注册至少一个结构分析模式（例如通过 `register-tag-schemas` 技能），然后才能使用标签功能。",
     "annotateTags": "注释标签",
     "selectSchema": "选择框架",
     "schemaLegal": "法律分析 (IRAC)",

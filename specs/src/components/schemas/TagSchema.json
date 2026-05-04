@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.",
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "domain": {
+      "type": "string",
+      "description": "Free-form domain hint (e.g. 'legal', 'scientific', 'general'). Used in the LLM prompt to tune the model's analysis voice. KB authors choose."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "$ref": "./TagCategory.json" }
+    }
+  },
+  "required": ["id", "name", "description", "domain", "tags"]
+}

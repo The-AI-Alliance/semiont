@@ -13,6 +13,7 @@
  * - browse:annotation-history-requested — annotation event history
  * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
  * - browse:entity-types-requested — list entity types from the project projection
+ * - browse:tag-schemas-requested — list tag schemas from the project projection
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
  */
 
@@ -30,6 +31,7 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 import { getEntityTypes } from '@semiont/ontology';
 import type { KnowledgeBase } from './knowledge-base';
 import { readEntityTypesProjection } from './views/entity-types-reader';
+import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 
@@ -76,6 +78,7 @@ export class Browser {
       pipe('browse:annotation-history-requested',(e) => this.handleBrowseAnnotationHistory(e)).subscribe({ error: errorHandler }),
       pipe('browse:referenced-by-requested',     (e) => this.handleReferencedBy(e)).subscribe({ error: errorHandler }),
       pipe('browse:entity-types-requested',      (e) => this.handleEntityTypes(e)).subscribe({ error: errorHandler }),
+      pipe('browse:tag-schemas-requested',       (e) => this.handleTagSchemas(e)).subscribe({ error: errorHandler }),
       pipe('browse:directory-requested',         (e) => this.handleBrowseDirectory(e)).subscribe({ error: errorHandler }),
     );
   }
@@ -360,6 +363,22 @@ export class Browser {
     } catch (error) {
       this.logger.error('Entity types read failed', { error: errField(error) });
       this.eventBus.get('browse:entity-types-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleTagSchemas(event: EventMap['browse:tag-schemas-requested']): Promise<void> {
+    try {
+      const tagSchemas = await readTagSchemasProjection(this.project);
+      this.eventBus.get('browse:tag-schemas-result').next({
+        correlationId: event.correlationId,
+        response: { tagSchemas },
+      });
+    } catch (error) {
+      this.logger.error('Tag schemas read failed', { error: errField(error) });
+      this.eventBus.get('browse:tag-schemas-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

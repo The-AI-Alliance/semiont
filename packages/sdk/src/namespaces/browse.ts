@@ -10,6 +10,7 @@ import type {
   AnnotationId,
   GraphConnection,
   Motivation,
+  TagSchema,
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
@@ -30,6 +31,9 @@ type ResourceListFilters = { limit?: number; archived?: boolean; search?: string
 
 /** Sentinel key for the singleton entity-types cache. */
 const ENTITY_TYPES_KEY = '_';
+
+/** Sentinel key for the singleton tag-schemas cache. */
+const TAG_SCHEMAS_KEY = '_';
 
 export class BrowseNamespace implements IBrowseNamespace {
   // ── Caches, backed by the RxJS-native `Cache<K, V>` primitive ───────────
@@ -54,6 +58,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly annotationDetailCache: Cache<AnnotationId, Annotation>;
   private readonly annotationResources = new Map<AnnotationId, ResourceId>();
   private readonly entityTypesCache: Cache<string, string[]>;
+  private readonly tagSchemasCache: Cache<string, TagSchema[]>;
   private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
   private readonly resourceEventsCache: Cache<ResourceId, StoredEventResponse[]>;
 
@@ -136,6 +141,17 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.entityTypes;
     });
 
+    this.tagSchemasCache = createCache<string, TagSchema[]>(async () => {
+      const result = await busRequest<{ tagSchemas: TagSchema[] }>(
+        this.transport,
+        'browse:tag-schemas-requested',
+        {},
+        'browse:tag-schemas-result',
+        'browse:tag-schemas-failed',
+      );
+      return result.tagSchemas;
+    });
+
     this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
       const result = await busRequest<{ referencedBy: ReferencedByEntry[] }>(
         this.transport,
@@ -198,6 +214,10 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   entityTypes(): CacheObservable<string[]> {
     return CacheObservable.from(this.entityTypesCache.observe(ENTITY_TYPES_KEY));
+  }
+
+  tagSchemas(): CacheObservable<TagSchema[]> {
+    return CacheObservable.from(this.tagSchemasCache.observe(TAG_SCHEMAS_KEY));
   }
 
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
@@ -314,6 +334,10 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.entityTypesCache.invalidate(ENTITY_TYPES_KEY);
   }
 
+  invalidateTagSchemas(): void {
+    this.tagSchemasCache.invalidate(TAG_SCHEMAS_KEY);
+  }
+
   invalidateReferencedBy(resourceId: ResourceId): void {
     this.referencedByCache.invalidate(resourceId);
   }
@@ -422,8 +446,9 @@ export class BrowseNamespace implements IBrowseNamespace {
         for (const rId of this.resourceEventsCache.keys()) this.invalidateResourceEvents(rId);
         for (const rId of this.referencedByCache.keys()) this.invalidateReferencedBy(rId);
       }
-      // Entity-types is a KB-wide list — always refetch on any gap.
+      // Entity-types and tag-schemas are KB-wide lists — always refetch on any gap.
       this.invalidateEntityTypes();
+      this.invalidateTagSchemas();
     });
 
     this.on('mark:delete-ok', (event) => {
@@ -468,5 +493,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.on('mark:unarchived', this.onArchiveToggled);
 
     this.on('frame:entity-type-added', () => this.invalidateEntityTypes());
+    this.on('frame:tag-schema-added', () => this.invalidateTagSchemas());
   }
 }

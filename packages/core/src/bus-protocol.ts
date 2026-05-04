@@ -157,12 +157,15 @@ export type EventMap = {
 
   // Domain events (branded — system of record). System-level: no resourceId.
   'frame:entity-type-added': StoredEvent<EventOfType<'frame:entity-type-added'>>;
+  'frame:tag-schema-added': StoredEvent<EventOfType<'frame:tag-schema-added'>>;
 
   // Commands
   'frame:add-entity-type': components['schemas']['FrameAddEntityTypeCommand'];
+  'frame:add-tag-schema': components['schemas']['FrameAddTagSchemaCommand'];
 
   // Command results
   'frame:entity-type-add-failed': components['schemas']['CommandError'];
+  'frame:tag-schema-add-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // BIND FLOW — reference linking
@@ -242,6 +245,10 @@ export type EventMap = {
   'browse:entity-types-requested': components['schemas']['BrowseEntityTypesRequest'];
   'browse:entity-types-result': components['schemas']['BrowseEntityTypesResult'];
   'browse:entity-types-failed': { correlationId: string } & components['schemas']['CommandError'];
+
+  'browse:tag-schemas-requested': components['schemas']['BrowseTagSchemasRequest'];
+  'browse:tag-schemas-result': components['schemas']['BrowseTagSchemasResult'];
+  'browse:tag-schemas-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:directory-requested': components['schemas']['BrowseDirectoryRequest'];
   'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
@@ -435,6 +442,7 @@ export const CHANNEL_SCHEMAS = {
   'mark:entity-tag-added':            null,
   'mark:entity-tag-removed':          null,
   'frame:entity-type-added':           null,
+  'frame:tag-schema-added':            null,
   'mark:archived':                    null,
   'mark:unarchived':                  null,
   'mark:create-request':              'MarkCreateRequest',
@@ -445,12 +453,14 @@ export const CHANNEL_SCHEMAS = {
   'mark:unarchive':                   'MarkUnarchiveCommand',
   'mark:update-entity-types':         'MarkUpdateEntityTypesCommand',
   'frame:add-entity-type':             'FrameAddEntityTypeCommand',
+  'frame:add-tag-schema':              'FrameAddTagSchemaCommand',
   'mark:create-ok':                   'MarkCreateOk',
   'mark:create-failed':               'CommandError',
   'mark:delete-ok':                   'MarkDeleteOk',
   'mark:delete-failed':               'CommandError',
   'mark:body-update-failed':          'CommandError',
   'frame:entity-type-add-failed':      'CommandError',
+  'frame:tag-schema-add-failed':       'CommandError',
   'mark:select-comment':              'SelectionData',
   'mark:select-tag':                  'SelectionData',
   'mark:select-assessment':           'SelectionData',
@@ -520,6 +530,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:entity-types-requested':    'BrowseEntityTypesRequest',
   'browse:entity-types-result':       'BrowseEntityTypesResult',
   'browse:entity-types-failed':       null,
+  'browse:tag-schemas-requested':     'BrowseTagSchemasRequest',
+  'browse:tag-schemas-result':        'BrowseTagSchemasResult',
+  'browse:tag-schemas-failed':        null,
   'browse:directory-requested':       'BrowseDirectoryRequest',
   'browse:directory-result':          'BrowseDirectoryResult',
   'browse:directory-failed':          null, // { correlationId; path } & CommandError

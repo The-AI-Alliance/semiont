@@ -308,6 +308,7 @@ export class ViewMaterializer {
 
       // System events don't affect resource metadata
       case 'frame:entity-type-added':
+      case 'frame:tag-schema-added':
         break;
     }
   }
@@ -387,6 +388,7 @@ export class ViewMaterializer {
 
       // System events don't affect annotations
       case 'frame:entity-type-added':
+      case 'frame:tag-schema-added':
         break;
     }
   }
@@ -398,7 +400,8 @@ export class ViewMaterializer {
    * Mirrors GraphDBConsumer.rebuildAll() and Smelter.rebuildAll() — this is the
    * recovery path that makes the ephemeral stateDir safe to wipe. The live
    * append path (EventStore.appendEvent → materializeIncremental /
-   * materializeEntityTypes) is unchanged and runs in addition.
+   * materializeEntityTypes / materializeTagSchemas) is unchanged and runs in
+   * addition.
    */
   async rebuildAll(eventLog: RebuildEventSource): Promise<void> {
     this.logger?.info('[ViewMaterializer] Rebuilding all materialized views from event log');
@@ -406,12 +409,15 @@ export class ViewMaterializer {
     const SYSTEM_ID = '__system__' as unknown as ResourceId;
 
     // Pass 1: __system__ events — produces system projections
-    // (currently entitytypes.json; future system projections plug in here)
+    // (entitytypes.json, tagschemas.json; future system projections plug in here)
     const systemEvents = await eventLog.getEvents(SYSTEM_ID);
     this.logger?.info('[ViewMaterializer] Replaying system events', { count: systemEvents.length });
     for (const event of systemEvents) {
       if (event.type === 'frame:entity-type-added') {
         await this.materializeEntityTypes((event.payload as { entityType: string }).entityType);
+      } else if (event.type === 'frame:tag-schema-added') {
+        const payload = event.payload as { schema: import('@semiont/core').TagSchema };
+        await this.materializeTagSchemas(payload.schema);
       }
     }
 
@@ -480,5 +486,54 @@ export class ViewMaterializer {
     // Write view
     await fs.mkdir(path.dirname(entityTypesPath), { recursive: true });
     await fs.writeFile(entityTypesPath, JSON.stringify(view, null, 2));
+  }
+
+  /**
+   * Materialize tag schemas view - System-level view.
+   *
+   * Most-recent registration of a given `schema.id` wins. If the projection
+   * already has an entry under the same id with content that differs from
+   * the incoming schema, the incoming schema replaces it and a warning is
+   * logged. Identical re-registrations are silent.
+   */
+  async materializeTagSchemas(schema: import('@semiont/core').TagSchema): Promise<void> {
+    const tagSchemasPath = path.join(
+      this.config.basePath,
+      'projections',
+      '__system__',
+      'tagschemas.json'
+    );
+
+    // Read current view
+    let view = { tagSchemas: [] as import('@semiont/core').TagSchema[] };
+    try {
+      const content = await fs.readFile(tagSchemasPath, 'utf-8');
+      view = JSON.parse(content);
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') throw error;
+      // File doesn't exist - will create it
+    }
+
+    // Most-recent-wins by id; log a warning when content changes.
+    const existingIdx = view.tagSchemas.findIndex((s) => s.id === schema.id);
+    if (existingIdx >= 0) {
+      const existing = view.tagSchemas[existingIdx];
+      if (JSON.stringify(existing) !== JSON.stringify(schema)) {
+        this.logger?.warn('[ViewMaterializer] Tag schema overwritten', {
+          schemaId: schema.id,
+          message: `tag schema "${schema.id}" overwritten — definition changed`,
+        });
+      }
+      view.tagSchemas[existingIdx] = schema;
+    } else {
+      view.tagSchemas.push(schema);
+    }
+
+    // Sort by id for stable file output
+    view.tagSchemas.sort((a, b) => a.id.localeCompare(b.id));
+
+    // Write view
+    await fs.mkdir(path.dirname(tagSchemasPath), { recursive: true });
+    await fs.writeFile(tagSchemasPath, JSON.stringify(view, null, 2));
   }
 }

@@ -84,6 +84,20 @@ function defaultResponses(): ResponseMap {
       resultChannel: 'browse:entity-types-result',
       response: { entityTypes: ['Person'] },
     }),
+    'browse:tag-schemas-requested': () => ({
+      resultChannel: 'browse:tag-schemas-result',
+      response: {
+        tagSchemas: [
+          {
+            id: 'test-schema',
+            name: 'Test Schema',
+            description: 'Schema for browse.test.ts',
+            domain: 'test',
+            tags: [{ name: 'A', description: 'cat A', examples: [] }],
+          },
+        ],
+      },
+    }),
     'browse:events-requested': () => ({
       resultChannel: 'browse:events-result',
       response: { events: [], total: 0, resourceId: 'res-1' },
@@ -210,6 +224,29 @@ describe('BrowseNamespace', () => {
       const val = await firstDefined(browse.entityTypes());
       expect(emitSpy).toHaveBeenCalledWith('browse:entity-types-requested', expect.any(Object));
       expect(val).toEqual(['Person']);
+    });
+  });
+
+  // ── Tag schemas ───────────────────────────────────────────────────────
+
+  describe('tagSchemas()', () => {
+    it('fetches on first subscribe', async () => {
+      const val = await firstDefined(browse.tagSchemas());
+      expect(emitSpy).toHaveBeenCalledWith('browse:tag-schemas-requested', expect.any(Object));
+      expect(val).toHaveLength(1);
+      expect(val[0]?.id).toBe('test-schema');
+    });
+
+    it('caches (no second fetch)', async () => {
+      await firstDefined(browse.tagSchemas());
+      await firstDefined(browse.tagSchemas());
+      expect(emitSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns the same observable on repeated calls (per-key stability)', () => {
+      const obs1 = browse.tagSchemas();
+      const obs2 = browse.tagSchemas();
+      expect(obs1).toBe(obs2);
     });
   });
 
@@ -358,6 +395,27 @@ describe('BrowseNamespace', () => {
       eventBus.get('frame:entity-type-added').next(stored({}) as any);
       await firstDefined(browse.entityTypes());
       expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('frame:tag-schema-added → invalidates tag schemas', async () => {
+      await firstDefined(browse.tagSchemas());
+      expect(emitSpy).toHaveBeenCalledTimes(1);
+      eventBus.get('frame:tag-schema-added').next(stored({}) as any);
+      await firstDefined(browse.tagSchemas());
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('bus:resume-gap (no scope) → invalidates both entity types AND tag schemas', async () => {
+      // The KB-wide registries always refetch on a gap regardless of
+      // whether a specific scope was named — see browse.ts subscription.
+      await firstDefined(browse.entityTypes());
+      await firstDefined(browse.tagSchemas());
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+
+      eventBus.get('bus:resume-gap').next({} as any);
+      await firstDefined(browse.entityTypes());
+      await firstDefined(browse.tagSchemas());
+      expect(emitSpy).toHaveBeenCalledTimes(4);
     });
   });
 });

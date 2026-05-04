@@ -1,6 +1,8 @@
 import { generateUuid, jobId, userId, resourceId, entityType } from '@semiont/core';
 import type { EventBus, Logger } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
+import { readTagSchemasProjection } from '../views/tag-schemas-reader.js';
 
 function parseDidUser(did: string): { userId: string; email: string; domain: string } {
   const parts = did.split(':');
@@ -10,7 +12,12 @@ function parseDidUser(did: string): { userId: string; email: string; domain: str
   return { userId: did, email, domain };
 }
 
-export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueue, parentLogger: Logger): void {
+export function registerJobCommandHandlers(
+  eventBus: EventBus,
+  jobQueue: JobQueue,
+  project: SemiontProject,
+  parentLogger: Logger,
+): void {
   const logger = parentLogger.child({ component: 'job-commands' });
 
   eventBus.get('job:create').subscribe(async (command) => {
@@ -45,6 +52,23 @@ export function registerJobCommandHandlers(eventBus: EventBus, jobQueue: JobQueu
       const jobParams = job.params as Record<string, unknown>;
       if (jobType === 'reference-annotation' && jobParams.entityTypes) {
         jobParams.entityTypes = (jobParams.entityTypes as string[]).map(et => entityType(et));
+      }
+
+      // Tag-annotation jobs: resolve the caller-supplied `schemaId` against
+      // the per-KB tag-schema projection and embed the resolved schema in
+      // the worker's params. Keeps the worker independent of the registry.
+      if (jobType === 'tag-annotation') {
+        const schemaId = jobParams.schemaId;
+        if (typeof schemaId !== 'string' || !schemaId) {
+          throw new Error('tag-annotation requires schemaId');
+        }
+        const schemas = await readTagSchemasProjection(project);
+        const schema = schemas.find((s) => s.id === schemaId);
+        if (!schema) {
+          throw new Error(`Tag schema not registered: ${schemaId}`);
+        }
+        jobParams.schema = schema;
+        delete jobParams.schemaId;
       }
 
       await jobQueue.createJob(job as never);

@@ -12,38 +12,22 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { AnnotationDetection } from '../../workers/annotation-detection';
 import { MockInferenceClient } from '@semiont/inference';
+import type { TagSchema } from '@semiont/core';
 
-// Mock @semiont/ontology to provide tag schema
-vi.mock('@semiont/ontology', () => ({
-  getTagSchema: vi.fn((schemaId: string) => {
-    if (schemaId === 'imrad') {
-      return {
-        id: 'imrad',
-        name: 'IMRAD',
-        description: 'Introduction, Methods, Results, and Discussion structure',
-        domain: 'academic',
-        tags: [
-          { name: 'introduction' },
-          { name: 'methods' },
-          { name: 'results' },
-          { name: 'discussion' }
-        ]
-      };
-    }
-    return null;  // Invalid schema
-  }),
-  getSchemaCategory: vi.fn((_schemaId: string, categoryName: string) => {
-    const validCategories = ['introduction', 'methods', 'results', 'discussion'];
-    if (validCategories.includes(categoryName)) {
-      return {
-        name: categoryName,
-        description: `${categoryName} section`,
-        examples: [`What is ${categoryName.toLowerCase()}?`, `How does ${categoryName.toLowerCase()} work?`]
-      };
-    }
-    return null;  // Invalid category
-  })
-}));
+// Test schema — supplied directly to detectTags (the dispatcher resolves
+// schemaId → schema before the worker sees the job).
+const IMRAD_SCHEMA: TagSchema = {
+  id: 'imrad',
+  name: 'IMRAD',
+  description: 'Introduction, Methods, Results, and Discussion structure',
+  domain: 'academic',
+  tags: [
+    { name: 'introduction', description: 'introduction section', examples: ['What is introduction?', 'How does introduction work?'] },
+    { name: 'methods',      description: 'methods section',      examples: ['What is methods?',      'How does methods work?'] },
+    { name: 'results',      description: 'results section',      examples: ['What is results?',      'How does results work?'] },
+    { name: 'discussion',   description: 'discussion section',   examples: ['What is discussion?',   'How does discussion work?'] },
+  ],
+};
 
 const testContent =
   'Climate change is one of the most pressing challenges facing humanity. ' +
@@ -282,7 +266,7 @@ describe('AnnotationDetection', () => {
       const result = await AnnotationDetection.detectTags(
         testContent,
         mockClient,
-        'imrad',
+        IMRAD_SCHEMA,
         'introduction'
       );
 
@@ -302,7 +286,7 @@ describe('AnnotationDetection', () => {
       const result = await AnnotationDetection.detectTags(
         testContent,
         mockClient,
-        'imrad',
+        IMRAD_SCHEMA,
         'methods'
       );
 
@@ -324,7 +308,7 @@ describe('AnnotationDetection', () => {
       const result = await AnnotationDetection.detectTags(
         testContent,
         mockClient,
-        'imrad',
+        IMRAD_SCHEMA,
         'results'
       );
 
@@ -334,23 +318,15 @@ describe('AnnotationDetection', () => {
       expect(positions.length).toBe(uniquePositions.size);
     });
 
-    it('should reject invalid schema', async () => {
-      await expect(
-        AnnotationDetection.detectTags(
-          testContent,
-          mockClient,
-          'invalid-schema',
-          'category'
-        )
-      ).rejects.toThrow('Invalid tag schema');
-    });
-
     it('should reject invalid category', async () => {
+      // Schema-id resolution moved to the dispatcher; the worker only sees
+      // the resolved TagSchema. An invalid category is the worker's only
+      // remaining validation surface.
       await expect(
         AnnotationDetection.detectTags(
           testContent,
           mockClient,
-          'imrad',
+          IMRAD_SCHEMA,
           'invalid-category'
         )
       ).rejects.toThrow('Invalid category');

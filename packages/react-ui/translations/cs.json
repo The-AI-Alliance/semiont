@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Štítky",
     "noTags": "Zatím žádné štítky. Použijte AI anotaci pro identifikaci strukturálních rolí.",
+    "noSchemas": "Pro tuto znalostní bázi nejsou registrována žádná schémata značek. Správce KB musí zaregistrovat alespoň jedno schéma strukturální analýzy (např. pomocí dovednosti `register-tag-schemas`), než bude možné používat značkování.",
     "annotateTags": "Anotovat štítky",
     "selectSchema": "Vybrat rámec",
     "schemaLegal": "Právní analýza (IRAC)",

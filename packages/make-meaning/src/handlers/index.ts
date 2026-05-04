@@ -12,6 +12,7 @@
  */
 
 import type { EventBus, Logger } from '@semiont/core';
+import type { SemiontProject } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 
 import type { KnowledgeSystem } from '../knowledge-system.js';
@@ -35,10 +36,11 @@ export function registerBusHandlers(
   eventBus: EventBus,
   knowledgeSystem: KnowledgeSystem,
   jobQueue: JobQueue,
+  project: SemiontProject,
   logger: Logger,
 ): void {
   registerAnnotationAssemblyHandler(eventBus, logger);
   registerAnnotationLookupHandlers(eventBus, knowledgeSystem.kb, knowledgeSystem.gatherer, logger);
   registerBindUpdateBodyHandler(eventBus, logger);
-  registerJobCommandHandlers(eventBus, jobQueue, logger);
+  registerJobCommandHandlers(eventBus, jobQueue, project, logger);
 }

@@ -12,7 +12,7 @@ import {
   LightBulbIcon
 } from '@heroicons/react/24/outline';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
-import type { TagSchema } from '@semiont/react-ui';
+import type { TagSchema } from '@semiont/sdk';
 
 export interface TagSchemasPageProps {
   // Data props
@@ -43,7 +43,7 @@ const domainIcons: Record<string, React.ComponentType<any>> = {
   general: LightBulbIcon
 };
 
-const domainClasses = {
+const domainClasses: Record<string, string> = {
   legal: 'semiont-schema-domain--legal',
   scientific: 'semiont-schema-domain--scientific',
   general: 'semiont-schema-domain--general'
@@ -84,7 +84,7 @@ export function TagSchemasPage({
         <div className="semiont-card-grid semiont-card-grid--two-columns">
           {schemas.map((schema) => {
             const Icon = domainIcons[schema.domain] || LightBulbIcon;
-            const domainClass = domainClasses[schema.domain] || domainClasses.general;
+            const domainClass = domainClasses[schema.domain] || domainClasses.general!;
 
             return (
               <div

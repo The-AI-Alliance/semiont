@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Tunnisteet",
     "noTags": "Ei vielä tunnisteita. Käytä tekoälymerkintää tunnistaaksesi rakenteellisia rooleja.",
+    "noSchemas": "Tälle tietämyspohjalle ei ole rekisteröity tunnisteskeemoja. KB-järjestelmänvalvojan on rekisteröitävä vähintään yksi rakenneanalyysi-skeema (esim. `register-tag-schemas`-taidolla), ennen kuin tunnistamista voi käyttää.",
     "annotateTags": "Merkitse tunnisteet",
     "selectSchema": "Valitse kehys",
     "schemaLegal": "Oikeudellinen analyysi (IRAC)",

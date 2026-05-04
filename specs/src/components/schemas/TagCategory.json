@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "A single category within a tag schema (e.g. 'Issue' in IRAC, 'distinguished' in legal-citation-treatment). Each category carries methodology-bound semantics: a name, a description, and examples used in the LLM prompt.",
+  "properties": {
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "examples": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["name", "description", "examples"]
+}

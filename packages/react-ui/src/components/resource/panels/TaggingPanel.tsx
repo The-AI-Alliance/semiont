@@ -9,7 +9,6 @@ import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { TagEntry } from './TagEntry';
 import { PanelHeader } from './PanelHeader';
-import { getAllTagSchemas } from '../../../lib/tag-schemas';
 import './TaggingPanel.css';
 
 import type { Annotation } from '@semiont/core';
@@ -76,8 +75,34 @@ export function TaggingPanel({
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
   const session = useObservable(useSemiont().activeSession$);
-  const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
+
+  // Subscribe to the per-KB tag-schema registry. Schemas are runtime-
+  // registered by the KB at session start (see frame.addTagSchema).
+  // During the initial load the observable yields `undefined` — render an
+  // empty schemas list and let the picker render no options until the
+  // first emission lands.
+  const tagSchemas$ = useMemo(
+    () => session?.client.browse.tagSchemas() ?? null,
+    [session],
+  );
+  const schemasObserved = useObservable(tagSchemas$);
+  const schemas = schemasObserved ?? [];
+  // True only AFTER the registry has resolved AND it's empty — distinct
+  // from the initial-loading state (`schemasObserved === undefined`),
+  // which renders nothing rather than an empty-state message.
+  const noSchemasRegistered = schemasObserved !== undefined && schemasObserved.length === 0;
+
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string>('');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+
+  // Default the schema selection to the first registered schema once
+  // the registry resolves. We don't reset on schemas changing to avoid
+  // clobbering an explicit user choice.
+  useEffect(() => {
+    if (!selectedSchemaId && schemas.length > 0) {
+      setSelectedSchemaId(schemas[0]!.id);
+    }
+  }, [schemas, selectedSchemaId]);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -165,7 +190,6 @@ export function TaggingPanel({
     // Pulse effect is handled by isHovered prop on TagEntry
   }, [hoveredAnnotationId]);
 
-  const schemas = getAllTagSchemas();
   const selectedSchema = schemas.find(s => s.id === selectedSchemaId);
 
   const handleSchemaChange = (schemaId: string) => {
@@ -248,23 +272,32 @@ export function TaggingPanel({
               </p>
             </div>
 
+            {/* Empty-state — registry has resolved with no schemas. */}
+            {noSchemasRegistered && (
+              <p className="semiont-form__help" data-type="tag-no-schemas">
+                {t('noSchemas')}
+              </p>
+            )}
+
             {/* Schema and Category Selection for Manual Tag */}
-            <div className="semiont-form-field">
-              <label className="semiont-form-field__label">
-                {t('selectSchema')}
-              </label>
-              <select
-                value={selectedSchemaId}
-                onChange={(e) => handleSchemaChange(e.target.value)}
-                className="semiont-select"
-              >
-                {schemas.map(schema => (
-                  <option key={schema.id} value={schema.id}>
-                    {t(`schema${schema.id === 'legal-irac' ? 'Legal' : schema.id === 'scientific-imrad' ? 'Scientific' : 'Argument'}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!noSchemasRegistered && (
+              <div className="semiont-form-field">
+                <label className="semiont-form-field__label">
+                  {t('selectSchema')}
+                </label>
+                <select
+                  value={selectedSchemaId}
+                  onChange={(e) => handleSchemaChange(e.target.value)}
+                  className="semiont-select"
+                >
+                  {schemas.map(schema => (
+                    <option key={schema.id} value={schema.id}>
+                      {schema.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {selectedSchema && (
               <div className="semiont-form-field">
@@ -334,28 +367,37 @@ export function TaggingPanel({
               <div className="semiont-assist-widget" data-assisting={isAssisting && progress ? 'true' : 'false'} data-type="tag">
               {!isAssisting && !progress && (
                 <>
+                  {/* Empty-state — registry has resolved with no schemas. */}
+                  {noSchemasRegistered && (
+                    <p className="semiont-form__help" data-type="tag-no-schemas">
+                      {t('noSchemas')}
+                    </p>
+                  )}
+
                   {/* Schema Selector */}
-                  <div className="semiont-form-field">
-                    <label className="semiont-form-field__label">
-                      {t('selectSchema')}
-                    </label>
-                    <select
-                      value={selectedSchemaId}
-                      onChange={(e) => handleSchemaChange(e.target.value)}
-                      className="semiont-select"
-                    >
-                      {schemas.map(schema => (
-                        <option key={schema.id} value={schema.id}>
-                          {t(`schema${schema.id === 'legal-irac' ? 'Legal' : schema.id === 'scientific-imrad' ? 'Scientific' : 'Argument'}`)}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedSchema && (
-                      <p className="semiont-form__help">
-                        {selectedSchema.description}
-                      </p>
-                    )}
-                  </div>
+                  {!noSchemasRegistered && (
+                    <div className="semiont-form-field">
+                      <label className="semiont-form-field__label">
+                        {t('selectSchema')}
+                      </label>
+                      <select
+                        value={selectedSchemaId}
+                        onChange={(e) => handleSchemaChange(e.target.value)}
+                        className="semiont-select"
+                      >
+                        {schemas.map(schema => (
+                          <option key={schema.id} value={schema.id}>
+                            {schema.name}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedSchema && (
+                        <p className="semiont-form__help">
+                          {selectedSchema.description}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Category Selector */}
                   {selectedSchema && (
@@ -398,7 +440,7 @@ export function TaggingPanel({
                               style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}
                             >
                               <span style={{ fontWeight: 500 }}>
-                                {t(`category${category.name.replace(/\s+/g, '')}`)}
+                                {category.name}
                               </span>
                               <span style={{ fontSize: 'var(--semiont-text-xs)', color: 'var(--semiont-text-secondary)' }}>
                                 {category.description}

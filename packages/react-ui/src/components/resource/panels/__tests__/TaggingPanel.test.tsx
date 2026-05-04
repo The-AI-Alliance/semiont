@@ -4,8 +4,10 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { of } from 'rxjs';
+import { CacheObservable } from '@semiont/sdk';
 import { TaggingPanel } from '../TaggingPanel';
-import type { components, EventBus } from '@semiont/core';
+import type { components, EventBus, TagSchema } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
 import type { Annotation } from '@semiont/core';
@@ -32,8 +34,30 @@ function createEventTracker() {
   };
 }
 
+// Test tag schemas — the panel subscribes to `client.browse.tagSchemas()`.
+// We stub that method directly to return a `CacheObservable` that emits
+// these schemas synchronously, mirroring the post-resolve cache state
+// without the round-trip through bus/transport plumbing.
+const TEST_TAG_SCHEMAS: TagSchema[] = [
+  {
+    id: 'legal-irac',
+    name: 'Legal (IRAC)',
+    description: 'Issue, Rule, Application, Conclusion framework for legal analysis',
+    domain: 'legal',
+    tags: [
+      { name: 'Issue',       description: 'Legal question to be resolved', examples: [] },
+      { name: 'Rule',        description: 'Legal principle or statute',    examples: [] },
+      { name: 'Application', description: 'Application of rule to facts',  examples: [] },
+      { name: 'Conclusion',  description: 'Resolution of the issue',       examples: [] },
+    ],
+  },
+];
+
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
+  vi.spyOn(client.browse, 'tagSchemas').mockReturnValue(
+    CacheObservable.from(of(TEST_TAG_SCHEMAS))
+  );
   if (tracker) tracker._attach(eventBus);
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
@@ -93,23 +117,6 @@ vi.mock('../TagEntry', () => ({
       <div>{tag.id}</div>
     </div>
   ),
-}));
-
-// Mock tag schemas
-vi.mock('../../../../lib/tag-schemas', () => ({
-  getAllTagSchemas: vi.fn(() => [
-    {
-      id: 'legal-irac',
-      name: 'Legal (IRAC)',
-      description: 'Issue, Rule, Application, Conclusion framework for legal analysis',
-      tags: [
-        { name: 'Issue', description: 'Legal question to be resolved', color: '#3b82f6' },
-        { name: 'Rule', description: 'Legal principle or statute', color: '#10b981' },
-        { name: 'Application', description: 'Application of rule to facts', color: '#f59e0b' },
-        { name: 'Conclusion', description: 'Resolution of the issue', color: '#ef4444' },
-      ],
-    },
-  ]),
 }));
 
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -307,7 +314,7 @@ describe('TaggingPanel Component', () => {
       expect(selects.length).toBeGreaterThan(0);
     });
 
-    it('should show category selector in tag creation form', () => {
+    it('should show category selector in tag creation form', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
       renderWithEventBus(
@@ -317,7 +324,10 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      expect(screen.getByText(/Select category/)).toBeInTheDocument();
+      // The category selector only renders once the schema list has
+      // resolved and the default schema (first registered) has been
+      // picked — async because the schemas come from `browse.tagSchemas()`.
+      expect(await screen.findByText(/Select category/)).toBeInTheDocument();
     });
 
     it('should emit mark:submitevent when category is selected', async () => {
@@ -332,7 +342,10 @@ describe('TaggingPanel Component', () => {
         tracker
       );
 
-      // Find the category selector (the one in the pending annotation form)
+      // Wait for the schema list to load — `browse.tagSchemas()` is
+      // async, so the category dropdown only renders after the bus
+      // response lands.
+      await screen.findByText(/Select category/);
       const categorySelects = screen.getAllByRole('combobox');
       const categorySelect = categorySelects.find(select =>
         select.querySelector('option[value=""]')?.textContent === 'Choose a category'
@@ -366,6 +379,7 @@ describe('TaggingPanel Component', () => {
         tracker
       );
 
+      await screen.findByText(/Select category/);
       const categorySelects = screen.getAllByRole('combobox');
       const categorySelect = categorySelects.find(select =>
         select.querySelector('option[value=""]')?.textContent === 'Choose a category'
@@ -474,7 +488,7 @@ describe('TaggingPanel Component', () => {
       expect(selects.length).toBeGreaterThan(0);
     });
 
-    it('should show Select All and Deselect All buttons', () => {
+    it('should show Select All and Deselect All buttons', async () => {
       renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
@@ -482,11 +496,11 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      expect(screen.getByText('Select All')).toBeInTheDocument();
+      expect(await screen.findByText('Select All')).toBeInTheDocument();
       expect(screen.getByText('Deselect All')).toBeInTheDocument();
     });
 
-    it('should show category checkboxes', () => {
+    it('should show category checkboxes', async () => {
       renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
@@ -494,7 +508,9 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      expect(screen.getByText('Issue')).toBeInTheDocument();
+      // Categories appear once `browse.tagSchemas()` resolves and the
+      // default schema is selected.
+      expect(await screen.findByText('Issue')).toBeInTheDocument();
       expect(screen.getByText('Rule')).toBeInTheDocument();
       expect(screen.getByText('Application')).toBeInTheDocument();
       expect(screen.getByText('Conclusion')).toBeInTheDocument();
@@ -520,7 +536,7 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      const issueCheckbox = screen.getByLabelText(/Issue/);
+      const issueCheckbox = await screen.findByLabelText(/Issue/);
       await userEvent.click(issueCheckbox);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/i });
@@ -537,7 +553,7 @@ describe('TaggingPanel Component', () => {
         tracker
       );
 
-      const issueCheckbox = screen.getByLabelText(/Issue/);
+      const issueCheckbox = await screen.findByLabelText(/Issue/);
       const ruleCheckbox = screen.getByLabelText(/Rule/);
 
       await userEvent.click(issueCheckbox);
@@ -581,7 +597,7 @@ describe('TaggingPanel Component', () => {
       expect(headings[0]).toHaveClass('semiont-panel-header__text');
     });
 
-    it('should have proper checkbox labels', () => {
+    it('should have proper checkbox labels', async () => {
       renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
@@ -589,7 +605,7 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      expect(screen.getByLabelText(/Issue/)).toBeInTheDocument();
+      expect(await screen.findByLabelText(/Issue/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Rule/)).toBeInTheDocument();
     });
   });

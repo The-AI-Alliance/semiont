@@ -81,6 +81,8 @@ export type {
   GatheredContext,
   Motivation,
   ResourceDescriptor,
+  TagCategory,
+  TagSchema,
   // Transport contracts
   ConnectionState,
   IContentTransport,

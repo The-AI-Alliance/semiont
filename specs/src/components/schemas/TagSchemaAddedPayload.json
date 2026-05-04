@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "description": "Payload for frame:tag-schema-added domain event (system-level, no resourceId — fan-out is global to the KB).",
+  "properties": {
+    "schema": { "$ref": "./TagSchema.json" }
+  },
+  "required": ["schema"]
+}

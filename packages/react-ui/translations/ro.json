@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Etichete",
     "noTags": "Nicio etichetă încă. Utilizează adnotarea AI pentru a identifica rolurile structurale.",
+    "noSchemas": "Nu există scheme de etichete înregistrate pentru această bază de cunoștințe. Un administrator KB trebuie să înregistreze cel puțin o schemă de analiză structurală (de ex. prin abilitatea `register-tag-schemas`) înainte ca etichetarea să poată fi utilizată.",
     "annotateTags": "Adnotează etichete",
     "selectSchema": "Selectează cadrul",
     "schemaLegal": "Analiză juridică (IRAC)",

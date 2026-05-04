@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Etiketler",
     "noTags": "Henüz etiket yok. Yapısal rolleri belirlemek için yapay zeka açıklamasını kullanın.",
+    "noSchemas": "Bu bilgi tabanı için kayıtlı etiket şeması yok. Etiketleme kullanılmadan önce bir KB yöneticisinin en az bir yapısal analiz şeması kaydetmesi gerekir (örneğin `register-tag-schemas` becerisi ile).",
     "annotateTags": "Etiketleri Açıkla",
     "selectSchema": "Çerçeve Seç",
     "schemaLegal": "Hukuki Analiz (IRAC)",

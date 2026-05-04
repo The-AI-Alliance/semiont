@@ -19,8 +19,7 @@ import {
   type AssessmentMatch,
   type TagMatch,
 } from './detection/motivation-parsers';
-import { getTagSchema, getSchemaCategory } from '@semiont/ontology';
-import type { ResourceId } from '@semiont/core';
+import type { ResourceId, TagSchema } from '@semiont/core';
 import type { ContentFetcher } from '../types';
 
 export class AnnotationDetection {
@@ -106,6 +105,10 @@ export class AnnotationDetection {
   /**
    * Detect tags in content for a specific category.
    *
+   * The full `TagSchema` is supplied by the dispatcher (resolved against
+   * the per-KB tag-schema projection at job-creation time) so the worker
+   * is independent of the registry.
+   *
    * `sourceLanguage` is the locale of the content being analyzed. Body-locale
    * (`language`) doesn't influence the tag prompt — categories are schema
    * identifiers, not LLM-generated text — so it's consumed at the body-stamp
@@ -114,18 +117,13 @@ export class AnnotationDetection {
   static async detectTags(
     content: string,
     client: InferenceClient,
-    schemaId: string,
+    schema: TagSchema,
     category: string,
     sourceLanguage?: string
   ): Promise<TagMatch[]> {
-    const schema = getTagSchema(schemaId);
-    if (!schema) {
-      throw new Error(`Invalid tag schema: ${schemaId}`);
-    }
-
-    const categoryInfo = getSchemaCategory(schemaId, category);
+    const categoryInfo = schema.tags.find((t) => t.name === category);
     if (!categoryInfo) {
-      throw new Error(`Invalid category "${category}" for schema ${schemaId}`);
+      throw new Error(`Invalid category "${category}" for schema ${schema.id}`);
     }
 
     const prompt = MotivationPrompts.buildTagPrompt(

@@ -148,6 +148,7 @@
   "TaggingPanel": {
     "title": "Labels",
     "noTags": "Nog geen labels. Gebruik AI-annotatie om structurele rollen te identificeren.",
+    "noSchemas": "Geen tagschema's geregistreerd voor deze kennisbasis. Een KB-beheerder moet ten minste één structureel-analyseschema registreren (bv. via de `register-tag-schemas`-skill) voordat tagging gebruikt kan worden.",
     "annotateTags": "Labels annoteren",
     "selectSchema": "Framework selecteren",
     "schemaLegal": "Juridische analyse (IRAC)",

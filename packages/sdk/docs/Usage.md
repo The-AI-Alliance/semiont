@@ -206,7 +206,9 @@ const files = await semiont.browse.files('/docs', 'mtime');
 
 ## Frame
 
-The schema-layer flow. Frame operates on the KB's conceptual vocabulary — what *kinds* of things exist (entity types today, eventually tag schemas, relation/predicate types). Where the other seven flows act on content, Frame acts on the schema layer the content is expressed in. The MVP owns entity-type vocabulary writes; live reads of the vocabulary stay on Browse (`browse.entityTypes()`).
+The schema-layer flow. Frame operates on the KB's conceptual vocabulary — what *kinds* of things exist (entity types) and what structural-analysis taxonomies are recognized (tag schemas). Where the other seven flows act on content, Frame acts on the schema layer the content is expressed in. Live reads of either vocabulary stay on Browse (`browse.entityTypes()`, `browse.tagSchemas()`) — Frame owns writes; Browse owns reads.
+
+### Entity types
 
 ```typescript
 // Add a single entity type
@@ -221,7 +223,49 @@ semiont.browse.entityTypes().subscribe((types) => {
 });
 ```
 
-Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op. See [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md) for the per-flow contract.
+Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op.
+
+### Tag schemas
+
+Tag schemas are structural-analysis frameworks (IRAC, IMRAD, Toulmin, custom). They're **runtime-registered per knowledge base** — the SDK ships the type, the KB owns the schema data and registers it via `frame.addTagSchema(...)` at session/skill startup. The dispatcher embeds the resolved schema in worker job params at job-creation time, so an unknown `schemaId` rejects synchronously with `Tag schema not registered: <id>`.
+
+```typescript
+import type { TagSchema } from '@semiont/sdk';
+
+// Define the schema (typically lives in your KB's `src/tag-schemas.ts`).
+const LEGAL_IRAC_SCHEMA: TagSchema = {
+  id: 'legal-irac',
+  name: 'Legal Analysis (IRAC)',
+  description: 'Issue / Rule / Application / Conclusion framework for legal reasoning',
+  domain: 'legal',
+  tags: [
+    { name: 'Issue',       description: 'The legal question to be resolved',  examples: ['What must the court decide?'] },
+    { name: 'Rule',        description: 'The relevant law or legal principle', examples: ['What law applies?'] },
+    { name: 'Application', description: 'How the rule applies to the facts',  examples: ['How does the law apply here?'] },
+    { name: 'Conclusion',  description: 'The resolution',                       examples: ['What is the holding?'] },
+  ],
+};
+
+// Register at startup. Idempotent — re-runs with identical content
+// are silent at the projection layer; differing content overwrites
+// and logs a warning.
+await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
+
+// Now mark.assist with motivation 'tagging' can use it.
+await semiont.mark.assist(rId, 'tagging', {
+  schemaId: LEGAL_IRAC_SCHEMA.id,
+  categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
+});
+
+// Live-read registered schemas (Browse, not Frame). The cache
+// invalidates on `frame:tag-schema-added` so it stays current as new
+// schemas land.
+semiont.browse.tagSchemas().subscribe((schemas) => {
+  console.log('Registered schemas:', schemas.map((s) => s.id));
+});
+```
+
+For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md). For deferred schema-evolution work (rename / remove / version / migrate), see [`.plans/EVOLVE-TAG-SCHEMA.md`](../../../.plans/EVOLVE-TAG-SCHEMA.md).
 
 ## Mark
 

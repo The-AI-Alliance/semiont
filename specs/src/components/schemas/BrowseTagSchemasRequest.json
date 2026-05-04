@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "description": "Request to browse registered tag schemas",
+  "properties": {
+    "correlationId": { "type": "string" }
+  },
+  "required": ["correlationId"]
+}
