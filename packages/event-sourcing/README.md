@@ -136,6 +136,17 @@ await eventStore.views.rebuildAll(eventStore.log);
 
 The two paths use the same materialization primitives, so replaying event 1..N via `rebuildAll` produces the same final state as the live path walking 1..N over time.
 
+#### Pure projection reducers
+
+The `__system__` projections (`entitytypes.json`, `tagschemas.json`) are written by a thin I/O shell wrapping pure functions that own the merge/dedup/sort/conflict semantics. The pure reducers live in [`src/views/projection-reducers.ts`](src/views/projection-reducers.ts):
+
+- `applyEntityTypeAdded(view, tag)` → `string[]` — dedup + locale-aware sort.
+- `applyTagSchemaAdded(view, schema)` → `{ next; warning? }` — most-recent-wins by id, warning on overwrite-with-different-content.
+
+The shell methods on `ViewMaterializer` (`materializeEntityTypes`, `materializeTagSchemas`) read the projection file, call the reducer, then write the result. The semantics are the reducer's; the disk I/O is the shell's.
+
+This split keeps projection-update tests pure (single-digit milliseconds, no filesystem) and gives load-bearing invariants — sortedness, uniqueness, idempotence, most-recent-wins — a property-based-test home using fast-check. The full architectural narrative, the axiom catalog, and guidance for adding new projections lives in [`docs/system/PROJECTION-PATTERN.md`](../../docs/system/PROJECTION-PATTERN.md).
+
 #### Why startup rebuild exists
 
 The materialized views directory (`stateDir`) is **ephemeral by design** — it's safe to wipe (container recreation, `semiont destroy`, dev cleanup), and the event log under `.semiont/events/` is the single source of truth. `rebuildAll` is what makes "ephemeral" safe: any time `stateDir` goes empty, the next process start repopulates it from the event log.

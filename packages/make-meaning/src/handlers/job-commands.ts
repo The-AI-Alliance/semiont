@@ -4,6 +4,11 @@ import type { SemiontProject } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 import { readTagSchemasProjection } from '../views/tag-schemas-reader.js';
 import { readEntityTypesProjection } from '../views/entity-types-reader.js';
+import {
+  resolveTagSchema,
+  validateEntityTypes,
+  entityTypesNotRegisteredMessage,
+} from '../views/projection-validators.js';
 
 function parseDidUser(did: string): { userId: string; email: string; domain: string } {
   const parts = did.split(':');
@@ -53,25 +58,25 @@ export function registerJobCommandHandlers(
       const jobParams = job.params as Record<string, unknown>;
 
       // Validate caller-supplied entity types against the per-KB
-      // entity-type projection. Mirrors the tag-schema validation
-      // below — unknown tags reject synchronously rather than letting
-      // the worker stamp a resource (or annotation body) with a tag
-      // that isn't part of the KB's declared vocabulary. Applies to
-      // every jobType that surfaces `entityTypes` in `params`:
+      // entity-type projection. Unknown tags reject synchronously
+      // rather than letting the worker stamp a resource (or annotation
+      // body) with a tag that isn't part of the KB's declared
+      // vocabulary. Applies to every jobType that surfaces
+      // `entityTypes` in `params`:
       //  - `reference-annotation` (mark.assist linking)
       //  - `generation` (yield.fromAnnotation)
-      // Other jobTypes don't carry entityTypes through params and the
-      // check is a no-op for them.
+      // The validator returns `{ ok: true }` for the no-tags-supplied
+      // case, so the projection read only happens when there's
+      // something to validate.
       if (
         (jobType === 'reference-annotation' || jobType === 'generation') &&
         Array.isArray(jobParams.entityTypes) &&
         jobParams.entityTypes.length > 0
       ) {
-        const supplied = jobParams.entityTypes as string[];
-        const registered = new Set(await readEntityTypesProjection(project));
-        const unknown = supplied.filter((t) => !registered.has(t));
-        if (unknown.length > 0) {
-          throw new Error(`Entity type not registered: ${unknown.join(', ')}`);
+        const registered = await readEntityTypesProjection(project);
+        const result = validateEntityTypes(registered, jobParams.entityTypes as string[]);
+        if (!result.ok) {
+          throw new Error(entityTypesNotRegisteredMessage(result.unknown));
         }
       }
 
@@ -83,16 +88,12 @@ export function registerJobCommandHandlers(
       // the per-KB tag-schema projection and embed the resolved schema in
       // the worker's params. Keeps the worker independent of the registry.
       if (jobType === 'tag-annotation') {
-        const schemaId = jobParams.schemaId;
-        if (typeof schemaId !== 'string' || !schemaId) {
-          throw new Error('tag-annotation requires schemaId');
-        }
         const schemas = await readTagSchemasProjection(project);
-        const schema = schemas.find((s) => s.id === schemaId);
-        if (!schema) {
-          throw new Error(`Tag schema not registered: ${schemaId}`);
+        const result = resolveTagSchema(schemas, jobParams.schemaId);
+        if (result.error !== undefined) {
+          throw new Error(result.error);
         }
-        jobParams.schema = schema;
+        jobParams.schema = result.schema;
         delete jobParams.schemaId;
       }
 

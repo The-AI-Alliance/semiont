@@ -39,6 +39,11 @@ export { EventQuery } from './query/event-query';
 
 // Views
 export { ViewMaterializer } from './views/view-materializer';
+export {
+  applyEntityTypeAdded,
+  applyTagSchemaAdded,
+  type ApplyTagSchemaAddedResult,
+} from './views/projection-reducers';
 
 // Identifier utilities
 export { generateAnnotationId } from './identifier-utils';

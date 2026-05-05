@@ -170,6 +170,19 @@ const kb = await createKnowledgeBase(eventStore, project, graphDb, logger);
 
 The EventBus is created by the backend (or script) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — it is shared across the entire system.
 
+### Pure projection validators
+
+The dispatcher in [`src/handlers/job-commands.ts`](src/handlers/job-commands.ts) does projection-validated job creation: when a `mark.assist` (linking) or `yield.fromAnnotation` job arrives with `entityTypes`, the dispatcher validates that every tag is registered; when a tagging job arrives with a `schemaId`, the dispatcher resolves it against the registered tag-schema set.
+
+Both rules are pure functions in [`src/views/projection-validators.ts`](src/views/projection-validators.ts):
+
+- `resolveTagSchema(schemas, schemaId)` → `{ schema } | { error }` — id lookup with the standard "Tag schema not registered" / "tag-annotation requires schemaId" error formats.
+- `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }` — set membership check that lists the offending tags in caller order.
+
+The dispatcher is the I/O shell: read the projection (via the readers in `src/views/`), pass it to the validator (pure), then either stash the resolved value or rethrow as `job:create-failed`. Validator unit tests run in single-digit milliseconds with no filesystem, no event-bus, no mock JobQueue — the dispatcher integration tests in `__tests__/handlers/job-commands.test.ts` keep the wiring covered.
+
+This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/system/PROJECTION-PATTERN.md`](../../docs/system/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
+
 ## Documentation
 
 - **[Architecture](./docs/architecture.md)** — Actor model, data flow, storage architecture

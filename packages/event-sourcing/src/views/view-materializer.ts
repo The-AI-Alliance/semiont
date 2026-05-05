@@ -13,6 +13,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { didToAgent } from '@semiont/core';
 import type { components } from '@semiont/core';
+import { applyEntityTypeAdded, applyTagSchemaAdded } from './projection-reducers';
 
 type Representation = components['schemas']['Representation'];
 import type { Annotation } from '@semiont/core';
@@ -457,7 +458,11 @@ export class ViewMaterializer {
   }
 
   /**
-   * Materialize entity types view - System-level view
+   * Materialize entity types view — System-level view.
+   *
+   * I/O shell around the pure {@link applyEntityTypeAdded} reducer:
+   * read JSON file → reduce → write JSON file. The reducer owns the
+   * dedup + sort semantics; the shell owns the disk I/O.
    */
   async materializeEntityTypes(entityType: string): Promise<void> {
     const entityTypesPath = path.join(
@@ -466,7 +471,6 @@ export class ViewMaterializer {
       '__system__',
       'entitytypes.json'
     );
-
 
     // Read current view
     let view = { entityTypes: [] as string[] };
@@ -478,23 +482,20 @@ export class ViewMaterializer {
       // File doesn't exist - will create it
     }
 
-    // Add entity type (idempotent - Set ensures uniqueness)
-    const entityTypeSet = new Set(view.entityTypes);
-    entityTypeSet.add(entityType);
-    view.entityTypes = Array.from(entityTypeSet).sort();
+    view.entityTypes = applyEntityTypeAdded(view.entityTypes, entityType);
 
-    // Write view
     await fs.mkdir(path.dirname(entityTypesPath), { recursive: true });
     await fs.writeFile(entityTypesPath, JSON.stringify(view, null, 2));
   }
 
   /**
-   * Materialize tag schemas view - System-level view.
+   * Materialize tag schemas view — System-level view.
    *
-   * Most-recent registration of a given `schema.id` wins. If the projection
-   * already has an entry under the same id with content that differs from
-   * the incoming schema, the incoming schema replaces it and a warning is
-   * logged. Identical re-registrations are silent.
+   * I/O shell around the pure {@link applyTagSchemaAdded} reducer.
+   * The reducer owns the most-recent-wins semantics + the
+   * differing-content-overwrite-warning; the shell forwards the
+   * warning (when present) to this materializer's logger and writes
+   * the resulting state to disk.
    */
   async materializeTagSchemas(schema: import('@semiont/core').TagSchema): Promise<void> {
     const tagSchemasPath = path.join(
@@ -504,35 +505,23 @@ export class ViewMaterializer {
       'tagschemas.json'
     );
 
-    // Read current view
     let view = { tagSchemas: [] as import('@semiont/core').TagSchema[] };
     try {
       const content = await fs.readFile(tagSchemasPath, 'utf-8');
       view = JSON.parse(content);
     } catch (error: any) {
       if (error.code !== 'ENOENT') throw error;
-      // File doesn't exist - will create it
     }
 
-    // Most-recent-wins by id; log a warning when content changes.
-    const existingIdx = view.tagSchemas.findIndex((s) => s.id === schema.id);
-    if (existingIdx >= 0) {
-      const existing = view.tagSchemas[existingIdx];
-      if (JSON.stringify(existing) !== JSON.stringify(schema)) {
-        this.logger?.warn('[ViewMaterializer] Tag schema overwritten', {
-          schemaId: schema.id,
-          message: `tag schema "${schema.id}" overwritten — definition changed`,
-        });
-      }
-      view.tagSchemas[existingIdx] = schema;
-    } else {
-      view.tagSchemas.push(schema);
+    const result = applyTagSchemaAdded(view.tagSchemas, schema);
+    if (result.warning) {
+      this.logger?.warn('[ViewMaterializer] Tag schema overwritten', {
+        schemaId: result.warning.schemaId,
+        message: result.warning.message,
+      });
     }
+    view.tagSchemas = result.next;
 
-    // Sort by id for stable file output
-    view.tagSchemas.sort((a, b) => a.id.localeCompare(b.id));
-
-    // Write view
     await fs.mkdir(path.dirname(tagSchemasPath), { recursive: true });
     await fs.writeFile(tagSchemasPath, JSON.stringify(view, null, 2));
   }
