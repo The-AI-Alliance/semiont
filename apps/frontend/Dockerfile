@@ -13,8 +13,7 @@ RUN npm config set registry $NPM_REGISTRY && \
 # the picomatch / glob / etc. CVE surface that ships inside npm's bundled
 # node_modules.
 FROM node:22-alpine
-RUN apk add --no-cache curl && \
-    rm -rf /usr/local/lib/node_modules/npm \
+RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
            /usr/local/bin/npx
 
@@ -33,6 +32,6 @@ ENV PORT=3000
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:3000/ || exit 1
+  CMD node -e "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "node_modules/@semiont/frontend/server.js"]
