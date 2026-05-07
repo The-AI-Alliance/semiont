@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "description": "Emit an event on the Semiont bus. Channel names come from bus-protocol.ts; payload shape is validated against the channel's registered schema (CHANNEL_SCHEMAS). An optional scope routes resource-scoped broadcasts (e.g. mark:added, job:complete) to per-resource subscribers via eventBus.scope(scope); leave it unset for unscoped/global events.",
+  "properties": {
+    "channel": {
+      "type": "string",
+      "description": "Channel name from bus-protocol.ts EventMap"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Channel-specific payload, validated against CHANNEL_SCHEMAS",
+      "additionalProperties": true
+    },
+    "scope": {
+      "type": "string",
+      "description": "Optional resource scope for broadcast channels (e.g. resourceId). Publishers only — frontends must never set this.",
+      "minLength": 1
+    }
+  },
+  "required": ["channel", "payload"]
+}

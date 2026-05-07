@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "description": "Progress payload emitted on gather:annotation-progress and gather:progress SSE channels during LLM context gathering.",
+  "properties": {
+    "message": {
+      "type": "string"
+    },
+    "percentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    }
+  }
+}

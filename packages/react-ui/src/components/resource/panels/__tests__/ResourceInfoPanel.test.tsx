@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import type { EventBus } from '@semiont/core';
+import type { SemiontClient } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
-import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
+import { createTestSemiontWrapper } from '../../../../test-utils';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -15,6 +17,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       representation: 'Representation',
       mediaType: 'Media Type',
       byteSize: 'Size',
+      storageUri: 'Storage',
       clone: 'Clone',
       cloneDescription: 'Generate a shareable clone link for this resource',
       archive: 'Archive',
@@ -35,8 +38,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     formatLocaleDisplay: vi.fn((locale: string) => `Language: ${locale}`),
@@ -60,68 +63,42 @@ interface TrackedEvent {
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<() => void> = [];
-
-      // Track resource-related events
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
-      const resourceEvents = [
-        'yield:clone',
-        'mark:archive',
-        'mark:unarchive',
-      ] as const;
-
-      resourceEvents.forEach(eventName => {
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
-      });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
   return {
-    EventTrackingWrapper,
     events,
-    clear: () => {
-      events.length = 0;
+    clear: () => { events.length = 0; },
+    _attach(eventBus: EventBus, client: SemiontClient) {
+      // `yield:clone` is a local-bus UI signal emitted by `client.yield.clone()`.
+      eventBus.get('yield:clone').subscribe((payload: any) => {
+        events.push({ event: 'yield:clone', payload });
+      });
+      // `mark:archive` / `mark:unarchive` are backend-routed via `actor.emit`;
+      // spy on the namespace methods instead of subscribing to a local bus.
+      const origArchive = client.mark.archive.bind(client.mark);
+      const origUnarchive = client.mark.unarchive.bind(client.mark);
+      client.mark.archive = vi.fn(async (rid: any) => {
+        events.push({ event: 'mark:archive', payload: { resourceId: rid } });
+        return origArchive(rid);
+      }) as typeof client.mark.archive;
+      client.mark.unarchive = vi.fn(async (rid: any) => {
+        events.push({ event: 'mark:unarchive', payload: { resourceId: rid } });
+        return origUnarchive(rid);
+      }) as typeof client.mark.unarchive;
     },
   };
 }
 
-// Helper to render with EventBusProvider
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  if (tracker) {
-    return render(
-      <EventBusProvider>
-        <tracker.EventTrackingWrapper>
-          {component}
-        </tracker.EventTrackingWrapper>
-      </EventBusProvider>
-    );
-  }
-
-  return render(
-    <EventBusProvider>
-      {component}
-    </EventBusProvider>
+  const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus, client);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
+    resourceId: 'test-resource-id',
     documentEntityTypes: [],
     documentLocale: undefined,
     primaryMediaType: undefined,
@@ -192,6 +169,28 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Representation')).toBeInTheDocument();
       expect(screen.getByText('Size')).toBeInTheDocument();
       expect(screen.getByText('1,024 bytes')).toBeInTheDocument();
+    });
+
+    it('should render storageUri when provided', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel
+          {...defaultProps}
+          primaryMediaType="text/markdown"
+          storageUri="file://docs/overview.md"
+        />
+      );
+      expect(screen.getByText('Storage')).toBeInTheDocument();
+      expect(screen.getByText('file://docs/overview.md')).toBeInTheDocument();
+    });
+
+    it('should not render storageUri when absent', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel
+          {...defaultProps}
+          primaryMediaType="text/markdown"
+        />
+      );
+      expect(screen.queryByText('Storage')).not.toBeInTheDocument();
     });
 
     it('should not render representation section when neither media type nor byte size provided', () => {

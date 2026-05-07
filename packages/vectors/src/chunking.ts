@@ -30,6 +30,7 @@ function estimateTokens(text: string): number {
  * by `overlap` tokens worth of text.
  */
 export function chunkText(text: string, config: ChunkingConfig = DEFAULT_CHUNKING_CONFIG): string[] {
+  if (text.length === 0) return [];
   const totalTokens = estimateTokens(text);
   if (totalTokens <= config.chunkSize) {
     return [text];

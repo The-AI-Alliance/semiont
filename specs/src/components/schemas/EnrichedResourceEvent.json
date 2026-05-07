@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Wire format emitted by GET /resources/:id/events/stream. Extends StoredEventResponse with optional enrichment fields populated from the materialized view at SSE-write time. Subscribers can read the enrichment fields directly to update local caches without an additional fetch.",
+  "allOf": [
+    { "$ref": "./StoredEventResponse.json" },
+    {
+      "type": "object",
+      "properties": {
+        "annotation": {
+          "$ref": "./Annotation.json",
+          "description": "Populated for events that mutate an annotation (mark:added, mark:body-updated, mark:removed). Carries the post-materialization annotation as it exists in the view, so subscribers can update local caches in-place without refetching. Absent for events that don't touch annotations."
+        }
+      }
+    }
+  ]
+}

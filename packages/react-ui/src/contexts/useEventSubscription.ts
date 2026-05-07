@@ -1,108 +1,95 @@
 import { useEffect, useRef, useMemo } from 'react';
 import type { EventMap } from '@semiont/core';
-import { useEventBus } from './EventBusContext';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 
 /**
- * Subscribe to an event bus event with automatic cleanup.
+ * Subscribe to a bus event with automatic cleanup.
  *
- * This hook solves the "stale closure" problem by always using the latest
- * version of the handler without re-subscribing.
+ * Two buses exist: the app-scoped bus on `SemiontBrowser` (panel, shell,
+ * tabs, nav, settings — events that must work without a KB session) and
+ * the per-session bus on `SemiontClient` (mark, beckon, gather,
+ * match, bind, yield, browse — events tied to a live KB). This hook
+ * subscribes to BOTH so components don't need to know which scope a
+ * channel is on. Each channel only fires on one bus, so there's no
+ * double-delivery.
+ *
+ * Stable-handler pattern: the ref-wrapped handler means `handler` itself
+ * can change on every render without causing a re-subscription.
  *
  * @example
  * ```tsx
- * useEventSubscription('mark:created', ({ annotation }) => {
- *   // This always uses the latest props/state
- *   triggerSparkleAnimation(annotation.id);
+ * useEventSubscription('mark:create-ok', ({ annotationId }) => {
+ *   triggerSparkleAnimation(annotationId);
  * });
  * ```
  */
 export function useEventSubscription<K extends keyof EventMap>(
   eventName: K,
-  handler: (payload: EventMap[K]) => void
+  handler: (payload: EventMap[K]) => void,
 ): void {
-  const eventBus = useEventBus();
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
 
-  // Store the latest handler in a ref to avoid stale closures
   const handlerRef = useRef(handler);
+  useEffect(() => { handlerRef.current = handler; });
 
-  // Update ref on every render (no re-subscription needed)
   useEffect(() => {
-    handlerRef.current = handler;
-  });
-
-  // Subscribe once, using a stable wrapper that calls the current handler
-  useEffect(() => {
-    const stableHandler = (payload: EventMap[K]) => {
-      handlerRef.current(payload);
-    };
-
-    // RxJS EventBus.get() returns Subject, subscribe returns Subscription
-    const subscription = eventBus.get(eventName).subscribe(stableHandler);
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [eventName, eventBus]); // eventBus is stable, only re-subscribe if event name changes
+    const unsubs: Array<() => void> = [];
+    unsubs.push(semiont.on(eventName, (payload) => handlerRef.current(payload)));
+    if (session) {
+      unsubs.push(session.subscribe(eventName, (payload) => handlerRef.current(payload)));
+    }
+    return () => { for (const u of unsubs) u(); };
+  }, [eventName, semiont, session]);
 }
 
 /**
- * Subscribe to multiple events at once.
+ * Subscribe to multiple bus events at once. Same semantics as
+ * `useEventSubscription`, batched — each channel is subscribed on both
+ * the app bus (`SemiontBrowser`) and the session bus
+ * (`SemiontClient`, when a session is active).
  *
  * @example
  * ```tsx
  * useEventSubscriptions({
- *   'mark:created': ({ annotation }) => setNewAnnotation(annotation),
- *   'mark:deleted': ({ annotationId }) => removeAnnotation(annotationId),
+ *   'mark:create-ok': ({ annotationId }) => handleCreated(annotationId),
+ *   'panel:toggle': ({ panel }) => console.log('toggled', panel),
  * });
  * ```
  */
 export function useEventSubscriptions(
   subscriptions: {
     [K in keyof EventMap]?: (payload: EventMap[K]) => void;
-  }
+  },
 ): void {
-  const eventBus = useEventBus();
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
 
-  // Store the latest handlers in refs
   const handlersRef = useRef(subscriptions);
+  useEffect(() => { handlersRef.current = subscriptions; });
 
-  // Update refs on every render
-  useEffect(() => {
-    handlersRef.current = subscriptions;
-  });
-
-  // Get stable list of event names to subscribe to
+  // Stable key derived from the subscribed event names; re-subscribe
+  // only when the set changes, not when handlers change.
   const eventNames = useMemo(
     () => Object.keys(subscriptions).sort(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [Object.keys(subscriptions).sort().join(',')]
+    [Object.keys(subscriptions).sort().join(',')],
   );
 
-  // Subscribe once per event - only re-subscribe if event names actually change
   useEffect(() => {
-    const subscriptions: Array<{ unsubscribe: () => void }> = [];
-
-    // Create stable wrappers for each subscription
+    const unsubs: Array<() => void> = [];
     for (const eventName of eventNames) {
-      const stableHandler = (payload: any) => {
-        const currentHandler = handlersRef.current[eventName as keyof EventMap];
-        if (currentHandler) {
-          currentHandler(payload);
-        } else {
-          console.warn('[useEventSubscriptions] No current handler found for:', eventName);
-        }
+      const channel = eventName as keyof EventMap;
+      const fan = (payload: EventMap[keyof EventMap]) => {
+        const current = handlersRef.current[channel];
+        if (current) (current as (p: EventMap[keyof EventMap]) => void)(payload);
       };
-
-      // RxJS EventBus.get() returns Subject, subscribe returns Subscription
-      const subscription = eventBus.get(eventName as keyof EventMap).subscribe(stableHandler);
-      subscriptions.push(subscription);
-    }
-
-    // Cleanup: unsubscribe from all subscriptions
-    return () => {
-      for (const subscription of subscriptions) {
-        subscription.unsubscribe();
+      unsubs.push(semiont.on(channel, fan));
+      if (session) {
+        unsubs.push(session.subscribe(channel, fan));
       }
-    };
-  }, [eventNames, eventBus]); // eventBus is stable singleton - never in deps; only re-subscribe if event names change
+    }
+    return () => { for (const unsub of unsubs) unsub(); };
+  }, [eventNames, semiont, session]);
 }

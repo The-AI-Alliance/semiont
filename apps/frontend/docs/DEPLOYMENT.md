@@ -332,8 +332,7 @@ npm run analyze-bundle
 ## Related Documentation
 
 ### Deployment Guides
-- [System Deployment Guide](../../../docs/administration/DEPLOYMENT.md) - Overall deployment strategy
-- [Backend Deployment](../../backend/docs/DEPLOYMENT.md) - Backend deployment
+- [System Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md) - Overall deployment strategy
 - [CLI Deployment Commands](../../cli/README.md) - CLI usage reference
 
 ### Development Guides

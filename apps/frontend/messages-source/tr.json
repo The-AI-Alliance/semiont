@@ -13,7 +13,7 @@
     "administer": "Yönetim"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Tüm hakları saklıdır.",
+    "copyright": "© {{year}} The AI Alliance. Tüm hakları saklıdır.",
     "about": "Hakkında",
     "privacyPolicy": "Gizlilik Politikası",
     "cookiePreferences": "Çerez Tercihleri",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Kaynak adını girin...",
     "entityTypes": "Varlık Türü Etiketleri",
     "entityTypesHint": "Kaynağınızı varlık türleri ile etiketleyin",
-    "noEntityTypesAvailable": "Kullanılabilir varlık türü yok",
     "contentSource": "İçerik Kaynağı",
     "uploadFile": "Dosya Yükle",
     "uploadFileDescription": "Resimler, belgeler, metin dosyaları",
@@ -591,14 +590,17 @@
     "statusConnected": "Bağlı",
     "statusExpired": "Oturum süresi doldu",
     "statusSignedOut": "Çıkış yapıldı",
-    "statusUnreachable": "Erişilemiyor"
+    "statusUnreachable": "Erişilemiyor",
+    "invalidHost": "Geçersiz ana bilgisayar adı"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Bilgi tabanı yok",
     "noKnowledgeBasesHint": "Kaynakları keşfetmeye, not eklemeye ve bağlamaya başlamak için sağdaki paneli kullanarak bir bilgi tabanı ekleyin.",
     "sessionExpired": "Oturumunuzun süresi doldu.",
     "signedOut": "Çıkış yaptınız.",
-    "signInHint": "Kaynakları görüntülemek için Bilgi Tabanı panelini kullanarak giriş yapın."
+    "signInHint": "Kaynakları görüntülemek için Bilgi Tabanı panelini kullanarak giriş yapın.",
+    "findKnowledgeBases": "Bilgi tabanlarını bul",
+    "createNew": "Yeni oluştur"
   },
   "AccountPanel": {
     "notAuthenticated": "Hesabınızı görüntülemek için bir bilgi tabanında oturum açın."

@@ -13,7 +13,7 @@
     "administer": "प्रशासन"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. सर्वाधिकार सुरक्षित।",
+    "copyright": "© {{year}} The AI Alliance. सर्वाधिकार सुरक्षित।",
     "about": "हमारे बारे में",
     "privacyPolicy": "गोपनीयता नीति",
     "cookiePreferences": "कुकी प्राथमिकताएं",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "संसाधन का नाम दर्ज करें...",
     "entityTypes": "इकाई प्रकार टैग",
     "entityTypesHint": "अपने संसाधन को इकाई प्रकारों से टैग करें",
-    "noEntityTypesAvailable": "कोई इकाई प्रकार उपलब्ध नहीं",
     "contentSource": "सामग्री स्रोत",
     "uploadFile": "फ़ाइल अपलोड करें",
     "uploadFileDescription": "चित्र, दस्तावेज़, टेक्स्ट फ़ाइलें",
@@ -591,14 +590,17 @@
     "statusConnected": "जुड़ा हुआ",
     "statusExpired": "सत्र समाप्त",
     "statusSignedOut": "साइन आउट",
-    "statusUnreachable": "अनुपलब्ध"
+    "statusUnreachable": "अनुपलब्ध",
+    "invalidHost": "अमान्य होस्टनाम"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "कोई ज्ञान आधार नहीं",
     "noKnowledgeBasesHint": "संसाधनों को खोजने, एनोटेट करने और लिंक करने के लिए दाईं ओर के पैनल का उपयोग करके एक ज्ञान आधार जोड़ें।",
     "sessionExpired": "आपका सत्र समाप्त हो गया है।",
     "signedOut": "आप साइन आउट हैं।",
-    "signInHint": "संसाधन ब्राउज़ करने के लिए ज्ञान आधार पैनल का उपयोग करके साइन इन करें।"
+    "signInHint": "संसाधन ब्राउज़ करने के लिए ज्ञान आधार पैनल का उपयोग करके साइन इन करें।",
+    "findKnowledgeBases": "ज्ञानकोश खोजें",
+    "createNew": "नया बनाएँ"
   },
   "AccountPanel": {
     "notAuthenticated": "अपना खाता देखने के लिए किसी ज्ञान आधार में साइन इन करें।"

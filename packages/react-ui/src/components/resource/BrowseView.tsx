@@ -3,9 +3,10 @@
 import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
+import { annotationId as toAnnotationId } from '@semiont/core';
+import { getMimeCategory, isPdfMimeType } from '@semiont/core';
+import { createHoverHandlers } from '@semiont/sdk';
 import { ANNOTATORS } from '../../lib/annotation-registry';
-import { createHoverHandlers } from '../../hooks/useBeckonFlow';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
@@ -23,7 +24,8 @@ import {
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { useEventBus } from '../../contexts/EventBusContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 interface Props {
@@ -78,7 +80,7 @@ export const BrowseView = memo(function BrowseView({
   hoverDelayMs = 150
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const category = getMimeCategory(mimeType);
@@ -119,6 +121,7 @@ export const BrowseView = memo(function BrowseView({
   // Attach click handler, hover handler, and animations after render
   useEffect(() => {
     if (!containerRef.current) return;
+    if (!session) return;
 
     const container = containerRef.current;
 
@@ -134,13 +137,13 @@ export const BrowseView = memo(function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.get('browse:click').next({ annotationId, motivation: annotation.motivation });
+          session.client.browse.click(annotation.id, annotation.motivation);
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.get('beckon:hover').next({ annotationId }),
+      (id) => session.client.beckon.hover(id),
       hoverDelayMs
     );
 
@@ -149,7 +152,7 @@ export const BrowseView = memo(function BrowseView({
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
-      if (annotationId) handleMouseEnter(annotationId);
+      if (annotationId) handleMouseEnter(toAnnotationId(annotationId));
     };
 
     // Single mouseout handler for the container - fires once on exit
@@ -180,7 +183,7 @@ export const BrowseView = memo(function BrowseView({
       container.removeEventListener('mouseout', handleMouseOut);
       cleanupHover();
     };
-  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs]);
+  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs, session]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {

@@ -211,9 +211,9 @@ Test business logic:
 
 ```typescript
 // ✅ GOOD: Subsystem logic test (in packages/make-meaning)
-it('should materialize view from resource.created event', async () => {
+it('should materialize view from yield:created event', async () => {
   const event: ResourceCreatedEvent = {
-    type: 'resource.created',
+    type: 'yield:created',
     resourceId: resourceId('test-resource'),
     userId: userId('user-123'),
     version: 1,
@@ -439,7 +439,7 @@ const handleArchive = useCallback(async () => {
 if (body.archived !== undefined && body.archived !== doc.archived) {
   if (body.archived) {
     await eventStore.appendEvent({
-      type: 'resource.archived',
+      type: 'mark:archived',
       resourceId: resourceId(id),
       userId: userId(user.id),
       version: 1,

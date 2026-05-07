@@ -2,17 +2,19 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { HighlightEntry } from './HighlightEntry';
 import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './HighlightPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -24,15 +26,13 @@ interface HighlightPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null;
+  progress?: JobProgress | null;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
+  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call so the LLM analyzes non-English source correctly. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -50,10 +50,11 @@ export function HighlightPanel({
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
+  sourceLanguage,
 }: HighlightPanelProps) {
 
   const t = useTranslations('HighlightPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -129,16 +130,17 @@ export function HighlightPanel({
   });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
-  // immediately emit mark:submit event
+  // immediately emit mark:submit event. Highlights carry no body —
+  // motivation:'highlighting' on a target is a complete annotation
+  // per the W3C Web Annotation Model.
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      eventBus.get('mark:submit').next({
+      session?.client.mark.submit({
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
-        body: [],
       });
     }
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   return (
     <div className="semiont-panel">
@@ -152,6 +154,7 @@ export function HighlightPanel({
             annotationType="highlight"
             isAssisting={isAssisting}
             progress={progress}
+            sourceLanguage={sourceLanguage}
           />
         )}
 

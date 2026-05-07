@@ -6,7 +6,7 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { JobQueue } from '../job-queue';
+import { FsJobQueue as JobQueue } from '../fs-job-queue';
 import { JobWorker } from '../job-worker';
 import type { AnyJob, PendingJob, DetectionParams } from '../types';
 import { SemiontProject } from '@semiont/core/node';

@@ -7,19 +7,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ViewManager } from '../view-manager';
 import type { ViewStorage, ResourceView } from '../storage/view-storage';
 import { resourceId, userId } from '@semiont/core';
-import type { StoredEvent, EventMetadata } from '@semiont/core';
+import type { EventMetadata } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal EventMetadata for tests
-function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+function createEventMetadata(sequenceNumber: number): EventMetadata {
   return {
     sequenceNumber,
     streamPosition: sequenceNumber * 100,
-    timestamp: new Date().toISOString(),
-    prevEventHash: prevHash,
   };
 }
 
@@ -62,7 +60,7 @@ describe('ViewManager', () => {
       const rid = resourceId('doc1');
       const event = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -90,7 +88,7 @@ describe('ViewManager', () => {
       const rid = resourceId('doc1');
       const event = {
         id: 'event1',
-        type: 'representation.added' as const,
+        type: 'yield:representation-added' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -108,9 +106,8 @@ describe('ViewManager', () => {
 
       const getAllEvents = vi.fn().mockResolvedValue([
         {
-          event: {
             id: 'event0',
-            type: 'resource.created' as const,
+            type: 'yield:created' as const,
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -121,14 +118,13 @@ describe('ViewManager', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
-          metadata: createEventMetadata(1),
+            metadata: createEventMetadata(1),
         },
         {
-          event,
-          metadata: createEventMetadata(2, 'hash0'),
+          ...event,
+          metadata: createEventMetadata(2),
         },
-      ]);
+      ] as any);
 
       await manager.materializeResource(rid, event, getAllEvents);
 
@@ -150,7 +146,7 @@ describe('ViewManager', () => {
       // Spy on materializer method
       const materializeEntityTypesSpy = vi.spyOn(manager.materializer, 'materializeEntityTypes');
 
-      await manager.materializeSystem('entitytype.added', payload);
+      await manager.materializeSystem('frame:entity-type-added', payload);
 
       expect(materializeEntityTypesSpy).toHaveBeenCalledWith(payload.entityType);
     });
@@ -178,11 +174,10 @@ describe('ViewManager', () => {
 
     it('should materialize view from events if not cached', async () => {
       const rid = resourceId('doc1');
-      const events: StoredEvent[] = [
+      const events: any[] = [
         {
-          event: {
             id: 'event1',
-            type: 'resource.created',
+            type: 'yield:created',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -193,8 +188,7 @@ describe('ViewManager', () => {
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
             },
-          },
-          metadata: createEventMetadata(1),
+            metadata: createEventMetadata(1),
         },
       ];
 
@@ -209,7 +203,7 @@ describe('ViewManager', () => {
       const cachedView: ResourceView = {
         resource: {
           '@context': 'https://www.w3.org/ns/activitystreams',
-          '@id': 'http://localhost:4000/resources/doc1',
+          '@id': rid,
           name: 'Test',
           format: 'text/plain',
           representations: [],
@@ -236,7 +230,7 @@ describe('ViewManager', () => {
       const rid = resourceId('doc1');
       const event = {
         id: 'event1',
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
@@ -271,9 +265,119 @@ describe('ViewManager', () => {
 
       const materializeEntityTypesSpy = vi.spyOn(manager.materializer, 'materializeEntityTypes');
 
-      await manager.materializeSystem('entitytype.added', payload);
+      await manager.materializeSystem('frame:entity-type-added', payload);
 
       expect(materializeEntityTypesSpy).toHaveBeenCalledWith(entityType);
+    });
+  });
+
+  describe('per-resource serialization', () => {
+    // Build a minimal yield:created event for a given resource id
+    const mkEvent = (rid: ReturnType<typeof resourceId>) => ({
+      id: `event-${rid}`,
+      type: 'yield:created' as const,
+      timestamp: new Date().toISOString(),
+      userId: userId('user1'),
+      resourceId: rid,
+      version: 1,
+      payload: {
+        name: 'Test',
+        format: 'text/plain' as const,
+        contentChecksum: 'cs',
+        creationMethod: 'api' as const,
+      },
+    });
+
+    it('serializes concurrent calls for the same resource', async () => {
+      const rid = resourceId('doc1');
+      const event = mkEvent(rid);
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      // Record the real-time interleaving of start/end events for each call.
+      const trace: string[] = [];
+      let callCount = 0;
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockImplementation(async () => {
+        const n = ++callCount;
+        trace.push(`start-${n}`);
+        // Simulate an async read-modify-write cycle
+        await new Promise((r) => setTimeout(r, 20));
+        trace.push(`end-${n}`);
+      });
+
+      // Fire three calls at once, without awaiting between them
+      await Promise.all([
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+      ]);
+
+      // If serialization works, starts and ends are strictly interleaved
+      // per call: start-1, end-1, start-2, end-2, start-3, end-3.
+      // If concurrent, we'd see start-1, start-2, start-3, end-*, end-*, end-*.
+      expect(trace).toEqual(['start-1', 'end-1', 'start-2', 'end-2', 'start-3', 'end-3']);
+    });
+
+    it('runs calls for different resources in parallel', async () => {
+      const rid1 = resourceId('doc1');
+      const rid2 = resourceId('doc2');
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      const trace: string[] = [];
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockImplementation(async (rid) => {
+        const tag = String(rid);
+        trace.push(`start-${tag}`);
+        await new Promise((r) => setTimeout(r, 20));
+        trace.push(`end-${tag}`);
+      });
+
+      await Promise.all([
+        manager.materializeResource(rid1, mkEvent(rid1), getAllEvents),
+        manager.materializeResource(rid2, mkEvent(rid2), getAllEvents),
+      ]);
+
+      // Both should start before either ends — proves non-blocking across resources
+      const starts = trace.filter((t) => t.startsWith('start-'));
+      const firstEndIndex = trace.findIndex((t) => t.startsWith('end-'));
+      expect(starts.length).toBe(2);
+      expect(firstEndIndex).toBeGreaterThan(1); // both starts happened before any end
+    });
+
+    it('does not poison the chain when one call fails', async () => {
+      const rid = resourceId('doc1');
+      const event = mkEvent(rid);
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      let callCount = 0;
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) throw new Error('first call fails');
+        // subsequent calls succeed
+      });
+
+      const results = await Promise.allSettled([
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+        manager.materializeResource(rid, event, getAllEvents),
+      ]);
+
+      expect(results[0].status).toBe('rejected');
+      expect(results[1].status).toBe('fulfilled');
+      expect(results[2].status).toBe('fulfilled');
+      expect(callCount).toBe(3); // all three attempts ran
+    });
+
+    it('clears the chain entry when the last call completes', async () => {
+      const rid = resourceId('doc1');
+      const event = mkEvent(rid);
+      const getAllEvents = vi.fn().mockResolvedValue([]);
+
+      vi.spyOn(manager.materializer, 'materializeIncremental').mockResolvedValue(undefined);
+
+      await manager.materializeResource(rid, event, getAllEvents);
+
+      // Access private state via type assertion — test intent is explicit
+      const chains = (manager as unknown as { resourceChains: Map<string, Promise<void>> }).resourceChains;
+      expect(chains.has(String(rid))).toBe(false);
     });
   });
 });

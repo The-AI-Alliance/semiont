@@ -11,14 +11,13 @@ import { ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { resourceId, userId, annotationId } from '@semiont/core';
-import type { StoredEvent, ResourceEvent } from '@semiont/core';
+import type { StoredEvent, PersistedEvent } from '@semiont/core';
 
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { getPrimaryRepresentation } from '@semiont/api-client';
-
+import { getPrimaryRepresentation } from '@semiont/core';
 describe('ViewMaterializer', () => {
   let testDir: string;
   let projector: ViewMaterializer;
@@ -42,32 +41,29 @@ describe('ViewMaterializer', () => {
   });
 
   // Helper to create StoredEvent
-  function createStoredEvent(event: Omit<ResourceEvent, 'id' | 'timestamp' | 'version' | 'userId'> & { userId?: string }, sequenceNumber: number): StoredEvent {
-    const fullEvent: ResourceEvent = {
+  function createStoredEvent(event: Omit<PersistedEvent, 'id' | 'timestamp' | 'version' | 'userId'> & { userId?: string }, sequenceNumber: number): StoredEvent {
+    const fullEvent: PersistedEvent = {
       id: `event-${sequenceNumber}`,
       userId: event.userId || 'user1',
       timestamp: new Date().toISOString(),
       version: 1,
       ...event,
-    } as ResourceEvent;
+    } as PersistedEvent;
 
     return {
-      event: fullEvent,
+      ...fullEvent,
       metadata: {
         sequenceNumber,
         streamPosition: sequenceNumber - 1,
-        timestamp: fullEvent.timestamp,
-        checksum: `checksum-${sequenceNumber}`,
-        prevEventHash: sequenceNumber > 1 ? `checksum-${sequenceNumber - 1}` : undefined,
       },
-    };
+    } as StoredEvent;
   }
 
   describe('Full Projection Rebuild', () => {
     it('should build projection from resource.created event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           resourceId: resourceId('doc1'),
           userId: userId('user1'),
           payload: {
@@ -96,11 +92,11 @@ describe('ViewMaterializer', () => {
     it('should apply resource.archived event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'resource.archived',
+          type: 'mark:archived',
           payload: {},
         }, 2),
       ];
@@ -114,15 +110,15 @@ describe('ViewMaterializer', () => {
     it('should apply resource.unarchived event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'resource.archived',
+          type: 'mark:archived',
           payload: {},
         }, 2),
         createStoredEvent({
-          type: 'resource.unarchived',
+          type: 'mark:unarchived',
           payload: {},
         }, 3),
       ];
@@ -136,15 +132,15 @@ describe('ViewMaterializer', () => {
     it('should apply entitytag.added event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
         createStoredEvent({
-          type: 'entitytag.added',
+          type: 'mark:entity-tag-added',
           payload: { entityType: 'Person' },
         }, 2),
         createStoredEvent({
-          type: 'entitytag.added',
+          type: 'mark:entity-tag-added',
           payload: { entityType: 'Organization' },
         }, 3),
       ];
@@ -158,11 +154,11 @@ describe('ViewMaterializer', () => {
     it('should apply entitytag.removed event', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: ['Person', 'Organization'] },
         }, 1),
         createStoredEvent({
-          type: 'entitytag.removed',
+          type: 'mark:entity-tag-removed',
           payload: { entityType: 'Person' },
         }, 2),
       ];
@@ -177,7 +173,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         creator: { type: 'Person' as const, name: 'Test User' },
         created: new Date().toISOString(),
@@ -195,17 +191,16 @@ describe('ViewMaterializer', () => {
             },
           ],
         },
-        body: [],
         modified: new Date().toISOString(),
       };
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
       ];
@@ -223,24 +218,23 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
-        body: [],
         modified: new Date().toISOString(),
       };
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.removed',
+          type: 'mark:removed',
           payload: { annotationId: annotationId('anno1') },
         }, 3),
       ];
@@ -255,24 +249,23 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
-        body: [],
         modified: new Date().toISOString(),
       };
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.body.updated',
+          type: 'mark:body-updated',
           payload: {
             annotationId: annotationId('anno1'),
             operations: [
@@ -299,7 +292,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         body: [
@@ -311,15 +304,15 @@ describe('ViewMaterializer', () => {
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.body.updated',
+          type: 'mark:body-updated',
           payload: {
             annotationId: annotationId('anno1'),
             operations: [
@@ -344,7 +337,7 @@ describe('ViewMaterializer', () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id: 'anno1',
+        id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         target: { source: 'doc1' },
         body: [
@@ -355,15 +348,15 @@ describe('ViewMaterializer', () => {
 
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: { annotation },
         }, 2),
         createStoredEvent({
-          type: 'annotation.body.updated',
+          type: 'mark:body-updated',
           payload: {
             annotationId: annotationId('anno1'),
             operations: [
@@ -391,33 +384,31 @@ describe('ViewMaterializer', () => {
     it('should handle multiple annotations', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               'type': 'Annotation' as const,
-              id: 'anno1',
+              id: annotationId('anno1'),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: [],
               modified: new Date().toISOString(),
             },
           },
         }, 2),
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               'type': 'Annotation' as const,
-              id: 'anno2',
+              id: annotationId('anno2'),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: [],
               modified: new Date().toISOString(),
             },
           },
@@ -440,7 +431,7 @@ describe('ViewMaterializer', () => {
     it('should perform full rebuild when no projection exists', async () => {
       const events = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
       ];
@@ -448,7 +439,7 @@ describe('ViewMaterializer', () => {
       const getAllEvents = async () => events;
 
       await projector.materializeIncremental(resourceId('doc1'),
-        events[0]!.event,
+        events[0]!,
         getAllEvents
       );
 
@@ -462,7 +453,7 @@ describe('ViewMaterializer', () => {
       // Create initial projection
       const initialEvents = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
       ];
@@ -472,12 +463,12 @@ describe('ViewMaterializer', () => {
 
       // Apply incremental update
       const newEvent = createStoredEvent({
-        type: 'entitytag.added',
+        type: 'mark:entity-tag-added',
         payload: { entityType: 'Person' },
       }, 2);
 
       await projector.materializeIncremental(resourceId('doc1'),
-        newEvent.event,
+        newEvent,
         async () => [...initialEvents, newEvent]
       );
 
@@ -489,7 +480,7 @@ describe('ViewMaterializer', () => {
     it('should increment version on each update', async () => {
       const initialEvents = [
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api', entityTypes: [] },
         }, 1),
       ];
@@ -499,14 +490,14 @@ describe('ViewMaterializer', () => {
 
       // Apply 3 incremental updates
       const events = [
-        createStoredEvent({ type: 'entitytag.added', payload: { entityType: 'Person' } }, 2),
-        createStoredEvent({ type: 'entitytag.added', payload: { entityType: 'Organization' } }, 3),
-        createStoredEvent({ type: 'resource.archived', payload: {} }, 4),
+        createStoredEvent({ type: 'mark:entity-tag-added', payload: { entityType: 'Person' } }, 2),
+        createStoredEvent({ type: 'mark:entity-tag-added', payload: { entityType: 'Organization' } }, 3),
+        createStoredEvent({ type: 'mark:archived', payload: {} }, 4),
       ];
 
       for (const event of events) {
         await projector.materializeIncremental(resourceId('doc1'),
-          event.event,
+          event,
           async () => [...initialEvents, ...events.slice(0, event.metadata.sequenceNumber)]
         );
       }
@@ -559,21 +550,20 @@ describe('ViewMaterializer', () => {
       // Events out of order
       const events = [
         createStoredEvent({
-          type: 'annotation.added',
+          type: 'mark:added',
           payload: {
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               'type': 'Annotation' as const,
-              id: 'anno1',
+              id: annotationId('anno1'),
               motivation: 'highlighting' as const,
               target: { source: 'doc1' },
-              body: [],
               modified: new Date().toISOString(),
             },
           },
         }, 2),
         createStoredEvent({
-          type: 'resource.created',
+          type: 'yield:created',
           payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: 'api' },
         }, 1),
       ];

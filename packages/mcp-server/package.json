@@ -1,6 +1,6 @@
 {
   "name": "@semiont/mcp-server",
-  "version": "0.4.15",
+  "version": "0.5.4",
   "description": "MCP server for Semiont API",
   "type": "module",
   "main": "dist/index.js",
@@ -12,8 +12,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.4",
-    "@semiont/api-client": "*"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@semiont/api-client": "*",
+    "@semiont/sdk": "*"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

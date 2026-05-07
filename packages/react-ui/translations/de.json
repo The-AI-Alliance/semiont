@@ -28,7 +28,8 @@
     "creationMethod": "Erstellungsmethode",
     "attributedTo": "Zugeschrieben",
     "derivedFrom": "Abgeleitet von",
-    "generatedBy": "Erstellt von"
+    "generatedBy": "Erstellt von",
+    "storageUri": "Speicher"
   },
   "CollaborationPanel": {
     "title": "Zusammenarbeit",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Tags",
     "noTags": "Noch keine Tags. Verwenden Sie die KI-Annotation, um strukturelle Rollen zu identifizieren.",
+    "noSchemas": "Für diese Wissensbasis sind keine Tag-Schemata registriert. Ein KB-Administrator muss mindestens ein Strukturanalyse-Schema registrieren (z. B. über den `register-tag-schemas`-Skill), bevor Tagging verwendet werden kann.",
     "annotateTags": "Tags annotieren",
     "selectSchema": "Framework auswählen",
-    "schemaLegal": "Juristische Analyse (IRAC)",
-    "schemaScientific": "Wissenschaftliche Arbeit (IMRAD)",
-    "schemaArgument": "Argumentationsstruktur (Toulmin)",
     "selectCategories": "Kategorien auswählen",
-    "categoryIssue": "Fragestellung",
-    "categoryRule": "Regel",
-    "categoryApplication": "Anwendung",
-    "categoryConclusion": "Schlussfolgerung",
-    "categoryIntroduction": "Einleitung",
-    "categoryMethods": "Methoden",
-    "categoryResults": "Ergebnisse",
-    "categoryDiscussion": "Diskussion",
-    "categoryClaim": "These",
-    "categoryEvidence": "Beweis",
-    "categoryWarrant": "Begründung",
-    "categoryCounterargument": "Gegenargument",
-    "categoryRebuttal": "Widerlegung",
     "annotate": "Annotieren",
     "annotating": "Wird annotiert...",
     "cancel": "Abbrechen",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "KI zur Bewertung der Ergebnisse nach semantischer Relevanz verwenden",
     "searching": "Suche läuft...",
     "search": "Suchen"
+  },
+  "History": {
+    "embeddingComputed": "Embedding berechnet"
   }
 }

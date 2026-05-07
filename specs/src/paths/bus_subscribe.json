@@ -1,0 +1,78 @@
+{
+  "get": {
+    "summary": "Subscribe to the Semiont event bus (SSE)",
+    "description": "Opens a long-lived Server-Sent Events stream over which the bus delivers events matching the requested channels and scopes.\n\nEach SSE frame has `event: bus-event`, a JSON-encoded `data` of the form `{ channel, payload, scope? }`, and an `id` (either a persisted event id, `scope:seq`, for domain events; or an ephemeral id for job-lifecycle / result channels).\n\nPass the last-received id as `Last-Event-ID` to resume — the server replays missed persisted events and emits a `bus:resume-gap` synthetic event when the gap exceeds the replay window.",
+    "tags": ["Bus"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "parameters": [
+      {
+        "name": "channel",
+        "in": "query",
+        "required": false,
+        "description": "Unscoped channels to subscribe to. Repeat the parameter for multiple channels. At least one of `channel` or `scoped` is required.",
+        "schema": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      {
+        "name": "scoped",
+        "in": "query",
+        "required": false,
+        "description": "Resource-scoped channels to subscribe to (requires `scope`). Repeat for multiple.",
+        "schema": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      {
+        "name": "scope",
+        "in": "query",
+        "required": false,
+        "description": "Resource scope for scoped channels (typically a resourceId).",
+        "schema": { "type": "string" }
+      },
+      {
+        "name": "Last-Event-ID",
+        "in": "header",
+        "required": false,
+        "description": "Id of the last event the client received. On reconnect, the server replays persisted events after this id and emits `bus:resume-gap` if the gap exceeds the replay cap.",
+        "schema": { "type": "string" }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "SSE stream opened",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "$ref": "../components/schemas/EventStreamResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "No channels requested (at least one `channel` or `scoped` parameter required)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

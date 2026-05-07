@@ -6,14 +6,13 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import type { components } from '@semiont/core';
-import { getResourceId } from '@semiont/api-client';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
+import { getResourceId } from '@semiont/core';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
 import { Toolbar } from '../../../components/Toolbar';
 import { ResourceCard } from './ResourceCard';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 
 export interface ResourceDiscoveryPageProps {
   // Data props
@@ -22,6 +21,10 @@ export interface ResourceDiscoveryPageProps {
   entityTypes: string[];
   isLoadingRecent: boolean;
   isSearching: boolean;
+
+  // Controlled search state
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
 
   // UI state props
   theme: 'light' | 'dark';
@@ -62,6 +65,8 @@ export function ResourceDiscoveryPage({
   entityTypes,
   isLoadingRecent,
   isSearching,
+  searchQuery,
+  onSearchQueryChange,
   theme,
   showLineNumbers,
   activePanel,
@@ -70,15 +75,12 @@ export function ResourceDiscoveryPage({
   translations: t,
   ToolbarPanels,
 }: ResourceDiscoveryPageProps) {
-  // Search and filter state
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
 
   const hasSearchQuery = searchQuery.trim() !== '';
-  const hasSearchResults = searchDocuments.length > 0;
 
-  // Filtered documents
-  const baseDocuments = hasSearchResults ? searchDocuments : recentDocuments;
+  // When searching, render search results; otherwise render recent.
+  const baseDocuments = hasSearchQuery ? searchDocuments : recentDocuments;
   const filteredResources = !selectedEntityType
     ? baseDocuments
     : baseDocuments.filter((resource: ResourceDescriptor) =>
@@ -113,11 +115,6 @@ export function ResourceDiscoveryPage({
     }
   }, []);
 
-  const handleSearchSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    // Search is handled by debounced effect
-  }, []);
-
   // Loading state
   if (isLoadingRecent) {
     return (
@@ -127,7 +124,7 @@ export function ResourceDiscoveryPage({
     );
   }
 
-  const showNoResultsWarning = hasSearchQuery && !hasSearchResults && !isSearching;
+  const showNoResultsWarning = hasSearchQuery && searchDocuments.length === 0 && !isSearching;
 
   return (
     <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
@@ -144,25 +141,23 @@ export function ResourceDiscoveryPage({
         {/* Search and Filter Section */}
         <div className="semiont-card">
           {/* Search Bar */}
-          <form onSubmit={handleSearchSubmit} className="semiont-card__search-form">
+          <div className="semiont-card__search-form">
             <div className="semiont-card__search-wrapper">
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => onSearchQueryChange(e.target.value)}
                 placeholder={t.searchPlaceholder}
                 className="semiont-card__search-input"
-                disabled={isSearching}
+                aria-label={t.searchPlaceholder}
               />
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="semiont-card__search-button"
-              >
-                {isSearching ? t.searching : t.searchButton}
-              </button>
+              {isSearching && (
+                <span className="semiont-card__search-status" aria-live="polite">
+                  {t.searching}
+                </span>
+              )}
             </div>
-          </form>
+          </div>
 
           {/* Entity Type Filters */}
           {entityTypes.length > 0 && (
@@ -205,13 +200,11 @@ export function ResourceDiscoveryPage({
           {/* Documents Grid */}
           <div className="semiont-card__documents">
             <h3 className="semiont-card__documents-label">
-              {showNoResultsWarning
-                ? t.recentResources
-                : hasSearchResults
-                  ? t.searchResults(searchDocuments.length)
-                  : selectedEntityType
-                    ? t.documentsTaggedWith(selectedEntityType)
-                    : t.recentResources
+              {hasSearchQuery && searchDocuments.length > 0
+                ? t.searchResults(searchDocuments.length)
+                : selectedEntityType
+                  ? t.documentsTaggedWith(selectedEntityType)
+                  : t.recentResources
               }
             </h3>
 

@@ -3,9 +3,10 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { vi, beforeEach, describe, it, expect } from 'vitest';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
-import { EventBusProvider, useEventBus } from '../../../contexts/EventBusContext';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
+import { createTestSemiontWrapper } from '../../../test-utils';
 import type { TranslationManager } from '../../../types/TranslationManager';
+import type { EventBus } from '@semiont/core';
 
 // Mock translations
 const messages: Record<string, Record<string, string>> = {
@@ -43,68 +44,37 @@ interface TrackedEvent {
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<() => void> = [];
-
-      // Track toolbar-related events
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
-      const toolbarEvents = [
+  return {
+    events,
+    clear: () => { events.length = 0; },
+    _attach(eventBus: EventBus) {
+      const trackedEvents = [
         'mark:mode-toggled',
         'mark:click-changed',
         'mark:selection-changed',
         'mark:shape-changed',
       ] as const;
-
-      toolbarEvents.forEach(eventName => {
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
+      trackedEvents.forEach((eventName) => {
+        eventBus.get(eventName).subscribe((payload: any) => {
+          events.push({ event: eventName, payload });
+        });
       });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
-  return {
-    EventTrackingWrapper,
-    events,
-    clear: () => {
-      events.length = 0;
     },
   };
 }
 
 const renderWithIntl = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  if (tracker) {
-    return render(
-      <EventBusProvider>
-        <TranslationProvider translationManager={translationManager}>
-          <tracker.EventTrackingWrapper>
-            {component}
-          </tracker.EventTrackingWrapper>
-        </TranslationProvider>
-      </EventBusProvider>
-    );
-  }
-
-  return render(
-    <EventBusProvider>
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>
       <TranslationProvider translationManager={translationManager}>
-        {component}
+        {children}
       </TranslationProvider>
-    </EventBusProvider>
+    </SemiontWrapper>
   );
+  const result = render(component, { wrapper: Wrapper });
+  return { ...result, eventBus };
 };
 
 describe('AnnotateToolbar', () => {
@@ -187,14 +157,10 @@ describe('AnnotateToolbar', () => {
       expect(screen.getByText('Browse')).toBeInTheDocument();
 
       rerender(
-        <EventBusProvider>
-          <TranslationProvider translationManager={translationManager}>
-            <AnnotateToolbar
-              {...defaultProps}
-              annotateMode={true}
-            />
-          </TranslationProvider>
-        </EventBusProvider>
+        <AnnotateToolbar
+          {...defaultProps}
+          annotateMode={true}
+        />
       );
       expect(screen.getByText('Annotate')).toBeInTheDocument();
     });
@@ -292,16 +258,10 @@ describe('AnnotateToolbar', () => {
 
       // Simulate mode change by rerendering with new mode
       rerender(
-        <EventBusProvider>
-          <TranslationProvider translationManager={translationManager}>
-            <tracker.EventTrackingWrapper>
-              <AnnotateToolbar
-                {...defaultProps}
-                annotateMode={true}
-              />
-            </tracker.EventTrackingWrapper>
-          </TranslationProvider>
-        </EventBusProvider>
+        <AnnotateToolbar
+          {...defaultProps}
+          annotateMode={true}
+        />
       );
 
       // After mode change, the collapsed content should show "Annotate"
@@ -399,16 +359,10 @@ describe('AnnotateToolbar', () => {
 
       // Simulate selection
       rerender(
-        <EventBusProvider>
-          <TranslationProvider translationManager={translationManager}>
-            <tracker.EventTrackingWrapper>
-              <AnnotateToolbar
-                {...defaultProps}
-                selectedMotivation="highlighting"
-              />
-            </tracker.EventTrackingWrapper>
-          </TranslationProvider>
-        </EventBusProvider>
+        <AnnotateToolbar
+          {...defaultProps}
+          selectedMotivation="highlighting"
+        />
       );
 
       // Click again to deselect

@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "description": "Bus command to delete an annotation.",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "annotationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "annotationId"
+  ]
+}

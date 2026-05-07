@@ -92,6 +92,9 @@ apps/*/scripts/*.js.map
 apps/*/scripts/*.d.ts
 apps/*/scripts/*.d.ts.map
 
+# Ephemeral Planning Documents
+.plans
+
 # Compliance audit generated files
 **/scripts/symbols.json
 REACT-UI-COMPLIANCE.md

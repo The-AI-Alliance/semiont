@@ -1,6 +1,6 @@
 {
   "name": "@semiont/jobs",
-  "version": "0.4.15",
+  "version": "0.5.4",
   "type": "module",
   "description": "Filesystem-based job queue and worker infrastructure",
   "main": "./dist/index.js",
@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./worker-main": {
+      "types": "./dist/worker-main.d.ts",
+      "import": "./dist/worker-main.js"
     }
   },
   "files": [
@@ -23,9 +27,12 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
+    "@semiont/content": "*",
     "@semiont/core": "*",
     "@semiont/event-sourcing": "*",
-    "@semiont/inference": "*"
+    "@semiont/inference": "*",
+    "@semiont/observability": "*",
+    "@semiont/sdk": "*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",

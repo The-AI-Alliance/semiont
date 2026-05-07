@@ -4,13 +4,13 @@ import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
-  useOpenResources,
+  useSemiont,
+  useObservable,
   useEventSubscriptions,
   CollapsibleResourceNavigation,
   type NavigationItem,
-  type OpenResource
 } from '@semiont/react-ui';
-
+import type { OpenResource } from '@semiont/sdk';
 // Custom telescope icon component
 const TelescopeIcon = ({ className }: { className?: string }) => (
   <span className={className} style={{ fontSize: '1.25rem', lineHeight: '1' }}>🔭</span>
@@ -32,7 +32,10 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
   const t = (k: string, p?: Record<string, unknown>) => _t(`Sidebar.${k}`, p as any) as string;
   const pathname = usePathname();
   const router = useRouter();
-  const { openResources, removeResource, reorderResources } = useOpenResources();
+  const semiont = useSemiont();
+  const openResources = useObservable(semiont.openResources$) ?? [];
+  const removeResource = semiont.removeOpenResource.bind(semiont);
+  const reorderResources = semiont.reorderOpenResources.bind(semiont);
 
   const fixedNavigation: NavigationItem[] = [
     {
@@ -71,9 +74,9 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
 
   // Subscribe to navigation events
   useEventSubscriptions({
-    'browse:sidebar-toggle': handleSidebarToggle,
-    'browse:resource-close': handleResourceClose,
-    'browse:resource-reorder': handleResourceReorder,
+    'shell:sidebar-toggle': handleSidebarToggle,
+    'tabs:close': handleResourceClose,
+    'tabs:reorder': handleResourceReorder,
   });
 
   // Handle navigation

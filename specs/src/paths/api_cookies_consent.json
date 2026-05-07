@@ -1,0 +1,82 @@
+{
+  "get": {
+    "summary": "Get cookie consent preferences",
+    "description": "Returns the current user's cookie consent preferences.",
+    "tags": ["Cookies"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "responses": {
+      "200": {
+        "description": "Current consent preferences",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CookieConsentResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "post": {
+    "summary": "Update cookie consent preferences",
+    "description": "Update the current user's cookie consent preferences. The `necessary` flag must be true — necessary cookies cannot be disabled.",
+    "tags": ["Cookies"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/CookieConsentRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Consent updated",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CookieConsentResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "Invalid consent data (non-boolean fields, missing fields, or necessary=false)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CookieConsentResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

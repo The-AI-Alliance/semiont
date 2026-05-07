@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
-import { useEventBus } from '../contexts/EventBusContext';
+import { useSemiont } from '../session/SemiontProvider';
 import './toolbar/Toolbar.css';
 
 type ToolbarContext = 'document' | 'simple';
@@ -17,7 +17,7 @@ interface Props<T extends string = string> {
 /**
  * Toolbar component for panel navigation
  *
- * @emits browse:panel-toggle - Toggle panel visibility. Payload: { panel: string }
+ * @emits panel:toggle - Toggle panel visibility. Payload: { panel: string }
  */
 export function Toolbar<T extends string = string>({
   context,
@@ -25,10 +25,10 @@ export function Toolbar<T extends string = string>({
   isArchived = false
 }: Props<T>) {
   const t = useTranslations('Toolbar');
-  const eventBus = useEventBus();
+  const semiont = useSemiont();
 
   const handlePanelToggle = (panel: string) => {
-    eventBus.get('browse:panel-toggle').next({ panel });
+    semiont.emit('panel:toggle', { panel });
   };
 
   return (

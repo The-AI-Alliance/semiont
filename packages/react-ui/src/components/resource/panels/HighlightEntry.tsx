@@ -1,12 +1,11 @@
 'use client';
 
 import type { Ref } from 'react';
-import type { components } from '@semiont/core';
-import { getAnnotationExactText } from '@semiont/api-client';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
+import { getAnnotationExactText } from '@semiont/core';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 interface HighlightEntryProps {
   highlight: Annotation;
@@ -38,7 +37,7 @@ export function HighlightEntry({
   isHovered = false,
   ref,
 }: HighlightEntryProps) {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const hoverProps = useHoverEmitter(highlight.id);
 
   const selectedText = getAnnotationExactText(highlight);
@@ -50,7 +49,7 @@ export function HighlightEntry({
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('browse:click').next({ annotationId: highlight.id, motivation: highlight.motivation });
+        session?.client.browse.click(highlight.id, highlight.motivation);
       }}
       {...hoverProps}
     >

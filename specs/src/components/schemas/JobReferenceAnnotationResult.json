@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Result of a completed reference-annotation job.",
+  "properties": {
+    "totalFound": { "type": "integer", "description": "Total entities found" },
+    "totalEmitted": { "type": "integer", "description": "Total annotations emitted" },
+    "errors": { "type": "integer", "description": "Number of errors encountered" }
+  },
+  "required": ["totalFound", "totalEmitted", "errors"]
+}

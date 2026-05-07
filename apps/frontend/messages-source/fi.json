@@ -13,7 +13,7 @@
     "administer": "Hallinta"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Kaikki oikeudet pidätetään.",
+    "copyright": "© {{year}} The AI Alliance. Kaikki oikeudet pidätetään.",
     "about": "Tietoja",
     "privacyPolicy": "Tietosuojakäytäntö",
     "cookiePreferences": "Evästeasetukset",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Syötä resurssin nimi...",
     "entityTypes": "Entiteettityyppitunnisteet",
     "entityTypesHint": "Merkitse resurssisi entiteettityypeillä",
-    "noEntityTypesAvailable": "Entiteettityyppejä ei ole saatavilla",
     "contentSource": "Sisällön lähde",
     "uploadFile": "Lataa tiedosto",
     "uploadFileDescription": "Kuvat, asiakirjat, tekstitiedostot",
@@ -591,14 +590,17 @@
     "statusConnected": "Yhdistetty",
     "statusExpired": "Istunto vanhentunut",
     "statusSignedOut": "Kirjautunut ulos",
-    "statusUnreachable": "Ei tavoitettavissa"
+    "statusUnreachable": "Ei tavoitettavissa",
+    "invalidHost": "Virheellinen isäntänimi"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ei tietopankkeja",
     "noKnowledgeBasesHint": "Lisää tietopankki oikeanpuoleisen paneelin avulla aloittaaksesi resurssien löytämisen, merkitsemisen ja linkittämisen.",
     "sessionExpired": "Istuntosi on vanhentunut.",
     "signedOut": "Olet kirjautunut ulos.",
-    "signInHint": "Kirjaudu sisään Tietopankki-paneelin avulla selataksesi resursseja."
+    "signInHint": "Kirjaudu sisään Tietopankki-paneelin avulla selataksesi resursseja.",
+    "findKnowledgeBases": "Etsi tietokantoja",
+    "createNew": "Luo uusi"
   },
   "AccountPanel": {
     "notAuthenticated": "Kirjaudu tietopankkiin nähdäksesi tilisi."

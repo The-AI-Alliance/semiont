@@ -2,12 +2,11 @@
 
 import { useState, useEffect, useRef, useImperativeHandle, type Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/core';
-import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
+import { getAnnotationExactText, getCommentText } from '@semiont/core';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 interface CommentEntryProps {
   comment: Annotation;
@@ -42,7 +41,7 @@ export function CommentEntry({
   ref,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const hoverProps = useHoverEmitter(comment.id);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
@@ -86,7 +85,7 @@ export function CommentEntry({
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('browse:click').next({ annotationId: comment.id, motivation: comment.motivation });
+        session?.client.browse.click(comment.id, comment.motivation);
       }}
       {...hoverProps}
     >

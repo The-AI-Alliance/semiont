@@ -153,15 +153,9 @@ it('should render component', () => {
 **With Custom Providers:**
 
 ```tsx
-import { renderWithProviders, createMockTranslationManager } from '@semiont/react-ui/test-utils';
-import { SemiontApiClient } from '@semiont/api-client';
+import { renderWithProviders, createMockTranslationManager, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 
 it('should work with authenticated client', () => {
-  const mockClient = new SemiontApiClient({
-    baseUrl: 'https://api.test.com',
-    accessToken: 'test-token'
-  });
-
   const translations = createMockTranslationManager({
     Toolbar: {
       save: 'Guardar',
@@ -170,14 +164,13 @@ it('should work with authenticated client', () => {
   });
 
   renderWithProviders(<MyComponent />, {
-    apiClientManager: { client: mockClient },
+    apiBaseUrl: 'https://api.test.com',
     translationManager: translations,
-    sessionManager: {
+    knowledgeBaseSession: createMockKnowledgeBaseSession({
       isAuthenticated: true,
+      token: 'test-token',
       expiresAt: new Date(Date.now() + 3600000),
-      timeUntilExpiry: 3600000,
-      isExpiringSoon: false
-    }
+    }),
   });
 
   expect(screen.getByText('Guardar')).toBeInTheDocument();
@@ -207,21 +200,33 @@ const translations = createMockTranslationManager({
 renderWithProviders(<Toolbar />, { translationManager: translations });
 ```
 
-### createMockSessionManager
+### createMockKnowledgeBaseSession
 
-Creates a session manager with custom state:
+Creates a `KnowledgeBaseSessionContext` value with custom overrides. Tests pass it via `knowledgeBaseSession` to `renderWithProviders`:
 
 ```tsx
-import { createMockSessionManager } from '@semiont/react-ui/test-utils';
+import { createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 
-const session = createMockSessionManager({
+const session = createMockKnowledgeBaseSession({
   isAuthenticated: true,
+  isAdmin: true,
+  displayName: 'Alice',
   expiresAt: new Date(Date.now() + 300000), // 5 minutes
-  timeUntilExpiry: 300000,
-  isExpiringSoon: true
 });
 
-renderWithProviders(<SessionBanner />, { sessionManager: session });
+renderWithProviders(<UserBadge />, { knowledgeBaseSession: session });
+```
+
+For modal tests, set the modal-driving flags directly:
+
+```tsx
+const session = createMockKnowledgeBaseSession({
+  sessionExpiredAt: Date.now(),
+  sessionExpiredMessage: 'Token expired at 5pm',
+  acknowledgeSessionExpired: vi.fn(),
+});
+
+renderWithProviders(<SessionExpiredModal />, { knowledgeBaseSession: session });
 ```
 
 ### createMockOpenResourcesManager
@@ -254,15 +259,19 @@ When you don't provide custom values, `renderWithProviders` uses these defaults:
     t: (namespace, key) => `${namespace}.${key}` // Returns "Toolbar.save"
   },
 
-  apiClientManager: {
-    client: null // Unauthenticated by default
-  },
+  apiBaseUrl: 'http://localhost:4000', // default
 
-  sessionManager: {
+  knowledgeBaseSession: {
+    // Defaults from defaultMockKnowledgeBaseSession — all auth flags false,
+    // empty KB list, no active KB, no session, no modal flags raised.
     isAuthenticated: false,
-    expiresAt: null,
-    timeUntilExpiry: null,
-    isExpiringSoon: false
+    isAdmin: false,
+    isModerator: false,
+    activeKnowledgeBase: null,
+    session: null,
+    sessionExpiredAt: null,
+    permissionDeniedAt: null,
+    // ...mutations are vi.fn() stubs
   },
 
   openResourcesManager: {
@@ -284,53 +293,38 @@ import { vi } from 'vitest';
 import { SemiontApiClient } from '@semiont/api-client';
 
 it('should fetch resources', async () => {
-  // Create mock client
-  const mockClient = new SemiontApiClient({
-    baseUrl: 'https://api.test.com',
-    accessToken: 'test-token'
-  });
-
-  // Mock the API method
-  vi.spyOn(mockClient, 'listResources').mockResolvedValue({
-    resources: [
-      { id: 'r1', name: 'Resource 1', created: new Date() }
-    ]
-  });
-
-  renderWithProviders(<ResourceList />, {
-    apiClientManager: { client: mockClient }
-  });
-
-  // Wait for async loading
-  await screen.findByText('Resource 1');
-
-  expect(mockClient.listResources).toHaveBeenCalled();
-});
-```
-
-### Testing React Query Hooks
-
-```tsx
-import { QueryClient } from '@tanstack/react-query';
-import { renderWithProviders } from '@semiont/react-ui/test-utils';
-
-it('should handle query errors', async () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false }, // Disable retries for tests
-      mutations: { retry: false }
-    }
-  });
-
-  const mockClient = new SemiontApiClient({ ... });
-  vi.spyOn(mockClient, 'listResources').mockRejectedValue(
-    new Error('Network error')
+  // Spy on the namespace method that the component uses.
+  // The ApiClientProvider inside renderWithProviders constructs the client;
+  // spy on the prototype to intercept calls from any instance.
+  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
+    of({ resources: [{ id: 'r1', name: 'Resource 1' }] } as any),
   );
 
   renderWithProviders(<ResourceList />, {
-    apiClientManager: { client: mockClient },
-    queryClient
+    apiBaseUrl: 'https://api.test.com',
   });
+
+  await screen.findByText('Resource 1');
+});
+```
+
+### Testing Bus-Backed Queries
+
+For components that subscribe to `semiont.browse.*` Observables, mock
+the namespace methods on the prototype. The `renderWithProviders` helper
+creates a real `SemiontApiClient` internally; prototype spies intercept
+calls from that instance.
+
+```tsx
+import { BrowseNamespace } from '@semiont/api-client';
+import { of, throwError } from 'rxjs';
+
+it('should handle query errors', async () => {
+  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
+    throwError(() => new Error('Network error')),
+  );
+
+  renderWithProviders(<ResourceList />);
 
   await screen.findByText(/error/i);
 });
@@ -372,31 +366,27 @@ it('should render with namespace.key format', () => {
 ## Testing Session State
 
 ```tsx
-import { renderWithProviders, createMockSessionManager } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
 
 describe('SessionExpiryBanner', () => {
   it('should show warning when expiring soon', () => {
-    const session = createMockSessionManager({
+    const session = createMockKnowledgeBaseSession({
       isAuthenticated: true,
       expiresAt: new Date(Date.now() + 60000), // 1 minute
-      timeUntilExpiry: 60000,
-      isExpiringSoon: true
     });
 
-    renderWithProviders(<SessionExpiryBanner />, { sessionManager: session });
+    renderWithProviders(<SessionExpiryBanner />, { knowledgeBaseSession: session });
 
     expect(screen.getByText(/expiring soon/i)).toBeInTheDocument();
   });
 
   it('should not show when not expiring soon', () => {
-    const session = createMockSessionManager({
+    const session = createMockKnowledgeBaseSession({
       isAuthenticated: true,
       expiresAt: new Date(Date.now() + 3600000), // 1 hour
-      timeUntilExpiry: 3600000,
-      isExpiringSoon: false
     });
 
-    renderWithProviders(<SessionExpiryBanner />, { sessionManager: session });
+    renderWithProviders(<SessionExpiryBanner />, { knowledgeBaseSession: session });
 
     expect(screen.queryByText(/expiring soon/i)).not.toBeInTheDocument();
   });
@@ -810,14 +800,11 @@ it('should display translated text', () => {
 
 ```tsx
 it('should display error message on failure', async () => {
-  const mockClient = createMockClient();
-  vi.spyOn(mockClient, 'listResources').mockRejectedValue(
-    new Error('Network error')
+  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
+    throwError(() => new Error('Network error')),
   );
 
-  renderWithProviders(<ResourceList />, {
-    apiClientManager: { client: mockClient }
-  });
+  renderWithProviders(<ResourceList />);
 
   await screen.findByText(/error/i);
 });
@@ -953,6 +940,6 @@ Our codebase includes 1300+ tests demonstrating these patterns:
 
 ## See Also
 
-- [PROVIDERS.md](PROVIDERS.md) - Provider configuration
+- [SESSION.md](SESSION.md) - Provider configuration
 - [API-INTEGRATION.md](API-INTEGRATION.md) - Testing API hooks
 - [COMPONENTS.md](COMPONENTS.md) - Component testing examples

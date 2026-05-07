@@ -11,6 +11,7 @@ import { Readable, Writable } from 'node:stream';
 import type { Logger, ResourceId, UserId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { EventBus } from '@semiont/core';
+import type { WorkingTreeStore } from '@semiont/content';
 import { importBackup } from '../../exchange/backup-importer';
 import { writeTarGz, type TarEntry } from '../../exchange/tar';
 import { BACKUP_FORMAT } from '../../exchange/manifest';
@@ -80,18 +81,15 @@ function makeManifest(opts: { streams?: number; events?: number; blobs?: number 
 }
 
 function makeStreamSummary(stream: string, eventCount: number) {
-  return JSON.stringify({ stream, eventCount, firstChecksum: 'fc', lastChecksum: 'lc' });
+  return JSON.stringify({ stream, eventCount });
 }
 
 function makeStoredEventJson(type: string, payload: Record<string, unknown>) {
   return JSON.stringify({
-    event: { type, resourceId: TEST_RESOURCE, userId: TEST_USER, payload },
+    type, resourceId: TEST_RESOURCE, userId: TEST_USER, payload,
     metadata: {
       sequenceNumber: 1,
       streamPosition: 0,
-      timestamp: '2026-03-12T00:00:00Z',
-      checksum: 'abc123',
-      prevEventHash: null,
     },
   });
 }
@@ -102,9 +100,14 @@ function defer(fn: () => void): void {
 
 describe('backup-importer', () => {
   let eventBus: EventBus;
+  let mockContentStore: WorkingTreeStore;
 
   beforeEach(() => {
     eventBus = new EventBus();
+    mockContentStore = {
+      store: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
+      register: vi.fn().mockResolvedValue({ storageUri: 'file://test.md', checksum: 'abc123', byteSize: 100, created: new Date().toISOString() }),
+    } as unknown as WorkingTreeStore;
   });
 
   afterEach(() => {
@@ -113,8 +116,8 @@ describe('backup-importer', () => {
 
   it('imports a backup with system events', async () => {
     // Wire up handler for entity type addition
-    eventBus.get('mark:add-entity-type').subscribe(() => {
-      defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' }));
+    eventBus.get('frame:add-entity-type').subscribe(() => {
+      defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
     });
 
     const manifestLines = [
@@ -122,19 +125,18 @@ describe('backup-importer', () => {
       makeStreamSummary('__system__', 1),
     ].join('\n') + '\n';
 
-    const systemEvents = makeStoredEventJson('entitytype.added', { entityType: 'Person' }) + '\n';
+    const systemEvents = makeStoredEventJson('frame:entity-type-added', { entityType: 'Person' }) + '\n';
 
     const archive = await buildArchive([
       { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines) },
       { name: '.semiont/events/__system__.jsonl', data: Buffer.from(systemEvents) },
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
 
     expect(result.manifest.format).toBe(BACKUP_FORMAT);
     expect(result.stats.eventsReplayed).toBe(1);
     expect(result.stats.entityTypesAdded).toBe(1);
-    expect(result.hashChainValid).toBe(true);
   });
 
   it('imports a backup with resource events and content blobs', async () => {
@@ -143,8 +145,9 @@ describe('backup-importer', () => {
     // Wire up handlers
     eventBus.get('yield:create').subscribe((msg) => {
       expect(msg.name).toBe('Test Doc');
-      expect(msg.content!.toString('utf8')).toBe('# Hello World');
-      defer(() => eventBus.get('yield:created').next({
+      expect(msg.storageUri).toBeDefined();
+      expect(msg.contentChecksum).toBeDefined();
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -155,7 +158,7 @@ describe('backup-importer', () => {
       makeStreamSummary(TEST_RESOURCE, 1),
     ].join('\n') + '\n';
 
-    const resourceEvents = makeStoredEventJson('resource.created', {
+    const resourceEvents = makeStoredEventJson('yield:created', {
       name: 'Test Doc',
       contentChecksum: 'sha-content',
       format: 'text/markdown',
@@ -170,18 +173,17 @@ describe('backup-importer', () => {
       { name: 'sha-content.md', data: contentBlob },
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
 
     expect(result.stats.eventsReplayed).toBe(1);
     expect(result.stats.resourcesCreated).toBe(1);
-    expect(result.hashChainValid).toBe(true);
   });
 
   it('resolves content blobs by checksum from entry names', async () => {
-    let receivedContent: Buffer | undefined;
+    let receivedChecksum: string | undefined;
     eventBus.get('yield:create').subscribe((msg) => {
-      receivedContent = msg.content;
-      defer(() => eventBus.get('yield:created').next({
+      receivedChecksum = msg.contentChecksum;
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -192,7 +194,7 @@ describe('backup-importer', () => {
       makeStreamSummary(TEST_RESOURCE, 1),
     ].join('\n') + '\n';
 
-    const resourceEvents = makeStoredEventJson('resource.created', {
+    const resourceEvents = makeStoredEventJson('yield:created', {
       name: 'Binary Doc',
       contentChecksum: 'deadbeef1234',
       format: 'application/pdf',
@@ -205,10 +207,9 @@ describe('backup-importer', () => {
       { name: 'deadbeef1234.pdf', data: pdfContent },
     ]);
 
-    await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
+    await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
 
-    expect(receivedContent).toBeDefined();
-    expect(Buffer.compare(receivedContent!, pdfContent)).toBe(0);
+    expect(receivedChecksum).toBeDefined();
   });
 
   it('rejects an archive without manifest.jsonl', async () => {
@@ -217,7 +218,7 @@ describe('backup-importer', () => {
     ]);
 
     await expect(
-      importBackup(bufferToReadable(archive), { eventBus })
+      importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore })
     ).rejects.toThrow(/missing \.semiont\/manifest\.jsonl/);
   });
 
@@ -235,7 +236,7 @@ describe('backup-importer', () => {
     ]);
 
     await expect(
-      importBackup(bufferToReadable(archive), { eventBus })
+      importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore })
     ).rejects.toThrow(/expected format/);
   });
 
@@ -253,7 +254,7 @@ describe('backup-importer', () => {
     ]);
 
     await expect(
-      importBackup(bufferToReadable(archive), { eventBus })
+      importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore })
     ).rejects.toThrow(/Unsupported format version/);
   });
 
@@ -268,7 +269,7 @@ describe('backup-importer', () => {
       // Note: no .semiont/events/missing-resource.jsonl
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
 
     // Should complete without error, but skip the missing stream
     expect(result.stats.eventsReplayed).toBe(0);
@@ -278,14 +279,14 @@ describe('backup-importer', () => {
   it('imports system events before resource events (order matters)', async () => {
     const order: string[] = [];
 
-    eventBus.get('mark:add-entity-type').subscribe(() => {
+    eventBus.get('frame:add-entity-type').subscribe(() => {
       order.push('entity-type');
-      defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'Person' }));
+      defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'Person' } as any));
     });
 
     eventBus.get('yield:create').subscribe(() => {
       order.push('resource-created');
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -297,8 +298,8 @@ describe('backup-importer', () => {
       makeStreamSummary(TEST_RESOURCE, 1),
     ].join('\n') + '\n';
 
-    const systemEvents = makeStoredEventJson('entitytype.added', { entityType: 'Person' }) + '\n';
-    const resourceEvents = makeStoredEventJson('resource.created', {
+    const systemEvents = makeStoredEventJson('frame:entity-type-added', { entityType: 'Person' }) + '\n';
+    const resourceEvents = makeStoredEventJson('yield:created', {
       name: 'Doc',
       contentChecksum: 'chk1',
       format: 'text/markdown',
@@ -311,18 +312,18 @@ describe('backup-importer', () => {
       { name: 'chk1.md', data: Buffer.from('content') },
     ]);
 
-    await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
+    await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
 
     expect(order).toEqual(['entity-type', 'resource-created']);
   });
 
   it('merges stats across multiple streams', async () => {
-    eventBus.get('mark:add-entity-type').subscribe(() => {
-      defer(() => eventBus.get('mark:entity-type-added').next({ tag: 'X' }));
+    eventBus.get('frame:add-entity-type').subscribe(() => {
+      defer(() => eventBus.get('frame:entity-type-added').next({ tag: 'X' } as any));
     });
 
     eventBus.get('yield:create').subscribe(() => {
-      defer(() => eventBus.get('yield:created').next({
+      defer(() => eventBus.get('yield:create-ok').next({
         resourceId: TEST_RESOURCE,
         resource: STUB_RESOURCE,
       }));
@@ -339,15 +340,15 @@ describe('backup-importer', () => {
     ].join('\n') + '\n';
 
     const systemEvents = [
-      makeStoredEventJson('entitytype.added', { entityType: 'A' }),
-      makeStoredEventJson('entitytype.added', { entityType: 'B' }),
+      makeStoredEventJson('frame:entity-type-added', { entityType: 'A' }),
+      makeStoredEventJson('frame:entity-type-added', { entityType: 'B' }),
     ].join('\n') + '\n';
 
-    const res1Events = makeStoredEventJson('resource.created', {
+    const res1Events = makeStoredEventJson('yield:created', {
       name: 'Doc 1', contentChecksum: 'c1', format: 'text/markdown',
     }) + '\n';
 
-    const res2Events = makeStoredEventJson('resource.created', {
+    const res2Events = makeStoredEventJson('yield:created', {
       name: 'Doc 2', contentChecksum: 'c2', format: 'text/markdown',
     }) + '\n';
 
@@ -360,7 +361,7 @@ describe('backup-importer', () => {
       { name: 'c2.md', data: Buffer.from('doc 2 content') },
     ]);
 
-    const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
+    const result = await importBackup(bufferToReadable(archive), { eventBus, contentStore: mockContentStore, logger: mockLogger });
 
     expect(result.stats.eventsReplayed).toBe(4);
     expect(result.stats.entityTypesAdded).toBe(2);

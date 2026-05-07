@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. All rights reserved.",
+    "copyright": "© {{year}} The AI Alliance. All rights reserved.",
     "about": "About",
     "privacyPolicy": "Privacy Policy",
     "cookiePreferences": "Cookie Preferences",
@@ -268,11 +268,14 @@
     "statusConnected": "Connected",
     "statusExpired": "Session expired",
     "statusSignedOut": "Signed out",
-    "statusUnreachable": "Unreachable"
+    "statusUnreachable": "Unreachable",
+    "invalidHost": "Invalid hostname"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "No knowledge bases",
     "noKnowledgeBasesHint": "Add a knowledge base using the panel on the right to start discovering, annotating, and linking resources.",
+    "findKnowledgeBases": "Find knowledge bases",
+    "createNew": "Create a new one",
     "sessionExpired": "Your session has expired.",
     "signedOut": "You are signed out.",
     "signInHint": "Sign in using the Knowledge Base panel to browse resources."
@@ -293,7 +296,6 @@
     "resourceNamePlaceholder": "Enter resource name...",
     "entityTypes": "Entity Type Tags",
     "entityTypesHint": "Tag your resource with entity types",
-    "noEntityTypesAvailable": "No entity types available",
     "contentSource": "Content Source",
     "uploadFile": "Upload File",
     "uploadFileDescription": "Images, documents, text files",

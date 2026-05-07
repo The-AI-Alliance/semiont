@@ -28,7 +28,8 @@
     "creationMethod": "Cara penciptaan",
     "attributedTo": "Dikaitkan dengan",
     "derivedFrom": "Diperoleh daripada",
-    "generatedBy": "Dijana oleh"
+    "generatedBy": "Dijana oleh",
+    "storageUri": "Storan"
   },
   "CollaborationPanel": {
     "title": "Kolaborasi",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Tag",
     "noTags": "Tiada tag lagi. Gunakan anotasi AI untuk mengenal pasti peranan struktur.",
+    "noSchemas": "Tiada skema tag didaftarkan untuk pangkalan pengetahuan ini. Pentadbir KB mesti mendaftarkan sekurang-kurangnya satu skema analisis struktur (cth. melalui kemahiran `register-tag-schemas`) sebelum penandaan boleh digunakan.",
     "annotateTags": "Anotasi Tag",
     "selectSchema": "Pilih Rangka Kerja",
-    "schemaLegal": "Analisis Undang-undang (IRAC)",
-    "schemaScientific": "Kertas Saintifik (IMRAD)",
-    "schemaArgument": "Struktur Argumen (Toulmin)",
     "selectCategories": "Pilih Kategori",
-    "categoryIssue": "Isu",
-    "categoryRule": "Peraturan",
-    "categoryApplication": "Aplikasi",
-    "categoryConclusion": "Kesimpulan",
-    "categoryIntroduction": "Pengenalan",
-    "categoryMethods": "Kaedah",
-    "categoryResults": "Keputusan",
-    "categoryDiscussion": "Perbincangan",
-    "categoryClaim": "Dakwaan",
-    "categoryEvidence": "Bukti",
-    "categoryWarrant": "Waran",
-    "categoryCounterargument": "Hujah Balas",
-    "categoryRebuttal": "Sangkalan",
     "annotate": "Anotasi",
     "annotating": "Menganotasi...",
     "cancel": "Batal",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil mengikut kerelevanan semantik",
     "searching": "Mencari...",
     "search": "Cari"
+  },
+  "History": {
+    "embeddingComputed": "Embedding dikira"
   }
 }

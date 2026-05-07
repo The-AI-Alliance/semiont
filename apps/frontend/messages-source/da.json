@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Alle rettigheder forbeholdes.",
+    "copyright": "© {{year}} The AI Alliance. Alle rettigheder forbeholdes.",
     "about": "Om",
     "privacyPolicy": "Privatlivspolitik",
     "cookiePreferences": "Cookieindstillinger",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Indtast ressourcenavn...",
     "entityTypes": "Enhedstypetags",
     "entityTypesHint": "Tag din ressource med enhedstyper",
-    "noEntityTypesAvailable": "Ingen enhedstyper tilgængelige",
     "contentSource": "Indholdskilde",
     "uploadFile": "Upload fil",
     "uploadFileDescription": "Billeder, dokumenter, tekstfiler",
@@ -591,14 +590,17 @@
     "statusConnected": "Forbundet",
     "statusExpired": "Session udløbet",
     "statusSignedOut": "Logget ud",
-    "statusUnreachable": "Utilgængelig"
+    "statusUnreachable": "Utilgængelig",
+    "invalidHost": "Ugyldigt værtsnavn"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen videnbaser",
     "noKnowledgeBasesHint": "Tilføj en videnbase ved hjælp af panelet til højre for at begynde at opdage, annotere og linke ressourcer.",
     "sessionExpired": "Din session er udløbet.",
     "signedOut": "Du er logget ud.",
-    "signInHint": "Log ind via videnbas-panelet for at gennemse ressourcer."
+    "signInHint": "Log ind via videnbas-panelet for at gennemse ressourcer.",
+    "findKnowledgeBases": "Find videnbaser",
+    "createNew": "Opret en ny"
   },
   "AccountPanel": {
     "notAuthenticated": "Log ind på en videnbase for at se din konto."

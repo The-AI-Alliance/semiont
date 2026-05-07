@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Payload for yield:cloned domain event",
+  "properties": {
+    "name": { "type": "string" },
+    "format": { "$ref": "ContentFormat.json" },
+    "contentChecksum": { "type": "string" },
+    "contentByteSize": { "type": "integer" },
+    "parentResourceId": { "type": "string" },
+    "creationMethod": { "type": "string", "enum": ["api", "upload", "ui", "reference", "cli", "clone", "generated"] },
+    "entityTypes": { "type": "array", "items": { "type": "string" } },
+    "language": { "type": "string" }
+  },
+  "required": ["name", "format", "contentChecksum", "parentResourceId", "creationMethod"]
+}

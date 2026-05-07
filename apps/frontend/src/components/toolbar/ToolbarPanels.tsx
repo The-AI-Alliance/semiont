@@ -1,9 +1,16 @@
-import React, { useTransition, useEffect, useCallback } from 'react';
+import React, { useTransition, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
+import {
+  SettingsPanel,
+  ResizeHandle,
+  usePanelWidth,
+  useEventSubscriptions,
+  useSemiont,
+  useObservable,
+  useHoverDelay,
+} from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
@@ -15,8 +22,6 @@ interface ToolbarPanelsProps {
   theme: 'light' | 'dark' | 'system';
   /** Line numbers setting */
   showLineNumbers: boolean;
-  /** Hover delay setting */
-  hoverDelayMs: number;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
 }
@@ -53,12 +58,19 @@ export function ToolbarPanels({
   activePanel,
   theme,
   showLineNumbers,
-  hoverDelayMs,
   children
 }: ToolbarPanelsProps) {
+  // Source hover-delay from the shared hook so every page that mounts
+  // ToolbarPanels gets the live value without prop-drilling. Previously
+  // each page passed `hoverDelayMs` through as a prop; pages that forgot
+  // (Discover, Admin, Moderation) rendered the Settings panel with
+  // `undefined`, which surfaced as `{undefined}ms delay` after the
+  // translation interpolation ran.
+  const { hoverDelayMs } = useHoverDelay();
   const { t: _t } = useTranslation();
-  const { session } = useAuthContext();
-  const isAuthenticated = !!session;
+  const session = useObservable(useSemiont().activeSession$);
+  const user = useObservable(session?.user$);
+  const isAuthenticated = !!user;
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();

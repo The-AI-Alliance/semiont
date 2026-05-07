@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "description": "Result of a completed highlight-annotation job.",
+  "properties": {
+    "highlightsFound": { "type": "integer" },
+    "highlightsCreated": { "type": "integer" }
+  },
+  "required": ["highlightsFound", "highlightsCreated"]
+}

@@ -25,8 +25,11 @@ jobs:
           - jobs
           - make-meaning
           - mcp-server
+          - observability
           - ontology
           - react-ui
+          - sdk
+          - vectors
 
     steps:
       - name: Checkout code
@@ -56,7 +59,19 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
-            ontology)
+            sdk)
+              # sdk depends on core (contract + types) and api-client
+              # (re-exports HttpTransport for the convenience-bundle).
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/api-client
+              ;;
+            observability)
+              # observability depends only on core (for setBusLogTraceIdProvider).
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
+              ;;
+            ontology|vectors)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
@@ -71,14 +86,18 @@ jobs:
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
+              npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
               npm run build --workspace=@semiont/inference
+              npm run build --workspace=@semiont/vectors
               ;;
             make-meaning)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
               npm run build --workspace=@semiont/inference
@@ -91,11 +110,13 @@ jobs:
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
               ;;
             mcp-server)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/sdk
               ;;
           esac
 

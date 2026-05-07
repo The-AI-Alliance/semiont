@@ -5,16 +5,16 @@
  * Entity types are stored as TextualBody with purpose: "tagging"
  */
 
-import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 /**
  * Extract entity types from annotation bodies
  * Entity types are stored as TextualBody with purpose: "tagging"
- * Accepts any object with a body property matching Annotation['body']
+ * Accepts any object with a body property matching Annotation['body'].
+ * Body is optional (highlights carry none) — returns [] if absent.
  */
-export function getEntityTypes(annotation: { body: Annotation['body'] }): string[] {
+export function getEntityTypes(annotation: { body?: Annotation['body'] }): string[] {
   // Extract from TextualBody bodies with purpose: "tagging"
   if (Array.isArray(annotation.body)) {
     const entityTags: string[] = [];

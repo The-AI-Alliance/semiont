@@ -7,28 +7,23 @@
 // Types
 export * from './types/annotation-props';
 export * from './types/AnnotationManager';
-export * from './types/CacheManager';
 export * from './types/navigation';
-export type { OpenResourcesManager, OpenResource } from './types/OpenResourcesManager';
-export * from './types/SessionManager';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
 
 // Lib utilities
 export * from './lib/annotation-registry';
-export * from './lib/api-hooks';
-export * from './lib/auth-events';
 export * from './lib/button-styles';
 export * from './lib/codemirror-json-theme';
 export * from './lib/codemirror-widgets';
 export * from './lib/media-shapes';
-export * from './lib/query-keys';
+export { createSearchPipeline, type SearchPipeline, type SearchPipelineOptions, type SearchState } from '@semiont/sdk';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
-export * from './lib/tag-schemas';
 export * from './lib/validation';
 
 // Hooks
+export * from './hooks/useStateUnit';
 export * from './hooks/useDebounce';
 export * from './lib/formatTime';
 export * from './hooks/useKeyboardShortcuts';
@@ -36,8 +31,6 @@ export * from './hooks/useLineNumbers';
 export * from './hooks/useHoverDelay';
 export * from './hooks/useObservableBrowse';
 export * from './hooks/usePanelWidth';
-export * from './hooks/useResourceEvents';
-export * from './hooks/useGlobalEvents';
 export * from './hooks/useRovingTabIndex';
 export * from './hooks/useSessionExpiry';
 export * from './contexts/ThemeContext';
@@ -46,24 +39,27 @@ export * from './contexts/ThemeContext';
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 export * from './hooks/useResourceContent';
 
+// Session (the React layer — provider + hook + browser storage adapter).
+// All session classes (`SemiontSession`, `SemiontBrowser`, `SessionSignals`,
+// `SemiontSessionError`, `SessionStorage`, `InMemorySessionStorage`, the
+// `KnowledgeBase` / `OpenResource` types, etc.) live in `@semiont/sdk`.
+// Callers import them from there directly.
+export { SemiontProvider, useSemiont, type SemiontProviderProps } from './session/SemiontProvider';
+export { WebBrowserStorage } from './session/web-browser-storage';
+
 // Contexts
 export * from './contexts/AnnotationContext';
-export * from './contexts/ApiClientContext';
-export * from './contexts/AuthTokenContext';
-export * from './contexts/CacheContext';
-export * from './contexts/EventBusContext';
 
 export * from './contexts/useEventSubscription';
-export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
 export * from './contexts/RoutingContext';
-export * from './contexts/SessionContext';
 export * from './contexts/TranslationContext';
 
 // Components - Top level
 export * from './components/CodeMirrorRenderer';
 export * from './components/AnnotateReferencesProgressWidget';
 export * from './components/ErrorBoundary';
+export * from './components/ProtectedErrorBoundary';
 export * from './components/LiveRegion';
 export * from './components/ResizeHandle';
 export * from './components/ResourceTagsInline';
@@ -86,7 +82,8 @@ export * from './components/image-annotation/SvgDrawingCanvas';
 
 // Components - Modals
 export * from './components/modals/KeyboardShortcutsHelpModal';
-export * from './components/modals/ProposeEntitiesModal';
+export * from './components/modals/PermissionDeniedModal';
+export * from './components/modals/SessionExpiredModal';
 
 // Components - Resource
 export * from './components/resource/AnnotateView';
@@ -209,14 +206,39 @@ export * from './features/moderate-tag-schemas/components/TagSchemasPage';
 
 // Features - Resources
 export * from './features/resource-compose/components/ResourceComposePage';
+export * from './features/resource-compose/components/UploadProgressBar';
 export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
-export * from './hooks/useBeckonFlow';
-export * from './hooks/useMarkFlow';
-export * from './hooks/usePanelBrowse';
-export * from './hooks/useYieldFlow';
-export * from './hooks/useContextGatherFlow';
-export * from './hooks/useBindFlow';
+export * from './hooks/useHoverEmitter';
+// Flow VMs live in `@semiont/sdk` (UI-shape-agnostic state machines that
+// any consumer — web, terminal, mobile, daemon — can reach for).
+// React-ui re-exports them so consumers of this package don't need a
+// second import line.
+export { createBeckonStateUnit, type BeckonStateUnit, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
+export { createMarkStateUnit, type MarkStateUnit, type PendingAnnotation } from '@semiont/sdk';
+export { createYieldStateUnit, type YieldStateUnit, type GenerateDocumentOptions } from '@semiont/sdk';
+export { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
+export { createMatchStateUnit, type MatchStateUnit } from '@semiont/sdk';
+// Job-domain worker adapters (`createJobClaimAdapter`, `createJobQueueStateUnit`)
+// and the `WorkerBus` interface live in `@semiont/jobs` and `@semiont/sdk`
+// respectively — import them from there directly if needed.
+
+// Page-shaped state machines live here in `@semiont/react-ui` because they
+// model the Semiont web frontend's specific page taxonomy and shell. They
+// are framework-neutral (pure RxJS, no React inside) but not portable to a
+// non-web UI shape.
+export { createShellStateUnit, type ShellStateUnit, type ShellStateUnitOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from './state/shell-state-unit';
+export { createSessionStateUnit, type SessionStateUnit } from './state/session-state-unit';
+export { createComposePageStateUnit, type ComposePageStateUnit, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from './features/resource-compose/state/compose-page-state-unit';
+export { createResourceViewerPageStateUnit, type ResourceViewerPageStateUnit, type WizardState, type AnnotationGroups } from './features/resource-viewer/state/resource-viewer-page-state-unit';
+export { createResourceLoaderStateUnit, type ResourceLoaderStateUnit } from './features/resource-viewer/state/resource-loader-state-unit';
+export { createAdminUsersStateUnit, type AdminUsersStateUnit } from './features/admin-users/state/admin-users-state-unit';
+export { createAdminSecurityStateUnit, type AdminSecurityStateUnit } from './features/admin-security/state/admin-security-state-unit';
+export { createExchangeStateUnit, type ExchangeStateUnit, type ImportPreview } from './features/admin-exchange/state/exchange-state-unit';
+export { createWelcomeStateUnit, type WelcomeStateUnit } from './features/auth-welcome/state/welcome-state-unit';
+export { createDiscoverStateUnit, type DiscoverStateUnit } from './features/resource-discovery/state/discover-state-unit';
+export { createEntityTagsStateUnit, type EntityTagsStateUnit } from './features/moderate-entity-tags/state/entity-tags-state-unit';
+
+export * from './hooks/useShellStateUnit';
 export * from './hooks/useObservable';
-export * from './hooks/useStoreTokenSync';

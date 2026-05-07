@@ -111,20 +111,19 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
   // Bootstrap EventBus + Stower for restore
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
-  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
+  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   try {
     const input = fs.createReadStream(filePath);
-    const result = await importBackup(input, { eventBus, logger });
+    const result = await importBackup(input, { eventBus, contentStore: kb.content, logger });
 
     if (!options.quiet) {
       printSuccess(
         `Restore complete: ${result.stats.eventsReplayed} events, ` +
         `${result.stats.resourcesCreated} resources, ` +
-        `${result.stats.annotationsCreated} annotations` +
-        (result.hashChainValid ? '' : ' (WARNING: hash chain invalid)')
+        `${result.stats.annotationsCreated} annotations`
       );
     }
 
@@ -136,14 +135,14 @@ export async function runRestore(options: RestoreOptions): Promise<CommandResult
       duration,
       summary: {
         succeeded: 1, failed: 0, total: 1,
-        warnings: result.hashChainValid ? 0 : 1,
+        warnings: 0,
       },
       executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
       results: [{
         entity: filePath,
         platform: 'posix',
         success: true,
-        metadata: { format: 'backup', ...result.stats, hashChainValid: result.hashChainValid },
+        metadata: { format: 'backup', ...result.stats },
         duration,
       }],
     };

@@ -181,10 +181,10 @@ export default function Dashboard() {
 ```typescript
 // src/components/DashboardContent.tsx
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useKnowledgeBaseSession } from "@semiont/react-ui";
 
 export function DashboardContent() {
-  const { isFullyAuthenticated } = useAuth();
+  const { isFullyAuthenticated } = useKnowledgeBaseSession();
   const { data, isLoading, error } = api.dashboard.getData.useQuery();
 
   if (!isFullyAuthenticated) {
@@ -235,7 +235,7 @@ export const api = {
         return useQuery({
           queryKey: ['dashboard.data'],
           queryFn: () => apiService.dashboard.getData(),
-          enabled: !!useAuth().isFullyAuthenticated,
+          enabled: !!useKnowledgeBaseSession().isFullyAuthenticated,
         });
       }
     }
@@ -344,7 +344,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 // src/components/ProtectedRoute.tsx
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useKnowledgeBaseSession } from "@semiont/react-ui";
 import { useRouter } from "@/i18n/routing";
 import { useEffect } from "react";
 
@@ -357,7 +357,7 @@ export function ProtectedRoute({
   children,
   requireFullAuth = false
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isFullyAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isFullyAuthenticated, isLoading } = useKnowledgeBaseSession();
   const router = useRouter();
 
   useEffect(() => {
@@ -640,10 +640,11 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 ### Features
 - [Annotations](./ANNOTATIONS.md) - W3C annotation system
 - [Style Guide](./style-guide.md) - UI/UX patterns
-- [Keyboard Navigation](./KEYBOARD-NAV.md) - WCAG accessibility
+- [Keyboard Navigation](./KEYBOARD-NAV.md) - Keyboard navigation implementation
+- [Accessibility](./ACCESSIBILITY.md) - WCAG 2.1 AA implementation patterns
 
 ### System Documentation
-- [System Architecture](../../../docs/ARCHITECTURE.md) - Overall platform
+- [System Documentation](../../../docs/system/README.md) - Overall platform
 - [Backend README](../../backend/README.md) - Backend API
 - [CLI README](../../cli/README.md) - CLI usage
 

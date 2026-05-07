@@ -18,11 +18,14 @@ The MCP server uses `@semiont/api-client` to communicate with the Semiont backen
 
 ```typescript
 import { SemiontApiClient } from '@semiont/api-client';
+import { EventBus, accessToken, type AccessToken } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
 
-// Create client with access token
+// Create client with observable access token
 const apiClient = new SemiontApiClient({
   baseUrl: SEMIONT_API_URL,
-  accessToken: SEMIONT_ACCESS_TOKEN,
+  eventBus: new EventBus(),
+  token$: new BehaviorSubject<AccessToken | null>(accessToken(SEMIONT_ACCESS_TOKEN)),
 });
 
 // All handlers receive the client instance

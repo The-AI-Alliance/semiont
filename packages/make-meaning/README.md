@@ -8,18 +8,18 @@
 
 **Making meaning from resources through actors, context assembly, and relationship reasoning.**
 
-This package implements the actor model from [ARCHITECTURE.md](../../docs/ARCHITECTURE.md). It owns the **Knowledge Base** and the actors that interface with it:
+This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the actors that interface with it:
 
 - **Stower** (write) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events
 - **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type listing, and directory browse (merging filesystem listings with KB metadata)
 - **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
 - **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
-- **Smelter** (embed) — subscribes to resource/annotation events, chunks text, embeds via `@semiont/vectors`, persists `embedding:computed` events, and indexes into vector store (Qdrant)
+- **Smelter** (embed) — subscribes to resource/annotation events, chunks text, embeds via `@semiont/vectors`, emits `embedding:compute` commands (persisted by Stower as `embedding:computed` events), and indexes into vector store (Qdrant)
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
 
-The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The system can operate entirely without HTTP — see `EventBusClient` in `@semiont/api-client`.
+The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The `@semiont/api-client` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
 
 ## Quick Start
 
@@ -93,7 +93,7 @@ All meaningful actions flow through the EventBus. The KB actors are reactive —
 graph TB
     Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
-    EBC["EventBusClient"] -->|commands| BUS
+    EBC["SemiontApiClient"] -->|commands| BUS
 
     subgraph ks ["Knowledge System"]
         STOWER["Stower<br/>(write)"]
@@ -115,18 +115,18 @@ graph TB
         CTM -->|query| KB
     end
 
-    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>mark:add-entity-type, mark:archive, mark:unarchive<br/>mark:update-entity-types, job:start, job:*"| STOWER
+    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>frame:add-entity-type, mark:archive, mark:unarchive<br/>mark:update-entity-types, job:start, job:*"| STOWER
     BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:directory-requested"| BROWSER
     BUS -->|"gather:requested<br/>gather:resource-requested"| GATHERER
     BUS -->|"match:search-requested"| MATCHER
     BUS -->|"yield:created, mark:created,<br/>mark:body-updated"| SMELTER
     BUS -->|"yield:clone-token-requested<br/>yield:clone-resource-requested<br/>yield:clone-create"| CTM
 
-    STOWER -->|"yield:created, yield:updated, yield:moved<br/>mark:created, mark:deleted, mark:body-updated<br/>mark:entity-type-added, ..."| BUS
+    STOWER -->|"yield:created, yield:updated, yield:moved<br/>mark:created, mark:deleted, mark:body-updated<br/>frame:entity-type-added, ..."| BUS
     BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:directory-result"| BUS
     GATHERER -->|"gather:complete, gather:failed<br/>gather:resource-complete, gather:resource-failed"| BUS
     MATCHER -->|"match:search-results, match:search-failed"| BUS
-    SMELTER -->|"embedding:computed,<br/>embedding:deleted"| BUS
+    SMELTER -->|"embedding:compute,<br/>embedding:delete"| BUS
     CTM -->|"yield:clone-token-generated<br/>yield:clone-resource-result<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -169,6 +169,19 @@ const kb = await createKnowledgeBase(eventStore, project, graphDb, logger);
 ### EventBus Ownership
 
 The EventBus is created by the backend (or script) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — it is shared across the entire system.
+
+### Pure projection validators
+
+The dispatcher in [`src/handlers/job-commands.ts`](src/handlers/job-commands.ts) does projection-validated job creation: when a `mark.assist` (linking) or `yield.fromAnnotation` job arrives with `entityTypes`, the dispatcher validates that every tag is registered; when a tagging job arrives with a `schemaId`, the dispatcher resolves it against the registered tag-schema set.
+
+Both rules are pure functions in [`src/views/projection-validators.ts`](src/views/projection-validators.ts):
+
+- `resolveTagSchema(schemas, schemaId)` → `{ schema } | { error }` — id lookup with the standard "Tag schema not registered" / "tag-annotation requires schemaId" error formats.
+- `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }` — set membership check that lists the offending tags in caller order.
+
+The dispatcher is the I/O shell: read the projection (via the readers in `src/views/`), pass it to the validator (pure), then either stash the resolved value or rethrow as `job:create-failed`. Validator unit tests run in single-digit milliseconds with no filesystem, no event-bus, no mock JobQueue — the dispatcher integration tests in `__tests__/handlers/job-commands.test.ts` keep the wiring covered.
+
+This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/system/PROJECTION-PATTERN.md`](../../docs/system/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
 
 ## Documentation
 

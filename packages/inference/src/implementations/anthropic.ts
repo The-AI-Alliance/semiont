@@ -2,6 +2,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { Logger } from '@semiont/core';
+import { recordInferenceUsage } from '@semiont/observability';
 import { InferenceClient, InferenceResponse } from '../interface.js';
 
 export class AnthropicInferenceClient implements InferenceClient {
@@ -32,17 +33,29 @@ export class AnthropicInferenceClient implements InferenceClient {
       temperature
     });
 
-    const response = await this.client.messages.create({
-      model: this.modelId,
-      max_tokens: maxTokens,
-      temperature,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
-    });
+    const start = performance.now();
+    let response: Awaited<ReturnType<typeof this.client.messages.create>>;
+    try {
+      response = await this.client.messages.create({
+        model: this.modelId,
+        max_tokens: maxTokens,
+        temperature,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      });
+    } catch (err) {
+      recordInferenceUsage({
+        provider: this.type,
+        model: this.modelId,
+        durationMs: performance.now() - start,
+        outcome: 'error',
+      });
+      throw err;
+    }
 
     this.logger?.debug('Inference response received', {
       model: this.modelId,
@@ -53,12 +66,29 @@ export class AnthropicInferenceClient implements InferenceClient {
     const textContent = response.content.find(c => c.type === 'text');
 
     if (!textContent || textContent.type !== 'text') {
+      recordInferenceUsage({
+        provider: this.type,
+        model: this.modelId,
+        durationMs: performance.now() - start,
+        outcome: 'error',
+        inputTokens: response.usage?.input_tokens,
+        outputTokens: response.usage?.output_tokens,
+      });
       this.logger?.error('No text content in inference response', {
         model: this.modelId,
         contentTypes: response.content.map(c => c.type)
       });
       throw new Error('No text content in inference response');
     }
+
+    recordInferenceUsage({
+      provider: this.type,
+      model: this.modelId,
+      durationMs: performance.now() - start,
+      outcome: 'success',
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
 
     this.logger?.info('Text generation completed', {
       model: this.modelId,

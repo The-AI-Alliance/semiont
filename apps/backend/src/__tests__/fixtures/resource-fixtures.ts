@@ -4,7 +4,7 @@
 
 import type { components } from '@semiont/core';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 type Representation = components['schemas']['Representation'];
 type Agent = components['schemas']['Agent'];
 
@@ -24,7 +24,7 @@ export function createTestResource(overrides?: Partial<ResourceDescriptor & { id
 
   return {
     '@context': 'https://schema.org/',
-    '@id': id,
+    '@id': id as ResourceDescriptor['@id'],
     name: 'Test Resource',
     representations: [{
       mediaType: 'text/markdown',

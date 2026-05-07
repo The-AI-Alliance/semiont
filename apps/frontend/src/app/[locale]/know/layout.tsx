@@ -2,21 +2,22 @@ import { useContext } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, Toolbar, useGlobalEvents, useAttentionStream, useStoreTokenSync, usePanelBrowse, useTheme, useLineNumbers } from '@semiont/react-ui';
+import {
+  Footer,
+  ResourceAnnotationsProvider,
+  Toolbar,
+  useSemiont,
+  useShellStateUnit,
+  useObservable,
+  useTheme,
+  useLineNumbers,
+} from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
-import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
-import { useCacheManager } from '@/hooks/useCacheManager';
-import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from '@/i18n/routing';
-import { useKnowledgeBaseContext, kbBackendUrl, getKbSessionStatus } from '@/contexts/KnowledgeBaseContext';
-import { StreamStatusContext } from '@/contexts/StreamStatusContext';
 
 function GlobalEventsConnector() {
-  useStoreTokenSync();
-  useGlobalEvents();
   return null;
 }
 
@@ -27,17 +28,24 @@ function GlobalEventsConnector() {
 function DiscoverEmptyState() {
   const { t: _t } = useTranslation();
   const t = (k: string) => _t(`DiscoverEmptyState.${k}`) as string;
-  const { knowledgeBases, activeKnowledgeBase } = useKnowledgeBaseContext();
+  const semiont = useSemiont();
+  const knowledgeBases = useObservable(semiont.kbs$) ?? [];
+  const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
   const status = activeKnowledgeBase
-    ? getKbSessionStatus(activeKnowledgeBase.id)
+    ? semiont.getKbSessionStatus(activeKnowledgeBase.id)
     : null;
 
   if (knowledgeBases.length === 0) {
     return (
-      <div style={{ textAlign: 'center', maxWidth: '24rem' }}>
+      <div style={{ textAlign: 'center', maxWidth: '28rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>{t('noKnowledgeBases')}</h2>
-        <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+        <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.75rem' }}>
           {t('noKnowledgeBasesHint')}
+        </p>
+        <p style={{ color: 'var(--semiont-color-neutral-400)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+          <a href="https://github.com/The-AI-Alliance/semiont" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--semiont-color-primary-500)' }}>{t('findKnowledgeBases')}</a>
+          {' · '}
+          <a href="https://github.com/The-AI-Alliance/semiont-template-kb" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--semiont-color-primary-500)' }}>{t('createNew')}</a>
         </p>
       </div>
     );
@@ -61,7 +69,8 @@ function DiscoverEmptyState() {
 }
 
 function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: string, params?: Record<string, unknown>) => string; keyboardContext: { openKeyboardHelp?: () => void } | null }) {
-  const { activePanel } = usePanelBrowse();
+  const browseStateUnit = useShellStateUnit();
+  const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
   const { showLineNumbers } = useLineNumbers();
 
@@ -77,7 +86,6 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
           activePanel={activePanel}
           showLineNumbers={showLineNumbers}
           theme={theme}
-          hoverDelayMs={150}
         />
         <Toolbar activePanel={activePanel} context="simple" />
       </div>
@@ -93,23 +101,20 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
   );
 }
 
-function KnowledgeLayoutInner({ children }: { children: React.ReactNode }) {
-  const { status } = useAttentionStream();
-  return (
-    <StreamStatusContext.Provider value={status}>
-      {children}
-    </StreamStatusContext.Provider>
-  );
-}
-
-export default function KnowledgeLayout() {
+function KnowledgeLayoutBody() {
   const { t } = useTranslation();
   const keyboardContext = useContext(KeyboardShortcutsContext);
-  const openResourcesManager = useOpenResourcesManager();
-  const cacheManager = useCacheManager();
-  const { token: authToken, isLoading } = useAuth();
-  const router = useRouter();
-  const { activeKnowledgeBase } = useKnowledgeBaseContext();
+  const semiont = useSemiont();
+  const activeKbId = useObservable(semiont.activeKbId$);
+  const session = useObservable(semiont.activeSession$);
+  const sessionActivating = useObservable(semiont.sessionActivating$);
+  const token = useObservable(session?.token$);
+  const activeKnowledgeBase = session?.kb ?? null;
+  // "Loading" = a session construction is actively in flight. Without
+  // the `sessionActivating` guard we'd sit on the spinner forever after
+  // any `signOut`, which also leaves `activeKbId` set but `session`
+  // null.
+  const isLoading = activeKbId != null && session == null && sessionActivating;
 
   if (isLoading) {
     return (
@@ -122,43 +127,39 @@ export default function KnowledgeLayout() {
     );
   }
 
-  if (!activeKnowledgeBase || !authToken) {
+  if (!activeKnowledgeBase || !token) {
     return (
       <UnauthenticatedKnowledgeLayout t={(key: string, params?: Record<string, unknown>) => t(key, params as any) as string} keyboardContext={keyboardContext} />
     );
   }
 
   return (
-    <AuthTokenProvider token={authToken}>
-      <ApiClientProvider baseUrl={kbBackendUrl(activeKnowledgeBase)}>
-        <CacheProvider cacheManager={cacheManager}>
-          <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-            <ResourceAnnotationsProvider>
-              <GlobalEventsConnector />
-              <KnowledgeLayoutInner>
-                <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
-                  <div className="flex flex-1 overflow-hidden">
-                    <KnowledgeSidebarWrapper />
-                    <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
-                      <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
-                        <Outlet />
-                      </div>
-                    </main>
-                  </div>
-                  <Footer
-                    Link={Link}
-                    routes={routes}
-                    t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-                    CookiePreferences={CookiePreferences}
-                    showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
-                    {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-                  />
-                </div>
-              </KnowledgeLayoutInner>
-            </ResourceAnnotationsProvider>
-          </OpenResourcesProvider>
-        </CacheProvider>
-      </ApiClientProvider>
-    </AuthTokenProvider>
+    <ResourceAnnotationsProvider>
+      <GlobalEventsConnector />
+      <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
+          <KnowledgeSidebarWrapper />
+          <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+            <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
+              <Outlet />
+            </div>
+          </main>
+        </div>
+        <Footer
+          Link={Link}
+          routes={routes}
+          t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
+          CookiePreferences={CookiePreferences}
+          showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
+          {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+        />
+      </div>
+    </ResourceAnnotationsProvider>
   );
+}
+
+export default function KnowledgeLayout() {
+  // AuthShell is mounted by the parent ProtectedLayout in App.tsx so it
+  // survives navigation between know/, admin/, and moderate/ sections.
+  return <KnowledgeLayoutBody />;
 }

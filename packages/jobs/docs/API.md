@@ -93,7 +93,7 @@ if (job.status === 'running') {
     status: 'complete',
     metadata: job.metadata,
     params: job.params,
-    startedAt: job.startedAt,
+    startedAt: job:startedAt,
     completedAt: new Date().toISOString(),
     result: { resourceId: resourceId('doc-new'), resourceName: 'Article' },
   };

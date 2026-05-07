@@ -3,16 +3,15 @@
 import type { Ref } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/core';
-import { annotationId, resourceId } from '@semiont/core';
-import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
+import type { Annotation } from '@semiont/core';
+import { resourceId } from '@semiont/core';
+import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
-
-type Annotation = components['schemas']['Annotation'];
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 // Extended annotation type with runtime properties added by backend enrichment
 interface EnrichedAnnotation extends Annotation {
@@ -40,7 +39,8 @@ export function ReferenceEntry({
   ref,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
+  const semiont = session?.client;
   const navigate = useObservableExternalNavigation();
   const hoverProps = useHoverEmitter(reference.id);
 
@@ -73,18 +73,18 @@ export function ReferenceEntry({
     : '';
 
   const handleUnlink = () => {
-    if (source && resolvedResourceUri) {
-      eventBus.get('bind:update-body').next({
-        annotationId: annotationId(reference.id),
-        resourceId: resourceId(source),
-        operations: [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri } }],
-      });
+    if (source && resolvedResourceUri && semiont) {
+      semiont.bind.body(
+        resourceId(source),
+        reference.id,
+        [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri, purpose: 'linking' } }],
+      ).catch(() => { /* error handled by events-stream */ });
     }
   };
 
   const handleInitiateWizard = () => {
-    eventBus.get('bind:initiate').next({
-      annotationId: annotationId(reference.id),
+    session?.client.bind.initiate({
+      annotationId: reference.id,
       resourceId: resourceId(source),
       defaultTitle: selectedText,
       entityTypes,
@@ -110,7 +110,7 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('browse:click').next({ annotationId: reference.id, motivation: reference.motivation });
+        session?.client.browse.click(reference.id, reference.motivation);
       }}
       {...hoverProps}
     >

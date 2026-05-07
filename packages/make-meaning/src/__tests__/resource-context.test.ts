@@ -4,24 +4,27 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { ResourceContext } from '../resource-context';
-import type { ResourceId } from '@semiont/core';
-import type { components } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+// Mock the helpers ResourceContext reads from core. Use importOriginal so
+// branded constructors (resourceId, etc.) keep their real implementations.
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
+    getPrimaryRepresentation: vi.fn(),
+    decodeRepresentation: vi.fn(),
+  };
+});
 
-// Mock dependencies
-vi.mock('@semiont/api-client', () => ({
-  getPrimaryRepresentation: vi.fn(),
-  decodeRepresentation: vi.fn(),
-}));
-
-import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
-
+import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 describe('ResourceContext', () => {
   let mockKb: KnowledgeBase;
   let mockViewStorage: any;
   let mockRepStore: any;
+  let mockGraph: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,11 +38,15 @@ describe('ResourceContext', () => {
       retrieve: vi.fn(),
     };
 
+    mockGraph = {
+      searchResources: vi.fn().mockResolvedValue([]),
+    };
+
     mockKb = {
       eventStore: {} as any,
       views: mockViewStorage,
       content: mockRepStore,
-      graph: {} as any,
+      graph: mockGraph,
       projectionsDir: '',
       graphConsumer: {} as any,
     };
@@ -48,7 +55,7 @@ describe('ResourceContext', () => {
   describe('getResourceMetadata', () => {
     const mockResource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/test-123',
+      '@id': resourceId('test-123'),
       name: 'Test Resource',
       archived: false,
       entityTypes: ['Document'],
@@ -97,7 +104,7 @@ describe('ResourceContext', () => {
   describe('listResources', () => {
     const mockResource1: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/res-1',
+      '@id': resourceId('res-1'),
       name: 'Resource 1',
       archived: false,
       entityTypes: ['Document'],
@@ -108,7 +115,7 @@ describe('ResourceContext', () => {
 
     const mockResource2: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/res-2',
+      '@id': resourceId('res-2'),
       name: 'Resource 2',
       archived: false,
       entityTypes: ['Image'],
@@ -119,7 +126,7 @@ describe('ResourceContext', () => {
 
     const mockResource3: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/res-3',
+      '@id': resourceId('res-3'),
       name: 'Archived Resource',
       archived: true,
       entityTypes: ['Document'],
@@ -227,73 +234,22 @@ describe('ResourceContext', () => {
       expect(result.every(r => r.archived)).toBe(true);
     });
 
-    test('should filter by search term (case insensitive)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: { ...mockResource2, name: 'Special Document' },
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+    test('should delegate to graph.searchResources when search is set', async () => {
+      const specialDoc = { ...mockResource2, name: 'Special Document' };
+      mockGraph.searchResources.mockResolvedValue([specialDoc]);
 
       const result = await ResourceContext.listResources({ search: 'special' }, mockKb);
 
+      expect(mockGraph.searchResources).toHaveBeenCalledWith('special');
+      expect(mockViewStorage.getAll).not.toHaveBeenCalled();
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe('Special Document');
     });
 
-    test('should filter by search term (partial match)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: mockResource2,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
-
-      const result = await ResourceContext.listResources({ search: 'resource' }, mockKb);
-
-      expect(result).toHaveLength(2);
-    });
-
-    test('should combine archived and search filters', async () => {
+    test('should narrow graph search results by archived filter', async () => {
       const searchableArchived: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': 'http://localhost:4000/resources/res-4',
+        '@id': resourceId('res-4'),
         name: 'Archived Special',
         archived: true,
         entityTypes: ['Document'],
@@ -302,29 +258,9 @@ describe('ResourceContext', () => {
         representations: [],
       };
 
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: searchableArchived,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
+      mockGraph.searchResources.mockResolvedValue([
+        { ...mockResource1, name: 'Special Live' },
+        searchableArchived,
       ]);
 
       const result = await ResourceContext.listResources(
@@ -336,20 +272,8 @@ describe('ResourceContext', () => {
       expect(result[0]).toEqual(searchableArchived);
     });
 
-    test('should return empty array when no matches', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+    test('should return empty array when graph search has no matches', async () => {
+      mockGraph.searchResources.mockResolvedValue([]);
 
       const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockKb);
 
@@ -404,7 +328,7 @@ describe('ResourceContext', () => {
     test('should handle resources without dateCreated', async () => {
       const resourceNoDate: ResourceDescriptor = {
         '@context': 'https://schema.org/',
-        '@id': 'http://localhost:4000/resources/res-no-date',
+        '@id': resourceId('res-no-date'),
         name: 'No Date Resource',
         archived: false,
         entityTypes: ['Document'],
@@ -448,7 +372,7 @@ describe('ResourceContext', () => {
   describe('addContentPreviews', () => {
     const mockResource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': 'http://localhost:4000/resources/test-123',
+      '@id': resourceId('test-123'),
       name: 'Test Resource',
       archived: false,
       entityTypes: ['Document'],
@@ -494,7 +418,7 @@ describe('ResourceContext', () => {
         mockResource,
         {
           ...mockResource,
-          '@id': 'http://localhost:4000/resources/test-456',
+          '@id': resourceId('test-456'),
           representations: [
             {
               mediaType: 'text/plain',
