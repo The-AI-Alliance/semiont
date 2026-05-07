@@ -31,7 +31,7 @@
   "scripts": {
     "pretypecheck": "npm run build --workspace=@semiont/core --if-present && npm run build --workspace=@semiont/observability --if-present",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && tsup",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json",
     "watch": "tsup --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",
@@ -47,7 +47,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.6.3"
+    "typescript": "^6.0.2"
   },
   "keywords": [
     "semiont",
