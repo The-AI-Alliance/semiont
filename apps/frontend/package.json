@@ -52,7 +52,7 @@
     "@semiont/react-ui": "0.5.4",
     "@semiont/sdk": "0.5.4",
     "i18next": "^24.2.3",
-    "i18next-http-backend": "^3.0.2",
+    "i18next-http-backend": "^4.0.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-i18next": "^15.7.4",
@@ -61,7 +61,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.1",
+    "@tailwindcss/postcss": "^4.2.2",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
@@ -81,7 +81,7 @@
     "msw": "^2.10.4",
     "postcss": "^8",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5",
+    "typescript": "^6.0.2",
     "vite": "^8.0.10"
   },
   "msw": {

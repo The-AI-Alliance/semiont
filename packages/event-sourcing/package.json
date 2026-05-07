@@ -29,7 +29,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && tsup",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json",
     "watch": "tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
     "test": "vitest run",
@@ -52,7 +52,7 @@
     "@vitest/coverage-v8": "^4.1.0",
     "fast-check": "^4.3.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.6.3"
+    "typescript": "^6.0.2"
   },
   "dependencies": {
     "@semiont/api-client": "*",

@@ -3,6 +3,7 @@
     // Language and Environment
     "target": "ES2022",                          // Node 18+ supports ES2022
     "lib": ["ES2022"],                          // ES2022 standard library
+    "types": ["node"],                          // Explicit @types/* opt-in (TS 6 tightened auto-include)
     
     // Module System (CommonJS by default, packages can override)
     "module": "commonjs",                        // CommonJS for Node.js compatibility

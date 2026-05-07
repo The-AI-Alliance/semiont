@@ -16,7 +16,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "npm run typecheck && tsup",
+    "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run",
@@ -27,7 +27,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.6.3"
+    "typescript": "^6.0.2"
   },
   "publishConfig": {
     "access": "public"
