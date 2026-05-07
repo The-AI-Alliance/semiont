@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "description": "Search results payload emitted on match:search-results SSE channel.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "referenceId": {
+      "type": "string"
+    },
+    "response": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "ResourceDescriptor.json" },
+          {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number",
+                "description": "Relevance score"
+              },
+              "matchReason": {
+                "type": "string",
+                "description": "Human-readable reason for the match"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": ["correlationId", "referenceId", "response"]
+}

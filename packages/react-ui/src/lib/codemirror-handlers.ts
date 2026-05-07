@@ -3,10 +3,12 @@
  *
  * These functions handle click and hover interactions on annotations
  * and widgets within the CodeMirror editor. They operate on plain DOM
- * elements and an EventBus — no CodeMirror API dependency.
+ * elements and a SemiontSession — no CodeMirror API dependency.
  */
 
-import type { EventBus, Motivation } from '@semiont/core';
+import type { Motivation } from '@semiont/core';
+import { annotationId as toAnnotationId, resourceId as toResourceId } from '@semiont/core';
+import type { SemiontSession } from '@semiont/sdk';
 import type { TextSegment } from './codemirror-logic';
 
 /**
@@ -18,7 +20,7 @@ import type { TextSegment } from './codemirror-logic';
 export function handleAnnotationClick(
   target: HTMLElement,
   segmentsById: Map<string, TextSegment>,
-  eventBus: EventBus
+  session: SemiontSession
 ): boolean {
   const annotationElement = target.closest('[data-annotation-id]');
   const annotationId = annotationElement?.getAttribute('data-annotation-id');
@@ -28,10 +30,7 @@ export function handleAnnotationClick(
   const segment = segmentsById.get(annotationId);
   if (!segment?.annotation) return false;
 
-  eventBus.get('browse:click').next({
-    annotationId,
-    motivation: segment.annotation.motivation,
-  });
+  session.client.browse.click(toAnnotationId(annotationId), segment.annotation.motivation);
   return true;
 }
 
@@ -80,18 +79,15 @@ export function handleWidgetClick(target: HTMLElement): WidgetClickResult {
 }
 
 /**
- * Dispatch a widget click result to the event bus
+ * Dispatch a widget click result to the session bus
  */
-export function dispatchWidgetClick(result: WidgetClickResult, eventBus: EventBus): void {
+export function dispatchWidgetClick(result: WidgetClickResult, session: SemiontSession): void {
   if (!result.handled) return;
 
   if (result.action === 'navigate' && result.resourceId) {
-    eventBus.get('browse:reference-navigate').next({ resourceId: result.resourceId });
+    session.client.browse.navigateReference(toResourceId(result.resourceId));
   } else if (result.action === 'browse-click' && result.annotationId) {
-    eventBus.get('browse:click').next({
-      annotationId: result.annotationId,
-      motivation: result.motivation || 'linking',
-    });
+    session.client.browse.click(toAnnotationId(result.annotationId), result.motivation || 'linking');
   }
 }
 

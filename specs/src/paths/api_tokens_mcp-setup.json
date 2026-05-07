@@ -1,0 +1,54 @@
+{
+  "get": {
+    "summary": "MCP Setup (browser-driven CLI handoff)",
+    "description": "Browser flow that generates a long-lived (30 day) MCP refresh token for the authenticated user and redirects to a localhost callback URL with the token as a query parameter. Used by CLI tooling (similar to Google's OAuth CLI flow).\n\nThe callback URL must match one of the localhost patterns (`http://localhost:<port>/...`, `http://127.0.0.1:<port>/...`, or `http://[::1]:<port>/...`).",
+    "tags": ["Authentication"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "parameters": [
+      {
+        "name": "callback",
+        "in": "query",
+        "required": true,
+        "description": "Localhost URL to redirect to with `?token=<refresh-token>` on success.",
+        "schema": { "type": "string" }
+      }
+    ],
+    "responses": {
+      "302": {
+        "description": "Redirect to the callback URL with the newly-issued refresh token appended as a `?token=` query parameter."
+      },
+      "400": {
+        "description": "Missing or non-localhost callback URL",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "description": "Failed to generate refresh token",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Success response after updating a yielded resource.",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": ["resourceId"]
+}

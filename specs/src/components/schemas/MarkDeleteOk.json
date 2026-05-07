@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "description": "Success response after deleting an annotation.",
+  "properties": {
+    "annotationId": {
+      "type": "string"
+    }
+  },
+  "required": ["annotationId"]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Emitted when an annotation is clicked in the browse panel",
+  "properties": {
+    "annotationId": {
+      "type": "string"
+    },
+    "motivation": {
+      "$ref": "./Motivation.json"
+    }
+  },
+  "required": ["annotationId", "motivation"]
+}

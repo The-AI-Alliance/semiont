@@ -11,7 +11,7 @@
  * - View updates (see ViewManager)
  */
 
-import { type ResourceId, type StoredEvent, type ResourceEvent, type EventQuery, type Logger } from '@semiont/core';
+import { type ResourceId, type StoredEvent, type EventQuery, type EventInput, type Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { EventStorage } from './storage/event-storage';
 
@@ -36,10 +36,15 @@ export class EventLog {
    * Append event to log
    * @param event - Resource event (from @semiont/core)
    * @param resourceId - Branded ResourceId (from @semiont/core)
+   * @param options.correlationId - Optional command correlation id (stored on metadata)
    * @returns Stored event with metadata (sequence number, timestamp, checksum)
    */
-  async append(event: Omit<ResourceEvent, 'id' | 'timestamp'>, resourceId: ResourceId): Promise<StoredEvent> {
-    return this.storage.appendEvent(event, resourceId);
+  async append(
+    event: EventInput,
+    resourceId: ResourceId,
+    options?: { correlationId?: string },
+  ): Promise<StoredEvent> {
+    return this.storage.appendEvent(event, resourceId, options);
   }
 
   /**
@@ -68,11 +73,11 @@ export class EventLog {
     if (!filter) return events;
 
     return events.filter(e => {
-      if (filter.eventTypes && !filter.eventTypes.includes(e.event.type as any)) return false;
+      if (filter.eventTypes && !filter.eventTypes.includes(e.type as any)) return false;
       if (filter.fromSequence && e.metadata.sequenceNumber < filter.fromSequence) return false;
-      if (filter.fromTimestamp && e.event.timestamp < filter.fromTimestamp) return false;
-      if (filter.toTimestamp && e.event.timestamp > filter.toTimestamp) return false;
-      if (filter.userId && e.event.userId !== filter.userId) return false;
+      if (filter.fromTimestamp && e.timestamp < filter.fromTimestamp) return false;
+      if (filter.toTimestamp && e.timestamp > filter.toTimestamp) return false;
+      if (filter.userId && e.userId !== filter.userId) return false;
       return true;
     });
   }

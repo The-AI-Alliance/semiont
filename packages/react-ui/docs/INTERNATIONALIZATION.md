@@ -305,7 +305,6 @@ The library uses **namespace-based** translations. Each component or feature are
 **Modals:**
 - `KeyboardShortcutsModal` - Keyboard shortcuts help
 - `SessionExpiredModal` - Session expiration messages
-- `ProposeEntitiesModal` - Entity proposal UI
 
 **Resource Management:**
 - `ResourceInfoPanel` - Resource metadata
@@ -659,6 +658,6 @@ When using dynamic locale loading, you can provide a loading component:
 
 ## See Also
 
-- [PROVIDERS.md](PROVIDERS.md) - Provider Pattern details
+- [SESSION.md](SESSION.md) - Provider Pattern details
 - [TESTING.md](TESTING.md) - Testing with translations
 - [COMPONENTS.md](COMPONENTS.md) - Components that use translations

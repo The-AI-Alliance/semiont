@@ -10,12 +10,9 @@ import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
-// Import directly from context file to bypass mocked barrel export
-import { EventBusProvider } from '../../../contexts/EventBusContext';
-import { ApiClientProvider } from '../../../contexts/ApiClientContext';
-import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
+import { createTestSemiontWrapper } from '../../../test-utils';
 
 // jsdom doesn't implement window.matchMedia — mock it for useTheme
 Object.defineProperty(window, 'matchMedia', {
@@ -37,32 +34,42 @@ vi.mock('../../../hooks/useResourceContent', () => ({
   useResourceContent: () => ({ content: 'Test content', loading: false }),
 }));
 
-vi.mock('../../../lib/api-hooks', () => ({
-  useResources: () => ({
-    annotations: { useQuery: () => ({ data: { annotations: [] } }) },
-    referencedBy: { useQuery: () => ({ data: { referencedBy: [] }, isLoading: false }) },
-    mediaToken: { useQuery: () => ({ data: { token: 'mock-media-token' }, isLoading: false }) },
-    update: { useMutation: () => ({ mutateAsync: vi.fn() }) },
-    generateCloneToken: { useMutation: () => ({ mutateAsync: vi.fn() }) },
-  }),
-  useEntityTypes: () => ({
-    list: { useQuery: () => ({ data: { entityTypes: ['Document', 'Article', 'Book'] } }) },
-  }),
-}));
 
-vi.mock('../../../hooks/useResourceEvents', () => ({
-  useResourceEvents: () => null,
-}));
+// Stub SemiontBrowser whose activeSession$ emits a session carrying a real
+// SemiontClient (wired to a dummy baseUrl). The real client surface lets
+// createResourceViewerPageStateUnit run against the full namespace API without us
+// hand-stubbing every method it touches.
+const { stubBrowser } = vi.hoisted(() => {
+  const { BehaviorSubject } = require('rxjs');
+  const { SemiontClient, HttpTransport, HttpContentTransport } = require('@semiont/sdk');
+  const { baseUrl } = require('@semiont/core');
+  const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000') });
+  // HttpTransport implements both ITransport and IBackendOperations; pass it
+  // as backend so `client.auth` (used by useMediaToken) is wired.
+  const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
+  const stubActiveSession$ = new BehaviorSubject({ client });
+  const stubOpenResources$ = new BehaviorSubject([]);
+  const stubBrowser = {
+    activeSession$: stubActiveSession$,
+    openResources$: stubOpenResources$,
+    addOpenResource: vi.fn(),
+    removeOpenResource: vi.fn(),
+    updateOpenResourceName: vi.fn(),
+    reorderOpenResources: vi.fn(),
+    emit: vi.fn(),
+    on: vi.fn(() => () => {}),
+    stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
+  };
+  return { stubBrowser };
+});
 
-// Mock dependencies that ResourceViewerPage imports
-vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual('@tanstack/react-query');
+vi.mock('../../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(
+    '../../../session/SemiontProvider'
+  );
   return {
     ...actual,
-    useQueryClient: () => ({
-      invalidateQueries: vi.fn(),
-      setQueryData: vi.fn(),
-    }),
+    useSemiont: () => stubBrowser,
   };
 });
 
@@ -82,12 +89,10 @@ vi.mock('@semiont/react-ui', async () => {
     createCancelDetectionHandler: () => vi.fn(),
 useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
-    MakeMeaningEventBusProvider: ({ children }: any) => children,
     useResourceLoadingAnnouncements: () => ({
       announceResourceLoading: vi.fn(),
       announceResourceLoaded: vi.fn(),
     }),
-    // Don't mock EventBusProvider, useEventBus - let actual pass through via ...actual
     useEventSubscriptions: vi.fn(),
     useResourceAnnotations: () => ({
       clearNewAnnotationId: vi.fn(),
@@ -98,15 +103,6 @@ useDebouncedCallback: (fn: any) => fn,
     }),
   };
 });
-
-vi.mock('../../../contexts/OpenResourcesContext', () => ({
-  useOpenResources: () => ({
-    openResources: [],
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    isResourceOpen: vi.fn().mockReturnValue(false),
-  }),
-}));
 
 vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   useResourceAnnotations: () => ({
@@ -123,6 +119,7 @@ vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
 // (the barrel export mock doesn't intercept direct context imports)
 const mockUseEventSubscriptions = vi.fn();
 vi.mock('../../../contexts/useEventSubscription', () => ({
+  useEventSubscription: vi.fn(),
   useEventSubscriptions: (...args: unknown[]) => mockUseEventSubscriptions(...args),
 }));
 
@@ -154,7 +151,7 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   Link: ({ children }: any) => <a>{children}</a>,
   routes: {},
   refetchDocument: vi.fn().mockResolvedValue(undefined),
-  streamStatus: 'connected' as const,
+  streamStatus: 'open' as const,
   ToolbarPanels: ({ children, activePanel }: any) =>
     !activePanel ? null : <div data-testid="toolbar-panels">{children}</div>,
   ...overrides,
@@ -162,16 +159,13 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
 
 // Test wrapper to provide all required providers
 const renderWithProviders = (ui: React.ReactElement) => {
+  const { SemiontWrapper } = createTestSemiontWrapper();
   return render(
     <ThemeProvider>
       <ToastProvider>
-        <AuthTokenProvider token={null}>
-          <EventBusProvider>
-            <ApiClientProvider baseUrl="http://localhost:4000">
-              {ui}
-            </ApiClientProvider>
-          </EventBusProvider>
-        </AuthTokenProvider>
+        <SemiontWrapper>
+          {ui}
+        </SemiontWrapper>
       </ToastProvider>
     </ThemeProvider>
   );

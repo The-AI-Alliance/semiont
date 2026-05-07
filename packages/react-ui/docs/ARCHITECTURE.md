@@ -126,16 +126,16 @@ export function useResources() {
 
 **Three-Layer Pattern:**
 
-1. **Service Layer**: SSE connection management (`useResourceEvents`)
+1. **Service Layer**: Bus subscription (`SemiontApiClient.subscribeToResource`, called by page state unit)
 2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
 3. **Component Layer**: Pure React (hooks + JSX)
 
 **Example - Three Layers in Action:**
 
 ```tsx
-// Layer 1 (Service): SSE connection
+// Layer 1 (Service): bus subscription happens in the page state unit
+// via client.subscribeToResource(rId) — no component-level hook needed.
 function ResourceViewerPage({ rId }) {
-  useResourceEvents(rId);  // Opens SSE, emits events to bus
   // ...
 }
 
@@ -306,7 +306,7 @@ interface TranslationManager {
 </TranslationProvider>
 ```
 
-See [PROVIDERS.md](PROVIDERS.md) for details.
+See [SESSION.md](SESSION.md) for details.
 
 ---
 
@@ -318,12 +318,12 @@ packages/react-ui/
 │   ├── types/              # TypeScript interfaces
 │   │   ├── ApiClientManager.ts
 │   │   ├── TranslationManager.ts
-│   │   ├── SessionManager.ts
+│   │   ├── knowledge-base.ts
 │   │   └── ...
 │   ├── contexts/           # React Context providers
 │   │   ├── ApiClientContext.tsx
 │   │   ├── TranslationContext.tsx
-│   │   ├── SessionContext.tsx
+│   │   ├── KnowledgeBaseSessionContext.tsx
 │   │   └── __tests__/     # Context tests
 │   ├── features/          # Feature-based components
 │   │   ├── auth/          # Authentication components
@@ -352,7 +352,7 @@ packages/react-ui/
 │   ├── index.ts           # Main exports
 │   └── test-utils.tsx     # Testing utilities
 ├── docs/                  # Documentation
-│   ├── PROVIDERS.md
+│   ├── SESSION.md
 │   ├── API-INTEGRATION.md
 │   ├── TESTING.md
 │   ├── COMPONENTS.md
@@ -427,7 +427,7 @@ const { data } = useResources().list.useQuery();
 Use React Context for cross-cutting concerns:
 
 ```tsx
-const { isAuthenticated } = useSessionContext();
+const { isAuthenticated } = useKnowledgeBaseSession();
 const t = useTranslations('Common');
 ```
 
@@ -464,16 +464,21 @@ if (error instanceof APIError) {
 ### Global Error Handlers
 
 ```tsx
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
       if (error instanceof APIError) {
-        dispatch401Error('Session expired');
+        if (error.status === 401) notifySessionExpired('Session expired');
+        if (error.status === 403) notifyPermissionDenied('Access denied');
       }
     }
   })
 });
 ```
+
+`notifySessionExpired` and `notifyPermissionDenied` are module-scoped functions that the active `KnowledgeBaseSessionProvider` registers itself with on mount. When no provider is mounted (e.g. on the landing page), the calls are no-ops.
 
 ### Error Boundaries
 
@@ -812,7 +817,7 @@ See [STYLES.md](STYLES.md) for comprehensive CSS architecture and conventions.
 ## See Also
 
 - [EVENTS.md](EVENTS.md) - Event-driven architecture and event bus usage
-- [PROVIDERS.md](PROVIDERS.md) - Provider Pattern implementation
+- [SESSION.md](SESSION.md) - Provider Pattern implementation
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API architecture
 - [TESTING.md](TESTING.md) - Testing architecture
 - [STYLES.md](STYLES.md) - CSS architecture and conventions

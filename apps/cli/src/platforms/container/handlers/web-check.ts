@@ -1,8 +1,9 @@
 import { execFileSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { FrontendServiceConfig, BackendServiceConfig } from '@semiont/core';
-import { baseUrl, EventBus } from '@semiont/core';
-import { SemiontApiClient } from '@semiont/api-client';
+import { baseUrl } from '@semiont/core';
+import { SemiontClient } from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
 import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
@@ -71,10 +72,11 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
       if (isBackend) {
         // Backend service - use API client
         const backendConfig = config as BackendServiceConfig;
-        const client = new SemiontApiClient({ baseUrl: baseUrl(backendConfig.publicURL), eventBus: new EventBus() });
+        const transport = new HttpTransport({ baseUrl: baseUrl(backendConfig.publicURL) });
+        const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
         try {
-          const healthData = await client.healthCheck();
+          const healthData = await client.admin!.healthCheck();
           health = {
             healthy: dockerHealthStatus !== 'unhealthy',
             details: {

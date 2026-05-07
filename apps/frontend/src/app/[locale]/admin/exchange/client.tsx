@@ -1,108 +1,72 @@
-/**
- * Admin Exchange Client - Thin Next.js wrapper
- *
- * Handles Next.js-specific concerns (translations, API calls, hooks)
- * and delegates rendering to the pure React AdminExchangePage component.
- */
-
-import React, { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAdmin, Toolbar } from '@semiont/react-ui';
+import {
+  Toolbar,
+  useTheme,
+  useShellStateUnit,
+  useObservable,
+  useLineNumbers,
+  useEventSubscriptions,
+  useSemiont,
+  useStateUnit,
+  AdminExchangePage,
+} from '@semiont/react-ui';
+import { createExchangeStateUnit } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
-import { AdminExchangePage } from '@semiont/react-ui';
-import type { ImportPreview } from '@semiont/react-ui';
 
 export default function AdminExchangeClient() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AdminExchange.${k}`, p as any) as string;
+  const client = useObservable(useSemiont().activeSession$)?.client;
 
-  // Toolbar and settings state
-  const { activePanel } = usePanelBrowse();
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useStateUnit(() => createExchangeStateUnit(
+    browseStateUnit,
+    () => client!.admin!.backup(),
+    (file) => client!.admin!.restore(file),
+  ));
+
+  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const selectedFile = useObservable(stateUnit.selectedFile$) ?? null;
+  const preview = useObservable(stateUnit.preview$) ?? null;
+  const isExporting = useObservable(stateUnit.isExporting$) ?? false;
+  const isImporting = useObservable(stateUnit.isImporting$) ?? false;
+  const importPhase = useObservable(stateUnit.importPhase$) ?? null;
+  const importMessage = useObservable(stateUnit.importMessage$);
+  const importResult = useObservable(stateUnit.importResult$);
+
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
-    setTheme(theme);
-  }, [setTheme]);
-
-  const handleLineNumbersToggled = useCallback(() => {
-    toggleLineNumbers();
-  }, [toggleLineNumbers]);
-
   useEventSubscriptions({
-    'settings:theme-changed': handleThemeChanged,
-    'settings:line-numbers-toggled': handleLineNumbersToggled,
+    'settings:theme-changed': useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme), [setTheme]),
+    'settings:line-numbers-toggled': useCallback(() => toggleLineNumbers(), [toggleLineNumbers]),
   });
 
-  // API hooks
-  const adminAPI = useAdmin();
-  const backupMutation = adminAPI.exchange.backup.useMutation();
-  const restoreMutation = adminAPI.exchange.restore.useMutation();
+  const handleExport = useCallback(async () => {
+    const { blob, filename } = await stateUnit.doExport();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [stateUnit]);
 
-  // Local state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [importPhase, setImportPhase] = useState<string | null>(null);
-  const [importMessage, setImportMessage] = useState<string | undefined>();
-  const [importResult, setImportResult] = useState<Record<string, unknown> | undefined>();
-
-  const handleBackup = useCallback(() => {
-    backupMutation.mutate();
-  }, [backupMutation]);
-
-  const handleFileSelected = useCallback(async (file: File) => {
-    setSelectedFile(file);
-    setImportPhase(null);
-    setImportMessage(undefined);
-    setImportResult(undefined);
-
-    // For tar.gz backups, show basic info
-    setPreview({
-      format: file.name.endsWith('.tar.gz') || file.name.endsWith('.gz') ? 'semiont-backup' : 'unknown',
-      version: 1,
-      sourceUrl: '',
-      stats: {},
-    });
-  }, []);
-
-  const handleRestore = useCallback(() => {
-    if (!selectedFile) return;
-
-    setImportPhase('started');
-    setImportMessage(undefined);
-    setImportResult(undefined);
-
-    restoreMutation.mutate({
-      file: selectedFile,
-      onProgress: (event) => {
-        setImportPhase(event.phase);
-        setImportMessage(event.message);
-        if (event.result) {
-          setImportResult(event.result);
-        }
-      },
-    });
-  }, [selectedFile, restoreMutation]);
-
-  const handleCancelRestore = useCallback(() => {
-    setSelectedFile(null);
-    setPreview(null);
-    setImportPhase(null);
-    setImportMessage(undefined);
-    setImportResult(undefined);
-  }, []);
+  const handleImport = useCallback(async () => {
+    await stateUnit.doImport();
+  }, [stateUnit]);
 
   return (
     <AdminExchangePage
-      onExport={handleBackup}
-      isExporting={backupMutation.isPending}
-      onFileSelected={handleFileSelected}
-      onImport={handleRestore}
-      onCancelImport={handleCancelRestore}
+      onExport={handleExport}
+      isExporting={isExporting}
+      onFileSelected={stateUnit.selectFile}
+      onImport={handleImport}
+      onCancelImport={stateUnit.cancelImport}
       selectedFile={selectedFile}
       preview={preview}
-      isImporting={restoreMutation.isPending}
+      isImporting={isImporting}
       importPhase={importPhase}
       importMessage={importMessage}
       importResult={importResult}

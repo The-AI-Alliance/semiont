@@ -1,0 +1,388 @@
+/**
+ * SemiontClient over LocalTransport — end-to-end coverage.
+ *
+ * Exercises the namespace surface and bus bridge against a real
+ * `KnowledgeSystem` booted in-process via `startMakeMeaning`. No HTTP
+ * mock, no actor-state-unit mock — the bus events flow through the same actors
+ * production uses, just bridged into the client via `LocalTransport`.
+ */
+
+import { describe, it, expect, vi } from 'vitest';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { firstValueFrom, race, timer, type Observable } from 'rxjs';
+import { filter, map, take } from 'rxjs/operators';
+
+import {
+  EventBus,
+  annotationId as makeAnnotationId,
+  entityType as makeEntityType,
+  resourceId as makeResourceId,
+  userDID,
+  userId as makeUserId,
+  type Logger,
+  type ResourceId,
+} from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
+import { SemiontClient } from '@semiont/sdk';
+import { LocalTransport } from '../local-transport';
+import { LocalContentTransport } from '../local-content-transport';
+import { ResourceOperations } from '../resource-operations';
+import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
+
+const SETTLE_MS = 5_000;
+
+const defined = <T>(v: T | undefined): v is T => v !== undefined;
+
+const silentLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => silentLogger),
+};
+
+const config: MakeMeaningConfig = {
+  services: {
+    graph: { platform: { type: 'posix' }, type: 'memory' },
+  },
+  actors: {
+    gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+    matcher:  { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+  },
+  workers: {
+    default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
+  },
+};
+
+const TEST_USER_DID = userDID('did:semiont:test-host');
+const TEST_USER_ID  = makeUserId('test-host');
+
+interface Harness {
+  client: SemiontClient;
+  service: MakeMeaningService;
+  eventBus: EventBus;
+  seedResource(input: { name: string; content: string; format?: string; entityTypes?: string[] }): Promise<ResourceId>;
+  dispose(): Promise<void>;
+}
+
+async function bootHarness(): Promise<Harness> {
+  const testDir = join(tmpdir(), `semiont-local-${uuidv4()}`);
+  await fs.mkdir(testDir, { recursive: true });
+  const project = new SemiontProject(testDir);
+  const eventBus = new EventBus();
+  let service: MakeMeaningService | null = null;
+  let client: SemiontClient | null = null;
+
+  try {
+    service = await startMakeMeaning(project, config, eventBus, silentLogger);
+    const transport = new LocalTransport({
+      knowledgeSystem: service.knowledgeSystem,
+      eventBus,
+      userId: TEST_USER_DID,
+    });
+    const content = new LocalContentTransport(service.knowledgeSystem);
+    client = new SemiontClient(transport, content);
+
+    const seedResource = async (input: {
+      name: string;
+      content: string;
+      format?: string;
+      entityTypes?: string[];
+    }): Promise<ResourceId> => {
+      const buf = Buffer.from(input.content, 'utf-8');
+      const storageUri = `file://${input.name}-${uuidv4()}.txt`;
+      const stored = await service!.knowledgeSystem.kb.content.store(buf, storageUri);
+      return ResourceOperations.createResource(
+        {
+          name: input.name,
+          storageUri: stored.storageUri,
+          contentChecksum: stored.checksum,
+          byteSize: stored.byteSize,
+          format: (input.format ?? 'text/plain') as 'text/plain',
+          entityTypes: input.entityTypes,
+        },
+        TEST_USER_ID,
+        eventBus,
+      );
+    };
+
+    const dispose = async () => {
+      try { client?.dispose(); } catch { /* */ }
+      try { await service!.stop(); } catch { /* */ }
+      try { eventBus.destroy(); } catch { /* */ }
+      try { await project.destroy(); } catch { /* */ }
+      await fs.rm(testDir, { recursive: true, force: true });
+    };
+
+    return { client, service, eventBus, seedResource, dispose };
+  } catch (err) {
+    try { client?.dispose(); } catch { /* */ }
+    try { if (service) await service.stop(); } catch { /* */ }
+    try { eventBus.destroy(); } catch { /* */ }
+    try { await project.destroy(); } catch { /* */ }
+    await fs.rm(testDir, { recursive: true, force: true });
+    throw err;
+  }
+}
+
+/** Race a bus event match (filtered by predicate) against a timeout. */
+async function waitForEvent<T>(
+  obs: Observable<T>,
+  predicate: (v: T) => boolean,
+  timeoutMs: number = SETTLE_MS,
+): Promise<void> {
+  await firstValueFrom(
+    race(
+      obs.pipe(filter(predicate), take(1), map(() => true)),
+      timer(timeoutMs).pipe(map(() => true)),
+    ),
+  );
+}
+
+describe('SemiontClient over LocalTransport', () => {
+  describe('browse', () => {
+    it('returns an empty list for an empty knowledge base', async () => {
+      const h = await bootHarness();
+      try {
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        expect(resources).toHaveLength(0);
+      } finally {
+        await h.dispose();
+      }
+    });
+
+    it('lists a seeded resource via browse.resources', async () => {
+      const h = await bootHarness();
+      try {
+        const id = await h.seedResource({ name: 'overview', content: 'hello world' });
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        expect(resources).toHaveLength(1);
+        const got = resources[0]!;
+        expect(got['@id'] ?? got.id).toBe(id);
+        expect(got.name).toBe('overview');
+      } finally {
+        await h.dispose();
+      }
+    });
+
+    it('returns the seeded resource via browse.resource(id)', async () => {
+      const h = await bootHarness();
+      try {
+        const id = await h.seedResource({ name: 'doc', content: 'body' });
+        const resource = await firstValueFrom(h.client.browse.resource(id).pipe(filter(defined)));
+        expect(resource).toBeDefined();
+        expect(resource['@id'] ?? resource.id).toBe(id);
+      } finally {
+        await h.dispose();
+      }
+    });
+
+    it('emits browse:resource-failed for a non-existent id', async () => {
+      const h = await bootHarness();
+      try {
+        const failed$ = (
+          h.client.bus.get('browse:resource-failed') as unknown as Observable<{ message: string }>
+        ).pipe(take(1));
+        const observed = firstValueFrom(failed$);
+
+        h.client.browse.resource(makeResourceId('does-not-exist')).subscribe();
+
+        const ev = await observed;
+        expect(ev.message).toBeTruthy();
+      } finally {
+        await h.dispose();
+      }
+    });
+  });
+
+  describe('mark', () => {
+    it('creates an annotation visible via browseAnnotations', async () => {
+      const h = await bootHarness();
+      try {
+        const rId = await h.seedResource({ name: 'doc', content: 'hello world' });
+
+        // markAnnotation returns once `mark:create-ok` fires, which the
+        // assembly handler emits only after `mark:added` is published —
+        // and `eventStore.appendEvent` materializes the view before
+        // publishing the typed channel. So the view is current by the
+        // time this resolves.
+        const { annotationId } = await h.client.mark.annotation({
+          motivation: 'highlighting',
+          target: {
+            source: rId as unknown as string,
+            selector: [
+              { type: 'TextPositionSelector', start: 0, end: 5 },
+              { type: 'TextQuoteSelector', exact: 'hello' },
+            ],
+          },
+        });
+
+        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(defined)));
+        expect(list.length).toBeGreaterThan(0);
+        expect(list.map((a) => a.id)).toContain(annotationId);
+      } finally {
+        await h.dispose();
+      }
+    });
+
+    it('removes an annotation via deleteAnnotation', async () => {
+      const h = await bootHarness();
+      try {
+        const rId = await h.seedResource({ name: 'doc', content: 'hello world' });
+
+        const { annotationId: aIdStr } = await h.client.mark.annotation({
+          motivation: 'highlighting',
+          target: {
+            source: rId as unknown as string,
+            selector: [
+              { type: 'TextPositionSelector', start: 0, end: 5 },
+              { type: 'TextQuoteSelector', exact: 'hello' },
+            ],
+          },
+        });
+        const aId = makeAnnotationId(aIdStr);
+
+        await h.client.mark.delete(rId, aId);
+
+        await waitForEvent(
+          h.client.bus.get('mark:delete-ok') as unknown as Observable<{ annotationId: string }>,
+          (e) => e.annotationId === aIdStr,
+        );
+
+        // Cache may still hold the pre-delete snapshot; observe a fresh fetch
+        // by invalidating then waiting on the next emission.
+        h.client.browse.invalidateAnnotationList(rId);
+        const list = await firstValueFrom(h.client.browse.annotations(rId).pipe(filter(defined)));
+        expect(list.map((a) => a.id)).not.toContain(aIdStr);
+      } finally {
+        await h.dispose();
+      }
+    });
+  });
+
+  describe('bind', () => {
+    it('links a reference annotation to a target resource', async () => {
+      const h = await bootHarness();
+      try {
+        const sourceId = await h.seedResource({ name: 'src', content: 'see also: target' });
+        const targetId = await h.seedResource({ name: 'target', content: 'target body' });
+
+        const { annotationId: aIdStr } = await h.client.mark.annotation({
+          motivation: 'linking',
+          target: {
+            source: sourceId as unknown as string,
+            selector: [
+              { type: 'TextPositionSelector', start: 10, end: 16 },
+              { type: 'TextQuoteSelector', exact: 'target' },
+            ],
+          },
+        });
+        const aId = makeAnnotationId(aIdStr);
+
+        await h.client.bind.body(sourceId, aId, [
+          {
+            op: 'add',
+            item: { type: 'SpecificResource', source: targetId as unknown as string, purpose: 'linking' },
+          },
+        ]);
+
+        await waitForEvent(
+          h.client.bus.get('bind:body-updated') as unknown as Observable<{ annotationId: string }>,
+          (e) => e.annotationId === aIdStr,
+        );
+
+        h.client.browse.invalidateAnnotationList(sourceId);
+        const list = await firstValueFrom(h.client.browse.annotations(sourceId).pipe(filter(defined)));
+        const linked = list.find((a) => a.id === aIdStr);
+        expect(linked).toBeDefined();
+        const bodies = Array.isArray(linked!.body) ? linked!.body : (linked!.body ? [linked!.body] : []);
+        const linkedBody = bodies.find(
+          (b) => typeof b === 'object' && b !== null && (b as { type?: string }).type === 'SpecificResource',
+        ) as { source?: string } | undefined;
+        expect(linkedBody?.source).toBe(targetId);
+      } finally {
+        await h.dispose();
+      }
+    });
+  });
+
+  describe('lifecycle', () => {
+    it('addEntityType + listEntityTypes round-trips', async () => {
+      const h = await bootHarness();
+      try {
+        const tag = makeEntityType('Person');
+        await h.client.frame.addEntityType(tag);
+
+        // `frame:entity-type-added` carries a `StoredEvent` whose
+        // `payload.entityType` echoes the tag; wait for it to
+        // confirm Stower has appended + materialized the system view
+        // before listing.
+        await waitForEvent(
+          h.client.bus.get('frame:entity-type-added') as unknown as Observable<{ payload?: { entityType?: string } }>,
+          (e) => e.payload?.entityType === (tag as unknown as string),
+        );
+
+        h.client.browse.invalidateEntityTypes();
+        const result = await firstValueFrom(h.client.browse.entityTypes().pipe(filter(defined)));
+        expect(result).toContain(tag);
+      } finally {
+        await h.dispose();
+      }
+    });
+
+    it('addTagSchema + browse.tagSchemas() round-trips', async () => {
+      // Mirrors the entity-type round-trip above for the tag-schema
+      // surface. Exercises Stower.handleAddTagSchema → event store →
+      // ViewMaterializer.materializeTagSchemas → tag-schemas-reader →
+      // BrowseNamespace cache invalidation on `frame:tag-schema-added`.
+      // If this passes, the in-process plumbing for runtime tag-schema
+      // registration works end-to-end.
+      const h = await bootHarness();
+      try {
+        const schema = {
+          id: 'local-transport-test-schema',
+          name: 'Local Transport Test Schema',
+          description: 'Round-trip schema for local-transport.test.ts',
+          domain: 'test',
+          tags: [
+            { name: 'X', description: 'cat X', examples: [] },
+            { name: 'Y', description: 'cat Y', examples: [] },
+          ],
+        } as const;
+
+        await h.client.frame.addTagSchema(schema as never);
+
+        // Wait for the bridged broadcast — proves Stower appended the
+        // event and the materializer wrote the projection.
+        await waitForEvent(
+          h.client.bus.get('frame:tag-schema-added') as unknown as Observable<{
+            payload?: { schema?: { id?: string } };
+          }>,
+          (e) => e.payload?.schema?.id === schema.id,
+        );
+
+        h.client.browse.invalidateTagSchemas();
+        const result = await firstValueFrom(h.client.browse.tagSchemas().pipe(filter(defined)));
+        const found = result.find((s) => s.id === schema.id);
+        expect(found, 'registered schema should appear in browse.tagSchemas()').toBeDefined();
+        expect(found!.tags.map((t) => t.name)).toEqual(['X', 'Y']);
+      } finally {
+        await h.dispose();
+      }
+    });
+
+    it('client.dispose() does not throw and tears down the transport', async () => {
+      const h = await bootHarness();
+      try {
+        await firstValueFrom(h.client.browse.resources({}).pipe(filter(defined)));
+        expect(() => h.client.dispose()).not.toThrow();
+      } finally {
+        // Avoid double-disposing the client; harness.dispose() guards.
+        await h.dispose();
+      }
+    });
+  });
+});

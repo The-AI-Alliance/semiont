@@ -14,12 +14,21 @@
  * - gather:resource-requested — resource-level LLM context assembly
  *
  * RxJS pipeline uses groupBy(resourceId) + concatMap for per-resource isolation.
+ *
+ * ## Per-resource serialization
+ *
+ * `groupBy(resourceId) + concatMap(...)` is the stream-consumer flavor of
+ * per-resource serialization — the same invariant enforced by `Smelter`,
+ * `GraphDBConsumer`, and (in a different shape) `ViewManager`. See
+ * `packages/core/src/serialize-per-key.ts` for the shared primitive used
+ * by RPC-style services.
  */
 
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
-import { EventBus, annotationId as makeAnnotationId } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId, errField } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
@@ -50,7 +59,9 @@ export class Gatherer {
       groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
-          concatMap((event) => from(this.handleAnnotationGather(event))),
+          concatMap((event) =>
+            from(withActorSpan('gatherer', 'gather:requested', () => this.handleAnnotationGather(event))),
+          ),
         ),
       ),
     );
@@ -60,7 +71,9 @@ export class Gatherer {
       groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
-          concatMap((event) => from(this.handleResourceGather(event))),
+          concatMap((event) =>
+            from(withActorSpan('gatherer', 'gather:resource-requested', () => this.handleResourceGather(event))),
+          ),
         ),
       ),
     );
@@ -84,7 +97,7 @@ export class Gatherer {
 
       const response = await AnnotationContext.buildLLMContext(
         makeAnnotationId(event.annotationId),
-        event.resourceId,
+        resourceId(event.resourceId),
         this.kb,
         event.options ?? {},
         this.inferenceClient,
@@ -100,12 +113,12 @@ export class Gatherer {
     } catch (error) {
       this.logger.error('Gather annotation context failed', {
         annotationId: event.annotationId,
-        error,
+        error: errField(error),
       });
       this.eventBus.get('gather:failed').next({
         correlationId: event.correlationId,
         annotationId: event.annotationId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -117,7 +130,7 @@ export class Gatherer {
       });
 
       const result = await LLMContext.getResourceContext(
-        event.resourceId,
+        resourceId(event.resourceId),
         event.options,
         this.kb,
         this.inferenceClient,
@@ -131,12 +144,12 @@ export class Gatherer {
     } catch (error) {
       this.logger.error('Gather resource context failed', {
         resourceId: event.resourceId,
-        error,
+        error: errField(error),
       });
       this.eventBus.get('gather:resource-failed').next({
         correlationId: event.correlationId,
         resourceId: event.resourceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }

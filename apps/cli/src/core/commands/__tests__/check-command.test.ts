@@ -118,18 +118,20 @@ describe('Check Command', () => {
 
       const result = await check(serviceDeployments, options, createMockEnvConfig());
 
-      // The mock returns success:true even for stopped services (check succeeded, service is stopped)
+      // success=false reflects that the service is unhealthy (not running).
+      // The check operation itself ran cleanly, but a stopped service is a
+      // failed health check.
       expect(result.results[0]!).toMatchObject({
         entity: 'backend',
         platform: 'mock',
-        success: true  // Check succeeded, it found the service stopped
+        success: false,
       });
 
       expect(result.summary).toMatchObject({
         total: 1,
-        succeeded: 1,  // Check operation succeeded
-        failed: 0,
-        warnings: 0
+        succeeded: 0,
+        failed: 1,
+        warnings: 0,
       });
     });
 

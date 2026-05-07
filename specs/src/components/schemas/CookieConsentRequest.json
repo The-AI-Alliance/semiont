@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "description": "Request body for POST /api/cookies/consent. All four preference fields must be booleans; `necessary` must be true.",
+  "properties": {
+    "necessary": { "type": "boolean", "enum": [true] },
+    "analytics": { "type": "boolean" },
+    "marketing": { "type": "boolean" },
+    "preferences": { "type": "boolean" }
+  },
+  "required": ["necessary", "analytics", "marketing", "preferences"]
+}

@@ -1,44 +1,47 @@
-import { useEffect } from 'react';
-import type { ResourceId } from '@semiont/core';
-import { getPrimaryMediaType } from '@semiont/api-client';
+import { useEffect, useState } from 'react';
+import type { ResourceDescriptor, ResourceId, components } from '@semiont/core';
+import { getPrimaryMediaType } from '@semiont/core';
+import { decodeWithCharset } from '@semiont/core';
 import { useToast } from '../components/Toast';
-import { useResources } from '../lib/api-hooks';
-import type { components } from '@semiont/core';
-
-type SemiontResource = components['schemas']['ResourceDescriptor'];
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from './useObservable';
 
 export interface UseResourceContentResult {
   content: string;
   loading: boolean;
 }
 
-/**
- * Hook to load text resource content (representation)
- *
- * Fetches and decodes the primary text representation of a resource.
- * Only for text types (text/plain, text/markdown).
- * Binary types (image/*, application/pdf) use useMediaToken instead.
- */
 export function useResourceContent(
   rUri: ResourceId,
-  resource: SemiontResource,
+  resource: ResourceDescriptor,
   enabled = true
 ): UseResourceContentResult {
   const { showError } = useToast();
-  const resources = useResources();
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
   const mediaType = enabled ? (getPrimaryMediaType(resource) || 'text/plain') : '';
 
-  const { data, isLoading, error } = resources.representation.useQuery(rUri, mediaType);
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (error) {
+    if (!semiont || !enabled || !mediaType) return;
+    let cancelled = false;
+    setLoading(true);
+    semiont.browse.resourceRepresentation(rUri, {
+      accept: mediaType as components['schemas']['ContentFormat'],
+    }).then(({ data }) => {
+      if (cancelled) return;
+      setContent(decodeWithCharset(data, mediaType));
+      setLoading(false);
+    }).catch((error) => {
+      if (cancelled) return;
       console.error('Failed to fetch representation:', error);
       showError('Failed to load resource representation');
-    }
-  }, [error, showError]);
+      setLoading(false);
+    });
 
-  return {
-    content: data ?? '',
-    loading: isLoading,
-  };
+    return () => { cancelled = true; };
+  }, [semiont, rUri, mediaType, enabled, showError]);
+
+  return { content, loading };
 }

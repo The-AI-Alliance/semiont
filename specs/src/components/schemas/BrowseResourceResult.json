@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Result of browsing a single resource",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "./GetResourceResponse.json"
+    }
+  },
+  "required": [
+    "correlationId",
+    "response"
+  ]
+}

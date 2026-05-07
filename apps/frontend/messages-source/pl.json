@@ -13,7 +13,7 @@
     "administer": "Administracja"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Wszelkie prawa zastrzeżone.",
+    "copyright": "© {{year}} The AI Alliance. Wszelkie prawa zastrzeżone.",
     "about": "O nas",
     "privacyPolicy": "Polityka prywatności",
     "cookiePreferences": "Ustawienia plików cookie",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Wprowadź nazwę zasobu...",
     "entityTypes": "Tagi typów encji",
     "entityTypesHint": "Oznacz zasób tagami typów encji",
-    "noEntityTypesAvailable": "Brak dostępnych typów encji",
     "contentSource": "Źródło treści",
     "uploadFile": "Prześlij plik",
     "uploadFileDescription": "Obrazy, dokumenty, pliki tekstowe",
@@ -591,14 +590,17 @@
     "statusConnected": "Połączono",
     "statusExpired": "Sesja wygasła",
     "statusSignedOut": "Wylogowano",
-    "statusUnreachable": "Niedostępny"
+    "statusUnreachable": "Niedostępny",
+    "invalidHost": "Nieprawidłowa nazwa hosta"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Brak baz wiedzy",
     "noKnowledgeBasesHint": "Dodaj bazę wiedzy za pomocą panelu po prawej stronie, aby zacząć odkrywać, dodawać adnotacje i łączyć zasoby.",
     "sessionExpired": "Twoja sesja wygasła.",
     "signedOut": "Jesteś wylogowany.",
-    "signInHint": "Zaloguj się za pomocą panelu Bazy wiedzy, aby przeglądać zasoby."
+    "signInHint": "Zaloguj się za pomocą panelu Bazy wiedzy, aby przeglądać zasoby.",
+    "findKnowledgeBases": "Znajdź bazy wiedzy",
+    "createNew": "Utwórz nową"
   },
   "AccountPanel": {
     "notAuthenticated": "Zaloguj się do bazy wiedzy, aby wyświetlić swoje konto."

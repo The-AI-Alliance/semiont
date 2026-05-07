@@ -13,7 +13,7 @@
     "administer": "管理"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont。保留所有权利。",
+    "copyright": "© {{year}} The AI Alliance。保留所有权利。",
     "about": "关于",
     "privacyPolicy": "隐私政策",
     "cookiePreferences": "Cookie 偏好设置",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "输入资源名称...",
     "entityTypes": "实体类型标签",
     "entityTypesHint": "使用实体类型标记您的资源",
-    "noEntityTypesAvailable": "没有可用的实体类型",
     "contentSource": "内容来源",
     "uploadFile": "上传文件",
     "uploadFileDescription": "图片、文档、文本文件",
@@ -591,14 +590,17 @@
     "statusConnected": "已连接",
     "statusExpired": "会话已过期",
     "statusSignedOut": "已退出",
-    "statusUnreachable": "无法访问"
+    "statusUnreachable": "无法访问",
+    "invalidHost": "无效的主机名"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "没有知识库",
     "noKnowledgeBasesHint": "使用右侧面板添加知识库，开始发现、注释和链接资源。",
     "sessionExpired": "您的会话已过期。",
     "signedOut": "您已退出登录。",
-    "signInHint": "通过知识库面板登录以浏览资源。"
+    "signInHint": "通过知识库面板登录以浏览资源。",
+    "findKnowledgeBases": "查找知识库",
+    "createNew": "创建新知识库"
   },
   "AccountPanel": {
     "notAuthenticated": "登录知识库以查看您的帐户。"

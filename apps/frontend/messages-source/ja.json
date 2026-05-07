@@ -13,7 +13,7 @@
     "administer": "管理"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. All rights reserved.",
+    "copyright": "© {{year}} The AI Alliance. All rights reserved.",
     "about": "概要",
     "privacyPolicy": "プライバシーポリシー",
     "cookiePreferences": "Cookie設定",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "リソース名を入力...",
     "entityTypes": "エンティティタイプタグ",
     "entityTypesHint": "リソースにエンティティタイプをタグ付け",
-    "noEntityTypesAvailable": "利用可能なエンティティタイプがありません",
     "contentSource": "コンテンツソース",
     "uploadFile": "ファイルをアップロード",
     "uploadFileDescription": "画像、ドキュメント、テキストファイル",
@@ -591,14 +590,17 @@
     "statusConnected": "接続済み",
     "statusExpired": "セッション期限切れ",
     "statusSignedOut": "サインアウト済み",
-    "statusUnreachable": "到達不能"
+    "statusUnreachable": "到達不能",
+    "invalidHost": "無効なホスト名"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ナレッジベースがありません",
     "noKnowledgeBasesHint": "右側のパネルを使用してナレッジベースを追加し、リソースの探索、注釈付け、リンクを開始してください。",
     "sessionExpired": "セッションが期限切れになりました。",
     "signedOut": "サインアウトしています。",
-    "signInHint": "ナレッジベースパネルを使用してサインインし、リソースを閲覧してください。"
+    "signInHint": "ナレッジベースパネルを使用してサインインし、リソースを閲覧してください。",
+    "findKnowledgeBases": "ナレッジベースを探す",
+    "createNew": "新規作成"
   },
   "AccountPanel": {
     "notAuthenticated": "アカウントを表示するには、ナレッジベースにサインインしてください。"

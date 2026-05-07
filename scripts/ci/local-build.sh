@@ -7,10 +7,14 @@ set -euo pipefail
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
 # acquires an auth token, builds, and publishes.
 
+echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build started\033[0m"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REGISTRY="http://localhost:4873"
-VERDACCIO_NAME="semiont-verdaccio-$$"
+# Fixed name so pre-run cleanup can find stale containers from prior runs.
+# Parallel runs aren't possible anyway — port 4873 is the bottleneck.
+VERDACCIO_NAME="semiont-verdaccio"
 VERDACCIO_USER="semiont"
 VERDACCIO_PASS="semiont"
 
@@ -48,6 +52,20 @@ detect_runtime() {
 }
 
 RT=$(detect_runtime)
+
+# --- Failure cleanup trap ---
+# On failure, stop and remove the Verdaccio container so the next run starts
+# clean. Disabled at the end of the happy path so Verdaccio keeps running for
+# later image pulls — the user stops it manually when done.
+# (Avoids --rm with -d, which is broken on Apple Container CLI.)
+verdaccio_cleanup() {
+  if [[ -n "${VERDACCIO_NAME:-}" ]]; then
+    $RT stop "$VERDACCIO_NAME" >/dev/null 2>&1 || true
+    $RT rm   "$VERDACCIO_NAME" >/dev/null 2>&1 || true
+  fi
+}
+trap verdaccio_cleanup ERR INT TERM
+
 banner "SEMIONT LOCAL BUILD"
 step "Container runtime: ${BOLD}$RT${RESET}"
 
@@ -64,7 +82,8 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
-      echo "Build and publish @semiont/* packages to a local Verdaccio registry."
+      echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
+      echo "then build the frontend container image."
       echo "No npm required on the host — everything runs inside containers."
       echo ""
       echo "Options:"
@@ -87,17 +106,19 @@ done
 banner "LOCAL REGISTRY"
 
 step "Ensuring port 4873 is free..."
+# Kill any process holding the port
 PID_ON_PORT=$(lsof -ti :4873 2>/dev/null || echo "")
 if [[ -n "$PID_ON_PORT" ]]; then
   echo "  Port 4873 held by PID $PID_ON_PORT — killing..."
   kill $PID_ON_PORT 2>/dev/null || true
   for i in $(seq 1 10); do
-    if ! lsof -ti :4873 > /dev/null 2>&1; then
-      break
-    fi
+    if ! lsof -ti :4873 > /dev/null 2>&1; then break; fi
     sleep 0.5
   done
 fi
+# Remove any leftover Verdaccio container that might be holding the port
+$RT stop semiont-verdaccio 2>/dev/null || true
+$RT rm   semiont-verdaccio 2>/dev/null || true
 if lsof -ti :4873 > /dev/null 2>&1; then
   fail "Port 4873 is still in use after kill"
   lsof -i :4873 2>/dev/null
@@ -107,16 +128,24 @@ ok "Port 4873 is free"
 
 step "Starting fresh Verdaccio..."
 VERDACCIO_STORAGE=$(mktemp -d)
+# Copy config into a temp dir so we can mount the whole directory.
+# Apple Container CLI sandboxes single-file bind mounts in a way that
+# makes them unreadable inside the container; a directory mount works.
+VERDACCIO_CONF=$(mktemp -d)
+cp "$SCRIPT_DIR/verdaccio.yaml" "$VERDACCIO_CONF/config.yaml"
 echo "  Container name: $VERDACCIO_NAME"
 echo "  Storage dir:    $VERDACCIO_STORAGE"
+echo "  Config dir:     $VERDACCIO_CONF"
 
-RUN_OUTPUT=$($RT run -d --rm \
+# Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
+# detached containers that use --rm, making logs unreachable on failure.
+# The EXIT trap above handles cleanup instead.
+$RT run -d \
   --name "$VERDACCIO_NAME" \
   -p 4873:4873 \
-  -v "$SCRIPT_DIR/verdaccio.yaml:/verdaccio/conf/config.yaml:ro" \
+  -v "$VERDACCIO_CONF:/verdaccio/conf" \
   -v "$VERDACCIO_STORAGE:/verdaccio/storage" \
-  verdaccio/verdaccio 2>&1)
-echo "  Container run output: $RUN_OUTPUT"
+  verdaccio/verdaccio > /dev/null
 
 # Wait for Verdaccio to be ready
 for i in $(seq 1 30); do
@@ -210,33 +239,40 @@ NPMRC
       --npmrc /tmp/.npmrc
   "
 
-banner "DONE ✓"
+BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 "$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"
 
-BUILD_REGISTRY="http://$HOST_ADDR:4873"
-echo -e "${BOLD}Next steps:${RESET}"
+# --- Build frontend container image ---
+
+banner "FRONTEND IMAGE"
+
+step "Building semiont-frontend image from apps/frontend/Dockerfile..."
+$RT build --no-cache --tag semiont-frontend \
+  --build-arg NPM_REGISTRY=$BUILD_REGISTRY \
+  --file "$REPO_ROOT/apps/frontend/Dockerfile" \
+  "$REPO_ROOT"
+
+ok "semiont-frontend image built"
+
+banner "DONE ✓"
+
+echo -e "${BOLD}Frontend:${RESET}"
+echo -e "  $RT run --publish 3000:3000 -it semiont-frontend"
 echo ""
-echo -e "  ${DIM}1. Build KB containers (from your KB project directory):${RESET}"
+
+echo -e "${BOLD}Backend (from your KB project directory):${RESET}"
 echo ""
-echo -e "    $RT build --no-cache --tag semiont-backend \\"
-echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
-echo -e "      --file .semiont/containers/Dockerfile.backend ."
+echo -e "  The KB's ${DIM}.semiont/scripts/start.sh${RESET} spins up Neo4j, Qdrant, Ollama,"
+echo -e "  PostgreSQL, and the Semiont API — all wired together. Point it at"
+echo -e "  your local Verdaccio so it builds the backend from your freshly"
+echo -e "  published ${DIM}@semiont/*${RESET} packages instead of npmjs:"
 echo ""
-echo -e "    $RT build --no-cache --tag semiont-frontend \\"
-echo -e "      --build-arg NPM_REGISTRY=$BUILD_REGISTRY \\"
-echo -e "      --file .semiont/containers/Dockerfile.frontend ."
+echo -e "    ${BOLD}cd /path/to/your-kb${RESET}"
+echo -e "    ${BOLD}NPM_REGISTRY=$BUILD_REGISTRY ./.semiont/scripts/start.sh${RESET} \\"
+echo -e "    ${BOLD}  --email admin@example.com --password password${RESET}"
 echo ""
-echo -e "  ${DIM}2. Run:${RESET}"
+
+echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
 echo ""
-echo -e "    $RT run --publish 4000:4000 --volume \$(pwd):/kb \\"
-echo -e "      --env NEO4J_URI=... --env ANTHROPIC_API_KEY=... \\"
-echo -e "      -it semiont-backend"
-echo ""
-echo -e "    $RT run --publish 3000:3000 -it semiont-frontend"
-echo ""
-echo -e "  ${DIM}3. Open http://localhost:3000${RESET}"
-echo ""
-echo -e "  ${DIM}4. Stop Verdaccio when done:${RESET}"
-echo -e "    $RT stop $VERDACCIO_NAME"
-echo ""
+echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished\033[0m"

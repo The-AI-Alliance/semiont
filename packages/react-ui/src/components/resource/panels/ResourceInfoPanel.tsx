@@ -1,18 +1,21 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import { formatLocaleDisplay } from '@semiont/api-client';
-import type { components } from '@semiont/core';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
+import { formatLocaleDisplay } from '@semiont/core';
+import { resourceId as makeResourceId, type components } from '@semiont/core';
 import './ResourceInfoPanel.css';
 
 type Agent = components['schemas']['Agent'];
 
 interface Props {
+  resourceId: string;
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
   primaryMediaType?: string | undefined;
   primaryByteSize?: number | undefined;
+  storageUri?: string | undefined;
   isArchived?: boolean;
   dateCreated?: string | undefined;
   dateModified?: string | undefined;
@@ -25,15 +28,17 @@ interface Props {
 /**
  * Panel for displaying resource metadata and management actions
  *
- * @emits yield:clone - Clone this resource. Payload: undefined
- * @emits mark:unarchive - Unarchive this resource. Payload: undefined
- * @emits mark:archive - Archive this resource. Payload: undefined
+ * @emits yield:clone - Clone this resource
+ * @emits mark:unarchive - Unarchive this resource
+ * @emits mark:archive - Archive this resource
  */
 export function ResourceInfoPanel({
+  resourceId,
   documentEntityTypes,
   documentLocale,
   primaryMediaType,
   primaryByteSize,
+  storageUri,
   isArchived = false,
   dateCreated,
   dateModified,
@@ -43,7 +48,7 @@ export function ResourceInfoPanel({
   generator,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   return (
     <div className="semiont-resource-info-panel">
@@ -84,6 +89,14 @@ export function ResourceInfoPanel({
                 <span className="semiont-resource-info-panel__label">{t('byteSize')}</span>
                 <span className="semiont-resource-info-panel__value">
                   {primaryByteSize.toLocaleString()} bytes
+                </span>
+              </div>
+            )}
+            {storageUri && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('storageUri')}</span>
+                <span className="semiont-resource-info-panel__value">
+                  {storageUri}
                 </span>
               </div>
             )}
@@ -136,7 +149,7 @@ export function ResourceInfoPanel({
                     <button
                       key={id}
                       className="semiont-resource-info-panel__link"
-                      onClick={() => eventBus.get('browse:reference-navigate').next({ resourceId: id })}
+                      onClick={() => session?.client.browse.navigateReference(makeResourceId(id))}
                     >
                       {i > 0 && ', '}{id}
                     </button>
@@ -179,7 +192,7 @@ export function ResourceInfoPanel({
       {/* Clone Action */}
       <div className="semiont-resource-info-panel__action-section">
         <button
-          onClick={() => eventBus.get('yield:clone').next(undefined)}
+          onClick={() => session?.client.yield.clone()}
           className="semiont-resource-button semiont-resource-button--secondary"
         >
           🔗 {t('clone')}
@@ -194,7 +207,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => eventBus.get('mark:unarchive').next(undefined)}
+              onClick={() => session?.client.mark.unarchive(makeResourceId(resourceId))}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -206,7 +219,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => eventBus.get('mark:archive').next(undefined)}
+              onClick={() => session?.client.mark.archive(makeResourceId(resourceId))}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}

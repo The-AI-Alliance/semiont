@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "description": "Bus command to create a cloned resource from a clone token.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "token": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "archiveOriginal": {
+      "type": "boolean"
+    }
+  },
+  "required": ["correlationId", "token", "name", "content"]
+}

@@ -7,9 +7,8 @@
  * - Second body has purpose: "classifying" with schema ID
  */
 
-import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 /**
  * Type guard to check if an annotation is a tag

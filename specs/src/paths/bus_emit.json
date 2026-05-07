@@ -1,0 +1,45 @@
+{
+  "post": {
+    "summary": "Emit an event on the Semiont bus",
+    "description": "Publishes an event to the bus. The channel name must be registered in `bus-protocol.ts` (`EventMap`); the payload is validated against the channel's schema in `CHANNEL_SCHEMAS` when one is registered.\n\nWhen `scope` is set, the event publishes on `eventBus.scope(scope)` rather than the global bus, routing it to per-resource SSE subscribers only. The authenticated user's DID is attached to the payload as `_userId` automatically.\n\nReturns 202 Accepted — the event is delivered to in-memory subscribers synchronously, but downstream persistence (Stower) and materialization happen asynchronously.",
+    "tags": ["Bus"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/BusEmitRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "202": {
+        "description": "Event accepted and published to subscribers"
+      },
+      "400": {
+        "description": "Missing/invalid channel, payload, or scope; or payload failed schema validation for the channel",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

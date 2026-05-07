@@ -13,7 +13,7 @@
     "administer": "Verwaltung"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Alle Rechte vorbehalten.",
+    "copyright": "© {{year}} The AI Alliance. Alle Rechte vorbehalten.",
     "about": "Über uns",
     "privacyPolicy": "Datenschutzrichtlinie",
     "cookiePreferences": "Cookie-Einstellungen",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Ressourcenname eingeben...",
     "entityTypes": "Entitätstyp-Tags",
     "entityTypesHint": "Versehen Sie Ihre Ressource mit Entitätstyp-Tags",
-    "noEntityTypesAvailable": "Keine Entitätstypen verfügbar",
     "contentSource": "Inhaltsquelle",
     "uploadFile": "Datei hochladen",
     "uploadFileDescription": "Bilder, Dokumente, Textdateien",
@@ -591,14 +590,17 @@
     "statusConnected": "Verbunden",
     "statusExpired": "Sitzung abgelaufen",
     "statusSignedOut": "Abgemeldet",
-    "statusUnreachable": "Nicht erreichbar"
+    "statusUnreachable": "Nicht erreichbar",
+    "invalidHost": "Ungültiger Hostname"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Keine Wissensbasen",
     "noKnowledgeBasesHint": "Fügen Sie eine Wissensbasis über das Panel auf der rechten Seite hinzu, um mit dem Entdecken, Annotieren und Verknüpfen von Ressourcen zu beginnen.",
     "sessionExpired": "Ihre Sitzung ist abgelaufen.",
     "signedOut": "Sie sind abgemeldet.",
-    "signInHint": "Melden Sie sich über das Wissensbasis-Panel an, um Ressourcen zu durchsuchen."
+    "signInHint": "Melden Sie sich über das Wissensbasis-Panel an, um Ressourcen zu durchsuchen.",
+    "findKnowledgeBases": "Wissensbasen finden",
+    "createNew": "Neue erstellen"
   },
   "AccountPanel": {
     "notAuthenticated": "Melden Sie sich bei einer Wissensbasis an, um Ihr Konto anzuzeigen."

@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventLog } from '../event-log';
-import { resourceId, userId } from '@semiont/core';
+import { annotationId, resourceId, userId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -51,7 +51,7 @@ describe('EventLog', () => {
   describe('append()', () => {
     it('should append event and return stored event', async () => {
       const event = {
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         userId: userId('user1'),
         resourceId: resourceId('doc1'),
         version: 1,
@@ -65,25 +65,25 @@ describe('EventLog', () => {
 
       const stored = await log.append(event, resourceId('doc1'));
 
-      expect(stored.event.id).toBeDefined();
-      expect(stored.event.timestamp).toBeDefined();
-      expect(stored.event.type).toBe('resource.created');
+      expect(stored.id).toBeDefined();
+      expect(stored.timestamp).toBeDefined();
+      expect(stored.type).toBe('yield:created');
       expect(stored.metadata.sequenceNumber).toBe(1);
     });
 
     it('should delegate to storage.appendEvent', async () => {
       const event = {
-        type: 'annotation.added' as const,
+        type: 'mark:added' as const,
         userId: userId('user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-            id: 'http://example.com/annotations/anno1',
+            id: annotationId('anno1'),
             type: 'Annotation' as const,
             motivation: 'commenting' as const,
-            body: [],
+            body: [{ type: 'TextualBody' as const, value: 'test comment', purpose: 'commenting' as const }],
             target: 'http://example.com/resources/doc1',
           },
         },
@@ -92,7 +92,7 @@ describe('EventLog', () => {
       const stored = await log.append(event, resourceId('doc1'));
 
       expect(stored).toBeDefined();
-      expect(stored.event.type).toBe('annotation.added');
+      expect(stored.type).toBe('mark:added');
     });
   });
 
@@ -102,7 +102,7 @@ describe('EventLog', () => {
       const uid = userId('user1');
 
       await log.append({
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         userId: uid,
         resourceId: rid,
         version: 1,
@@ -115,7 +115,7 @@ describe('EventLog', () => {
       }, rid);
 
       await log.append({
-        type: 'representation.added' as const,
+        type: 'yield:representation-added' as const,
         userId: uid,
         resourceId: rid,
         version: 1,
@@ -133,8 +133,8 @@ describe('EventLog', () => {
       const events = await log.getEvents(rid);
 
       expect(events).toHaveLength(2);
-      expect(events[0].event.type).toBe('resource.created');
-      expect(events[1].event.type).toBe('representation.added');
+      expect(events[0].type).toBe('yield:created');
+      expect(events[1].type).toBe('yield:representation-added');
     });
 
     it('should return empty array for resource with no events', async () => {
@@ -150,7 +150,7 @@ describe('EventLog', () => {
       const uid = userId('user1');
 
       await log.append({
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         userId: uid,
         resourceId: rid1,
         version: 1,
@@ -163,7 +163,7 @@ describe('EventLog', () => {
       }, rid1);
 
       await log.append({
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         userId: uid,
         resourceId: rid2,
         version: 1,
@@ -196,7 +196,7 @@ describe('EventLog', () => {
 
       // Create multiple events
       await log.append({
-        type: 'resource.created' as const,
+        type: 'yield:created' as const,
         userId: uid1,
         resourceId: rid,
         version: 1,
@@ -209,7 +209,7 @@ describe('EventLog', () => {
       }, rid);
 
       await log.append({
-        type: 'representation.added' as const,
+        type: 'yield:representation-added' as const,
         userId: uid1,
         resourceId: rid,
         version: 1,
@@ -225,17 +225,17 @@ describe('EventLog', () => {
       }, rid);
 
       await log.append({
-        type: 'annotation.added' as const,
+        type: 'mark:added' as const,
         userId: uid2,
         resourceId: rid,
         version: 1,
         payload: {
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-            id: 'http://example.com/annotations/anno1',
+            id: annotationId('anno1'),
             type: 'Annotation' as const,
             motivation: 'commenting' as const,
-            body: [],
+            body: [{ type: 'TextualBody' as const, value: 'test comment', purpose: 'commenting' as const }],
             target: 'http://example.com/resources/doc1',
           },
         },
@@ -249,21 +249,21 @@ describe('EventLog', () => {
 
     it('should filter by event types', async () => {
       const events = await log.queryEvents(resourceId('doc1'), {
-        eventTypes: ['annotation.added'],
+        eventTypes: ['mark:added'],
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0].event.type).toBe('annotation.added');
+      expect(events[0].type).toBe('mark:added');
     });
 
     it('should filter by multiple event types', async () => {
       const events = await log.queryEvents(resourceId('doc1'), {
-        eventTypes: ['resource.created', 'representation.added'],
+        eventTypes: ['yield:created', 'yield:representation-added'],
       });
 
       expect(events).toHaveLength(2);
-      expect(events[0].event.type).toBe('resource.created');
-      expect(events[1].event.type).toBe('representation.added');
+      expect(events[0].type).toBe('yield:created');
+      expect(events[1].type).toBe('yield:representation-added');
     });
 
     it('should filter by fromSequence', async () => {
@@ -281,41 +281,41 @@ describe('EventLog', () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0].event.userId).toBe(userId('user2'));
+      expect(events[0].userId).toBe(userId('user2'));
     });
 
     it('should filter by fromTimestamp', async () => {
       const allEvents = await log.getEvents(resourceId('doc1'));
-      const midTimestamp = allEvents[1].event.timestamp;
+      const midTimestamp = allEvents[1].timestamp;
 
       const events = await log.queryEvents(resourceId('doc1'), {
         fromTimestamp: midTimestamp,
       });
 
       expect(events.length).toBeGreaterThanOrEqual(1);
-      expect(events.every(e => e.event.timestamp >= midTimestamp)).toBe(true);
+      expect(events.every(e => e.timestamp >= midTimestamp)).toBe(true);
     });
 
     it('should filter by toTimestamp', async () => {
       const allEvents = await log.getEvents(resourceId('doc1'));
-      const midTimestamp = allEvents[1].event.timestamp;
+      const midTimestamp = allEvents[1].timestamp;
 
       const events = await log.queryEvents(resourceId('doc1'), {
         toTimestamp: midTimestamp,
       });
 
       expect(events.length).toBeGreaterThanOrEqual(1);
-      expect(events.every(e => e.event.timestamp <= midTimestamp)).toBe(true);
+      expect(events.every(e => e.timestamp <= midTimestamp)).toBe(true);
     });
 
     it('should combine multiple filters', async () => {
       const events = await log.queryEvents(resourceId('doc1'), {
-        eventTypes: ['resource.created', 'representation.added'],
+        eventTypes: ['yield:created', 'yield:representation-added'],
         userId: userId('user1'),
       });
 
       expect(events).toHaveLength(2);
-      expect(events.every(e => e.event.userId === userId('user1'))).toBe(true);
+      expect(events.every(e => e.userId === userId('user1'))).toBe(true);
     });
   });
 });

@@ -96,11 +96,6 @@
     "body": {
       "oneOf": [
         {
-          "type": "array",
-          "maxItems": 0,
-          "description": "Empty array (Phase 1 stub pattern - will be migrated to contain entity tag bodies in Phase 2)"
-        },
-        {
           "$ref": "./AnnotationBody.json",
           "description": "Single body (TextualBody or SpecificResource)"
         },
@@ -110,14 +105,14 @@
             "$ref": "./AnnotationBody.json"
           },
           "minItems": 1,
-          "description": "Array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
+          "description": "Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
         }
-      ]
+      ],
+      "description": "Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body."
     }
   },
   "required": [
     "target",
-    "body",
     "motivation"
   ]
 }

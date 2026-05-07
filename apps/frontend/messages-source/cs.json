@@ -13,7 +13,7 @@
     "administer": "Administrace"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Všechna práva vyhrazena.",
+    "copyright": "© {{year}} The AI Alliance. Všechna práva vyhrazena.",
     "about": "O aplikaci",
     "privacyPolicy": "Zásady ochrany osobních údajů",
     "cookiePreferences": "Nastavení cookies",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Zadejte název zdroje...",
     "entityTypes": "Štítky typů entit",
     "entityTypesHint": "Označte svůj zdroj typy entit",
-    "noEntityTypesAvailable": "Žádné typy entit nejsou k dispozici",
     "contentSource": "Zdroj obsahu",
     "uploadFile": "Nahrát soubor",
     "uploadFileDescription": "Obrázky, dokumenty, textové soubory",
@@ -591,14 +590,17 @@
     "statusConnected": "Připojeno",
     "statusExpired": "Relace vypršela",
     "statusSignedOut": "Odhlášeno",
-    "statusUnreachable": "Nedosažitelné"
+    "statusUnreachable": "Nedosažitelné",
+    "invalidHost": "Neplatný název hostitele"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Žádné znalostní báze",
     "noKnowledgeBasesHint": "Přidejte znalostní bázi pomocí panelu vpravo a začněte objevovat, anotovat a propojovat zdroje.",
     "sessionExpired": "Vaše relace vypršela.",
     "signedOut": "Jste odhlášeni.",
-    "signInHint": "Přihlaste se pomocí panelu Znalostní báze a procházejte zdroje."
+    "signInHint": "Přihlaste se pomocí panelu Znalostní báze a procházejte zdroje.",
+    "findKnowledgeBases": "Najít znalostní báze",
+    "createNew": "Vytvořit novou"
   },
   "AccountPanel": {
     "notAuthenticated": "Přihlaste se ke znalostní bázi, abyste zobrazili svůj účet."

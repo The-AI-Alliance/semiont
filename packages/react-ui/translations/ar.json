@@ -28,7 +28,8 @@
     "creationMethod": "طريقة الإنشاء",
     "attributedTo": "منسوب إلى",
     "derivedFrom": "مشتق من",
-    "generatedBy": "أُنشئ بواسطة"
+    "generatedBy": "أُنشئ بواسطة",
+    "storageUri": "التخزين"
   },
   "CollaborationPanel": {
     "title": "التعاون",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "العلامات",
     "noTags": "لا توجد علامات بعد. استخدم التوضيح بالذكاء الاصطناعي لتحديد الأدوار الهيكلية.",
+    "noSchemas": "لا توجد مخططات وسوم مسجلة لقاعدة المعارف هذه. يجب على مسؤول قاعدة المعارف تسجيل مخطط تحليل هيكلي واحد على الأقل (مثلاً عبر مهارة `register-tag-schemas`) قبل استخدام الوسم.",
     "annotateTags": "توضيح العلامات",
     "selectSchema": "اختيار الإطار",
-    "schemaLegal": "التحليل القانوني (IRAC)",
-    "schemaScientific": "الورقة العلمية (IMRAD)",
-    "schemaArgument": "بنية الحجة (Toulmin)",
     "selectCategories": "اختيار الفئات",
-    "categoryIssue": "القضية",
-    "categoryRule": "القاعدة",
-    "categoryApplication": "التطبيق",
-    "categoryConclusion": "الخاتمة",
-    "categoryIntroduction": "المقدمة",
-    "categoryMethods": "المناهج",
-    "categoryResults": "النتائج",
-    "categoryDiscussion": "المناقشة",
-    "categoryClaim": "الادعاء",
-    "categoryEvidence": "الدليل",
-    "categoryWarrant": "المبرر",
-    "categoryCounterargument": "الحجة المضادة",
-    "categoryRebuttal": "الدحض",
     "annotate": "توضيح",
     "annotating": "جارٍ التوضيح...",
     "cancel": "إلغاء",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "استخدام الذكاء الاصطناعي لتقييم النتائج حسب الصلة الدلالية",
     "searching": "جاري البحث...",
     "search": "بحث"
+  },
+  "History": {
+    "embeddingComputed": "تم حساب التضمين"
   }
 }

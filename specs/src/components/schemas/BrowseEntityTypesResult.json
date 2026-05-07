@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Result of browsing entity types",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "./GetEntityTypesResponse.json"
+    }
+  },
+  "required": [
+    "correlationId",
+    "response"
+  ]
+}

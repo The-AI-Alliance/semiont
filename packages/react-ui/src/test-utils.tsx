@@ -8,17 +8,99 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BehaviorSubject } from 'rxjs';
+import { SemiontClient, type SemiontBrowser } from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { baseUrl, EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
-import { ApiClientProvider } from './contexts/ApiClientContext';
-import { SessionProvider } from './contexts/SessionContext';
-import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
-import { EventBusProvider, useEventBus } from './contexts/EventBusContext';
-import type { EventBus } from '@semiont/core';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
-import type { SessionManager } from './types/SessionManager';
-import type { OpenResourcesManager } from './types/OpenResourcesManager';
+import { SemiontProvider } from './session/SemiontProvider';
+
+/**
+ * Minimal fake SemiontBrowser for tests. Emits a fake session whose `client`
+ * is a fresh SemiontClient constructed off `apiBaseUrl`. Tests that spy
+ * on client methods (e.g. `BindNamespace.prototype.body`) rely on the
+ * real-ish client surface. Tests that inspect events production code emits
+ * subscribe via `client.on(channel, handler)`.
+ */
+function createFakeBrowserForTests(
+  apiBaseUrl: string,
+): SemiontBrowser {
+  const transport = new HttpTransport({ baseUrl: baseUrl(apiBaseUrl) });
+  // HttpTransport implements both ITransport and IBackendOperations; pass
+  // it as backend so `client.auth` / `client.admin` are wired for tests
+  // that exercise hooks like useMediaToken.
+  const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
+  const fakeSession = {
+    client,
+    kb: null,
+    user$: new BehaviorSubject<any>(null),
+    token$: new BehaviorSubject<any>(null),
+    expiresAt: null,
+    refresh: vi.fn(async () => null),
+    /** Generic-channel subscription carve-out — mirror of SemiontSession.subscribe. */
+    subscribe: <K extends string>(channel: K, handler: (payload: any) => void) => {
+      const sub = (client.bus.get(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } })
+        .subscribe(handler as never);
+      return () => sub.unsubscribe();
+    },
+  };
+  // Modal-state mock sits on its own BehaviorSubject so tests that
+  // exercise the session-expired / permission-denied paths can poke
+  // it directly. Mirrors the `SessionSignals` shape.
+  const fakeSignals = {
+    sessionExpiredAt$: new BehaviorSubject<number | null>(null),
+    sessionExpiredMessage$: new BehaviorSubject<string | null>(null),
+    permissionDeniedAt$: new BehaviorSubject<number | null>(null),
+    permissionDeniedMessage$: new BehaviorSubject<string | null>(null),
+    notifySessionExpired: vi.fn(),
+    notifyPermissionDenied: vi.fn(),
+    acknowledgeSessionExpired: vi.fn(),
+    acknowledgePermissionDenied: vi.fn(),
+    dispose: vi.fn(),
+  };
+  const activeSession$ = new BehaviorSubject<any>(fakeSession);
+  const activeSignals$ = new BehaviorSubject<any>(fakeSignals);
+  const sessionActivating$ = new BehaviorSubject<boolean>(false);
+  const identityToken$ = new BehaviorSubject<null>(null);
+  const openResources$ = new BehaviorSubject<any[]>([]);
+  const kbs$ = new BehaviorSubject<any[]>([]);
+  const activeKbId$ = new BehaviorSubject<string | null>(null);
+  const error$ = new BehaviorSubject<never>(null as never);
+  // App-scoped bus: a real EventBus stand-in so tests exercising
+  // `semiont.emit/on/stream` round-trip through a live subject.
+  const shellBus = new EventBus();
+  return {
+    activeSession$,
+    activeSignals$,
+    sessionActivating$,
+    identityToken$,
+    openResources$,
+    kbs$,
+    activeKbId$,
+    error$,
+    addKb: vi.fn(),
+    removeKb: vi.fn(),
+    updateKb: vi.fn(),
+    setActiveKb: vi.fn(async () => {}),
+    signIn: vi.fn(async () => {}),
+    signOut: vi.fn(async () => {}),
+    setIdentityToken: vi.fn(),
+    addOpenResource: vi.fn(),
+    removeOpenResource: vi.fn(),
+    updateOpenResourceName: vi.fn(),
+    reorderOpenResources: vi.fn(),
+    dispose: vi.fn(async () => {}),
+    emit: (channel: any, payload: any) => shellBus.get(channel).next(payload),
+    on: (channel: any, handler: any) => {
+      const sub = shellBus.get(channel).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: (channel: any) => shellBus.get(channel).asObservable(),
+    _shellBus: shellBus,
+  } as unknown as SemiontBrowser;
+}
 
 /**
  * Default mock implementations
@@ -28,7 +110,6 @@ export const defaultMocks = {
     t: (namespace: string, key: string, params?: Record<string, any>) => {
       let result = `${namespace}.${key}`;
       if (params) {
-        // Simple parameter replacement for testing
         Object.entries(params).forEach(([k, v]) => {
           result = result.replace(`{${k}}`, String(v));
         });
@@ -36,21 +117,6 @@ export const defaultMocks = {
       return result;
     },
   } as TranslationManager,
-
-  sessionManager: {
-    isAuthenticated: false,
-    expiresAt: null,
-    timeUntilExpiry: null,
-    isExpiringSoon: false,
-  } as SessionManager,
-
-  openResourcesManager: {
-    openResources: [],
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    updateResourceName: vi.fn(),
-    reorderResources: vi.fn(),
-  } as OpenResourcesManager,
 };
 
 /**
@@ -59,54 +125,45 @@ export const defaultMocks = {
 export interface TestProvidersOptions {
   translationManager?: TranslationManager;
   apiBaseUrl?: string;
-  sessionManager?: SessionManager;
-  openResourcesManager?: OpenResourcesManager;
-  queryClient?: QueryClient;
+  /** Inject a specific SemiontBrowser (e.g. one seeded with a kbs list). */
+  browser?: SemiontBrowser;
 }
 
 /**
- * Render component with all providers
- *
- * @example
- * ```tsx
- * import { renderWithProviders } from '@semiont/react-ui/test-utils';
- *
- * it('should render component', () => {
- *   renderWithProviders(<MyComponent />);
- *   expect(screen.getByText('Hello')).toBeInTheDocument();
- * });
- *
- * it('should work with custom API base URL', () => {
- *   renderWithProviders(<MyComponent />, {
- *     apiBaseUrl: 'http://test.example.com',
- *   });
- * });
- * ```
+ * Test access to the client's local bus. Production code uses typed
+ * namespace methods or `session.subscribe(channel, handler)` — never
+ * direct bus access. Tests need raw subjects to drive `bus.get(channel).next(...)`
+ * / `subscribe(...)` against the live client wiring; `client.bus` is
+ * read-only public for that.
  */
+function busOf(client: SemiontClient): EventBus {
+  return client.bus;
+}
+
 export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
-  /** If true, returns the event bus instance along with render result */
+  /**
+   * If true, returns the session (client) EventBus — session-scoped
+   * channels (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*,
+   * browse:click, browse:reference-navigate, browse:entity-type-clicked).
+   */
   returnEventBus?: boolean;
+  /**
+   * If true, returns the app-scoped (SemiontBrowser) EventBus — panel:*,
+   * shell:*, tabs:*, nav:*, settings:*.
+   */
+  returnShellBus?: boolean;
 }
 
 export interface RenderWithProvidersResult extends RenderResult {
+  /** Session-scoped bus (from the fake client inside the fake browser). */
   eventBus?: EventBus;
+  /** App-scoped bus (the fake browser's own bus). */
+  shellBus?: EventBus;
 }
 
-/**
- * Wrapper component that captures the event bus instance
- */
-function EventBusCapture({
-  children,
-  onEventBus
-}: {
-  children: React.ReactNode;
-  onEventBus?: (bus: EventBus) => void
-}) {
-  const eventBus = useEventBus();
-  React.useEffect(() => {
-    onEventBus?.(eventBus);
-  }, [eventBus, onEventBus]);
-  return <>{children}</>;
+/** Read the app-scoped bus stashed on the fake browser by createFakeBrowserForTests. */
+function shellBusOf(browser: SemiontBrowser): EventBus | undefined {
+  return (browser as unknown as { _shellBus?: EventBus })._shellBus;
 }
 
 export function renderWithProviders(
@@ -116,70 +173,67 @@ export function renderWithProviders(
   const {
     translationManager = defaultMocks.translationManager,
     apiBaseUrl = 'http://localhost:4000',
-    sessionManager = defaultMocks.sessionManager,
-    openResourcesManager = defaultMocks.openResourcesManager,
+    browser,
     returnEventBus = false,
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    }),
+    returnShellBus = false,
     ...renderOptions
   } = options || {};
 
-  let capturedEventBus: EventBus | undefined;
+  const fakeBrowser = browser ?? createFakeBrowserForTests(apiBaseUrl);
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client?: SemiontClient } | null } }).activeSession$.getValue();
+  const client = fakeSession?.client;
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <EventBusProvider>
-          <ApiClientProvider baseUrl={apiBaseUrl}>
-            <SessionProvider sessionManager={sessionManager}>
-              <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-                <QueryClientProvider client={queryClient}>
-                  <ToastProvider>
-                    {returnEventBus ? (
-                      <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
-                        {children}
-                      </EventBusCapture>
-                    ) : (
-                      children
-                    )}
-                  </ToastProvider>
-                </QueryClientProvider>
-              </OpenResourcesProvider>
-            </SessionProvider>
-          </ApiClientProvider>
-        </EventBusProvider>
+        <SemiontProvider browser={fakeBrowser}>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </SemiontProvider>
       </TranslationProvider>
     );
   }
 
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
 
-  if (returnEventBus) {
-    return { ...result, eventBus: capturedEventBus };
-  }
-
-  return result;
+  const extras: Partial<RenderWithProvidersResult> = {};
+  if (returnEventBus && client) extras.eventBus = busOf(client);
+  if (returnShellBus) extras.shellBus = shellBusOf(fakeBrowser);
+  return Object.keys(extras).length ? { ...result, ...extras } : result;
 }
 
+/**
+ * Build a minimal `<SemiontProvider>` wrapper for tests that roll their
+ * own render wrapper (instead of `renderWithProviders`). The returned
+ * `eventBus` is the bus backing the fake session's client — same
+ * reference production code pokes via `session.client.emit(...)`.
+ */
+export function createTestSemiontWrapper(apiBaseUrl: string = 'http://localhost:4000'): {
+  SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;
+  /** Session-scoped bus (from the fake client). */
+  eventBus: EventBus;
+  /** App-scoped bus (the fake browser's own bus). */
+  shellBus: EventBus;
+  /** The fake session's client — for tests that need to spy on namespace methods. */
+  client: SemiontClient;
+} {
+  const fakeBrowser = createFakeBrowserForTests(apiBaseUrl);
+  const fakeSession = (fakeBrowser as unknown as { activeSession$: { getValue(): { client: SemiontClient } | null } }).activeSession$.getValue();
+  const client = fakeSession!.client;
+  const SemiontWrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontProvider browser={fakeBrowser}>{children}</SemiontProvider>
+  );
+  return {
+    SemiontWrapper,
+    eventBus: busOf(client),
+    shellBus: shellBusOf(fakeBrowser)!,
+    client,
+  };
+}
 
 /**
  * Create a mock translation manager with custom translations
- *
- * @example
- * ```tsx
- * const translations = createMockTranslationManager({
- *   Toolbar: { save: 'Save', cancel: 'Cancel' },
- *   Footer: { copyright: '© 2024' },
- * });
- *
- * renderWithProviders(<MyComponent />, {
- *   translationManager: translations,
- * });
- * ```
  */
 export function createMockTranslationManager(
   translations: Record<string, Record<string, string>>
@@ -192,56 +246,64 @@ export function createMockTranslationManager(
 }
 
 /**
- * Create a mock session manager with custom session state
- *
- * @example
- * ```tsx
- * const session = createMockSessionManager({
- *   isAuthenticated: true,
- *   expiresAt: new Date(Date.now() + 3600000),
- * });
- *
- * renderWithProviders(<MyComponent />, {
- *   sessionManager: session,
- * });
- * ```
+ * Build a fake SemiontBrowser with the active SessionSignals
+ * observables pre-populated. Used by SessionExpiredModal and
+ * PermissionDeniedModal tests that need to control the modal flags
+ * without driving a real session through its state machine.
  */
-export function createMockSessionManager(
-  state: Partial<SessionManager>
-): SessionManager {
-  return {
-    isAuthenticated: false,
+export function createMockKnowledgeBaseSession(overrides: {
+  permissionDeniedAt?: number | null;
+  permissionDeniedMessage?: string | null;
+  sessionExpiredAt?: number | null;
+  sessionExpiredMessage?: string | null;
+  acknowledgePermissionDenied?: () => void;
+  acknowledgeSessionExpired?: () => void;
+} = {}): SemiontBrowser {
+  const session = {
+    kb: null,
+    user$: new BehaviorSubject<unknown>(null),
+    token$: new BehaviorSubject<unknown>(null),
     expiresAt: null,
-    timeUntilExpiry: null,
-    isExpiringSoon: false,
-    ...state,
+    refresh: vi.fn(async () => null),
   };
-}
-
-/**
- * Create a mock open resources manager with custom resources
- *
- * @example
- * ```tsx
- * const resources = createMockOpenResourcesManager([
- *   { id: 'doc-1', name: 'Document 1', openedAt: Date.now() },
- * ]);
- *
- * renderWithProviders(<MyComponent />, {
- *   openResourcesManager: resources,
- * });
- * ```
- */
-export function createMockOpenResourcesManager(
-  resources: OpenResourcesManager['openResources'] = []
-): OpenResourcesManager {
+  const signals = {
+    permissionDeniedAt$: new BehaviorSubject<number | null>(overrides.permissionDeniedAt ?? null),
+    permissionDeniedMessage$: new BehaviorSubject<string | null>(overrides.permissionDeniedMessage ?? null),
+    sessionExpiredAt$: new BehaviorSubject<number | null>(overrides.sessionExpiredAt ?? null),
+    sessionExpiredMessage$: new BehaviorSubject<string | null>(overrides.sessionExpiredMessage ?? null),
+    notifyPermissionDenied: vi.fn(),
+    notifySessionExpired: vi.fn(),
+    acknowledgePermissionDenied: overrides.acknowledgePermissionDenied ?? vi.fn(),
+    acknowledgeSessionExpired: overrides.acknowledgeSessionExpired ?? vi.fn(),
+    dispose: vi.fn(),
+  };
   return {
-    openResources: resources,
-    addResource: vi.fn(),
-    removeResource: vi.fn(),
-    updateResourceName: vi.fn(),
-    reorderResources: vi.fn(),
-  };
+    activeSession$: new BehaviorSubject(session),
+    activeSignals$: new BehaviorSubject(signals),
+    sessionActivating$: new BehaviorSubject<boolean>(false),
+    kbs$: new BehaviorSubject<unknown[]>([]),
+    activeKbId$: new BehaviorSubject<string | null>(null),
+    openResources$: new BehaviorSubject<unknown[]>([]),
+    identityToken$: new BehaviorSubject<string | null>(null),
+    error$: new BehaviorSubject<unknown>(null),
+    addKb: vi.fn(),
+    removeKb: vi.fn(),
+    updateKb: vi.fn(),
+    setActiveKb: vi.fn(async () => {}),
+    signIn: vi.fn(async () => {}),
+    signOut: vi.fn(async () => {}),
+    setIdentityToken: vi.fn(),
+    addOpenResource: vi.fn(),
+    removeOpenResource: vi.fn(),
+    updateOpenResourceName: vi.fn(),
+    reorderOpenResources: vi.fn(),
+    dispose: vi.fn(async () => {}),
+    // App-scoped bus stubs (post-shell-state-unit refactor). Minimal so
+    // useEventSubscription(s) can register without exploding.
+    emit: vi.fn(),
+    on: vi.fn(() => () => {}),
+    stream: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
+  } as unknown as SemiontBrowser;
 }
 
 // Re-export testing library utilities

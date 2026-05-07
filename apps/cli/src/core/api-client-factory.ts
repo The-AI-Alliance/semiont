@@ -17,17 +17,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontClient } from '@semiont/sdk';
 import {
-  email as toEmail,
   accessToken as toAccessToken,
-  baseUrl as toBaseUrl,
   type AccessToken,
-  EventBus,
 } from '@semiont/core';
 
 export interface AuthenticatedClient {
-  client: SemiontApiClient;
+  semiont: SemiontClient;
   token: AccessToken;
 }
 
@@ -95,8 +92,8 @@ export async function acquireToken(
   emailStr: string,
   passwordStr: string,
 ): Promise<void> {
-  const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl), eventBus: new EventBus() });
-  const authResult = await client.authenticatePassword(toEmail(emailStr), passwordStr);
+  const semiont = SemiontClient.fromHttp({ baseUrl: rawBusUrl });
+  const authResult = await semiont.auth!.password(emailStr, passwordStr);
   const cache: TokenCache = {
     bus: rawBusUrl,
     email: emailStr,
@@ -123,8 +120,9 @@ export function loadCachedClient(rawBusUrl: string): AuthenticatedClient {
     );
   }
 
-  const client = new SemiontApiClient({ baseUrl: toBaseUrl(rawBusUrl), eventBus: new EventBus() });
-  return { client, token: toAccessToken(cached.token) };
+  const token = toAccessToken(cached.token);
+  const semiont = SemiontClient.fromHttp({ baseUrl: rawBusUrl, token });
+  return { semiont, token };
 }
 
 /**

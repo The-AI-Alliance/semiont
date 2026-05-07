@@ -18,7 +18,8 @@
 import * as path from 'path';
 import { promises as nodeFs } from 'fs';
 import { z } from 'zod';
-import { resourceId as toResourceId, annotationId as toAnnotationId, EventBus } from '@semiont/core';
+import { lastValueFrom } from 'rxjs';
+import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -27,8 +28,7 @@ import { printSuccess, printWarning } from '../io/cli-logger.js';
 
 import { findProjectRoot } from '../config-loader.js';
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
-import type { SemiontApiClient } from '@semiont/api-client';
-import type { AccessToken } from '@semiont/core';
+import type { SemiontClient } from '@semiont/sdk';
 
 function guessFormat(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -64,7 +64,14 @@ export const YieldOptionsSchema = ApiOptionsSchema.extend({
   // Delegate mode optional
   title: z.string().optional(),
   prompt: z.string().optional(),
+  /** BCP-47 tag — language the *generated resource* is written in. */
   language: z.string().optional(),
+  /**
+   * BCP-47 tag — language of the *source resource* the annotation lives on.
+   * Goes into the prompt so the LLM understands embedded source-context
+   * snippets correctly when source ≠ target language.
+   */
+  sourceLanguage: z.string().optional(),
   temperature: z.coerce.number().min(0).max(1).optional(),
   maxTokens: z.coerce.number().int().min(100).max(4000).optional(),
   contextWindow: z.coerce.number().int().min(100).max(5000).default(1000),
@@ -94,84 +101,45 @@ export type YieldOptions = z.output<typeof YieldOptionsSchema>;
 // DELEGATE MODE HELPERS
 // =====================================================================
 
-function waitForYieldFinished(eventBus: EventBus): Promise<{ resourceId?: string; resourceName?: string }> {
-  return new Promise((resolve, reject) => {
-    const doneSub = eventBus.get('yield:finished').subscribe((event) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      resolve({ resourceId: event.resourceId, resourceName: event.resourceName });
-    });
-    const failSub = eventBus.get('yield:failed').subscribe((event: any) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(event.error ?? new Error('Generation failed'));
-    });
-  });
-}
-
-function waitForGatherAnnotationFinished(eventBus: EventBus, annotationId: string): Promise<GatheredContext> {
-  return new Promise((resolve, reject) => {
-    const doneSub = eventBus.get('gather:annotation-finished').subscribe((event) => {
-      if (event.annotationId !== annotationId) return;
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      const context = (event.response as any).context as GatheredContext | undefined;
-      if (!context) {
-        reject(new Error('No context returned from gatherAnnotation — cannot generate'));
-      } else {
-        resolve(context);
-      }
-    });
-    const failSub = eventBus.get('gather:failed').subscribe((event: any) => {
-      if (event.annotationId !== annotationId) return;
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(event.error ?? new Error('Gather annotation failed'));
-    });
-  });
-}
-
 async function runDelegate(
-  client: SemiontApiClient,
-  token: AccessToken,
+  semiont: SemiontClient,
   options: YieldOptions,
 ): Promise<{ resourceId?: string; resourceName?: string }> {
   const rawResourceId = options.resource!;
   const rawAnnotationId = options.annotation!;
-  const resourceId = toResourceId(rawResourceId);
-  const annotationId = toAnnotationId(rawAnnotationId);
+  const rId = toResourceId(rawResourceId);
+  const aId = toAnnotationId(rawAnnotationId);
 
-  const gatherEventBus = new EventBus();
-  const gatherPromise = waitForGatherAnnotationFinished(gatherEventBus, rawAnnotationId);
-  client.sse.gatherAnnotation(
-    resourceId,
-    annotationId,
-    { contextWindow: options.contextWindow },
-    { auth: token, eventBus: gatherEventBus },
-  );
-  const context = await gatherPromise;
+  // Step 1: gather context
+  const context = await lastValueFrom(
+    semiont.gather.annotation(rId, aId, { contextWindow: options.contextWindow }),
+  ) as GatheredContext;
 
   if (!options.quiet) process.stderr.write(`Generating from annotation ${rawAnnotationId}...\n`);
 
-  const eventBus = new EventBus();
-  const donePromise = waitForYieldFinished(eventBus);
+  // Step 2: generate — yield.fromAnnotation Observable yields progress
+  // events, then a final `complete` event carrying the JobCompleteCommand
+  // (with `result.resourceId` / `result.resourceName`).
+  // The gathered context's metadata.language is populated by the backend's
+  // gather flow from the source resource's primary representation. Use it as
+  // a default for --source-language so callers don't have to specify it
+  // unless they want to override.
+  const ctxSourceLanguage = (context as { metadata?: { language?: string } } | undefined)?.metadata?.language;
 
-  client.sse.yieldResource(
-    resourceId,
-    annotationId,
-    {
-      context,
+  const final = await lastValueFrom(
+    semiont.yield.fromAnnotation(rId, aId, {
+      title: options.title ?? rawAnnotationId,
       storageUri: options.storageUri!,
-      ...(options.title && { title: options.title }),
-      ...(options.prompt && { prompt: options.prompt }),
-      ...(options.language && { language: options.language }),
-      ...(options.temperature !== undefined && { temperature: options.temperature }),
-      ...(options.maxTokens !== undefined && { maxTokens: options.maxTokens }),
-    },
-    { auth: token, eventBus },
+      context,
+      prompt: options.prompt,
+      language: options.language,
+      sourceLanguage: options.sourceLanguage ?? ctxSourceLanguage,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    }),
   );
-
-  return await donePromise;
+  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as { resourceId?: string; resourceName?: string };
+  return { resourceId: r.resourceId, resourceName: r.resourceName };
 }
 
 // =====================================================================
@@ -183,12 +151,12 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
   const projectRoot = findProjectRoot();
 
   // ── Delegate mode ──────────────────────────────────────────────────
   if (options.delegate) {
-    const { resourceId, resourceName } = await runDelegate(client, token, options);
+    const { resourceId, resourceName } = await runDelegate(semiont, options);
     const label = resourceName ?? resourceId ?? options.storageUri!;
     if (!options.quiet) printSuccess(`Yielded: ${options.storageUri} → ${resourceId ?? '(pending)'}`);
     process.stdout.write(JSON.stringify({ resourceId, resourceName, storageUri: options.storageUri }));
@@ -231,9 +199,8 @@ export async function runYield(options: YieldOptions): Promise<CommandResults> {
     const name = options.name ?? path.basename(filePath, path.extname(filePath));
     const format = guessFormat(filePath);
 
-    const { resourceId } = await client.yieldResource(
+    const { resourceId } = await semiont.yield.resource(
       { name, file: content, format, storageUri },
-      { auth: token },
     );
 
     if (!options.quiet) printSuccess(`Yielded: ${filePath} → ${resourceId}`);

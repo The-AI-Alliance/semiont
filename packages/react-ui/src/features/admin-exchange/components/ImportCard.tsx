@@ -5,13 +5,8 @@
  */
 
 import React, { useRef, useState, useCallback } from 'react';
-
-export interface ImportPreview {
-  format: string;
-  version: number;
-  sourceUrl: string;
-  stats: Record<string, number>;
-}
+import type { ImportPreview } from '../state/exchange-state-unit';
+export type { ImportPreview };
 
 export interface ImportCardTranslations {
   title: string;

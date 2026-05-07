@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Alla rättigheter förbehållna.",
+    "copyright": "© {{year}} The AI Alliance. Alla rättigheter förbehållna.",
     "about": "Om",
     "privacyPolicy": "Integritetspolicy",
     "cookiePreferences": "Cookieinställningar",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Ange resursnamn...",
     "entityTypes": "Entitetstypstaggar",
     "entityTypesHint": "Tagga din resurs med entitetstyper",
-    "noEntityTypesAvailable": "Inga entitetstyper tillgängliga",
     "contentSource": "Innehållskälla",
     "uploadFile": "Ladda upp fil",
     "uploadFileDescription": "Bilder, dokument, textfiler",
@@ -591,14 +590,17 @@
     "statusConnected": "Ansluten",
     "statusExpired": "Session utgången",
     "statusSignedOut": "Utloggad",
-    "statusUnreachable": "Onåbar"
+    "statusUnreachable": "Onåbar",
+    "invalidHost": "Ogiltigt värdnamn"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Inga kunskapsbaser",
     "noKnowledgeBasesHint": "Lägg till en kunskapsbas med hjälp av panelen till höger för att börja upptäcka, kommentera och länka resurser.",
     "sessionExpired": "Din session har gått ut.",
     "signedOut": "Du är utloggad.",
-    "signInHint": "Logga in via kunskapsbasens panel för att bläddra bland resurser."
+    "signInHint": "Logga in via kunskapsbasens panel för att bläddra bland resurser.",
+    "findKnowledgeBases": "Hitta kunskapsbaser",
+    "createNew": "Skapa en ny"
   },
   "AccountPanel": {
     "notAuthenticated": "Logga in på en kunskapsbas för att visa ditt konto."

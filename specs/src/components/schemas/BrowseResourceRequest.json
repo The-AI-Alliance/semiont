@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Request to browse a single resource",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "correlationId",
+    "resourceId"
+  ]
+}

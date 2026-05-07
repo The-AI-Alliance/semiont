@@ -1,18 +1,11 @@
 {
   "type": "object",
+  "description": "Response body for POST /resources (202 Accepted). Resource creation is asynchronous — the backend writes content to disk, emits yield:create on the bus, and returns the newly-minted resourceId immediately. Consumers watch SSE domain events (yield:created) to observe the fully-persisted state.",
   "properties": {
-    "resource": {
-      "$ref": "./ResourceDescriptor.json"
-    },
-    "annotations": {
-      "type": "array",
-      "items": {
-        "$ref": "./Annotation.json"
-      }
+    "resourceId": {
+      "type": "string",
+      "description": "The id of the newly-created resource. Assigned by Stower when it persists yield:create."
     }
   },
-  "required": [
-    "resource",
-    "annotations"
-  ]
+  "required": ["resourceId"]
 }

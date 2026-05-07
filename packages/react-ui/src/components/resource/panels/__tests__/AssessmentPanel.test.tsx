@@ -5,10 +5,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
-import { EventBusProvider, useEventBus } from '../../../../contexts/EventBusContext';
-import type { components } from '@semiont/core';
+import type { components, EventBus } from '@semiont/core';
+import { createTestSemiontWrapper } from '../../../../test-utils';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -18,59 +18,27 @@ interface TrackedEvent {
 
 function createEventTracker() {
   const events: TrackedEvent[] = [];
-
-  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
-    const eventBus = useEventBus();
-
-    React.useEffect(() => {
-      const handlers: Array<() => void> = [];
-
-      const trackEvent = (eventName: string) => (payload: any) => {
-        events.push({ event: eventName, payload });
-      };
-
-      const panelEvents = ['mark:submit'] as const;
-
-      panelEvents.forEach(eventName => {
-        const handler = trackEvent(eventName);
-        const subscription = eventBus.get(eventName).subscribe(handler);
-        handlers.push(subscription);
-      });
-
-      return () => {
-        handlers.forEach(sub => sub.unsubscribe());
-      };
-    }, [eventBus]);
-
-    return <>{children}</>;
-  }
-
   return {
-    EventTrackingWrapper,
     events,
-    clear: () => {
-      events.length = 0;
+    clear: () => { events.length = 0; },
+    _attach(eventBus: EventBus) {
+      const panelEvents = ['mark:submit'] as const;
+      panelEvents.forEach((eventName) => {
+        eventBus.get(eventName).subscribe((payload: any) => {
+          events.push({ event: eventName, payload });
+        });
+      });
     },
   };
 }
 
-// Helper to render with EventBusProvider
 const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
-  if (tracker) {
-    return render(
-      <EventBusProvider>
-        <tracker.EventTrackingWrapper>
-          {component}
-        </tracker.EventTrackingWrapper>
-      </EventBusProvider>
-    );
-  }
-
-  return render(
-    <EventBusProvider>
-      {component}
-    </EventBusProvider>
+  const { SemiontWrapper, eventBus } = createTestSemiontWrapper();
+  if (tracker) tracker._attach(eventBus);
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SemiontWrapper>{children}</SemiontWrapper>
   );
+  return render(component, { wrapper: Wrapper });
 };
 
 // Mock TranslationContext
@@ -90,8 +58,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getTextPositionSelector: vi.fn(),
@@ -108,8 +76,7 @@ vi.mock('../AssessmentEntry', () => ({
   ),
 }));
 
-// Mock AssistSection component - it will internally use the mocked useEventBus
-// Just render a simplified version
+// Mock AssistSection component — just render a simplified version.
 vi.mock('../AssistSection', () => ({
   AssistSection: ({ annotationType, isAssisting }: any) => (
     <div data-testid="detect-section">
@@ -119,8 +86,7 @@ vi.mock('../AssistSection', () => ({
   ),
 }));
 
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
-
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 const mockGetTextPositionSelector = getTextPositionSelector as MockedFunction<typeof getTextPositionSelector>;
 const mockGetTargetSelector = getTargetSelector as MockedFunction<typeof getTargetSelector>;
 
@@ -380,7 +346,7 @@ describe('AssessmentPanel Component', () => {
         expect(tracker.events.some(e =>
           e.event === 'mark:submit' &&
           e.payload?.motivation === 'assessing' &&
-          e.payload?.body?.[0]?.value === 'My assessment'
+          e.payload?.body?.value === 'My assessment'
         )).toBe(true);
       });
     });
@@ -421,8 +387,7 @@ describe('AssessmentPanel Component', () => {
         expect(tracker.events.some(e =>
           e.event === 'mark:submit' &&
           e.payload?.motivation === 'assessing' &&
-          Array.isArray(e.payload?.body) &&
-          e.payload.body.length === 0
+          e.payload?.body === undefined
         )).toBe(true);
       });
     });

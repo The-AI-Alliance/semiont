@@ -7,8 +7,9 @@ import { StateManager } from '../../../core/state-manager.js';
 import { resolveBackendNpmPackage, resolveBackendEntryPoint } from './backend-paths.js';
 import { SemiontProject } from '@semiont/core/node';
 import type { BackendServiceConfig } from '@semiont/core';
-import { baseUrl, EventBus } from '@semiont/core';
-import { SemiontApiClient } from '@semiont/api-client';
+import { baseUrl } from '@semiont/core';
+import { SemiontClient } from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
 import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
@@ -112,10 +113,11 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   // Use localhost for POSIX platform (publicURL may require external auth in environments like Codespaces)
   if (status === 'unhealthy' || status === 'unknown') {
     const localUrl = `http://localhost:${config.port}`;
-    const client = new SemiontApiClient({ baseUrl: baseUrl(localUrl), eventBus: new EventBus() });
+    const transport = new HttpTransport({ baseUrl: baseUrl(localUrl) });
+    const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
     try {
-      const healthData = await client.healthCheck();
+      const healthData = await client.admin!.healthCheck();
       healthy = true;
       status = 'running';
       details.health = healthData;

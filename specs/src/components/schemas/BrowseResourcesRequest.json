@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "description": "Request to browse resources with optional filtering and pagination",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "search": {
+      "type": "string"
+    },
+    "archived": {
+      "type": "boolean"
+    },
+    "entityType": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "integer"
+    },
+    "limit": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "correlationId"
+  ]
+}

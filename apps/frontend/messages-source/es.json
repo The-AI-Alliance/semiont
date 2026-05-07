@@ -13,7 +13,7 @@
     "administer": "Administración"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Todos los derechos reservados.",
+    "copyright": "© {{year}} The AI Alliance. Todos los derechos reservados.",
     "about": "Acerca de",
     "privacyPolicy": "Política de Privacidad",
     "cookiePreferences": "Preferencias de Cookies",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Ingresa el nombre del recurso...",
     "entityTypes": "Etiquetas de Tipo de Entidad",
     "entityTypesHint": "Etiqueta tu documento con tipos de entidad",
-    "noEntityTypesAvailable": "No hay tipos de entidad disponibles",
     "contentSource": "Fuente de Contenido",
     "uploadFile": "Subir Archivo",
     "uploadFileDescription": "Imágenes, documentos, archivos de texto",
@@ -591,14 +590,17 @@
     "statusConnected": "Conectado",
     "statusExpired": "Sesión expirada",
     "statusSignedOut": "Sesión cerrada",
-    "statusUnreachable": "Inaccesible"
+    "statusUnreachable": "Inaccesible",
+    "invalidHost": "Nombre de host no válido"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Sin bases de conocimiento",
     "noKnowledgeBasesHint": "Agregue una base de conocimiento usando el panel de la derecha para comenzar a descubrir, anotar y vincular recursos.",
     "sessionExpired": "Su sesión ha expirado.",
     "signedOut": "Ha cerrado sesión.",
-    "signInHint": "Inicie sesión usando el panel de Base de conocimiento para explorar recursos."
+    "signInHint": "Inicie sesión usando el panel de Base de conocimiento para explorar recursos.",
+    "findKnowledgeBases": "Buscar bases de conocimiento",
+    "createNew": "Crear una nueva"
   },
   "AccountPanel": {
     "notAuthenticated": "Inicie sesión en una base de conocimiento para ver su cuenta."

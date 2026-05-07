@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "description": "Request to browse annotations that reference a resource",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "motivation": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "correlationId",
+    "resourceId"
+  ]
+}

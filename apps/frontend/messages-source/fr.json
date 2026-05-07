@@ -13,7 +13,7 @@
     "administer": "Administration"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Tous droits réservés.",
+    "copyright": "© {{year}} The AI Alliance. Tous droits réservés.",
     "about": "À propos",
     "privacyPolicy": "Politique de confidentialité",
     "cookiePreferences": "Préférences de cookies",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Saisissez le nom de la ressource...",
     "entityTypes": "Étiquettes de type d'entité",
     "entityTypesHint": "Étiquetez votre ressource avec des types d'entité",
-    "noEntityTypesAvailable": "Aucun type d'entité disponible",
     "contentSource": "Source du contenu",
     "uploadFile": "Téléverser un fichier",
     "uploadFileDescription": "Images, documents, fichiers texte",
@@ -591,14 +590,17 @@
     "statusConnected": "Connecté",
     "statusExpired": "Session expirée",
     "statusSignedOut": "Déconnecté",
-    "statusUnreachable": "Inaccessible"
+    "statusUnreachable": "Inaccessible",
+    "invalidHost": "Nom d'hôte invalide"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Aucune base de connaissances",
     "noKnowledgeBasesHint": "Ajoutez une base de connaissances à l'aide du panneau de droite pour commencer à découvrir, annoter et lier des ressources.",
     "sessionExpired": "Votre session a expiré.",
     "signedOut": "Vous êtes déconnecté.",
-    "signInHint": "Connectez-vous via le panneau Base de connaissances pour parcourir les ressources."
+    "signInHint": "Connectez-vous via le panneau Base de connaissances pour parcourir les ressources.",
+    "findKnowledgeBases": "Trouver des bases de connaissances",
+    "createNew": "En créer une nouvelle"
   },
   "AccountPanel": {
     "notAuthenticated": "Connectez-vous à une base de connaissances pour afficher votre compte."

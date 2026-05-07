@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "description": "Command to start a job",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Set for annotation-scoped jobs like generation (from a specific reference). Unset for resource-scoped jobs like bulk reference/tag/highlight detection."
+    }
+  },
+  "required": [
+    "resourceId",
+    "jobId",
+    "jobType"
+  ]
+}

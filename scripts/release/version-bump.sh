@@ -65,9 +65,12 @@ ask_bump_type() {
 
 update_version_json() {
   local version=$1
+  # Each entry in `.packages` is `{ dir, version, publish, stage? }`.
+  # Bump the top-level version + the `version` field on every entry,
+  # leaving dir/publish/stage untouched.
   jq --arg v "$version" '
     .version = $v |
-    .packages = (.packages | to_entries | map(.value = $v) | from_entries)
+    .packages |= with_entries(.value.version = $v)
   ' version.json > version.json.tmp && mv version.json.tmp version.json
 }
 

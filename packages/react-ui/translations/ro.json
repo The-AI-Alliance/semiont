@@ -28,7 +28,8 @@
     "creationMethod": "Metodă de creare",
     "attributedTo": "Atribuit",
     "derivedFrom": "Derivat din",
-    "generatedBy": "Generat de"
+    "generatedBy": "Generat de",
+    "storageUri": "Stocare"
   },
   "CollaborationPanel": {
     "title": "Colaborare",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Etichete",
     "noTags": "Nicio etichetă încă. Utilizează adnotarea AI pentru a identifica rolurile structurale.",
+    "noSchemas": "Nu există scheme de etichete înregistrate pentru această bază de cunoștințe. Un administrator KB trebuie să înregistreze cel puțin o schemă de analiză structurală (de ex. prin abilitatea `register-tag-schemas`) înainte ca etichetarea să poată fi utilizată.",
     "annotateTags": "Adnotează etichete",
     "selectSchema": "Selectează cadrul",
-    "schemaLegal": "Analiză juridică (IRAC)",
-    "schemaScientific": "Articol științific (IMRAD)",
-    "schemaArgument": "Structura argumentului (Toulmin)",
     "selectCategories": "Selectează categorii",
-    "categoryIssue": "Problemă",
-    "categoryRule": "Regulă",
-    "categoryApplication": "Aplicare",
-    "categoryConclusion": "Concluzie",
-    "categoryIntroduction": "Introducere",
-    "categoryMethods": "Metode",
-    "categoryResults": "Rezultate",
-    "categoryDiscussion": "Discuție",
-    "categoryClaim": "Afirmație",
-    "categoryEvidence": "Dovadă",
-    "categoryWarrant": "Temei",
-    "categoryCounterargument": "Contraargument",
-    "categoryRebuttal": "Replică",
     "annotate": "Adnotează",
     "annotating": "Se adnotează...",
     "cancel": "Anulare",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
     "searching": "Se caută...",
     "search": "Caută"
+  },
+  "History": {
+    "embeddingComputed": "Embedding calculat"
   }
 }

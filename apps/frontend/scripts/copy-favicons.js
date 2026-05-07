@@ -47,6 +47,16 @@ faviconFiles.forEach(file => {
   }
 });
 
+// Also copy key files to public root so /favicon.ico etc. resolve without the /favicons/ prefix
+const publicRoot = path.join(__dirname, '../public');
+const rootFiles = ['favicon.ico', 'favicon.svg', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png'];
+rootFiles.forEach(file => {
+  const src = path.join(targetDir, file);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, path.join(publicRoot, file));
+  }
+});
+
 if (missingCount === 0) {
   console.log(`✅ Copied ${copiedCount} favicon assets`);
 } else {

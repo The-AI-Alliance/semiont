@@ -1,221 +1,124 @@
-# Keyboard Navigation & Accessibility Architecture
+# Keyboard Navigation — Implementation
 
-## Executive Summary
+How keyboard navigation is implemented in the Semiont frontend. The end-user-facing shortcut reference lives at **[../../../docs/browser/KEYBOARD-NAV.md](../../../docs/browser/KEYBOARD-NAV.md)**; this page covers the patterns and primitives a contributor needs.
 
-The Semiont frontend implements a **fully accessible keyboard navigation experience that meets WCAG 2.1 Level AA standards**. This document describes the architectural principles, implementation patterns, and technical foundations that ensure comprehensive keyboard accessibility throughout the application.
+For the broader accessibility implementation guide, see **[ACCESSIBILITY.md](ACCESSIBILITY.md)**.
 
-## WCAG 2.1 Level AA Compliance
+## WCAG 2.1 AA criteria addressed by keyboard navigation
 
-### Compliance Justification
+| Criterion | How it's met |
+|---|---|
+| **2.1.1 Keyboard Accessible** | Every interactive element is reachable and operable via keyboard. |
+| **2.1.2 No Keyboard Trap** | Standard navigation keys move in and out of all components. |
+| **2.4.1 Bypass Blocks** | `SkipLinks` component provides keyboard-accessible navigation bypass. |
+| **2.4.3 Focus Order** | Tab order follows visual layout and content flow. |
+| **2.4.7 Focus Visible** | Focus rings on all interactive elements. |
+| **4.1.2 Name, Role, Value** | ARIA labels and semantic HTML throughout. |
 
-Our application meets WCAG 2.1 Level AA standards through:
+## Architectural principles
 
-1. **Keyboard Accessible (2.1.1)**: All interactive elements are reachable and operable via keyboard
-2. **No Keyboard Trap (2.1.2)**: Users can navigate in and out of all components using standard keys
-3. **Focus Visible (2.4.7)**: Clear focus indicators on all interactive elements
-4. **Focus Order (2.4.3)**: Logical tab order that follows visual layout and content flow
-5. **Bypass Blocks (2.4.1)**: Skip links to main content, navigation, and search
-6. **Page Titled (2.4.2)**: Descriptive page titles and headings
-7. **Name, Role, Value (4.1.2)**: Proper ARIA labels and semantic HTML
+1. **Progressive enhancement.** Start with semantic HTML; enhance with JS. Keyboard navigation works even if advanced features fail.
+2. **Platform consistency.** `Cmd` on macOS, `Ctrl` on Windows/Linux; arrow keys for menu navigation; standard `Esc` to dismiss.
+3. **Discoverability.** Every shortcut registers a description that the help modal (`?`) renders.
+4. **Context awareness.** Single-letter shortcuts disable themselves when focus is inside an input field, so they don't fight with normal typing.
+5. **Accessibility first.** Keyboard and screen reader users are primary, not retrofit.
 
-### Implementation Evidence
+## Core primitives
 
-- **Modal Focus Management**: All modals trap focus and restore on close (Headless UI Dialog)
-- **Keyboard Shortcuts**: Documented shortcuts with help modal (`?` key)
-- **Skip Links**: Hidden but keyboard-accessible navigation bypass
-- **Live Regions**: Screen reader announcements for dynamic content
-- **ARIA Implementation**: Comprehensive labeling of interactive elements
+### `useKeyboardShortcuts`
 
-## Architectural Principles
+Centralized keyboard event handling with platform detection and context-awareness:
 
-### 1. Progressive Enhancement
-Start with semantic HTML and enhance with JavaScript. Keyboard navigation works even if advanced features fail.
-
-### 2. Platform Consistency
-Follow platform conventions (Cmd on Mac, Ctrl on Windows/Linux) and standard keyboard patterns.
-
-### 3. Discoverability
-Make keyboard shortcuts discoverable through visual indicators and comprehensive help documentation.
-
-### 4. Context Awareness
-Shortcuts behave differently based on context (e.g., disabled in input fields).
-
-### 5. Accessibility First
-Every feature designed with keyboard and screen reader users as primary considerations.
-
-## Technical Architecture
-
-### Core Systems
-
-#### 1. Keyboard Shortcut System
 ```typescript
-// Centralized hook for registering shortcuts
+import { useKeyboardShortcuts } from '@semiont/react-ui';
+
 useKeyboardShortcuts([
   {
     key: 'k',
     ctrlOrCmd: true,
     handler: () => openGlobalSearch(),
-    description: 'Open global search'
-  }
+    description: 'Open global search',
+  },
 ]);
 ```
 
-**Features**:
-- Platform detection (Mac vs Windows/Linux)
-- Context-aware activation (not in input fields)
-- Modifier key support
-- Description for help documentation
+Features:
+- Platform-specific modifier resolution (`ctrlOrCmd` → `metaKey` on macOS, `ctrlKey` elsewhere)
+- Context-aware activation (no fire when an `<input>` / `<textarea>` / contenteditable has focus, unless explicitly opted in)
+- Modifier-key support
+- `description` field consumed by the in-app shortcut help modal
 
-#### 2. Focus Management System
+### `useRovingTabIndex`
+
+Arrow-key navigation for widget groups (toolbars, tab bars, entity-type grids, annotation lists):
+
 ```typescript
-// Headless UI Dialog handles focus trapping
-<Dialog open={isOpen} onClose={onClose}>
-  {/* Focus trapped within dialog */}
-</Dialog>
-```
+import { useRovingTabIndex } from '@semiont/react-ui';
 
-**Implementation**:
-- Focus trap in modals and popups
-- Focus restoration on close
-- Roving tabindex for complex widgets
-- Focus visible indicators
-
-#### 3. Navigation Patterns
-
-**Roving TabIndex**: Used for single-selection widget groups
-```typescript
-// Custom hook for arrow key navigation
 useRovingTabIndex(itemCount, {
-  orientation: 'horizontal',
-  loop: true
+  orientation: 'horizontal',  // or 'vertical' or 'grid'
+  loop: true,
 });
 ```
 
-**Tab Navigation**: Sequential focus through page regions
-- Skip links → Header → Main content → Footer
-- Logical grouping of related controls
+Manages the `tabindex` attributes so only one element in the group is in the tab order at a time, and arrow keys move between them. Supports `Home` / `End` for first/last.
 
-#### 4. Live Region System
+### `useLiveRegion`
+
+Screen-reader announcements for dynamic content:
+
 ```typescript
-// Announce dynamic updates to screen readers
-<LiveRegionProvider>
-  <div role="status" aria-live="polite">
-    {announcement}
-  </div>
-</LiveRegionProvider>
+import { useLiveRegion } from '@semiont/react-ui';
+
+const { announce } = useLiveRegion();
+announce('5 results found', 'polite');
+announce('Validation failed', 'assertive');
 ```
 
-**Use Cases**:
-- Search result counts
-- Form validation errors
-- Success confirmations
-- Loading states
+Wraps a polite/assertive ARIA live region; `announce()` queues a message and clears it after a short delay so the same message can be re-announced. See [ACCESSIBILITY.md](ACCESSIBILITY.md#live-regions-for-dynamic-content) for usage guidance.
 
-## Component Patterns
+### `Headless UI Dialog` for modals
 
-### Modal Dialogs
-All modals use Headless UI Dialog component for consistent behavior:
-- Focus trap within modal
-- Escape key to close
-- Click outside to close
-- Focus restoration to trigger element
+All modals use [Headless UI's `Dialog`](https://headlessui.com/react/dialog) rather than custom overlay code. This gives:
+- Focus trap inside the open modal
+- Focus restoration to the trigger element on close
+- `Esc` to close
+- Click-outside to close (configurable)
+- Correct ARIA roles
 
-### Form Controls
-- Clear labels (visible or screen reader only)
-- Error messages announced to screen readers
-- Validation state communicated via ARIA
-- Logical tab order through fields
+If you find yourself writing focus-management code by hand, switch to `Dialog` instead.
 
-### Navigation Menus
-- Arrow keys for menu navigation
-- Enter/Space to activate items
-- Escape to close menus
-- Home/End for first/last item
+## Navigation patterns
 
-### Data Tables & Grids
-- Arrow keys for cell navigation
-- Tab to move between regions
-- Header associations for screen readers
-- Sort controls keyboard accessible
+### Tab navigation
 
-## Global Keyboard Shortcuts
+Sequential focus through page regions: skip links → header → main content → footer. Within each region, controls are grouped logically.
 
-### Application Navigation
-- **Cmd/Ctrl + K**: Global search
-- **Cmd/Ctrl + N**: New document
-- **/**: Alternative search trigger
-- **?**: Keyboard shortcuts help
-- **Esc Esc**: Close all overlays
+### Roving tabindex
 
-### Document Interaction
-- **H**: Create highlight from selection
-- **R**: Create reference from selection
-- **Delete**: Remove selected annotation
-- **Tab**: Navigate through annotations
+Used for groups of single-selection items. Tab enters the group; arrow keys move within it; Tab leaves to the next group. Implemented via `useRovingTabIndex`.
 
-### Modal & Popup Control
-- **Escape**: Close active modal
-- **Tab/Shift-Tab**: Navigate controls
-- **Enter/Space**: Activate buttons
-- **Arrow Keys**: Navigate options
+### Modal focus trap
 
-## Implementation Patterns
+When a modal opens, focus moves into it and is trapped until close. On close, focus restores to the element that triggered the modal. Always via Headless UI `Dialog`; never hand-rolled.
 
-### Custom Hooks
+### Skip links
 
-#### useKeyboardShortcuts
-Centralized keyboard event handling with platform detection:
-```typescript
-export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // Platform-specific modifier detection
-      // Context-aware activation
-      // Shortcut matching and execution
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [shortcuts]);
-}
-```
+`SkipLinks` (in `@semiont/react-ui`) renders visually-hidden-until-focused links that let keyboard users bypass repetitive navigation. The skip-link is the first focusable element on every page.
 
-#### useRovingTabIndex
-Arrow key navigation for widget groups:
-```typescript
-export function useRovingTabIndex(itemCount: number, options: Options) {
-  // Manages tabindex attributes
-  // Handles arrow key navigation
-  // Supports Home/End keys
-  // Configurable orientation (horizontal/vertical/grid)
-}
-```
+## Component checklist
 
-#### useLiveRegion
-Screen reader announcements for dynamic content:
-```typescript
-export function useLiveRegion() {
-  return {
-    announce: (message: string, priority: 'polite' | 'assertive') => {
-      // Updates ARIA live region
-      // Handles announcement priority
-      // Auto-clears after announcement
-    }
-  };
-}
-```
+Every interactive component should:
 
-### Component Integration
+1. Use semantic HTML first (`<button>`, `<a>`, `<nav>`, `<input>`).
+2. Add ARIA enhancement (`aria-label`, `aria-expanded`, `aria-pressed`, `aria-describedby`) where semantics aren't sufficient.
+3. Have visible focus indicators (Tailwind: `focus:ring-2 focus:ring-cyan-500`).
+4. Handle Enter and Space for any non-button click target:
 
-All interactive components follow consistent patterns:
-
-1. **Semantic HTML First**: Use native elements when possible
-2. **ARIA Enhancement**: Add roles and properties for clarity
-3. **Focus Management**: Clear focus states and logical order
-4. **Keyboard Handlers**: Standard keys for expected actions
-
-Example implementation:
 ```tsx
-<button
+<div
+  role="button"
+  tabIndex={0}
   onClick={handleClick}
   onKeyDown={(e) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -224,123 +127,57 @@ Example implementation:
     }
   }}
   aria-label="Delete annotation"
-  aria-describedby={hasError ? 'error-message' : undefined}
-  className="focus:outline-none focus:ring-2 focus:ring-cyan-500"
 >
   <DeleteIcon aria-hidden="true" />
-</button>
+</div>
 ```
 
-## Testing Strategy
+(Prefer `<button>` over `<div role="button">` whenever you can — but the pattern above is the fallback when the surrounding markup constrains you.)
 
-### Automated Testing
-- **Unit Tests**: Keyboard event handlers and focus management
-- **Integration Tests**: Complete workflows via keyboard
-- **Accessibility Tests**: ARIA attributes and roles
+## Testing
 
-### Manual Testing
-- **Keyboard-Only Navigation**: Complete app tour without mouse
-- **Screen Reader Testing**: NVDA, JAWS, VoiceOver
-- **Browser Testing**: Chrome, Firefox, Safari, Edge
+### Unit + integration
 
-### Validation Tools
-- **axe DevTools**: Automated accessibility checking
-- **WAVE**: Visual accessibility evaluation
+Component tests cover keyboard handlers and focus management. Use `@testing-library/user-event` to simulate keyboard input — never simulate `keydown` events by hand.
 
-## Browser Compatibility
+```tsx
+import userEvent from '@testing-library/user-event';
 
-### Supported Browsers
-- Chrome 90+ (Full support)
-- Firefox 88+ (Full support)
-- Safari 14+ (Full support)
-- Edge 90+ (Full support)
+const user = userEvent.setup();
+await user.tab();        // moves focus to next element
+await user.keyboard('{Enter}');  // activates
+```
 
-### Platform Considerations
-- **macOS**: Cmd key for shortcuts, VoiceOver support
-- **Windows**: Ctrl key for shortcuts, NVDA/JAWS support
-- **Linux**: Ctrl key for shortcuts, Orca support
+### Accessibility
 
-## Performance Considerations
+`jest-axe` for component-level WCAG checks — see [ACCESSIBILITY.md § Testing](ACCESSIBILITY.md#testing).
 
-### Event Handler Optimization
-- Debounced search inputs
-- Throttled scroll handlers
-- Memoized callback functions
-- Event delegation where appropriate
+### Manual
 
-### DOM Manipulation
-- Minimal re-renders with React.memo
-- Virtual focus (only one tabIndex={0})
-- Batch DOM updates
-- CSS-based focus indicators
+- Disconnect the mouse and complete a representative flow.
+- Test with NVDA (Windows), VoiceOver (macOS), JAWS (Windows), Orca (Linux).
+- Verify on Chrome 90+, Firefox 88+, Safari 14+, Edge 90+.
 
-## Migration Path
+## Debugging
 
-### From Legacy Components
-1. Replace native modals with Headless UI Dialog
-2. Add ARIA labels to icon buttons
-3. Implement focus trap in custom overlays
-4. Add keyboard event handlers to clickable divs
+Enable per-event keyboard logging:
 
-### Incremental Adoption
-The keyboard navigation system is designed for incremental adoption:
-- Start with global shortcuts
-- Add modal focus management
-- Implement roving tabindex for lists
-- Add live regions for dynamic content
-
-## Future Enhancements
-
-### Planned Features
-- **Vim Mode**: Advanced keyboard navigation for power users
-- **Customizable Shortcuts**: User-defined key bindings
-- **Gesture Support**: Touch and trackpad gestures
-- **Voice Control**: Speech-based navigation
-
-### Technical Improvements
-- **Shortcut Conflict Resolution**: Detect and resolve conflicts
-- **Context Bubbling**: Nested shortcut contexts
-- **Macro Recording**: Record and replay action sequences
-- **Analytics**: Track keyboard usage patterns
-
-## Troubleshooting
-
-### Common Issues
-
-#### Focus Lost
-**Problem**: Focus disappears after action
-**Solution**: Ensure focus restoration in callbacks
-
-#### Shortcuts Not Working
-**Problem**: Keyboard shortcuts don't trigger
-**Solution**: Check for input field focus, verify no conflicts
-
-#### Screen Reader Silent
-**Problem**: No announcements for actions
-**Solution**: Verify live regions, check ARIA attributes
-
-### Debug Tools
 ```javascript
-// Enable keyboard navigation debugging
-localStorage.setItem('debug:keyboard', 'true');
-
-// Log all keyboard events
 window.addEventListener('keydown', (e) => {
-  console.log(`Key: ${e.key}, Modifiers: ${e.ctrlKey}/${e.metaKey}/${e.shiftKey}`);
+  console.log(`Key: ${e.key}, Modifiers: ${e.ctrlKey}/${e.metaKey}/${e.shiftKey}, Target: ${e.target.tagName}`);
 });
 ```
 
-## Resources
+Common issues:
 
-### Documentation
-- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
+- **Focus disappears after action.** A handler removed the focused element from the DOM. Restore focus to a sensible neighbor before the removal, or use Headless UI components that handle this automatically.
+- **Shortcut doesn't trigger.** Check focus location — single-letter shortcuts disable in inputs by design. Also check for conflict with browser shortcuts (`Cmd+T`, etc.).
+- **Screen reader silent.** Verify the live region exists in the DOM and has the right `aria-live` attribute. The most common cause is announcing before the live region has mounted.
+
+## See also
+
+- **[../../../docs/browser/KEYBOARD-NAV.md](../../../docs/browser/KEYBOARD-NAV.md)** — user-facing shortcut reference.
+- **[ACCESSIBILITY.md](ACCESSIBILITY.md)** — broader WCAG 2.1 AA implementation patterns.
+- [WCAG 2.1 Quick Reference](https://www.w3.org/WAI/WCAG21/quickref/)
 - [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)
-- [Headless UI Documentation](https://headlessui.com/)
-
-### Tools
-- [axe DevTools](https://www.deque.com/axe/devtools/)
-- [WAVE](https://wave.webaim.org/)
-
-## Conclusion
-
-The Semiont keyboard navigation system provides comprehensive accessibility through thoughtful architecture, consistent patterns, and thorough implementation. By building on web standards and modern React patterns, we ensure that all users can effectively navigate and interact with the application regardless of their input method or assistive technology needs.
+- [Headless UI documentation](https://headlessui.com/)
