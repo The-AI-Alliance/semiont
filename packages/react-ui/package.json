@@ -2,32 +2,33 @@
   "name": "@semiont/react-ui",
   "version": "0.5.4",
   "description": "React components and hooks for Semiont",
-  "main": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs",
-      "default": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./test-utils": {
-      "types": "./dist/test-utils.d.mts",
-      "import": "./dist/test-utils.mjs",
-      "default": "./dist/test-utils.mjs"
+      "types": "./dist/test-utils.d.ts",
+      "import": "./dist/test-utils.js",
+      "default": "./dist/test-utils.js"
     },
     "./styles": "./src/styles/index.css",
     "./styles/index.css": "./src/styles/index.css",
     "./styles/variables.css": "./src/styles/variables.css",
-    "./tailwind": "./src/integrations/tailwind-plugin.js",
+    "./tailwind": "./src/integrations/tailwind-plugin.cjs",
     "./integrations/css-modules": {
-      "types": "./dist/integrations/css-modules-helper.d.mts",
-      "import": "./dist/integrations/css-modules-helper.mjs",
-      "default": "./dist/integrations/css-modules-helper.mjs"
+      "types": "./dist/integrations/css-modules-helper.d.ts",
+      "import": "./dist/integrations/css-modules-helper.js",
+      "default": "./dist/integrations/css-modules-helper.js"
     },
     "./integrations/styled-components": {
-      "types": "./dist/integrations/styled-components-theme.d.mts",
-      "import": "./dist/integrations/styled-components-theme.mjs",
-      "default": "./dist/integrations/styled-components-theme.mjs"
+      "types": "./dist/integrations/styled-components-theme.d.ts",
+      "import": "./dist/integrations/styled-components-theme.js",
+      "default": "./dist/integrations/styled-components-theme.js"
     },
     "./translations/*": "./translations/*.json"
   },
@@ -44,7 +45,7 @@
   ],
   "scripts": {
     "lint:css": "stylelint 'src/**/*.css' --config ../../.stylelintrc.json",
-    "build": "npm run lint:css && npm run typecheck && tsup",
+    "build": "npm run lint:css && npm run typecheck && tsup && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "audit:compliance": "./scripts/generate-compliance-report.sh",
@@ -89,7 +90,7 @@
     "jsdom": "^28.0.0",
     "postcss-import": "^16.1.1",
     "tsup": "^8.0.1",
-    "typescript": "^5.6.3"
+    "typescript": "^6.0.2"
   },
   "publishConfig": {
     "access": "public"
