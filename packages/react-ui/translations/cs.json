@@ -28,7 +28,8 @@
     "creationMethod": "Způsob vytvoření",
     "attributedTo": "Připsáno",
     "derivedFrom": "Odvozeno z",
-    "generatedBy": "Vygenerováno pomocí"
+    "generatedBy": "Vygenerováno pomocí",
+    "storageUri": "Úložiště"
   },
   "CollaborationPanel": {
     "title": "Spolupráce",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Štítky",
     "noTags": "Zatím žádné štítky. Použijte AI anotaci pro identifikaci strukturálních rolí.",
+    "noSchemas": "Pro tuto znalostní bázi nejsou registrována žádná schémata značek. Správce KB musí zaregistrovat alespoň jedno schéma strukturální analýzy (např. pomocí dovednosti `register-tag-schemas`), než bude možné používat značkování.",
     "annotateTags": "Anotovat štítky",
     "selectSchema": "Vybrat rámec",
-    "schemaLegal": "Právní analýza (IRAC)",
-    "schemaScientific": "Vědecký článek (IMRAD)",
-    "schemaArgument": "Struktura argumentace (Toulmin)",
     "selectCategories": "Vybrat kategorie",
-    "categoryIssue": "Otázka",
-    "categoryRule": "Pravidlo",
-    "categoryApplication": "Aplikace",
-    "categoryConclusion": "Závěr",
-    "categoryIntroduction": "Úvod",
-    "categoryMethods": "Metody",
-    "categoryResults": "Výsledky",
-    "categoryDiscussion": "Diskuze",
-    "categoryClaim": "Tvrzení",
-    "categoryEvidence": "Důkaz",
-    "categoryWarrant": "Odůvodnění",
-    "categoryCounterargument": "Protiargument",
-    "categoryRebuttal": "Vyvrácení",
     "annotate": "Anotovat",
     "annotating": "Anotování...",
     "cancel": "Zrušit",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
     "searching": "Vyhledávání...",
     "search": "Hledat"
+  },
+  "History": {
+    "embeddingComputed": "Embedding vypočten"
   }
 }

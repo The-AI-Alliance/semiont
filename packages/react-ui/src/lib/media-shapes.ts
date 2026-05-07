@@ -6,8 +6,7 @@
  */
 
 import type { ShapeType } from '../components/annotation/AnnotateToolbar';
-import { isPdfMimeType } from '@semiont/api-client';
-
+import { isPdfMimeType } from '@semiont/core';
 /**
  * Selector types that support shape selection
  */

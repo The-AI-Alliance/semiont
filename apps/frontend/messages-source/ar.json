@@ -13,7 +13,7 @@
     "administer": "الإدارة"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. جميع الحقوق محفوظة.",
+    "copyright": "© {{year}} The AI Alliance. جميع الحقوق محفوظة.",
     "about": "حول",
     "privacyPolicy": "سياسة الخصوصية",
     "cookiePreferences": "تفضيلات ملفات تعريف الارتباط",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "أدخل اسم المورد...",
     "entityTypes": "علامات نوع الكيان",
     "entityTypesHint": "علِّم موردك بأنواع الكيانات",
-    "noEntityTypesAvailable": "لا توجد أنواع كيانات متاحة",
     "contentSource": "مصدر المحتوى",
     "uploadFile": "تحميل ملف",
     "uploadFileDescription": "صور، مستندات، ملفات نصية",
@@ -591,14 +590,17 @@
     "statusConnected": "متصل",
     "statusExpired": "انتهت صلاحية الجلسة",
     "statusSignedOut": "تم تسجيل الخروج",
-    "statusUnreachable": "غير قابل للوصول"
+    "statusUnreachable": "غير قابل للوصول",
+    "invalidHost": "اسم مضيف غير صالح"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "لا توجد قواعد معرفة",
     "noKnowledgeBasesHint": "أضف قاعدة معرفة باستخدام اللوحة على اليمين لبدء الاكتشاف والتعليق وربط الموارد.",
     "sessionExpired": "انتهت صلاحية جلستك.",
     "signedOut": "أنت غير مسجّل الدخول.",
-    "signInHint": "سجّل الدخول باستخدام لوحة قاعدة المعرفة لتصفح الموارد."
+    "signInHint": "سجّل الدخول باستخدام لوحة قاعدة المعرفة لتصفح الموارد.",
+    "findKnowledgeBases": "ابحث عن قواعد المعرفة",
+    "createNew": "أنشئ واحدة جديدة"
   },
   "AccountPanel": {
     "notAuthenticated": "سجّل الدخول إلى قاعدة المعرفة لعرض حسابك."

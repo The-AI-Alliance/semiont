@@ -36,19 +36,19 @@ export class EventQuery {
     let results = allEvents;
 
     if (query.userId) {
-      results = results.filter(e => e.event.userId === query.userId);
+      results = results.filter(e => e.userId === query.userId);
     }
 
     if (query.eventTypes && query.eventTypes.length > 0) {
-      results = results.filter(e => query.eventTypes!.includes(e.event.type));
+      results = results.filter(e => query.eventTypes!.includes(e.type));
     }
 
     if (query.fromTimestamp) {
-      results = results.filter(e => e.event.timestamp >= query.fromTimestamp!);
+      results = results.filter(e => e.timestamp >= query.fromTimestamp!);
     }
 
     if (query.toTimestamp) {
-      results = results.filter(e => e.event.timestamp <= query.toTimestamp!);
+      results = results.filter(e => e.timestamp <= query.toTimestamp!);
     }
 
     if (query.fromSequence) {

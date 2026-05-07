@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { CommentEntry } from './CommentEntry';
 import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './CommentsPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -42,12 +44,10 @@ interface CommentsPanelProps {
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-  } | null;
+  progress?: JobProgress | null;
   locale?: string;
+  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call. */
+  sourceLanguage?: string;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
@@ -67,12 +67,13 @@ export function CommentsPanel({
   isAssisting = false,
   progress,
   locale,
+  sourceLanguage,
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [newCommentText, setNewCommentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -169,7 +170,7 @@ export function CommentsPanel({
 
   const handleSaveNewComment = () => {
     if (newCommentText.trim() && pendingAnnotation) {
-      eventBus.get('mark:submit').next({
+      session?.client.mark.submit({
         motivation: 'commenting',
         selector: pendingAnnotation.selector,
         body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
@@ -184,14 +185,14 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.client.mark.cancelPending();
         setNewCommentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   return (
     <div className="semiont-panel">
@@ -226,7 +227,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('mark:cancel-pending').next(undefined);
+                  session?.client.mark.cancelPending();
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -255,6 +256,7 @@ export function CommentsPanel({
             annotationType="comment"
             isAssisting={isAssisting}
             locale={locale}
+            sourceLanguage={sourceLanguage}
             progress={progress}
           />
         )}

@@ -119,7 +119,7 @@ if (job) {
 
   // Type-safe access based on status
   if (job.status === 'running') {
-    console.log(`Progress: ${job.progress.percentage}%`);
+    console.log(`Progress: ${job:progress.percentage}%`);
   }
   if (job.status === 'complete') {
     console.log(`Result: ${JSON.stringify(job.result)}`);
@@ -159,7 +159,7 @@ if (job.status === 'running') {
     status: 'complete',
     metadata: job.metadata,
     params: job.params,
-    startedAt: job.startedAt,
+    startedAt: job:startedAt,
     completedAt: new Date().toISOString(),
     result: { resourceId: resourceId('doc-new'), resourceName: 'Generated Article' },
   };

@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Success response after creating a yielded resource.",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    },
+    "resource": {
+      "$ref": "./ResourceDescriptor.json"
+    }
+  },
+  "required": ["resourceId", "resource"]
+}

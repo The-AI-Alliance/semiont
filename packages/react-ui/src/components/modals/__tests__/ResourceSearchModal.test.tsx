@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { BehaviorSubject } from 'rxjs';
 import { renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { ResourceSearchModal } from '../ResourceSearchModal';
@@ -14,19 +15,26 @@ vi.mock('@headlessui/react', () => ({
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
 
-// Mock api-hooks
-const mockUseQuery = vi.fn(() => ({
-  data: null,
-  isFetching: false,
-}));
+// Mock the api-client Observable surface.
+// The session-based useSemiont path: useObservable(useSemiont().activeSession$)?.client
+// We mock useSemiont to return a stable browser whose activeSession$ emits a
+// session-shaped object that carries the mock client.
+const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
+const browseResourcesMock = vi.fn(() => browseResourcesSubject.asObservable());
+const stableMockClient = { browse: { resources: browseResourcesMock } };
+const stableMockSession = { client: stableMockClient };
+const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
+const stableMockBrowser = { activeSession$: stableActiveSession$ };
 
-vi.mock('../../../lib/api-hooks', () => ({
-  useResources: vi.fn(() => ({
-    search: {
-      useQuery: mockUseQuery,
-    },
-  })),
-}));
+vi.mock('../../../session/SemiontProvider', async () => {
+  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>(
+    '../../../session/SemiontProvider'
+  );
+  return {
+    ...actual,
+    useSemiont: () => stableMockBrowser,
+  };
+});
 
 // Mock search announcements
 vi.mock('../../../hooks/useSearchAnnouncements', () => ({
@@ -37,6 +45,10 @@ vi.mock('../../../hooks/useSearchAnnouncements', () => ({
   })),
 }));
 
+function setBrowseResults(resources: any[] | undefined) {
+  browseResourcesSubject.next(resources);
+}
+
 describe('ResourceSearchModal', () => {
   const defaultProps = {
     isOpen: true,
@@ -46,7 +58,15 @@ describe('ResourceSearchModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseQuery.mockReturnValue({ data: null, isFetching: false });
+    browseResourcesSubject.next(undefined);
+  });
+
+  const buildResource = (id: string, name: string, mediaType = 'text/plain', content?: string) => ({
+    '@context': 'https://www.w3.org/ns/anno.jsonld',
+    '@id': id,
+    name,
+    content,
+    representations: [{ mediaType, isPrimary: true }],
   });
 
   it('renders modal with title when open', () => {
@@ -77,62 +97,26 @@ describe('ResourceSearchModal', () => {
     expect(screen.getByPlaceholderText('Type here...')).toBeInTheDocument();
   });
 
-  it('shows loading state when fetching', () => {
-    mockUseQuery.mockReturnValue({ data: null, isFetching: true });
-    renderWithProviders(<ResourceSearchModal {...defaultProps} />);
-    expect(screen.getByText('Searching...')).toBeInTheDocument();
+  it('shows loading state while the Observable has not emitted', async () => {
+    renderWithProviders(<ResourceSearchModal {...defaultProps} searchTerm="something" />);
+    await waitFor(() => expect(screen.getByText('Searching...')).toBeInTheDocument(), { timeout: 1000 });
   });
 
-  it('shows no results message when search has no matches', () => {
-    mockUseQuery.mockReturnValue({
-      data: { resources: [] },
-      isFetching: false,
-    });
-
-    renderWithProviders(
-      <ResourceSearchModal {...defaultProps} searchTerm="xyz" />
-    );
-    expect(screen.getByText('No documents found')).toBeInTheDocument();
+  it('shows no results message when search returns an empty array', async () => {
+    renderWithProviders(<ResourceSearchModal {...defaultProps} searchTerm="xyz" />);
+    setBrowseResults([]);
+    await waitFor(() => expect(screen.getByText('No documents found')).toBeInTheDocument(), { timeout: 1000 });
   });
 
-  it('renders search results', () => {
-    mockUseQuery.mockReturnValue({
-      data: {
-        resources: [
-          {
-            '@id': 'res-1',
-            name: 'Test Document',
-            content: 'Some content here',
-            representations: [{ mediaType: 'text/plain' }],
-          },
-        ],
-      },
-      isFetching: false,
-    });
-
-    renderWithProviders(
-      <ResourceSearchModal {...defaultProps} searchTerm="test" />
-    );
-    expect(screen.getByText('Test Document')).toBeInTheDocument();
+  it('renders search results', async () => {
+    renderWithProviders(<ResourceSearchModal {...defaultProps} searchTerm="test" />);
+    setBrowseResults([buildResource('res-1', 'Test Document', 'text/plain', 'Some content here')]);
+    await waitFor(() => expect(screen.getByText('Test Document')).toBeInTheDocument(), { timeout: 1000 });
   });
 
-  it('calls onSelect and onClose when a result is clicked', () => {
+  it('calls onSelect and onClose when a result is clicked', async () => {
     const onSelect = vi.fn();
     const onClose = vi.fn();
-
-    mockUseQuery.mockReturnValue({
-      data: {
-        resources: [
-          {
-            '@id': 'res-1',
-            name: 'Test Document',
-            content: 'Some content',
-            representations: [{ mediaType: 'text/plain' }],
-          },
-        ],
-      },
-      isFetching: false,
-    });
 
     renderWithProviders(
       <ResourceSearchModal
@@ -142,31 +126,18 @@ describe('ResourceSearchModal', () => {
         onClose={onClose}
       />
     );
+    setBrowseResults([buildResource('res-1', 'Test Document', 'text/plain', 'Some content')]);
+    await waitFor(() => expect(screen.getByText('Test Document')).toBeInTheDocument(), { timeout: 1000 });
 
     fireEvent.click(screen.getByText('Test Document'));
     expect(onSelect).toHaveBeenCalledWith('res-1');
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('shows media type for image results', () => {
-    mockUseQuery.mockReturnValue({
-      data: {
-        resources: [
-          {
-            '@id': 'res-img',
-            name: 'Photo',
-            content: 'image data',
-            representations: [{ mediaType: 'image/png' }],
-          },
-        ],
-      },
-      isFetching: false,
-    });
-
-    renderWithProviders(
-      <ResourceSearchModal {...defaultProps} searchTerm="photo" />
-    );
-    expect(screen.getByText('image/png')).toBeInTheDocument();
+  it('shows media type for image results', async () => {
+    renderWithProviders(<ResourceSearchModal {...defaultProps} searchTerm="photo" />);
+    setBrowseResults([buildResource('res-img', 'Photo', 'image/png')]);
+    await waitFor(() => expect(screen.getByText('image/png')).toBeInTheDocument(), { timeout: 1000 });
   });
 
   it('calls onClose when close button is clicked', () => {
@@ -176,5 +147,13 @@ describe('ResourceSearchModal', () => {
     );
     fireEvent.click(screen.getByLabelText('✕'));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('passes the search term through to browse.resources', async () => {
+    renderWithProviders(<ResourceSearchModal {...defaultProps} searchTerm="hello" />);
+    await waitFor(
+      () => expect(browseResourcesMock).toHaveBeenCalledWith({ search: 'hello', limit: 50 }),
+      { timeout: 1000 }
+    );
   });
 });

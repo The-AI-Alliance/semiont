@@ -375,6 +375,7 @@ describe('API Endpoints Integration Tests', () => {
           updatedAt: new Date(),
         },
         token: accessToken('mock-jwt-token'),
+        refreshToken: 'mock-refresh-token',
         isNewUser: false,
       });
 

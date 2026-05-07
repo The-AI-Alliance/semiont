@@ -13,7 +13,7 @@
     "administer": "การบริหารจัดการ"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont สงวนลิขสิทธิ์",
+    "copyright": "© {{year}} The AI Alliance สงวนลิขสิทธิ์",
     "about": "เกี่ยวกับ",
     "privacyPolicy": "นโยบายความเป็นส่วนตัว",
     "cookiePreferences": "การตั้งค่าคุกกี้",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "กรอกชื่อทรัพยากร...",
     "entityTypes": "แท็กประเภทเอนทิตี",
     "entityTypesHint": "ติดแท็กทรัพยากรของคุณด้วยประเภทเอนทิตี",
-    "noEntityTypesAvailable": "ไม่มีประเภทเอนทิตีที่พร้อมใช้งาน",
     "contentSource": "แหล่งเนื้อหา",
     "uploadFile": "อัปโหลดไฟล์",
     "uploadFileDescription": "รูปภาพ เอกสาร ไฟล์ข้อความ",
@@ -591,14 +590,17 @@
     "statusConnected": "เชื่อมต่อแล้ว",
     "statusExpired": "เซสชันหมดอายุ",
     "statusSignedOut": "ออกจากระบบแล้ว",
-    "statusUnreachable": "เข้าถึงไม่ได้"
+    "statusUnreachable": "เข้าถึงไม่ได้",
+    "invalidHost": "ชื่อโฮสต์ไม่ถูกต้อง"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ไม่มีฐานความรู้",
     "noKnowledgeBasesHint": "เพิ่มฐานความรู้โดยใช้แผงด้านขวาเพื่อเริ่มค้นหา ใส่คำอธิบาย และเชื่อมโยงทรัพยากร",
     "sessionExpired": "เซสชันของคุณหมดอายุแล้ว",
     "signedOut": "คุณออกจากระบบแล้ว",
-    "signInHint": "เข้าสู่ระบบโดยใช้แผงฐานความรู้เพื่อเรียกดูทรัพยากร"
+    "signInHint": "เข้าสู่ระบบโดยใช้แผงฐานความรู้เพื่อเรียกดูทรัพยากร",
+    "findKnowledgeBases": "ค้นหาฐานความรู้",
+    "createNew": "สร้างใหม่"
   },
   "AccountPanel": {
     "notAuthenticated": "เข้าสู่ระบบฐานความรู้เพื่อดูบัญชีของคุณ"

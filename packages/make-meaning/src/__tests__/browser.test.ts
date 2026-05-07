@@ -111,7 +111,7 @@ describe('Browser actor', () => {
 
         const event = await resultPromise;
         expect(event.correlationId).toBe('cid-1');
-        expect(event.error.message).toBe('path escapes project root');
+        expect(event.message).toBe('path escapes project root');
       });
     }
 
@@ -152,7 +152,7 @@ describe('Browser actor', () => {
     eventBus.get('browse:directory-requested').next({ correlationId: 'cid-4', path: 'missing' });
 
     const event = await resultPromise;
-    expect(event.error.message).toBe('path not found');
+    expect(event.message).toBe('path not found');
   });
 
   // ── directory listing ──────────────────────────────────────────────────────
@@ -397,7 +397,7 @@ describe('Browser actor', () => {
       fire({ correlationId: 'corr-7', resourceId: TARGET_RESOURCE_ID });
       const result = await p;
       expect(result.correlationId).toBe('corr-7');
-      expect(result.error.message).toBe('Graph unavailable');
+      expect(result.message).toBe('Graph unavailable');
     });
 
     it('emits referenced-by-failed when getResource throws', async () => {
@@ -407,7 +407,7 @@ describe('Browser actor', () => {
       fire({ correlationId: 'corr-8', resourceId: TARGET_RESOURCE_ID });
       const result = await p;
       expect(result.correlationId).toBe('corr-8');
-      expect(result.error.message).toBe('Resource lookup failed');
+      expect(result.message).toBe('Resource lookup failed');
     });
   });
 });

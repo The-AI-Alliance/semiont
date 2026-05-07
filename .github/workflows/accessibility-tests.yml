@@ -36,8 +36,9 @@ jobs:
         run: |
           npm install --include=optional
           npm run openapi:bundle
-          npm run build --workspace=@semiont/api-client
           npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/sdk
           npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
@@ -97,8 +98,9 @@ jobs:
         run: |
           npm install --include=optional
           npm run openapi:bundle
-          npm run build --workspace=@semiont/api-client
           npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/sdk
           npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
@@ -166,8 +168,9 @@ jobs:
         run: |
           npm install --include=optional
           npm run openapi:bundle
-          npm run build --workspace=@semiont/api-client
           npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/api-client
+          npm run build --workspace=@semiont/sdk
           npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 

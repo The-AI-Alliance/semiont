@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "description": "Command to create a new job via the event bus",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "jobType": {
+      "type": "string",
+      "enum": [
+        "reference-annotation",
+        "highlight-annotation",
+        "assessment-annotation",
+        "comment-annotation",
+        "tag-annotation",
+        "generation"
+      ]
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "correlationId",
+    "jobType",
+    "resourceId",
+    "params"
+  ]
+}

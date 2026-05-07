@@ -28,7 +28,8 @@
     "creationMethod": "তৈরির পদ্ধতি",
     "attributedTo": "সম্পাদককৃত",
     "derivedFrom": "থেকে উৎপন্ন",
-    "generatedBy": "তৈরিকারক"
+    "generatedBy": "তৈরিকারক",
+    "storageUri": "সঞ্চয়স্থান"
   },
   "CollaborationPanel": {
     "title": "সহযোগিতা",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "ট্যাগসমূহ",
     "noTags": "এখনো কোনো ট্যাগ নেই। কাঠামোগত ভূমিকা শনাক্ত করতে AI টীকাকরণ ব্যবহার করুন।",
+    "noSchemas": "এই জ্ঞান ভাণ্ডারের জন্য কোনো ট্যাগ স্কিমা নিবন্ধিত নেই। ট্যাগিং ব্যবহার করার আগে একজন KB প্রশাসককে কমপক্ষে একটি কাঠামোগত-বিশ্লেষণ স্কিমা নিবন্ধন করতে হবে (যেমন `register-tag-schemas` দক্ষতার মাধ্যমে)।",
     "annotateTags": "ট্যাগ টীকাকরণ",
     "selectSchema": "ফ্রেমওয়ার্ক নির্বাচন করুন",
-    "schemaLegal": "আইনি বিশ্লেষণ (IRAC)",
-    "schemaScientific": "বৈজ্ঞানিক গবেষণাপত্র (IMRAD)",
-    "schemaArgument": "যুক্তি কাঠামো (Toulmin)",
     "selectCategories": "বিভাগ নির্বাচন করুন",
-    "categoryIssue": "বিষয়",
-    "categoryRule": "নিয়ম",
-    "categoryApplication": "প্রয়োগ",
-    "categoryConclusion": "উপসংহার",
-    "categoryIntroduction": "ভূমিকা",
-    "categoryMethods": "পদ্ধতি",
-    "categoryResults": "ফলাফল",
-    "categoryDiscussion": "আলোচনা",
-    "categoryClaim": "দাবি",
-    "categoryEvidence": "প্রমাণ",
-    "categoryWarrant": "যুক্তিসূত্র",
-    "categoryCounterargument": "প্রতিযুক্তি",
-    "categoryRebuttal": "খণ্ডন",
     "annotate": "টীকাকরণ",
     "annotating": "টীকাকরণ হচ্ছে...",
     "cancel": "বাতিল করুন",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "অর্থগত প্রাসঙ্গিকতা অনুযায়ী ফলাফল স্কোর করতে AI ব্যবহার করুন",
     "searching": "অনুসন্ধান করা হচ্ছে...",
     "search": "অনুসন্ধান"
+  },
+  "History": {
+    "embeddingComputed": "এমবেডিং গণনা করা হয়েছে"
   }
 }

@@ -117,13 +117,13 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
   // Bootstrap EventBus + Stower for import
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
-  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
+  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   try {
     const input = fs.createReadStream(filePath);
-    const result = await importLinkedData(input, { eventBus, userId, logger });
+    const result = await importLinkedData(input, { eventBus, contentStore: kb.content, userId, logger });
 
     if (!options.quiet) {
       printSuccess(

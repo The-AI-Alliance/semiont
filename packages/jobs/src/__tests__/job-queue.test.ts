@@ -6,7 +6,7 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { JobQueue } from '../job-queue';
+import { FsJobQueue as JobQueue } from '../fs-job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
 import { SemiontProject } from '@semiont/core/node';
 import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
@@ -143,7 +143,7 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
       annotation: {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         type: 'Annotation',
-        id: 'http://localhost:4100/annotations/test-anno-1',
+        id: annotationId('test-anno-1'),
         motivation: 'linking',
         target: {
           source: 'http://localhost:4100/resources/test-resource-1',
@@ -495,10 +495,8 @@ describe('JobQueue', () => {
 
       const events: any[] = [];
       const job = createPendingDetectionJob('job-with-event');
-      const resourceBus = eventBus.scope(job.params.resourceId);
 
-      // Subscribe to job:queued events
-      resourceBus.get('job:queued').subscribe(event => {
+      eventBus.get('job:queued').subscribe(event => {
         events.push(event);
       });
 
@@ -509,7 +507,8 @@ describe('JobQueue', () => {
       expect(events[0]).toEqual({
         jobId: jobId('job-with-event'),
         jobType: 'reference-annotation',
-        resourceId: job.params.resourceId
+        resourceId: job.params.resourceId,
+        userId: job.metadata.userId,
       });
     });
 

@@ -36,31 +36,15 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ),
 }));
 
-// Mock SimpleNavigation component and event bus hooks
+// Mock SimpleNavigation component and event-subscription hooks
 const mockSimpleNavigation = vi.fn();
-const mockEventBus = {
-  on: vi.fn(),
-  off: vi.fn(),
-  emit: vi.fn(),
-};
 
 vi.mock('@semiont/react-ui', () => {
-  // Use factory function to properly handle mock references
-  const mockEventBusLocal = {
-    on: vi.fn(),
-    off: vi.fn(),
-    emit: vi.fn(),
-  };
-
   return {
     SimpleNavigation: (props: any) => {
       mockSimpleNavigation(props);
       return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
     },
-    useNavigationEvents: () => mockEventBusLocal,
-    useEventBus: () => mockEventBusLocal,
-    useMakeMeaningEvents: () => mockEventBusLocal,
-    useGlobalSettingsEvents: () => mockEventBusLocal,
     useEventSubscriptions: vi.fn(),
   };
 });
@@ -247,12 +231,12 @@ describe('AdminNavigation', () => {
       expect(call.isCollapsed).toBe(false);
     });
 
-    it('should subscribe to browse:sidebar-toggle event', () => {
+    it('should subscribe to shell:sidebar-toggle event', () => {
       render(<AdminNavigation {...defaultProps} />);
 
       expect(vi.mocked(useEventSubscriptions)).toHaveBeenCalledWith(
         expect.objectContaining({
-          'browse:sidebar-toggle': expect.any(Function),
+          'shell:sidebar-toggle': expect.any(Function),
         })
       );
     });
@@ -265,7 +249,7 @@ describe('AdminNavigation', () => {
       // Get the subscriptions object passed to useEventSubscriptions
       const mockUseEventSubs = vi.mocked(useEventSubscriptions);
       const subscriptions = mockUseEventSubs.mock.calls[0]![0]!;
-      const toggleHandler = subscriptions['browse:sidebar-toggle'];
+      const toggleHandler = subscriptions['shell:sidebar-toggle'];
 
       // Call the toggle handler
       expect(toggleHandler).toBeDefined();

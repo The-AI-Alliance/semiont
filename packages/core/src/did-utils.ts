@@ -57,8 +57,10 @@ export function userToAgent(user: {
  * @param did - DID:WEB identifier string
  * @returns Minimal W3C Agent object
  */
-export function didToAgent(did: string): Agent {
-  // Extract email from DID format: did:web:domain.com:users:alice%40example.com
+export function didToAgent(did: string | undefined | null): Agent {
+  if (!did) {
+    return { type: 'Person' as const, id: 'unknown', name: 'unknown' };
+  }
   const parts = did.split(':');
   const encoded = parts[parts.length - 1] || 'unknown';
   const name = decodeURIComponent(encoded);

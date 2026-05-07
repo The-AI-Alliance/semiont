@@ -28,7 +28,8 @@
     "creationMethod": "Cómo se creó",
     "attributedTo": "Atribuido a",
     "derivedFrom": "Derivado de",
-    "generatedBy": "Generado por"
+    "generatedBy": "Generado por",
+    "storageUri": "Almacenamiento"
   },
   "CollaborationPanel": {
     "title": "Colaboración",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Etiquetas",
     "noTags": "Aún no hay etiquetas. Usa anotación por IA para identificar roles estructurales.",
+    "noSchemas": "No hay esquemas de etiquetas registrados para esta base de conocimiento. Un administrador de la KB debe registrar al menos un esquema de análisis estructural (p. ej. mediante la habilidad `register-tag-schemas`) antes de poder usar el etiquetado.",
     "annotateTags": "Anotar Etiquetas",
     "selectSchema": "Seleccionar Marco",
-    "schemaLegal": "Análisis Legal (IRAC)",
-    "schemaScientific": "Artículo Científico (IMRAD)",
-    "schemaArgument": "Estructura de Argumento (Toulmin)",
     "selectCategories": "Seleccionar Categorías",
-    "categoryIssue": "Cuestión",
-    "categoryRule": "Regla",
-    "categoryApplication": "Aplicación",
-    "categoryConclusion": "Conclusión",
-    "categoryIntroduction": "Introducción",
-    "categoryMethods": "Métodos",
-    "categoryResults": "Resultados",
-    "categoryDiscussion": "Discusión",
-    "categoryClaim": "Afirmación",
-    "categoryEvidence": "Evidencia",
-    "categoryWarrant": "Garantía",
-    "categoryCounterargument": "Contraargumento",
-    "categoryRebuttal": "Refutación",
     "assist": "Asistir",
     "assisting": "Asistiendo...",
     "cancel": "Cancelar",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Usar IA para puntuar resultados por relevancia semántica",
     "searching": "Buscando...",
     "search": "Buscar"
+  },
+  "History": {
+    "embeddingComputed": "Embedding calculado"
   }
 }

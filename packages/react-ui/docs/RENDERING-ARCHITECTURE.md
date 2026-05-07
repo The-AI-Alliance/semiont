@@ -184,7 +184,7 @@ CodeMirror normalizes all line endings to LF. `convertSegmentPositions()` adjust
 
 ## Related Documentation
 
-- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - W3C Web Annotation implementation
+- [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C Web Annotation implementation
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Inline widget system

@@ -1,6 +1,6 @@
 {
   "name": "@semiont/react-ui",
-  "version": "0.4.15",
+  "version": "0.5.4",
   "description": "React components and hooks for Semiont",
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
@@ -64,7 +64,8 @@
     "test:components:modals:keyboard": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SearchModal.keyboard.test.tsx",
     "test:components:modals:accessibility": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SearchModal.accessibility.test.tsx",
     "test:components:modals:visual": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SearchModal.visual.test.tsx",
-    "test:components:modals": "npm run test:components:modals:basic && npm run test:components:modals:keyboard && npm run test:components:modals:accessibility && npm run test:components:modals:visual",
+    "test:components:modals:auth": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals/__tests__/SessionExpiredModal.test.tsx src/components/modals/__tests__/PermissionDeniedModal.test.tsx",
+    "test:components:modals": "npm run test:components:modals:basic && npm run test:components:modals:keyboard && npm run test:components:modals:accessibility && npm run test:components:modals:visual && npm run test:components:modals:auth",
     "test:components:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__",
     "test:features": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/features",
     "test:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/contexts src/hooks src/lib src/assets",
@@ -72,7 +73,6 @@
     "test:split:coverage": "npm run test:coverage"
   },
   "peerDependencies": {
-    "@tanstack/react-query": "^5.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
@@ -103,6 +103,8 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "@semiont/sdk": "*",
+    "react-error-boundary": "^4.1.2"
   }
 }

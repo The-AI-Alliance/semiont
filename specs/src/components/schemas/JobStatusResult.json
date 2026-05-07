@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Result of a job status request",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "./JobStatusResponse.json"
+    }
+  },
+  "required": [
+    "correlationId",
+    "response"
+  ]
+}

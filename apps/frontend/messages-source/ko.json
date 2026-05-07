@@ -13,7 +13,7 @@
     "administer": "관리"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. 모든 권리 보유.",
+    "copyright": "© {{year}} The AI Alliance. 모든 권리 보유.",
     "about": "소개",
     "privacyPolicy": "개인정보 처리방침",
     "cookiePreferences": "쿠키 설정",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "리소스 이름 입력...",
     "entityTypes": "개체 유형 태그",
     "entityTypesHint": "리소스에 개체 유형 태그 지정",
-    "noEntityTypesAvailable": "사용 가능한 개체 유형이 없습니다",
     "contentSource": "콘텐츠 소스",
     "uploadFile": "파일 업로드",
     "uploadFileDescription": "이미지, 문서, 텍스트 파일",
@@ -591,14 +590,17 @@
     "statusConnected": "연결됨",
     "statusExpired": "세션 만료",
     "statusSignedOut": "로그아웃됨",
-    "statusUnreachable": "연결 불가"
+    "statusUnreachable": "연결 불가",
+    "invalidHost": "잘못된 호스트 이름"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "지식 베이스 없음",
     "noKnowledgeBasesHint": "오른쪽 패널을 사용하여 지식 베이스를 추가하고 리소스 검색, 주석 달기 및 연결을 시작하세요.",
     "sessionExpired": "세션이 만료되었습니다.",
     "signedOut": "로그아웃되었습니다.",
-    "signInHint": "지식 베이스 패널을 사용하여 로그인하고 리소스를 탐색하세요."
+    "signInHint": "지식 베이스 패널을 사용하여 로그인하고 리소스를 탐색하세요.",
+    "findKnowledgeBases": "지식 베이스 찾기",
+    "createNew": "새로 만들기"
   },
   "AccountPanel": {
     "notAuthenticated": "계정을 보려면 지식 베이스에 로그인하세요."

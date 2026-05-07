@@ -13,7 +13,7 @@
     "administer": "مدیریت"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. تمامی حقوق محفوظ است.",
+    "copyright": "© {{year}} The AI Alliance. تمامی حقوق محفوظ است.",
     "about": "درباره ما",
     "privacyPolicy": "سیاست حفظ حریم خصوصی",
     "cookiePreferences": "تنظیمات کوکی",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "نام منبع را وارد کنید...",
     "entityTypes": "برچسب‌های نوع موجودیت",
     "entityTypesHint": "منبع خود را با انواع موجودیت برچسب‌گذاری کنید",
-    "noEntityTypesAvailable": "نوع موجودیتی موجود نیست",
     "contentSource": "منبع محتوا",
     "uploadFile": "بارگذاری فایل",
     "uploadFileDescription": "تصاویر، اسناد، فایل‌های متنی",
@@ -591,14 +590,17 @@
     "statusConnected": "متصل",
     "statusExpired": "نشست منقضی شده",
     "statusSignedOut": "خارج شده",
-    "statusUnreachable": "غیرقابل دسترس"
+    "statusUnreachable": "غیرقابل دسترس",
+    "invalidHost": "نام هاست نامعتبر"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "هیچ پایگاه دانشی وجود ندارد",
     "noKnowledgeBasesHint": "برای شروع کشف، حاشیه‌نویسی و پیوند منابع، یک پایگاه دانش با استفاده از پنل سمت راست اضافه کنید.",
     "sessionExpired": "نشست شما منقضی شده است.",
     "signedOut": "شما خارج شده‌اید.",
-    "signInHint": "برای مرور منابع با استفاده از پنل پایگاه دانش وارد شوید."
+    "signInHint": "برای مرور منابع با استفاده از پنل پایگاه دانش وارد شوید.",
+    "findKnowledgeBases": "یافتن پایگاه‌های دانش",
+    "createNew": "ایجاد یکی جدید"
   },
   "AccountPanel": {
     "notAuthenticated": "برای مشاهده حساب خود، وارد یک پایگاه دانش شوید."

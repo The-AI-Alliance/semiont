@@ -12,16 +12,7 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import {
-  getBodySource,
-  getResourceId,
-  getTargetSource,
-  getTargetSelector,
-  getResourceEntityTypes,
-  getTextPositionSelector,
-  getPrimaryRepresentation,
-  decodeRepresentation,
-} from '@semiont/api-client';
+import { getBodySource, getResourceId, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 
 import type {
@@ -40,8 +31,8 @@ import type { KnowledgeBase } from './knowledge-base';
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
-type Annotation = components['schemas']['Annotation'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { Annotation } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
 type AnnotationContextResponse = components['schemas']['AnnotationContextResponse'];
 type ContextualSummaryResponse = components['schemas']['ContextualSummaryResponse'];
 
@@ -390,7 +381,7 @@ Summary:`;
     const annotations = await this.getResourceAnnotations(resourceId, kb);
 
     // Enrich resolved references with document names
-    return await this.enrichResolvedReferences(annotations.annotations, kb);
+    return this.enrichResolvedReferences(annotations.annotations, kb);
   }
 
   /**
@@ -485,7 +476,7 @@ Summary:`;
    * Check if resource exists in view storage
    */
   static async resourceExists(resourceId: ResourceId, kb: KnowledgeBase): Promise<boolean> {
-    return await kb.views.exists(resourceId);
+    return kb.views.exists(resourceId);
   }
 
   /**
@@ -508,7 +499,7 @@ Summary:`;
     }
 
     // Use view storage directly
-    return await this.getAllAnnotations(filters.resourceId, kb);
+    return this.getAllAnnotations(filters.resourceId, kb);
   }
 
   /**
@@ -672,6 +663,6 @@ Context after: "${context.after.substring(0, 200)}"
 Resource: ${resource.name}
 Entity types: ${entityTypes.join(', ')}`;
 
-    return await inferenceClient.generateText(summaryPrompt, 500, 0.5);
+    return inferenceClient.generateText(summaryPrompt, 500, 0.5);
   }
 }

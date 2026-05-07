@@ -28,7 +28,8 @@
     "creationMethod": "Metodo di creazione",
     "attributedTo": "Attribuito a",
     "derivedFrom": "Derivato da",
-    "generatedBy": "Generato da"
+    "generatedBy": "Generato da",
+    "storageUri": "Archiviazione"
   },
   "CollaborationPanel": {
     "title": "Collaborazione",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Etichette",
     "noTags": "Nessuna etichetta ancora. Usa l'annotazione IA per identificare i ruoli strutturali.",
+    "noSchemas": "Nessuno schema di tag registrato per questa knowledge base. Un amministratore della KB deve registrare almeno uno schema di analisi strutturale (ad es. tramite l'abilità `register-tag-schemas`) prima che il tagging possa essere utilizzato.",
     "annotateTags": "Annota Etichette",
     "selectSchema": "Seleziona Framework",
-    "schemaLegal": "Analisi Giuridica (IRAC)",
-    "schemaScientific": "Articolo Scientifico (IMRAD)",
-    "schemaArgument": "Struttura dell'Argomentazione (Toulmin)",
     "selectCategories": "Seleziona Categorie",
-    "categoryIssue": "Questione",
-    "categoryRule": "Regola",
-    "categoryApplication": "Applicazione",
-    "categoryConclusion": "Conclusione",
-    "categoryIntroduction": "Introduzione",
-    "categoryMethods": "Metodi",
-    "categoryResults": "Risultati",
-    "categoryDiscussion": "Discussione",
-    "categoryClaim": "Tesi",
-    "categoryEvidence": "Prova",
-    "categoryWarrant": "Fondamento",
-    "categoryCounterargument": "Controargomentazione",
-    "categoryRebuttal": "Confutazione",
     "annotate": "Annota",
     "annotating": "Annotazione in corso...",
     "cancel": "Annulla",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Usa l'IA per valutare i risultati in base alla rilevanza semantica",
     "searching": "Ricerca in corso...",
     "search": "Cerca"
+  },
+  "History": {
+    "embeddingComputed": "Embedding calcolato"
   }
 }

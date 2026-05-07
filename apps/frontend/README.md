@@ -4,7 +4,7 @@ A type-safe React SPA built with Vite + React Router, featuring W3C Web Annotati
 
 ## Overview
 
-The Semiont frontend provides a rich annotation experience for building semantic knowledge graphs. Users can annotate documents with highlights, entity tags, and document links - all following the W3C Web Annotation Data Model for full interoperability.
+The Semiont browser provides a rich annotation experience for building semantic knowledge graphs. Users can annotate documents with highlights, entity tags, and document links - all following the W3C Web Annotation Data Model for full interoperability.
 
 **Key Features**:
 - W3C Web Annotation compliance
@@ -86,7 +86,7 @@ docker run -d \
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
-**Docker Compose Example:** See [docs/administration/IMAGES.md](../../docs/administration/IMAGES.md#docker-compose-example) for complete setup with backend and database.
+**Docker Compose Example:** See [docs/system/administration/IMAGES.md](../../docs/system/administration/IMAGES.md#docker-compose-example) for complete setup with backend and database.
 
 ## Technology Stack
 
@@ -103,7 +103,7 @@ docker run -d \
 
 ### Component Library
 
-The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
+The browser uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
 
 - **Authentication Components**: SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage
 - **Layout Components**: PageLayout, UnifiedHeader, LeftSidebar, Footer
@@ -117,9 +117,9 @@ The library is framework-independent, accepting framework-specific implementatio
 
 ### Internationalization
 
-The frontend supports multiple languages through a hybrid approach:
+The browser supports multiple languages through a hybrid approach:
 
-- **Frontend-specific translations**: `apps/frontend/messages-source/*.json` (source of truth)
+- **Browser-specific translations**: `apps/frontend/messages-source/*.json` (source of truth)
 - **Component translations**: `packages/react-ui/translations/*.json` (source of truth)
 - **Generated output**: `scripts/merge-translations.js` merges both into `messages/` and `public/messages/` before every build/test/dev run
 - **Dynamic loading**: Non-English locales are loaded on-demand via `i18next-http-backend`
@@ -158,7 +158,7 @@ src/
 - Full-text search with real-time results
 - Document archiving and cloning
 
-**See**: [Features Guide](./docs/FEATURES.md)
+**See**: [Features Guide](../../docs/browser/FEATURES.md)
 
 ### W3C Web Annotations
 - **Highlights**: Mark important text passages
@@ -188,7 +188,7 @@ Some operations run asynchronously via background job workers:
 ## Documentation
 
 ### Getting Started
-- **[Local Setup](./docs/LOCAL.md)** - Run the frontend locally (container, npm, or desktop app)
+- **[Local Setup](../../docs/browser/LOCAL.md)** - Run the browser locally (container, npm, or desktop app)
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, common tasks, debugging
 - **[Testing Guide](./docs/TESTING.md)** - Test structure, running tests, writing tests
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Publishing and deployment workflows
@@ -199,7 +199,7 @@ Some operations run asynchronously via background job workers:
 - **[API Integration](./docs/API-INTEGRATION.md)** - API client usage, async operations, W3C annotations
 
 ### Features & UI
-- **[Features](./docs/FEATURES.md)** - Document management, annotations, search, AI features
+- **[Features](../../docs/browser/FEATURES.md)** - Document management, annotations, search, AI features
 - **[Annotations](./docs/ANNOTATIONS.md)** - W3C annotation system and UI components
 - **[Style Guide](./docs/style-guide.md)** - UI/UX patterns and component guidelines
 
@@ -209,8 +209,8 @@ Some operations run asynchronously via background job workers:
 
 ### Performance & Accessibility
 - **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, monitoring
-- **[Accessibility](./docs/ACCESSIBILITY.md)** - WCAG 2.1 Level AA compliance, screen reader support, testing
-- **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
+- **[Accessibility](./docs/ACCESSIBILITY.md)** - Implementation patterns, ARIA, focus management, automated testing (user-facing claim: [docs/browser/ACCESSIBILITY.md](../../docs/browser/ACCESSIBILITY.md))
+- **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - Implementation: hooks, focus traps, roving tabindex (user-facing reference: [docs/browser/KEYBOARD-NAV.md](../../docs/browser/KEYBOARD-NAV.md))
 
 ### Specialized Topics
 - **[CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
@@ -285,8 +285,8 @@ We welcome contributions! Please read:
 ## Quick Links
 
 ### System Documentation
-- [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
-- [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow across all layers
+- [System Documentation](../../docs/system/README.md) - Overall platform architecture
+- [W3C Web Annotation](../../docs/protocol/W3C-WEB-ANNOTATION.md) - Annotation data flow across all layers
 - [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
 
 ### Other Services

@@ -13,14 +13,13 @@
 
 import { Subscription, from } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
-import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
-import { type EventBus, resourceId } from '@semiont/core';
-import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
+import type { EventMap, GatheredContext, Logger, ResourceDescriptor } from '@semiont/core';
+import { type EventBus, resourceId, errField } from '@semiont/core';
+import { getResourceId, getResourceEntityTypes } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import type { KnowledgeBase } from './knowledge-base';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class Matcher {
   private subscriptions: Subscription[] = [];
@@ -42,7 +41,9 @@ export class Matcher {
     const errorHandler = (err: unknown) => this.logger.error('Matcher pipeline error', { error: err });
 
     const search$ = this.eventBus.get('match:search-requested').pipe(
-      concatMap((event) => from(this.handleSearch(event))),
+      concatMap((event) =>
+        from(withActorSpan('matcher', 'match:search-requested', () => this.handleSearch(event))),
+      ),
     );
 
     this.subscriptions.push(
@@ -80,7 +81,7 @@ export class Matcher {
     } catch (error) {
       this.logger.error('Bind search failed', {
         referenceId: event.referenceId,
-        error,
+        error: errField(error),
       });
       this.eventBus.get('match:search-failed').next({
         correlationId: event.correlationId,
@@ -353,10 +354,9 @@ ${contextParts.length > 0 ? contextParts.join('\n') : ''}
 Candidates:
 ${candidateLines}
 
-For each candidate, output ONLY a line with the number and score, like:
+For each candidate, output a line with the number and score, like:
 1. 0.8
-2. 0.3
-No explanations.`;
+2. 0.3`;
 
     const response = await this.inferenceClient.generateText(prompt, 200, 0.1);
 

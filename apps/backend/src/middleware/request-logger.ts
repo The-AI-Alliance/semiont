@@ -32,7 +32,7 @@ export const requestLoggerMiddleware = async (c: Context, next: Next) => {
   const userAgent = c.req.header('User-Agent') || 'unknown';
 
   // Log incoming request
-  logger.http('Incoming request', {
+  logger.info('Incoming request', {
     type: 'request_incoming',
     method,
     path,
@@ -47,7 +47,7 @@ export const requestLoggerMiddleware = async (c: Context, next: Next) => {
   const duration = Date.now() - startTime;
   const status = c.res.status;
 
-  logger.http('Outgoing response', {
+  logger.info('Outgoing response', {
     type: 'request_outgoing',
     method,
     path,

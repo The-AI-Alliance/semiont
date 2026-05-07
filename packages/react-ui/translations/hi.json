@@ -28,7 +28,8 @@
     "creationMethod": "निर्माण विधि",
     "attributedTo": "श्रेय दिया गया",
     "derivedFrom": "से व्युत्पन्न",
-    "generatedBy": "द्वारा उत्पन्न"
+    "generatedBy": "द्वारा उत्पन्न",
+    "storageUri": "भंडारण"
   },
   "CollaborationPanel": {
     "title": "सहयोग",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "टैग",
     "noTags": "अभी तक कोई टैग नहीं। संरचनात्मक भूमिकाओं की पहचान के लिए AI एनोटेशन का उपयोग करें।",
+    "noSchemas": "इस ज्ञान आधार के लिए कोई टैग स्कीमा पंजीकृत नहीं है। टैगिंग का उपयोग करने से पहले KB व्यवस्थापक को कम से कम एक संरचनात्मक-विश्लेषण स्कीमा पंजीकृत करना होगा (जैसे `register-tag-schemas` कौशल के माध्यम से)।",
     "annotateTags": "टैग एनोटेट करें",
     "selectSchema": "फ्रेमवर्क चुनें",
-    "schemaLegal": "कानूनी विश्लेषण (IRAC)",
-    "schemaScientific": "वैज्ञानिक पत्र (IMRAD)",
-    "schemaArgument": "तर्क संरचना (Toulmin)",
     "selectCategories": "श्रेणियां चुनें",
-    "categoryIssue": "मुद्दा",
-    "categoryRule": "नियम",
-    "categoryApplication": "अनुप्रयोग",
-    "categoryConclusion": "निष्कर्ष",
-    "categoryIntroduction": "परिचय",
-    "categoryMethods": "विधियां",
-    "categoryResults": "परिणाम",
-    "categoryDiscussion": "चर्चा",
-    "categoryClaim": "दावा",
-    "categoryEvidence": "साक्ष्य",
-    "categoryWarrant": "औचित्य",
-    "categoryCounterargument": "प्रतितर्क",
-    "categoryRebuttal": "खंडन",
     "annotate": "एनोटेट करें",
     "annotating": "एनोटेट हो रहा है...",
     "cancel": "रद्द करें",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "अर्थगत प्रासंगिकता के अनुसार परिणामों को स्कोर करने के लिए AI का उपयोग करें",
     "searching": "खोज रहे हैं...",
     "search": "खोजें"
+  },
+  "History": {
+    "embeddingComputed": "एम्बेडिंग गणना की गई"
   }
 }

@@ -13,12 +13,13 @@ import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, annotationId, EventBus, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
 import { getGraphDatabase } from '@semiont/graph';
+import { deriveStorageUri } from '@semiont/content';
 import type { GraphServiceConfig } from '@semiont/core';
 import { createTestProject } from './helpers/test-project';
 
@@ -26,7 +27,12 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 
 /**
  * Create an annotation and await Stower persistence.
- * Subscribes to mark:created BEFORE emitting, then filters by annotation ID.
+ *
+ * These tests bypass the `mark:create-request` → annotation-assembly
+ * pipeline and emit `mark:create` directly, so `mark:create-ok` (emitted
+ * only by annotation-assembly on observing `mark:added`) is never fired.
+ * The right completion signal for the direct-emit path is the persisted
+ * `mark:added` domain event published by Stower after appendEvent.
  */
 async function createAnnotationAndAwait(
   request: CreateAnnotationRequest,
@@ -35,10 +41,9 @@ async function createAnnotationAndAwait(
 ) {
   const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus);
-  // Wait for THIS annotation's mark:created (filter by ID to avoid picking up a stale event)
-  const expectedId = annotationId(result.annotation.id);
-  await firstValueFrom(eventBus.get('mark:created').pipe(
-    filter(e => e.annotationId === expectedId),
+  const expectedId = result.annotation.id;
+  await firstValueFrom(eventBus.get('mark:added').pipe(
+    filter((e) => e.payload?.annotation?.id === expectedId),
     take(1),
   ));
   return result;
@@ -53,6 +58,8 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
+let fileCounter = 0;
+
 describe('AnnotationOperations', () => {
   let teardown: () => Promise<void>;
   let testEventStore: EventStore;
@@ -60,6 +67,19 @@ describe('AnnotationOperations', () => {
   let stower: Stower;
   let kb: KnowledgeBase;
   let testResourceId: string;
+
+  async function create(
+    opts: { name: string; content: Buffer; format: string; language?: string; entityTypes?: string[]; creationMethod?: any },
+    uid: ReturnType<typeof userId>,
+  ) {
+    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
+    const stored = await kb.content.store(opts.content, uri);
+    return ResourceOperations.createResource(
+      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format as any, language: opts.language, entityTypes: opts.entityTypes, creationMethod: opts.creationMethod },
+      uid,
+      eventBus,
+    );
+  }
 
   beforeAll(async () => {
     const { project, teardown: td } = await createTestProject('annotation-ops');
@@ -77,15 +97,13 @@ describe('AnnotationOperations', () => {
     await stower.initialize();
 
     // Create a test resource for annotations
-    const content = Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8');
-    const resId = await ResourceOperations.createResource(
+    const resId = await create(
       {
         name: 'Annotation Test Resource',
-        content,
+        content: Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8'),
         format: 'text/plain',
       },
       userId('user-1'),
-      eventBus,
     );
 
     testResourceId = resId;
@@ -310,16 +328,16 @@ describe('AnnotationOperations', () => {
 
       // Check event was emitted
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const addedEvents = events.filter(e => e.event.type === 'annotation.added');
+      const addedEvents = events.filter(e => e.type === 'mark:added');
       expect(addedEvents.length).toBeGreaterThan(0);
 
       // Find the event for this specific annotation
       const thisAnnotationEvent = addedEvents.find(
-        e => e.event.type === 'annotation.added' && e.event.payload.annotation.id === result.annotation.id
+        e => e.type === 'mark:added' && e.payload.annotation.id === result.annotation.id
       );
       expect(thisAnnotationEvent).toBeDefined();
-      expect(thisAnnotationEvent!.event).toMatchObject({
-        type: 'annotation.added',
+      expect(thisAnnotationEvent).toMatchObject({
+        type: 'mark:added',
         resourceId: resourceId(testResourceId),
         userId: userId('user-1'),
       });
@@ -725,7 +743,7 @@ describe('AnnotationOperations', () => {
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const updatedEvents = events.filter(e => e.event.type === 'annotation.body.updated');
+      const updatedEvents = events.filter(e => e.type === 'mark:body-updated');
       expect(updatedEvents.length).toBeGreaterThan(0);
     });
 
@@ -783,7 +801,7 @@ describe('AnnotationOperations', () => {
       const annotationIdStr = createResult.annotation.id;
 
       // Delete and await Stower persistence
-      const deleted$ = firstValueFrom(eventBus.get('mark:deleted').pipe(take(1)));
+      const deleted$ = firstValueFrom(eventBus.get('mark:delete-ok').pipe(take(1)));
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
         testResourceId,
@@ -795,7 +813,7 @@ describe('AnnotationOperations', () => {
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
-      const removedEvents = events.filter(e => e.event.type === 'annotation.removed');
+      const removedEvents = events.filter(e => e.type === 'mark:removed');
       expect(removedEvents.length).toBeGreaterThan(0);
     });
 

@@ -28,7 +28,8 @@
     "creationMethod": "Спосіб створення",
     "attributedTo": "Авторство",
     "derivedFrom": "Походить від",
-    "generatedBy": "Створено за допомогою"
+    "generatedBy": "Створено за допомогою",
+    "storageUri": "Сховище"
   },
   "CollaborationPanel": {
     "title": "Співпраця",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Теги",
     "noTags": "Тегів ще немає. Використовуйте ШІ-анотацію для визначення структурних ролей.",
+    "noSchemas": "Для цієї бази знань не зареєстровано жодних схем тегів. Адміністратор KB має зареєструвати принаймні одну схему структурного аналізу (наприклад, через навичку `register-tag-schemas`), перш ніж можна буде використовувати тегування.",
     "annotateTags": "Анотувати теги",
     "selectSchema": "Обрати фреймворк",
-    "schemaLegal": "Правовий аналіз (IRAC)",
-    "schemaScientific": "Наукова стаття (IMRAD)",
-    "schemaArgument": "Структура аргументації (Toulmin)",
     "selectCategories": "Обрати категорії",
-    "categoryIssue": "Питання",
-    "categoryRule": "Правило",
-    "categoryApplication": "Застосування",
-    "categoryConclusion": "Висновок",
-    "categoryIntroduction": "Вступ",
-    "categoryMethods": "Методи",
-    "categoryResults": "Результати",
-    "categoryDiscussion": "Обговорення",
-    "categoryClaim": "Твердження",
-    "categoryEvidence": "Докази",
-    "categoryWarrant": "Обґрунтування",
-    "categoryCounterargument": "Контраргумент",
-    "categoryRebuttal": "Спростування",
     "annotate": "Анотувати",
     "annotating": "Анотування...",
     "cancel": "Скасувати",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Використовувати ШІ для оцінки результатів за семантичною релевантністю",
     "searching": "Пошук...",
     "search": "Пошук"
+  },
+  "History": {
+    "embeddingComputed": "Ембединг обчислено"
   }
 }

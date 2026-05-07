@@ -114,7 +114,7 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
 
   const eventBus = new EventBus();
   const eventStore = createEventStore(project, eventBus, logger);
-  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), logger);
+  const kb = await createKnowledgeBase(eventStore, project, createNoopGraphDatabase(), eventBus, logger);
   const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
@@ -122,11 +122,11 @@ export async function runMv(options: MvOptions): Promise<CommandResults> {
     // Emit yield:mv — Stower resolves resourceId via storage-uri-index, moves file, appends resource.moved
     const movedPromise = new Promise<void>((resolve, reject) => {
       const sub = eventBus.get('yield:moved').subscribe(() => { sub.unsubscribe(); resolve(); });
-      eventBus.get('yield:move-failed').subscribe((e) => { reject(new Error(e.error?.message ?? 'Move failed')); });
+      eventBus.get('yield:move-failed').subscribe((e) => { reject(new Error(e.message ?? 'Move failed')); });
     });
 
     const userId = `did:web:localhost:users:${process.env.USER ?? 'cli'}` as UserId;
-    eventBus.get('yield:mv').next({ fromUri, toUri, userId, noGit: options.noGit });
+    eventBus.get('yield:mv').next({ fromUri, toUri, _userId: userId, noGit: options.noGit });
     await movedPromise;
 
     if (!options.quiet) {

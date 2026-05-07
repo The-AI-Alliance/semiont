@@ -196,7 +196,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
   ): Promise<CommandResult> {
     // 1. Get platform strategy
     const { PlatformFactory } = await import('../platforms/index.js');
-    const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+    const platform = await PlatformFactory.getPlatform(serviceInfo.platform);
 
     // 2. Create config object (environment and projectRoot from envConfig._metadata)
     const environment = envConfig._metadata?.environment;
@@ -335,7 +335,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
 
     for (const serviceInfo of serviceDeployments) {
       try {
-        const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+        const platform = await PlatformFactory.getPlatform(serviceInfo.platform);
         const config: Config = {
           projectRoot,
           environment: parseEnvironment(environment, availableEnvironments),
@@ -468,7 +468,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
 
     for (const serviceInfo of serviceDeployments) {
       try {
-        const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+        const platform = await PlatformFactory.getPlatform(serviceInfo.platform);
         const config: Config = {
           projectRoot,
           environment: parseEnvironment(environment, availableEnvironments),

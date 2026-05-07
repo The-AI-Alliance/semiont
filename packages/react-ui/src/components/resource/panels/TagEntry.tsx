@@ -1,14 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import type { Ref } from 'react';
-import type { components } from '@semiont/core';
-import { getAnnotationExactText } from '@semiont/api-client';
+import type { Annotation } from '@semiont/core';
+import { getAnnotationExactText } from '@semiont/core';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
-import { getTagSchema } from '../../../lib/tag-schemas';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
-
-type Annotation = components['schemas']['Annotation'];
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 interface TagEntryProps {
   tag: Annotation;
@@ -23,19 +22,30 @@ export function TagEntry({
   isHovered = false,
   ref,
 }: TagEntryProps) {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const hoverProps = useHoverEmitter(tag.id);
 
   const selectedText = getAnnotationExactText(tag);
   const category = getTagCategory(tag);
   const schemaId = getTagSchemaId(tag);
-  const schema = schemaId ? getTagSchema(schemaId) : null;
+
+  // Resolve the schema's display name from the per-KB tag-schema registry.
+  // The registry is runtime-populated (frame.addTagSchema); during the
+  // initial fetch the observable yields `undefined`, which we treat as
+  // "no schema name available yet" — render the category badge alone
+  // until the registry resolves.
+  const tagSchemas$ = useMemo(
+    () => session?.client.browse.tagSchemas() ?? null,
+    [session],
+  );
+  const schemas = useObservable(tagSchemas$);
+  const schema = schemaId && schemas ? schemas.find((s) => s.id === schemaId) ?? null : null;
 
   return (
     <div
       ref={ref}
       onClick={() => {
-        eventBus.get('browse:click').next({ annotationId: tag.id, motivation: tag.motivation });
+        session?.client.browse.click(tag.id, tag.motivation);
       }}
       {...hoverProps}
       className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}

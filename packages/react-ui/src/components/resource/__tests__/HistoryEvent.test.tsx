@@ -28,6 +28,7 @@ vi.mock('../event-formatting', () => ({
   formatEventType: vi.fn((_type: string, t: (key: string) => string) => t('resourceCreated')),
   getEventEmoji: vi.fn(() => '\u{1F4C4}'),
   formatRelativeTime: vi.fn(() => '2 minutes ago'),
+  formatUserId: vi.fn((id: string) => id),
   getEventDisplayContent: vi.fn(() => mockDisplayContent),
   getEventEntityTypes: vi.fn(() => mockEntityTypes),
   getResourceCreationDetails: vi.fn(() => mockCreationDetails),
@@ -49,23 +50,21 @@ const mockGetEventEntityTypes = getEventEntityTypes as ReturnType<typeof vi.fn>;
 const mockGetResourceCreationDetails = getResourceCreationDetails as ReturnType<typeof vi.fn>;
 const mockFormatEventType = formatEventType as ReturnType<typeof vi.fn>;
 
-function makeStoredEvent(overrides: Partial<StoredEvent['event']> = {}): StoredEvent {
+function makeStoredEvent(overrides: Record<string, any> = {}): any {
   return {
-    event: {
-      id: 'evt-1',
-      type: 'resource.created',
-      timestamp: '2026-03-06T12:00:00Z',
-      resourceId: 'res-1',
-      userId: 'user-1',
-      version: 1,
-      payload: { name: 'Test', format: 'text/plain', contentChecksum: 'abc', creationMethod: 'upload' },
-      ...overrides,
-    },
+    id: 'evt-1',
+    type: 'yield:created',
+    timestamp: '2026-03-06T12:00:00Z',
+    resourceId: 'res-1',
+    userId: 'user-1',
+    version: 1,
+    payload: { name: 'Test', format: 'text/plain', contentChecksum: 'abc', creationMethod: 'upload' },
+    ...overrides,
     metadata: {
       sequenceNumber: 1,
-      storedAt: '2026-03-06T12:00:00Z',
+      streamPosition: 0,
     },
-  } as StoredEvent;
+  };
 }
 
 const mockT = (key: string) => key;
@@ -139,7 +138,7 @@ describe('HistoryEvent', () => {
 
   it('renders as button when annotationUri exists', () => {
     mockGetAnnotationUri.mockReturnValue('http://localhost/annotations/ann-1');
-    const event = makeStoredEvent({ type: 'annotation.added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' } as any);
     const { container } = renderWithProviders(
       <HistoryEvent
         event={event}
@@ -160,7 +159,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationUri.mockReturnValue(annotationUri);
     const onEventClick = vi.fn();
-    const event = makeStoredEvent({ type: 'annotation.added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' } as any);
 
     renderWithProviders(
       <HistoryEvent
@@ -364,7 +363,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationUri.mockReturnValue(annotationUri);
     const onEventRef = vi.fn();
-    const event = makeStoredEvent({ type: 'annotation.added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' } as any);
 
     renderWithProviders(
       <HistoryEvent
@@ -387,7 +386,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationUri.mockReturnValue(annotationUri);
     const onEventHover = vi.fn();
-    const event = makeStoredEvent({ type: 'annotation.added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' } as any);
 
     const { container } = renderWithProviders(
       <HistoryEvent
@@ -420,7 +419,7 @@ describe('HistoryEvent', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
     mockGetAnnotationUri.mockReturnValue(annotationUri);
     const onEventHover = vi.fn();
-    const event = makeStoredEvent({ type: 'annotation.added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' } as any);
 
     const { container } = renderWithProviders(
       <HistoryEvent
@@ -454,7 +453,7 @@ describe('HistoryEvent', () => {
 
   it('sets data-interactive on button wrapper', () => {
     mockGetAnnotationUri.mockReturnValue('http://localhost/annotations/ann-1');
-    const event = makeStoredEvent({ type: 'annotation.added' } as any);
+    const event = makeStoredEvent({ type: 'mark:added' } as any);
     const { container } = renderWithProviders(
       <HistoryEvent
         event={event}

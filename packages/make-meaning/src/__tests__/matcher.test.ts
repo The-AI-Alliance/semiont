@@ -108,6 +108,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-1',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'test query' } },
@@ -136,6 +137,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-2',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'failing query' } },
@@ -152,6 +154,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-3',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'nonexistent' } },
@@ -204,6 +207,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-ctx',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'Alpha' } },
@@ -222,6 +226,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-name',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
@@ -251,6 +256,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-et',
         context: makeContext({
@@ -280,6 +286,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-bidir',
         context: makeContext({
@@ -311,6 +318,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-neighbor',
         context: makeContext({
@@ -338,6 +346,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-multi',
         context: makeContext({
@@ -363,6 +372,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-sort',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
@@ -403,6 +413,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-inference',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
@@ -448,6 +459,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-inference-fail',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
@@ -469,6 +481,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-inference',
         context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
@@ -487,6 +500,7 @@ describe('Matcher', () => {
       const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-fail',
         context: makeContext({ sourceContext: { before: '', selected: 'anything', after: '' } }),
@@ -532,6 +546,7 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-range',
           context: makeContext(),
@@ -557,6 +572,7 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-malformed',
           context: makeContext(),
@@ -578,6 +594,7 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-empty',
           context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
@@ -597,6 +614,7 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-oob',
           context: makeContext(),
@@ -616,6 +634,7 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-threshold',
           context: makeContext(),
@@ -641,6 +660,7 @@ describe('Matcher', () => {
 
         const summary = 'This passage discusses Greek mythology figures.';
         eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-summary',
           context: makeContext({
@@ -667,6 +687,7 @@ describe('Matcher', () => {
         const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-passage',
           context: makeContext({
@@ -694,6 +715,7 @@ describe('Matcher', () => {
       await matcher.stop();
 
       eventBus.get('match:search-requested').next({
+        resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-4',
         context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'after stop' } },

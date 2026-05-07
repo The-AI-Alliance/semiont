@@ -1,0 +1,266 @@
+import { merge } from 'rxjs';
+import { filter, takeUntil } from 'rxjs/operators';
+import type {
+  ResourceId,
+  AnnotationId,
+  EventBus,
+  components,
+} from '@semiont/core';
+import { resourceId as toResourceId } from '@semiont/core';
+
+import type { ITransport, IContentTransport } from '@semiont/core';
+import { busRequest } from '../bus-request';
+import { StreamObservable, UploadObservable } from '../awaitable';
+import type {
+  YieldNamespace as IYieldNamespace,
+  CreateResourceInput,
+  GenerationOptions,
+  CreateFromTokenOptions,
+  YieldGenerationEvent,
+} from './types';
+
+import type { ResourceDescriptor } from '@semiont/core';
+type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
+
+export class YieldNamespace implements IYieldNamespace {
+  constructor(
+    private readonly transport: ITransport,
+    private readonly bus: EventBus,
+    private readonly content: IContentTransport,
+  ) {}
+
+  resource(data: CreateResourceInput): UploadObservable {
+    // `Buffer` is a Node global; referencing it bare in the browser throws
+    // ReferenceError. Guard with a typeof check so this code runs in both
+    // environments (browser uploads File, Node workers upload Buffer).
+    const totalBytes = (typeof Buffer !== 'undefined' && data.file instanceof Buffer)
+      ? data.file.length
+      : (data.file as File).size;
+    return new UploadObservable((subscriber) => {
+      // `started` fires synchronously so subscribers can render an upload-
+      // in-progress indicator before any I/O begins.
+      subscriber.next({ phase: 'started', totalBytes });
+      let cancelled = false;
+      const abortController = new AbortController();
+      this.content.putBinary(
+        {
+          name: data.name,
+          file: data.file,
+          format: data.format,
+          storageUri: data.storageUri,
+          ...(data.entityTypes ? { entityTypes: data.entityTypes } : {}),
+          ...(data.language ? { language: data.language } : {}),
+          ...(data.creationMethod ? { creationMethod: data.creationMethod } : {}),
+          ...(data.sourceAnnotationId ? { sourceAnnotationId: data.sourceAnnotationId } : {}),
+          ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
+          ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
+          ...(data.generator ? { generator: data.generator } : {}),
+          ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
+        },
+        {
+          // Byte-progress hook. Honored by `HttpContentTransport`'s XHR
+          // path; ignored by ky-path uploads (no `onProgress` consumer)
+          // and by `LocalContentTransport` (no wire to observe).
+          onProgress: ({ bytesUploaded, totalBytes: txTotal }) => {
+            if (cancelled) return;
+            // Prefer the transport's reported total; fall back to the
+            // pre-flight size if the transport reports 0 (chunked encoding
+            // or indeterminate length).
+            const total = txTotal > 0 ? txTotal : totalBytes;
+            subscriber.next({ phase: 'progress', bytesUploaded, totalBytes: total });
+          },
+          signal: abortController.signal,
+        },
+      )
+        .then((result) => {
+          if (cancelled) return;
+          subscriber.next({
+            phase: 'finished',
+            resourceId: toResourceId(result.resourceId as string),
+          });
+          subscriber.complete();
+        })
+        .catch((err) => {
+          if (!cancelled) subscriber.error(err);
+        });
+      return () => {
+        cancelled = true;
+        // Abort the in-flight HTTP request when the subscriber unsubscribes.
+        // Honored by `HttpContentTransport`'s XHR path (calls `xhr.abort()`);
+        // ky-path uploads complete in the background after abort and the
+        // `cancelled` flag suppresses the `then`/`catch` callbacks.
+        abortController.abort();
+      };
+    });
+  }
+
+  fromAnnotation(
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
+    options: GenerationOptions,
+  ): StreamObservable<YieldGenerationEvent> {
+    return new StreamObservable<YieldGenerationEvent>((subscriber) => {
+      let done = false;
+      let pollTimer: ReturnType<typeof setTimeout> | null = null;
+      let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+      // `job:complete` and `job:report-progress` are resource-scoped on
+      // the SSE wire — subscribe for the lifetime of the Observable so
+      // headless callers receive them without first calling
+      // `subscribeToResource`. UI code is unaffected: the page's
+      // resource-tab subscriptions already cover this. Symmetric with
+      // `mark.assist` — both StreamObservable callers need the scope.
+      let unsubscribeResource: (() => void) | null = this.transport.subscribeToResource(resourceId);
+
+      const cleanup = () => {
+        done = true;
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        if (unsubscribeResource) { unsubscribeResource(); unsubscribeResource = null; }
+      };
+
+      const resetPollTimer = (jid: string) => {
+        if (pollTimer) clearTimeout(pollTimer);
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        pollTimer = setTimeout(() => {
+          if (done) return;
+          pollInterval = setInterval(() => {
+            if (done) return;
+            busRequest<{ status: string; result?: Record<string, unknown>; error?: string; jobType?: string }>(
+              this.transport, 'job:status-requested', { jobId: jid }, 'job:status-result', 'job:status-failed',
+            ).then((status) => {
+                if (done) return;
+                if (status.status === 'complete') {
+                  cleanup();
+                  // Synthesize a `complete` event from polled status.
+                  subscriber.next({
+                    kind: 'complete',
+                    data: {
+                      jobId: jid,
+                      jobType: (status.jobType ?? 'generation') as components['schemas']['JobType'],
+                      resourceId: resourceId as string,
+                      result: status.result as components['schemas']['JobResult'] | undefined,
+                    },
+                  });
+                  subscriber.complete();
+                } else if (status.status === 'failed') {
+                  cleanup();
+                  subscriber.error(new Error(status.error ?? 'Generation failed'));
+                }
+              })
+              .catch(() => {});
+          }, 5_000);
+        }, 10_000);
+      };
+
+      // Subscribe to the unified job lifecycle filtered by this job's
+      // jobId (assigned by `job:create` below). Auto-bind (resolving the
+      // source reference to the generated resource) is handled in
+      // Stower's `yield:create` handler when `generatedFrom.annotationId`
+      // is present — not here, because the generated resource id is
+      // assigned by Stower, not by the worker.
+      let activeJobId: string | null = null;
+      const progress$ = this.bus.get('job:report-progress').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
+      const complete$ = this.bus.get('job:complete').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
+      const fail$ = this.bus.get('job:fail').pipe(
+        filter((e) => e.jobId === activeJobId),
+      );
+
+      const progressSub = progress$
+        .pipe(takeUntil(merge(complete$, fail$)))
+        .subscribe((e) => {
+          if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
+          if (activeJobId) resetPollTimer(activeJobId);
+        });
+
+      const completeSub = complete$.subscribe((e) => {
+        cleanup();
+        subscriber.next({ kind: 'complete', data: e });
+        subscriber.complete();
+      });
+
+      const failSub = fail$.subscribe((e) => {
+        cleanup();
+        subscriber.error(new Error(e.error));
+      });
+
+      busRequest<{ jobId: string }>(
+        this.transport,
+        'job:create',
+        {
+          jobType: 'generation',
+          resourceId,
+          params: {
+            referenceId: annotationId,
+            title: options.title,
+            prompt: options.prompt,
+            entityTypes: options.entityTypes,
+            language: options.language,
+            sourceLanguage: options.sourceLanguage,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            storageUri: options.storageUri,
+            context: options.context as unknown as Record<string, unknown>,
+          },
+        },
+        'job:created',
+        'job:create-failed',
+      ).then(({ jobId }) => {
+        if (jobId && !done) {
+          activeJobId = jobId;
+          resetPollTimer(jobId);
+        }
+      }).catch((error) => {
+        cleanup();
+        subscriber.error(error);
+      });
+
+      return () => {
+        cleanup();
+        progressSub.unsubscribe();
+        completeSub.unsubscribe();
+        failSub.unsubscribe();
+      };
+    });
+  }
+
+  async cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }> {
+    return busRequest<{ token: string; expiresAt: string }>(
+      this.transport,
+      'yield:clone-token-requested',
+      { resourceId },
+      'yield:clone-token-generated',
+      'yield:clone-token-failed',
+    );
+  }
+
+  async fromToken(token: string): Promise<ResourceDescriptor> {
+    const result = await busRequest<GetResourceByTokenResponse>(
+      this.transport,
+      'yield:clone-resource-requested',
+      { token },
+      'yield:clone-resource-result',
+      'yield:clone-resource-failed',
+    );
+    return result.sourceResource as ResourceDescriptor;
+  }
+
+  async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }> {
+    const result = await busRequest<{ resourceId: string }>(
+      this.transport,
+      'yield:clone-create',
+      options,
+      'yield:clone-created',
+      'yield:clone-create-failed',
+    );
+    return { resourceId: toResourceId(result.resourceId) };
+  }
+
+  clone(): void {
+    this.bus.get('yield:clone').next(undefined);
+  }
+}

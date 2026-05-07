@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Emitted when navigation to an external URL is requested",
+  "properties": {
+    "url": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": ["url"]
+}

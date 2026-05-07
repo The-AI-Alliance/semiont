@@ -1,41 +1,29 @@
 {
   "get": {
-    "summary": "Get Resource by URI (W3C Content Negotiation)",
-    "description": "W3C-compliant globally resolvable resource URI with content negotiation. Returns JSON-LD metadata (Accept: application/ld+json), raw representation (Accept: text/plain, text/markdown, etc.), or redirects to frontend (?view=semiont). Requires authentication.",
-    "tags": [
-      "W3C URIs"
-    ],
+    "summary": "Get a resource (content-negotiated)",
+    "description": "Content negotiation via the Accept header:\n- application/ld+json (default) — returns JSON-LD metadata including all annotations + inbound entity references\n- text/* or image/* or application/pdf — returns the raw representation bytes\n\nBinary payloads flow directly from the content store; metadata payloads go through the bus gateway.",
+    "tags": ["Resources"],
     "security": [
-      {
-        "bearerAuth": []
-      }
+      { "bearerAuth": [] }
     ],
     "parameters": [
       {
         "name": "id",
         "in": "path",
         "required": true,
-        "schema": {
-          "type": "string"
-        },
-        "description": "Resource ID"
+        "schema": { "type": "string" }
       },
       {
-        "name": "view",
-        "in": "query",
+        "name": "Accept",
+        "in": "header",
         "required": false,
-        "schema": {
-          "type": "string",
-          "enum": [
-            "semiont"
-          ]
-        },
-        "description": "Optional view parameter. If set to 'semiont', redirects to frontend viewer."
+        "schema": { "type": "string" },
+        "description": "application/ld+json for metadata, or a text/image/pdf media type for raw content"
       }
     ],
     "responses": {
       "200": {
-        "description": "Resource metadata (JSON-LD) or raw representation",
+        "description": "Resource content or metadata, depending on Accept",
         "content": {
           "application/ld+json": {
             "schema": {
@@ -43,62 +31,51 @@
             }
           },
           "text/plain": {
-            "schema": {
-              "type": "string"
-            }
+            "schema": { "type": "string" }
           },
           "text/markdown": {
+            "schema": { "type": "string" }
+          },
+          "text/html": {
+            "schema": { "type": "string" }
+          },
+          "image/*": {
+            "schema": { "type": "string", "format": "binary" }
+          },
+          "application/pdf": {
+            "schema": { "type": "string", "format": "binary" }
+          }
+        }
+      },
+      "404": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
             "schema": {
-              "type": "string"
+              "$ref": "../components/schemas/ErrorResponse.json"
             }
           }
         }
       },
-      "302": {
-        "description": "Redirect to frontend viewer (when ?view=semiont)"
-      },
-      "404": {
-        "description": "Resource not found"
-      }
-    }
-  },
-  "patch": {
-    "summary": "Update Resource",
-    "description": "Update resource metadata (append-only operations - name and content are immutable)",
-    "tags": [
-      "W3C URIs"
-    ],
-    "security": [
-      {
-        "bearerAuth": []
-      }
-    ],
-    "parameters": [
-      {
-        "name": "id",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        },
-        "description": "Resource ID"
-      }
-    ],
-    "requestBody": {
-      "content": {
-        "application/json": {
-          "schema": {
-            "$ref": "../components/schemas/UpdateResourceRequest.json"
+      "500": {
+        "description": "Failed to retrieve resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
           }
         }
-      }
-    },
-    "responses": {
-      "202": {
-        "description": "Update accepted"
       },
-      "404": {
-        "description": "Resource not found"
+      "504": {
+        "description": "Request timed out (bus gateway)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
       }
     }
   }

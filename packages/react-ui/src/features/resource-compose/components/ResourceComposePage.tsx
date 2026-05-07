@@ -7,34 +7,20 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { components, GatheredContext } from '@semiont/core';
-import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
+import type { GatheredContext } from '@semiont/core';
+import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/core';
+import type { UploadProgress } from '@semiont/sdk';
+import { type CloneData, type ReferenceData } from '../state/compose-page-state-unit';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import { UploadProgressBar } from './UploadProgressBar';
 
 export interface ResourceComposePageProps {
-  // Mode detection
   mode: 'new' | 'clone' | 'reference';
-
-  // Clone mode data
-  cloneData?: {
-    sourceResource: ResourceDescriptor;
-    sourceContent: string;
-  };
-
-  // Reference completion data
-  referenceData?: {
-    annotationUri: string;
-    sourceDocumentId: string;
-    name: string;
-    entityTypes: string[];
-  };
-
-  // Gathered context from wizard (optional, for reference mode)
+  cloneData?: CloneData | null;
+  referenceData?: ReferenceData | null;
   gatheredContext?: GatheredContext | null;
 
   // Available options
@@ -52,6 +38,14 @@ export interface ResourceComposePageProps {
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
   onCancel: () => void;
+
+  /**
+   * Live upload-progress for the in-flight save. Resolved by the route
+   * shell from `composeVM.uploadProgress$`. `null` between saves and
+   * after completion. When non-null, the form disables Save and the
+   * inline `<UploadProgressBar />` below the action buttons renders.
+   */
+  uploadProgress?: UploadProgress | null;
 
   // Translations
   translations: {
@@ -121,6 +115,7 @@ export function ResourceComposePage({
   activePanel,
   onSaveResource,
   onCancel,
+  uploadProgress = null,
   translations: t,
   ToolbarPanels,
   Toolbar,
@@ -339,7 +334,9 @@ export function ResourceComposePage({
 
         {/* Create Form */}
         <div className="semiont-form">
-        <form onSubmit={handleSaveResource} className="semiont-form__fields">
+        <form onSubmit={handleSaveResource} className="semiont-form__fields semiont-compose-grid">
+          {/* Left column: metadata */}
+          <div className="semiont-compose-grid__meta">
           {/* Name */}
           <div className="semiont-form__field">
             <label htmlFor="docName" className="semiont-form__label">
@@ -467,6 +464,11 @@ export function ResourceComposePage({
               ))}
             </select>
           </div>
+
+          </div>{/* end semiont-compose-grid__meta */}
+
+          {/* Right column: content */}
+          <div className="semiont-compose-grid__content">
 
           {/* Content Source Toggle - only show for new resources */}
           {!isClone && !isReferenceCompletion && (
@@ -657,19 +659,21 @@ export function ResourceComposePage({
             </div>
           )}
 
+          </div>{/* end semiont-compose-grid__content */}
+
           {/* Action Buttons */}
           <div className="semiont-form__actions">
             <button
               type="button"
               onClick={onCancel}
-              disabled={isCreating}
+              disabled={isCreating || uploadProgress !== null}
               className={buttonStyles.tertiary.base}
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              disabled={isCreating || !newResourceName.trim()}
+              disabled={isCreating || uploadProgress !== null || !newResourceName.trim()}
               className={buttonStyles.primary.base}
             >
               {isCreating
@@ -677,6 +681,10 @@ export function ResourceComposePage({
                 : (isClone ? t.saveClonedResource : isReferenceCompletion ? t.createAndLinkResource : t.createResource)}
             </button>
           </div>
+
+          {/* Inline upload progress — renders below the action buttons while
+              an upload is in flight. `null` between saves and after completion. */}
+          <UploadProgressBar progress={uploadProgress} />
         </form>
       </div>
       </div>

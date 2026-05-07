@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Completion payload emitted on gather:annotation-finished SSE channel.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "annotationId": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "AnnotationLLMContextResponse.json"
+    }
+  },
+  "required": ["correlationId", "annotationId", "response"]
+}

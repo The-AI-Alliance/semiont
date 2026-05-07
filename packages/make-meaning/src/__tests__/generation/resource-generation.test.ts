@@ -20,7 +20,7 @@ const testAnnotation: GatheredContext['annotation'] = {
   id: 'test-annotation',
   motivation: 'commenting',
   target: { source: 'test-resource' },
-  body: [],
+  body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
 };
 
 const testSourceResource: GatheredContext['sourceResource'] = {
@@ -127,6 +127,38 @@ describe('generateResourceFromTopic', () => {
     // Title comes from topic parameter, not from generated markdown
     expect(result.title).toBe('Machine Learning');
     expect(result.content).toContain('Apprentissage Automatique');
+  });
+
+  it('should include sourceLanguage guidance independently from body locale', async () => {
+    // German user generating German content from a French source resource —
+    // the LLM needs to be told both: write in German, source is French.
+    mockInferenceClient.setResponses(['# Maschinelles Lernen\n\nText.']);
+
+    await generateResourceFromTopic(
+      'Machine Learning',
+      [],
+      mockInferenceClient,
+      undefined,
+      'de',           // body locale
+      undefined,      // context
+      undefined,      // temperature
+      undefined,      // maxTokens
+      undefined,      // logger
+      'fr'            // source locale
+    );
+
+    const capturedPrompt = mockInferenceClient.calls[0].prompt;
+    expect(capturedPrompt).toContain('Write the entire resource in German');
+    expect(capturedPrompt).toContain('source resource and embedded context are in French');
+  });
+
+  it('should omit sourceLanguage guidance when not provided', async () => {
+    mockInferenceClient.setResponses(['# Topic\n\nText.']);
+
+    await generateResourceFromTopic('Topic', [], mockInferenceClient);
+
+    const capturedPrompt = mockInferenceClient.calls[0].prompt;
+    expect(capturedPrompt).not.toContain('source resource and embedded context are in');
   });
 
   it('should include generation context when provided', async () => {

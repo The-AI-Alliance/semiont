@@ -151,7 +151,7 @@ const defaultTranslationManager: TranslationManager = {
       result = processPluralFormat(result, params);
       // Then handle simple parameter interpolation
       Object.entries(params).forEach(([paramKey, paramValue]) => {
-        result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+        result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
       });
       return result;
     }
@@ -235,7 +235,7 @@ export function TranslationProvider({
           result = processPluralFormat(result, params);
           // Then handle simple parameter interpolation
           Object.entries(params).forEach(([paramKey, paramValue]) => {
-            result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+            result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
           });
           return result;
         }
@@ -308,7 +308,7 @@ export function useTranslations(namespace: string) {
         result = processPluralFormat(result, params);
         // Then handle simple parameter interpolation
         Object.entries(params).forEach(([paramKey, paramValue]) => {
-          result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+          result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
         });
         return result;
       }

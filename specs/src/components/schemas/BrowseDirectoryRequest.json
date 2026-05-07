@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "Request to browse a directory listing",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "sort": {
+      "type": "string",
+      "enum": [
+        "name",
+        "mtime",
+        "annotationCount"
+      ]
+    }
+  },
+  "required": [
+    "correlationId",
+    "path"
+  ]
+}

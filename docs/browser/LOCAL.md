@@ -1,0 +1,64 @@
+# Local Browser Setup
+
+Run the Semiont Browser locally. The browser is a static SPA that connects to a running backend. For the broader browser-persona docs (running it as an end user, accessibility, shortcuts, features), see **[README.md](README.md)**.
+
+## Container (no npm required)
+
+Clone a knowledge base repository and run the frontend script:
+
+```bash
+git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
+cd gutenberg-kb
+.semiont/scripts/local_frontend.sh
+```
+
+The script builds and runs the frontend in a container. The backend must be running first (see [Local Backend Setup](../system/LOCAL-BACKEND.md)).
+
+The authoritative Dockerfile and script live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`.
+
+## npm
+
+```bash
+npm install -g @semiont/cli
+semiont init
+semiont provision --service frontend
+semiont start --service frontend
+```
+
+### Prerequisites
+
+- **Node.js 20+** — [nodejs.org](https://nodejs.org/)
+- **Backend running** at http://localhost:4000
+
+### Service management
+
+```bash
+semiont start --service frontend
+semiont stop --service frontend
+semiont check --service frontend
+```
+
+### Logs
+
+```bash
+tail -f ~/.local/state/semiont/frontend/app.log
+```
+
+## Desktop App
+
+The frontend is also available as a native desktop application (macOS, Linux). See [apps/desktop/README.md](../../apps/desktop/README.md) for download links, per-platform install notes, and the macOS Gatekeeper workaround.
+
+## Connecting to a backend
+
+Open **http://localhost:3000** and enter the backend URL (e.g. **http://localhost:4000**) in the connection form.
+
+| Service | Port | URL |
+|---------|------|-----|
+| Frontend | 3000 | http://localhost:3000 |
+
+## Paths
+
+| Path | Contents |
+|------|----------|
+| `~/.local/state/semiont/frontend/` | Frontend log files |
+| `$XDG_RUNTIME_DIR/semiont/frontend/` | Frontend PID file |

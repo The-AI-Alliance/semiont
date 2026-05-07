@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Payload for job:progress domain event",
+  "properties": {
+    "jobId": { "type": "string" },
+    "jobType": { "$ref": "JobType.json" },
+    "percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+    "currentStep": { "type": "string", "description": "Human-readable current step" },
+    "processedSteps": { "type": "integer" },
+    "totalSteps": { "type": "integer" },
+    "foundCount": { "type": "integer", "description": "For detection: entities found so far" },
+    "message": { "type": "string" },
+    "progress": { "type": "object", "additionalProperties": true, "description": "Full progress object for extensibility" }
+  },
+  "required": ["jobId", "jobType", "percentage"]
+}

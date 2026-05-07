@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Result of browsing a single annotation",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "./GetAnnotationResponse.json"
+    }
+  },
+  "required": [
+    "correlationId",
+    "response"
+  ]
+}

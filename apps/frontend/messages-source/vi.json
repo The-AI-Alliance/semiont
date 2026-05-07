@@ -13,7 +13,7 @@
     "administer": "Quản trị"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Mọi quyền được bảo lưu.",
+    "copyright": "© {{year}} The AI Alliance. Mọi quyền được bảo lưu.",
     "about": "Giới thiệu",
     "privacyPolicy": "Chính sách quyền riêng tư",
     "cookiePreferences": "Tùy chọn cookie",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Nhập tên tài nguyên...",
     "entityTypes": "Thẻ loại thực thể",
     "entityTypesHint": "Gắn thẻ loại thực thể cho tài nguyên của bạn",
-    "noEntityTypesAvailable": "Không có loại thực thể nào",
     "contentSource": "Nguồn nội dung",
     "uploadFile": "Tải tệp lên",
     "uploadFileDescription": "Hình ảnh, tài liệu, tệp văn bản",
@@ -591,14 +590,17 @@
     "statusConnected": "Đã kết nối",
     "statusExpired": "Phiên đã hết hạn",
     "statusSignedOut": "Đã đăng xuất",
-    "statusUnreachable": "Không thể truy cập"
+    "statusUnreachable": "Không thể truy cập",
+    "invalidHost": "Tên máy chủ không hợp lệ"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Không có cơ sở kiến thức",
     "noKnowledgeBasesHint": "Thêm cơ sở kiến thức bằng bảng điều khiển bên phải để bắt đầu khám phá, chú thích và liên kết tài nguyên.",
     "sessionExpired": "Phiên của bạn đã hết hạn.",
     "signedOut": "Bạn đã đăng xuất.",
-    "signInHint": "Đăng nhập bằng bảng Cơ sở kiến thức để duyệt tài nguyên."
+    "signInHint": "Đăng nhập bằng bảng Cơ sở kiến thức để duyệt tài nguyên.",
+    "findKnowledgeBases": "Tìm cơ sở tri thức",
+    "createNew": "Tạo mới"
   },
   "AccountPanel": {
     "notAuthenticated": "Đăng nhập vào cơ sở kiến thức để xem tài khoản của bạn."

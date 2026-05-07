@@ -13,7 +13,7 @@
     "administer": "Administrasjon"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Alle rettigheter forbeholdt.",
+    "copyright": "© {{year}} The AI Alliance. Alle rettigheter forbeholdt.",
     "about": "Om oss",
     "privacyPolicy": "Personvernerklæring",
     "cookiePreferences": "Informasjonskapselinnstillinger",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Skriv inn ressursnavn...",
     "entityTypes": "Entitetstypemerker",
     "entityTypesHint": "Merk ressursen din med entitetstyper",
-    "noEntityTypesAvailable": "Ingen entitetstyper tilgjengelig",
     "contentSource": "Innholdskilde",
     "uploadFile": "Last opp fil",
     "uploadFileDescription": "Bilder, dokumenter, tekstfiler",
@@ -591,14 +590,17 @@
     "statusConnected": "Tilkoblet",
     "statusExpired": "Økt utløpt",
     "statusSignedOut": "Logget ut",
-    "statusUnreachable": "Ikke tilgjengelig"
+    "statusUnreachable": "Ikke tilgjengelig",
+    "invalidHost": "Ugyldig vertsnavn"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen kunnskapsbaser",
     "noKnowledgeBasesHint": "Legg til en kunnskapsbase ved hjelp av panelet til høyre for å begynne å oppdage, annotere og koble ressurser.",
     "sessionExpired": "Økten din har utløpt.",
     "signedOut": "Du er logget ut.",
-    "signInHint": "Logg inn via kunnskapsbase-panelet for å bla gjennom ressurser."
+    "signInHint": "Logg inn via kunnskapsbase-panelet for å bla gjennom ressurser.",
+    "findKnowledgeBases": "Finn kunnskapsbaser",
+    "createNew": "Opprett en ny"
   },
   "AccountPanel": {
     "notAuthenticated": "Logg inn på en kunnskapsbase for å se kontoen din."

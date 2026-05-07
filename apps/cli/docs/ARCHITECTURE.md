@@ -31,7 +31,7 @@ Environments represent different deployment contexts (local, staging, production
 - **Service Configuration**: Ports, URLs, inference providers, database settings
 - **Resolution**: `--environment` flag, `SEMIONT_ENV` variable, or `defaults.environment` in `~/.semiontconfig`
 
-See [Configuration Guide](../../../docs/administration/CONFIGURATION.md) for the full schema.
+See [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the full schema.
 
 ### 2. Commands
 **Location:** `src/core/commands/`  
@@ -626,7 +626,7 @@ model = "claude-haiku-4-5-20251001"
 apiKey = "${ANTHROPIC_API_KEY}"
 ```
 
-See [Configuration Guide](../../../docs/administration/CONFIGURATION.md) for the complete schema.
+See [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the complete schema.
 
 ### Configuration Resolution Order
 1. **Environment Selection**: `--environment` flag, `SEMIONT_ENV`, or `defaults.environment`

@@ -1,6 +1,6 @@
 {
   "name": "semiont",
-  "version": "0.4.15",
+  "version": "0.5.4",
   "private": true,
   "description": "Semiont - Semantic Knowledge Platform",
   "workspaces": [
@@ -61,10 +61,17 @@
     "npm": ">=9.0.0"
   },
   "overrides": {
-    "@types/react": "^19"
+    "@types/react": "^19",
+    "@opentelemetry/core": "^2.7.0",
+    "@opentelemetry/resources": "^2.7.0",
+    "@opentelemetry/sdk-metrics": "^2.7.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
+    "@opentelemetry/sdk-trace-web": "^2.7.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0"
   },
   "devDependencies": {
     "@redocly/cli": "^2.21.1",
+    "glob": "^11.0.0",
     "@types/node": "^25.5.0",
     "baseline-browser-mapping": "^2.9.6",
     "stylelint": "^17.0.0",

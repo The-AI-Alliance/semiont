@@ -22,28 +22,29 @@
  * - mark:update-body   → annotation.body.updated              → (no result event yet)
  * - mark:archive       → resource.archived (+ file removal)   (resource-scoped, no result event)
  * - mark:unarchive     → resource.unarchived                  (resource-scoped, no result event)
- * - mark:add-entity-type → entitytype.added                   → mark:entity-type-added / mark:entity-type-add-failed
+ * - frame:add-entity-type → entitytype.added                   → frame:entity-type-added / frame:entity-type-add-failed
+ * - frame:add-tag-schema  → tagschema.added                    → frame:tag-schema-added / frame:tag-schema-add-failed
  * - mark:update-entity-types → entitytag.added / entitytag.removed
  * - job:start          → job.started
- * - job:report-progress → job.progress
  * - job:complete       → job.completed
  * - job:fail           → job.failed
- * - embedding:computed  → embedding.computed   (from Smelter)
- * - embedding:deleted   → embedding.deleted    (from Smelter)
+ *
+ * Note: `job:report-progress` is intentionally NOT persisted. Progress
+ * events are ephemeral UI feedback and would clutter the event log
+ * (historical logs show ~3× as many progress entries as start+complete
+ * combined). UI consumers subscribe to the bus directly for live
+ * progress; the event log keeps only the durable lifecycle boundaries.
  */
 
 import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
-import type { EventMap, Logger } from '@semiont/core';
-import { EventBus, resourceId, userId as makeUserId, annotationId as makeAnnotationId, CREATION_METHODS, generateUuid } from '@semiont/core';
+import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
+import { EventBus, annotationId, errField, resourceId, userId as makeUserId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
-import type { components } from '@semiont/core';
+import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
-import { getExtensionForMimeType } from '@semiont/content';
 import type { KnowledgeBase } from './knowledge-base';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface CreateResourceResult {
   resourceId: ResourceId;
@@ -66,7 +67,11 @@ export class Stower {
     this.logger.info('Stower actor initialized');
 
     const pipe = <K extends keyof EventMap>(event: K, handler: (e: EventMap[K]) => Promise<void>) =>
-      this.eventBus.get(event).pipe(concatMap((e) => from(handler(e))));
+      this.eventBus.get(event).pipe(
+        concatMap((e) =>
+          from(withActorSpan('stower', event as string, () => handler(e))),
+        ),
+      );
 
     this.subscription = merge(
       pipe('yield:create', (e) => this.handleYieldCreate(e)),
@@ -75,16 +80,14 @@ export class Stower {
       pipe('mark:create', (e) => this.handleMarkCreate(e)),
       pipe('mark:delete', (e) => this.handleMarkDelete(e)),
       pipe('mark:update-body', (e) => this.handleMarkUpdateBody(e)),
-      pipe('mark:add-entity-type', (e) => this.handleAddEntityType(e)),
+      pipe('frame:add-entity-type', (e) => this.handleAddEntityType(e)),
+      pipe('frame:add-tag-schema', (e) => this.handleAddTagSchema(e)),
       pipe('mark:archive', (e) => this.handleMarkArchive(e)),
       pipe('mark:unarchive', (e) => this.handleMarkUnarchive(e)),
       pipe('mark:update-entity-types', (e) => this.handleUpdateEntityTypes(e)),
       pipe('job:start', (e) => this.handleJobStart(e)),
-      pipe('job:report-progress', (e) => this.handleJobReportProgress(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
-      pipe('embedding:computed', (e) => this.handleEmbeddingComputed(e)),
-      pipe('embedding:deleted', (e) => this.handleEmbeddingDeleted(e)),
     ).subscribe({
       error: (err: unknown) => this.logger.error('Stower pipeline error', { error: err }),
     });
@@ -95,53 +98,48 @@ export class Stower {
   // ========================================================================
 
   private async handleYieldCreate(event: EventMap['yield:create']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('yield:create missing _userId (gateway injection)');
+    }
+    const uid = makeUserId(event._userId);
     try {
       const rId = resourceId(generateUuid());
 
-      // Two paths: API/GUI/AI provides content bytes; CLI provides storageUri + optional checksum
-      let checksum: string;
-      let byteSize: number;
-
-      // Resolve or derive the storageUri
-      const resolvedStorageUri: string = event.storageUri
-        ?? deriveStorageUri(event.name, event.format);
-
-      if (event.content !== undefined) {
-        // API/GUI/AI path: write bytes to disk
-        const stored = await this.kb.content.store(event.content, resolvedStorageUri, { noGit: event.noGit });
-        checksum = stored.checksum;
-        byteSize = stored.byteSize;
-      } else {
-        // CLI path: file already on disk; register it (verifies checksum if provided)
-        if (!event.storageUri) {
-          throw new Error('yield:create without content requires storageUri');
-        }
-        const stored = await this.kb.content.register(resolvedStorageUri, event.contentChecksum, { noGit: event.noGit });
-        checksum = stored.checksum;
-        byteSize = stored.byteSize;
-      }
+      // Content is already on disk at storageUri (callers write before emitting).
+      // Register verifies the file exists and validates the checksum.
+      const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      const checksum = stored.checksum;
+      const byteSize = event.byteSize;
 
       const validCreationMethods = Object.values(CREATION_METHODS) as string[];
       const validatedCreationMethod = event.creationMethod && validCreationMethods.includes(event.creationMethod)
         ? (event.creationMethod as CreationMethod)
         : CREATION_METHODS.API;
 
+      // generatedFrom on the bus command has optional fields; the domain event requires both
+      const generatedFrom = event.generatedFrom?.resourceId && event.generatedFrom?.annotationId
+        ? {
+            resourceId: resourceId(event.generatedFrom.resourceId),
+            annotationId: annotationId(event.generatedFrom.annotationId),
+          }
+        : undefined;
+
       await this.kb.eventStore.appendEvent({
-        type: 'resource.created',
+        type: 'yield:created',
         resourceId: rId,
-        userId: event.userId,
+        userId: uid,
         version: 1,
         payload: {
           name: event.name,
           format: event.format,
           contentChecksum: checksum,
           contentByteSize: byteSize,
-          storageUri: resolvedStorageUri,
+          storageUri: event.storageUri,
           creationMethod: validatedCreationMethod,
           entityTypes: event.entityTypes || [],
           language: event.language || undefined,
           isDraft: event.isDraft ?? false,
-          generatedFrom: event.generatedFrom,
+          generatedFrom,
           generationPrompt: event.generationPrompt,
           generator: event.generator,
         },
@@ -168,43 +166,69 @@ export class Stower {
         ],
       };
 
-      this.eventBus.get('yield:created').next({ resourceId: rId, resource });
+      this.eventBus.get('yield:create-ok').next({ resourceId: rId, resource });
+
+      // Auto-bind: when a resource is generated from a reference annotation,
+      // resolve the source reference by adding the new resource as a linking
+      // body. Emit `mark:update-body`; our own handler appends the
+      // `mark:body-updated` event, and the graph consumer then updates the
+      // annotation body in the graph. Ordering is safe because we've already
+      // appended `yield:created` — by the time the graph consumer processes
+      // `mark:body-updated`, the target resource exists in the graph.
+      if (generatedFrom) {
+        this.eventBus.get('mark:update-body').next({
+          annotationId: generatedFrom.annotationId,
+          _userId: event._userId,
+          resourceId: generatedFrom.resourceId,
+          operations: [
+            {
+              op: 'add',
+              item: {
+                type: 'SpecificResource',
+                source: rId,
+                purpose: 'linking',
+              },
+            },
+          ],
+        });
+        this.logger.info('Auto-bound generated resource to source reference', {
+          resourceId: rId,
+          sourceAnnotationId: generatedFrom.annotationId,
+          sourceResourceId: generatedFrom.resourceId,
+        });
+      }
     } catch (error) {
-      this.logger.error('Failed to create resource', { error });
+      this.logger.error('Failed to create resource', { error: errField(error) });
       this.eventBus.get('yield:create-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleYieldUpdate(event: EventMap['yield:update']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('yield:update missing _userId (gateway injection)');
+    }
     try {
-      let byteSize: number;
-      if (event.content) {
-        // API/GUI/AI path: write content to disk
-        const stored = await this.kb.content.store(event.content, event.storageUri, { noGit: event.noGit });
-        byteSize = stored.byteSize;
-      } else {
-        // CLI path: file already on disk, just verify checksum
-        const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
-        byteSize = stored.byteSize;
-      }
+      // Content is already on disk at storageUri (callers write before emitting).
+      // register() verifies the file exists and validates the checksum.
+      await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
       await this.kb.eventStore.appendEvent({
-        type: 'resource.updated',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        type: 'yield:updated',
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event._userId),
         version: 1,
         payload: {
           contentChecksum: event.contentChecksum,
-          contentByteSize: byteSize,
+          contentByteSize: event.byteSize,
         },
       });
-      this.eventBus.get('yield:updated').next({ resourceId: event.resourceId });
+      this.eventBus.get('yield:update-ok').next({ resourceId: event.resourceId });
     } catch (error) {
-      this.logger.error('Failed to update resource', { error });
+      this.logger.error('Failed to update resource', { error: errField(error) });
       this.eventBus.get('yield:update-failed').next({
         resourceId: event.resourceId,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -218,111 +242,133 @@ export class Stower {
       this.logger.error('Failed to resolve resource for move', { fromUri: event.fromUri, error });
       this.eventBus.get('yield:move-failed').next({
         fromUri: event.fromUri,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
       return;
     }
 
+    if (!event._userId) {
+      throw new Error('yield:mv missing _userId (gateway injection)');
+    }
     try {
       await this.kb.content.move(event.fromUri, event.toUri, { noGit: event.noGit });
       await this.kb.eventStore.appendEvent({
-        type: 'resource.moved',
+        type: 'yield:moved',
         resourceId: rId,
-        userId: event.userId,
+        userId: makeUserId(event._userId),
         version: 1,
         payload: {
           fromUri: event.fromUri,
           toUri: event.toUri,
         },
       });
-      this.eventBus.get('yield:moved').next({ resourceId: rId });
+      this.eventBus.get('yield:move-ok').next({ resourceId: rId });
     } catch (error) {
-      this.logger.error('Failed to move resource', { error });
+      this.logger.error('Failed to move resource', { error: errField(error) });
       this.eventBus.get('yield:move-failed').next({
         fromUri: event.fromUri,
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleMarkCreate(event: EventMap['mark:create']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:create missing _userId (gateway injection)');
+    }
     try {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
-      await this.kb.eventStore.appendEvent({
-        type: 'annotation.added',
-        resourceId: event.resourceId,
-        userId: event.userId,
-        version: 1,
-        payload: { annotation: event.annotation },
-      });
-      this.eventBus.get('mark:created').next({ annotationId: makeAnnotationId(event.annotation.id) });
+      await this.kb.eventStore.appendEvent(
+        {
+          type: 'mark:added',
+          resourceId: resourceId(event.resourceId),
+          userId: makeUserId(event._userId),
+          version: 1,
+          payload: { annotation: event.annotation as Annotation },
+        },
+        event.correlationId ? { correlationId: event.correlationId } : undefined,
+      );
+      // annotation-assembly emits mark:create-ok after it observes the
+      // persisted mark:added event (keyed by correlationId in metadata).
     } catch (error) {
-      this.logger.error('Failed to create annotation', { error });
+      this.logger.error('Failed to create annotation', { error: errField(error) });
       this.eventBus.get('mark:create-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleMarkDelete(event: EventMap['mark:delete']): Promise<void> {
-    if (!event.userId || !event.resourceId) {
-      return; // Frontend-only event — handled by route, not Stower
+    if (!event._userId) {
+      throw new Error('mark:delete missing _userId (gateway injection)');
     }
-
+    if (!event.resourceId) {
+      throw new Error('mark:delete missing resourceId');
+    }
     try {
       await this.kb.eventStore.appendEvent({
-        type: 'annotation.removed',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        type: 'mark:removed',
+        resourceId: resourceId(event.resourceId),
+        userId: makeUserId(event._userId),
         version: 1,
-        payload: { annotationId: event.annotationId },
+        payload: { annotationId: annotationId(event.annotationId) },
       });
-      this.eventBus.get('mark:deleted').next({ annotationId: event.annotationId });
+      this.eventBus.get('mark:delete-ok').next({ annotationId: event.annotationId });
     } catch (error) {
-      this.logger.error('Failed to delete annotation', { error });
+      this.logger.error('Failed to delete annotation', { error: errField(error) });
       this.eventBus.get('mark:delete-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleMarkUpdateBody(event: EventMap['mark:update-body']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:update-body missing _userId (gateway injection)');
+    }
     try {
-      const stored = await this.kb.eventStore.appendEvent({
-        type: 'annotation.body.updated',
-        resourceId: event.resourceId,
-        userId: event.userId,
-        version: 1,
-        payload: { annotationId: event.annotationId, operations: event.operations },
-      });
-      this.eventBus.get('mark:body-updated').next(stored.event as EventMap['mark:body-updated']);
+      await this.kb.eventStore.appendEvent(
+        {
+          type: 'mark:body-updated',
+          resourceId: resourceId(event.resourceId),
+          userId: makeUserId(event._userId),
+          version: 1,
+          payload: { annotationId: event.annotationId, operations: event.operations },
+        },
+        // Thread correlationId from the command into event metadata so the
+        // events-stream can deliver it to the client that initiated the bind.
+        event.correlationId ? { correlationId: event.correlationId } : undefined,
+      );
+      // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
-      this.logger.error('Failed to update annotation body', { error });
+      this.logger.error('Failed to update annotation body', { error: errField(error) });
       this.eventBus.get('mark:body-update-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleMarkArchive(event: EventMap['mark:archive']): Promise<void> {
-    if (!event || typeof event !== 'object' || !('userId' in event) || !('resourceId' in event) || !event.resourceId) {
-      return; // Frontend-only event (void) — not for Stower
+    if (!event._userId) {
+      throw new Error('mark:archive missing _userId (gateway injection)');
     }
     if (event.storageUri) {
       await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
     }
     await this.kb.eventStore.appendEvent({
-      type: 'resource.archived',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      type: 'mark:archived',
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: { reason: undefined },
     });
   }
 
   private async handleMarkUnarchive(event: EventMap['mark:unarchive']): Promise<void> {
-    if (!event || typeof event !== 'object' || !('userId' in event) || !('resourceId' in event) || !event.resourceId) {
-      return; // Frontend-only event (void) — not for Stower
+    if (!event._userId) {
+      throw new Error('mark:unarchive missing _userId (gateway injection)');
     }
     // If storageUri is provided, verify the file exists before emitting the event
     if (event.storageUri) {
@@ -335,40 +381,67 @@ export class Stower {
       }
     }
     await this.kb.eventStore.appendEvent({
-      type: 'resource.unarchived',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      type: 'mark:unarchived',
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {},
     });
   }
 
-  private async handleAddEntityType(event: EventMap['mark:add-entity-type']): Promise<void> {
+  private async handleAddEntityType(event: EventMap['frame:add-entity-type']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('frame:add-entity-type missing _userId (gateway injection)');
+    }
     try {
       await this.kb.eventStore.appendEvent({
-        type: 'entitytype.added',
-        userId: event.userId,
+        type: 'frame:entity-type-added',
+        userId: makeUserId(event._userId),
         version: 1,
         payload: { entityType: event.tag },
       });
-      this.eventBus.get('mark:entity-type-added').next({ tag: event.tag });
+      // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
-      this.logger.error('Failed to add entity type', { error });
-      this.eventBus.get('mark:entity-type-add-failed').next({
-        error: error instanceof Error ? error : new Error(String(error)),
+      this.logger.error('Failed to add entity type', { error: errField(error) });
+      this.eventBus.get('frame:entity-type-add-failed').next({
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleAddTagSchema(event: EventMap['frame:add-tag-schema']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('frame:add-tag-schema missing _userId (gateway injection)');
+    }
+    try {
+      await this.kb.eventStore.appendEvent({
+        type: 'frame:tag-schema-added',
+        userId: makeUserId(event._userId),
+        version: 1,
+        payload: { schema: event.schema },
+      });
+      // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
+    } catch (error) {
+      this.logger.error('Failed to add tag schema', { schemaId: event.schema?.id, error: errField(error) });
+      this.eventBus.get('frame:tag-schema-add-failed').next({
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   private async handleUpdateEntityTypes(event: EventMap['mark:update-entity-types']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:update-entity-types missing _userId (gateway injection)');
+    }
+    const uid = makeUserId(event._userId);
     const added = event.updatedEntityTypes.filter(et => !event.currentEntityTypes.includes(et));
     const removed = event.currentEntityTypes.filter(et => !event.updatedEntityTypes.includes(et));
 
     for (const entityType of added) {
       await this.kb.eventStore.appendEvent({
-        type: 'entitytag.added',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        type: 'mark:entity-tag-added',
+        resourceId: resourceId(event.resourceId),
+        userId: uid,
         version: 1,
         payload: { entityType },
       });
@@ -376,9 +449,9 @@ export class Stower {
 
     for (const entityType of removed) {
       await this.kb.eventStore.appendEvent({
-        type: 'entitytag.removed',
-        resourceId: event.resourceId,
-        userId: event.userId,
+        type: 'mark:entity-tag-removed',
+        resourceId: resourceId(event.resourceId),
+        userId: uid,
         version: 1,
         payload: { entityType },
       });
@@ -386,83 +459,54 @@ export class Stower {
   }
 
   private async handleJobStart(event: EventMap['job:start']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('job:start missing _userId (gateway injection)');
+    }
     await this.kb.eventStore.appendEvent({
-      type: 'job.started',
-      resourceId: event.resourceId,
-      userId: event.userId,
-      version: 1,
-      payload: { jobId: event.jobId, jobType: event.jobType },
-    });
-  }
-
-  private async handleJobReportProgress(event: EventMap['job:report-progress']): Promise<void> {
-    await this.kb.eventStore.appendEvent({
-      type: 'job.progress',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      type: 'job:started',
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {
         jobId: event.jobId,
         jobType: event.jobType,
-        percentage: event.percentage,
-        progress: event.progress,
+        ...(event.annotationId ? { annotationId: event.annotationId } : {}),
       },
     });
   }
 
   private async handleJobComplete(event: EventMap['job:complete']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('job:complete missing _userId (gateway injection)');
+    }
     await this.kb.eventStore.appendEvent({
-      type: 'job.completed',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      type: 'job:completed',
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {
         jobId: event.jobId,
         jobType: event.jobType,
+        ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         result: event.result,
       },
     });
   }
 
   private async handleJobFail(event: EventMap['job:fail']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('job:fail missing _userId (gateway injection)');
+    }
     await this.kb.eventStore.appendEvent({
-      type: 'job.failed',
-      resourceId: event.resourceId,
-      userId: event.userId,
+      type: 'job:failed',
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event._userId),
       version: 1,
       payload: {
         jobId: event.jobId,
         jobType: event.jobType,
+        ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         error: event.error,
-      },
-    });
-  }
-
-  private async handleEmbeddingComputed(event: EventMap['embedding:computed']): Promise<void> {
-    await this.kb.eventStore.appendEvent({
-      type: 'embedding.computed',
-      resourceId: event.resourceId,
-      userId: makeUserId('did:web:system:smelter'),
-      version: 1,
-      payload: {
-        annotationId: event.annotationId,
-        chunkIndex: event.chunkIndex,
-        chunkText: event.chunkText,
-        embedding: event.embedding,
-        model: event.model,
-        dimensions: event.dimensions,
-      },
-    });
-  }
-
-  private async handleEmbeddingDeleted(event: EventMap['embedding:deleted']): Promise<void> {
-    await this.kb.eventStore.appendEvent({
-      type: 'embedding.deleted',
-      resourceId: event.resourceId,
-      userId: makeUserId('did:web:system:smelter'),
-      version: 1,
-      payload: {
-        annotationId: event.annotationId,
       },
     });
   }
@@ -472,17 +516,4 @@ export class Stower {
     this.subscription = null;
     this.logger.info('Stower actor stopped');
   }
-}
-
-/**
- * Derive a working-tree storageUri from a resource name and MIME type.
- * e.g. "My Document", "text/markdown" → "file://my-document.md"
- */
-function deriveStorageUri(name: string, format: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const ext = getExtensionForMimeType(format);
-  return `file://${slug}${ext}`;
 }

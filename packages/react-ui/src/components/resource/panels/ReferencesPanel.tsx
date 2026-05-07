@@ -2,21 +2,22 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { AnnotateReferencesProgressWidget } from '../../AnnotateReferencesProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
-import type { components, paths, Selector } from '@semiont/core';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/core';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
-import type { MarkProgress } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+type JobProgress = components['schemas']['JobProgress'];
+
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
-type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
-type ReferencedBy = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
+type ReferencedBy = components['schemas']['GetReferencedByResponse']['referencedBy'][number];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -45,7 +46,7 @@ interface Props {
   // Generic panel props
   annotations?: Annotation[];
   isAssisting: boolean;
-  progress: MarkProgress | null;
+  progress: JobProgress | null;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -59,6 +60,11 @@ interface Props {
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
+
+  /** User UI locale — stamped on the unresolved-reference body's `language` field. */
+  locale?: string;
+  /** BCP-47 tag of the resource being analyzed — fed into the prompt for source-aware analysis. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -84,9 +90,11 @@ export function ReferencesPanel({
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
+  locale,
+  sourceLanguage,
 }: Props) {
   const t = useTranslations('ReferencesPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
@@ -202,12 +210,13 @@ export function ReferencesPanel({
   // Clear log when starting new annotation
   const handleAssist = () => {
     setLastDetectionLog(null);
-    eventBus.get('mark:assist-request').next({
-      motivation: 'linking',
-      options: {
-        entityTypes: selectedEntityTypes,
-        includeDescriptiveReferences,
-      },
+    session?.client.mark.requestAssist('linking', {
+      entityTypes: selectedEntityTypes,
+      includeDescriptiveReferences,
+      // Body locale stamps the unresolved-reference body's `language`;
+      // sourceLanguage tunes the prompt for non-English source content.
+      language: locale,
+      sourceLanguage,
     });
   };
 
@@ -245,7 +254,7 @@ export function ReferencesPanel({
   const handleCreateReference = () => {
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
-      eventBus.get('mark:submit').next({
+      session?.client.mark.submit({
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
@@ -260,14 +269,14 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.client.mark.cancelPending();
         setPendingEntityTypes([]);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   return (
     <div className="semiont-panel">
@@ -312,7 +321,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('mark:cancel-pending').next(undefined);
+                  session?.client.mark.cancelPending();
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"

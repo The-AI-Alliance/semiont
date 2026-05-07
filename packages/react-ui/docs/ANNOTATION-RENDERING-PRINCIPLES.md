@@ -216,7 +216,7 @@ Property-based tests verify:
 - See `src/components/resource/AnnotateView.tsx` - Main annotation UI
 
 ### Data Model & API
-- [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
+- [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
 - See `@semiont/api-client` package - API client and utilities
 
 ### Testing

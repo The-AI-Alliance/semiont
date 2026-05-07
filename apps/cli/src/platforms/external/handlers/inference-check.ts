@@ -2,7 +2,6 @@ import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } fr
 import type { OllamaProviderConfig, AnthropicProviderConfig } from '@semiont/core';
 import { InferenceService } from '../../../services/inference-service.js';
 import { checkEnvVarResolved, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
-import Anthropic from '@anthropic-ai/sdk';
 
 /**
  * Check handler for external inference services (Anthropic, Ollama).
@@ -115,16 +114,28 @@ async function checkAnthropic(
     throw new Error('Anthropic API key not configured. Set apiKey in inference provider config.');
   }
 
-  const client = new Anthropic({ apiKey, baseURL: endpoint });
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: 10,
-    messages: [{ role: 'user', content: 'Respond with "OK" if operational.' }],
+  const res = await fetch(`${endpoint}/v1/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 10,
+      messages: [{ role: 'user', content: 'Respond with "OK" if operational.' }],
+    }),
   });
 
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Anthropic API error: ${res.status} ${res.statusText}${body ? ` — ${body}` : ''}`);
+  }
+
+  const response = await res.json() as { content: Array<{ type: string; text?: string }> };
   const responsePreview = response.content[0]?.type === 'text'
-    ? response.content[0].text.substring(0, 50)
+    ? response.content[0].text?.substring(0, 50)
     : undefined;
 
   return { status: 'running', responsePreview };

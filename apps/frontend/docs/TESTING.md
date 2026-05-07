@@ -159,7 +159,7 @@ src/
 **Example locations**:
 - `src/components/__tests__/CookieBanner.test.tsx`
 - `src/lib/__tests__/cookies.test.ts`
-- `src/hooks/__tests__/useAuth.test.ts`
+- `src/contexts/__tests__/AuthShell.test.tsx`
 
 ### Integration Tests
 
@@ -282,17 +282,27 @@ expect(mockFn).toHaveBeenCalledWith(expectedArgs);
 ### Hook Testing Example
 
 ```typescript
-// src/hooks/__tests__/useAuth.test.ts
-import { renderHook, waitFor } from '@testing-library/react';
-import { useAuth } from '../useAuth';
+// Mock useKnowledgeBaseSession via @semiont/react-ui and assert downstream behavior
+import { renderHook } from '@testing-library/react';
+import { vi } from 'vitest';
+import { useKnowledgeBaseSession } from '@semiont/react-ui';
 
-describe('useAuth', () => {
-  it('should return authentication status', async () => {
-    const { result } = renderHook(() => useAuth());
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  return {
+    ...actual,
+    useKnowledgeBaseSession: () => ({
+      ...actual.defaultMockKnowledgeBaseSession ?? {},
+      isAuthenticated: true,
+      isAdmin: true,
+      displayName: 'Alice',
+    }),
+  };
+});
 
-    await waitFor(() => {
-      expect(result.current.isAuthenticated).toBe(true);
-    });
+describe('some component using session state', () => {
+  it('renders for admin users', () => {
+    // ...
   });
 });
 ```
