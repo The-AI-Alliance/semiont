@@ -2,17 +2,18 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEventBus } from '../../../contexts/EventBusContext';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { TagEntry } from './TagEntry';
 import { PanelHeader } from './PanelHeader';
-import { getAllTagSchemas } from '../../../lib/tag-schemas';
 import './TaggingPanel.css';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
+type JobProgress = components['schemas']['JobProgress'];
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -41,19 +42,15 @@ interface TaggingPanelProps {
   annotations: Annotation[];
   annotateMode?: boolean;
   isAssisting?: boolean;
-  progress?: {
-    status: string;
-    percentage?: number;
-    currentCategory?: string;
-    processedCategories?: number;
-    totalCategories?: number;
-    message?: string;
-    requestParams?: Array<{ label: string; value: string }>;
-  } | null;
+  progress?: JobProgress | null;
   pendingAnnotation: PendingAnnotation | null;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
+  /** User UI locale — stamped on the tagging body's `language` field. */
+  locale?: string;
+  /** BCP-47 tag of the resource being analyzed — fed into the prompt for source-aware analysis. */
+  sourceLanguage?: string;
 }
 
 /**
@@ -73,11 +70,39 @@ export function TaggingPanel({
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
+  locale,
+  sourceLanguage,
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
-  const eventBus = useEventBus();
-  const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
+  const session = useObservable(useSemiont().activeSession$);
+
+  // Subscribe to the per-KB tag-schema registry. Schemas are runtime-
+  // registered by the KB at session start (see frame.addTagSchema).
+  // During the initial load the observable yields `undefined` — render an
+  // empty schemas list and let the picker render no options until the
+  // first emission lands.
+  const tagSchemas$ = useMemo(
+    () => session?.client.browse.tagSchemas() ?? null,
+    [session],
+  );
+  const schemasObserved = useObservable(tagSchemas$);
+  const schemas = schemasObserved ?? [];
+  // True only AFTER the registry has resolved AND it's empty — distinct
+  // from the initial-loading state (`schemasObserved === undefined`),
+  // which renders nothing rather than an empty-state message.
+  const noSchemasRegistered = schemasObserved !== undefined && schemasObserved.length === 0;
+
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string>('');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+
+  // Default the schema selection to the first registered schema once
+  // the registry resolves. We don't reset on schemas changing to avoid
+  // clobbering an explicit user choice.
+  useEffect(() => {
+    if (!selectedSchemaId && schemas.length > 0) {
+      setSelectedSchemaId(schemas[0]!.id);
+    }
+  }, [schemas, selectedSchemaId]);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -165,7 +190,6 @@ export function TaggingPanel({
     // Pulse effect is handled by isHovered prop on TagEntry
   }, [hoveredAnnotationId]);
 
-  const schemas = getAllTagSchemas();
   const selectedSchema = schemas.find(s => s.id === selectedSchemaId);
 
   const handleSchemaChange = (schemaId: string) => {
@@ -195,12 +219,13 @@ export function TaggingPanel({
 
   const handleAssist = () => {
     if (selectedCategories.size > 0) {
-      eventBus.get('mark:assist-request').next({
-        motivation: 'tagging',
-        options: {
-          schemaId: selectedSchemaId,
-          categories: Array.from(selectedCategories),
-        },
+      session?.client.mark.requestAssist('tagging', {
+        schemaId: selectedSchemaId,
+        categories: Array.from(selectedCategories),
+        // Body locale stamps the tagging body's `language`; sourceLanguage
+        // tunes the prompt for non-English source content.
+        language: locale,
+        sourceLanguage,
       });
       setSelectedCategories(new Set()); // Reset after annotation
     }
@@ -212,13 +237,13 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('mark:cancel-pending').next(undefined);
+        session?.client.mark.cancelPending();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation]);
+  }, [pendingAnnotation, session]);
 
   // Color schemes are now handled via CSS data attributes
 
@@ -247,23 +272,32 @@ export function TaggingPanel({
               </p>
             </div>
 
+            {/* Empty-state — registry has resolved with no schemas. */}
+            {noSchemasRegistered && (
+              <p className="semiont-form__help" data-type="tag-no-schemas">
+                {t('noSchemas')}
+              </p>
+            )}
+
             {/* Schema and Category Selection for Manual Tag */}
-            <div className="semiont-form-field">
-              <label className="semiont-form-field__label">
-                {t('selectSchema')}
-              </label>
-              <select
-                value={selectedSchemaId}
-                onChange={(e) => handleSchemaChange(e.target.value)}
-                className="semiont-select"
-              >
-                {schemas.map(schema => (
-                  <option key={schema.id} value={schema.id}>
-                    {t(`schema${schema.id === 'legal-irac' ? 'Legal' : schema.id === 'scientific-imrad' ? 'Scientific' : 'Argument'}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!noSchemasRegistered && (
+              <div className="semiont-form-field">
+                <label className="semiont-form-field__label">
+                  {t('selectSchema')}
+                </label>
+                <select
+                  value={selectedSchemaId}
+                  onChange={(e) => handleSchemaChange(e.target.value)}
+                  className="semiont-select"
+                >
+                  {schemas.map(schema => (
+                    <option key={schema.id} value={schema.id}>
+                      {schema.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {selectedSchema && (
               <div className="semiont-form-field">
@@ -274,7 +308,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
-                      eventBus.get('mark:submit').next({
+                      session?.client.mark.submit({
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [
@@ -305,7 +339,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.get('mark:cancel-pending').next(undefined)}
+                onClick={() => session?.client.mark.cancelPending()}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >
@@ -333,28 +367,37 @@ export function TaggingPanel({
               <div className="semiont-assist-widget" data-assisting={isAssisting && progress ? 'true' : 'false'} data-type="tag">
               {!isAssisting && !progress && (
                 <>
+                  {/* Empty-state — registry has resolved with no schemas. */}
+                  {noSchemasRegistered && (
+                    <p className="semiont-form__help" data-type="tag-no-schemas">
+                      {t('noSchemas')}
+                    </p>
+                  )}
+
                   {/* Schema Selector */}
-                  <div className="semiont-form-field">
-                    <label className="semiont-form-field__label">
-                      {t('selectSchema')}
-                    </label>
-                    <select
-                      value={selectedSchemaId}
-                      onChange={(e) => handleSchemaChange(e.target.value)}
-                      className="semiont-select"
-                    >
-                      {schemas.map(schema => (
-                        <option key={schema.id} value={schema.id}>
-                          {t(`schema${schema.id === 'legal-irac' ? 'Legal' : schema.id === 'scientific-imrad' ? 'Scientific' : 'Argument'}`)}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedSchema && (
-                      <p className="semiont-form__help">
-                        {selectedSchema.description}
-                      </p>
-                    )}
-                  </div>
+                  {!noSchemasRegistered && (
+                    <div className="semiont-form-field">
+                      <label className="semiont-form-field__label">
+                        {t('selectSchema')}
+                      </label>
+                      <select
+                        value={selectedSchemaId}
+                        onChange={(e) => handleSchemaChange(e.target.value)}
+                        className="semiont-select"
+                      >
+                        {schemas.map(schema => (
+                          <option key={schema.id} value={schema.id}>
+                            {schema.name}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedSchema && (
+                        <p className="semiont-form__help">
+                          {selectedSchema.description}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Category Selector */}
                   {selectedSchema && (
@@ -397,7 +440,7 @@ export function TaggingPanel({
                               style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}
                             >
                               <span style={{ fontWeight: 500 }}>
-                                {t(`category${category.name.replace(/\s+/g, '')}`)}
+                                {category.name}
                               </span>
                               <span style={{ fontSize: 'var(--semiont-text-xs)', color: 'var(--semiont-text-secondary)' }}>
                                 {category.description}

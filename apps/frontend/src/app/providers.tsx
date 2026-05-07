@@ -1,150 +1,65 @@
-import React, { useState } from 'react';
-import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
+import React from 'react';
 import {
   ToastProvider,
-  SessionProvider as CustomSessionProvider,
   LiveRegionProvider,
   TranslationProvider,
   ThemeProvider,
-  EventBusProvider,
-  dispatch401Error,
-  dispatch403Error,
+  SemiontProvider,
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
-import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
-import { APIError } from '@semiont/api-client';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { KnowledgeBaseProvider, useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
-import { useSessionManager } from '@/hooks/useSessionManager';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
 
 /**
- * Create a minimal QueryClient with error handlers and retry logic
- * Authentication is handled by @semiont/api-client via lib/api-hooks
- */
-function createQueryClient() {
-  return new QueryClient({
-    queryCache: new QueryCache({
-      onError: (error) => {
-        if (error instanceof APIError) {
-          if (error.status === 401) {
-            dispatch401Error('Your session has expired. Please sign in again.');
-          } else if (error.status === 403) {
-            dispatch403Error('You do not have permission to access this resource.');
-          }
-        }
-      },
-    }),
-    mutationCache: new MutationCache({
-      onError: (error) => {
-        if (error instanceof APIError) {
-          if (error.status === 401) {
-            dispatch401Error('Your session has expired. Please sign in again.');
-          } else if (error.status === 403) {
-            dispatch403Error('You do not have permission to perform this action.');
-          }
-        }
-      },
-    }),
-    defaultOptions: {
-      queries: {
-        retry: (failureCount, error) => {
-          // Don't retry on client errors (4xx) - these won't fix themselves
-          if (error instanceof APIError) {
-            // Never retry auth errors
-            if (error.status === 401 || error.status === 403) {
-              return false;
-            }
-            // Never retry other client errors (400, 404, 422, etc.)
-            if (error.status >= 400 && error.status < 500) {
-              return false;
-            }
-          }
-          // Only retry server errors (5xx) or network errors, max 3 times
-          return failureCount < 3;
-        },
-        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s, max 30s
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        refetchOnWindowFocus: false, // Prevent unnecessary refetches when window regains focus
-      },
-    },
-  });
-}
-
-/**
- * Root Provider Composition for Semiont Frontend
+ * Root Provider Composition for Semiont Frontend.
  *
- * Wires up GLOBAL contexts used across all routes.
- * Feature-specific providers (OpenResourcesProvider, CacheProvider, etc.) are added
- * in route-specific layouts (e.g., apps/frontend/src/app/[locale]/know/layout.tsx)
+ * Wires up GLOBAL contexts that every page needs.
  *
- * Provider order matters - dependencies flow from outer to inner:
+ * The module-scoped `SemiontBrowser` singleton (KB list, active KB,
+ * per-KB SemiontSession) is made available via `<SemiontProvider>` at
+ * the app root — mounting it here is cheap because the singleton itself
+ * survives every React re-render and route change.
  *
- * 1. AuthProvider - JWT cookie authentication context
- * 2. AuthErrorBoundary - Error boundary for auth failures
- * 3. TranslationProvider - i18n translation management
- * 4. ApiClientProvider - API client configuration
- * 5. QueryClientProvider - React Query for data fetching
- * 6. ToastProvider - Toast notifications
- * 7. LiveRegionProvider - A11y live region announcements
- * 8. KeyboardShortcutsProvider - App-specific keyboard shortcuts
+ * Auth-dependent UI (ProtectedErrorBoundary, SessionExpiredModal,
+ * PermissionDeniedModal) is bundled in `AuthShell` and mounted only in
+ * protected layouts (know/, admin/, moderate/, auth/welcome/). Pre-app
+ * routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
+ * they have no session UI.
+ *
+ * The `SemiontClient` is owned by the per-KB `SemiontSession`, which
+ * `SemiontBrowser` constructs on demand. Components read
+ * `useObservable(useSemiont().activeSession$)?.client`.
+ *
+ * The event bus lives inside the client (owned by `SemiontSession`).
+ * Components emit via `session?.emit(...)` and subscribe via
+ * `useEventSubscription[s]`.
+ *
+ * Provider order — outer to inner:
+ * 1. TranslationProvider     — i18n
+ * 2. SemiontProvider         — SemiontBrowser singleton
+ * 3. ToastProvider           — toast notifications
+ * 4. LiveRegionProvider      — a11y live region
+ * 5. KeyboardShortcutsProvider — keyboard shortcuts
+ * 6. ThemeProvider           — theme
+ *    + NavigationHandler
  */
-
-/**
- * Inner providers that depend on AuthProvider being initialized
- */
-function InnerProviders({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
-  // Manager hooks - these provide app-specific implementations to @semiont/react-ui contexts
-  const sessionManager = useSessionManager();
-  const translationManager = useMergedTranslationManager(); // Use merged manager for both frontend and react-ui translations
-
-  // Note: ApiClientProvider is NOT here - it's added in feature-specific layouts (e.g., /know)
-  // that require authentication. Public pages don't need API access.
-  return (
-    <AuthErrorBoundary>
-      <CustomSessionProvider sessionManager={sessionManager}>
-        <TranslationProvider translationManager={translationManager}>
-          <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-              <LiveRegionProvider>
-                <KeyboardShortcutsProvider>
-                  <ThemeProvider>
-                    <EventBusProvider>
-                      <NavigationHandler />
-                      {children}
-                    </EventBusProvider>
-                  </ThemeProvider>
-                </KeyboardShortcutsProvider>
-              </LiveRegionProvider>
-            </ToastProvider>
-          </QueryClientProvider>
-        </TranslationProvider>
-      </CustomSessionProvider>
-    </AuthErrorBoundary>
-  );
-}
-
-function KnowledgeBaseAuthBridge({ children, queryClient }: { children: React.ReactNode; queryClient: QueryClient }) {
-  const { activeKnowledgeBase } = useKnowledgeBaseContext();
-  return (
-    <AuthProvider key={activeKnowledgeBase?.id ?? '__none__'}>
-      <InnerProviders queryClient={queryClient}>
-        {children}
-      </InnerProviders>
-    </AuthProvider>
-  );
-}
-
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Create QueryClient once per app instance
-  const [queryClient] = useState(() => createQueryClient());
+  const translationManager = useMergedTranslationManager();
 
   return (
-    <KnowledgeBaseProvider>
-      <KnowledgeBaseAuthBridge queryClient={queryClient}>
-        {children}
-      </KnowledgeBaseAuthBridge>
-    </KnowledgeBaseProvider>
+    <TranslationProvider translationManager={translationManager}>
+      <SemiontProvider>
+        <ToastProvider>
+          <LiveRegionProvider>
+            <KeyboardShortcutsProvider>
+              <ThemeProvider>
+                <NavigationHandler />
+                {children}
+              </ThemeProvider>
+            </KeyboardShortcutsProvider>
+          </LiveRegionProvider>
+        </ToastProvider>
+      </SemiontProvider>
+    </TranslationProvider>
   );
 }

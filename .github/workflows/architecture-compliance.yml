@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm install --include=optional
 
+      - name: Run Raw Bus Access Audit
+        run: |
+          echo "::group::Raw Bus Access Audit (forbid client.emit/.on/.stream outside the SDK)"
+          ./scripts/compliance/audit-raw-bus.sh
+          echo "::endgroup::"
+
       - name: Run React-UI Compliance Audit
         id: react-ui-audit
         run: |

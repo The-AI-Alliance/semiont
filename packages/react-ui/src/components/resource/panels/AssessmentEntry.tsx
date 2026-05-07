@@ -1,12 +1,11 @@
 'use client';
 
 import type { Ref } from 'react';
-import type { components } from '@semiont/core';
-import { getAnnotationExactText } from '@semiont/api-client';
-import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
-
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
+import { getAnnotationExactText } from '@semiont/core';
+import { useSemiont } from '../../../session/SemiontProvider';
+import { useObservable } from '../../../hooks/useObservable';
+import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 // W3C Annotation TextualBody type
 interface TextualBody {
@@ -74,7 +73,7 @@ export function AssessmentEntry({
   isHovered = false,
   ref,
 }: AssessmentEntryProps) {
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
   const hoverProps = useHoverEmitter(assessment.id);
 
   const selectedText = getAnnotationExactText(assessment);
@@ -87,7 +86,7 @@ export function AssessmentEntry({
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('browse:click').next({ annotationId: assessment.id, motivation: assessment.motivation });
+        session?.client.browse.click(assessment.id, assessment.motivation);
       }}
       {...hoverProps}
     >

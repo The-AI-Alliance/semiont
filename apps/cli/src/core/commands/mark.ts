@@ -21,7 +21,7 @@
  */
 
 import { z } from 'zod';
-import { resourceId as toResourceId, EventBus, type EntityType } from '@semiont/core';
+import { resourceId as toResourceId, type Motivation } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { ApiOptionsSchema, withApiArgs } from '../base-options-schema.js';
@@ -29,11 +29,10 @@ import { printSuccess } from '../io/cli-logger.js';
 
 import { loadCachedClient, resolveBusUrl } from '../api-client-factory.js';
 import type { components } from '@semiont/core';
-import type { SemiontApiClient } from '@semiont/api-client';
-import type { AccessToken } from '@semiont/core';
+import type { SemiontClient } from '@semiont/sdk';
+import { lastValueFrom } from 'rxjs';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
-type Motivation = components['schemas']['Motivation'];
 
 // =====================================================================
 // SCHEMA
@@ -76,7 +75,20 @@ export const MarkOptionsSchema = ApiOptionsSchema.extend({
   // ── Delegate mode: shared ──────────────────────────────────────────────
   instructions: z.string().optional(),
   density: z.coerce.number().int().optional(),
-  tone: z.string().optional(),
+  tone: z.enum(['scholarly', 'explanatory', 'conversational', 'technical', 'analytical', 'critical', 'balanced', 'constructive']).optional(),
+  /**
+   * BCP-47 tag for the annotation body language. Tells the LLM what language
+   * to write generated body text in (comment/assessment) and stamps the
+   * `language` field on every TextualBody the worker produces. Independent
+   * from --source-language; this one is about the *output*.
+   */
+  language: z.string().optional(),
+  /**
+   * BCP-47 tag for the source-resource language. Goes into the prompt so the
+   * LLM analyzes non-English source correctly. Independent from --language;
+   * this one is about the *input*.
+   */
+  sourceLanguage: z.string().optional(),
 
   // ── Delegate mode: linking ─────────────────────────────────────────────
   entityType: z.array(z.string()).default([]),
@@ -112,11 +124,10 @@ export type MarkOptions = z.output<typeof MarkOptionsSchema>;
 // =====================================================================
 
 async function fetchResourceText(
-  client: SemiontApiClient,
+  semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
-  token: AccessToken,
 ): Promise<string> {
-  const { data } = await client.getResourceRepresentation(resourceId, { accept: 'text/plain', auth: token });
+  const { data } = await semiont.browse.resourceRepresentation(resourceId, { accept: 'text/plain' });
   return new TextDecoder().decode(data);
 }
 
@@ -166,9 +177,8 @@ function buildTextSelector(options: MarkOptions, content?: string): any[] {
 
 async function buildSelector(
   options: MarkOptions,
-  client: SemiontApiClient,
+  semiont: SemiontClient,
   resourceId: ReturnType<typeof toResourceId>,
-  token: AccessToken,
 ): Promise<CreateAnnotationRequest['target']['selector']> {
   const hasText = options.quote !== undefined || (options.start !== undefined && options.end !== undefined);
   const hasSvg = options.svg !== undefined;
@@ -192,7 +202,7 @@ async function buildSelector(
   if (!hasText) return undefined as any;
 
   const content = options.fetchContent
-    ? await fetchResourceText(client, resourceId, token)
+    ? await fetchResourceText(semiont, resourceId)
     : undefined;
 
   const selectors = buildTextSelector(options, content);
@@ -225,60 +235,41 @@ function buildBody(options: MarkOptions): CreateAnnotationRequest['body'] {
 // DELEGATE MODE
 // =====================================================================
 
-function waitForAssistFinished(eventBus: EventBus): Promise<{ motivation?: string; resourceId?: string; createdCount?: number }> {
-  return new Promise((resolve, reject) => {
-    const doneSub = eventBus.get('mark:assist-finished').subscribe((event: any) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      resolve({
-        motivation: event.motivation,
-        resourceId: event.resourceId,
-        createdCount: event.progress?.createdCount,
-      });
-    });
-    const failSub = eventBus.get('mark:assist-failed').subscribe((event: any) => {
-      doneSub.unsubscribe();
-      failSub.unsubscribe();
-      reject(new Error(event.payload?.message ?? 'Annotation failed'));
-    });
-  });
-}
-
 async function runDelegate(
-  client: SemiontApiClient,
-  token: AccessToken,
+  semiont: SemiontClient,
   options: MarkOptions,
 ): Promise<{ motivation: string; resourceId: string; createdCount: number }> {
   const rawResourceId = options.resourceIdArr[0];
-  const resourceId = toResourceId(rawResourceId);
-  const { motivation, instructions, density, tone, entityType, includeDescriptive, schemaId, category } = options;
+  const rId = toResourceId(rawResourceId);
+  const { motivation, instructions, density, tone, entityType, includeDescriptive, schemaId, category, language, sourceLanguage } = options;
 
   if (!options.quiet) process.stderr.write(`Annotating ${motivation} on ${rawResourceId}...\n`);
 
-  const eventBus = new EventBus();
-  const donePromise = waitForAssistFinished(eventBus);
-  const auth = token;
+  const final = await lastValueFrom(
+    semiont.mark.assist(rId, motivation as Motivation, {
+      instructions,
+      density,
+      tone,
+      entityTypes: entityType as string[] | undefined,
+      includeDescriptiveReferences: includeDescriptive,
+      schemaId: schemaId as string | undefined,
+      categories: category as string[] | undefined,
+      language,
+      sourceLanguage,
+    }),
+  );
 
-  switch (motivation) {
-    case 'highlighting':
-      client.sse.markHighlights(resourceId, { instructions, density }, { auth, eventBus });
-      break;
-    case 'assessing':
-      client.sse.markAssessments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
-      break;
-    case 'commenting':
-      client.sse.markComments(resourceId, { instructions, tone: tone as any, density }, { auth, eventBus });
-      break;
-    case 'linking':
-      client.sse.markReferences(resourceId, { entityTypes: entityType as EntityType[], includeDescriptiveReferences: includeDescriptive }, { auth, eventBus });
-      break;
-    case 'tagging':
-      client.sse.markTags(resourceId, { schemaId: schemaId!, categories: category }, { auth, eventBus });
-      break;
-  }
+  // Every JobXAnnotationResult variant has a `*Created` field, differently
+  // named per job type. Pull the first numeric one.
+  const r = ((final.kind === 'complete' ? final.data.result : undefined) ?? {}) as Record<string, unknown>;
+  const createdCount =
+    (typeof r.highlightsCreated === 'number' && r.highlightsCreated) ||
+    (typeof r.commentsCreated === 'number' && r.commentsCreated) ||
+    (typeof r.assessmentsCreated === 'number' && r.assessmentsCreated) ||
+    (typeof r.tagsCreated === 'number' && r.tagsCreated) ||
+    (typeof r.totalEmitted === 'number' && r.totalEmitted) ||
+    0;
 
-  const result = await donePromise;
-  const createdCount = result.createdCount ?? 0;
   if (!options.quiet) process.stderr.write(`✓ ${createdCount} annotations created\n`);
   return { motivation, resourceId: rawResourceId, createdCount };
 }
@@ -292,11 +283,11 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
   
 
   const rawBusUrl = resolveBusUrl(options.bus);
-  const { client, token } = loadCachedClient(rawBusUrl);
+  const { semiont } = loadCachedClient(rawBusUrl);
 
   // ── Delegate mode ────────────────────────────────────────────────────
   if (options.delegate) {
-    const result = await runDelegate(client, token, options);
+    const result = await runDelegate(semiont, options);
     process.stdout.write(JSON.stringify(result));
     if (!options.quiet) process.stdout.write('\n');
     return {
@@ -312,7 +303,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
 
   const rawResourceId = options.resourceIdArr[0];
   const resourceId = toResourceId(rawResourceId);
-  const selector = await buildSelector(options, client, resourceId, token);
+  const selector = await buildSelector(options, semiont, resourceId);
   const body = buildBody(options);
 
   const target = (selector !== undefined
@@ -325,7 +316,7 @@ export async function runMark(options: MarkOptions): Promise<CommandResults> {
     body,
   };
 
-  const { annotationId } = await client.markAnnotation(resourceId, request, { auth: token });
+  const { annotationId } = await semiont.mark.annotation(request);
 
   if (!options.quiet) printSuccess(`Marked: ${rawResourceId} → ${annotationId}`);
 

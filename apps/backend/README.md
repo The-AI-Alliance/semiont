@@ -7,15 +7,15 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 ### 📚 Documentation
 - **[Architecture](./docs/ARCHITECTURE.md)** - Infrastructure management patterns, design principles
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
-- **[API Reference](../../specs/docs/API.md)** - API endpoints, request/response formats
+- **[API Reference](../../docs/protocol/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
-- **[Real-Time Events](./docs/REAL-TIME.md)** - SSE streaming, Event Store broadcasting, connection management
+- **[Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md)** - SSE streaming, channels, scoping, correlation
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
 
 ### 🔗 Related Resources
-- **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
+- **[W3C Web Annotation Implementation](../../docs/protocol/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
 - **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
 - **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
@@ -137,7 +137,7 @@ router.get('/resources', async (c) => {
 **Fire-and-forget mutations** (already event-driven):
 - Annotation create/delete/update → `mark:*` events (Stower handles)
 - Resource create → `yield:create` (Stower handles)
-- Entity type addition → `mark:add-entity-type` (Stower handles)
+- Entity type addition → `frame:add-entity-type` (Stower handles)
 
 **HTTP-only routes** (excluded from EventBus by design):
 - Auth (password, Google, refresh, MCP, terms, logout) — PostgreSQL/Prisma dependent
@@ -181,7 +181,7 @@ Content Storage (binary/text documents, sharded)
 
 **Job Worker Integration**: Background workers process long-running AI operations (annotation detection, document generation) and emit events to the Event Store, which materializes views and updates the graph database via the event-driven architecture.
 
-See [Architecture Overview](../../docs/ARCHITECTURE.md) for complete details.
+See [System Documentation](../../docs/system/README.md) for complete details.
 
 ### Background Job Processing
 
@@ -190,7 +190,7 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 **Current Status**: Prototype implementation embedded in backend process (not yet a standalone CLI-managed service)
 
 **Job Types**:
-- **Annotation Detection**: Detect annotations in documents using AI inference (highlights, assessments, comments, tags, entity references), emit `annotation.added` events
+- **Annotation Detection**: Detect annotations in documents using AI inference (highlights, assessments, comments, tags, entity references), emit `mark:added` events
 - **Document Generation**: Create new documents from annotations using AI, emit `document.created` events
 
 **Architecture**:
@@ -459,19 +459,19 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Local Setup](./docs/LOCAL.md) - Run the backend locally (container or npm)
 - [Architecture](./docs/ARCHITECTURE.md) - **Infrastructure management patterns (REQUIRED READING)**
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
-- [API Reference](./docs/API.md) - All API endpoints and examples
+- [API Reference](../../docs/protocol/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
-- [Real-Time Events](./docs/REAL-TIME.md) - SSE streaming, Event Store broadcasting, connection management
+- [Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md) - SSE streaming, channels, scoping, correlation
 - [Database](./docs/DATABASE.md) - PostgreSQL setup for user authentication
 - [Filesystem](./docs/FILESYSTEM.md) - Storage patterns and providers
-- [Data Flow](./docs/DATA-FLOW.md) - Data flow across all storage layers
+- [Knowledge System](../../docs/system/KNOWLEDGE-SYSTEM.md) - Storage architecture across all layers
 - [Logging](./docs/LOGGING.md) - Winston logging, log levels, debugging
 - [Testing](./docs/TESTING.md) - Testing philosophy and patterns
 - [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide
 
 ### System Documentation
-- [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
-- [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
+- [System Documentation](../../docs/system/README.md) - Overall platform architecture
+- [W3C Web Annotation](../../docs/protocol/W3C-WEB-ANNOTATION.md) - Annotation data flow
 - [Event Sourcing Package](../../packages/event-sourcing/) - Event log and materialized views
 - [Graph Package](../../packages/graph/) - Relationship traversal
 - [Jobs Package](../../packages/jobs/) - Background job processing (prototype)

@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import type { GatheredContext, EventBus } from '@semiont/core';
+import type { GatheredContext } from '@semiont/core';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
+import { useEventSubscription } from '../../contexts/useEventSubscription';
 import { GatherContextStep } from './GatherContextStep';
 import { ConfigureGenerationStep } from './ConfigureGenerationStep';
 import type { GenerationConfig } from './ConfigureGenerationStep';
@@ -34,8 +37,6 @@ export interface ReferenceWizardModalProps {
   context: GatheredContext | null;
   contextLoading: boolean;
   contextError: Error | null;
-  /** Event bus for emitting downstream events */
-  eventBus: EventBus;
   /** Callbacks */
   onGenerateSubmit: (referenceId: string, config: GenerationConfig) => void;
   onLinkResource: (referenceId: string, targetResourceId: string) => void;
@@ -91,12 +92,12 @@ export function ReferenceWizardModal({
   context,
   contextLoading,
   contextError,
-  eventBus,
   onGenerateSubmit,
   onLinkResource,
   onComposeNavigate,
   translations: t,
 }: ReferenceWizardModalProps) {
+  const session = useObservable(useSemiont().activeSession$);
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
   const [isSearching, setIsSearching] = useState(false);
   const [userHint, setUserHint] = useState('');
@@ -110,19 +111,14 @@ export function ReferenceWizardModal({
     }
   }, [isOpen]);
 
-  // Subscribe to search results
-  useEffect(() => {
+  // Subscribe to search results (only react while open and for the current annotation)
+  useEventSubscription('match:search-results', (event) => {
     if (!isOpen) return;
-
-    const subscription = eventBus.get('match:search-results').subscribe((event) => {
-      if (annotationId && event.referenceId === annotationId) {
-        setIsSearching(false);
-        setWizardStep({ step: 'search-results', results: event.response as ScoredResult[] });
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [isOpen, eventBus, annotationId]);
+    if (annotationId && event.referenceId === annotationId) {
+      setIsSearching(false);
+      setWizardStep({ step: 'search-results', results: event.response as ScoredResult[] });
+    }
+  });
 
   const handleBind = useCallback(() => {
     setWizardStep({ step: 'configure-search' });
@@ -144,18 +140,19 @@ export function ReferenceWizardModal({
   }, []);
 
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
-    if (!annotationId || !context) return;
+    if (!annotationId || !context || !resourceId) return;
     setIsSearching(true);
     const contextWithHint = userHint ? { ...context, userHint } : context;
-    eventBus.get('match:search-requested').next({
+    session?.client.match.requestSearch({
       correlationId: crypto.randomUUID(),
+      resourceId,
       referenceId: annotationId,
       context: contextWithHint,
       limit: config.limit,
       useSemanticScoring: config.useSemanticScoring,
     });
     // Stay on configure-search until results arrive (subscription above handles transition)
-  }, [annotationId, context, eventBus, userHint]);
+  }, [annotationId, resourceId, context, session, userHint]);
 
   const handleGenerateSubmit = useCallback((config: GenerationConfig) => {
     if (!annotationId) return;

@@ -1,19 +1,15 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
-import { useEventBus } from '../contexts/EventBusContext';
-import type { MarkProgress } from '@semiont/core';
+import { useSemiont } from '../session/SemiontProvider';
+import { useObservable } from '../hooks/useObservable';
 import type { components } from '@semiont/core';
 
 type Motivation = components['schemas']['Motivation'];
-
-// Extended MarkProgress with optional request parameters
-interface EnrichedMarkProgress extends MarkProgress {
-  requestParams?: Array<{ label: string; value: string }>;
-}
+type JobProgress = components['schemas']['JobProgress'];
 
 interface AnnotateReferencesProgressWidgetProps {
-  progress: MarkProgress | null;
+  progress: JobProgress | null;
   annotationType?: Motivation | 'reference';
 }
 
@@ -24,11 +20,11 @@ interface AnnotateReferencesProgressWidgetProps {
  */
 export function AnnotateReferencesProgressWidget({ progress, annotationType = 'reference' }: AnnotateReferencesProgressWidgetProps) {
   const t = useTranslations('ReferencesPanel');
-  const eventBus = useEventBus();
+  const session = useObservable(useSemiont().activeSession$);
 
   const handleCancel = () => {
     // Emit event for job cancellation
-    eventBus.get('job:cancel-requested').next({ jobType: 'annotation' });
+    session?.client.job.cancelRequest('annotation');
   };
 
   if (!progress) return null;
@@ -36,7 +32,7 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
   return (
     <div
       className="semiont-annotation-progress"
-      data-status={progress.status}
+      data-status={progress.stage}
       data-type={annotationType}
     >
       {/* Header with pulsing sparkle */}
@@ -45,7 +41,7 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
           <span className="semiont-annotation-sparkle">✨</span>
           {t('annotationProgressTitle')}
         </h3>
-        {progress.status !== 'complete' && (
+        {progress.stage !== 'complete' && (
           <button
             onClick={handleCancel}
             className="semiont-annotation-cancel"
@@ -57,19 +53,16 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
       </div>
 
       {/* Request Parameters */}
-      {(() => {
-        const enrichedProgress = progress as EnrichedMarkProgress;
-        return enrichedProgress.requestParams && enrichedProgress.requestParams.length > 0 && (
-          <div className="semiont-annotation-progress__params">
-            <div className="semiont-annotation-progress__params-title">Request Parameters:</div>
-            {enrichedProgress.requestParams.map((param, idx) => (
-              <div key={idx} className="semiont-annotation-progress__param">
-                <span className="semiont-annotation-progress__param-label">{param.label}:</span> {param.value}
-              </div>
-            ))}
-          </div>
-        );
-      })()}
+      {progress.requestParams && progress.requestParams.length > 0 && (
+        <div className="semiont-annotation-progress__params">
+          <div className="semiont-annotation-progress__params-title">Request Parameters:</div>
+          {progress.requestParams.map((param, idx) => (
+            <div key={idx} className="semiont-annotation-progress__param">
+              <span className="semiont-annotation-progress__param-label">{param.label}:</span> {param.value}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Completed entity types log */}
       {progress.completedEntityTypes && progress.completedEntityTypes.length > 0 && (
@@ -86,12 +79,12 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
 
       {/* Status display with pulsing animation */}
       <div className="semiont-annotation-progress__status">
-        {progress.status === 'complete' ? (
+        {progress.stage === 'complete' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">✅</span>
             <span>{t('complete')}</span>
           </div>
-        ) : progress.status === 'error' ? (
+        ) : progress.stage === 'error' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">❌</span>
             <span>{progress.message || t('failed')}</span>
@@ -102,7 +95,7 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
             <span>{progress.message || (progress.currentEntityType ? t('current', { entityType: progress.currentEntityType }) : t('annotating'))}</span>
           </div>
         )}
-        {progress.currentEntityType && progress.status !== 'complete' && progress.status !== 'error' && (
+        {progress.currentEntityType && progress.stage !== 'complete' && progress.stage !== 'error' && (
           <div className="semiont-annotation-progress__details">
             Processing: {progress.currentEntityType}
           </div>

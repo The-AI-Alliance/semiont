@@ -6,31 +6,35 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useAuthContext } from '@/contexts/AuthContext';
 import { useRouter } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
 import { Link } from '@/i18n/routing';
-import { PageLayout, useToast, useAuthApi } from '@semiont/react-ui';
+import { PageLayout, useToast, useSemiont, useObservable } from '@semiont/react-ui';
 import { WelcomePage } from '@semiont/react-ui';
+import { createWelcomeStateUnit } from '@semiont/react-ui';
+import { useStateUnit } from '@semiont/react-ui';
 
 export default function Welcome() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AuthWelcome.${k}`, p as any) as string;
-  const { isAuthenticated, isLoading, user } = useAuth();
-  const { clearSession } = useAuthContext();
+  const semiont = useSemiont();
+  const activeKbId = useObservable(semiont.activeKbId$);
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$) ?? null;
+  const activeKnowledgeBase = session?.kb ?? null;
+  const isAuthenticated = !!user;
+  // "Loading" = KB is selected but session not yet constructed.
+  const isLoading = activeKbId != null && session == null;
+  const signOut = (id: string) => { void semiont.signOut(id); };
   const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const toast = useToast();
 
-  // API hooks
-  const authAPI = useAuthApi();
+  const client = session?.client;
+  const stateUnit = useStateUnit(() => createWelcomeStateUnit(client!));
 
-  // Query user data to check if terms already accepted
-  const { data: userData } = authAPI.me.useQuery();
-
-  // Mutation for accepting terms
-  const acceptTermsMutation = authAPI.acceptTerms.useMutation();
+  const userData = useObservable(stateUnit.userData$);
+  const isProcessing = useObservable(stateUnit.isProcessing$) ?? false;
 
   // Redirect if not authenticated or if terms already accepted
   useEffect(() => {
@@ -40,14 +44,7 @@ export default function Welcome() {
       return;
     }
 
-    // Check if user has accepted terms
     if (userData?.termsAcceptedAt) {
-      router.push('/');
-      return;
-    }
-
-    // If terms already accepted, redirect to main app
-    if (isAuthenticated && userData !== undefined && userData?.termsAcceptedAt) {
       router.push('/');
       return;
     }
@@ -55,17 +52,17 @@ export default function Welcome() {
 
   const handleTermsAcceptance = async (accepted: boolean) => {
     if (!accepted) {
-      // User declined terms - clear session and redirect to home
-      clearSession();
+      if (activeKnowledgeBase) {
+        signOut(activeKnowledgeBase.id);
+      }
       router.push('/');
       return;
     }
 
     try {
-      await acceptTermsMutation.mutateAsync();
+      await stateUnit.acceptTerms();
       setTermsAccepted(true);
 
-      // Small delay to show the acceptance state
       setTimeout(() => {
         router.push('/');
       }, 1000);
@@ -75,7 +72,6 @@ export default function Welcome() {
     }
   };
 
-  // Determine status
   const pageStatus = isLoading ? 'loading' : termsAccepted ? 'accepted' : 'form';
   const firstName = user?.name?.split(' ')[0] ?? '';
 
@@ -85,7 +81,7 @@ export default function Welcome() {
       termsAcceptedAt={userData?.termsAcceptedAt ?? null}
       isNewUser={!userData?.termsAcceptedAt}
       status={pageStatus}
-      isProcessing={acceptTermsMutation.isPending}
+      isProcessing={isProcessing}
       onAccept={() => handleTermsAcceptance(true)}
       onDecline={() => handleTermsAcceptance(false)}
       translations={{

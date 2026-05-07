@@ -1,11 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
-// import { useResources } from '../../hooks/useResources';
+import { map } from 'rxjs/operators';
+import { getResourceId } from '@semiont/core';
+import { createSearchPipeline } from '@semiont/sdk';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
-import { getResourceId } from '@semiont/api-client';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import './SearchModal.css';
+
+const SEARCH_DEBOUNCE_MS = 300;
+const SEARCH_LIMIT = 5;
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -39,9 +45,12 @@ export function SearchModal({
   translations = {}
 }: SearchModalProps) {
   const { announceSearchResults, announceSearching } = useSearchAnnouncements();
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  // Pipeline factory captures `semiont` once via useState; if semiont is
+  // still loading at first render the captured value would be undefined.
+  // Route through a ref so the fetch closure reads the latest client.
+  const semiontRef = useRef(semiont);
+  semiontRef.current = semiont;
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const t = {
@@ -56,63 +65,62 @@ export function SearchModal({
     esc: translations.esc || 'ESC',
   };
 
-  // Debounce query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query]);
+  // ── Search pipeline ─────────────────────────────────────────────────────
+  // The fetch closure maps ResourceDescriptor → SearchResult inside the
+  // map operator. The helper handles debounce, switchMap, and loading state.
+  const [pipeline] = useState(() =>
+    createSearchPipeline<SearchResult>(
+      (q) =>
+        semiontRef.current!.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
+          map((resources) => {
+            if (resources === undefined) return undefined;
+            return resources
+              .map((resource): SearchResult | null => {
+                const id = getResourceId(resource);
+                if (!id) return null;
+                return {
+                  type: 'resource',
+                  id,
+                  name: resource.name,
+                  content: (resource as { content?: string }).content?.substring(0, 150),
+                };
+              })
+              .filter((r): r is SearchResult => r !== null);
+          }),
+        ),
+      { debounceMs: SEARCH_DEBOUNCE_MS },
+    ),
+  );
+  useEffect(() => () => pipeline.dispose(), [pipeline]);
 
-  // Use React Query for search
-  // const resources = useResources();
-  // const { data: searchData, isFetching: loading } = resources.search.useQuery(
-  //   debouncedQuery,
-  //   5
-  // );
+  const query = useObservable(pipeline.query$) ?? '';
+  const searchState = useObservable(pipeline.state$);
+  const results = searchState?.results ?? [];
+  const loading = searchState?.isSearching ?? false;
 
-  // TODO: This should come from props or context
-  const searchData = { resources: [], entities: [] };
-  const loading = false;
-
-  // Reset state when modal opens/closes
+  // Reset query and selection when modal opens.
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
-      setDebouncedQuery('');
-      setResults([]);
+      pipeline.setQuery('');
       setSelectedIndex(0);
     }
-  }, [isOpen]);
+  }, [isOpen, pipeline]);
 
-  // Update results when search data changes
+  // Reset selection cursor when results change.
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      setResults([]);
-      return;
-    }
+    setSelectedIndex(0);
+  }, [results.length]);
 
+  // Accessibility announcements for search lifecycle.
+  useEffect(() => {
+    if (!query.trim()) return;
     if (loading) {
       announceSearching();
-    } else if (searchData) {
-      const resourceResults: SearchResult[] = (searchData.resources || [])
-        .filter((resource: any) => getResourceId(resource) !== undefined)
-        .map((resource: any) => ({
-          type: 'resource' as const,
-          id: getResourceId(resource)!,
-          name: resource.name,
-          content: resource.content?.substring(0, 150)
-        }));
-
-      // TODO: Add entities search when API is ready
-      const entityResults: SearchResult[] = [];
-
-      const allResults = [...resourceResults, ...entityResults];
-      setResults(allResults);
-      setSelectedIndex(0);
-      announceSearchResults(allResults.length, debouncedQuery);
+    } else {
+      announceSearchResults(results.length, query);
     }
-  }, [searchData, loading, debouncedQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, results.length]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -170,7 +178,7 @@ export function SearchModal({
                   <input
                     type="text"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => pipeline.setQuery(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={t.placeholder}
                     className="semiont-search-modal__input"

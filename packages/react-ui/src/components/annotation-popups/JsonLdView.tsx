@@ -8,9 +8,8 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../hooks/useLineNumbers';
-import type { components } from '@semiont/core';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 interface JsonLdViewProps {
   annotation: Annotation;

@@ -116,7 +116,7 @@ authRouter.post('/api/tokens/password',
 
       getRouteLogger().debug('Password auth successful', { email });
 
-      // Generate JWT token
+      // Generate access (1h) and refresh (30d) tokens
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
@@ -126,7 +126,8 @@ authRouter.post('/api/tokens/password',
         isAdmin: user.isAdmin,
       };
 
-      const token = JWTService.generateToken(jwtPayload);
+      const token = JWTService.generateToken(jwtPayload, '1h');
+      const refreshToken = JWTService.generateToken(jwtPayload, '30d');
 
       // Update last login
       await prisma.user.update({
@@ -139,7 +140,7 @@ authRouter.post('/api/tokens/password',
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: 60 * 60, // 1 hour, matching access token lifetime
       });
 
       const response: AuthResponse = {
@@ -153,6 +154,7 @@ authRouter.post('/api/tokens/password',
           isAdmin: user.isAdmin,
         },
         token,
+        refreshToken,
         isNewUser: false,
       };
 
@@ -194,15 +196,15 @@ authRouter.post('/api/tokens/google',
       // Verify Google token and get user info
       const googleUser = await OAuthService.verifyGoogleToken(googleCredential(access_token));
 
-      // Create or update user
-      const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
+      // Create or update user (returns access + refresh tokens)
+      const { user, token, refreshToken, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
 
       setCookie(c, 'semiont-token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: 60 * 60, // 1 hour, matching access token lifetime
       });
 
       const response: AuthResponse = {
@@ -216,6 +218,7 @@ authRouter.post('/api/tokens/google',
           isAdmin: user.isAdmin,
         },
         token,
+        refreshToken,
         isNewUser,
       };
 
@@ -422,6 +425,55 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
     });
     return c.json({ error: 'Failed to generate refresh token' }, 401);
   }
+});
+
+/**
+ * POST /api/tokens/worker
+ *
+ * Worker Token Exchange
+ * Exchange a shared secret for a bearer JWT. Used by workers and actors
+ * connecting to the EventBus. The shared secret is set via the
+ * SEMIONT_WORKER_SECRET environment variable on both the backend and
+ * the worker/actor containers.
+ *
+ * Public endpoint (no authentication required — this IS the auth step).
+ */
+authRouter.post('/api/tokens/worker', async (c) => {
+  const workerSecret = process.env.SEMIONT_WORKER_SECRET;
+  if (!workerSecret) {
+    return c.json({ error: 'Worker authentication not configured' }, 503);
+  }
+
+  let body: { secret?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid request body' }, 400);
+  }
+
+  if (body.secret !== workerSecret) {
+    return c.json({ error: 'Invalid worker secret' }, 401);
+  }
+
+  const prisma = DatabaseConnection.getClient();
+  const workerUser = await prisma.user.findUnique({
+    where: { email: 'worker@semiont.local' },
+  });
+
+  if (!workerUser) {
+    return c.json({ error: 'Worker user not found — run: semiont useradd --email worker@semiont.local --generate-password --upsert' }, 503);
+  }
+
+  const token = JWTService.generateToken({
+    userId: makeUserId(workerUser.id),
+    email: makeEmail(workerUser.email),
+    name: workerUser.name ?? 'Worker Pool',
+    domain: workerUser.domain,
+    provider: workerUser.provider,
+    isAdmin: false,
+  }, '24h');
+
+  return c.json({ token }, 200);
 });
 
 /**

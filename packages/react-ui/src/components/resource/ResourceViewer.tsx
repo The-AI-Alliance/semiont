@@ -6,19 +6,15 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components } from '@semiont/core';
-import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
-import { useEventBus } from '../../contexts/EventBusContext';
+import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components } from '@semiont/core';
+import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
-import { useCacheManager } from '../../contexts/CacheContext';
+import { useSemiont } from '../../session/SemiontProvider';
+import { useObservable } from '../../hooks/useObservable';
 import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
-
-type Annotation = components['schemas']['Annotation'];
-type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 /**
  * ResourceViewer - Display and interact with resource content and annotations
@@ -29,7 +25,7 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
  * - No manual refetch needed - events handle cache invalidation
  *
  * Requirements:
- * - Must be wrapped in MakeMeaningEventBusProvider (provides event bus)
+ * - Must be wrapped in SemiontProvider (which owns the session's event bus)
  * - Must be wrapped in CacheContext (provides cache manager)
  *
  * Event flow:
@@ -49,7 +45,7 @@ interface Props {
 
 /**
  * @emits mark:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits browse:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
  * @subscribes mark:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
  * @subscribes mark:added - New annotation was added. Payload: { annotation: Annotation }
@@ -71,8 +67,8 @@ export function ResourceViewer({
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
-  // Get unified event bus for emitting UI events
-  const eventBus = useEventBus();
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$);
 
   // Get observable navigation for event-driven routing
   const navigate = useObservableExternalNavigation();
@@ -84,7 +80,7 @@ export function ResourceViewer({
   if (!resource['@id']) {
     throw new Error('Resource has no @id');
   }
-  const rUri = toResourceId(resource['@id']);
+  const rUri = resource['@id'];
 
   // Helper to get MIME type from resource
   const getMimeType = (): string => {
@@ -120,27 +116,19 @@ export function ResourceViewer({
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
 
-  // Event-based cache invalidation - subscribe to make-meaning events
-  // This replaces manual onRefetchAnnotations calls with automatic updates
-  const cacheManager = useCacheManager();
+  const semiont = session?.client;
 
   const handleAnnotateAdded = useCallback(() => {
-    if (cacheManager) {
-      cacheManager.invalidateAnnotations(rUri);
-    }
-  }, [cacheManager, rUri]);
+    semiont?.browse.invalidateAnnotationList(rUri);
+  }, [semiont, rUri]);
 
   const handleAnnotateRemoved = useCallback(() => {
-    if (cacheManager) {
-      cacheManager.invalidateAnnotations(rUri);
-    }
-  }, [cacheManager, rUri]);
+    semiont?.browse.invalidateAnnotationList(rUri);
+  }, [semiont, rUri]);
 
   const handleAnnotateBodyUpdated = useCallback(() => {
-    if (cacheManager) {
-      cacheManager.invalidateAnnotations(rUri);
-    }
-  }, [cacheManager, rUri]);
+    semiont?.browse.invalidateAnnotationList(rUri);
+  }, [semiont, rUri]);
 
   // Annotation toolbar state - persisted in localStorage
   const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {
@@ -249,10 +237,10 @@ export function ResourceViewer({
     };
   };
 
-  // Handle deleting annotations - emit event instead of direct call
-  const handleDeleteAnnotation = useCallback((id: string) => {
-    eventBus.get('mark:delete').next({ annotationId: toAnnotationId(id) });
-  }, []); // eventBus is stable
+  // Handle deleting annotations
+  const handleDeleteAnnotation = useCallback((id: AnnotationId) => {
+    session?.client.mark.delete(rUri, id);
+  }, [session, rUri]);
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
@@ -337,8 +325,8 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.get('browse:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
-  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, session]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
   // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders

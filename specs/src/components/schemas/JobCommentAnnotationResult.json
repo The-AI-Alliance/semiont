@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "description": "Result of a completed comment-annotation job.",
+  "properties": {
+    "commentsFound": { "type": "integer" },
+    "commentsCreated": { "type": "integer" }
+  },
+  "required": ["commentsFound", "commentsCreated"]
+}

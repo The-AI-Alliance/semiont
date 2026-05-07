@@ -17,7 +17,7 @@ export function partitionByType(events: StoredEvent[]): StoredEvent[][] {
   let currentRun: StoredEvent[] = [];
 
   for (const event of events) {
-    if (currentRun.length > 0 && currentRun[0].event.type !== event.event.type) {
+    if (currentRun.length > 0 && currentRun[0].type !== event.type) {
       runs.push(currentRun);
       currentRun = [];
     }

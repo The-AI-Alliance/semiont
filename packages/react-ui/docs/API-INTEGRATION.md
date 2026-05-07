@@ -17,37 +17,43 @@ The library provides **React Query hooks** for all Semiont API operations. These
 
 ### 1. Configure API Client Provider
 
-```tsx
-import { ApiClientProvider } from '@semiont/react-ui';
-import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
+`ApiClientProvider` must be nested inside `EventBusProvider` and
+`AuthTokenProvider`. Pass the backend URL; the provider reads the
+auth token from `AuthTokenContext` as a `BehaviorSubject` and wires
+it into the client automatically.
 
-function useApiClientManager() {
+```tsx
+import {
+  ApiClientProvider,
+  AuthTokenProvider,
+  EventBusProvider,
+} from '@semiont/react-ui';
+
+function App() {
   const { data: session } = useSession(); // Your auth system
 
-  const client = useMemo(() => {
-    if (!session?.backendToken) return null;
-
-    return new SemiontApiClient({
-      baseUrl: baseUrl(''), // Relative URLs for browser
-      accessToken: accessToken(session.backendToken),
-      timeout: 30000
-    });
-  }, [session?.backendToken]);
-
-  return { client };
+  return (
+    <EventBusProvider>
+      <AuthTokenProvider token={session?.backendToken ?? null}>
+        <ApiClientProvider baseUrl="/">
+          {children}
+        </ApiClientProvider>
+      </AuthTokenProvider>
+    </EventBusProvider>
+  );
 }
-
-// In your app
-<ApiClientProvider apiClientManager={apiClientManager}>
-  {children}
-</ApiClientProvider>
 ```
+
+The client uses an observable `token$: BehaviorSubject<AccessToken | null>`
+internally — when the token transitions from null to a real value, the
+bus SSE connection starts. Token rotation (e.g. after refresh) propagates
+automatically.
 
 ### 2. Configure React Query
 
 ```tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { dispatch401Error, dispatch403Error } from '@semiont/react-ui';
+import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
 import { APIError } from '@semiont/api-client';
 
 const queryClient = new QueryClient({
@@ -55,9 +61,9 @@ const queryClient = new QueryClient({
     onError: (error) => {
       if (error instanceof APIError) {
         if (error.status === 401) {
-          dispatch401Error('Your session has expired');
+          notifySessionExpired('Your session has expired');
         } else if (error.status === 403) {
-          dispatch403Error('Permission denied');
+          notifyPermissionDenied('Permission denied');
         }
       }
     },
@@ -180,7 +186,6 @@ function EditResource({ rId }) {
 **Available Operations:**
 - `resources.list.useQuery()` - List resources
 - `resources.get.useQuery(rId)` - Get single resource
-- `resources.search.useQuery(query, limit)` - Search resources
 - `resources.events.useQuery(rId)` - Get resource events
 - `resources.annotations.useQuery(rId)` - Get resource annotations
 - `resources.referencedBy.useQuery(rId)` - Get referencing resources
@@ -189,6 +194,67 @@ function EditResource({ rId }) {
 - `resources.generateCloneToken.useMutation()` - Generate clone token
 - `resources.getByToken.useQuery(token)` - Get resource by token
 - `resources.createFromToken.useMutation()` - Clone resource
+
+**Search:** there is no React Query hook for resource search. Search is consumed
+directly through the api-client's Observable surface using `createSearchPipeline`,
+which encapsulates the debounce + distinct + switchMap + loading-state shape:
+
+```tsx
+import {
+  useApiClient,
+  useObservable,
+  createSearchPipeline,
+} from '@semiont/react-ui';
+import { useState, useEffect } from 'react';
+import type { components } from '@semiont/core';
+
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+
+function MySearchUI() {
+  const semiont = useApiClient();
+  const [pipeline] = useState(() =>
+    createSearchPipeline<ResourceDescriptor>(
+      (q) => semiont.browse.resources({ search: q, limit: 20 }),
+    ),
+  );
+  useEffect(() => () => pipeline.dispose(), [pipeline]);
+
+  const query = useObservable(pipeline.query$) ?? '';
+  const state = useObservable(pipeline.state$);
+  const results = state?.results ?? [];
+  const isSearching = state?.isSearching ?? false;
+
+  return (
+    <input
+      value={query}
+      onChange={(e) => pipeline.setQuery(e.target.value)}
+    />
+    // ... render `results` and `isSearching`
+  );
+}
+```
+
+The pipeline is created once per component mount via `useState`'s lazy
+initializer and torn down on unmount via `useEffect` cleanup. The component
+holds no React state for the search query — `pipeline.query$` is the source
+of truth, surfaced via `useObservable`.
+
+**Why a helper instead of `useMemo` + RxJS inline?** The pipeline is a
+stateful long-lived object (a Subject + an Observable graph). Inlining it in
+the component body and stabilizing it with `useMemo` is defensive plumbing
+against React re-runs, and it's easy to break by accident — a fresh object
+returned from a hook on each render busts the deps and restarts the
+pipeline on every keystroke. The helper sidesteps this by living outside
+the React render lifecycle entirely.
+
+**For non-trivial result mapping** (e.g., adapting `ResourceDescriptor` to a
+modal-specific shape), put the mapping inside the fetch closure with
+`map()`. The closure can return `undefined` to signal "still loading" — see
+`SearchModal.tsx` and `ResourceSearchModal.tsx` for working examples.
+
+`createSearchPipeline` is unit-testable without React: pass a stub fetch
+function, push values into `setQuery`, assert on emissions from `state$`.
+See `packages/react-ui/src/lib/__tests__/search-pipeline.test.ts`.
 
 ---
 
@@ -540,9 +606,9 @@ const queryClient = new QueryClient({
     onError: (error) => {
       if (error instanceof APIError) {
         if (error.status === 401) {
-          dispatch401Error('Session expired');
+          notifySessionExpired('Session expired');
         } else if (error.status === 403) {
-          dispatch403Error('Permission denied');
+          notifyPermissionDenied('Permission denied');
         }
       }
     },
@@ -659,17 +725,15 @@ See [TESTING.md](TESTING.md) for comprehensive testing guide.
 
 ```tsx
 import { renderWithProviders } from '@semiont/react-ui/test-utils';
-import { SemiontApiClient } from '@semiont/api-client';
+import { BrowseNamespace } from '@semiont/api-client';
+import { of } from 'rxjs';
 
 it('should fetch resources', async () => {
-  const mockClient = new SemiontApiClient({ ... });
-  vi.spyOn(mockClient, 'listResources').mockResolvedValue({
-    resources: [{ id: 'r1', name: 'Test' }]
-  });
+  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
+    of([{ id: 'r1', name: 'Test' } as any]),
+  );
 
-  renderWithProviders(<ResourceList />, {
-    apiClientManager: { client: mockClient }
-  });
+  renderWithProviders(<ResourceList />);
 
   await screen.findByText('Test');
 });
@@ -952,6 +1016,6 @@ This architecture is the foundation for P2P real-time collaboration.
 ## See Also
 
 - [EVENTS.md](EVENTS.md) - Event-driven architecture and event-based cache invalidation
-- [PROVIDERS.md](PROVIDERS.md) - ApiClientProvider setup
+- [SESSION.md](SESSION.md) - ApiClientProvider setup
 - [TESTING.md](TESTING.md) - Testing API hooks
 - [@semiont/api-client](../../api-client) - API client documentation

@@ -3,7 +3,8 @@
 
 import type { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
-import type { components, Logger } from '@semiont/core';
+import type { Logger } from '@semiont/core';
+import { annotationId as makeAnnotationId } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -16,17 +17,11 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  getExactText,
-  getBodySource,
-  getTargetSource,
-  getTargetSelector,
-  getPrimaryRepresentation
-} from '@semiont/api-client';
+import { getExactText, getBodySource, getTargetSource, getTargetSelector, getPrimaryRepresentation } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+import type { ResourceDescriptor } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 /**
  * Convert motivation to a valid Neo4j label name
@@ -213,6 +208,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.contentChecksum = $contentChecksum,
              d.sourceAnnotationId = $sourceAnnotationId,
              d.sourceResourceId = $sourceResourceId,
+             d.storageUri = $storageUri,
              d.stub = false
          RETURN d`,
         {
@@ -227,6 +223,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
+          storageUri: resource.storageUri ?? null,
         }
       );
 
@@ -305,7 +302,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       }
 
       if (filter.search) {
-        conditions.push('toLower(d.name) CONTAINS toLower($search)');
+        conditions.push('(toLower(d.name) CONTAINS toLower($search) OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($search))');
         params.search = filter.search;
       }
 
@@ -346,6 +343,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(
         `MATCH (d:Resource)
          WHERE toLower(d.name) CONTAINS toLower($query)
+            OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($query)
          RETURN d
          ORDER BY d.updatedAt DESC
          LIMIT $limit`,
@@ -366,7 +364,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
-        id,
+        id: makeAnnotationId(id),
         motivation: input.motivation,
         target: input.target,
         body: input.body,
@@ -1013,6 +1011,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
+          storageUri: resource.storageUri ?? null,
         };
       });
 
@@ -1029,6 +1028,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.contentChecksum = r.contentChecksum,
              d.sourceAnnotationId = r.sourceAnnotationId,
              d.sourceResourceId = r.sourceResourceId,
+             d.storageUri = r.storageUri,
              d.stub = false
          RETURN d`,
         { resources: params }
@@ -1177,6 +1177,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     };
 
     if (props.sourceResourceId) resource.sourceResourceId = props.sourceResourceId;
+    if (props.storageUri) resource.storageUri = props.storageUri;
 
     return resource;
   }

@@ -8,7 +8,7 @@ import { CommentEntry } from '../CommentEntry';
 import type { components } from '@semiont/core';
 import type { EventBus } from "@semiont/core"
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -24,8 +24,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
 }));
 
 // Mock @semiont/api-client utilities
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getCommentText: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock('@semiont/api-client', async () => {
   };
 });
 
-import { getCommentText, getAnnotationExactText } from '@semiont/api-client';
+import { getCommentText, getAnnotationExactText } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 
 const mockGetCommentText = getCommentText as MockedFunction<typeof getCommentText>;

@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "description": "Emitted when the UI theme setting changes",
+  "properties": {
+    "theme": {
+      "type": "string",
+      "enum": ["light", "dark", "system"]
+    }
+  },
+  "required": ["theme"]
+}

@@ -10,12 +10,12 @@ import { GraphContext } from './graph-context';
 import { AnnotationContext } from './annotation-context';
 import { generateResourceSummary, generateReferenceSuggestions } from './generation/resource-generation';
 import type { InferenceClient } from '@semiont/inference';
-import { getResourceEntityTypes, getResourceId } from '@semiont/api-client';
+import { getResourceEntityTypes, getResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, type ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
 
 export interface LLMContextOptions {

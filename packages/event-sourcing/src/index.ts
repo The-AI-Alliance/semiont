@@ -6,16 +6,14 @@
  * Provides:
  * - EventStore: Orchestration layer for event sourcing
  * - EventLog: Event persistence (append, retrieve, query)
- * - EventBus: Pub/sub notifications (publish, subscribe)
  * - ViewManager: View materialization (resource and system)
  * - ViewStorage: Interface and filesystem implementation for materialized views
  */
 
 // Core event sourcing components
-export { EventStore } from './event-store';
+export { EventStore, type EnrichEvent } from './event-store';
 export { createEventStore } from './event-store-factory';
 export { EventLog, type EventLogConfig } from './event-log';
-export { EventBus } from './event-bus';
 export { ViewManager, type ViewManagerConfig } from './view-manager';
 
 // Storage
@@ -35,22 +33,17 @@ export {
   type StorageUriEntry,
 } from './storage/storage-uri-index';
 
-// Subscriptions
-export {
-  type EventCallback,
-  type EventSubscription,
-  EventSubscriptions,
-  getEventSubscriptions,
-} from './subscriptions/event-subscriptions';
 
 // Query
 export { EventQuery } from './query/event-query';
 
-// Validation
-export { EventValidator } from './validation/event-validator';
-
 // Views
 export { ViewMaterializer } from './views/view-materializer';
+export {
+  applyEntityTypeAdded,
+  applyTagSchemaAdded,
+  type ApplyTagSchemaAddedResult,
+} from './views/projection-reducers';
 
 // Identifier utilities
 export { generateAnnotationId } from './identifier-utils';

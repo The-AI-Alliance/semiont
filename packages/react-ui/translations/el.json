@@ -28,7 +28,8 @@
     "creationMethod": "Μέθοδος δημιουργίας",
     "attributedTo": "Αποδίδεται σε",
     "derivedFrom": "Παράγεται από",
-    "generatedBy": "Δημιουργήθηκε από"
+    "generatedBy": "Δημιουργήθηκε από",
+    "storageUri": "Αποθήκευση"
   },
   "CollaborationPanel": {
     "title": "Συνεργασία",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Ετικέτες",
     "noTags": "Δεν υπάρχουν ετικέτες ακόμα. Χρησιμοποιήστε τον σχολιασμό AI για να αναγνωρίσετε δομικούς ρόλους.",
+    "noSchemas": "Δεν υπάρχουν εγγεγραμμένα σχήματα ετικετών για αυτή τη βάση γνώσης. Ένας διαχειριστής KB πρέπει να εγγράψει τουλάχιστον ένα σχήμα δομικής ανάλυσης (π.χ. μέσω της δεξιότητας `register-tag-schemas`) πριν χρησιμοποιηθεί η ετικετοποίηση.",
     "annotateTags": "Σχολιασμός Ετικετών",
     "selectSchema": "Επιλογή Πλαισίου",
-    "schemaLegal": "Νομική Ανάλυση (IRAC)",
-    "schemaScientific": "Επιστημονικό Άρθρο (IMRAD)",
-    "schemaArgument": "Δομή Επιχειρήματος (Toulmin)",
     "selectCategories": "Επιλογή Κατηγοριών",
-    "categoryIssue": "Ζήτημα",
-    "categoryRule": "Κανόνας",
-    "categoryApplication": "Εφαρμογή",
-    "categoryConclusion": "Συμπέρασμα",
-    "categoryIntroduction": "Εισαγωγή",
-    "categoryMethods": "Μέθοδοι",
-    "categoryResults": "Αποτελέσματα",
-    "categoryDiscussion": "Συζήτηση",
-    "categoryClaim": "Ισχυρισμός",
-    "categoryEvidence": "Τεκμήριο",
-    "categoryWarrant": "Αιτιολόγηση",
-    "categoryCounterargument": "Αντεπιχείρημα",
-    "categoryRebuttal": "Ανασκευή",
     "annotate": "Σχολιασμός",
     "annotating": "Σχολιασμός...",
     "cancel": "Ακύρωση",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Χρήση AI για βαθμολόγηση αποτελεσμάτων κατά σημασιολογική συνάφεια",
     "searching": "Αναζήτηση...",
     "search": "Αναζήτηση"
+  },
+  "History": {
+    "embeddingComputed": "Ενσωμάτωση υπολογίστηκε"
   }
 }

@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Bus command to request cloning a resource using a clone token.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "token": {
+      "type": "string"
+    }
+  },
+  "required": ["correlationId", "token"]
+}

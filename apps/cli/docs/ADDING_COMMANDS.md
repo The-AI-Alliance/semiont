@@ -171,26 +171,38 @@ if (subcommand === 'foo') { ... }
 else { /* bar */ }
 ```
 
-### SSE long-lived streams (listen-style)
+### Long-lived bus subscriptions (listen-style)
 
 ```typescript
-import { EventBus } from '@semiont/core';
+import { createActorStateUnit } from '@semiont/api-client';
 
-const eventBus = new EventBus();
-eventBus.get('make-meaning:event').subscribe((event) => {
-  process.stdout.write(JSON.stringify(event) + '\n');
+const actor = createActorStateUnit({
+  baseUrl: rawBusUrl,
+  token,
+  channels: ['mark:added', 'mark:removed', 'job:completed'],
 });
 
-const stream = client.sse.resourceEvents(resourceId, { auth: token, eventBus });
+// For resource-scoped channels, add with a scope:
+// actor.addChannels(['mark:added', ...], resourceId);
+
+for (const channel of ['mark:added', 'mark:removed', 'job:completed']) {
+  actor.on$(channel).subscribe((event) => {
+    process.stdout.write(JSON.stringify(event) + '\n');
+  });
+}
+
+actor.start();
 
 await new Promise<void>((resolve) => {
-  const cleanup = () => { stream.close(); resolve(); };
+  const cleanup = () => { actor.dispose(); resolve(); };
   process.once('SIGINT', cleanup);
   process.once('SIGTERM', cleanup);
 });
 ```
 
-### SSE one-shot streams (gather/bind-style)
+See the `listen` command for a working example.
+
+### One-shot bus request-response (gather/bind-style)
 
 Subscribe to the completion event before starting the stream, then await:
 

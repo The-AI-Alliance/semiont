@@ -16,6 +16,7 @@ export interface GoogleUserInfo {
 export interface CreateUserResult {
   user: User;
   token: AccessToken;
+  refreshToken: string;
   isNewUser: boolean;
 }
 
@@ -108,9 +109,10 @@ export class OAuthService {
       isAdmin: user.isAdmin,
     };
 
-    const token = makeAccessToken(JWTService.generateToken(jwtPayload));
+    const token = makeAccessToken(JWTService.generateToken(jwtPayload, '1h'));
+    const refreshToken = JWTService.generateToken(jwtPayload, '30d');
 
-    return { user, token, isNewUser };
+    return { user, token, refreshToken, isNewUser };
   }
 
   static async getUserFromToken(token: AccessToken): Promise<User> {

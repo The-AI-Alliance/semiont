@@ -13,7 +13,7 @@
     "administer": "Administrare"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Toate drepturile rezervate.",
+    "copyright": "© {{year}} The AI Alliance. Toate drepturile rezervate.",
     "about": "Despre",
     "privacyPolicy": "Politica de confidențialitate",
     "cookiePreferences": "Preferințe cookie-uri",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Introduceți numele resursei...",
     "entityTypes": "Etichete de tip entitate",
     "entityTypesHint": "Etichetează resursa cu tipuri de entitate",
-    "noEntityTypesAvailable": "Nu sunt disponibile tipuri de entitate",
     "contentSource": "Sursa conținutului",
     "uploadFile": "Încarcă fișier",
     "uploadFileDescription": "Imagini, documente, fișiere text",
@@ -591,14 +590,17 @@
     "statusConnected": "Conectat",
     "statusExpired": "Sesiune expirată",
     "statusSignedOut": "Deconectat",
-    "statusUnreachable": "Inaccesibil"
+    "statusUnreachable": "Inaccesibil",
+    "invalidHost": "Nume de gazdă invalid"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nicio bază de cunoștințe",
     "noKnowledgeBasesHint": "Adăugați o bază de cunoștințe folosind panoul din dreapta pentru a începe să descoperiți, să adnotați și să conectați resurse.",
     "sessionExpired": "Sesiunea dvs. a expirat.",
     "signedOut": "Ați fost deconectat.",
-    "signInHint": "Conectați-vă prin panoul Baza de cunoștințe pentru a naviga prin resurse."
+    "signInHint": "Conectați-vă prin panoul Baza de cunoștințe pentru a naviga prin resurse.",
+    "findKnowledgeBases": "Găsește baze de cunoștințe",
+    "createNew": "Creează una nouă"
   },
   "AccountPanel": {
     "notAuthenticated": "Conectați-vă la o bază de cunoștințe pentru a vă vizualiza contul."

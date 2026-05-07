@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "tagSchemas": {
+      "type": "array",
+      "items": { "$ref": "./TagSchema.json" }
+    }
+  },
+  "required": ["tagSchemas"]
+}

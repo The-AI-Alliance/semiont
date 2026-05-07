@@ -101,8 +101,6 @@ export async function exportBackup(
     streamSummaries.push({
       stream: streamId,
       eventCount: events.length,
-      firstChecksum: events[0].metadata.checksum || '',
-      lastChecksum: events[events.length - 1].metadata.checksum || '',
     });
   }
 
@@ -166,8 +164,8 @@ function collectContentRefs(
 
   for (const [, events] of streamData) {
     for (const stored of events) {
-      if (stored.event.type === 'resource.created') {
-        const payload = stored.event.payload as {
+      if (stored.type === 'yield:created') {
+        const payload = stored.payload as {
           storageUri?: string;
           format?: string;
         };

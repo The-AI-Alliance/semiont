@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "Emitted when resources are reordered in the browse panel",
+  "properties": {
+    "oldIndex": {
+      "type": "integer"
+    },
+    "newIndex": {
+      "type": "integer"
+    }
+  },
+  "required": ["oldIndex", "newIndex"]
+}

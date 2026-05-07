@@ -13,7 +13,7 @@
     "administer": "Адміністрування"
   },
   "Footer": {
-    "copyright": "© {{year}} Semiont. Усі права захищено.",
+    "copyright": "© {{year}} The AI Alliance. Усі права захищено.",
     "about": "Про нас",
     "privacyPolicy": "Політика конфіденційності",
     "cookiePreferences": "Налаштування файлів cookie",
@@ -266,7 +266,6 @@
     "resourceNamePlaceholder": "Введіть назву ресурсу...",
     "entityTypes": "Теги типів сутностей",
     "entityTypesHint": "Позначте ваш ресурс тегами типів сутностей",
-    "noEntityTypesAvailable": "Типи сутностей відсутні",
     "contentSource": "Джерело контенту",
     "uploadFile": "Завантажити файл",
     "uploadFileDescription": "Зображення, документи, текстові файли",
@@ -591,14 +590,17 @@
     "statusConnected": "Підключено",
     "statusExpired": "Сеанс завершено",
     "statusSignedOut": "Вийшли",
-    "statusUnreachable": "Недоступно"
+    "statusUnreachable": "Недоступно",
+    "invalidHost": "Недійсне ім'я хоста"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Немає баз знань",
     "noKnowledgeBasesHint": "Додайте базу знань за допомогою панелі праворуч, щоб почати виявляти, анотувати та пов'язувати ресурси.",
     "sessionExpired": "Ваш сеанс завершено.",
     "signedOut": "Ви вийшли з системи.",
-    "signInHint": "Увійдіть за допомогою панелі «База знань», щоб переглядати ресурси."
+    "signInHint": "Увійдіть за допомогою панелі «База знань», щоб переглядати ресурси.",
+    "findKnowledgeBases": "Знайти бази знань",
+    "createNew": "Створити нову"
   },
   "AccountPanel": {
     "notAuthenticated": "Увійдіть до бази знань, щоб переглянути свій обліковий запис."

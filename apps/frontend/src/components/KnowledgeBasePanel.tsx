@@ -1,22 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { SemiontApiClient } from '@semiont/api-client';
-import { baseUrl, email as makeEmail, accessToken, EventBus } from '@semiont/core';
+import { SemiontClient, defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
+import { HttpContentTransport, HttpTransport } from '@semiont/api-client';
+import { baseUrl } from '@semiont/core';
 import {
-  useKnowledgeBaseContext,
-  defaultProtocol,
-  getKbSessionStatus,
-  setKbToken,
-  type KnowledgeBase,
-  type KbSessionStatus,
-} from '@/contexts/KnowledgeBaseContext';
+  useSemiont,
+  useObservable,
+} from '@semiont/react-ui';
 
 type T = (key: string, params?: Record<string, unknown>) => string;
-
-function generateKbId(): string {
-  return crypto.randomUUID();
-}
 
 const STATUS_COLORS: Record<KbSessionStatus, string> = {
   authenticated: 'var(--semiont-color-success-500, #22c55e)',
@@ -49,7 +42,7 @@ function StatusDot({ status, t }: { status: KbSessionStatus; t: T }) {
 
 function LoginForm({ t, onSubmit, onCancel, error, isSubmitting, autoFocus, pulsing, initialHost = 'localhost', initialPort = 4000, initialEmail = 'admin@example.com' }: {
   t: T;
-  onSubmit: (host: string, port: number, email: string, password: string) => Promise<void>;
+  onSubmit: (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => Promise<void>;
   onCancel: () => void;
   error: string | null;
   isSubmitting: boolean;
@@ -61,8 +54,14 @@ function LoginForm({ t, onSubmit, onCancel, error, isSubmitting, autoFocus, puls
 }) {
   const [host, setHost] = useState(initialHost);
   const [port, setPort] = useState(String(initialPort));
+  const [protocol, setProtocol] = useState<'http' | 'https'>(defaultProtocol(initialHost));
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
+
+  const handleHostChange = (newHost: string) => {
+    setHost(newHost);
+    setProtocol(defaultProtocol(newHost));
+  };
 
   return (
     <div
@@ -76,16 +75,21 @@ function LoginForm({ t, onSubmit, onCancel, error, isSubmitting, autoFocus, puls
       }}
     >
       <h3 style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>{t('connectTitle')}</h3>
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit(host, parseInt(port, 10) || 4000, email, password); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <input type="text" value={host} onChange={e => setHost(e.target.value)} placeholder="Host" className="semiont-input" style={{ flex: 1 }} autoFocus={autoFocus} />
-          <input type="number" value={port} onChange={e => setPort(e.target.value)} placeholder="Port" className="semiont-input" style={{ width: '5rem' }} />
-        </div>
+      <form onSubmit={(e) => { e.preventDefault(); if (isValidHostname(host)) onSubmit(host, parseInt(port, 10) || 4000, protocol, email, password); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <select value={protocol} onChange={e => setProtocol(e.target.value as 'http' | 'https')} className="semiont-input">
+          <option value="http">HTTP</option>
+          <option value="https">HTTPS</option>
+        </select>
+        <input type="text" value={host} onChange={e => handleHostChange(e.target.value)} placeholder="Host" className="semiont-input" autoFocus={autoFocus} />
+        <input type="number" value={port} onChange={e => setPort(e.target.value)} placeholder="Port" className="semiont-input" />
+        {host && !isValidHostname(host) && (
+          <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{t('invalidHost')}</div>
+        )}
         <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="semiont-input" />
         <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="semiont-input" />
         {error && <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{error}</div>}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="submit" className="semiont-button semiont-button--primary" style={{ flex: 1 }} disabled={isSubmitting}>
+          <button type="submit" className="semiont-button semiont-button--primary" style={{ flex: 1 }} disabled={isSubmitting || !isValidHostname(host)}>
             {isSubmitting ? t('connecting') : t('connect')}
           </button>
           <button type="button" className="semiont-button" onClick={onCancel}>
@@ -124,27 +128,40 @@ function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
   );
 }
 
-async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; label: string }> {
+async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; label: string; gitBranch?: string }> {
   const origin = `${protocol}://${host}:${port}`;
-  const client = new SemiontApiClient({ baseUrl: baseUrl(origin), eventBus: new EventBus() });
+  const transport = new HttpTransport({ baseUrl: baseUrl(origin) });
+  const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
-  const authResult = await client.authenticatePassword(makeEmail(emailStr), password);
+  const authResult = await client.auth!.password(emailStr, password);
   const token = (authResult as any).token ?? (authResult as any).accessToken;
-  if (!token) throw new Error('No token received');
+  const refreshToken = (authResult as any).refreshToken;
+  if (!token) throw new Error('No access token received');
+  if (!refreshToken) throw new Error('No refresh token received');
 
   let label = `${host}:${port}`;
+  let gitBranch: string | undefined;
   try {
-    const status = await client.getStatus({ auth: accessToken(token) });
+    const status = await client.admin!.status();
     if ((status as any).projectName) label = (status as any).projectName;
+    if ((status as any).gitBranch) gitBranch = (status as any).gitBranch;
   } catch { /* use default label */ }
 
-  return { token, label };
+  return { token, refreshToken, label, ...(gitBranch ? { gitBranch } : {}) };
 }
 
 export function KnowledgeBasePanel() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
-  const { knowledgeBases, activeKnowledgeBase, setActiveKnowledgeBase, addKnowledgeBase, removeKnowledgeBase, updateKnowledgeBase, signOut } = useKnowledgeBaseContext();
+  const semiont = useSemiont();
+  const knowledgeBases = useObservable(semiont.kbs$) ?? [];
+  const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
+  const setActiveKnowledgeBase = (id: string) => { void semiont.setActiveKb(id); };
+  const addKnowledgeBase = semiont.addKb.bind(semiont);
+  const removeKnowledgeBase = semiont.removeKb.bind(semiont);
+  const updateKnowledgeBase = semiont.updateKb.bind(semiont);
+  const signIn = (id: string, access: string, refresh: string) => { void semiont.signIn(id, access, refresh); };
+  const signOut = (id: string) => { void semiont.signOut(id); };
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);
@@ -169,16 +186,17 @@ export function KnowledgeBasePanel() {
     setAddError(null);
   };
 
-  const handleAdd = async (host: string, port: number, email: string, password: string) => {
+  const handleAdd = async (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => {
     setAddError(null);
     setAddSubmitting(true);
-    const protocol = defaultProtocol(host);
-    const existing = knowledgeBases.find(kb => kb.host === host && kb.port === port);
+    const existing = knowledgeBases.find(
+      kb => kb.endpoint.kind === 'http' && kb.endpoint.host === host && kb.endpoint.port === port,
+    );
     if (existing) {
       try {
-        const { token } = await authenticateWithBackend(host, port, protocol, email, password);
-        setKbToken(existing.id, token);
-        setActiveKnowledgeBase(existing.id);
+        const { token, refreshToken, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
+        updateKnowledgeBase(existing.id, { ...(gitBranch ? { gitBranch } : {}) });
+        signIn(existing.id, token, refreshToken);
         setShowAddForm(false);
       } catch (err) {
         setAddError(err instanceof Error ? err.message : String(err));
@@ -188,10 +206,17 @@ export function KnowledgeBasePanel() {
       return;
     }
     try {
-      const { token, label } = await authenticateWithBackend(host, port, protocol, email, password);
-      const id = generateKbId();
-      setKbToken(id, token);
-      addKnowledgeBase({ id, label, host, port, protocol, email });
+      const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
+      addKnowledgeBase(
+        {
+          label,
+          email,
+          endpoint: { kind: 'http', host, port, protocol },
+          ...(gitBranch ? { gitBranch } : {}),
+        },
+        token,
+        refreshToken,
+      );
       setShowAddForm(false);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
@@ -205,12 +230,18 @@ export function KnowledgeBasePanel() {
     if (!kb) return;
     setReauthError(null);
     setReauthSubmitting(true);
+    if (kb.endpoint.kind !== 'http') {
+      setReauthError(`Re-auth is HTTP-only; KB endpoint kind "${kb.endpoint.kind}" is not supported here.`);
+      setReauthSubmitting(false);
+      return;
+    }
     try {
-      const { token, label } = await authenticateWithBackend(kb.host, kb.port, kb.protocol, kb.email, password);
-      setKbToken(kbId, token);
-      updateKnowledgeBase(kbId, { label });
+      const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(
+        kb.endpoint.host, kb.endpoint.port, kb.endpoint.protocol, kb.email, password,
+      );
+      updateKnowledgeBase(kbId, { label, ...(gitBranch ? { gitBranch } : {}) });
+      signIn(kbId, token, refreshToken);
       setReauthKbId(null);
-      setActiveKnowledgeBase(kbId);
     } catch (err) {
       setReauthError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -219,7 +250,7 @@ export function KnowledgeBasePanel() {
   };
 
   const handleKbClick = (kb: KnowledgeBase) => {
-    const status = getKbSessionStatus(kb.id);
+    const status = semiont.getKbSessionStatus(kb.id);
     if (status === 'authenticated') {
       setActiveKnowledgeBase(kb.id);
     } else {
@@ -240,7 +271,7 @@ export function KnowledgeBasePanel() {
       <div className="semiont-panel__content">
         <div className="semiont-panel__list">
           {knowledgeBases.map((kb: KnowledgeBase) => {
-            const status = getKbSessionStatus(kb.id);
+            const status = semiont.getKbSessionStatus(kb.id);
             const isActive = kb.id === activeKnowledgeBase?.id;
             const isReauthing = reauthKbId === kb.id;
 
@@ -275,7 +306,10 @@ export function KnowledgeBasePanel() {
                     </button>
                   </div>
                   <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
-                    {kb.host}:{kb.port}
+                    {kb.endpoint.kind === 'http'
+                      ? `${kb.endpoint.host}:${kb.endpoint.port}`
+                      : `local:${kb.endpoint.kbId}`}
+                    {kb.gitBranch ? ` · ${kb.gitBranch}` : ''}
                   </span>
                 </div>
                 {confirmRemoveKbId === kb.id && (

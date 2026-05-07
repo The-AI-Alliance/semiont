@@ -14,7 +14,8 @@ export {
 // MIME Extensions
 export {
   getExtensionForMimeType,
-  hasKnownExtension
+  hasKnownExtension,
+  deriveStorageUri,
 } from './mime-extensions';
 
 // Checksum utilities

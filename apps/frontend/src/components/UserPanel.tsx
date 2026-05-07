@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { sanitizeImageURL, useSessionExpiry, formatTime, useApiClient } from '@semiont/react-ui';
-import { useAuth } from '@/hooks/useAuth';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { useKnowledgeBaseContext } from '@/contexts/KnowledgeBaseContext';
+import {
+  sanitizeImageURL,
+  useSessionExpiry,
+  formatTime,
+  useSemiont,
+  useObservable,
+  createSessionStateUnit,
+  useStateUnit,
+} from '@semiont/react-ui';
 import { useRouter } from '@/i18n/routing';
 
 // Fallback avatar when image fails to load or is invalid
@@ -12,10 +17,17 @@ const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdod
 export function UserPanel() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`UserPanel.${k}`, p as any) as string;
-  const { displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
-  const { clearSession } = useAuthContext();
-  const { activeKnowledgeBase } = useKnowledgeBaseContext();
-  const apiClient = useApiClient();
+  const semiont = useSemiont();
+  const session = useObservable(semiont.activeSession$);
+  const user = useObservable(session?.user$) ?? null;
+  const activeKnowledgeBase = session?.kb ?? null;
+  const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'User';
+  const avatarUrl = user?.image ?? null;
+  const userDomain = user?.domain || user?.email?.split('@')[1];
+  const isAdmin = user?.isAdmin ?? false;
+  const isModerator = user?.isModerator ?? false;
+  const apiClient = session?.client;
+  const sessionStateUnit = useStateUnit(() => createSessionStateUnit(apiClient!));
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
@@ -37,12 +49,10 @@ export function UserPanel() {
   })();
 
   const handleSignOut = async () => {
-    try {
-      await apiClient.logout();
-    } catch {
-      // best-effort — cookie already cleared server-side
+    await sessionStateUnit.logout();
+    if (activeKnowledgeBase) {
+      await semiont.signOut(activeKnowledgeBase.id);
     }
-    clearSession();
     router.push('/');
   };
 

@@ -66,15 +66,15 @@ describe('Toolbar', () => {
   });
 
   describe('event emission', () => {
-    it('emits browse:panel-toggle with panel name on click', () => {
+    it('emits panel:toggle with panel name on click', () => {
       const handler = vi.fn();
 
-      const { eventBus } = renderWithProviders(
+      const { shellBus } = renderWithProviders(
         <Toolbar context="document" activePanel={null} />,
-        { returnEventBus: true }
+        { returnShellBus: true }
       );
 
-      const subscription = eventBus!.get('browse:panel-toggle').subscribe(handler);
+      const subscription = shellBus!.get('panel:toggle').subscribe(handler);
 
       fireEvent.click(screen.getByLabelText('Toolbar.resourceInfo'));
       expect(handler).toHaveBeenCalledWith({ panel: 'info' });

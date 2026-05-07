@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "description": "Emitted when the active mark selection changes",
+  "properties": {
+    "motivation": {
+      "type": "string",
+      "nullable": true
+    }
+  },
+  "required": ["motivation"]
+}

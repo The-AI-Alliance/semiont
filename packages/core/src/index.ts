@@ -71,53 +71,53 @@ export type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
+  ResourceDescriptor,
 } from './graph';
 
-// Event types
+// Event base types (persistence model foundations)
 export type {
-  BaseEvent,
-  ResourceEvent,
-  ResourceEventType,
-  SystemEvent,
-  ResourceScopedEvent,
-  ResourceCreatedEvent,
-  ResourceClonedEvent,
-  ResourceArchivedEvent,
-  ResourceUnarchivedEvent,
-  RepresentationAddedEvent,
-  RepresentationRemovedEvent,
-  AnnotationAddedEvent,
-  AnnotationRemovedEvent,
-  AnnotationBodyUpdatedEvent,
-  JobStartedEvent,
-  JobProgressEvent,
-  JobCompletedEvent,
-  JobFailedEvent,
-  BodyOperation,
-  BodyItem,
-  EntityTagAddedEvent,
-  EntityTagRemovedEvent,
-  EmbeddingComputedEvent,
-  EmbeddingDeletedEvent,
+  Brand,
+  EventBase,
   EventMetadata,
   EventSignature,
   StoredEvent,
+  BodyOperation,
+  BodyItem,
   EventQuery,
   ResourceAnnotations,
-} from './events';
-export {
-  isResourceEvent,
-  isSystemEvent,
-  isResourceScopedEvent,
-  getEventType,
-} from './events';
+} from './event-base';
+
+// Persisted events (the 20 event types written to the log)
+export type {
+  EventOfType,
+  PersistedEvent,
+  PersistedEventType,
+  EventInput,
+} from './persisted-events';
+export { PERSISTED_EVENT_TYPES } from './persisted-events';
+
+// Bus protocol (unified EventMap — all channels on the EventBus)
+export type {
+  EventMap,
+  EventName,
+  EmittableChannel,
+  ResourceBroadcastType,
+} from './bus-protocol';
+export { RESOURCE_BROADCAST_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+
+// Payload type aliases (OpenAPI schema shortcuts used across the codebase)
+export type {
+  Selector,
+  GatheredContext,
+  SelectionData,
+} from './payload-types';
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';
 export {
   getAnnotationUriFromEvent,
   isEventRelatedToAnnotation,
-  isResourceEvent as isStoredEvent,
+  isStoredEvent,
 } from './event-utils';
 
 // Event bus (RxJS-based, framework-agnostic)
@@ -126,22 +126,20 @@ export { EventBus, ScopedEventBus } from './event-bus';
 // RxJS operators
 export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 
+// Per-key serialization (for RPC-style callers; see also RxJS groupBy + concatMap
+// for stream-style callers in packages/make-meaning)
+export { serializePerKey } from './serialize-per-key';
+
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
+export { errField } from './logger';
 
-// Event protocol (application-level events for event bus)
-export type {
-  EventMap,
-  EventName,
-  SelectionData,
-  MarkProgress,
-  YieldProgress,
-  Selector,
-  GatheredContext,
-} from './event-map';
+// Bus logging — Tier 1 cross-wire observability
+export { busLog, busLogEnabled, setBusLogTraceIdProvider, type BusOp } from './bus-log';
 
-// Backend-specific annotation utilities
+// Annotation body matcher (used by mark:body-updated event replay)
 export { findBodyItem } from './annotation-utils';
+export type { BodyItemIdentity } from './annotation-utils';
 
 // Annotation assembly (pure functions for building W3C Annotations)
 export {
@@ -154,11 +152,140 @@ export {
 } from './annotation-assembly';
 export type { AssembledAnnotation } from './annotation-assembly';
 
+// W3C Web Annotation accessors (target/body/selector helpers + type guards)
+export {
+  getBodySource,
+  getBodyType,
+  isBodyResolved,
+  getTargetSource,
+  getTargetSelector,
+  hasTargetSelector,
+  isHighlight,
+  isReference,
+  isAssessment,
+  isComment,
+  isTag,
+  getCommentText,
+  isStubReference,
+  isResolvedReference,
+  getExactText,
+  getAnnotationExactText,
+  getPrimarySelector,
+  getTextQuoteSelector,
+  extractBoundingBox,
+} from './web-annotation-utils';
+export type {
+  TextPositionSelector,
+  TextQuoteSelector,
+  SvgSelector,
+  FragmentSelector,
+} from './web-annotation-utils';
+
+// ResourceDescriptor accessors
+export {
+  getResourceId,
+  getPrimaryRepresentation,
+  getPrimaryMediaType,
+  getChecksum,
+  getLanguage,
+  getStorageUri,
+  getCreator,
+  getDerivedFrom,
+  isArchived,
+  getResourceEntityTypes,
+  isDraft,
+  getNodeEncoding,
+  decodeRepresentation,
+} from './resource-utils';
+
+// Transport contract — interfaces every concrete transport must satisfy.
+export type {
+  ITransport,
+  IBackendOperations,
+  IContentTransport,
+  BackendDownload,
+  PutBinaryRequest,
+  PutBinaryOptions,
+  PutBinaryProgress,
+  ConnectionState,
+  ProgressEvent,
+  ProgressCallback,
+  HealthCheckResponse,
+  StatusResponse,
+  UserResponse,
+  UpdateUserRequest,
+  UpdateUserResponse,
+  ListUsersResponse,
+} from './transport';
+
+// Channel set every concrete transport bridges into the client's bus.
+export { BRIDGED_CHANNELS, type BridgedChannel } from './bridged-channels';
+
+// Fuzzy text anchoring (annotation re-anchoring under content edits)
+export {
+  normalizeText,
+  buildContentCache,
+  findBestTextMatch,
+  findTextWithContext,
+  verifyPosition,
+} from './fuzzy-anchor';
+export type { TextPosition, MatchQuality, ContentCache } from './fuzzy-anchor';
+
+// Locale info table
+export {
+  LOCALES,
+  getLocaleInfo,
+  getLocaleNativeName,
+  getLocaleEnglishName,
+  formatLocaleDisplay,
+  getAllLocaleCodes,
+} from './locales';
+export type { LocaleInfo } from './locales';
+
+// SVG utilities
+export {
+  createRectangleSvg,
+  createPolygonSvg,
+  createCircleSvg,
+  parseSvgSelector,
+  normalizeCoordinates,
+  scaleSvgToNative,
+} from './svg-utils';
+export type { Point, BoundingBox } from './svg-utils';
+
+// Text context extraction (depends on fuzzy-anchor)
+export { extractContext, validateAndCorrectOffsets } from './text-context';
+export type { ValidatedAnnotation } from './text-context';
+
+// Text encoding helpers
+export { extractCharset, decodeWithCharset } from './text-encoding';
+
+// Schema validation helpers
+export {
+  JWTTokenSchema,
+  validateData,
+  isValidEmail,
+} from './validation';
+export type { ValidationSuccess, ValidationFailure, ValidationResult } from './validation';
+
+// MIME type helpers
+export {
+  getExtensionForMimeType,
+  isImageMimeType,
+  isTextMimeType,
+  isPdfMimeType,
+  getMimeCategory,
+} from './mime-utils';
+export type { MimeCategory } from './mime-utils';
+
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 
 // Annotation types
-export type { AnnotationCategory, CreateAnnotationInternal } from './annotation-types';
+export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from './annotation-types';
+
+// Tag-schema type aliases (the schemas themselves are runtime-registered per KB)
+export type { TagSchema, TagCategory } from './tag-schemas';
 
 // Auth types
 export type { GoogleAuthRequest } from './auth-types';

@@ -543,8 +543,8 @@ Start simple, add features incrementally.
 - [OpenAPI Spec](../../../specs/README.md) - API specification for client generation (source in [../../../specs/src/](../../../specs/src/))
 
 ### System Documentation
-- [System Architecture](../../../docs/ARCHITECTURE.md) - Overall platform design
-- [W3C Web Annotation](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation model
+- [System Documentation](../../../docs/system/README.md) - Overall platform design
+- [W3C Web Annotation](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - Annotation model
 
 ### External Resources
 - [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) - Standard

@@ -28,7 +28,8 @@
     "creationMethod": "Aanmaakmethode",
     "attributedTo": "Toegeschreven aan",
     "derivedFrom": "Afgeleid van",
-    "generatedBy": "Gegenereerd door"
+    "generatedBy": "Gegenereerd door",
+    "storageUri": "Opslag"
   },
   "CollaborationPanel": {
     "title": "Samenwerking",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Labels",
     "noTags": "Nog geen labels. Gebruik AI-annotatie om structurele rollen te identificeren.",
+    "noSchemas": "Geen tagschema's geregistreerd voor deze kennisbasis. Een KB-beheerder moet ten minste één structureel-analyseschema registreren (bv. via de `register-tag-schemas`-skill) voordat tagging gebruikt kan worden.",
     "annotateTags": "Labels annoteren",
     "selectSchema": "Framework selecteren",
-    "schemaLegal": "Juridische analyse (IRAC)",
-    "schemaScientific": "Wetenschappelijk artikel (IMRAD)",
-    "schemaArgument": "Argumentstructuur (Toulmin)",
     "selectCategories": "Categorieën selecteren",
-    "categoryIssue": "Kwestie",
-    "categoryRule": "Regel",
-    "categoryApplication": "Toepassing",
-    "categoryConclusion": "Conclusie",
-    "categoryIntroduction": "Inleiding",
-    "categoryMethods": "Methoden",
-    "categoryResults": "Resultaten",
-    "categoryDiscussion": "Discussie",
-    "categoryClaim": "Bewering",
-    "categoryEvidence": "Bewijs",
-    "categoryWarrant": "Grondslag",
-    "categoryCounterargument": "Tegenargument",
-    "categoryRebuttal": "Weerlegging",
     "annotate": "Annoteren",
     "annotating": "Annoteren...",
     "cancel": "Annuleren",
@@ -376,5 +362,8 @@
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
     "searching": "Zoeken...",
     "search": "Zoeken"
+  },
+  "History": {
+    "embeddingComputed": "Embedding berekend"
   }
 }

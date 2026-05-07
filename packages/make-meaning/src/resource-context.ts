@@ -5,12 +5,11 @@
  * Does NOT touch the graph - graph queries go through GraphContext
  */
 
-import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
-import type { components } from '@semiont/core';
+import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import type { ResourceDescriptor } from '@semiont/core';
 
 export interface ListResourcesFilters {
   search?: string;
@@ -31,38 +30,44 @@ export class ResourceContext {
   }
 
   /**
-   * List all resources by scanning view storage
+   * List resources, optionally filtered.
+   *
+   * When `search` is set, delegates to `kb.graph.searchResources`, which runs
+   * the name match in the graph engine instead of scanning every view in JS.
+   * The graph result is then narrowed by `archived` if requested.
+   *
+   * When `search` is unset, falls back to scanning all materialized views.
+   * (TODO: also push the listing path through the graph for large KBs.)
    */
   static async listResources(filters: ListResourcesFilters | undefined, kb: KnowledgeBase): Promise<ResourceDescriptor[]> {
+    if (filters?.search) {
+      const matches = await kb.graph.searchResources(filters.search);
+      const filtered = filters.archived !== undefined
+        ? matches.filter((doc) => doc.archived === filters.archived)
+        : matches;
+      return ResourceContext.sortByDateDesc(filtered);
+    }
+
     const allViews = await kb.views.getAll();
     const resources: ResourceDescriptor[] = [];
 
     for (const view of allViews) {
       const doc = view.resource;
-
-      // Apply filters
       if (filters?.archived !== undefined && doc.archived !== filters.archived) {
         continue;
       }
-
-      if (filters?.search) {
-        const searchLower = filters.search.toLowerCase();
-        if (!doc.name.toLowerCase().includes(searchLower)) {
-          continue;
-        }
-      }
-
       resources.push(doc);
     }
 
-    // Sort by creation date (newest first)
-    resources.sort((a, b) => {
+    return ResourceContext.sortByDateDesc(resources);
+  }
+
+  private static sortByDateDesc(resources: ResourceDescriptor[]): ResourceDescriptor[] {
+    return [...resources].sort((a, b) => {
       const aTime = a.dateCreated ? new Date(a.dateCreated).getTime() : 0;
       const bTime = b.dateCreated ? new Date(b.dateCreated).getTime() : 0;
       return bTime - aTime;
     });
-
-    return resources;
   }
 
   /**
@@ -73,7 +78,7 @@ export class ResourceContext {
     resources: ResourceDescriptor[],
     kb: KnowledgeBase
   ): Promise<Array<ResourceDescriptor & { content: string }>> {
-    return await Promise.all(
+    return Promise.all(
       resources.map(async (doc) => {
         try {
           if (doc.storageUri) {

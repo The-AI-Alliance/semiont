@@ -28,7 +28,8 @@
     "creationMethod": "Luontitapa",
     "attributedTo": "Tekijä",
     "derivedFrom": "Johdettu",
-    "generatedBy": "Luonut"
+    "generatedBy": "Luonut",
+    "storageUri": "Tallennuspaikka"
   },
   "CollaborationPanel": {
     "title": "Yhteistyö",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Tunnisteet",
     "noTags": "Ei vielä tunnisteita. Käytä tekoälymerkintää tunnistaaksesi rakenteellisia rooleja.",
+    "noSchemas": "Tälle tietämyspohjalle ei ole rekisteröity tunnisteskeemoja. KB-järjestelmänvalvojan on rekisteröitävä vähintään yksi rakenneanalyysi-skeema (esim. `register-tag-schemas`-taidolla), ennen kuin tunnistamista voi käyttää.",
     "annotateTags": "Merkitse tunnisteet",
     "selectSchema": "Valitse kehys",
-    "schemaLegal": "Oikeudellinen analyysi (IRAC)",
-    "schemaScientific": "Tieteellinen julkaisu (IMRAD)",
-    "schemaArgument": "Argumenttirakenne (Toulmin)",
     "selectCategories": "Valitse kategoriat",
-    "categoryIssue": "Kysymys",
-    "categoryRule": "Sääntö",
-    "categoryApplication": "Soveltaminen",
-    "categoryConclusion": "Johtopäätös",
-    "categoryIntroduction": "Johdanto",
-    "categoryMethods": "Menetelmät",
-    "categoryResults": "Tulokset",
-    "categoryDiscussion": "Keskustelu",
-    "categoryClaim": "Väite",
-    "categoryEvidence": "Todisteet",
-    "categoryWarrant": "Peruste",
-    "categoryCounterargument": "Vastaväite",
-    "categoryRebuttal": "Kumoaminen",
     "annotate": "Merkitse",
     "annotating": "Merkinnöitä tehdään...",
     "cancel": "Peruuta",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
     "searching": "Haetaan...",
     "search": "Hae"
+  },
+  "History": {
+    "embeddingComputed": "Upotus laskettu"
   }
 }

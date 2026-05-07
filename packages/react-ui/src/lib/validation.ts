@@ -5,8 +5,7 @@
  * For generic validation utilities, see @semiont/api-client/utils/validation
  */
 
-import { isValidEmail, type ValidationResult } from '@semiont/api-client';
-
+import { isValidEmail, type ValidationResult } from '@semiont/core';
 /**
  * Image URL validation with security checks (browser-specific)
  *

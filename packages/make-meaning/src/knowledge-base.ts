@@ -9,10 +9,11 @@
  * - Content Store (working-tree files, URI-addressed) — via WorkingTreeStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
  * - Graph Consumer (event-to-graph projection) — via GraphDBConsumer
- * - Vectors (semantic search) — via VectorStore (optional)
- * - Smelter (event-to-vector projection) — via Smelter (optional)
+ * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
- * The Gatherer and Matcher are the only actors that read from these stores directly.
+ * The Smelter (event-to-vector projection) runs as an external actor
+ * via @semiont/make-meaning/smelter-main. It subscribes to domain events
+ * via the EventBus gateway, embeds content, and writes to Qdrant directly.
  */
 
 import type { EventStore } from '@semiont/event-sourcing';
@@ -22,9 +23,7 @@ import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventBus, Logger } from '@semiont/core';
-import type { EmbeddingProvider, ChunkingConfig } from '@semiont/vectors';
 import { GraphDBConsumer } from './graph/consumer.js';
-import { Smelter } from './smelter.js';
 
 export interface KnowledgeBase {
   eventStore:    EventStore;
@@ -33,15 +32,11 @@ export interface KnowledgeBase {
   graph:         GraphDatabase;
   graphConsumer: GraphDBConsumer;
   vectors?:      VectorStore;
-  smelter?:      Smelter;
   projectionsDir: string;
 }
 
 export interface CreateKnowledgeBaseOptions {
   vectorStore?: VectorStore;
-  embeddingProvider?: EmbeddingProvider;
-  eventBus?: EventBus;
-  chunkingConfig?: ChunkingConfig;
   skipRebuild?: boolean;
 }
 
@@ -49,10 +44,11 @@ export async function createKnowledgeBase(
   eventStore: EventStore,
   project: SemiontProject,
   graphDb: GraphDatabase,
+  eventBus: EventBus,
   logger: Logger,
   options?: CreateKnowledgeBaseOptions,
 ): Promise<KnowledgeBase> {
-  const views = new FilesystemViewStorage(project);
+  const views = new FilesystemViewStorage(project, logger.child({ component: 'view-storage' }));
   const content = new WorkingTreeStore(
     project,
     logger.child({ component: 'working-tree-store' }),
@@ -60,11 +56,18 @@ export async function createKnowledgeBase(
   const graphConsumer = new GraphDBConsumer(
     eventStore,
     graphDb,
+    eventBus,
     logger.child({ component: 'graph-consumer' }),
   );
   await graphConsumer.initialize();
 
   if (!options?.skipRebuild) {
+    // Rebuild materialized views from the event log first. The Browser actor
+    // reads from these views, so they must be populated before any request is
+    // served. The views layer is the third derived read model alongside the
+    // graph and vectors; this call mirrors graphConsumer.rebuildAll() and
+    // smelter.rebuildAll() so that an ephemeral stateDir wipe is recoverable.
+    await eventStore.views.rebuildAll(eventStore.log);
     await graphConsumer.rebuildAll();
   }
 
@@ -73,23 +76,8 @@ export async function createKnowledgeBase(
     projectionsDir: project.projectionsDir,
   };
 
-  // Initialize vector search if configured
-  if (options?.vectorStore && options?.embeddingProvider && options?.eventBus) {
+  if (options?.vectorStore) {
     kb.vectors = options.vectorStore;
-    kb.smelter = new Smelter(
-      eventStore,
-      options.eventBus,
-      options.vectorStore,
-      options.embeddingProvider,
-      content,
-      logger.child({ component: 'smelter' }),
-      options.chunkingConfig,
-    );
-    await kb.smelter.initialize();
-
-    if (!options.skipRebuild) {
-      await kb.smelter.rebuildAll();
-    }
   }
 
   return kb;

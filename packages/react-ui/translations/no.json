@@ -28,7 +28,8 @@
     "creationMethod": "Opprettelsesmetode",
     "attributedTo": "Tilskrevet",
     "derivedFrom": "Avledet fra",
-    "generatedBy": "Generert av"
+    "generatedBy": "Generert av",
+    "storageUri": "Lagring"
   },
   "CollaborationPanel": {
     "title": "Samarbeid",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "Merker",
     "noTags": "Ingen merker ennå. Bruk AI-annotering for å identifisere strukturelle roller.",
+    "noSchemas": "Ingen tag-skjemaer registrert for denne kunnskapsbasen. En KB-administrator må registrere minst ett strukturanalyse-skjema (f.eks. via `register-tag-schemas`-ferdigheten) før tagging kan brukes.",
     "annotateTags": "Annotér merker",
     "selectSchema": "Velg rammeverk",
-    "schemaLegal": "Juridisk analyse (IRAC)",
-    "schemaScientific": "Vitenskapelig artikkel (IMRAD)",
-    "schemaArgument": "Argumentstruktur (Toulmin)",
     "selectCategories": "Velg kategorier",
-    "categoryIssue": "Problem",
-    "categoryRule": "Regel",
-    "categoryApplication": "Anvendelse",
-    "categoryConclusion": "Konklusjon",
-    "categoryIntroduction": "Introduksjon",
-    "categoryMethods": "Metoder",
-    "categoryResults": "Resultater",
-    "categoryDiscussion": "Diskusjon",
-    "categoryClaim": "Påstand",
-    "categoryEvidence": "Bevis",
-    "categoryWarrant": "Begrunnelse",
-    "categoryCounterargument": "Motargument",
-    "categoryRebuttal": "Tilbakevisning",
     "annotate": "Annotér",
     "annotating": "Annoterer...",
     "cancel": "Avbryt",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "Bruk AI til å score resultater etter semantisk relevans",
     "searching": "Søker...",
     "search": "Søk"
+  },
+  "History": {
+    "embeddingComputed": "Embedding beregnet"
   }
 }

@@ -2,12 +2,13 @@
 
 import React, { useRef, useCallback, useEffect } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
-import type { StoredEventLike, ResourceEventType } from '@semiont/core';
+import type { StoredEventLike, PersistedEventType } from '@semiont/core';
 import { getAnnotationUriFromEvent } from '@semiont/core';
 import {
   formatEventType,
   getEventEmoji,
   formatRelativeTime,
+  formatUserId,
   getEventDisplayContent,
   getEventEntityTypes,
   getResourceCreationDetails,
@@ -85,7 +86,7 @@ export function HistoryEvent({
   const eventWrapperProps = annotationUri ? {
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationUri),
-    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type as ResourceEventType, t) }),
+    'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.type as PersistedEventType, t) }),
     className: 'semiont-history-event',
     'data-related': isRelated ? 'true' : 'false',
     'data-interactive': 'true'
@@ -109,7 +110,7 @@ export function HistoryEvent({
           onMouseEnter={handleEmojiMouseEnter}
           onMouseLeave={handleEmojiMouseLeave}
         >
-          {getEventEmoji(event.event.type as ResourceEventType, event.event.payload)}
+          {getEventEmoji(event.type as PersistedEventType, event.payload)}
         </span>
         {displayContent ? (
           displayContent.isTag ? (
@@ -127,16 +128,16 @@ export function HistoryEvent({
           )
         ) : (
           <span className="semiont-history-event__text">
-            {formatEventType(event.event.type as ResourceEventType, t, event.event.payload)}
+            {formatEventType(event.type as PersistedEventType, t, event.payload)}
           </span>
         )}
-        {event.event.userId && (
+        {event.userId && (
           <span className="semiont-history-event__user">
-            {event.event.userId}
+            {formatUserId(event.userId)}
           </span>
         )}
         <span className="semiont-history-event__timestamp">
-          {formatRelativeTime(event.event.timestamp, t)}
+          {formatRelativeTime(event.timestamp, t)}
         </span>
       </div>
       {entityTypes.length > 0 && (
@@ -155,7 +156,7 @@ export function HistoryEvent({
       {creationDetails && (
         <div className="semiont-history-event__details">
           <span className="semiont-history-event__detail">
-            {t('user')}: <span className="semiont-history-event__detail-value">{creationDetails.userId}</span>
+            {t('user')}: <span className="semiont-history-event__detail-value">{creationDetails.userId ? formatUserId(creationDetails.userId) : ''}</span>
           </span>
           <span className="semiont-history-event__detail">
             {t('method')}: <span className="semiont-history-event__detail-value semiont-history-event__detail-value--uppercase">{creationDetails.method}</span>

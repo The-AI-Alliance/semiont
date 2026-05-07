@@ -1,38 +1,28 @@
 /**
  * Frontend-specific test utilities
  *
- * Provides renderWithProviders that wraps components with ALL necessary providers
- * for testing, including react-ui providers and the JWT auth context.
+ * Provides renderWithProviders that wraps components with the providers a
+ * frontend test typically needs.
  */
 
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   TranslationProvider,
-  ApiClientProvider,
-  SessionProvider as ReactUiSessionProvider,
-  OpenResourcesProvider,
   ToastProvider,
+  SemiontProvider,
 } from '@semiont/react-ui';
+import { SemiontBrowser, InMemorySessionStorage, createHttpSessionFactory } from '@semiont/sdk';
 import {
   defaultMocks,
   TestProvidersOptions,
   createMockTranslationManager,
-  createMockSessionManager,
-  createMockOpenResourcesManager,
 } from '@semiont/react-ui/test-utils';
 import type {
   TranslationManager,
-  SessionManager,
-  OpenResourcesManager,
 } from '@semiont/react-ui';
 
-export interface FrontendTestOptions extends Omit<TestProvidersOptions, 'queryClient'> {
-  /**
-   * Optional QueryClient instance for testing
-   */
-  queryClient?: QueryClient;
+export interface FrontendTestOptions extends TestProvidersOptions {
 }
 
 /**
@@ -44,34 +34,23 @@ export function renderWithProviders(
 ): RenderResult {
   const {
     translationManager = defaultMocks.translationManager,
-    apiBaseUrl = 'http://localhost:4000',
-    sessionManager = defaultMocks.sessionManager,
-    openResourcesManager = defaultMocks.openResourcesManager,
-    queryClient: providedQueryClient,
+    browser,
     ...renderOptions
   } = options || {};
 
-  const testQueryClient: QueryClient = providedQueryClient ?? new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
+  const effectiveBrowser = browser ?? new SemiontBrowser({
+    storage: new InMemorySessionStorage(),
+    sessionFactory: createHttpSessionFactory(),
   });
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider baseUrl={apiBaseUrl}>
-          <ReactUiSessionProvider sessionManager={sessionManager}>
-            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <QueryClientProvider client={testQueryClient}>
-                <ToastProvider>
-                  {children}
-                </ToastProvider>
-              </QueryClientProvider>
-            </OpenResourcesProvider>
-          </ReactUiSessionProvider>
-        </ApiClientProvider>
+        <SemiontProvider browser={effectiveBrowser}>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </SemiontProvider>
       </TranslationProvider>
     );
   }
@@ -85,12 +64,8 @@ export { vi } from 'vitest';
 export {
   defaultMocks,
   createMockTranslationManager,
-  createMockSessionManager,
-  createMockOpenResourcesManager,
 };
 export type {
   TestProvidersOptions,
   TranslationManager,
-  SessionManager,
-  OpenResourcesManager,
 };

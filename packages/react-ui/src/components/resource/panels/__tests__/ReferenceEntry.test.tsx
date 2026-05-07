@@ -5,9 +5,10 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import type { components } from '@semiont/core';
+import { BindNamespace } from '@semiont/sdk';
 import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 
-type Annotation = components['schemas']['Annotation'];
+import type { Annotation } from '@semiont/core';
 
 // Stable mock functions defined outside vi.mock to avoid re-render loops
 const mockGetAnnotationExactText = vi.fn();
@@ -20,8 +21,8 @@ const mockGetEntityTypes = vi.fn();
 const mockNavigate = vi.fn();
 const mockHoverProps = { onMouseEnter: vi.fn(), onMouseLeave: vi.fn() };
 
-vi.mock('@semiont/api-client', async () => {
-  const actual = await vi.importActual('@semiont/api-client');
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
   return {
     ...actual,
     getAnnotationExactText: (...args: unknown[]) => mockGetAnnotationExactText(...args),
@@ -45,7 +46,7 @@ vi.mock('../../../../hooks/useObservableBrowse', () => ({
   useObservableExternalNavigation: () => mockNavigate,
 }));
 
-vi.mock('../../../../hooks/useBeckonFlow', () => ({
+vi.mock('../../../../hooks/useHoverEmitter', () => ({
   useHoverEmitter: () => mockHoverProps,
 }));
 
@@ -303,28 +304,26 @@ describe('ReferenceEntry', () => {
       expect(unlinkButton).not.toBeInTheDocument();
     });
 
-    it('should emit bind:update-body on unlink click', async () => {
+    it('should call client.bind.body on unlink click', async () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
-      const unlinkHandler = vi.fn();
 
-      const { container, eventBus } = renderWithProviders(
+      const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockResolvedValue(undefined);
+
+      const { container } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={true} />,
-        { returnEventBus: true }
       );
-
-      const subscription = eventBus!.get('bind:update-body').subscribe(unlinkHandler);
 
       const unlinkButton = container.querySelector('.semiont-reference-unlink')!;
       await userEvent.click(unlinkButton);
 
-      expect(unlinkHandler).toHaveBeenCalledWith({
-        annotationId: 'ref-1',
-        resourceId: 'resource-1',
-        operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc' } }],
-      });
+      expect(bindSpy).toHaveBeenCalledWith(
+        'resource-1',
+        'ref-1',
+        [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc', purpose: 'linking' } }],
+      );
 
-      subscription.unsubscribe();
+      bindSpy.mockRestore();
     });
   });
 

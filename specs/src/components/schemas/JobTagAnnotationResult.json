@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "description": "Result of a completed tag-annotation job.",
+  "properties": {
+    "tagsFound": { "type": "integer" },
+    "tagsCreated": { "type": "integer" },
+    "byCategory": {
+      "type": "object",
+      "description": "Count of tags created per category",
+      "additionalProperties": { "type": "integer" }
+    }
+  },
+  "required": ["tagsFound", "tagsCreated", "byCategory"]
+}

@@ -1,0 +1,32 @@
+{
+  "get": {
+    "summary": "Export cookie data (GDPR)",
+    "description": "Export the current user's cookie-related data as a downloadable JSON file. Response sets `Content-Disposition: attachment; filename=\"cookie-data-export-<timestamp>.json\"`.",
+    "tags": ["Cookies"],
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "responses": {
+      "200": {
+        "description": "User cookie data as attachment",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CookieExportResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -118,7 +118,7 @@ const { resource } = await client.createResource({
 All streaming operations for AI-powered detection and generation:
 
 ```typescript
-const stream = client.sse.detectAnnotations(resourceId(resource['@id']), {
+const stream = client.sse.markReferences(resourceId(resource['@id']), {
   entityTypes: ['Person', 'Organization']
 });
 

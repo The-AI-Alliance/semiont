@@ -28,7 +28,8 @@
     "creationMethod": "作成方法",
     "attributedTo": "帰属先",
     "derivedFrom": "派生元",
-    "generatedBy": "生成ツール"
+    "generatedBy": "生成ツール",
+    "storageUri": "ストレージ"
   },
   "CollaborationPanel": {
     "title": "コラボレーション",
@@ -147,25 +148,10 @@
   "TaggingPanel": {
     "title": "タグ",
     "noTags": "まだタグはありません。AIアノテーションを使用して構造的役割を識別してください。",
+    "noSchemas": "このナレッジベースには登録されたタグスキーマがありません。タグ付けを使用するには、KB管理者が少なくとも1つの構造分析スキーマを登録する必要があります（例: `register-tag-schemas` スキル経由）。",
     "annotateTags": "タグをアノテーション",
     "selectSchema": "フレームワークを選択",
-    "schemaLegal": "法律分析（IRAC）",
-    "schemaScientific": "科学論文（IMRAD）",
-    "schemaArgument": "論証構造（Toulmin）",
     "selectCategories": "カテゴリを選択",
-    "categoryIssue": "争点",
-    "categoryRule": "ルール",
-    "categoryApplication": "適用",
-    "categoryConclusion": "結論",
-    "categoryIntroduction": "序論",
-    "categoryMethods": "方法",
-    "categoryResults": "結果",
-    "categoryDiscussion": "考察",
-    "categoryClaim": "主張",
-    "categoryEvidence": "証拠",
-    "categoryWarrant": "論拠",
-    "categoryCounterargument": "反論",
-    "categoryRebuttal": "再反論",
     "annotate": "アノテーション",
     "annotating": "アノテーション中...",
     "cancel": "キャンセル",
@@ -373,5 +359,8 @@
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
     "searching": "検索中...",
     "search": "検索"
+  },
+  "History": {
+    "embeddingComputed": "埋め込み計算済み"
   }
 }

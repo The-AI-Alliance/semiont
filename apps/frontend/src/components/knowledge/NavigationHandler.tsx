@@ -31,8 +31,8 @@ export function NavigationHandler() {
   }, [router]);
 
   useEventSubscriptions({
-    'browse:external-navigate': handleExternalNavigate,
-    'browse:router-push': handleRouterPush,
+    'nav:external': handleExternalNavigate,
+    'nav:push': handleRouterPush,
   });
 
   // This component only manages navigation, doesn't render anything

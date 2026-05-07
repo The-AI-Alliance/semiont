@@ -74,26 +74,32 @@ Import the styles in your app's main CSS file:
 import {
   TranslationProvider,
   ApiClientProvider,
-  SessionProvider,
+  KnowledgeBaseSessionProvider,
+  ProtectedErrorBoundary,
+  SessionExpiredModal,
+  PermissionDeniedModal,
 } from '@semiont/react-ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 function App({ children }) {
   const translationManager = useTranslationManager(); // Your implementation
-  const apiClientManager = useApiClientManager();     // Your implementation
-  const sessionManager = useSessionManager();         // Your implementation
   const queryClient = new QueryClient();
 
   return (
-    <SessionProvider sessionManager={sessionManager}>
-      <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider apiClientManager={apiClientManager}>
-          <QueryClientProvider client={queryClient}>
-            {children}
-          </QueryClientProvider>
+    <TranslationProvider translationManager={translationManager}>
+      <QueryClientProvider client={queryClient}>
+        <ApiClientProvider baseUrl="https://api.example.com">
+          {/* Mount KnowledgeBaseSessionProvider only on protected routes */}
+          <KnowledgeBaseSessionProvider>
+            <ProtectedErrorBoundary>
+              <SessionExpiredModal />
+              <PermissionDeniedModal />
+              {children}
+            </ProtectedErrorBoundary>
+          </KnowledgeBaseSessionProvider>
         </ApiClientProvider>
-      </TranslationProvider>
-    </SessionProvider>
+      </QueryClientProvider>
+    </TranslationProvider>
   );
 }
 ```
@@ -187,13 +193,26 @@ See [docs/STYLES.md](docs/STYLES.md) for detailed CSS documentation.
 
 All cross-cutting concerns use the Provider Pattern:
 
-- **SessionProvider** - Authentication state management
+- **KnowledgeBaseSessionProvider** - KB list, active KB, validated session, modal state — one merged provider that's the single source of truth for "which KB and what's the session against it"
 - **TranslationProvider** - Internationalization
 - **ApiClientProvider** - Authenticated API client
 - **OpenResourcesProvider** - Recently opened resources
 - **RoutingContext** - Framework-agnostic navigation
 
-See [docs/PROVIDERS.md](docs/PROVIDERS.md) for details.
+See [docs/SESSION.md](docs/SESSION.md) for details.
+
+### Page state machines
+
+`@semiont/react-ui` houses the framework-neutral state machinery for the Semiont web frontend's specific pages and shell. These are RxJS-based factories (no React inside; pure observables and async functions) but they're shaped around the web frontend's page taxonomy, so they belong with the components that render them rather than in `@semiont/sdk`:
+
+- **Shell** — `createShellStateUnit` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy), `createSessionStateUnit` (session-scoped logout)
+- **Pages** — `createComposePageStateUnit`, `createResourceViewerPageStateUnit`, `createResourceLoaderStateUnit`
+- **Admin** — `createAdminUsersStateUnit`, `createAdminSecurityStateUnit`, `createExchangeStateUnit` (backup/restore + import/export)
+- **Auth + discovery + moderation** — `createWelcomeStateUnit`, `createDiscoverStateUnit`, `createEntityTagsStateUnit`
+
+Each lives in `src/features/<feature>/state/` (or `src/state/` for cross-feature ones) next to the components that consume it. The `useStateUnit` hook wires them into React lifecycles.
+
+Use them via `import { createComposePageStateUnit } from '@semiont/react-ui'`. UI-shape-neutral state machines (flow VMs, worker adapters, search pipeline) continue to live in `@semiont/sdk` and are re-exported from here for convenience.
 
 ### API Integration
 
@@ -230,7 +249,7 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 
 ## Documentation
 
-- [PROVIDERS.md](docs/PROVIDERS.md) - Provider Pattern and manager interfaces
+- [SESSION.md](docs/SESSION.md) - Provider Pattern and manager interfaces
 - [INTERNATIONALIZATION.md](docs/INTERNATIONALIZATION.md) - Translation approach
 - [TESTING.md](docs/TESTING.md) - Testing utilities and patterns
 - [API-INTEGRATION.md](docs/API-INTEGRATION.md) - Working with the Semiont API
@@ -268,11 +287,14 @@ export function useTranslationManager() {
 
 export function useApiClientManager() {
   const { data: session } = useSession();
+  const [token$] = useState(() => new BehaviorSubject<AccessToken | null>(null));
+
+  useEffect(() => {
+    token$.next(session?.backendToken ? accessToken(session.backendToken) : null);
+  }, [session?.backendToken, token$]);
 
   return {
-    client: session?.backendToken
-      ? new SemiontApiClient({ accessToken: session.backendToken })
-      : null
+    client: new SemiontApiClient({ baseUrl, eventBus, token$ }),
   };
 }
 ```

@@ -3,7 +3,8 @@
 
 import { GraphDatabase } from '../interface';
 import { getEntityTypes } from '@semiont/ontology';
-import type { components, Logger } from '@semiont/core';
+import type { Logger } from '@semiont/core';
+import { annotationId as makeAnnotationId } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -16,17 +17,9 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  getBodySource,
-  getExactText,
-  getTargetSource,
-  getTargetSelector,
-  getPrimaryRepresentation,
-  getResourceId
-} from '@semiont/api-client';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
+import { getBodySource, getExactText, getTargetSource, getTargetSelector, getPrimaryRepresentation, getResourceId } from '@semiont/core';
+import type { ResourceDescriptor } from '@semiont/core';
+import type { Annotation } from '@semiont/core';
 
 // Dynamic imports for AWS SDK and Gremlin
 let NeptuneClient: any;
@@ -102,6 +95,9 @@ function vertexToResource(vertex: any): ResourceDescriptor {
 
   const sourceResourceId = getValue('sourceResourceId');
   if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
+
+  const storageUri = getValue('storageUri');
+  if (storageUri) resource.storageUri = storageUri;
 
   return resource;
 }
@@ -377,6 +373,9 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       if (resource.sourceResourceId) {
         vertex.property('sourceResourceId', resource.sourceResourceId);
       }
+      if (resource.storageUri) {
+        vertex.property('storageUri', resource.storageUri);
+      }
 
       await vertex.next();
 
@@ -465,8 +464,13 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
       
       if (filter.search) {
-        // Case-insensitive search in resource name
-        traversal = traversal.has('name', TextP.containing(filter.search));
+        // Search across name and storageUri (case-insensitive substring)
+        traversal = traversal.filter(
+          process.statics.or(
+            process.statics.has('name', TextP.containing(filter.search)),
+            process.statics.has('storageUri', TextP.containing(filter.search))
+          )
+        );
       }
       
       // Count total before pagination
@@ -494,15 +498,20 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   
   async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
     try {
-      // Use Neptune's text search capabilities
+      // Search across name and storageUri (case-insensitive substring)
       const results = await this.g.V()
         .hasLabel('Resource')
-        .has('name', TextP.containing(query))
+        .filter(
+          process.statics.or(
+            process.statics.has('name', TextP.containing(query)),
+            process.statics.has('storageUri', TextP.containing(query))
+          )
+        )
         .order().by('created', order.desc)
         .limit(limit)
         .elementMap()
         .toList();
-      
+
       return results.map(vertexToResource);
     } catch (error) {
       this.logger?.error('Failed to search resources in Neptune', { error });
@@ -517,7 +526,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
-      id,
+      id: makeAnnotationId(id),
       motivation: input.motivation,
       target: input.target,
       body: input.body,
